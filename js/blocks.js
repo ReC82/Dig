@@ -1,17 +1,10 @@
 /**
  * blocks.js
  * Catalogue des blocs et logique de spawn / frappe.
- * Dépend de : rien (GameState lit la profondeur en dehors)
+ * Dépend de : GameState (pour lire le niveau luck au moment du spawn)
  */
 const Blocks = {
 
-  /**
-   * Catalogue complet.
-   * - rarityKey  : utilisé comme suffixe CSS (.rarity-<key>)
-   * - accent     : couleur des particules à la destruction
-   * - weight     : poids dans le tirage aléatoire à la profondeur donnée
-   * - isGem/isChest : déclenchent des effets spéciaux dans main.js
-   */
   TYPES: [
     // ── Terre ────────────────────────────────────────────────────────────────
     {
@@ -135,21 +128,33 @@ const Blocks = {
 
   current: null,
 
-  /** Tirage aléatoire pondéré parmi les blocs disponibles à cette profondeur. */
+  // Raretés boostées par l'upgrade Chance
+  _BOOSTED_RARITIES: new Set(['rare', 'epique', 'legendaire']),
+
+  /** Tirage pondéré en tenant compte du niveau Chance. */
   _pickType(depth) {
-    const pool = this.TYPES.filter(t => depth >= t.minDepth && depth <= t.maxDepth);
+    const luckLevel = GameState.upgrades ? (GameState.upgrades.luck || 0) : 0;
+    const luckMult  = 1 + luckLevel * 0.20;
+
+    const pool = this.TYPES
+      .filter(t => depth >= t.minDepth && depth <= t.maxDepth)
+      .map(t => ({
+        type: t,
+        w: t.weight * (this._BOOSTED_RARITIES.has(t.rarityKey) ? luckMult : 1),
+      }));
+
     if (pool.length === 0) return this.TYPES[2]; // fallback : Pierre
 
-    const total = pool.reduce((s, t) => s + t.weight, 0);
+    const total = pool.reduce((s, e) => s + e.w, 0);
     let rand = Math.random() * total;
-    for (const t of pool) {
-      rand -= t.weight;
-      if (rand <= 0) return t;
+    for (const e of pool) {
+      rand -= e.w;
+      if (rand <= 0) return e.type;
     }
-    return pool[pool.length - 1];
+    return pool[pool.length - 1].type;
   },
 
-  /** Crée un nouveau bloc et le stocke dans `current`. */
+  /** Crée un nouveau bloc adapté à la profondeur. */
   spawn(depth) {
     const type   = this._pickType(depth);
     const scale  = 1 + (depth - 1) * 0.12;
@@ -166,7 +171,6 @@ const Blocks = {
     return this.current.hp === 0;
   },
 
-  /** Ratio HP restants (0..1). */
   hpRatio() {
     if (!this.current) return 0;
     return this.current.hp / this.current.maxHp;

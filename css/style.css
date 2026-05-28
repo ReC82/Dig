@@ -30,7 +30,7 @@ body {
 #app {
   width: 100%;
   max-width: 440px;
-  padding: 0 16px 40px;
+  padding: 0 16px 48px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -50,7 +50,7 @@ h1 {
   text-shadow: 0 0 24px rgba(245, 197, 24, 0.45);
 }
 
-/* ── Stats (5 colonnes) ─────────────────────── */
+/* ── Stats ──────────────────────────────────── */
 #stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -66,7 +66,7 @@ h1 {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  min-width: 0; /* empêche le débordement en flex/grid */
+  min-width: 0;
 }
 
 .stat .label {
@@ -83,7 +83,6 @@ h1 {
   color: var(--gold);
 }
 
-/* Gemmes : couleur violette pour se distinguer */
 #stat-gems { color: #c084fc; }
 
 /* ── Game area ──────────────────────────────── */
@@ -162,7 +161,6 @@ h1 {
   z-index: 1;
 }
 
-/* Glow par rareté */
 #block.rarity-rare {
   border-color: rgba(59,130,246,0.5);
   box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 0 22px rgba(59,130,246,0.25),
@@ -179,7 +177,6 @@ h1 {
               inset 0 1px 0 rgba(255,255,255,0.18);
 }
 
-/* Overlay de craquelure */
 #block::after {
   content: '';
   position: absolute;
@@ -193,7 +190,7 @@ h1 {
 #block.crack-2::after { background: rgba(0,0,0,0.30); }
 #block.crack-3::after { background: rgba(0,0,0,0.50); }
 
-/* ── Animations du bloc ─────────────────────── */
+/* ── Animations bloc ────────────────────────── */
 @keyframes hit-anim {
   0%   { transform: scale(1)    rotate(0deg);  }
   25%  { transform: scale(0.88) rotate(-4deg); }
@@ -242,7 +239,7 @@ h1 {
   min-height: 1em;
 }
 
-/* ── Récompense du bloc ─────────────────────── */
+/* ── Récompense ─────────────────────────────── */
 #block-reward {
   font-size: 0.75rem;
   color: var(--muted);
@@ -273,7 +270,7 @@ h1 {
   100% { opacity: 0; transform: translateY(-60px) scale(0.75); }
 }
 
-/* ── Particules de destruction ──────────────── */
+/* ── Particules ─────────────────────────────── */
 .particle {
   position: fixed;
   width: 7px;
@@ -290,48 +287,151 @@ h1 {
   100% { transform: translate(-50%,-50%) translate(var(--dx), var(--dy)) scale(0);   opacity: 0; }
 }
 
-/* ── Améliorations ──────────────────────────── */
+/* ── Section upgrades ───────────────────────── */
 #upgrades {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 18px 16px;
+  padding: 18px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-#upgrades h2 {
+#upgrades > h2 {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--muted);
+  margin-bottom: 2px;
 }
 
-#btn-upgrade {
-  width: 100%;
-  padding: 14px 18px;
+#upgrades-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Carte d'upgrade ────────────────────────── */
+.upgrade-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 12px;
+  transition: border-color 0.2s;
+}
+
+.upgrade-card:has(.upgrade-btn:not(:disabled)):hover {
+  border-color: rgba(255,255,255,0.14);
+}
+
+.upgrade-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.upgrade-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+.upgrade-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.upgrade-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.upgrade-level {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.maxed-tag {
+  font-size: 0.6rem;
+  background: rgba(245,197,24,0.18);
+  color: var(--gold);
+  border-radius: 4px;
+  padding: 1px 4px;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+
+.upgrade-desc {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Bouton upgrade ─────────────────────────── */
+.upgrade-btn {
+  flex-shrink: 0;
+  min-width: 80px;
+  padding: 8px 10px;
   background: linear-gradient(135deg, #f5c518, #d4a000);
   color: #111;
   border: none;
-  border-radius: 12px;
-  font-size: 0.95rem;
+  border-radius: 10px;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
+  text-align: center;
+  line-height: 1.3;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
+  gap: 2px;
   transition: transform 0.1s, filter 0.1s, opacity 0.2s;
-  box-shadow: 0 4px 18px rgba(245,197,24,0.28);
   -webkit-tap-highlight-color: transparent;
 }
 
-#btn-upgrade:not(:disabled):hover  { filter: brightness(1.1); transform: translateY(-1px); }
-#btn-upgrade:not(:disabled):active { transform: translateY(1px) scale(0.98); }
-#btn-upgrade:disabled              { opacity: 0.38; cursor: not-allowed; filter: grayscale(0.6); }
+.upgrade-btn:not(:disabled):hover  { filter: brightness(1.1); transform: scale(1.04); }
+.upgrade-btn:not(:disabled):active { transform: scale(0.96); }
+.upgrade-btn:disabled:not(.is-maxed) {
+  opacity: 0.32;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
 
-#upgrade-cost { font-size: 0.88rem; opacity: 0.85; }
+/* Bouton MAX : style neutre, non cliquable */
+.upgrade-btn.is-maxed {
+  background: rgba(107,114,128,0.15);
+  color: var(--muted);
+  cursor: default;
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+}
 
+.btn-cost {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.88;
+}
+
+/* ── Bouton reset ───────────────────────────── */
 #btn-reset {
   align-self: center;
   background: none;
@@ -342,17 +442,18 @@ h1 {
   text-decoration: underline;
   padding: 4px 8px;
   -webkit-tap-highlight-color: transparent;
+  margin-top: 2px;
 }
 #btn-reset:hover { color: var(--red); }
 
-/* ── Toast "Sauvegardé" ─────────────────────── */
+/* ── Toast ──────────────────────────────────── */
 #save-toast {
   position: fixed;
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%) translateY(10px);
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.28);
+  background: rgba(34,197,94,0.12);
+  border: 1px solid rgba(34,197,94,0.28);
   color: #4ade80;
   padding: 6px 18px;
   border-radius: 20px;
@@ -365,7 +466,6 @@ h1 {
   transition: opacity 0.25s ease, transform 0.25s ease;
   white-space: nowrap;
 }
-
 #save-toast.visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
@@ -373,28 +473,16 @@ h1 {
 
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 380px) {
-  /* Passe en 2 rangées sur très petits écrans */
-  #stats {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  /* Coins + Gemmes + Prof. sur la 1re ligne,
-     Pioche + Dégâts centrés sur la 2e            */
-  #stats .stat:nth-child(4),
-  #stats .stat:nth-child(5) {
-    grid-column: span 1;
-  }
-  #stats {
-    /* 3 + 2 items : derniers centrés via justify */
-    justify-items: center;
-  }
-  .stat .label       { font-size: 0.55rem; }
+  #stats { grid-template-columns: repeat(3, 1fr); }
+  .stat .label          { font-size: 0.55rem; }
   .stat span:last-child { font-size: 0.88rem; }
+  .upgrade-desc         { display: none; } /* gain de place sur très petits écrans */
 }
 
 @media (max-width: 320px) {
-  h1          { font-size: 2rem; }
-  #block      { width: 135px; height: 135px; }
-  #block-icon { font-size: 3.2rem; }
+  h1           { font-size: 2rem; }
+  #block       { width: 135px; height: 135px; }
+  #block-icon  { font-size: 3.2rem; }
   #hp-bar-wrap { width: 135px; }
 }
 

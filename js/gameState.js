@@ -7,14 +7,23 @@ const GameState = {
 
   // ── Ressources ──────────────────────────────
   coins: 0,
-  gems:  0,   // gemmes collectées (blocs "gemme" détruits)
+  gems:  0,
 
   // ── Progression ─────────────────────────────
   depth:        1,
   pickaxeLevel: 1,
-  damage:       1,
+  damage:       1,  // = pickaxeLevel (mis à jour par Upgrades.buy)
 
-  // ── Statistiques de session ──────────────────
+  // ── Niveaux d'upgrades ───────────────────────
+  // La pioche reste séparée (pickaxeLevel) pour la compatibilité des sauvegardes.
+  // luck / bag / autodig commencent à 0 (non achetés).
+  upgrades: {
+    luck:    0,
+    bag:     0,
+    autodig: 0,
+  },
+
+  // ── Statistiques ────────────────────────────
   stats: {
     blocksDestroyed:  0,
     totalCoinsEarned: 0,
@@ -24,32 +33,11 @@ const GameState = {
 
   // ── Helpers ──────────────────────────────────
 
-  getUpgradeCost() {
-    return Math.floor(10 * Math.pow(2, this.pickaxeLevel - 1));
-  },
+  addCoins(amount)   { this.coins += amount; },
+  spendCoins(amount) { this.coins -= amount; },
+  spendGems(amount)  { this.gems  -= amount; },
+  nextDepth()        { this.depth += 1; },
 
-  canAffordUpgrade() {
-    return this.coins >= this.getUpgradeCost();
-  },
-
-  addCoins(amount) {
-    this.coins += amount;
-  },
-
-  spendCoins(amount) {
-    this.coins -= amount;
-  },
-
-  nextDepth() {
-    this.depth += 1;
-  },
-
-  /**
-   * Enregistre la destruction d'un bloc :
-   * met à jour les stats et incrémente les gemmes si besoin.
-   * @param {number} reward - coins gagnés
-   * @param {object} type   - type du bloc (Blocks.TYPES[i])
-   */
   recordDestroy(reward, type) {
     this.stats.blocksDestroyed  += 1;
     this.stats.totalCoinsEarned += reward;
@@ -57,13 +45,13 @@ const GameState = {
     if (type.isChest) { this.stats.chestsFound += 1; }
   },
 
-  /** Remet toutes les valeurs à leur état initial. */
   reset() {
     this.coins        = 0;
     this.gems         = 0;
     this.depth        = 1;
     this.pickaxeLevel = 1;
     this.damage       = 1;
-    this.stats = { blocksDestroyed: 0, totalCoinsEarned: 0, gemsFound: 0, chestsFound: 0 };
+    this.upgrades     = { luck: 0, bag: 0, autodig: 0 };
+    this.stats        = { blocksDestroyed: 0, totalCoinsEarned: 0, gemsFound: 0, chestsFound: 0 };
   },
 };

@@ -13,7 +13,6 @@
       <h1>⛏ DIG!</h1>
     </header>
 
-    <!-- Barre de stats : 5 colonnes -->
     <div id="stats">
       <div class="stat">
         <span class="label">Coins</span>
@@ -61,16 +60,13 @@
 
     <div id="upgrades">
       <h2>Améliorations</h2>
-      <button id="btn-upgrade" disabled>
-        <span>Améliorer la pioche</span>
-        <span id="upgrade-cost">💰 10</span>
-      </button>
+      <!-- Les cartes sont générées dynamiquement par main.js -->
+      <div id="upgrades-list"></div>
       <button id="btn-reset">Réinitialiser la partie</button>
     </div>
 
   </div>
 
-  <!-- Toast de confirmation de sauvegarde -->
   <div id="save-toast" aria-live="polite">Sauvegardé ✓</div>
 
   <script src="js/gameState.js"></script>
