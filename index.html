@@ -13,13 +13,18 @@
       <h1>⛏ DIG!</h1>
     </header>
 
+    <!-- Barre de stats : 5 colonnes -->
     <div id="stats">
       <div class="stat">
         <span class="label">Coins</span>
         <span id="stat-coins">0</span>
       </div>
       <div class="stat">
-        <span class="label">Profondeur</span>
+        <span class="label">Gemmes</span>
+        <span id="stat-gems">0</span>
+      </div>
+      <div class="stat">
+        <span class="label">Prof.</span>
         <span id="stat-depth">1m</span>
       </div>
       <div class="stat">
@@ -35,24 +40,20 @@
     <div id="game-area">
       <div id="block-container">
 
-        <!-- Nom + badge de rareté -->
         <div id="block-header">
           <div id="block-name"></div>
           <div id="block-rarity"></div>
         </div>
 
-        <!-- Bloc cliquable -->
         <div id="block">
           <span id="block-icon"></span>
         </div>
 
-        <!-- Barre de vie -->
         <div id="hp-bar-wrap">
           <div id="hp-bar"></div>
         </div>
         <div id="hp-text"></div>
 
-        <!-- Récompense potentielle -->
         <div id="block-reward"></div>
 
       </div>
@@ -64,10 +65,13 @@
         <span>Améliorer la pioche</span>
         <span id="upgrade-cost">💰 10</span>
       </button>
-      <button id="btn-reset">Réinitialiser</button>
+      <button id="btn-reset">Réinitialiser la partie</button>
     </div>
 
   </div>
+
+  <!-- Toast de confirmation de sauvegarde -->
+  <div id="save-toast" aria-live="polite">Sauvegardé ✓</div>
 
   <script src="js/gameState.js"></script>
   <script src="js/blocks.js"></script>

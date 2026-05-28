@@ -6,6 +6,7 @@
 
 // ── Références DOM ──────────────────────────────────────────────────────────
 const elCoins       = document.getElementById('stat-coins');
+const elGems        = document.getElementById('stat-gems');
 const elDepth       = document.getElementById('stat-depth');
 const elPickaxe     = document.getElementById('stat-pickaxe');
 const elDamage      = document.getElementById('stat-damage');
@@ -19,14 +20,25 @@ const elHpText      = document.getElementById('hp-text');
 const elUpgradeBtn  = document.getElementById('btn-upgrade');
 const elUpgradeCost = document.getElementById('upgrade-cost');
 const elResetBtn    = document.getElementById('btn-reset');
+const elSaveToast   = document.getElementById('save-toast');
 
 // ── État interne ─────────────────────────────────────────────────────────────
 let blockAnimating = false;
+let toastTimer     = null;
+
+// ── Toast "Sauvegardé" ────────────────────────────────────────────────────────
+
+function showSaveToast() {
+  elSaveToast.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => elSaveToast.classList.remove('visible'), 2000);
+}
 
 // ── Rendu ─────────────────────────────────────────────────────────────────────
 
 function renderStats() {
   elCoins.textContent   = GameState.coins;
+  elGems.textContent    = GameState.gems;
   elDepth.textContent   = `${GameState.depth}m`;
   elPickaxe.textContent = `Nv.${GameState.pickaxeLevel}`;
   elDamage.textContent  = GameState.damage;
@@ -40,7 +52,7 @@ function renderBlock() {
   const b = Blocks.current;
   if (!b) return;
 
-  // Nom, icône, couleur
+  // Nom, icône, couleur de fond
   elBlockName.textContent  = b.type.name;
   elBlockIcon.textContent  = b.type.icon;
   elBlock.style.background = b.type.color;
@@ -48,8 +60,10 @@ function renderBlock() {
   // Badge de rareté
   elBlockRarity.innerHTML = `<span class="rarity-badge rarity-${b.type.rarityKey}">${b.type.rarity}</span>`;
 
-  // Rarity glow sur le bloc
-  elBlock.classList.remove('rarity-commun', 'rarity-peu-commun', 'rarity-rare', 'rarity-epique', 'rarity-legendaire');
+  // Glow sur le bloc selon la rareté
+  elBlock.classList.remove(
+    'rarity-commun', 'rarity-peu-commun', 'rarity-rare', 'rarity-epique', 'rarity-legendaire'
+  );
   elBlock.classList.add(`rarity-${b.type.rarityKey}`);
 
   // Barre de vie
@@ -86,7 +100,6 @@ function spawnParticles(color) {
     p.style.top        = `${cy}px`;
     p.style.background = color;
 
-    // Direction régulièrement répartie + petite variation aléatoire
     const angle = (i / count) * 360 + (Math.random() * 30 - 15);
     const dist  = 38 + Math.random() * 52;
     p.style.setProperty('--dx', `${Math.cos(angle * Math.PI / 180) * dist}px`);
@@ -115,7 +128,7 @@ function spawnBlock() {
   Blocks.spawn(GameState.depth);
 
   elBlock.classList.remove('anim-break', 'anim-hit', 'crack-1', 'crack-2', 'crack-3');
-  void elBlock.offsetWidth; // force reflow pour relancer l'animation
+  void elBlock.offsetWidth;
 
   elBlock.classList.add('anim-spawn');
   elBlock.addEventListener('animationend', () => elBlock.classList.remove('anim-spawn'), { once: true });
@@ -138,10 +151,12 @@ function onBlockHit(cx, cy) {
 
   if (destroyed) {
     const { reward, type } = Blocks.current;
+
     GameState.addCoins(reward);
     GameState.nextDepth();
+    GameState.recordDestroy(reward, type); // met à jour gems + stats
 
-    // Textes spéciaux selon la catégorie
+    // Textes flottants
     spawnFloatText(`+${reward} 💰`, 'coin', cx + 12, cy - 22);
     if (type.isGem)   spawnFloatText('✨ GEMME !',  'gem',   cx, cy - 52);
     if (type.isChest) spawnFloatText('📦 COFFRE !', 'chest', cx, cy - 52);
@@ -162,7 +177,7 @@ function onBlockHit(cx, cy) {
 
   renderBlock();
   renderStats();
-  Save.save();
+  Save.save(); // déclenche aussi showSaveToast via Save.onSave
 }
 
 // ── Événements ────────────────────────────────────────────────────────────────
@@ -179,9 +194,8 @@ elBlock.addEventListener('click', (e) => {
   onBlockHit(x, y);
 });
 
-// touchstart = retour immédiat sur mobile ; preventDefault évite le double-feu
 elBlock.addEventListener('touchstart', (e) => {
-  e.preventDefault();
+  e.preventDefault(); // évite le click synthétique sur mobile
   const { x, y } = coordsFrom(e);
   onBlockHit(x, y);
 }, { passive: false });
@@ -194,8 +208,8 @@ elUpgradeBtn.addEventListener('click', () => {
 });
 
 elResetBtn.addEventListener('click', () => {
-  if (!confirm('Réinitialiser la partie ? Toute progression sera perdue.')) return;
-  Save.reset();
+  if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes et la progression seront perdus.')) return;
+  Save.reset();   // efface localStorage + remet GameState à zéro
   spawnBlock();
   renderStats();
 });
@@ -203,9 +217,14 @@ elResetBtn.addEventListener('click', () => {
 // ── Initialisation ────────────────────────────────────────────────────────────
 
 function init() {
+  // Brancher le toast sur le callback de Save avant tout
+  Save.onSave = showSaveToast;
+
   Save.load();
   spawnBlock();
   renderStats();
+
+  // Sauvegarde automatique toutes les 15 secondes
   setInterval(() => Save.save(), 15_000);
 }
 
