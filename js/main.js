@@ -113,13 +113,13 @@ function renderStats() {
   elCoins.textContent  = GameState.coins;
   elGems.textContent   = GameState.gems;
   elRelics.textContent = GameState.relicFragments;
-  elDepth.textContent  = `${GameState.depth}m`;
+  elDepth.textContent  = t('stats.depth_val', { n: GameState.depth });
   elDamage.textContent = GameState.damage;
 
   // Pioche : indicateur visuel du skin actif
   const skin = GameState.monetization.pickaxeSkin;
   const skinIcon = skin === 'golden' ? ' ✨' : skin === 'diamond' ? ' 💠' : '';
-  elPickaxe.textContent = `Nv.${GameState.pickaxeLevel}${skinIcon}`;
+  elPickaxe.textContent = t('stats.pickaxe_val', { n: GameState.pickaxeLevel }) + skinIcon;
 
   updateUpgradeButtonStates();
 }
@@ -136,8 +136,8 @@ function renderBoostBanner() {
   const totalSec = Math.ceil(ms / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
-  elBoostText.textContent  = `⚡ Bonus ×${GameState.coinBoost.multiplier} pièces actif`;
-  elBoostTimer.textContent = `— ${min}:${String(sec).padStart(2, '0')} restant`;
+  elBoostText.textContent  = t('ui.boost_active',    { mult: GameState.coinBoost.multiplier });
+  elBoostTimer.textContent = t('ui.boost_remaining', { min, sec: String(sec).padStart(2, '0') });
 }
 
 // ── Rendu bouton pub ──────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ function renderAdButton() {
       const totalSec = Math.ceil(ms / 1000);
       const min = Math.floor(totalSec / 60);
       const sec = totalSec % 60;
-      timerEl.textContent = `Disponible dans ${min}:${String(sec).padStart(2, '0')}`;
+      timerEl.textContent = t('ui.ad_cooldown', { min, sec: String(sec).padStart(2, '0') });
     }
   }
 }
@@ -169,11 +169,12 @@ function renderBlock() {
   const b = Blocks.current;
   if (!b) return;
 
-  elBlockName.textContent  = b.type.name;
+  elBlockName.textContent  = t(b.type.name);
   elBlockIcon.textContent  = b.type.icon;
   elBlock.style.background = b.type.color;
 
-  elBlockRarity.innerHTML = `<span class="rarity-badge rarity-${b.type.rarityKey}">${b.type.rarity}</span>`;
+  const rarityLabel = t('rarity.' + b.type.rarityKey.replace('-', '_'));
+  elBlockRarity.innerHTML = `<span class="rarity-badge rarity-${b.type.rarityKey}">${rarityLabel}</span>`;
 
   // Rareté
   elBlock.classList.remove(
@@ -207,7 +208,7 @@ function renderBlock() {
   const boostMult   = GameState.getCoinBoostMultiplier();
   const finalReward = Math.ceil(b.reward * Upgrades.getRewardMultiplier() * boostMult);
   const boostTag    = boostMult > 1 ? ` <span class="boost-tag">⚡×${boostMult}</span>` : '';
-  elBlockReward.innerHTML = `Récompense : <span class="reward-value">💰 ${finalReward}${boostTag}</span>`;
+  elBlockReward.innerHTML = `${t('ui.reward_label')} : <span class="reward-value">💰 ${finalReward}${boostTag}</span>`;
 }
 
 // ── Rendu upgrades ────────────────────────────────────────────────────────────
@@ -236,15 +237,15 @@ function renderUpgrades() {
         <div class="upgrade-icon">${def.icon}</div>
         <div class="upgrade-info">
           <div class="upgrade-name">
-            ${def.name}
-            <span class="upgrade-level">Nv.${level}${maxed ? ' <span class="maxed-tag">MAX</span>' : ''}</span>
+            ${t(def.name)}
+            <span class="upgrade-level">${t('stats.pickaxe_val', { n: level })}${maxed ? ` <span class="maxed-tag">${t('ui.btn_max')}</span>` : ''}</span>
           </div>
           <div class="upgrade-desc">${def.describe(level)}</div>
         </div>
       </div>
       <button class="upgrade-btn${maxed ? ' is-maxed' : ''}" data-id="${def.id}"
-        ${maxed || !canAfford ? 'disabled' : ''} aria-label="Améliorer ${def.name}">
-        ${maxed ? 'MAX' : `Améliorer<span class="btn-cost">${costHtml}</span>`}
+        ${maxed || !canAfford ? 'disabled' : ''} aria-label="${t('ui.btn_upgrade')} ${t(def.name)}">
+        ${maxed ? t('ui.btn_max') : `${t('ui.btn_upgrade')}<span class="btn-cost">${costHtml}</span>`}
       </button>`;
 
     if (!maxed) {
@@ -290,10 +291,10 @@ function renderQuests() {
     card.innerHTML = `
       <div class="quest-icon">${def.icon}</div>
       <div class="quest-info">
-        <div class="quest-name">${def.name}</div>
-        <div class="quest-desc">${def.desc}</div>
+        <div class="quest-name">${t(def.name)}</div>
+        <div class="quest-desc">${t(def.desc)}</div>
       </div>
-      <div class="quest-reward">${done ? '✓ Réclamé' : parts.join(' + ')}</div>`;
+      <div class="quest-reward">${done ? t('ui.quest_claimed') : parts.join(' + ')}</div>`;
     container.appendChild(card);
   }
 }
@@ -307,17 +308,17 @@ function renderCollection() {
 
   const found = Collection.countFound();
   const total = Collection.FINDS.length;
-  if (header) header.textContent = `${found} / ${total} trouvée${found !== 1 ? 's' : ''}`;
+  if (header) header.textContent = t('ui.collection_header', { found, total, s: found !== 1 ? 's' : '' });
 
   grid.innerHTML = '';
   for (const find of Collection.FINDS) {
     const isFound = GameState.collection.includes(find.id);
     const card = document.createElement('div');
     card.className = `find-card${isFound ? ' found' : ''}`;
-    if (isFound) card.title = find.desc;
+    if (isFound) card.title = t(find.desc);
     card.innerHTML = `
       <div class="find-icon">${isFound ? find.icon : '?'}</div>
-      <div class="find-name">${isFound ? find.name : '???'}</div>`;
+      <div class="find-name">${isFound ? t(find.name) : '???'}</div>`;
     grid.appendChild(card);
   }
 }
@@ -337,7 +338,7 @@ function renderDaily() {
   const nextDay         = Daily.getNextDay();
   const available       = Daily.isAvailable();
 
-  let html = `<div class="view-title-bar">📅 Quotidien</div><div class="daily-title">Connexion quotidienne</div><div class="streak-row">`;
+  let html = `<div class="view-title-bar">${t('ui.view_daily')}</div><div class="daily-title">${t('ui.daily_title')}</div><div class="streak-row">`;
   for (let i = 1; i <= 7; i++) {
     let state;
     if (claimedToday) {
@@ -364,19 +365,19 @@ function renderDaily() {
 
     html += `
       <div class="daily-reward-box">
-        <div class="daily-reward-day">Jour ${nextDay} sur 7</div>
+        <div class="daily-reward-day">${t('ui.daily_streak_day', { n: nextDay })}</div>
         <div class="daily-reward-items">${parts.join(' + ')}</div>
       </div>
-      <button class="claim-btn" id="btn-claim">Réclamer la récompense</button>`;
+      <button class="claim-btn" id="btn-claim">${t('ui.daily_btn_claim')}</button>`;
   } else {
     html += `
-      <div class="daily-claimed-msg"><span class="claimed-check">✓</span>Récompense réclamée !</div>
-      <div class="daily-next-msg">Reviens demain pour continuer ta série.</div>`;
+      <div class="daily-claimed-msg"><span class="claimed-check">✓</span>${t('ui.daily_claimed_msg')}</div>
+      <div class="daily-next-msg">${t('ui.daily_next_msg')}</div>`;
   }
 
   // ── Section missions du jour ────────────────────────────────────────────
   html += `
-    <div class="section-divider" style="margin-top:24px"><span>🎯 Missions du jour</span></div>
+    <div class="section-divider" style="margin-top:24px"><span>${t('ui.section_missions')}</span></div>
     <div id="daily-missions-list"></div>`;
 
   container.innerHTML = html;
@@ -390,7 +391,7 @@ function renderDaily() {
       if (reward.coins > 0) parts.push(`💰 ${reward.coins}`);
       if (reward.gems  > 0) parts.push(`💎 ${reward.gems}`);
       if (reward.boost) parts.push(`⚡ ×${reward.boost.mult}`);
-      showAchievement('📅', `Jour ${day} : ${parts.join(' + ')} !`);
+      showAchievement('📅', t('notif.daily_reward', { day, parts: parts.join(' + ') }));
       if (reward.boost) renderBoostBanner();
       renderDaily();      // reconstruit tout + missions
       renderStats();
@@ -413,9 +414,13 @@ function renderRelics() {
   const unlockedCount = GameState.relics.length;
   const totalCount    = Relics.DEFS.length;
   if (info) {
-    info.textContent =
-      `${unlockedCount}\u202f/\u202f${totalCount} débloquée${unlockedCount !== 1 ? 's' : ''}` +
-      `  —  🔮\u202f${GameState.relicFragments} fragment${GameState.relicFragments !== 1 ? 's' : ''}`;
+    info.textContent = t('ui.relic_header', {
+      count: unlockedCount,
+      total: totalCount,
+      s1: unlockedCount !== 1 ? 's' : '',
+      frags: GameState.relicFragments,
+      s2: GameState.relicFragments !== 1 ? 's' : '',
+    });
   }
 
   grid.innerHTML = '';
@@ -427,28 +432,28 @@ function renderRelics() {
 
     const card = document.createElement('div');
     card.className = `relic-card${unlocked ? ' relic-unlocked' : canAfford ? ' relic-affordable' : ''}`;
-    card.title = def.desc;   // description visible au survol / long-press
+    card.title = t(def.desc);   // description visible au survol / long-press
 
     card.innerHTML = `
       <div class="relic-icon">${def.icon}</div>
-      <div class="relic-name">${def.name}</div>
-      <div class="relic-bonus">${def.bonusLabel}</div>
+      <div class="relic-name">${t(def.name)}</div>
+      <div class="relic-bonus">${t(def.bonusLabel)}</div>
       ${unlocked
-        ? `<div class="relic-unlocked-badge">✓ Débloquée</div>`
+        ? `<div class="relic-unlocked-badge">${t('ui.relic_unlocked_badge')}</div>`
         : `<div class="relic-cost${canAfford ? ' can-afford' : ''}">
-             🔮\u202f${def.cost} fragment${def.cost > 1 ? 's' : ''}
-             ${!canAfford ? `<span class="relic-shortfall">(manque\u202f${shortfall})</span>` : ''}
+             ${t('ui.relic_cost', { n: def.cost, s: def.cost > 1 ? 's' : '' })}
+             ${!canAfford ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
            </div>
            <button class="relic-unlock-btn" ${canAfford ? '' : 'disabled'}
-             aria-label="${canAfford ? `Débloquer ${def.name}` : `Il manque ${shortfall} fragment${shortfall > 1 ? 's' : ''}`}">
-             Débloquer
+             aria-label="${canAfford ? `${t('ui.btn_unlock')} ${t(def.name)}` : t('ui.relic_shortfall', { n: shortfall })}">
+             ${t('ui.btn_unlock')}
            </button>`
       }`;
 
     if (!unlocked && canAfford) {
       card.querySelector('.relic-unlock-btn').addEventListener('click', () => {
         if (Relics.unlock(def.id)) {
-          showAchievement('🔮', `${def.name} débloquée !`);
+          showAchievement('🔮', t('notif.relic_unlocked', { name: t(def.name) }));
           renderRelics();
           renderStats();
           // Vide le badge si plus aucune relique n'est abordable
@@ -503,20 +508,20 @@ function renderDailyMissions() {
       <div class="mission-header">
         <span class="mission-icon">${def.icon}</span>
         <div class="mission-info">
-          <div class="mission-name">${def.name}</div>
+          <div class="mission-name">${t(def.name)}</div>
           <div class="mission-desc">${def.descFn(m.target)}</div>
         </div>
-        <div class="mission-count">${claimed ? '✓' : `${progress}\u202f/\u202f${m.target}`}</div>
+        <div class="mission-count">${claimed ? '✓' : t('ui.mission_progress', { done: progress, target: m.target })}</div>
       </div>
       <div class="mission-progress-wrap">
         <div class="mission-progress-bar" style="width:${pct}%"></div>
       </div>
       <div class="mission-footer">
-        <div class="mission-reward-text">Récompense&nbsp;: <span>${rewardParts.join(' + ')}</span></div>
+        <div class="mission-reward-text">${t('ui.mission_reward')} <span>${rewardParts.join(' + ')}</span></div>
         <button class="mission-claim-btn${claimed ? ' mission-claimed-btn' : ''}"
           ${(!done || claimed) ? 'disabled' : ''}
-          aria-label="${claimed ? 'Déjà réclamé' : `Réclamer ${rewardParts.join(' + ')}`}">
-          ${claimed ? '✓ Réclamé' : 'Réclamer'}
+          aria-label="${claimed ? t('ui.mission_claimed') : `Réclamer ${rewardParts.join(' + ')}`}">
+          ${claimed ? t('ui.mission_claimed') : t('ui.btn_mission_claim')}
         </button>
       </div>`;
 
@@ -527,7 +532,7 @@ function renderDailyMissions() {
         const parts = [];
         if (reward.coins > 0) parts.push(`💰 ${reward.coins}`);
         if (reward.gems  > 0) parts.push(`💎 ${reward.gems}`);
-        showAchievement('🎯', `Mission : ${parts.join(' + ')} !`);
+        showAchievement('🎯', t('notif.mission_done', { parts: parts.join(' + ') }));
         renderDailyMissions();
         renderStats();
         updateDailyBadge();
@@ -588,18 +593,18 @@ function renderShop() {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="view-title-bar">🛒 Boutique</div>
+    <div class="view-title-bar">${t('ui.view_shop')}</div>
     <div class="shop-header">
-      <div class="shop-balance">💎 ${GameState.gems} gemme${GameState.gems !== 1 ? 's' : ''}</div>
-      <div class="shop-balance-sub">Solde actuel</div>
+      <div class="shop-balance">💎 ${GameState.gems} ${t('stats.gems')}</div>
+      <div class="shop-balance-sub">${t('shop.balance_label')}</div>
     </div>
-    <div class="section-divider"><span>💎 Gemmes</span></div>
+    <div class="section-divider"><span>${t('shop.section_gems')}</span></div>
     <div class="shop-grid" id="shop-grid-gems"></div>
-    <div class="section-divider"><span>⛏ Skins de pioche</span></div>
+    <div class="section-divider"><span>${t('shop.section_skins')}</span></div>
     <div class="shop-grid shop-grid-2" id="shop-grid-skins"></div>
-    <div class="section-divider"><span>⚡ Boosts</span></div>
+    <div class="section-divider"><span>${t('shop.section_boosts')}</span></div>
     <div class="shop-grid shop-grid-2" id="shop-grid-boosts"></div>
-    <div class="shop-disclaimer">Mode démo · Aucun achat réel ne sera effectué</div>
+    <div class="shop-disclaimer">${t('shop.disclaimer')}</div>
   `;
 
   const gems  = Monetization.SHOP_ITEMS.filter(i => i.type === 'gems');
@@ -621,22 +626,22 @@ function _fillShopGrid(gridId, items) {
     card.className = 'shop-card';
 
     card.innerHTML = `
-      ${item.badge ? `<div class="shop-badge">${item.badge}</div>` : ''}
+      ${item.badge ? `<div class="shop-badge">${t(item.badge)}</div>` : ''}
       <div class="shop-item-icon">${item.icon}</div>
-      <div class="shop-item-name">${item.name}</div>
-      <div class="shop-item-label">${item.label}</div>
+      <div class="shop-item-name">${t(item.name)}</div>
+      <div class="shop-item-label">${t(item.label)}</div>
       <button class="shop-btn${owned ? ' owned' : ''}"
         ${owned ? 'disabled' : ''}
-        aria-label="${owned ? 'Déjà possédé' : `Acheter ${item.name}`}">
-        ${owned ? '✓ Possédé' : item.price}
+        aria-label="${owned ? t('shop.btn_owned') : `${t('ui.btn_upgrade')} ${t(item.name)}`}">
+        ${owned ? t('shop.btn_owned') : item.price}
       </button>`;
 
     if (!owned) {
       card.querySelector('.shop-btn').addEventListener('click', () => {
         Monetization.purchase(item.id, (bought) => {
-          const notif = bought.type === 'gems'  ? `💎 +${bought.value}`
-                      : bought.type === 'skin'  ? `✨ Skin activé !`
-                      : `⚡ Boost ×${bought.mult} actif !`;
+          const notif = bought.type === 'gems'  ? t('notif.gems_added', { amount: bought.value })
+                      : bought.type === 'skin'  ? t('notif.skin_activated')
+                      : t('notif.boost_activated', { mult: bought.mult });
           showAchievement('🛒', notif);
           if (bought.type === 'boost') renderBoostBanner();
           renderShop();
@@ -666,7 +671,7 @@ function showAchievement(icon, text) {
 function handleQuestsCompleted(completed) {
   if (completed.length === 0) return;
   completed.forEach((q, i) => {
-    setTimeout(() => showAchievement('🎯', `${q.name} terminé !`), i * 500);
+    setTimeout(() => showAchievement('🎯', t('notif.quest_done', { name: t(q.name) })), i * 500);
   });
   renderStats();
   if (isViewActive('upgrades')) renderQuests();
@@ -674,7 +679,7 @@ function handleQuestsCompleted(completed) {
 }
 
 function handleFindDrop(find) {
-  showAchievement('🔍', `${find.name} trouvé !`);
+  showAchievement('🔍', t('notif.find_drop', { name: t(find.name) }));
   if (isViewActive('collection')) renderCollection();
   else setNavBadge('collection');
 }
@@ -758,9 +763,9 @@ function showOfflinePopup(gains) {
   const elapsed   = gains.elapsedMs;
   const wasCapped = elapsed > gains.cappedMs;
   durationEl.textContent = wasCapped
-    ? `Absent${'\u202f'}${formatDuration(elapsed)} (limité à ${cappedStr})`
-    : `Absent${'\u202f'}${cappedStr}`;
-  rewardEl.textContent = `💰 +${gains.totalCoins.toLocaleString('fr-FR')} pièces`;
+    ? t('ui.offline_duration_cap', { full: formatDuration(elapsed), capped: cappedStr })
+    : t('ui.offline_duration', { dur: cappedStr });
+  rewardEl.textContent = t('ui.offline_reward', { coins: gains.totalCoins.toLocaleString(I18n.getCurrent()) });
 
   modal.hidden = false;
 
@@ -801,8 +806,8 @@ function showChestPopup(chestType, reward) {
   iconEl.style.animation = '';
 
   iconEl.textContent   = chestType.icon;
-  rarityEl.innerHTML   = `<span class="rarity-badge rarity-${chestType.rarityKey}">${chestType.rarity}</span>`;
-  titleEl.textContent  = `${chestType.name} ouvert !`;
+  rarityEl.innerHTML   = `<span class="rarity-badge rarity-${chestType.rarityKey}">${t('rarity.' + chestType.rarityKey.replace('-', '_'))}</span>`;
+  titleEl.textContent  = t('ui.chest_title', { name: t(chestType.name) });
   rewardEl.textContent = Chests.rewardLabel(reward);
 
   modal.hidden = false;
@@ -853,7 +858,7 @@ function handleBlockDestroyed(cx, cy) {
 
     const chestReward = Chests.open(type.rarityKey);
 
-    spawnFloatText('📦 COFFRE !', 'chest', cx, cy - 55);
+    spawnFloatText(t('notif.chest_float'), 'chest', cx, cy - 55);
     handleQuestsCompleted(Quests.checkAll());
     updateDailyBadge();
 
@@ -872,8 +877,8 @@ function handleBlockDestroyed(cx, cy) {
     GameState.addCoins(reward);
     GameState.recordDestroy(reward, type);
 
-    spawnFloatText(`+${reward} 💰`, 'coin', cx + 14, cy - 24);
-    if (type.isGem) spawnFloatText('✨ GEMME !', 'gem', cx, cy - 55);
+    spawnFloatText(t('notif.coin_float', { amount: reward }), 'coin', cx + 14, cy - 24);
+    if (type.isGem) spawnFloatText(t('notif.gem_float'), 'gem', cx, cy - 55);
     handleQuestsCompleted(Quests.checkAll());
     updateDailyBadge();
 
@@ -898,7 +903,7 @@ function onBlockHit(cx, cy) {
   elBlock.classList.add('anim-hit');
   elBlock.addEventListener('animationend', () => elBlock.classList.remove('anim-hit'), { once: true });
 
-  spawnFloatText(`-${GameState.damage}`, 'dmg', cx, cy);
+  spawnFloatText(t('notif.damage_float', { amount: GameState.damage }), 'dmg', cx, cy);
 
   if (destroyed) handleBlockDestroyed(cx, cy);
 
@@ -951,7 +956,7 @@ document.getElementById('btn-watch-ad').addEventListener('click', () => {
   Monetization.showRewardedAd(
     () => {
       GameState.addCoins(reward);
-      showAchievement('📺', `+${reward} 💰 bonus pub !`);
+      showAchievement('📺', t('notif.ad_bonus', { amount: reward }));
       renderStats();
       renderAdButton();
       Save.save();
@@ -970,7 +975,7 @@ document.getElementById('btn-settings').addEventListener('click', () => {
 
 // Reset
 elResetBtn.addEventListener('click', () => {
-  if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes, upgrades, reliques, objectifs, trouvailles et la série quotidienne seront perdus.')) return;
+  if (!confirm(t('ui.confirm_reset'))) return;
   Save.reset();
   Relics.applyBonuses();          // recompute (tout à 0 après reset)
   renderUpgrades();

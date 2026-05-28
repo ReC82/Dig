@@ -9,10 +9,10 @@ const Upgrades = {
     {
       id: 'pickaxe',
       icon: '⛏',
-      name: 'Pioche',
+      name: 'upgrade.pickaxe.name',
       maxLevel: 15,
       describe(level) {
-        return `${level} dégât${level > 1 ? 's' : ''} par clic`;
+        return t('upgrade.pickaxe.desc', { damage: level, s: level > 1 ? 's' : '' });
       },
       getCost(level) {
         if (level >= 15) return null;
@@ -22,11 +22,11 @@ const Upgrades = {
     {
       id: 'luck',
       icon: '🍀',
-      name: 'Chance',
+      name: 'upgrade.luck.name',
       maxLevel: 8,
       describe(level) {
-        if (level === 0) return 'Aucun bonus de rareté';
-        return `+${level * 20}% chance de blocs rares`;
+        if (level === 0) return t('upgrade.luck.desc_none');
+        return t('upgrade.luck.desc', { pct: level * 20 });
       },
       getCost(level) {
         if (level >= 8) return null;
@@ -36,11 +36,11 @@ const Upgrades = {
     {
       id: 'bag',
       icon: '🎒',
-      name: 'Sac',
+      name: 'upgrade.bag.name',
       maxLevel: 8,
       describe(level) {
-        if (level === 0) return 'Récompenses normales';
-        return `Récompenses \u00d7${(1 + level * 0.3).toFixed(1)}`;
+        if (level === 0) return t('upgrade.bag.desc_normal');
+        return t('upgrade.bag.desc', { mult: (1 + level * 0.3).toFixed(1) });
       },
       getCost(level) {
         if (level >= 8) return null;
@@ -50,11 +50,11 @@ const Upgrades = {
     {
       id: 'autodig',
       icon: '⚙',
-      name: 'Auto-Dig',
+      name: 'upgrade.autodig.name',
       maxLevel: 6,
       describe(level) {
-        if (level === 0) return 'Inactif';
-        return `${level} dégât${level > 1 ? 's' : ''} automatique/sec`;
+        if (level === 0) return t('upgrade.autodig.desc_off');
+        return t('upgrade.autodig.desc', { dmg: level, s: level > 1 ? 's' : '' });
       },
       getCost(level) {
         const table = [

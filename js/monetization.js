@@ -32,39 +32,39 @@ const Monetization = {
     {
       id: 'gems_5',
       type: 'gems', icon: '💎', value: 5,
-      name: '5 Gemmes',  label: 'Petite bourse',
+      name: 'shop.gems_5.name',  label: 'shop.gems_5.label',
       price: '0,99 €',
     },
     {
       id: 'gems_20',
       type: 'gems', icon: '💎', value: 20,
-      name: '20 Gemmes', label: 'Sac de gemmes',
-      price: '2,99 €', badge: 'Populaire',
+      name: 'shop.gems_20.name', label: 'shop.gems_20.label',
+      price: '2,99 €', badge: 'shop.badge_popular',
     },
     {
       id: 'gems_60',
       type: 'gems', icon: '💎', value: 60,
-      name: '60 Gemmes', label: 'Coffre de gemmes',
-      price: '7,99 €', badge: 'Meilleure valeur',
+      name: 'shop.gems_60.name', label: 'shop.gems_60.label',
+      price: '7,99 €', badge: 'shop.badge_best_value',
     },
     // Skins
     {
       id: 'skin_golden',
       type: 'skin', icon: '✨', value: 'golden',
-      name: 'Pioche Dorée',   label: 'Aura dorée sur le bloc',
+      name: 'shop.skin_golden.name',   label: 'shop.skin_golden.label',
       price: '1,99 €',
     },
     {
       id: 'skin_diamond',
       type: 'skin', icon: '💠', value: 'diamond',
-      name: 'Pioche Diamant', label: 'Aura bleue sur le bloc',
+      name: 'shop.skin_diamond.name', label: 'shop.skin_diamond.label',
       price: '3,99 €',
     },
     // Boosts
     {
       id: 'boost_x3_30m',
       type: 'boost', icon: '⚡', mult: 3, minutes: 30,
-      name: 'Boost ×3 Coins', label: 'Coins ×3 pendant 30 min',
+      name: 'shop.boost_x3.name', label: 'shop.boost_x3.label',
       price: '0,99 €',
     },
   ],

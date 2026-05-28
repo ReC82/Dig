@@ -86,11 +86,11 @@ const Chests = {
   /** Retourne le texte affiché dans la popup de coffre. */
   rewardLabel(reward) {
     if (reward.type === 'coins')
-      return `💰 ${reward.amount} pièces`;
+      return t('ui.chest_reward_coins', { amount: reward.amount });
     if (reward.type === 'relics')
-      return `🔮 ${reward.amount} fragment${reward.amount > 1 ? 's' : ''} de relique`;
+      return t('ui.chest_reward_relics', { amount: reward.amount, s: reward.amount > 1 ? 's' : '' });
     if (reward.type === 'boost')
-      return `⚡ Boost ×${reward.mult} coins — ${reward.minutes} min`;
+      return t('ui.chest_reward_boost', { mult: reward.mult, minutes: reward.minutes });
     return '';
   },
 };

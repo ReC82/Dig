@@ -8,16 +8,16 @@ const Blocks = {
   TYPES: [
     // ── Terre ────────────────────────────────────────────────────────────────
     {
-      category: 'terre', name: 'Terre meuble', icon: '🟤',
-      rarity: 'Commun', rarityKey: 'commun',
+      category: 'terre', name: 'block.terre_meuble', icon: '🟤',
+      rarityKey: 'commun',
       color:  'linear-gradient(145deg,#78350f,#431407)',
       accent: '#92400e',
       hpBase: 3,  reward: 1,
       minDepth: 1, maxDepth: 12, weight: 70,
     },
     {
-      category: 'terre', name: 'Argile', icon: '🟫',
-      rarity: 'Commun', rarityKey: 'commun',
+      category: 'terre', name: 'block.argile', icon: '🟫',
+      rarityKey: 'commun',
       color:  'linear-gradient(145deg,#92400e,#6b2d08)',
       accent: '#b45309',
       hpBase: 6,  reward: 2,
@@ -26,24 +26,24 @@ const Blocks = {
 
     // ── Pierre ───────────────────────────────────────────────────────────────
     {
-      category: 'pierre', name: 'Pierre', icon: '🪨',
-      rarity: 'Commun', rarityKey: 'commun',
+      category: 'pierre', name: 'block.pierre', icon: '🪨',
+      rarityKey: 'commun',
       color:  'linear-gradient(145deg,#4b5563,#374151)',
       accent: '#6b7280',
       hpBase: 12, reward: 5,
       minDepth: 5, maxDepth: 9999, weight: 60,
     },
     {
-      category: 'pierre', name: 'Grès', icon: '🏔',
-      rarity: 'Commun', rarityKey: 'commun',
+      category: 'pierre', name: 'block.gres', icon: '🏔',
+      rarityKey: 'commun',
       color:  'linear-gradient(145deg,#78716c,#57534e)',
       accent: '#a8a29e',
       hpBase: 20, reward: 8,
       minDepth: 12, maxDepth: 9999, weight: 40,
     },
     {
-      category: 'pierre', name: 'Granite', icon: '⬛',
-      rarity: 'Peu commun', rarityKey: 'peu-commun',
+      category: 'pierre', name: 'block.granite', icon: '⬛',
+      rarityKey: 'peu-commun',
       color:  'linear-gradient(145deg,#3f3f46,#27272a)',
       accent: '#71717a',
       hpBase: 38, reward: 16,
@@ -52,24 +52,24 @@ const Blocks = {
 
     // ── Minerai ──────────────────────────────────────────────────────────────
     {
-      category: 'minerai', name: 'Charbon', icon: '🖤',
-      rarity: 'Peu commun', rarityKey: 'peu-commun',
+      category: 'minerai', name: 'block.charbon', icon: '🖤',
+      rarityKey: 'peu-commun',
       color:  'linear-gradient(145deg,#292524,#1c1917)',
       accent: '#78716c',
       hpBase: 28, reward: 22,
       minDepth: 8, maxDepth: 9999, weight: 22,
     },
     {
-      category: 'minerai', name: 'Minerai de fer', icon: '⚙',
-      rarity: 'Peu commun', rarityKey: 'peu-commun',
+      category: 'minerai', name: 'block.minerai_fer', icon: '⚙',
+      rarityKey: 'peu-commun',
       color:  'linear-gradient(145deg,#52637a,#334155)',
       accent: '#94a3b8',
       hpBase: 55, reward: 50,
       minDepth: 20, maxDepth: 9999, weight: 15,
     },
     {
-      category: 'minerai', name: "Minerai d'or", icon: '🟡',
-      rarity: 'Rare', rarityKey: 'rare',
+      category: 'minerai', name: 'block.minerai_or', icon: '🟡',
+      rarityKey: 'rare',
       color:  'linear-gradient(145deg,#d97706,#92400e)',
       accent: '#fbbf24',
       hpBase: 90, reward: 110,
@@ -78,8 +78,8 @@ const Blocks = {
 
     // ── Coffre ───────────────────────────────────────────────────────────────
     {
-      category: 'coffre', name: 'Vieille caisse', icon: '🧰',
-      rarity: 'Commun', rarityKey: 'commun',
+      category: 'coffre', name: 'block.vieille_caisse', icon: '🧰',
+      rarityKey: 'commun',
       color:  'linear-gradient(145deg,#713f12,#3b1a06)',
       accent: '#b45309',
       hpBase: 8,  reward: 0,
@@ -87,8 +87,8 @@ const Blocks = {
       isChest: true,
     },
     {
-      category: 'coffre', name: 'Coffre en bois', icon: '📦',
-      rarity: 'Rare', rarityKey: 'rare',
+      category: 'coffre', name: 'block.coffre_bois', icon: '📦',
+      rarityKey: 'rare',
       color:  'linear-gradient(145deg,#92400e,#78350f)',
       accent: '#d97706',
       hpBase: 18, reward: 160,
@@ -96,8 +96,8 @@ const Blocks = {
       isChest: true,
     },
     {
-      category: 'coffre', name: 'Coffre en fer', icon: '🗃',
-      rarity: 'Épique', rarityKey: 'epique',
+      category: 'coffre', name: 'block.coffre_fer', icon: '🗃',
+      rarityKey: 'epique',
       color:  'linear-gradient(145deg,#475569,#1e293b)',
       accent: '#94a3b8',
       hpBase: 40, reward: 420,
@@ -107,8 +107,8 @@ const Blocks = {
 
     // ── Gemme ────────────────────────────────────────────────────────────────
     {
-      category: 'gemme', name: 'Rubis', icon: '🔴',
-      rarity: 'Épique', rarityKey: 'epique',
+      category: 'gemme', name: 'block.rubis', icon: '🔴',
+      rarityKey: 'epique',
       color:  'linear-gradient(145deg,#dc2626,#7f1d1d)',
       accent: '#f87171',
       hpBase: 110, reward: 650,
@@ -116,8 +116,8 @@ const Blocks = {
       isGem: true,
     },
     {
-      category: 'gemme', name: 'Émeraude', icon: '💚',
-      rarity: 'Légendaire', rarityKey: 'legendaire',
+      category: 'gemme', name: 'block.emeraude', icon: '💚',
+      rarityKey: 'legendaire',
       color:  'linear-gradient(145deg,#16a34a,#14532d)',
       accent: '#4ade80',
       hpBase: 200, reward: 1400,
@@ -125,8 +125,8 @@ const Blocks = {
       isGem: true,
     },
     {
-      category: 'gemme', name: 'Diamant', icon: '💎',
-      rarity: 'Légendaire', rarityKey: 'legendaire',
+      category: 'gemme', name: 'block.diamant', icon: '💎',
+      rarityKey: 'legendaire',
       color:  'linear-gradient(145deg,#0ea5e9,#1e3a5f)',
       accent: '#7dd3fc',
       hpBase: 350, reward: 3200,
