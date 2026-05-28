@@ -359,9 +359,9 @@ function renderDaily() {
   if (available) {
     const r = Daily.REWARDS[nextDay - 1];
     const parts = [];
-    if (r.coins > 0) parts.push(`💰 ${r.coins} pièces`);
-    if (r.gems  > 0) parts.push(`💎 ${r.gems} gemme${r.gems > 1 ? 's' : ''}`);
-    if (r.boost) parts.push(`⚡ ×${r.boost.mult} coins pendant ${r.boost.minutes} min`);
+    if (r.coins > 0) parts.push(t('ui.daily_reward_coins', { amount: r.coins, s: r.coins > 1 ? 's' : '' }));
+    if (r.gems  > 0) parts.push(t('ui.daily_reward_gems',  { amount: r.gems,  s: r.gems  > 1 ? 's' : '' }));
+    if (r.boost) parts.push(t('ui.daily_reward_boost', { mult: r.boost.mult, minutes: r.boost.minutes }));
 
     html += `
       <div class="daily-reward-box">
@@ -520,7 +520,7 @@ function renderDailyMissions() {
         <div class="mission-reward-text">${t('ui.mission_reward')} <span>${rewardParts.join(' + ')}</span></div>
         <button class="mission-claim-btn${claimed ? ' mission-claimed-btn' : ''}"
           ${(!done || claimed) ? 'disabled' : ''}
-          aria-label="${claimed ? t('ui.mission_claimed') : `Réclamer ${rewardParts.join(' + ')}`}">
+          aria-label="${claimed ? t('ui.mission_claimed') : t('ui.btn_mission_claim_aria', { reward: rewardParts.join(' + ') })}">
           ${claimed ? t('ui.mission_claimed') : t('ui.btn_mission_claim')}
         </button>
       </div>`;

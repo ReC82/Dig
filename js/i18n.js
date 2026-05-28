@@ -161,6 +161,10 @@ const I18n = (() => {
         view_collection:      '📦 Collection',
         view_daily:           '📅 Quotidien',
         view_shop:            '🛒 Boutique',
+        daily_reward_coins:   '💰 {amount} pièce{s}',
+        daily_reward_gems:    '💎 {amount} gemme{s}',
+        daily_reward_boost:   '⚡ ×{mult} coins pendant {minutes} min',
+        btn_mission_claim_aria: 'Réclamer {reward}',
       },
       notif: {
         ad_bonus:        '+{amount} 💰 bonus pub !',
@@ -316,6 +320,10 @@ const I18n = (() => {
         view_collection:      '📦 Collection',
         view_daily:           '📅 Daily',
         view_shop:            '🛒 Shop',
+        daily_reward_coins:   '💰 {amount} coin{s}',
+        daily_reward_gems:    '💎 {amount} gem{s}',
+        daily_reward_boost:   '⚡ ×{mult} coins for {minutes} min',
+        btn_mission_claim_aria: 'Claim {reward}',
       },
       notif: {
         ad_bonus:        '+{amount} 💰 ad bonus!',
@@ -471,6 +479,10 @@ const I18n = (() => {
         view_collection:      '📦 Collectie',
         view_daily:           '📅 Dagelijks',
         view_shop:            '🛒 Winkel',
+        daily_reward_coins:   '💰 {amount} munt{s}',
+        daily_reward_gems:    '💎 {amount} edelsteen{s}',
+        daily_reward_boost:   '⚡ ×{mult} munten gedurende {minutes} min',
+        btn_mission_claim_aria: 'Claimen {reward}',
       },
       notif: {
         ad_bonus:        '+{amount} 💰 advertentiebonus!',
