@@ -28,6 +28,7 @@ const elRelics       = document.getElementById('stat-relics');
 // ── État interne ─────────────────────────────────────────────────────────────
 let blockAnimating = false;
 let toastTimer     = null;
+let _previousView  = 'dig';   // vue à restaurer quand on ferme les paramètres
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -50,9 +51,12 @@ function screenFlash(color) {
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 function switchView(viewId) {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === viewId);
-  });
+  // La vue settings ne touche pas la nav — on la gère à part
+  if (viewId !== 'settings') {
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === viewId);
+    });
+  }
 
   document.querySelectorAll('.view').forEach(v => {
     v.classList.toggle('hidden', v.id !== `view-${viewId}`);
@@ -78,6 +82,9 @@ function switchView(viewId) {
   }
   if (viewId === 'shop') {
     renderShop();
+  }
+  if (viewId === 'settings') {
+    renderSettings();
   }
 }
 
@@ -532,6 +539,48 @@ function renderDailyMissions() {
   });
 }
 
+// ── Rendu paramètres ─────────────────────────────────────────────────────────
+
+function renderSettings() {
+  const container = document.getElementById('view-settings');
+  if (!container) return;
+
+  const current = I18n.getCurrent();
+
+  // Construit la liste des langues disponibles
+  const optionsHtml = I18n.LANGS.map(lang => `
+    <button class="lang-option${lang.code === current ? ' is-active' : ''}"
+      data-lang="${lang.code}"
+      aria-pressed="${lang.code === current}">
+      <span class="lang-option-flag">${lang.flag}</span>
+      <span class="lang-option-name">${lang.label}</span>
+      <span class="lang-option-check" aria-hidden="true">✓</span>
+    </button>`).join('');
+
+  container.innerHTML = `
+    <div class="view-title-bar">${t('settings.title')}</div>
+    <div class="settings-section">
+      <div class="settings-section-label">${t('settings.lang_title')}</div>
+      <div class="lang-options-list">${optionsHtml}</div>
+    </div>
+    <button class="settings-back-btn" id="btn-settings-back">
+      ${t('settings.btn_back')}
+    </button>`;
+
+  // Changement de langue
+  container.querySelectorAll('.lang-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      I18n.setLang(btn.dataset.lang);
+      // Re-rend les options pour mettre à jour l'état actif
+      renderSettings();
+    });
+  });
+
+  // Retour à la vue précédente
+  document.getElementById('btn-settings-back')
+    .addEventListener('click', () => switchView(_previousView));
+}
+
 // ── Rendu boutique ────────────────────────────────────────────────────────────
 
 function renderShop() {
@@ -911,6 +960,14 @@ document.getElementById('btn-watch-ad').addEventListener('click', () => {
   );
 });
 
+// Bouton paramètres
+document.getElementById('btn-settings').addEventListener('click', () => {
+  // Mémorise la vue actuellement active avant d'ouvrir les paramètres
+  const activeBtn = document.querySelector('.nav-btn.active');
+  _previousView = activeBtn ? activeBtn.dataset.view : 'dig';
+  switchView('settings');
+});
+
 // Reset
 elResetBtn.addEventListener('click', () => {
   if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes, upgrades, reliques, objectifs, trouvailles et la série quotidienne seront perdus.')) return;
@@ -933,8 +990,17 @@ elResetBtn.addEventListener('click', () => {
 // ── Initialisation ────────────────────────────────────────────────────────────
 
 function init() {
-  I18n.init();             // charge la langue sauvegardée + active les boutons
+  I18n.init();             // charge la langue sauvegardée
   applyTranslations();     // remplit les [data-i18n] statiques
+
+  // Re-rend les vues dynamiques quand la langue change
+  I18n.onLangChange(() => {
+    if (isViewActive('settings'))   renderSettings();
+    if (isViewActive('upgrades'))   { renderUpgrades(); renderQuests(); }
+    if (isViewActive('collection')) { renderCollection(); renderRelics(); }
+    if (isViewActive('daily'))      renderDaily();
+    if (isViewActive('shop'))       renderShop();
+  });
 
   Save.onSave = showSaveToast;
   Save.load();

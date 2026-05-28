@@ -18,9 +18,15 @@
 const I18n = (() => {
 
   const STORAGE_KEY = 'dig_lang';
-  const SUPPORTED   = ['fr', 'en', 'nl'];
   const _callbacks  = [];
   let   _current    = 'fr';
+
+  /** Métadonnées des langues — ordre d'affichage dans les paramètres. */
+  const LANGS = [
+    { code: 'fr', label: 'Français',    flag: '🇫🇷' },
+    { code: 'en', label: 'English',     flag: '🇬🇧' },
+    { code: 'nl', label: 'Nederlands',  flag: '🇳🇱' },
+  ];
 
   // ── Traductions ────────────────────────────────────────────────────────────
 
@@ -173,6 +179,11 @@ const I18n = (() => {
         shop_skin:       '✨ Skin activé !',
         shop_boost:      '⚡ Boost ×{mult} actif !',
       },
+      settings: {
+        title:      'Paramètres',
+        lang_title: 'Langue',
+        btn_back:   '← Retour',
+      },
     },
 
     /* ══════════════════════════════════════════════════════════════════════ */
@@ -321,6 +332,11 @@ const I18n = (() => {
         shop_gems:       '💎 +{amount}',
         shop_skin:       '✨ Skin activated!',
         shop_boost:      '⚡ Boost ×{mult} active!',
+      },
+      settings: {
+        title:      'Settings',
+        lang_title: 'Language',
+        btn_back:   '← Back',
       },
     },
 
@@ -471,6 +487,11 @@ const I18n = (() => {
         shop_skin:       '✨ Skin geactiveerd!',
         shop_boost:      '⚡ Boost ×{mult} actief!',
       },
+      settings: {
+        title:      'Instellingen',
+        lang_title: 'Taal',
+        btn_back:   '← Terug',
+      },
     },
 
   }; // fin T
@@ -487,11 +508,6 @@ const I18n = (() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && T[saved]) _current = saved;
     _applyAttr();
-
-    // Liaison des boutons du sélecteur (DOM déjà prêt au moment de l'appel)
-    document.querySelectorAll('.lang-btn').forEach(btn => {
-      btn.addEventListener('click', () => setLang(btn.dataset.lang));
-    });
   }
 
   function setLang(lang) {
@@ -530,14 +546,12 @@ const I18n = (() => {
 
   function _applyAttr() {
     document.documentElement.lang = _current;
-    document.querySelectorAll('.lang-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.lang === _current);
-    });
   }
 
-  return { init, setLang, getCurrent, t, applyTranslations, onLangChange };
+  return { init, setLang, getCurrent, t, applyTranslations, onLangChange, LANGS };
 
 })();
 
-/** Raccourci global — utilisable partout dans le projet. */
-function t(key, params) { return I18n.t(key, params); }
+/** Raccourcis globaux — utilisables partout dans le projet. */
+function t(key, params)    { return I18n.t(key, params); }
+function applyTranslations() { return I18n.applyTranslations(); }
