@@ -2,22 +2,10 @@
  * upgrades.js
  * Catalogue des améliorations et logique d'achat.
  * Dépend de : GameState
- *
- * Chaque définition expose :
- *   id          — identifiant unique
- *   icon        — emoji affiché sur la carte
- *   name        — nom affiché
- *   maxLevel    — niveau maximum (inclus)
- *   describe(level)  — texte décrivant l'effet au niveau courant
- *   getCost(level)   — { coins, gems } pour passer au niveau suivant,
- *                      ou null si niveau max atteint
  */
 const Upgrades = {
 
   DEFS: [
-    // ── Pioche ────────────────────────────────────────────────────────────────
-    // Augmente les dégâts par clic. Part de niveau 1.
-    // Coûts : 10 → 20 → 40 → 80 → … (×2 à chaque niveau)
     {
       id: 'pickaxe',
       icon: '⛏',
@@ -31,10 +19,6 @@ const Upgrades = {
         return { coins: Math.floor(10 * Math.pow(2, level - 1)), gems: 0 };
       },
     },
-
-    // ── Chance ────────────────────────────────────────────────────────────────
-    // Multiplie le poids des blocs rares/épiques/légendaires.
-    // Coûts : 25 → 47 → 89 → 170 → … (×1.9 à chaque niveau)
     {
       id: 'luck',
       icon: '🍀',
@@ -49,10 +33,6 @@ const Upgrades = {
         return { coins: Math.floor(25 * Math.pow(1.9, level)), gems: 0 };
       },
     },
-
-    // ── Sac ───────────────────────────────────────────────────────────────────
-    // Multiplie les récompenses en coins à la destruction d'un bloc.
-    // Coûts : 40 → 80 → 160 → 320 → … (×2 à chaque niveau)
     {
       id: 'bag',
       icon: '🎒',
@@ -67,10 +47,6 @@ const Upgrades = {
         return { coins: Math.floor(40 * Math.pow(2, level)), gems: 0 };
       },
     },
-
-    // ── Auto-Dig ──────────────────────────────────────────────────────────────
-    // Inflige automatiquement des dégâts toutes les secondes.
-    // Niveaux 1-2 : coins seulement. Niveaux 3-6 : gemmes requises.
     {
       id: 'autodig',
       icon: '⚙',
@@ -82,19 +58,17 @@ const Upgrades = {
       },
       getCost(level) {
         const table = [
-          { coins: 80,  gems: 0  }, // 0 → 1
-          { coins: 280, gems: 0  }, // 1 → 2
-          { coins: 0,   gems: 2  }, // 2 → 3
-          { coins: 0,   gems: 5  }, // 3 → 4
-          { coins: 0,   gems: 12 }, // 4 → 5
-          { coins: 0,   gems: 25 }, // 5 → 6
+          { coins: 80,  gems: 0  },
+          { coins: 280, gems: 0  },
+          { coins: 0,   gems: 2  },
+          { coins: 0,   gems: 5  },
+          { coins: 0,   gems: 12 },
+          { coins: 0,   gems: 25 },
         ];
         return table[level] ?? null;
       },
     },
   ],
-
-  // ── Accès aux niveaux ─────────────────────────────────────────────────────
 
   getLevel(id) {
     if (id === 'pickaxe') return GameState.pickaxeLevel;
@@ -106,7 +80,6 @@ const Upgrades = {
     return def ? def.getCost(this.getLevel(id)) : null;
   },
 
-  /** Vérifie si le joueur a assez de ressources pour l'upgrade. */
   canAfford(id) {
     const cost = this.getCost(id);
     if (!cost) return false;
@@ -115,13 +88,6 @@ const Upgrades = {
     return true;
   },
 
-  // ── Achat ─────────────────────────────────────────────────────────────────
-
-  /**
-   * Tente d'acheter un niveau d'upgrade.
-   * @param {string} id
-   * @returns {boolean} true si l'achat a réussi
-   */
   buy(id) {
     if (!this.canAfford(id)) return false;
 
@@ -136,17 +102,14 @@ const Upgrades = {
       GameState.upgrades[id] += 1;
     }
 
+    GameState.stats.totalUpgradesBought += 1;
     return true;
   },
 
-  // ── Effets actifs ─────────────────────────────────────────────────────────
-
-  /** Multiplicateur appliqué aux récompenses (Sac). */
   getRewardMultiplier() {
     return 1 + GameState.upgrades.bag * 0.3;
   },
 
-  /** Dégâts automatiques par seconde (0 = inactif). */
   getAutoDigDamage() {
     return GameState.upgrades.autodig;
   },

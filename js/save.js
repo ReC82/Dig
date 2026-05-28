@@ -4,16 +4,16 @@
  * Dépend de : GameState
  *
  * Versions :
- *   v0 (implicite) — coins, depth, pickaxeLevel, damage
- *   v1             — + gems, stats
- *   v2             — + upgrades { luck, bag, autodig }
+ *   v0 — coins, depth, pickaxeLevel, damage
+ *   v1 — + gems, stats
+ *   v2 — + upgrades { luck, bag, autodig }
+ *   v3 — + collection[], quests{}, stats.totalUpgradesBought
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 2,
+  SAVE_VERSION: 3,
 
-  /** Callback déclenché après chaque sauvegarde réussie (assigné par main.js). */
   onSave: null,
 
   // ── Sauvegarde ────────────────────────────────────────────────────────────
@@ -28,6 +28,8 @@ const Save = {
         pickaxeLevel: GameState.pickaxeLevel,
         damage:       GameState.damage,
         upgrades:     { ...GameState.upgrades },
+        collection:   [...GameState.collection],
+        quests:       { ...GameState.quests },
         stats:        { ...GameState.stats },
       };
       localStorage.setItem(this.KEY, JSON.stringify(data));
@@ -55,11 +57,15 @@ const Save = {
       GameState.upgrades.bag     = u.bag     ?? 0;
       GameState.upgrades.autodig = u.autodig ?? 0;
 
+      GameState.collection = Array.isArray(data.collection) ? data.collection : [];
+      GameState.quests     = (data.quests && typeof data.quests === 'object') ? data.quests : {};
+
       const s = data.stats ?? {};
-      GameState.stats.blocksDestroyed  = s.blocksDestroyed  ?? 0;
-      GameState.stats.totalCoinsEarned = s.totalCoinsEarned ?? 0;
-      GameState.stats.gemsFound        = s.gemsFound        ?? 0;
-      GameState.stats.chestsFound      = s.chestsFound      ?? 0;
+      GameState.stats.blocksDestroyed     = s.blocksDestroyed     ?? 0;
+      GameState.stats.totalCoinsEarned    = s.totalCoinsEarned    ?? 0;
+      GameState.stats.gemsFound           = s.gemsFound           ?? 0;
+      GameState.stats.chestsFound         = s.chestsFound         ?? 0;
+      GameState.stats.totalUpgradesBought = s.totalUpgradesBought ?? 0;
 
       return true;
     } catch (_) {
@@ -84,13 +90,18 @@ const Save = {
       data.stats = { blocksDestroyed: 0, totalCoinsEarned: 0, gemsFound: 0, chestsFound: 0 };
       data.saveVersion = 1;
     }
-
     if (v < 2) {
       data.upgrades = { luck: 0, bag: 0, autodig: 0 };
       data.saveVersion = 2;
     }
+    if (v < 3) {
+      data.collection = [];
+      data.quests     = {};
+      if (data.stats) data.stats.totalUpgradesBought = 0;
+      data.saveVersion = 3;
+    }
 
-    // if (v < 3) { /* futures migrations */ }
+    // if (v < 4) { /* futures migrations */ }
 
     return data;
   },
