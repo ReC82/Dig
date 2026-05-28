@@ -58,6 +58,10 @@ function switchView(viewId) {
     v.classList.toggle('hidden', v.id !== `view-${viewId}`);
   });
 
+  // Remettre le scroll en haut à chaque changement d'onglet
+  const activeView = document.getElementById(`view-${viewId}`);
+  if (activeView) activeView.scrollTop = 0;
+
   if (viewId === 'upgrades') {
     renderQuests();
     clearNavBadge('upgrades');
@@ -326,7 +330,7 @@ function renderDaily() {
   const nextDay         = Daily.getNextDay();
   const available       = Daily.isAvailable();
 
-  let html = `<div class="daily-title">Connexion quotidienne</div><div class="streak-row">`;
+  let html = `<div class="view-title-bar">📅 Quotidien</div><div class="daily-title">Connexion quotidienne</div><div class="streak-row">`;
   for (let i = 1; i <= 7; i++) {
     let state;
     if (claimedToday) {
@@ -535,6 +539,7 @@ function renderShop() {
   if (!container) return;
 
   container.innerHTML = `
+    <div class="view-title-bar">🛒 Boutique</div>
     <div class="shop-header">
       <div class="shop-balance">💎 ${GameState.gems} gemme${GameState.gems !== 1 ? 's' : ''}</div>
       <div class="shop-balance-sub">Solde actuel</div>

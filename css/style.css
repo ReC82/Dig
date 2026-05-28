@@ -20,7 +20,8 @@
 }
 
 html {
-  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
   background: var(--bg);
 }
 
@@ -31,8 +32,8 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  min-height: 100dvh;
-  overflow-x: hidden;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 #app {
@@ -40,7 +41,8 @@ body {
   max-width: 440px;
   display: flex;
   flex-direction: column;
-  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  height: 100dvh;
+  overflow: hidden;
 }
 
 /* ── Header ─────────────────────────────────── */
@@ -124,19 +126,33 @@ h1 {
 
 /* ── Views ──────────────────────────────────── */
 .view {
-  padding: 16px;
+  flex: 1;
+  min-height: 0;           /* critical : permet au flex item de rétrécir + scroller */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding: 16px 16px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.10) transparent;
 }
 .view.hidden { display: none; }
+
+/* ── Titre de vue ───────────────────────────── */
+.view-title-bar {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: var(--muted);
+  font-weight: 700;
+  text-align: center;
+  padding-bottom: 14px;
+}
 
 /* ── Vue Dig ────────────────────────────────── */
 #view-dig {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 28px 16px 16px;
-  min-height: calc(100dvh - 230px);
+  padding: 22px 16px calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 20px);
 }
 
 #block-container {
@@ -1537,11 +1553,29 @@ h1 {
 }
 
 @media (min-height: 700px) {
-  #view-dig { padding-top: 48px; }
+  #view-dig { padding-top: 38px; }
 }
 
 @media (min-width: 440px) {
   #block      { width: 180px; height: 180px; }
   #block-icon { font-size: 4.2rem; }
   #hp-bar-wrap { width: 180px; }
+}
+
+/* ── Desktop : encadrement ──────────────────── */
+@media (min-width: 500px) {
+  body {
+    align-items: center;      /* centre verticalement l'app-card */
+    background: #08080f;      /* fond légèrement plus sombre hors carte */
+  }
+
+  #app {
+    border-left:  1px solid rgba(255,255,255,0.09);
+    border-right: 1px solid rgba(255,255,255,0.09);
+    box-shadow:
+      -12px 0 48px rgba(0,0,0,0.55),
+       12px 0 48px rgba(0,0,0,0.55);
+  }
+
+  /* La nav reste fixée en bas du viewport, mais déjà limitée à max-width: 440px */
 }
