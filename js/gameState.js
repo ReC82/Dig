@@ -27,11 +27,23 @@ const GameState = {
 
   // ── Statistiques ────────────────────────────
   stats: {
-    blocksDestroyed:    0,
-    totalCoinsEarned:   0,
-    gemsFound:          0,
-    chestsFound:        0,
+    blocksDestroyed:     0,
+    totalCoinsEarned:    0,
+    gemsFound:           0,
+    chestsFound:         0,
     totalUpgradesBought: 0,
+  },
+
+  // ── Récompense quotidienne ────────────────────
+  daily: {
+    lastClaimDate: null,   // 'YYYY-MM-DD' ou null
+    streakDay:     0,      // 0 = jamais réclamé, 1-7 = dernier jour réclamé
+  },
+
+  // ── Boost temporaire ──────────────────────────
+  coinBoost: {
+    multiplier: 1,
+    expiresAt:  0,         // timestamp ms ; 0 = inactif
   },
 
   // ── Helpers ──────────────────────────────────
@@ -48,6 +60,15 @@ const GameState = {
     if (type.isChest) { this.stats.chestsFound += 1; }
   },
 
+  getCoinBoostMultiplier() {
+    return (this.coinBoost.expiresAt > Date.now()) ? this.coinBoost.multiplier : 1;
+  },
+
+  setCoinBoost(multiplier, durationMs) {
+    this.coinBoost.multiplier = multiplier;
+    this.coinBoost.expiresAt  = Date.now() + durationMs;
+  },
+
   reset() {
     this.coins        = 0;
     this.gems         = 0;
@@ -61,5 +82,7 @@ const GameState = {
       blocksDestroyed: 0, totalCoinsEarned: 0,
       gemsFound: 0, chestsFound: 0, totalUpgradesBought: 0,
     };
+    this.daily        = { lastClaimDate: null, streakDay: 0 };
+    this.coinBoost    = { multiplier: 1, expiresAt: 0 };
   },
 };

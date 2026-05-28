@@ -8,11 +8,12 @@
  *   v1 — + gems, stats
  *   v2 — + upgrades { luck, bag, autodig }
  *   v3 — + collection[], quests{}, stats.totalUpgradesBought
+ *   v4 — + daily{}, coinBoost{}
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 3,
+  SAVE_VERSION: 4,
 
   onSave: null,
 
@@ -31,6 +32,8 @@ const Save = {
         collection:   [...GameState.collection],
         quests:       { ...GameState.quests },
         stats:        { ...GameState.stats },
+        daily:        { ...GameState.daily },
+        coinBoost:    { ...GameState.coinBoost },
       };
       localStorage.setItem(this.KEY, JSON.stringify(data));
       if (typeof this.onSave === 'function') this.onSave();
@@ -67,6 +70,14 @@ const Save = {
       GameState.stats.chestsFound         = s.chestsFound         ?? 0;
       GameState.stats.totalUpgradesBought = s.totalUpgradesBought ?? 0;
 
+      const dd = data.daily ?? {};
+      GameState.daily.lastClaimDate = dd.lastClaimDate ?? null;
+      GameState.daily.streakDay     = dd.streakDay     ?? 0;
+
+      const cb = data.coinBoost ?? {};
+      GameState.coinBoost.multiplier = cb.multiplier ?? 1;
+      GameState.coinBoost.expiresAt  = cb.expiresAt  ?? 0;
+
       return true;
     } catch (_) {
       return false;
@@ -100,8 +111,13 @@ const Save = {
       if (data.stats) data.stats.totalUpgradesBought = 0;
       data.saveVersion = 3;
     }
+    if (v < 4) {
+      data.daily     = { lastClaimDate: null, streakDay: 0 };
+      data.coinBoost = { multiplier: 1, expiresAt: 0 };
+      data.saveVersion = 4;
+    }
 
-    // if (v < 4) { /* futures migrations */ }
+    // if (v < 5) { /* futures migrations */ }
 
     return data;
   },

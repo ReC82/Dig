@@ -86,6 +86,35 @@ h1 {
 
 #stat-gems { color: #c084fc; }
 
+/* ── Boost banner ───────────────────────────── */
+#boost-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(245, 197, 24, 0.08);
+  border: 1px solid rgba(245, 197, 24, 0.28);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--gold);
+  animation: boost-pulse 2s ease-in-out infinite;
+}
+
+#boost-banner[hidden] { display: none; }
+
+#boost-timer {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+@keyframes boost-pulse {
+  0%, 100% { border-color: rgba(245, 197, 24, 0.25); }
+  50%       { border-color: rgba(245, 197, 24, 0.55); }
+}
+
 /* ── Game area ──────────────────────────────── */
 #game-area {
   display: flex;
@@ -243,6 +272,7 @@ h1 {
 /* ── Récompense ─────────────────────────────── */
 #block-reward { font-size: 0.75rem; color: var(--muted); min-height: 1em; }
 #block-reward .reward-value { color: var(--gold); font-weight: 700; }
+#block-reward .boost-tag    { font-size: 0.75em; color: #fbbf24; }
 
 /* ── Textes flottants ───────────────────────── */
 .float-text {
@@ -306,7 +336,7 @@ h1 {
 
 .tab-bar {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   background: rgba(0,0,0,0.2);
   padding: 4px;
   gap: 3px;
@@ -314,16 +344,18 @@ h1 {
 
 .tab-btn {
   position: relative;
-  padding: 9px 4px;
+  padding: 9px 2px;
   background: none;
   border: none;
   border-radius: 8px;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -338,7 +370,7 @@ h1 {
 .tab-badge {
   position: absolute;
   top: 6px;
-  right: 8px;
+  right: 5px;
   width: 7px;
   height: 7px;
   background: var(--red);
@@ -564,6 +596,149 @@ h1 {
 
 .find-card.found .find-name { color: var(--text); }
 
+/* ── Daily ───────────────────────────────────── */
+.daily-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.streak-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.streak-day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.streak-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 2px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  color: var(--muted);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+
+.streak-icon {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+/* États des cercles */
+.streak-day.done .streak-circle {
+  background: rgba(74,222,128,0.12);
+  border-color: rgba(74,222,128,0.35);
+  color: var(--green);
+  font-size: 0.85rem;
+}
+
+.streak-day.claimed-today .streak-circle {
+  background: rgba(74,222,128,0.22);
+  border-color: rgba(74,222,128,0.6);
+  color: var(--green);
+  box-shadow: 0 0 10px rgba(74,222,128,0.3);
+  font-size: 0.85rem;
+}
+
+.streak-day.available .streak-circle {
+  background: rgba(245,197,24,0.12);
+  border-color: rgba(245,197,24,0.5);
+  color: var(--gold);
+  animation: pulse-gold 1.6s ease-in-out infinite;
+}
+
+.streak-day.upcoming .streak-circle {
+  opacity: 0.28;
+}
+
+.streak-day.upcoming .streak-icon {
+  opacity: 0.28;
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 6px rgba(245,197,24,0.15); }
+  50%       { box-shadow: 0 0 16px rgba(245,197,24,0.4); }
+}
+
+.daily-reward-box {
+  background: rgba(245,197,24,0.06);
+  border: 1px solid rgba(245,197,24,0.2);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.daily-reward-day {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.daily-reward-items {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.claim-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #f5c518, #d4a000);
+  color: #111;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: transform 0.1s, filter 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.claim-btn:hover  { filter: brightness(1.1); transform: scale(1.02); }
+.claim-btn:active { transform: scale(0.97); }
+
+.daily-claimed-msg {
+  text-align: center;
+  padding: 18px 14px 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--green);
+}
+
+.claimed-check {
+  margin-right: 5px;
+}
+
+.daily-next-msg {
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 6px;
+  padding-bottom: 4px;
+}
+
 /* ── Reset ──────────────────────────────────── */
 #btn-reset {
   display: block;
@@ -608,6 +783,7 @@ h1 {
   .stat span:last-child { font-size: 0.88rem; }
   .upgrade-desc         { display: none; }
   #collection-grid      { grid-template-columns: repeat(3, 1fr); }
+  .streak-circle        { width: 26px; height: 26px; font-size: 0.68rem; }
 }
 
 @media (max-width: 320px) {
@@ -615,6 +791,7 @@ h1 {
   #block       { width: 135px; height: 135px; }
   #block-icon  { font-size: 3.2rem; }
   #hp-bar-wrap { width: 135px; }
+  .tab-btn     { font-size: 0.58rem; }
 }
 
 @media (min-height: 700px) {

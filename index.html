@@ -36,6 +36,12 @@
       </div>
     </div>
 
+    <!-- Bannière de boost (visible uniquement quand un boost est actif) -->
+    <div id="boost-banner" hidden aria-live="polite">
+      <span id="boost-text"></span>
+      <span id="boost-timer"></span>
+    </div>
+
     <div id="game-area">
       <div id="block-container">
 
@@ -58,7 +64,7 @@
       </div>
     </div>
 
-    <!-- Panneau à onglets : Améliorations / Objectifs / Collection -->
+    <!-- Panneau à onglets : Améliorations / Objectifs / Collection / Quotidien -->
     <div id="panels">
 
       <div class="tab-bar" role="tablist">
@@ -72,6 +78,10 @@
         <button class="tab-btn" data-panel="collection" role="tab" aria-selected="false">
           Collection
           <span class="tab-badge" id="badge-collection" hidden></span>
+        </button>
+        <button class="tab-btn" data-panel="daily" role="tab" aria-selected="false">
+          Quotidien
+          <span class="tab-badge" id="badge-daily" hidden></span>
         </button>
       </div>
 
@@ -92,6 +102,10 @@
         <div id="collection-grid"></div>
       </div>
 
+      <!-- Panel Quotidien -->
+      <div id="panel-daily" class="panel hidden" role="tabpanel">
+      </div>
+
     </div>
 
   </div>
@@ -103,6 +117,7 @@
   <script src="js/upgrades.js"></script>
   <script src="js/collection.js"></script>
   <script src="js/quests.js"></script>
+  <script src="js/daily.js"></script>
   <script src="js/save.js"></script>
   <script src="js/main.js"></script>
 </body>

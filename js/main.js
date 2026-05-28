@@ -1,7 +1,7 @@
 /**
  * main.js
  * Point d'entrée : DOM, événements, rendu.
- * Dépend de : GameState, Blocks, Upgrades, Collection, Quests, Save
+ * Dépend de : GameState, Blocks, Upgrades, Collection, Quests, Daily, Save
  */
 
 // ── Références DOM fixes ────────────────────────────────────────────────────
@@ -20,6 +20,9 @@ const elHpText       = document.getElementById('hp-text');
 const elUpgradesList = document.getElementById('upgrades-list');
 const elResetBtn     = document.getElementById('btn-reset');
 const elSaveToast    = document.getElementById('save-toast');
+const elBoostBanner  = document.getElementById('boost-banner');
+const elBoostText    = document.getElementById('boost-text');
+const elBoostTimer   = document.getElementById('boost-timer');
 
 // ── État interne ─────────────────────────────────────────────────────────────
 let blockAnimating = false;
@@ -55,6 +58,10 @@ function switchTab(panelId) {
     renderCollection();
     clearTabBadge('collection');
   }
+  if (panelId === 'daily') {
+    renderDaily();
+    clearTabBadge('daily');
+  }
 }
 
 function setTabBadge(name) {
@@ -87,6 +94,23 @@ function renderStats() {
   updateUpgradeButtonStates();
 }
 
+// ── Rendu boost banner ────────────────────────────────────────────────────────
+
+function renderBoostBanner() {
+  const ms = Daily.getBoostRemainingMs();
+  if (ms <= 0) {
+    elBoostBanner.hidden = true;
+    return;
+  }
+  elBoostBanner.hidden = false;
+  const totalSec = Math.ceil(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const mult = GameState.coinBoost.multiplier;
+  elBoostText.textContent  = `⚡ Bonus ×${mult} pièces actif`;
+  elBoostTimer.textContent = `— ${min}:${String(sec).padStart(2, '0')} restant`;
+}
+
 // ── Rendu bloc ────────────────────────────────────────────────────────────────
 
 function renderBlock() {
@@ -117,8 +141,10 @@ function renderBlock() {
   else if (ratio < 0.55) elBlock.classList.add('crack-2');
   else if (ratio < 0.80) elBlock.classList.add('crack-1');
 
-  const finalReward = Math.ceil(b.reward * Upgrades.getRewardMultiplier());
-  elBlockReward.innerHTML = `Récompense : <span class="reward-value">💰 ${finalReward}</span>`;
+  const boostMult  = GameState.getCoinBoostMultiplier();
+  const finalReward = Math.ceil(b.reward * Upgrades.getRewardMultiplier() * boostMult);
+  const boostTag   = boostMult > 1 ? ` <span class="boost-tag">⚡×${boostMult}</span>` : '';
+  elBlockReward.innerHTML = `Récompense : <span class="reward-value">💰 ${finalReward}${boostTag}</span>`;
 }
 
 // ── Rendu upgrades ────────────────────────────────────────────────────────────
@@ -235,6 +261,96 @@ function renderCollection() {
   }
 }
 
+// ── Rendu quotidien ───────────────────────────────────────────────────────────
+
+function renderDaily() {
+  const container = document.getElementById('panel-daily');
+  if (!container) return;
+
+  const today          = Daily.getToday();
+  const yesterday      = Daily.getYesterday();
+  const last           = GameState.daily.lastClaimDate;
+  const lastDay        = GameState.daily.streakDay;  // 0 si jamais réclamé
+  const claimedToday   = (last === today);
+  const streakContinues = (last === yesterday);
+  const nextDay        = Daily.getNextDay();
+  const available      = Daily.isAvailable();
+
+  // ── Ligne des 7 cercles ────────────────────────────────────────────────────
+  let html = `<div class="daily-title">Connexion quotidienne</div>`;
+  html += `<div class="streak-row">`;
+
+  for (let i = 1; i <= 7; i++) {
+    let state;
+    if (claimedToday) {
+      if (i < lastDay)      state = 'done';
+      else if (i === lastDay) state = 'claimed-today';
+      else                  state = 'upcoming';
+    } else {
+      const doneBefore = streakContinues && i < nextDay;
+      if (doneBefore)      state = 'done';
+      else if (i === nextDay) state = 'available';
+      else                 state = 'upcoming';
+    }
+
+    const r = Daily.REWARDS[i - 1];
+    html += `
+      <div class="streak-day ${state}">
+        <div class="streak-circle">${(state === 'done' || state === 'claimed-today') ? '✓' : i}</div>
+        <div class="streak-icon">${r.icon}</div>
+      </div>`;
+  }
+
+  html += `</div>`;
+
+  // ── Bloc récompense / message ──────────────────────────────────────────────
+  if (available) {
+    const r = Daily.REWARDS[nextDay - 1];
+    const parts = [];
+    if (r.coins > 0) parts.push(`💰 ${r.coins} pièces`);
+    if (r.gems  > 0) parts.push(`💎 ${r.gems} gemme${r.gems > 1 ? 's' : ''}`);
+    if (r.boost) parts.push(`⚡ ×${r.boost.mult} coins pendant ${r.boost.minutes} min`);
+
+    html += `
+      <div class="daily-reward-box">
+        <div class="daily-reward-day">Jour ${nextDay} sur 7</div>
+        <div class="daily-reward-items">${parts.join(' + ')}</div>
+      </div>
+      <button class="claim-btn" id="btn-claim">Réclamer la récompense</button>`;
+  } else {
+    html += `
+      <div class="daily-claimed-msg"><span class="claimed-check">✓</span>Récompense réclamée !</div>
+      <div class="daily-next-msg">Reviens demain pour continuer ta série.</div>`;
+  }
+
+  container.innerHTML = html;
+
+  // ── Bouton de réclamation ──────────────────────────────────────────────────
+  if (available) {
+    document.getElementById('btn-claim').addEventListener('click', () => {
+      const result = Daily.claim();
+      if (!result) return;
+
+      const { reward, day } = result;
+      const parts = [];
+      if (reward.coins > 0) parts.push(`💰 ${reward.coins}`);
+      if (reward.gems  > 0) parts.push(`💎 ${reward.gems}`);
+      if (reward.boost) parts.push(`⚡ ×${reward.boost.mult}`);
+      showAchievement('📅', `Jour ${day} : ${parts.join(' + ')} !`);
+
+      if (reward.boost) renderBoostBanner();
+
+      clearTabBadge('daily');
+      renderDaily();
+      renderStats();
+      Save.save();
+
+      const completed = Quests.checkAll();
+      handleQuestsCompleted(completed);
+    });
+  }
+}
+
 // ── Notifications (objectifs & trouvailles) ───────────────────────────────────
 
 function showAchievement(icon, text) {
@@ -312,8 +428,8 @@ function spawnBlock() {
 
 function handleBlockDestroyed(cx, cy) {
   const { reward: baseReward, type } = Blocks.current;
-  const depth  = GameState.depth;             // profondeur courante avant nextDepth
-  const reward = Math.ceil(baseReward * Upgrades.getRewardMultiplier());
+  const depth  = GameState.depth;
+  const reward = Math.ceil(baseReward * Upgrades.getRewardMultiplier() * GameState.getCoinBoostMultiplier());
 
   GameState.addCoins(reward);
   GameState.nextDepth();
@@ -396,11 +512,14 @@ elBlock.addEventListener('touchstart', (e) => {
 }, { passive: false });
 
 elResetBtn.addEventListener('click', () => {
-  if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes, upgrades, objectifs et trouvailles seront perdus.')) return;
+  if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes, upgrades, objectifs, trouvailles et la série quotidienne seront perdus.')) return;
   Save.reset();
   renderUpgrades();
   renderQuests();
   renderCollection();
+  renderBoostBanner();
+  if (isTabActive('daily')) renderDaily();
+  if (Daily.isAvailable()) setTabBadge('daily');
   spawnBlock();
   renderStats();
 });
@@ -418,9 +537,14 @@ function init() {
   renderUpgrades();
   spawnBlock();
   renderStats();
+  renderBoostBanner();
 
-  setInterval(() => Save.save(), 15_000);
-  setInterval(autoDigTick,       1_000);
+  // Badge sur l'onglet Quotidien si une récompense est disponible
+  if (Daily.isAvailable()) setTabBadge('daily');
+
+  setInterval(() => Save.save(),   15_000);
+  setInterval(autoDigTick,          1_000);
+  setInterval(renderBoostBanner,    1_000);
 }
 
 document.addEventListener('DOMContentLoaded', init);
