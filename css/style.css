@@ -47,8 +47,11 @@ body {
 
 /* ── Header ─────────────────────────────────── */
 header {
-  padding: 20px 16px 0;
-  text-align: center;
+  padding: 14px 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   flex-shrink: 0;
 }
 
@@ -58,6 +61,42 @@ h1 {
   letter-spacing: 6px;
   color: var(--gold);
   text-shadow: 0 0 24px rgba(245, 197, 24, 0.4);
+}
+
+/* ── Sélecteur de langue ─────────────────────── */
+#lang-switcher {
+  position: absolute;
+  right: 14px;
+  display: flex;
+  gap: 3px;
+}
+
+.lang-btn {
+  padding: 4px 7px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.lang-btn.active {
+  color: var(--gold);
+  border-color: rgba(245,197,24,0.45);
+  background: rgba(245,197,24,0.08);
+}
+
+.lang-btn:not(.active):hover {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
 }
 
 /* ── Stats ──────────────────────────────────── */

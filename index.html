@@ -11,31 +11,36 @@
 
     <header>
       <h1>⛏ DIG!</h1>
+      <div id="lang-switcher" aria-label="Language">
+        <button class="lang-btn active" data-lang="fr">FR</button>
+        <button class="lang-btn"        data-lang="en">EN</button>
+        <button class="lang-btn"        data-lang="nl">NL</button>
+      </div>
     </header>
 
     <div id="stats">
       <div class="stat">
-        <span class="label">Coins</span>
+        <span class="label" data-i18n="stats.coins">Coins</span>
         <span id="stat-coins">0</span>
       </div>
       <div class="stat">
-        <span class="label">Gemmes</span>
+        <span class="label" data-i18n="stats.gems">Gemmes</span>
         <span id="stat-gems">0</span>
       </div>
       <div class="stat">
-        <span class="label">Prof.</span>
+        <span class="label" data-i18n="stats.depth">Prof.</span>
         <span id="stat-depth">1m</span>
       </div>
       <div class="stat">
-        <span class="label">Pioche</span>
+        <span class="label" data-i18n="stats.pickaxe">Pioche</span>
         <span id="stat-pickaxe">Nv.1</span>
       </div>
       <div class="stat">
-        <span class="label">Dégâts</span>
+        <span class="label" data-i18n="stats.damage">Dégâts</span>
         <span id="stat-damage">1</span>
       </div>
       <div class="stat">
-        <span class="label">Reliques</span>
+        <span class="label" data-i18n="stats.relics">Reliques</span>
         <span id="stat-relics">0</span>
       </div>
     </div>
@@ -70,9 +75,10 @@
         <!-- Zone pub récompensée -->
         <div id="ad-zone">
           <button id="btn-watch-ad" class="ad-btn"
-            aria-label="Regarder une publicité pour doubler la récompense">
+            data-i18n-aria="ui.btn_watch_ad"
+            aria-label="Doubler la récompense">
             <span class="ad-btn-icon">📺</span>
-            <span class="ad-btn-text">Doubler la récompense</span>
+            <span class="ad-btn-text" data-i18n="ui.btn_watch_ad">Doubler la récompense</span>
           </button>
           <div id="ad-timer" aria-live="polite"></div>
         </div>
@@ -82,19 +88,19 @@
 
     <!-- Vue Améliorations + Objectifs -->
     <div id="view-upgrades" class="view hidden">
-      <div class="view-title-bar">⚙ Améliorations</div>
+      <div class="view-title-bar" data-i18n="ui.view_upgrades">⚙ Améliorations</div>
       <div id="upgrades-list"></div>
-      <div class="section-divider"><span>🎯 Objectifs</span></div>
+      <div class="section-divider"><span data-i18n="ui.section_objectives">🎯 Objectifs</span></div>
       <div id="quests-list"></div>
-      <button id="btn-reset">Réinitialiser la partie</button>
+      <button id="btn-reset" data-i18n="ui.btn_reset">Réinitialiser la partie</button>
     </div>
 
     <!-- Vue Collection -->
     <div id="view-collection" class="view hidden">
-      <div class="view-title-bar">📦 Collection</div>
+      <div class="view-title-bar" data-i18n="ui.view_collection">📦 Collection</div>
       <div id="collection-header"></div>
       <div id="collection-grid"></div>
-      <div class="section-divider" style="margin-top:22px"><span>🔮 Reliques</span></div>
+      <div class="section-divider" style="margin-top:22px"><span data-i18n="ui.section_relics">🔮 Reliques</span></div>
       <div id="relics-info"></div>
       <div id="relics-grid"></div>
     </div>
@@ -108,42 +114,47 @@
     <!-- ── Navigation bas ─────────────────────────────────────────────── -->
     <nav id="bottom-nav" role="navigation" aria-label="Navigation principale">
 
-      <button class="nav-btn active" data-view="dig" aria-label="Creuser">
+      <button class="nav-btn active" data-view="dig"
+        data-i18n-aria="nav.dig_aria" aria-label="Creuser">
         <span class="nav-icon-wrap">
           <span class="nav-icon">⛏</span>
         </span>
-        <span class="nav-label">Dig</span>
+        <span class="nav-label" data-i18n="nav.dig">Dig</span>
       </button>
 
-      <button class="nav-btn" data-view="upgrades" aria-label="Améliorations">
+      <button class="nav-btn" data-view="upgrades"
+        data-i18n-aria="nav.upgrades_aria" aria-label="Améliorations">
         <span class="nav-icon-wrap">
           <span class="nav-icon">⚙</span>
           <span class="nav-badge" id="badge-upgrades" hidden></span>
         </span>
-        <span class="nav-label">Amélios</span>
+        <span class="nav-label" data-i18n="nav.upgrades">Amélios</span>
       </button>
 
-      <button class="nav-btn" data-view="collection" aria-label="Collection">
+      <button class="nav-btn" data-view="collection"
+        data-i18n-aria="nav.collection_aria" aria-label="Collection">
         <span class="nav-icon-wrap">
           <span class="nav-icon">📦</span>
           <span class="nav-badge" id="badge-collection" hidden></span>
         </span>
-        <span class="nav-label">Collection</span>
+        <span class="nav-label" data-i18n="nav.collection">Collection</span>
       </button>
 
-      <button class="nav-btn" data-view="daily" aria-label="Récompense quotidienne">
+      <button class="nav-btn" data-view="daily"
+        data-i18n-aria="nav.daily_aria" aria-label="Récompense quotidienne">
         <span class="nav-icon-wrap">
           <span class="nav-icon">📅</span>
           <span class="nav-badge" id="badge-daily" hidden></span>
         </span>
-        <span class="nav-label">Quotidien</span>
+        <span class="nav-label" data-i18n="nav.daily">Quotidien</span>
       </button>
 
-      <button class="nav-btn" data-view="shop" aria-label="Boutique">
+      <button class="nav-btn" data-view="shop"
+        data-i18n-aria="nav.shop_aria" aria-label="Boutique">
         <span class="nav-icon-wrap">
           <span class="nav-icon">🛒</span>
         </span>
-        <span class="nav-label">Boutique</span>
+        <span class="nav-label" data-i18n="nav.shop">Boutique</span>
       </button>
 
     </nav>
@@ -165,8 +176,8 @@
 
       <div id="ad-modal-footer">
         <div id="ad-countdown" aria-live="polite">5</div>
-        <button id="btn-close-ad" hidden>Récupérer le bonus →</button>
-        <button id="btn-skip-ad">Passer ✕</button>
+        <button id="btn-close-ad" hidden data-i18n="ui.btn_close_ad">Récupérer le bonus →</button>
+        <button id="btn-skip-ad" data-i18n="ui.btn_skip_ad">Passer ✕</button>
       </div>
 
     </div>
@@ -176,10 +187,10 @@
   <div id="offline-modal" hidden role="dialog" aria-modal="true" aria-labelledby="offline-modal-title">
     <div id="offline-modal-inner">
       <div id="offline-modal-icon">⏳</div>
-      <div id="offline-modal-title">Pendant ton absence…</div>
+      <div id="offline-modal-title" data-i18n="ui.offline_title">Pendant ton absence…</div>
       <div id="offline-modal-duration"></div>
       <div id="offline-modal-reward"></div>
-      <button id="btn-collect-offline">Récupérer !</button>
+      <button id="btn-collect-offline" data-i18n="ui.btn_collect">Récupérer !</button>
     </div>
   </div>
 
@@ -191,14 +202,15 @@
       </div>
       <div id="chest-modal-rarity"></div>
       <div id="chest-modal-title"></div>
-      <div id="chest-modal-reward-label">Contenu</div>
+      <div id="chest-modal-reward-label" data-i18n="ui.chest_content_label">Contenu</div>
       <div id="chest-modal-reward"></div>
-      <button id="btn-collect-chest">Récupérer !</button>
+      <button id="btn-collect-chest" data-i18n="ui.btn_collect">Récupérer !</button>
     </div>
   </div>
 
-  <div id="save-toast" aria-live="polite">Sauvegardé ✓</div>
+  <div id="save-toast" aria-live="polite" data-i18n="ui.saved">Sauvegardé ✓</div>
 
+  <script src="js/i18n.js"></script>
   <script src="js/gameState.js"></script>
   <script src="js/blocks.js"></script>
   <script src="js/upgrades.js"></script>

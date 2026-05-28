@@ -933,6 +933,9 @@ elResetBtn.addEventListener('click', () => {
 // ── Initialisation ────────────────────────────────────────────────────────────
 
 function init() {
+  I18n.init();             // charge la langue sauvegardée + active les boutons
+  applyTranslations();     // remplit les [data-i18n] statiques
+
   Save.onSave = showSaveToast;
   Save.load();
 
