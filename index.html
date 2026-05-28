@@ -36,13 +36,16 @@
       </div>
     </div>
 
-    <!-- Bannière de boost (visible uniquement quand un boost est actif) -->
+    <!-- Bannière boost (visible uniquement quand actif) -->
     <div id="boost-banner" hidden aria-live="polite">
       <span id="boost-text"></span>
       <span id="boost-timer"></span>
     </div>
 
-    <div id="game-area">
+    <!-- ── Vues principales ─────────────────────────────────────────────── -->
+
+    <!-- Vue Dig -->
+    <div id="view-dig" class="view">
       <div id="block-container">
 
         <div id="block-header">
@@ -58,57 +61,65 @@
           <div id="hp-bar"></div>
         </div>
         <div id="hp-text"></div>
-
         <div id="block-reward"></div>
 
       </div>
     </div>
 
-    <!-- Panneau à onglets : Améliorations / Objectifs / Collection / Quotidien -->
-    <div id="panels">
-
-      <div class="tab-bar" role="tablist">
-        <button class="tab-btn active" data-panel="upgrades" role="tab" aria-selected="true">
-          Améliorations
-        </button>
-        <button class="tab-btn" data-panel="quests" role="tab" aria-selected="false">
-          Objectifs
-          <span class="tab-badge" id="badge-quests" hidden></span>
-        </button>
-        <button class="tab-btn" data-panel="collection" role="tab" aria-selected="false">
-          Collection
-          <span class="tab-badge" id="badge-collection" hidden></span>
-        </button>
-        <button class="tab-btn" data-panel="daily" role="tab" aria-selected="false">
-          Quotidien
-          <span class="tab-badge" id="badge-daily" hidden></span>
-        </button>
-      </div>
-
-      <!-- Panel Améliorations -->
-      <div id="panel-upgrades" class="panel" role="tabpanel">
-        <div id="upgrades-list"></div>
-        <button id="btn-reset">Réinitialiser la partie</button>
-      </div>
-
-      <!-- Panel Objectifs -->
-      <div id="panel-quests" class="panel hidden" role="tabpanel">
-        <div id="quests-list"></div>
-      </div>
-
-      <!-- Panel Collection -->
-      <div id="panel-collection" class="panel hidden" role="tabpanel">
-        <div id="collection-header"></div>
-        <div id="collection-grid"></div>
-      </div>
-
-      <!-- Panel Quotidien -->
-      <div id="panel-daily" class="panel hidden" role="tabpanel">
-      </div>
-
+    <!-- Vue Améliorations + Objectifs -->
+    <div id="view-upgrades" class="view hidden">
+      <div id="upgrades-list"></div>
+      <div class="section-divider"><span>🎯 Objectifs</span></div>
+      <div id="quests-list"></div>
+      <button id="btn-reset">Réinitialiser la partie</button>
     </div>
 
-  </div>
+    <!-- Vue Collection -->
+    <div id="view-collection" class="view hidden">
+      <div id="collection-header"></div>
+      <div id="collection-grid"></div>
+    </div>
+
+    <!-- Vue Quotidien -->
+    <div id="view-daily" class="view hidden"></div>
+
+    <!-- ── Navigation bas ───────────────────────────────────────────────── -->
+    <nav id="bottom-nav" role="navigation" aria-label="Navigation principale">
+
+      <button class="nav-btn active" data-view="dig" aria-label="Creuser">
+        <span class="nav-icon-wrap">
+          <span class="nav-icon">⛏</span>
+        </span>
+        <span class="nav-label">Dig</span>
+      </button>
+
+      <button class="nav-btn" data-view="upgrades" aria-label="Améliorations">
+        <span class="nav-icon-wrap">
+          <span class="nav-icon">⚙</span>
+          <span class="nav-badge" id="badge-upgrades" hidden></span>
+        </span>
+        <span class="nav-label">Amélios</span>
+      </button>
+
+      <button class="nav-btn" data-view="collection" aria-label="Collection">
+        <span class="nav-icon-wrap">
+          <span class="nav-icon">📦</span>
+          <span class="nav-badge" id="badge-collection" hidden></span>
+        </span>
+        <span class="nav-label">Collection</span>
+      </button>
+
+      <button class="nav-btn" data-view="daily" aria-label="Récompense quotidienne">
+        <span class="nav-icon-wrap">
+          <span class="nav-icon">📅</span>
+          <span class="nav-badge" id="badge-daily" hidden></span>
+        </span>
+        <span class="nav-label">Quotidien</span>
+      </button>
+
+    </nav>
+
+  </div><!-- /#app -->
 
   <div id="save-toast" aria-live="polite">Sauvegardé ✓</div>
 

@@ -28,7 +28,7 @@ const elBoostTimer   = document.getElementById('boost-timer');
 let blockAnimating = false;
 let toastTimer     = null;
 
-// ── Toast "Sauvegardé" ────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 
 function showSaveToast() {
   elSaveToast.classList.add('visible');
@@ -36,51 +36,59 @@ function showSaveToast() {
   toastTimer = setTimeout(() => elSaveToast.classList.remove('visible'), 2000);
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// ── Flash écran ───────────────────────────────────────────────────────────────
 
-function switchTab(panelId) {
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    const isActive = btn.dataset.panel === panelId;
-    btn.classList.toggle('active', isActive);
-    btn.setAttribute('aria-selected', isActive);
+function screenFlash(color) {
+  const el = document.createElement('div');
+  el.className   = 'screen-flash';
+  el.style.background = color;
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove(), { once: true });
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+function switchView(viewId) {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === viewId);
   });
 
-  document.querySelectorAll('.panel').forEach(p => {
-    p.classList.toggle('hidden', p.id !== `panel-${panelId}`);
+  document.querySelectorAll('.view').forEach(v => {
+    v.classList.toggle('hidden', v.id !== `view-${viewId}`);
   });
 
-  // Rendu paresseux + effacement du badge
-  if (panelId === 'quests') {
+  // Rendu paresseux + badge
+  if (viewId === 'upgrades') {
     renderQuests();
-    clearTabBadge('quests');
+    clearNavBadge('upgrades');
   }
-  if (panelId === 'collection') {
+  if (viewId === 'collection') {
     renderCollection();
-    clearTabBadge('collection');
+    clearNavBadge('collection');
   }
-  if (panelId === 'daily') {
+  if (viewId === 'daily') {
     renderDaily();
-    clearTabBadge('daily');
+    clearNavBadge('daily');
   }
 }
 
-function setTabBadge(name) {
+function setNavBadge(name) {
   const el = document.getElementById(`badge-${name}`);
   if (el) el.hidden = false;
 }
 
-function clearTabBadge(name) {
+function clearNavBadge(name) {
   const el = document.getElementById(`badge-${name}`);
   if (el) el.hidden = true;
 }
 
-function isTabActive(panelId) {
-  const p = document.getElementById(`panel-${panelId}`);
-  return p ? !p.classList.contains('hidden') : false;
+function isViewActive(viewId) {
+  const v = document.getElementById(`view-${viewId}`);
+  return v ? !v.classList.contains('hidden') : false;
 }
 
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => switchTab(btn.dataset.panel));
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchView(btn.dataset.view));
 });
 
 // ── Rendu stats ───────────────────────────────────────────────────────────────
@@ -106,8 +114,7 @@ function renderBoostBanner() {
   const totalSec = Math.ceil(ms / 1000);
   const min = Math.floor(totalSec / 60);
   const sec = totalSec % 60;
-  const mult = GameState.coinBoost.multiplier;
-  elBoostText.textContent  = `⚡ Bonus ×${mult} pièces actif`;
+  elBoostText.textContent  = `⚡ Bonus ×${GameState.coinBoost.multiplier} pièces actif`;
   elBoostTimer.textContent = `— ${min}:${String(sec).padStart(2, '0')} restant`;
 }
 
@@ -141,9 +148,12 @@ function renderBlock() {
   else if (ratio < 0.55) elBlock.classList.add('crack-2');
   else if (ratio < 0.80) elBlock.classList.add('crack-1');
 
-  const boostMult  = GameState.getCoinBoostMultiplier();
+  // Pulsation critique
+  elBlock.classList.toggle('hp-critical', ratio <= 0.25);
+
+  const boostMult   = GameState.getCoinBoostMultiplier();
   const finalReward = Math.ceil(b.reward * Upgrades.getRewardMultiplier() * boostMult);
-  const boostTag   = boostMult > 1 ? ` <span class="boost-tag">⚡×${boostMult}</span>` : '';
+  const boostTag    = boostMult > 1 ? ` <span class="boost-tag">⚡×${boostMult}</span>` : '';
   elBlockReward.innerHTML = `Récompense : <span class="reward-value">💰 ${finalReward}${boostTag}</span>`;
 }
 
@@ -252,11 +262,9 @@ function renderCollection() {
     const card = document.createElement('div');
     card.className = `find-card${isFound ? ' found' : ''}`;
     if (isFound) card.title = find.desc;
-
     card.innerHTML = `
       <div class="find-icon">${isFound ? find.icon : '?'}</div>
       <div class="find-name">${isFound ? find.name : '???'}</div>`;
-
     grid.appendChild(card);
   }
 }
@@ -264,35 +272,30 @@ function renderCollection() {
 // ── Rendu quotidien ───────────────────────────────────────────────────────────
 
 function renderDaily() {
-  const container = document.getElementById('panel-daily');
+  const container = document.getElementById('view-daily');
   if (!container) return;
 
-  const today          = Daily.getToday();
-  const yesterday      = Daily.getYesterday();
-  const last           = GameState.daily.lastClaimDate;
-  const lastDay        = GameState.daily.streakDay;  // 0 si jamais réclamé
-  const claimedToday   = (last === today);
+  const today           = Daily.getToday();
+  const yesterday       = Daily.getYesterday();
+  const last            = GameState.daily.lastClaimDate;
+  const lastDay         = GameState.daily.streakDay;
+  const claimedToday    = (last === today);
   const streakContinues = (last === yesterday);
-  const nextDay        = Daily.getNextDay();
-  const available      = Daily.isAvailable();
+  const nextDay         = Daily.getNextDay();
+  const available       = Daily.isAvailable();
 
-  // ── Ligne des 7 cercles ────────────────────────────────────────────────────
+  // Ligne des 7 cercles
   let html = `<div class="daily-title">Connexion quotidienne</div>`;
   html += `<div class="streak-row">`;
 
   for (let i = 1; i <= 7; i++) {
     let state;
     if (claimedToday) {
-      if (i < lastDay)      state = 'done';
-      else if (i === lastDay) state = 'claimed-today';
-      else                  state = 'upcoming';
+      state = i < lastDay ? 'done' : i === lastDay ? 'claimed-today' : 'upcoming';
     } else {
-      const doneBefore = streakContinues && i < nextDay;
-      if (doneBefore)      state = 'done';
-      else if (i === nextDay) state = 'available';
-      else                 state = 'upcoming';
+      const done = streakContinues && i < nextDay;
+      state = done ? 'done' : i === nextDay ? 'available' : 'upcoming';
     }
-
     const r = Daily.REWARDS[i - 1];
     html += `
       <div class="streak-day ${state}">
@@ -300,10 +303,8 @@ function renderDaily() {
         <div class="streak-icon">${r.icon}</div>
       </div>`;
   }
-
   html += `</div>`;
 
-  // ── Bloc récompense / message ──────────────────────────────────────────────
   if (available) {
     const r = Daily.REWARDS[nextDay - 1];
     const parts = [];
@@ -325,40 +326,35 @@ function renderDaily() {
 
   container.innerHTML = html;
 
-  // ── Bouton de réclamation ──────────────────────────────────────────────────
   if (available) {
     document.getElementById('btn-claim').addEventListener('click', () => {
       const result = Daily.claim();
       if (!result) return;
-
       const { reward, day } = result;
       const parts = [];
       if (reward.coins > 0) parts.push(`💰 ${reward.coins}`);
       if (reward.gems  > 0) parts.push(`💎 ${reward.gems}`);
       if (reward.boost) parts.push(`⚡ ×${reward.boost.mult}`);
       showAchievement('📅', `Jour ${day} : ${parts.join(' + ')} !`);
-
       if (reward.boost) renderBoostBanner();
-
-      clearTabBadge('daily');
+      clearNavBadge('daily');
       renderDaily();
       renderStats();
       Save.save();
-
       const completed = Quests.checkAll();
       handleQuestsCompleted(completed);
     });
   }
 }
 
-// ── Notifications (objectifs & trouvailles) ───────────────────────────────────
+// ── Notifications ─────────────────────────────────────────────────────────────
 
 function showAchievement(icon, text) {
   const el = document.createElement('div');
   el.className   = 'float-text achievement';
   el.textContent = `${icon} ${text}`;
   el.style.left  = `${window.innerWidth / 2}px`;
-  el.style.top   = `${window.innerHeight * 0.22}px`;
+  el.style.top   = `${window.innerHeight * 0.20}px`;
   document.body.appendChild(el);
   el.addEventListener('animationend', () => el.remove(), { once: true });
 }
@@ -368,15 +364,15 @@ function handleQuestsCompleted(completed) {
   completed.forEach((q, i) => {
     setTimeout(() => showAchievement('🎯', `${q.name} terminé !`), i * 500);
   });
-  renderStats(); // les récompenses peuvent changer coins/gems
-  if (isTabActive('quests')) renderQuests();
-  else setTabBadge('quests');
+  renderStats();
+  if (isViewActive('upgrades')) renderQuests();
+  else setNavBadge('upgrades');
 }
 
 function handleFindDrop(find) {
   showAchievement('🔍', `${find.name} trouvé !`);
-  if (isTabActive('collection')) renderCollection();
-  else setTabBadge('collection');
+  if (isViewActive('collection')) renderCollection();
+  else setNavBadge('collection');
 }
 
 // ── Particules ────────────────────────────────────────────────────────────────
@@ -386,15 +382,15 @@ function spawnParticles(color) {
   const cx   = rect.left + rect.width  / 2;
   const cy   = rect.top  + rect.height / 2;
 
-  for (let i = 0; i < 10; i++) {
-    const p     = document.createElement('div');
-    p.className = 'particle';
+  for (let i = 0; i < 14; i++) {
+    const p = document.createElement('div');
+    p.className        = 'particle';
     p.style.left       = `${cx}px`;
     p.style.top        = `${cy}px`;
     p.style.background = color;
 
-    const angle = (i / 10) * 360 + (Math.random() * 30 - 15);
-    const dist  = 38 + Math.random() * 52;
+    const angle = (i / 14) * 360 + (Math.random() * 26 - 13);
+    const dist  = 35 + Math.random() * 60;
     p.style.setProperty('--dx', `${Math.cos(angle * Math.PI / 180) * dist}px`);
     p.style.setProperty('--dy', `${Math.sin(angle * Math.PI / 180) * dist}px`);
 
@@ -409,8 +405,8 @@ function spawnFloatText(text, cssClass, cx, cy) {
   const el       = document.createElement('div');
   el.className   = `float-text ${cssClass}`;
   el.textContent = text;
-  el.style.left  = `${cx + (Math.random() * 20 - 10)}px`;
-  el.style.top   = `${cy - 10}px`;
+  el.style.left  = `${cx + (Math.random() * 24 - 12)}px`;
+  el.style.top   = `${cy - 8}px`;
   document.body.appendChild(el);
   el.addEventListener('animationend', () => el.remove(), { once: true });
 }
@@ -419,7 +415,9 @@ function spawnFloatText(text, cssClass, cx, cy) {
 
 function spawnBlock() {
   Blocks.spawn(GameState.depth);
-  elBlock.classList.remove('anim-break','anim-hit','crack-1','crack-2','crack-3');
+  elBlock.classList.remove(
+    'anim-break','anim-hit','crack-1','crack-2','crack-3','hp-critical'
+  );
   void elBlock.offsetWidth;
   elBlock.classList.add('anim-spawn');
   elBlock.addEventListener('animationend', () => elBlock.classList.remove('anim-spawn'), { once: true });
@@ -435,21 +433,20 @@ function handleBlockDestroyed(cx, cy) {
   GameState.nextDepth();
   GameState.recordDestroy(reward, type);
 
-  spawnFloatText(`+${reward} 💰`, 'coin', cx + 12, cy - 22);
-  if (type.isGem)   spawnFloatText('✨ GEMME !',  'gem',   cx, cy - 52);
-  if (type.isChest) spawnFloatText('📦 COFFRE !', 'chest', cx, cy - 52);
+  spawnFloatText(`+${reward} 💰`, 'coin', cx + 14, cy - 24);
+  if (type.isGem)   spawnFloatText('✨ GEMME !',  'gem',   cx, cy - 55);
+  if (type.isChest) spawnFloatText('📦 COFFRE !', 'chest', cx, cy - 55);
   spawnParticles(type.accent);
+  screenFlash(type.accent);
 
-  // Tentative de drop de trouvaille
   const find = Collection.tryDrop(type, depth);
   if (find) handleFindDrop(find);
 
-  // Vérification des objectifs
   const completed = Quests.checkAll();
   handleQuestsCompleted(completed);
 
   blockAnimating = true;
-  elBlock.classList.remove('anim-hit','crack-1','crack-2','crack-3');
+  elBlock.classList.remove('anim-hit','crack-1','crack-2','crack-3','hp-critical');
   void elBlock.offsetWidth;
   elBlock.classList.add('anim-break');
   elBlock.addEventListener('animationend', () => {
@@ -518,8 +515,8 @@ elResetBtn.addEventListener('click', () => {
   renderQuests();
   renderCollection();
   renderBoostBanner();
-  if (isTabActive('daily')) renderDaily();
-  if (Daily.isAvailable()) setTabBadge('daily');
+  if (isViewActive('daily')) renderDaily();
+  if (Daily.isAvailable()) setNavBadge('daily');
   spawnBlock();
   renderStats();
 });
@@ -528,23 +525,21 @@ elResetBtn.addEventListener('click', () => {
 
 function init() {
   Save.onSave = showSaveToast;
-
   Save.load();
 
-  // Vérifier silencieusement les objectifs déjà remplis (migration / reprise)
-  Quests.checkAll(true);
+  Quests.checkAll(true); // vérification silencieuse (migration / reprise)
 
   renderUpgrades();
+  renderQuests();    // pré-rendu (dans la vue Amélios)
+  renderBoostBanner();
   spawnBlock();
   renderStats();
-  renderBoostBanner();
 
-  // Badge sur l'onglet Quotidien si une récompense est disponible
-  if (Daily.isAvailable()) setTabBadge('daily');
+  if (Daily.isAvailable()) setNavBadge('daily');
 
-  setInterval(() => Save.save(),   15_000);
-  setInterval(autoDigTick,          1_000);
-  setInterval(renderBoostBanner,    1_000);
+  setInterval(() => Save.save(),  15_000);
+  setInterval(autoDigTick,         1_000);
+  setInterval(renderBoostBanner,   1_000);
 }
 
 document.addEventListener('DOMContentLoaded', init);
