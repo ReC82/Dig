@@ -992,9 +992,42 @@ elResetBtn.addEventListener('click', () => {
   renderStats();
 });
 
+// ── Sélection langue (premier lancement) ─────────────────────────────────────
+
+function _showLangPickScreen(onPicked) {
+  const screen = document.getElementById('lang-pick-screen');
+  const list   = document.getElementById('lang-pick-list');
+  if (!screen) { onPicked(); return; }
+
+  screen.hidden = false;
+
+  list.innerHTML = I18n.LANGS.map(lang => `
+    <button class="lang-pick-btn" data-lang="${lang.code}">
+      <span class="lang-pick-flag">${lang.flag}</span>
+      <span class="lang-pick-label">${lang.label}</span>
+    </button>`).join('');
+
+  list.querySelectorAll('.lang-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      I18n.setLang(btn.dataset.lang);
+      screen.classList.add('lang-pick-out');
+      setTimeout(() => {
+        screen.hidden = true;
+        onPicked();
+      }, 350);
+    });
+  });
+}
+
 // ── Initialisation ────────────────────────────────────────────────────────────
 
 function init() {
+  // Premier lancement : aucune langue enregistrée → afficher le sélecteur
+  if (!I18n.hasStoredLang()) {
+    _showLangPickScreen(init);
+    return;
+  }
+
   I18n.init();             // charge la langue sauvegardée
   applyTranslations();     // remplit les [data-i18n] statiques
 

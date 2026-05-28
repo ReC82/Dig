@@ -559,11 +559,16 @@ const I18n = (() => {
 
   function onLangChange(fn) { _callbacks.push(fn); }
 
+  /** Retourne true si une langue a déjà été enregistrée (pas le premier lancement). */
+  function hasStoredLang() {
+    return !!localStorage.getItem(STORAGE_KEY);
+  }
+
   function _applyAttr() {
     document.documentElement.lang = _current;
   }
 
-  return { init, setLang, getCurrent, t, applyTranslations, onLangChange, LANGS };
+  return { init, setLang, getCurrent, t, applyTranslations, onLangChange, LANGS, hasStoredLang };
 
 })();
 
