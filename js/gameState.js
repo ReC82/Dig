@@ -6,8 +6,9 @@
 const GameState = {
 
   // ── Ressources ──────────────────────────────
-  coins: 0,
-  gems:  0,
+  coins:          0,
+  gems:           0,
+  relicFragments: 0,
 
   // ── Progression ─────────────────────────────
   depth:        1,
@@ -77,9 +78,10 @@ const GameState = {
   },
 
   reset() {
-    this.coins        = 0;
-    this.gems         = 0;
-    this.depth        = 1;
+    this.coins          = 0;
+    this.gems           = 0;
+    this.relicFragments = 0;
+    this.depth          = 1;
     this.pickaxeLevel = 1;
     this.damage       = 1;
     this.upgrades     = { luck: 0, bag: 0, autodig: 0 };

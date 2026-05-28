@@ -34,6 +34,10 @@
         <span class="label">Dégâts</span>
         <span id="stat-damage">1</span>
       </div>
+      <div class="stat">
+        <span class="label">Reliques</span>
+        <span id="stat-relics">0</span>
+      </div>
     </div>
 
     <!-- Bannière boost -->
@@ -163,6 +167,20 @@
     </div>
   </div>
 
+  <!-- ── Modale coffre ─────────────────────────────────────────────────────── -->
+  <div id="chest-modal" hidden role="dialog" aria-modal="true" aria-labelledby="chest-modal-title">
+    <div id="chest-modal-inner">
+      <div id="chest-icon-wrap">
+        <span id="chest-modal-icon"></span>
+      </div>
+      <div id="chest-modal-rarity"></div>
+      <div id="chest-modal-title"></div>
+      <div id="chest-modal-reward-label">Contenu</div>
+      <div id="chest-modal-reward"></div>
+      <button id="btn-collect-chest">Récupérer !</button>
+    </div>
+  </div>
+
   <div id="save-toast" aria-live="polite">Sauvegardé ✓</div>
 
   <script src="js/gameState.js"></script>
@@ -172,6 +190,7 @@
   <script src="js/quests.js"></script>
   <script src="js/daily.js"></script>
   <script src="js/monetization.js"></script>
+  <script src="js/chests.js"></script>
   <script src="js/save.js"></script>
   <script src="js/main.js"></script>
 </body>

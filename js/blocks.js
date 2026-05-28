@@ -78,6 +78,15 @@ const Blocks = {
 
     // ── Coffre ───────────────────────────────────────────────────────────────
     {
+      category: 'coffre', name: 'Vieille caisse', icon: '🧰',
+      rarity: 'Commun', rarityKey: 'commun',
+      color:  'linear-gradient(145deg,#713f12,#3b1a06)',
+      accent: '#b45309',
+      hpBase: 8,  reward: 0,
+      minDepth: 1, maxDepth: 9999, weight: 5,
+      isChest: true,
+    },
+    {
       category: 'coffre', name: 'Coffre en bois', icon: '📦',
       rarity: 'Rare', rarityKey: 'rare',
       color:  'linear-gradient(145deg,#92400e,#78350f)',

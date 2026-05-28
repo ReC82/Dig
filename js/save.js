@@ -10,11 +10,12 @@
  *   v3 — + collection[], quests{}, stats.totalUpgradesBought
  *   v4 — + daily{}, coinBoost{}
  *   v5 — + monetization{ adLastWatched, pickaxeSkin }
+ *   v6 — + relicFragments
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 5,
+  SAVE_VERSION: 6,
 
   onSave: null,
 
@@ -35,7 +36,8 @@ const Save = {
         stats:        { ...GameState.stats },
         daily:        { ...GameState.daily },
         coinBoost:    { ...GameState.coinBoost },
-        monetization: { ...GameState.monetization },
+        monetization:   { ...GameState.monetization },
+        relicFragments: GameState.relicFragments,
       };
       localStorage.setItem(this.KEY, JSON.stringify(data));
       if (typeof this.onSave === 'function') this.onSave();
@@ -84,6 +86,8 @@ const Save = {
       GameState.monetization.adLastWatched = m.adLastWatched ?? 0;
       GameState.monetization.pickaxeSkin   = m.pickaxeSkin   ?? null;
 
+      GameState.relicFragments = data.relicFragments ?? 0;
+
       return true;
     } catch (_) {
       return false;
@@ -128,8 +132,12 @@ const Save = {
       data.monetization = { adLastWatched: 0, pickaxeSkin: null };
       data.saveVersion = 5;
     }
+    if (v < 6) {
+      data.relicFragments = 0;
+      data.saveVersion = 6;
+    }
 
-    // if (v < 6) { /* futures migrations */ }
+    // if (v < 7) { /* futures migrations */ }
 
     return data;
   },

@@ -23,6 +23,7 @@ const elSaveToast    = document.getElementById('save-toast');
 const elBoostBanner  = document.getElementById('boost-banner');
 const elBoostText    = document.getElementById('boost-text');
 const elBoostTimer   = document.getElementById('boost-timer');
+const elRelics       = document.getElementById('stat-relics');
 
 // ── État interne ─────────────────────────────────────────────────────────────
 let blockAnimating = false;
@@ -96,9 +97,10 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 // ── Rendu stats ───────────────────────────────────────────────────────────────
 
 function renderStats() {
-  elCoins.textContent = GameState.coins;
-  elGems.textContent  = GameState.gems;
-  elDepth.textContent = `${GameState.depth}m`;
+  elCoins.textContent  = GameState.coins;
+  elGems.textContent   = GameState.gems;
+  elRelics.textContent = GameState.relicFragments;
+  elDepth.textContent  = `${GameState.depth}m`;
   elDamage.textContent = GameState.damage;
 
   // Pioche : indicateur visuel du skin actif
@@ -513,6 +515,48 @@ function spawnFloatText(text, cssClass, cx, cy) {
   el.addEventListener('animationend', () => el.remove(), { once: true });
 }
 
+// ── Popup coffre ──────────────────────────────────────────────────────────────
+
+function showChestPopup(chestType, reward) {
+  const modal      = document.getElementById('chest-modal');
+  const inner      = document.getElementById('chest-modal-inner');
+  const iconEl     = document.getElementById('chest-modal-icon');
+  const rarityEl   = document.getElementById('chest-modal-rarity');
+  const titleEl    = document.getElementById('chest-modal-title');
+  const rewardEl   = document.getElementById('chest-modal-reward');
+  const collectBtn = document.getElementById('btn-collect-chest');
+
+  if (!modal) {
+    // Pas de modal dans le DOM : continuer normalement
+    blockAnimating = false;
+    spawnBlock();
+    return;
+  }
+
+  // Remettre les animations à zéro pour que l'ouverture rejoue à chaque coffre
+  inner.style.animation  = 'none';
+  iconEl.style.animation = 'none';
+  void inner.offsetWidth;
+  inner.style.animation  = '';
+  iconEl.style.animation = '';
+
+  iconEl.textContent   = chestType.icon;
+  rarityEl.innerHTML   = `<span class="rarity-badge rarity-${chestType.rarityKey}">${chestType.rarity}</span>`;
+  titleEl.textContent  = `${chestType.name} ouvert !`;
+  rewardEl.textContent = Chests.rewardLabel(reward);
+
+  modal.hidden = false;
+
+  collectBtn.onclick = () => {
+    modal.hidden = true;
+    blockAnimating = false;
+    spawnBlock();
+    renderStats();
+    if (reward.type === 'boost') renderBoostBanner();
+    Save.save();
+  };
+}
+
 // ── Logique de jeu ────────────────────────────────────────────────────────────
 
 function spawnBlock() {
@@ -529,32 +573,53 @@ function spawnBlock() {
 
 function handleBlockDestroyed(cx, cy) {
   const { reward: baseReward, type } = Blocks.current;
-  const depth  = GameState.depth;
-  const reward = Math.ceil(baseReward * Upgrades.getRewardMultiplier() * GameState.getCoinBoostMultiplier());
+  const depth = GameState.depth;
 
-  GameState.addCoins(reward);
   GameState.nextDepth();
-  GameState.recordDestroy(reward, type);
-
-  spawnFloatText(`+${reward} 💰`, 'coin', cx + 14, cy - 24);
-  if (type.isGem)   spawnFloatText('✨ GEMME !',  'gem',   cx, cy - 55);
-  if (type.isChest) spawnFloatText('📦 COFFRE !', 'chest', cx, cy - 55);
   spawnParticles(type.accent);
   screenFlash(type.accent);
 
   const find = Collection.tryDrop(type, depth);
   if (find) handleFindDrop(find);
 
-  handleQuestsCompleted(Quests.checkAll());
+  if (type.isChest) {
+    // ── Coffre : récompense aléatoire + popup ──────────────────────────────
+    GameState.stats.blocksDestroyed += 1;
+    GameState.stats.chestsFound     += 1;
 
-  blockAnimating = true;
-  elBlock.classList.remove('anim-hit','crack-1','crack-2','crack-3','hp-critical');
-  void elBlock.offsetWidth;
-  elBlock.classList.add('anim-break');
-  elBlock.addEventListener('animationend', () => {
-    blockAnimating = false;
-    spawnBlock();
-  }, { once: true });
+    const chestReward = Chests.open(type.rarityKey);
+
+    spawnFloatText('📦 COFFRE !', 'chest', cx, cy - 55);
+    handleQuestsCompleted(Quests.checkAll());
+
+    blockAnimating = true;
+    elBlock.classList.remove('anim-hit', 'crack-1', 'crack-2', 'crack-3', 'hp-critical');
+    void elBlock.offsetWidth;
+    elBlock.classList.add('anim-break');
+    elBlock.addEventListener('animationend', () => {
+      // blockAnimating reste true : le popup bloque le jeu jusqu'à "Récupérer"
+      showChestPopup(type, chestReward);
+    }, { once: true });
+
+  } else {
+    // ── Bloc normal ────────────────────────────────────────────────────────
+    const reward = Math.ceil(baseReward * Upgrades.getRewardMultiplier() * GameState.getCoinBoostMultiplier());
+    GameState.addCoins(reward);
+    GameState.recordDestroy(reward, type);
+
+    spawnFloatText(`+${reward} 💰`, 'coin', cx + 14, cy - 24);
+    if (type.isGem) spawnFloatText('✨ GEMME !', 'gem', cx, cy - 55);
+    handleQuestsCompleted(Quests.checkAll());
+
+    blockAnimating = true;
+    elBlock.classList.remove('anim-hit', 'crack-1', 'crack-2', 'crack-3', 'hp-critical');
+    void elBlock.offsetWidth;
+    elBlock.classList.add('anim-break');
+    elBlock.addEventListener('animationend', () => {
+      blockAnimating = false;
+      spawnBlock();
+    }, { once: true });
+  }
 }
 
 function onBlockHit(cx, cy) {
