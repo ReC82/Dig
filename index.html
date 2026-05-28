@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>DIG!</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <header>
+      <h1>⛏ DIG!</h1>
+    </header>
+
+    <div id="stats">
+      <div class="stat">
+        <span class="label">Coins</span>
+        <span id="stat-coins">0</span>
+      </div>
+      <div class="stat">
+        <span class="label">Profondeur</span>
+        <span id="stat-depth">1m</span>
+      </div>
+      <div class="stat">
+        <span class="label">Pioche</span>
+        <span id="stat-pickaxe">Nv.1</span>
+      </div>
+      <div class="stat">
+        <span class="label">Dégâts</span>
+        <span id="stat-damage">1</span>
+      </div>
+    </div>
+
+    <div id="game-area">
+      <div id="block-container">
+        <div id="block-name"></div>
+        <div id="block">
+          <span id="block-icon"></span>
+        </div>
+        <div id="hp-bar-wrap">
+          <div id="hp-bar"></div>
+        </div>
+        <div id="hp-text"></div>
+      </div>
+    </div>
+
+    <div id="upgrades">
+      <h2>Améliorations</h2>
+      <button id="btn-upgrade" disabled>
+        <span>Améliorer la pioche</span>
+        <span id="upgrade-cost">💰 10</span>
+      </button>
+      <button id="btn-reset">Réinitialiser</button>
+    </div>
+
+  </div>
+
+  <script src="js/gameState.js"></script>
+  <script src="js/blocks.js"></script>
+  <script src="js/upgrades.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
