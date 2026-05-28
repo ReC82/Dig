@@ -97,7 +97,7 @@ const Upgrades = {
 
     if (id === 'pickaxe') {
       GameState.pickaxeLevel += 1;
-      GameState.damage = GameState.pickaxeLevel;
+      GameState.damage = GameState.pickaxeLevel + (GameState.relicBonuses?.damageFlat ?? 0);
     } else {
       GameState.upgrades[id] += 1;
     }
@@ -107,10 +107,10 @@ const Upgrades = {
   },
 
   getRewardMultiplier() {
-    return 1 + GameState.upgrades.bag * 0.3;
+    return (1 + GameState.upgrades.bag * 0.3) * (1 + (GameState.relicBonuses?.coinsPct ?? 0));
   },
 
   getAutoDigDamage() {
-    return GameState.upgrades.autodig;
+    return GameState.upgrades.autodig + (GameState.relicBonuses?.autodigBonus ?? 0);
   },
 };

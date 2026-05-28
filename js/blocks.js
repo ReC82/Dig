@@ -143,7 +143,7 @@ const Blocks = {
   /** Tirage pondéré en tenant compte du niveau Chance. */
   _pickType(depth) {
     const luckLevel = GameState.upgrades ? (GameState.upgrades.luck || 0) : 0;
-    const luckMult  = 1 + luckLevel * 0.20;
+    const luckMult  = 1 + luckLevel * 0.20 + (GameState.relicBonuses?.luckPct ?? 0);
 
     const pool = this.TYPES
       .filter(t => depth >= t.minDepth && depth <= t.maxDepth)
@@ -166,8 +166,9 @@ const Blocks = {
   /** Crée un nouveau bloc adapté à la profondeur. */
   spawn(depth) {
     const type   = this._pickType(depth);
-    const scale  = 1 + (depth - 1) * 0.12;
-    const hp     = Math.ceil(type.hpBase * scale);
+    const scale      = 1 + (depth - 1) * 0.12;
+    const hpReduct   = GameState.relicBonuses?.hpReduction ?? 0;
+    const hp         = Math.ceil(type.hpBase * scale * (1 - hpReduct));
     const reward = Math.ceil(type.reward  * (1 + (depth - 1) * 0.05));
     this.current = { type, hp, maxHp: hp, reward };
     return this.current;

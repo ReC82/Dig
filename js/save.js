@@ -12,11 +12,12 @@
  *   v5 — + monetization{ adLastWatched, pickaxeSkin }
  *   v6 — + relicFragments
  *   v7 — + dailyMissions{ date, missions[], baselineStats }
+ *   v8 — + relics[] (relicBonuses non sauvegardé — calculé au chargement)
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 7,
+  SAVE_VERSION: 8,
 
   onSave: null,
 
@@ -39,6 +40,7 @@ const Save = {
         coinBoost:    { ...GameState.coinBoost },
         monetization:   { ...GameState.monetization },
         relicFragments: GameState.relicFragments,
+        relics:         [...GameState.relics],
         dailyMissions: {
           date:     GameState.dailyMissions.date,
           missions: GameState.dailyMissions.missions.map(m => ({
@@ -99,6 +101,10 @@ const Save = {
       GameState.monetization.pickaxeSkin   = m.pickaxeSkin   ?? null;
 
       GameState.relicFragments = data.relicFragments ?? 0;
+      GameState.relics = Array.isArray(data.relics)
+        ? data.relics.filter(id => typeof id === 'string')
+        : [];
+      // relicBonuses est un cache : recalculé par Relics.applyBonuses() dans init()
 
       const dm = data.dailyMissions ?? {};
       GameState.dailyMissions.date = dm.date ?? null;
@@ -166,8 +172,12 @@ const Save = {
       data.dailyMissions = { date: null, missions: [], baselineStats: null };
       data.saveVersion = 7;
     }
+    if (v < 8) {
+      data.relics = [];
+      data.saveVersion = 8;
+    }
 
-    // if (v < 8) { /* futures migrations */ }
+    // if (v < 9) { /* futures migrations */ }
 
     return data;
   },

@@ -69,7 +69,7 @@ const Chests = {
       GameState.stats.totalCoinsEarned += result.amount;
 
     } else if (entry.type === 'relics') {
-      result.amount = entry.amount;
+      result.amount = entry.amount + (GameState.relicBonuses?.relicFragmentBonus ?? 0);
       GameState.relicFragments += result.amount;
 
     } else if (entry.type === 'boost') {

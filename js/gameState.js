@@ -56,6 +56,17 @@ const GameState = {
     expiresAt:  0,
   },
 
+  // ── Reliques ──────────────────────────────────
+  relics: [],             // IDs des reliques débloquées
+  relicBonuses: {         // cache calculé — NON sauvegardé, recalculé par Relics.applyBonuses()
+    damageFlat:          0,   // dégâts supplémentaires par clic
+    coinsPct:            0,   // multiplicateur de pièces (ex. 0.25 = +25%)
+    relicFragmentBonus:  0,   // fragments supplémentaires par coffre
+    luckPct:             0,   // bonus de luck pour blocs rares
+    hpReduction:         0,   // réduction de HP des blocs (ex. 0.15 = -15%)
+    autodigBonus:        0,   // dégâts auto supplémentaires par seconde
+  },
+
   // ── Monétisation ─────────────────────────────
   // Note : non réinitialisé par reset() — les achats sont persistants.
   monetization: {
@@ -101,6 +112,8 @@ const GameState = {
       gemsFound: 0, chestsFound: 0, totalUpgradesBought: 0,
     };
     this.daily        = { lastClaimDate: null, streakDay: 0 };
+    this.relics        = [];
+    this.relicBonuses  = { damageFlat: 0, coinsPct: 0, relicFragmentBonus: 0, luckPct: 0, hpReduction: 0, autodigBonus: 0 };
     this.dailyMissions = { date: null, missions: [], baselineStats: null };
     this.coinBoost    = { multiplier: 1, expiresAt: 0 };
     // monetization intentionnellement préservé (achats et cooldown persistants)

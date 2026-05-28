@@ -64,7 +64,9 @@ function switchView(viewId) {
   }
   if (viewId === 'collection') {
     renderCollection();
-    clearNavBadge('collection');
+    renderRelics();
+    // Badge : effacer seulement si aucune relique n'est désormais abordable
+    if (!Relics.DEFS.some(r => Relics.canUnlock(r.id))) clearNavBadge('collection');
   }
   if (viewId === 'daily') {
     renderDaily();
@@ -390,6 +392,65 @@ function renderDaily() {
   renderDailyMissions();   // injecte les cards dans #daily-missions-list
 }
 
+// ── Rendu reliques ────────────────────────────────────────────────────────────
+
+function renderRelics() {
+  const grid = document.getElementById('relics-grid');
+  const info = document.getElementById('relics-info');
+  if (!grid) return;
+
+  const unlockedCount = GameState.relics.length;
+  const totalCount    = Relics.DEFS.length;
+  if (info) {
+    info.textContent =
+      `${unlockedCount}\u202f/\u202f${totalCount} débloquée${unlockedCount !== 1 ? 's' : ''}` +
+      `  —  🔮\u202f${GameState.relicFragments} fragment${GameState.relicFragments !== 1 ? 's' : ''}`;
+  }
+
+  grid.innerHTML = '';
+
+  for (const def of Relics.DEFS) {
+    const unlocked  = Relics.isUnlocked(def.id);
+    const canAfford = Relics.canUnlock(def.id);
+    const shortfall = Math.max(0, def.cost - GameState.relicFragments);
+
+    const card = document.createElement('div');
+    card.className = `relic-card${unlocked ? ' relic-unlocked' : canAfford ? ' relic-affordable' : ''}`;
+    card.title = def.desc;   // description visible au survol / long-press
+
+    card.innerHTML = `
+      <div class="relic-icon">${def.icon}</div>
+      <div class="relic-name">${def.name}</div>
+      <div class="relic-bonus">${def.bonusLabel}</div>
+      ${unlocked
+        ? `<div class="relic-unlocked-badge">✓ Débloquée</div>`
+        : `<div class="relic-cost${canAfford ? ' can-afford' : ''}">
+             🔮\u202f${def.cost} fragment${def.cost > 1 ? 's' : ''}
+             ${!canAfford ? `<span class="relic-shortfall">(manque\u202f${shortfall})</span>` : ''}
+           </div>
+           <button class="relic-unlock-btn" ${canAfford ? '' : 'disabled'}
+             aria-label="${canAfford ? `Débloquer ${def.name}` : `Il manque ${shortfall} fragment${shortfall > 1 ? 's' : ''}`}">
+             Débloquer
+           </button>`
+      }`;
+
+    if (!unlocked && canAfford) {
+      card.querySelector('.relic-unlock-btn').addEventListener('click', () => {
+        if (Relics.unlock(def.id)) {
+          showAchievement('🔮', `${def.name} débloquée !`);
+          renderRelics();
+          renderStats();
+          // Vide le badge si plus aucune relique n'est abordable
+          if (!Relics.DEFS.some(r => Relics.canUnlock(r.id))) clearNavBadge('collection');
+          Save.save();
+        }
+      });
+    }
+
+    grid.appendChild(card);
+  }
+}
+
 // ── Badge Quotidien ───────────────────────────────────────────────────────────
 
 /** Met à jour le badge "Quotidien" : visible si streak dispo OU mission réclamable. */
@@ -638,6 +699,10 @@ function showChestPopup(chestType, reward) {
     spawnBlock();
     renderStats();
     if (reward.type === 'boost') renderBoostBanner();
+    // Si des fragments ont été gagnés, signaler si une relique devient abordable
+    if (reward.type === 'relics' && Relics.DEFS.some(r => Relics.canUnlock(r.id))) {
+      setNavBadge('collection');
+    }
     Save.save();
   };
 }
@@ -783,16 +848,19 @@ document.getElementById('btn-watch-ad').addEventListener('click', () => {
 
 // Reset
 elResetBtn.addEventListener('click', () => {
-  if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes, upgrades, objectifs, trouvailles et la série quotidienne seront perdus.')) return;
+  if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes, upgrades, reliques, objectifs, trouvailles et la série quotidienne seront perdus.')) return;
   Save.reset();
+  Relics.applyBonuses();          // recompute (tout à 0 après reset)
   renderUpgrades();
   renderQuests();
   renderCollection();
+  if (isViewActive('collection')) renderRelics();
   renderBoostBanner();
   renderAdButton();
   if (isViewActive('daily')) renderDaily();
   if (isViewActive('shop'))  renderShop();
-  if (Daily.isAvailable()) setNavBadge('daily');
+  updateDailyBadge();
+  clearNavBadge('collection');    // plus de reliques abordables après reset
   spawnBlock();
   renderStats();
 });
@@ -803,6 +871,7 @@ function init() {
   Save.onSave = showSaveToast;
   Save.load();
 
+  Relics.applyBonuses();   // recalcule les bonus depuis GameState.relics chargé
   Quests.checkAll(true);   // vérification silencieuse (migration / reprise)
   DailyMissions.refresh(); // génère les missions du jour si besoin
 
@@ -814,6 +883,7 @@ function init() {
   renderStats();
 
   updateDailyBadge();
+  if (Relics.DEFS.some(r => Relics.canUnlock(r.id))) setNavBadge('collection');
 
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);

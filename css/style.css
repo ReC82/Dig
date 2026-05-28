@@ -964,6 +964,126 @@ h1 {
 .claimed-check { margin-right: 5px; }
 .daily-next-msg { text-align: center; font-size: 0.7rem; color: var(--muted); margin-top: 6px; }
 
+/* ── Reliques ────────────────────────────────── */
+#relics-info {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 12px;
+  letter-spacing: 0.3px;
+}
+
+#relics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.relic-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  position: relative;
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+
+.relic-card.relic-affordable {
+  border-color: rgba(34, 211, 238, 0.38);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.12);
+  animation: relic-affordable-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes relic-affordable-pulse {
+  0%, 100% { border-color: rgba(34, 211, 238, 0.28); }
+  50%       { border-color: rgba(34, 211, 238, 0.58); }
+}
+
+.relic-card.relic-unlocked {
+  border-color: rgba(245, 197, 24, 0.38);
+  box-shadow: 0 0 18px rgba(245, 197, 24, 0.14);
+}
+
+.relic-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+  transition: filter 0.25s;
+}
+
+/* Icônes grisées pour les reliques verrouillées non abordables */
+.relic-card:not(.relic-unlocked):not(.relic-affordable) .relic-icon {
+  filter: grayscale(0.75) opacity(0.45);
+}
+
+.relic-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.relic-bonus {
+  font-size: 0.63rem;
+  color: #22d3ee;
+  font-weight: 600;
+  min-height: 1.2em;
+}
+
+.relic-card.relic-unlocked .relic-bonus { color: var(--green); }
+.relic-card:not(.relic-unlocked):not(.relic-affordable) .relic-bonus { color: var(--muted); }
+
+.relic-cost {
+  font-size: 0.7rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.relic-cost.can-afford { color: #22d3ee; font-weight: 700; }
+
+.relic-shortfall {
+  font-size: 0.58rem;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.relic-unlock-btn {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 6px;
+  background: linear-gradient(135deg, #22d3ee, #0891b2);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.1s, filter 0.1s, opacity 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.relic-unlock-btn:not(:disabled):hover  { filter: brightness(1.15); transform: scale(1.04); }
+.relic-unlock-btn:not(:disabled):active { transform: scale(0.95); }
+.relic-unlock-btn:disabled { opacity: 0.22; cursor: not-allowed; filter: grayscale(0.6); }
+
+.relic-unlocked-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--gold);
+  margin-top: 2px;
+}
+
 /* ── Missions quotidiennes ───────────────────── */
 #daily-missions-list {
   display: flex;
