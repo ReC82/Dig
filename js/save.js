@@ -13,13 +13,17 @@
  *   v6 — + relicFragments
  *   v7 — + dailyMissions{ date, missions[], baselineStats }
  *   v8 — + relics[] (relicBonuses non sauvegardé — calculé au chargement)
+ *   v9 — + lastSaveTime (timestamp, non stocké dans GameState)
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 8,
+  SAVE_VERSION: 9,
 
   onSave: null,
+
+  /** Timestamp de la dernière sauvegarde, lu au chargement pour les gains offline. */
+  loadedSaveTime: null,
 
   // ── Sauvegarde ────────────────────────────────────────────────────────────
 
@@ -27,6 +31,7 @@ const Save = {
     try {
       const data = {
         saveVersion:  this.SAVE_VERSION,
+        lastSaveTime: Date.now(),
         coins:        GameState.coins,
         gems:         GameState.gems,
         depth:        GameState.depth,
@@ -66,6 +71,8 @@ const Save = {
       if (!raw) return false;
 
       const data = this._migrate(JSON.parse(raw));
+
+      this.loadedSaveTime = data.lastSaveTime ?? null;
 
       GameState.coins        = data.coins        ?? 0;
       GameState.gems         = data.gems          ?? 0;
@@ -176,8 +183,12 @@ const Save = {
       data.relics = [];
       data.saveVersion = 8;
     }
+    if (v < 9) {
+      // lastSaveTime est un champ hors-GameState : aucune migration nécessaire
+      data.saveVersion = 9;
+    }
 
-    // if (v < 9) { /* futures migrations */ }
+    // if (v < 10) { /* futures migrations */ }
 
     return data;
   },

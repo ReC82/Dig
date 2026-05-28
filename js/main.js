@@ -661,6 +661,66 @@ function spawnFloatText(text, cssClass, cx, cy) {
   el.addEventListener('animationend', () => el.remove(), { once: true });
 }
 
+// ── Gains offline ────────────────────────────────────────────────────────────
+
+function formatDuration(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  if (h > 0 && m > 0) return `${h}\u202fh\u202f${m}\u202fmin`;
+  if (h > 0)          return `${h}\u202fh`;
+  return `${m}\u202fmin`;
+}
+
+function computeOfflineGains() {
+  const last = Save.loadedSaveTime;
+  if (!last) return null;
+
+  const elapsedMs = Date.now() - last;
+  const MIN_MS    = 60_000;
+  const MAX_MS    = 4 * 60 * 60 * 1000;
+  if (elapsedMs < MIN_MS) return null;
+
+  const dps = Upgrades.getAutoDigDamage();
+  if (dps === 0) return null;
+
+  const cappedMs       = Math.min(elapsedMs, MAX_MS);
+  const rewardMult     = Upgrades.getRewardMultiplier();
+  const coinsPerMinute = Math.max(1, Math.floor(dps * rewardMult * 30));
+  const totalCoins     = Math.floor(coinsPerMinute * (cappedMs / 60_000));
+  if (totalCoins <= 0) return null;
+
+  return { elapsedMs, cappedMs, coinsPerMinute, totalCoins };
+}
+
+function showOfflinePopup(gains) {
+  const modal      = document.getElementById('offline-modal');
+  const durationEl = document.getElementById('offline-modal-duration');
+  const rewardEl   = document.getElementById('offline-modal-reward');
+  const collectBtn = document.getElementById('btn-collect-offline');
+  if (!modal) return;
+
+  const cappedStr = formatDuration(gains.cappedMs);
+  const elapsed   = gains.elapsedMs;
+  const wasCapped = elapsed > gains.cappedMs;
+  durationEl.textContent = wasCapped
+    ? `Absent${'\u202f'}${formatDuration(elapsed)} (limité à ${cappedStr})`
+    : `Absent${'\u202f'}${cappedStr}`;
+  rewardEl.textContent = `💰 +${gains.totalCoins.toLocaleString('fr-FR')} pièces`;
+
+  modal.hidden = false;
+
+  collectBtn.onclick = () => {
+    modal.hidden = true;
+    GameState.addCoins(gains.totalCoins);
+    GameState.stats.totalCoinsEarned += gains.totalCoins;
+    renderStats();
+    handleQuestsCompleted(Quests.checkAll());
+    updateDailyBadge();
+    Save.save();
+  };
+}
+
 // ── Popup coffre ──────────────────────────────────────────────────────────────
 
 function showChestPopup(chestType, reward) {
@@ -872,6 +932,8 @@ function init() {
   Save.load();
 
   Relics.applyBonuses();   // recalcule les bonus depuis GameState.relics chargé
+  const offlineGains = computeOfflineGains(); // calculé ici, après applyBonuses()
+
   Quests.checkAll(true);   // vérification silencieuse (migration / reprise)
   DailyMissions.refresh(); // génère les missions du jour si besoin
 
@@ -884,6 +946,8 @@ function init() {
 
   updateDailyBadge();
   if (Relics.DEFS.some(r => Relics.canUnlock(r.id))) setNavBadge('collection');
+
+  if (offlineGains) showOfflinePopup(offlineGains);
 
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
