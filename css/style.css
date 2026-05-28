@@ -964,6 +964,131 @@ h1 {
 .claimed-check { margin-right: 5px; }
 .daily-next-msg { text-align: center; font-size: 0.7rem; color: var(--muted); margin-top: 6px; }
 
+/* ── Missions quotidiennes ───────────────────── */
+#daily-missions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mission-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  transition: border-color 0.2s;
+}
+
+.mission-card.mission-done    { border-color: rgba(74,222,128,0.22); }
+.mission-card.mission-claimed { opacity: 0.52; }
+
+.mission-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mission-icon {
+  font-size: 1.4rem;
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+.mission-info { flex: 1; min-width: 0; }
+
+.mission-name {
+  font-size: 0.87rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mission-desc {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.mission-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mission-card.mission-claimed .mission-count { color: var(--green); }
+
+.mission-progress-wrap {
+  height: 6px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mission-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg,#3b82f6,#60a5fa);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.mission-card.mission-done    .mission-progress-bar,
+.mission-card.mission-claimed .mission-progress-bar {
+  background: linear-gradient(90deg,#16a34a,#4ade80);
+}
+
+.mission-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mission-reward-text {
+  font-size: 0.68rem;
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+}
+
+.mission-reward-text span {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.mission-claim-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+  color: #111;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.1s, filter 0.1s, opacity 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.mission-claim-btn:not(:disabled):hover  { filter: brightness(1.1); transform: scale(1.04); }
+.mission-claim-btn:not(:disabled):active { transform: scale(0.94); }
+.mission-claim-btn:disabled              { opacity: 0.28; cursor: not-allowed; filter: grayscale(0.5); }
+
+.mission-claim-btn.mission-claimed-btn {
+  background: rgba(74,222,128,0.1);
+  color: var(--green);
+  border: 1px solid rgba(74,222,128,0.2);
+  cursor: default;
+  font-size: 0.72rem;
+}
+
 /* ── Boutique ────────────────────────────────── */
 .shop-header {
   text-align: center;

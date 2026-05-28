@@ -11,11 +11,12 @@
  *   v4 — + daily{}, coinBoost{}
  *   v5 — + monetization{ adLastWatched, pickaxeSkin }
  *   v6 — + relicFragments
+ *   v7 — + dailyMissions{ date, missions[], baselineStats }
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 6,
+  SAVE_VERSION: 7,
 
   onSave: null,
 
@@ -38,6 +39,17 @@ const Save = {
         coinBoost:    { ...GameState.coinBoost },
         monetization:   { ...GameState.monetization },
         relicFragments: GameState.relicFragments,
+        dailyMissions: {
+          date:     GameState.dailyMissions.date,
+          missions: GameState.dailyMissions.missions.map(m => ({
+            id:      m.id,
+            target:  m.target,
+            reward:  { coins: m.reward.coins, gems: m.reward.gems },
+            claimed: m.claimed,
+          })),
+          baselineStats: GameState.dailyMissions.baselineStats
+            ? { ...GameState.dailyMissions.baselineStats } : null,
+        },
       };
       localStorage.setItem(this.KEY, JSON.stringify(data));
       if (typeof this.onSave === 'function') this.onSave();
@@ -88,6 +100,20 @@ const Save = {
 
       GameState.relicFragments = data.relicFragments ?? 0;
 
+      const dm = data.dailyMissions ?? {};
+      GameState.dailyMissions.date = dm.date ?? null;
+      GameState.dailyMissions.missions = Array.isArray(dm.missions)
+        ? dm.missions.map(m => ({
+            id:      String(m.id ?? ''),
+            target:  Number(m.target ?? 0),
+            reward:  { coins: Number(m.reward?.coins ?? 0), gems: Number(m.reward?.gems ?? 0) },
+            claimed: Boolean(m.claimed),
+          }))
+        : [];
+      GameState.dailyMissions.baselineStats =
+        (dm.baselineStats && typeof dm.baselineStats === 'object')
+          ? { ...dm.baselineStats } : null;
+
       return true;
     } catch (_) {
       return false;
@@ -136,8 +162,12 @@ const Save = {
       data.relicFragments = 0;
       data.saveVersion = 6;
     }
+    if (v < 7) {
+      data.dailyMissions = { date: null, missions: [], baselineStats: null };
+      data.saveVersion = 7;
+    }
 
-    // if (v < 7) { /* futures migrations */ }
+    // if (v < 8) { /* futures migrations */ }
 
     return data;
   },

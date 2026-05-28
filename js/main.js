@@ -68,7 +68,7 @@ function switchView(viewId) {
   }
   if (viewId === 'daily') {
     renderDaily();
-    clearNavBadge('daily');
+    updateDailyBadge();
   }
   if (viewId === 'shop') {
     renderShop();
@@ -241,6 +241,7 @@ function renderUpgrades() {
           renderStats();
           const completed = Quests.checkAll();
           handleQuestsCompleted(completed);
+          updateDailyBadge();
           Save.save();
         }
       });
@@ -360,6 +361,11 @@ function renderDaily() {
       <div class="daily-next-msg">Reviens demain pour continuer ta série.</div>`;
   }
 
+  // ── Section missions du jour ────────────────────────────────────────────
+  html += `
+    <div class="section-divider" style="margin-top:24px"><span>🎯 Missions du jour</span></div>
+    <div id="daily-missions-list"></div>`;
+
   container.innerHTML = html;
 
   if (available) {
@@ -373,13 +379,92 @@ function renderDaily() {
       if (reward.boost) parts.push(`⚡ ×${reward.boost.mult}`);
       showAchievement('📅', `Jour ${day} : ${parts.join(' + ')} !`);
       if (reward.boost) renderBoostBanner();
-      clearNavBadge('daily');
-      renderDaily();
+      renderDaily();      // reconstruit tout + missions
       renderStats();
+      updateDailyBadge();
       Save.save();
       handleQuestsCompleted(Quests.checkAll());
     });
   }
+
+  renderDailyMissions();   // injecte les cards dans #daily-missions-list
+}
+
+// ── Badge Quotidien ───────────────────────────────────────────────────────────
+
+/** Met à jour le badge "Quotidien" : visible si streak dispo OU mission réclamable. */
+function updateDailyBadge() {
+  if (Daily.isAvailable() || DailyMissions.hasUnclaimedCompleted()) {
+    setNavBadge('daily');
+  } else {
+    clearNavBadge('daily');
+  }
+}
+
+// ── Rendu missions quotidiennes ───────────────────────────────────────────────
+
+function renderDailyMissions() {
+  const list = document.getElementById('daily-missions-list');
+  if (!list) return;
+
+  DailyMissions.refresh();      // génère / actualise si nouveau jour
+
+  list.innerHTML = '';
+  const missions = GameState.dailyMissions.missions;
+
+  missions.forEach((m, idx) => {
+    const def = DailyMissions.getDef(m.id);
+    if (!def) return;
+
+    const progress = DailyMissions.getProgress(idx);
+    const pct      = Math.min(100, m.target > 0 ? Math.round((progress / m.target) * 100) : 100);
+    const done     = DailyMissions.isDone(idx);
+    const claimed  = m.claimed;
+
+    const rewardParts = [];
+    if (m.reward.coins > 0) rewardParts.push(`💰\u202f${m.reward.coins}`);
+    if (m.reward.gems  > 0) rewardParts.push(`💎\u202f${m.reward.gems}`);
+
+    const card = document.createElement('div');
+    card.className = `mission-card${claimed ? ' mission-claimed' : done ? ' mission-done' : ''}`;
+    card.innerHTML = `
+      <div class="mission-header">
+        <span class="mission-icon">${def.icon}</span>
+        <div class="mission-info">
+          <div class="mission-name">${def.name}</div>
+          <div class="mission-desc">${def.descFn(m.target)}</div>
+        </div>
+        <div class="mission-count">${claimed ? '✓' : `${progress}\u202f/\u202f${m.target}`}</div>
+      </div>
+      <div class="mission-progress-wrap">
+        <div class="mission-progress-bar" style="width:${pct}%"></div>
+      </div>
+      <div class="mission-footer">
+        <div class="mission-reward-text">Récompense&nbsp;: <span>${rewardParts.join(' + ')}</span></div>
+        <button class="mission-claim-btn${claimed ? ' mission-claimed-btn' : ''}"
+          ${(!done || claimed) ? 'disabled' : ''}
+          aria-label="${claimed ? 'Déjà réclamé' : `Réclamer ${rewardParts.join(' + ')}`}">
+          ${claimed ? '✓ Réclamé' : 'Réclamer'}
+        </button>
+      </div>`;
+
+    if (done && !claimed) {
+      card.querySelector('.mission-claim-btn').addEventListener('click', () => {
+        const reward = DailyMissions.claim(idx);
+        if (!reward) return;
+        const parts = [];
+        if (reward.coins > 0) parts.push(`💰 ${reward.coins}`);
+        if (reward.gems  > 0) parts.push(`💎 ${reward.gems}`);
+        showAchievement('🎯', `Mission : ${parts.join(' + ')} !`);
+        renderDailyMissions();
+        renderStats();
+        updateDailyBadge();
+        Save.save();
+      });
+    }
+
+    list.appendChild(card);
+  });
 }
 
 // ── Rendu boutique ────────────────────────────────────────────────────────────
@@ -591,6 +676,7 @@ function handleBlockDestroyed(cx, cy) {
 
     spawnFloatText('📦 COFFRE !', 'chest', cx, cy - 55);
     handleQuestsCompleted(Quests.checkAll());
+    updateDailyBadge();
 
     blockAnimating = true;
     elBlock.classList.remove('anim-hit', 'crack-1', 'crack-2', 'crack-3', 'hp-critical');
@@ -610,6 +696,7 @@ function handleBlockDestroyed(cx, cy) {
     spawnFloatText(`+${reward} 💰`, 'coin', cx + 14, cy - 24);
     if (type.isGem) spawnFloatText('✨ GEMME !', 'gem', cx, cy - 55);
     handleQuestsCompleted(Quests.checkAll());
+    updateDailyBadge();
 
     blockAnimating = true;
     elBlock.classList.remove('anim-hit', 'crack-1', 'crack-2', 'crack-3', 'hp-critical');
@@ -716,7 +803,8 @@ function init() {
   Save.onSave = showSaveToast;
   Save.load();
 
-  Quests.checkAll(true); // vérification silencieuse (migration / reprise)
+  Quests.checkAll(true);   // vérification silencieuse (migration / reprise)
+  DailyMissions.refresh(); // génère les missions du jour si besoin
 
   renderUpgrades();
   renderQuests();
@@ -725,7 +813,7 @@ function init() {
   spawnBlock();
   renderStats();
 
-  if (Daily.isAvailable()) setNavBadge('daily');
+  updateDailyBadge();
 
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);

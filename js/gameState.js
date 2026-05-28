@@ -41,6 +41,15 @@ const GameState = {
     streakDay:     0,
   },
 
+  // ── Missions quotidiennes ─────────────────────
+  // missions[] : [{ id, target, reward: {coins,gems}, claimed }]
+  // baselineStats : snapshot des stats au moment de génération (progression = actuel - baseline)
+  dailyMissions: {
+    date:          null,
+    missions:      [],
+    baselineStats: null,
+  },
+
   // ── Boost temporaire ──────────────────────────
   coinBoost: {
     multiplier: 1,
@@ -92,6 +101,7 @@ const GameState = {
       gemsFound: 0, chestsFound: 0, totalUpgradesBought: 0,
     };
     this.daily        = { lastClaimDate: null, streakDay: 0 };
+    this.dailyMissions = { date: null, missions: [], baselineStats: null };
     this.coinBoost    = { multiplier: 1, expiresAt: 0 };
     // monetization intentionnellement préservé (achats et cooldown persistants)
   },
