@@ -180,9 +180,6 @@ const I18n = (() => {
         gem_float:       '✨ GEMME !',
         coin_float:      '+{amount} 💰',
         damage_float:    '-{amount}',
-        shop_gems:       '💎 +{amount}',
-        shop_skin:       '✨ Skin activé !',
-        shop_boost:      '⚡ Boost ×{mult} actif !',
       },
       settings: {
         title:      'Paramètres',
@@ -339,9 +336,6 @@ const I18n = (() => {
         gem_float:       '✨ GEM!',
         coin_float:      '+{amount} 💰',
         damage_float:    '-{amount}',
-        shop_gems:       '💎 +{amount}',
-        shop_skin:       '✨ Skin activated!',
-        shop_boost:      '⚡ Boost ×{mult} active!',
       },
       settings: {
         title:      'Settings',
@@ -498,9 +492,6 @@ const I18n = (() => {
         gem_float:       '✨ EDELSTEEN!',
         coin_float:      '+{amount} 💰',
         damage_float:    '-{amount}',
-        shop_gems:       '💎 +{amount}',
-        shop_skin:       '✨ Skin geactiveerd!',
-        shop_boost:      '⚡ Boost ×{mult} actief!',
       },
       settings: {
         title:      'Instellingen',

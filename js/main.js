@@ -66,6 +66,10 @@ function switchView(viewId) {
   const activeView = document.getElementById(`view-${viewId}`);
   if (activeView) activeView.scrollTop = 0;
 
+  if (viewId === 'dig') {
+    renderBlock();
+    renderStats();
+  }
   if (viewId === 'upgrades') {
     renderQuests();
     clearNavBadge('upgrades');
@@ -1033,6 +1037,7 @@ function init() {
 
   // Re-rend les vues dynamiques quand la langue change
   I18n.onLangChange(() => {
+    if (isViewActive('dig'))        { renderBlock(); renderStats(); }
     if (isViewActive('settings'))   renderSettings();
     if (isViewActive('upgrades'))   { renderUpgrades(); renderQuests(); }
     if (isViewActive('collection')) { renderCollection(); renderRelics(); }
