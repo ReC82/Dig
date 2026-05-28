@@ -36,13 +36,13 @@
       </div>
     </div>
 
-    <!-- Bannière boost (visible uniquement quand actif) -->
+    <!-- Bannière boost -->
     <div id="boost-banner" hidden aria-live="polite">
       <span id="boost-text"></span>
       <span id="boost-timer"></span>
     </div>
 
-    <!-- ── Vues principales ─────────────────────────────────────────────── -->
+    <!-- ── Vues ─────────────────────────────────────────────────────────── -->
 
     <!-- Vue Dig -->
     <div id="view-dig" class="view">
@@ -62,6 +62,16 @@
         </div>
         <div id="hp-text"></div>
         <div id="block-reward"></div>
+
+        <!-- Zone pub récompensée -->
+        <div id="ad-zone">
+          <button id="btn-watch-ad" class="ad-btn"
+            aria-label="Regarder une publicité pour doubler la récompense">
+            <span class="ad-btn-icon">📺</span>
+            <span class="ad-btn-text">Doubler la récompense</span>
+          </button>
+          <div id="ad-timer" aria-live="polite"></div>
+        </div>
 
       </div>
     </div>
@@ -83,7 +93,10 @@
     <!-- Vue Quotidien -->
     <div id="view-daily" class="view hidden"></div>
 
-    <!-- ── Navigation bas ───────────────────────────────────────────────── -->
+    <!-- Vue Boutique -->
+    <div id="view-shop" class="view hidden"></div>
+
+    <!-- ── Navigation bas ─────────────────────────────────────────────── -->
     <nav id="bottom-nav" role="navigation" aria-label="Navigation principale">
 
       <button class="nav-btn active" data-view="dig" aria-label="Creuser">
@@ -117,9 +130,38 @@
         <span class="nav-label">Quotidien</span>
       </button>
 
+      <button class="nav-btn" data-view="shop" aria-label="Boutique">
+        <span class="nav-icon-wrap">
+          <span class="nav-icon">🛒</span>
+        </span>
+        <span class="nav-label">Boutique</span>
+      </button>
+
     </nav>
 
   </div><!-- /#app -->
+
+  <!-- ── Modale publicité simulée ─────────────────────────────────────────── -->
+  <div id="ad-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ad-modal-title">
+    <div id="ad-modal-inner">
+
+      <div id="ad-mock-content">
+        <div id="ad-mock-logo">⛏</div>
+        <div id="ad-mock-title">DIG! — Edition Pro</div>
+        <div id="ad-mock-sub">Doublez tous vos gains !</div>
+        <div id="ad-bar-wrap">
+          <div id="ad-bar-fill"></div>
+        </div>
+      </div>
+
+      <div id="ad-modal-footer">
+        <div id="ad-countdown" aria-live="polite">5</div>
+        <button id="btn-close-ad" hidden>Récupérer le bonus →</button>
+        <button id="btn-skip-ad">Passer ✕</button>
+      </div>
+
+    </div>
+  </div>
 
   <div id="save-toast" aria-live="polite">Sauvegardé ✓</div>
 
@@ -129,6 +171,7 @@
   <script src="js/collection.js"></script>
   <script src="js/quests.js"></script>
   <script src="js/daily.js"></script>
+  <script src="js/monetization.js"></script>
   <script src="js/save.js"></script>
   <script src="js/main.js"></script>
 </body>

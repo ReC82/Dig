@@ -9,11 +9,12 @@
  *   v2 — + upgrades { luck, bag, autodig }
  *   v3 — + collection[], quests{}, stats.totalUpgradesBought
  *   v4 — + daily{}, coinBoost{}
+ *   v5 — + monetization{ adLastWatched, pickaxeSkin }
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 4,
+  SAVE_VERSION: 5,
 
   onSave: null,
 
@@ -34,6 +35,7 @@ const Save = {
         stats:        { ...GameState.stats },
         daily:        { ...GameState.daily },
         coinBoost:    { ...GameState.coinBoost },
+        monetization: { ...GameState.monetization },
       };
       localStorage.setItem(this.KEY, JSON.stringify(data));
       if (typeof this.onSave === 'function') this.onSave();
@@ -78,6 +80,10 @@ const Save = {
       GameState.coinBoost.multiplier = cb.multiplier ?? 1;
       GameState.coinBoost.expiresAt  = cb.expiresAt  ?? 0;
 
+      const m = data.monetization ?? {};
+      GameState.monetization.adLastWatched = m.adLastWatched ?? 0;
+      GameState.monetization.pickaxeSkin   = m.pickaxeSkin   ?? null;
+
       return true;
     } catch (_) {
       return false;
@@ -87,6 +93,8 @@ const Save = {
   // ── Reset ─────────────────────────────────────────────────────────────────
 
   reset() {
+    // On conserve la clé mais on sauvegarde juste la progression game
+    // (GameState.reset() ne touche pas monetization, donc les skins persistent)
     localStorage.removeItem(this.KEY);
     GameState.reset();
   },
@@ -116,8 +124,12 @@ const Save = {
       data.coinBoost = { multiplier: 1, expiresAt: 0 };
       data.saveVersion = 4;
     }
+    if (v < 5) {
+      data.monetization = { adLastWatched: 0, pickaxeSkin: null };
+      data.saveVersion = 5;
+    }
 
-    // if (v < 5) { /* futures migrations */ }
+    // if (v < 6) { /* futures migrations */ }
 
     return data;
   },

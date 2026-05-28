@@ -1,7 +1,7 @@
 /**
  * main.js
  * Point d'entrée : DOM, événements, rendu.
- * Dépend de : GameState, Blocks, Upgrades, Collection, Quests, Daily, Save
+ * Dépend de : GameState, Blocks, Upgrades, Collection, Quests, Daily, Monetization, Save
  */
 
 // ── Références DOM fixes ────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ function showSaveToast() {
 
 function screenFlash(color) {
   const el = document.createElement('div');
-  el.className   = 'screen-flash';
+  el.className        = 'screen-flash';
   el.style.background = color;
   document.body.appendChild(el);
   el.addEventListener('animationend', () => el.remove(), { once: true });
@@ -57,7 +57,6 @@ function switchView(viewId) {
     v.classList.toggle('hidden', v.id !== `view-${viewId}`);
   });
 
-  // Rendu paresseux + badge
   if (viewId === 'upgrades') {
     renderQuests();
     clearNavBadge('upgrades');
@@ -69,6 +68,9 @@ function switchView(viewId) {
   if (viewId === 'daily') {
     renderDaily();
     clearNavBadge('daily');
+  }
+  if (viewId === 'shop') {
+    renderShop();
   }
 }
 
@@ -94,11 +96,16 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 // ── Rendu stats ───────────────────────────────────────────────────────────────
 
 function renderStats() {
-  elCoins.textContent   = GameState.coins;
-  elGems.textContent    = GameState.gems;
-  elDepth.textContent   = `${GameState.depth}m`;
-  elPickaxe.textContent = `Nv.${GameState.pickaxeLevel}`;
-  elDamage.textContent  = GameState.damage;
+  elCoins.textContent = GameState.coins;
+  elGems.textContent  = GameState.gems;
+  elDepth.textContent = `${GameState.depth}m`;
+  elDamage.textContent = GameState.damage;
+
+  // Pioche : indicateur visuel du skin actif
+  const skin = GameState.monetization.pickaxeSkin;
+  const skinIcon = skin === 'golden' ? ' ✨' : skin === 'diamond' ? ' 💠' : '';
+  elPickaxe.textContent = `Nv.${GameState.pickaxeLevel}${skinIcon}`;
+
   updateUpgradeButtonStates();
 }
 
@@ -118,6 +125,29 @@ function renderBoostBanner() {
   elBoostTimer.textContent = `— ${min}:${String(sec).padStart(2, '0')} restant`;
 }
 
+// ── Rendu bouton pub ──────────────────────────────────────────────────────────
+
+function renderAdButton() {
+  const btn     = document.getElementById('btn-watch-ad');
+  const timerEl = document.getElementById('ad-timer');
+  if (!btn) return;
+
+  const available = Monetization.canWatchAd();
+  btn.disabled = !available;
+
+  if (timerEl) {
+    if (available) {
+      timerEl.textContent = '';
+    } else {
+      const ms = Monetization.getCooldownRemainingMs();
+      const totalSec = Math.ceil(ms / 1000);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      timerEl.textContent = `Disponible dans ${min}:${String(sec).padStart(2, '0')}`;
+    }
+  }
+}
+
 // ── Rendu bloc ────────────────────────────────────────────────────────────────
 
 function renderBlock() {
@@ -130,11 +160,18 @@ function renderBlock() {
 
   elBlockRarity.innerHTML = `<span class="rarity-badge rarity-${b.type.rarityKey}">${b.type.rarity}</span>`;
 
+  // Rareté
   elBlock.classList.remove(
     'rarity-commun','rarity-peu-commun','rarity-rare','rarity-epique','rarity-legendaire'
   );
   elBlock.classList.add(`rarity-${b.type.rarityKey}`);
 
+  // Skin (passe après rareté → priorité CSS via !important)
+  elBlock.classList.remove('skin-golden', 'skin-diamond');
+  const skin = GameState.monetization.pickaxeSkin;
+  if (skin) elBlock.classList.add(`skin-${skin}`);
+
+  // HP
   const ratio = Blocks.hpRatio();
   elHpBar.style.width  = `${(ratio * 100).toFixed(1)}%`;
   elHpText.textContent = `${b.hp} / ${b.maxHp} HP`;
@@ -151,6 +188,7 @@ function renderBlock() {
   // Pulsation critique
   elBlock.classList.toggle('hp-critical', ratio <= 0.25);
 
+  // Récompense affichée (avec boost multiplié)
   const boostMult   = GameState.getCoinBoostMultiplier();
   const finalReward = Math.ceil(b.reward * Upgrades.getRewardMultiplier() * boostMult);
   const boostTag    = boostMult > 1 ? ` <span class="boost-tag">⚡×${boostMult}</span>` : '';
@@ -240,7 +278,6 @@ function renderQuests() {
         <div class="quest-desc">${def.desc}</div>
       </div>
       <div class="quest-reward">${done ? '✓ Réclamé' : parts.join(' + ')}</div>`;
-
     container.appendChild(card);
   }
 }
@@ -284,10 +321,7 @@ function renderDaily() {
   const nextDay         = Daily.getNextDay();
   const available       = Daily.isAvailable();
 
-  // Ligne des 7 cercles
-  let html = `<div class="daily-title">Connexion quotidienne</div>`;
-  html += `<div class="streak-row">`;
-
+  let html = `<div class="daily-title">Connexion quotidienne</div><div class="streak-row">`;
   for (let i = 1; i <= 7; i++) {
     let state;
     if (claimedToday) {
@@ -341,9 +375,77 @@ function renderDaily() {
       renderDaily();
       renderStats();
       Save.save();
-      const completed = Quests.checkAll();
-      handleQuestsCompleted(completed);
+      handleQuestsCompleted(Quests.checkAll());
     });
+  }
+}
+
+// ── Rendu boutique ────────────────────────────────────────────────────────────
+
+function renderShop() {
+  const container = document.getElementById('view-shop');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="shop-header">
+      <div class="shop-balance">💎 ${GameState.gems} gemme${GameState.gems !== 1 ? 's' : ''}</div>
+      <div class="shop-balance-sub">Solde actuel</div>
+    </div>
+    <div class="section-divider"><span>💎 Gemmes</span></div>
+    <div class="shop-grid" id="shop-grid-gems"></div>
+    <div class="section-divider"><span>⛏ Skins de pioche</span></div>
+    <div class="shop-grid shop-grid-2" id="shop-grid-skins"></div>
+    <div class="section-divider"><span>⚡ Boosts</span></div>
+    <div class="shop-grid shop-grid-2" id="shop-grid-boosts"></div>
+    <div class="shop-disclaimer">Mode démo · Aucun achat réel ne sera effectué</div>
+  `;
+
+  const gems  = Monetization.SHOP_ITEMS.filter(i => i.type === 'gems');
+  const skins = Monetization.SHOP_ITEMS.filter(i => i.type === 'skin');
+  const boosts = Monetization.SHOP_ITEMS.filter(i => i.type === 'boost');
+
+  _fillShopGrid('shop-grid-gems',   gems);
+  _fillShopGrid('shop-grid-skins',  skins);
+  _fillShopGrid('shop-grid-boosts', boosts);
+}
+
+function _fillShopGrid(gridId, items) {
+  const grid = document.getElementById(gridId);
+  if (!grid) return;
+
+  for (const item of items) {
+    const owned = item.type === 'skin' && Monetization.hasSkin(item.value);
+    const card  = document.createElement('div');
+    card.className = 'shop-card';
+
+    card.innerHTML = `
+      ${item.badge ? `<div class="shop-badge">${item.badge}</div>` : ''}
+      <div class="shop-item-icon">${item.icon}</div>
+      <div class="shop-item-name">${item.name}</div>
+      <div class="shop-item-label">${item.label}</div>
+      <button class="shop-btn${owned ? ' owned' : ''}"
+        ${owned ? 'disabled' : ''}
+        aria-label="${owned ? 'Déjà possédé' : `Acheter ${item.name}`}">
+        ${owned ? '✓ Possédé' : item.price}
+      </button>`;
+
+    if (!owned) {
+      card.querySelector('.shop-btn').addEventListener('click', () => {
+        Monetization.purchase(item.id, (bought) => {
+          const notif = bought.type === 'gems'  ? `💎 +${bought.value}`
+                      : bought.type === 'skin'  ? `✨ Skin activé !`
+                      : `⚡ Boost ×${bought.mult} actif !`;
+          showAchievement('🛒', notif);
+          if (bought.type === 'boost') renderBoostBanner();
+          renderShop();
+          renderStats();
+          renderBlock(); // met à jour le skin sur le bloc
+          Save.save();
+        });
+      });
+    }
+
+    grid.appendChild(card);
   }
 }
 
@@ -402,7 +504,7 @@ function spawnParticles(color) {
 // ── Textes flottants ──────────────────────────────────────────────────────────
 
 function spawnFloatText(text, cssClass, cx, cy) {
-  const el       = document.createElement('div');
+  const el = document.createElement('div');
   el.className   = `float-text ${cssClass}`;
   el.textContent = text;
   el.style.left  = `${cx + (Math.random() * 24 - 12)}px`;
@@ -416,7 +518,8 @@ function spawnFloatText(text, cssClass, cx, cy) {
 function spawnBlock() {
   Blocks.spawn(GameState.depth);
   elBlock.classList.remove(
-    'anim-break','anim-hit','crack-1','crack-2','crack-3','hp-critical'
+    'anim-break','anim-hit','crack-1','crack-2','crack-3','hp-critical',
+    'skin-golden','skin-diamond'
   );
   void elBlock.offsetWidth;
   elBlock.classList.add('anim-spawn');
@@ -442,8 +545,7 @@ function handleBlockDestroyed(cx, cy) {
   const find = Collection.tryDrop(type, depth);
   if (find) handleFindDrop(find);
 
-  const completed = Quests.checkAll();
-  handleQuestsCompleted(completed);
+  handleQuestsCompleted(Quests.checkAll());
 
   blockAnimating = true;
   elBlock.classList.remove('anim-hit','crack-1','crack-2','crack-3','hp-critical');
@@ -508,6 +610,26 @@ elBlock.addEventListener('touchstart', (e) => {
   onBlockHit(x, y);
 }, { passive: false });
 
+// Bouton pub récompensée
+document.getElementById('btn-watch-ad').addEventListener('click', () => {
+  if (!Monetization.canWatchAd()) return;
+  const b = Blocks.current;
+  if (!b) return;
+  const reward = Math.ceil(b.reward * Upgrades.getRewardMultiplier() * GameState.getCoinBoostMultiplier());
+
+  Monetization.showRewardedAd(
+    () => {
+      GameState.addCoins(reward);
+      showAchievement('📺', `+${reward} 💰 bonus pub !`);
+      renderStats();
+      renderAdButton();
+      Save.save();
+    },
+    () => { /* joueur a passé la pub — pas de récompense */ }
+  );
+});
+
+// Reset
 elResetBtn.addEventListener('click', () => {
   if (!confirm('Réinitialiser la partie ?\nTous les coins, gemmes, upgrades, objectifs, trouvailles et la série quotidienne seront perdus.')) return;
   Save.reset();
@@ -515,7 +637,9 @@ elResetBtn.addEventListener('click', () => {
   renderQuests();
   renderCollection();
   renderBoostBanner();
+  renderAdButton();
   if (isViewActive('daily')) renderDaily();
+  if (isViewActive('shop'))  renderShop();
   if (Daily.isAvailable()) setNavBadge('daily');
   spawnBlock();
   renderStats();
@@ -530,8 +654,9 @@ function init() {
   Quests.checkAll(true); // vérification silencieuse (migration / reprise)
 
   renderUpgrades();
-  renderQuests();    // pré-rendu (dans la vue Amélios)
+  renderQuests();
   renderBoostBanner();
+  renderAdButton();
   spawnBlock();
   renderStats();
 
@@ -539,7 +664,7 @@ function init() {
 
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
-  setInterval(renderBoostBanner,   1_000);
+  setInterval(() => { renderBoostBanner(); renderAdButton(); }, 1_000);
 }
 
 document.addEventListener('DOMContentLoaded', init);

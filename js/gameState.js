@@ -22,8 +22,8 @@ const GameState = {
   },
 
   // ── Collection & Objectifs ───────────────────
-  collection: [],   // IDs des trouvailles obtenues
-  quests:     {},   // { questId: true } pour chaque objectif complété
+  collection: [],
+  quests:     {},
 
   // ── Statistiques ────────────────────────────
   stats: {
@@ -36,14 +36,21 @@ const GameState = {
 
   // ── Récompense quotidienne ────────────────────
   daily: {
-    lastClaimDate: null,   // 'YYYY-MM-DD' ou null
-    streakDay:     0,      // 0 = jamais réclamé, 1-7 = dernier jour réclamé
+    lastClaimDate: null,
+    streakDay:     0,
   },
 
   // ── Boost temporaire ──────────────────────────
   coinBoost: {
     multiplier: 1,
-    expiresAt:  0,         // timestamp ms ; 0 = inactif
+    expiresAt:  0,
+  },
+
+  // ── Monétisation ─────────────────────────────
+  // Note : non réinitialisé par reset() — les achats sont persistants.
+  monetization: {
+    adLastWatched: 0,     // timestamp ms ; cooldown publicité
+    pickaxeSkin:   null,  // null | 'golden' | 'diamond'
   },
 
   // ── Helpers ──────────────────────────────────
@@ -84,5 +91,6 @@ const GameState = {
     };
     this.daily        = { lastClaimDate: null, streakDay: 0 };
     this.coinBoost    = { multiplier: 1, expiresAt: 0 };
+    // monetization intentionnellement préservé (achats et cooldown persistants)
   },
 };
