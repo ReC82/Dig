@@ -69,64 +69,83 @@ const Save = {
     try {
       const raw = localStorage.getItem(this.KEY);
       if (!raw) return false;
+      this._applyParsed(this._migrate(JSON.parse(raw)));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
 
-      const data = this._migrate(JSON.parse(raw));
+  /**
+   * Applique un objet save (déjà parsé + migré) à GameState.
+   * Utilisé par load() et loadFromData().
+   */
+  _applyParsed(data) {
+    this.loadedSaveTime = data.lastSaveTime ?? null;
 
-      this.loadedSaveTime = data.lastSaveTime ?? null;
+    GameState.coins        = data.coins        ?? 0;
+    GameState.gems         = data.gems          ?? 0;
+    GameState.depth        = data.depth         ?? 1;
+    GameState.pickaxeLevel = data.pickaxeLevel  ?? 1;
+    GameState.damage       = data.damage        ?? 1;
 
-      GameState.coins        = data.coins        ?? 0;
-      GameState.gems         = data.gems          ?? 0;
-      GameState.depth        = data.depth         ?? 1;
-      GameState.pickaxeLevel = data.pickaxeLevel  ?? 1;
-      GameState.damage       = data.damage        ?? 1;
+    const u = data.upgrades ?? {};
+    GameState.upgrades.luck    = u.luck    ?? 0;
+    GameState.upgrades.bag     = u.bag     ?? 0;
+    GameState.upgrades.autodig = u.autodig ?? 0;
 
-      const u = data.upgrades ?? {};
-      GameState.upgrades.luck    = u.luck    ?? 0;
-      GameState.upgrades.bag     = u.bag     ?? 0;
-      GameState.upgrades.autodig = u.autodig ?? 0;
+    GameState.collection = Array.isArray(data.collection) ? data.collection : [];
+    GameState.quests     = (data.quests && typeof data.quests === 'object') ? data.quests : {};
 
-      GameState.collection = Array.isArray(data.collection) ? data.collection : [];
-      GameState.quests     = (data.quests && typeof data.quests === 'object') ? data.quests : {};
+    const s = data.stats ?? {};
+    GameState.stats.blocksDestroyed     = s.blocksDestroyed     ?? 0;
+    GameState.stats.totalCoinsEarned    = s.totalCoinsEarned    ?? 0;
+    GameState.stats.gemsFound           = s.gemsFound           ?? 0;
+    GameState.stats.chestsFound         = s.chestsFound         ?? 0;
+    GameState.stats.totalUpgradesBought = s.totalUpgradesBought ?? 0;
 
-      const s = data.stats ?? {};
-      GameState.stats.blocksDestroyed     = s.blocksDestroyed     ?? 0;
-      GameState.stats.totalCoinsEarned    = s.totalCoinsEarned    ?? 0;
-      GameState.stats.gemsFound           = s.gemsFound           ?? 0;
-      GameState.stats.chestsFound         = s.chestsFound         ?? 0;
-      GameState.stats.totalUpgradesBought = s.totalUpgradesBought ?? 0;
+    const dd = data.daily ?? {};
+    GameState.daily.lastClaimDate = dd.lastClaimDate ?? null;
+    GameState.daily.streakDay     = dd.streakDay     ?? 0;
 
-      const dd = data.daily ?? {};
-      GameState.daily.lastClaimDate = dd.lastClaimDate ?? null;
-      GameState.daily.streakDay     = dd.streakDay     ?? 0;
+    const cb = data.coinBoost ?? {};
+    GameState.coinBoost.multiplier = cb.multiplier ?? 1;
+    GameState.coinBoost.expiresAt  = cb.expiresAt  ?? 0;
 
-      const cb = data.coinBoost ?? {};
-      GameState.coinBoost.multiplier = cb.multiplier ?? 1;
-      GameState.coinBoost.expiresAt  = cb.expiresAt  ?? 0;
+    const m = data.monetization ?? {};
+    GameState.monetization.adLastWatched = m.adLastWatched ?? 0;
+    GameState.monetization.pickaxeSkin   = m.pickaxeSkin   ?? null;
 
-      const m = data.monetization ?? {};
-      GameState.monetization.adLastWatched = m.adLastWatched ?? 0;
-      GameState.monetization.pickaxeSkin   = m.pickaxeSkin   ?? null;
+    GameState.relicFragments = data.relicFragments ?? 0;
+    GameState.relics = Array.isArray(data.relics)
+      ? data.relics.filter(id => typeof id === 'string')
+      : [];
+    // relicBonuses est un cache : recalculé par Relics.applyBonuses() dans init()
 
-      GameState.relicFragments = data.relicFragments ?? 0;
-      GameState.relics = Array.isArray(data.relics)
-        ? data.relics.filter(id => typeof id === 'string')
-        : [];
-      // relicBonuses est un cache : recalculé par Relics.applyBonuses() dans init()
+    const dm = data.dailyMissions ?? {};
+    GameState.dailyMissions.date = dm.date ?? null;
+    GameState.dailyMissions.missions = Array.isArray(dm.missions)
+      ? dm.missions.map(m => ({
+          id:      String(m.id ?? ''),
+          target:  Number(m.target ?? 0),
+          reward:  { coins: Number(m.reward?.coins ?? 0), gems: Number(m.reward?.gems ?? 0) },
+          claimed: Boolean(m.claimed),
+        }))
+      : [];
+    GameState.dailyMissions.baselineStats =
+      (dm.baselineStats && typeof dm.baselineStats === 'object')
+        ? { ...dm.baselineStats } : null;
+  },
 
-      const dm = data.dailyMissions ?? {};
-      GameState.dailyMissions.date = dm.date ?? null;
-      GameState.dailyMissions.missions = Array.isArray(dm.missions)
-        ? dm.missions.map(m => ({
-            id:      String(m.id ?? ''),
-            target:  Number(m.target ?? 0),
-            reward:  { coins: Number(m.reward?.coins ?? 0), gems: Number(m.reward?.gems ?? 0) },
-            claimed: Boolean(m.claimed),
-          }))
-        : [];
-      GameState.dailyMissions.baselineStats =
-        (dm.baselineStats && typeof dm.baselineStats === 'object')
-          ? { ...dm.baselineStats } : null;
-
+  /**
+   * Charge une sauvegarde depuis un objet brut (sauvegarde cloud).
+   * Applique les mêmes migrations que load().
+   * @param   {object} rawData  Objet JS non stringifié (ex: réponse de /api/me/save)
+   * @returns {boolean}
+   */
+  loadFromData(rawData) {
+    try {
+      this._applyParsed(this._migrate(rawData));
       return true;
     } catch (_) {
       return false;

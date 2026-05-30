@@ -63,10 +63,16 @@ h1 {
   text-shadow: 0 0 24px rgba(245, 197, 24, 0.4);
 }
 
-/* ── Bouton Paramètres (header) ──────────────── */
-#btn-settings {
+/* ── Boutons Header (Compte + Paramètres) ──────── */
+.header-btns {
   position: absolute;
-  right: 12px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-btns button {
   background: none;
   border: none;
   color: var(--muted);
@@ -79,8 +85,8 @@ h1 {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
-#btn-settings:hover  { color: var(--text); background: rgba(255,255,255,0.07); }
-#btn-settings:active { background: rgba(255,255,255,0.12); }
+.header-btns button:hover  { color: var(--text); background: rgba(255,255,255,0.07); }
+.header-btns button:active { background: rgba(255,255,255,0.12); }
 
 /* ── Vue Paramètres ──────────────────────────── */
 .settings-section {
@@ -320,9 +326,17 @@ h1 {
   -webkit-tap-highlight-color: transparent;
   position: relative;
   box-shadow: 0 12px 40px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.16);
-  will-change: transform;
+  /* will-change applied only during active animations to avoid GPU layer caching
+     the empty state (emoji not yet painted) on first load */
   transition: border-color 0.3s, box-shadow 0.3s;
   touch-action: manipulation;
+}
+/* Promote to GPU layer only when actually animating */
+#block.anim-spawn,
+#block.anim-hit,
+#block.anim-break,
+#block.hp-critical {
+  will-change: transform;
 }
 
 #block-icon {
@@ -404,9 +418,9 @@ h1 {
 }
 
 @keyframes spawn-anim {
-  0%   { transform: scale(0)   rotate(-14deg); opacity: 0; }
-  60%  { transform: scale(1.1) rotate(4deg);   opacity: 1; }
-  100% { transform: scale(1)   rotate(0deg);   opacity: 1; }
+  0%   { transform: scale(0.65) rotate(-12deg); }
+  60%  { transform: scale(1.1)  rotate(4deg);   }
+  100% { transform: scale(1)    rotate(0deg);   }
 }
 
 /* Ordre CSS : anim-hit et anim-break priment sur hp-critical */
@@ -1727,6 +1741,104 @@ h1 {
   font-size: 1.6rem;
   line-height: 1;
   flex-shrink: 0;
+}
+
+/* ── Section compte (dans Paramètres) ────────── */
+.account-logged {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  gap: 12px;
+}
+.account-username {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.account-logout-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.account-logout-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+.account-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.account-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 10px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s;
+  letter-spacing: 0.3px;
+  -webkit-tap-highlight-color: transparent;
+}
+.account-tab.is-active { color: var(--gold); border-bottom: 2px solid var(--gold); margin-bottom: -1px; }
+.account-tab:hover:not(.is-active) { color: var(--text); }
+
+.account-form {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.account-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.88rem;
+  padding: 10px 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.account-input:focus { border-color: rgba(245,197,24,0.4); }
+.account-hint {
+  font-size: 0.68rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: -2px;
+}
+.account-submit-btn {
+  width: 100%;
+  padding: 11px;
+  background: var(--gold);
+  color: #000;
+  border: none;
+  border-radius: 11px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  margin-top: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+.account-submit-btn:hover   { opacity: 0.9; }
+.account-submit-btn:active  { transform: scale(0.98); }
+.account-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.account-error {
+  font-size: 0.73rem;
+  color: var(--red);
+  min-height: 1em;
+  text-align: center;
 }
 
 /* ── Responsive ─────────────────────────────── */

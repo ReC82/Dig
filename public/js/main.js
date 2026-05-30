@@ -29,6 +29,8 @@ const elRelics       = document.getElementById('stat-relics');
 let blockAnimating = false;
 let toastTimer     = null;
 let _previousView  = 'dig';   // vue à restaurer quand on ferme les paramètres
+let _account       = null;    // { id, username } si connecté, null sinon
+let _accountTab    = 'login'; // onglet actif dans le formulaire compte
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -71,6 +73,7 @@ function switchView(viewId) {
     renderStats();
   }
   if (viewId === 'upgrades') {
+    renderUpgrades();
     renderQuests();
     clearNavBadge('upgrades');
   }
@@ -548,6 +551,87 @@ function renderDailyMissions() {
   });
 }
 
+// ── API comptes ───────────────────────────────────────────────────────────────
+
+async function _apiFetch(method, url, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res  = await fetch(url, opts);
+  const data = await res.json();
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function _fetchMe() {
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/me');
+    _account = ok ? (data.user ?? null) : null;
+    if (_account) await _syncAfterLogin();
+  } catch (_) {
+    _account = null;
+  }
+}
+
+async function _doRegister(username, email, password) {
+  const { ok, data } = await _apiFetch('POST', '/api/register', { username, email, password });
+  if (ok) { _account = data.user; return null; }
+  return data.error || t('account.err_generic');
+}
+
+async function _doLogin(username, password) {
+  const { ok, data } = await _apiFetch('POST', '/api/login', { username, password });
+  if (ok) { _account = data.user; return null; }
+  return data.error || t('account.err_generic');
+}
+
+async function _doLogout() {
+  await _apiFetch('POST', '/api/logout');
+  _account = null;
+}
+
+/** Pousse la sauvegarde locale courante vers le cloud (silencieux). */
+async function _syncToCloud() {
+  if (!_account) return;
+  try {
+    const raw = localStorage.getItem(Save.KEY);
+    if (!raw) return;
+    await _apiFetch('POST', '/api/me/save', { data: JSON.parse(raw) });
+  } catch (_) { /* silencieux */ }
+}
+
+/**
+ * Après login/register : compare la sauvegarde cloud avec la sauvegarde locale.
+ * Prend la plus récente (via lastSaveTime). Si le cloud n'a rien, pousse le local.
+ */
+async function _syncAfterLogin() {
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/me/save');
+    if (!ok) return;
+
+    if (data.save) {
+      const cloudTime = data.save.data?.lastSaveTime ?? 0;
+      const localRaw  = localStorage.getItem(Save.KEY);
+      const localTime = localRaw ? (JSON.parse(localRaw)?.lastSaveTime ?? 0) : 0;
+
+      if (cloudTime > localTime) {
+        // Sauvegarde cloud plus récente → on l'applique
+        Save.loadFromData(data.save.data);
+        Relics.applyBonuses();
+        renderUpgrades();
+        renderQuests();
+        renderBoostBanner();
+        spawnBlock();
+        renderStats();
+      } else {
+        // Sauvegarde locale plus récente → on la pousse vers le cloud
+        await _syncToCloud();
+      }
+    } else {
+      // Pas de sauvegarde cloud → on pousse la locale
+      await _syncToCloud();
+    }
+  } catch (_) { /* silencieux */ }
+}
+
 // ── Rendu paramètres ─────────────────────────────────────────────────────────
 
 function renderSettings() {
@@ -566,8 +650,44 @@ function renderSettings() {
       <span class="lang-option-check" aria-hidden="true">✓</span>
     </button>`).join('');
 
+  // ── Section compte ──
+  const accountHtml = _account
+    ? `<div class="settings-section">
+        <div class="settings-section-label">${t('account.title')}</div>
+        <div class="account-logged">
+          <div class="account-username">👤 ${t('account.logged_as', { name: _account.username })}</div>
+          <button class="account-logout-btn" id="btn-account-logout">${t('account.btn_logout')}</button>
+        </div>
+      </div>`
+    : `<div class="settings-section">
+        <div class="settings-section-label">${t('account.title')}</div>
+        <div class="account-tabs">
+          <button class="account-tab${_accountTab === 'login'    ? ' is-active' : ''}" data-tab="login">${t('account.tab_login')}</button>
+          <button class="account-tab${_accountTab === 'register' ? ' is-active' : ''}" data-tab="register">${t('account.tab_register')}</button>
+        </div>
+        <div class="account-form">
+          <input class="account-input" id="acc-username" type="text"
+            placeholder="${t('account.label_username')}" autocomplete="username" maxlength="20">
+          ${_accountTab === 'register'
+            ? `<input class="account-input" id="acc-email" type="email"
+                placeholder="${t('account.label_email')}" autocomplete="email">`
+            : ''}
+          <input class="account-input" id="acc-password" type="password"
+            placeholder="${t('account.label_password')}" autocomplete="${_accountTab === 'register' ? 'new-password' : 'current-password'}">
+          ${_accountTab === 'register'
+            ? `<p class="account-hint">${t('account.hint_username')}<br>${t('account.hint_email')}<br>${t('account.hint_password')}</p>`
+            : ''}
+          <button class="account-submit-btn" id="btn-account-submit">
+            ${_accountTab === 'login' ? t('account.btn_login') : t('account.btn_register')}
+          </button>
+          <p class="account-error" id="acc-error"></p>
+        </div>
+      </div>`;
+
+  // Compte en premier → plus visible, puis langue
   container.innerHTML = `
     <div class="view-title-bar">${t('settings.title')}</div>
+    ${accountHtml}
     <div class="settings-section">
       <div class="settings-section-label">${t('settings.lang_title')}</div>
       <div class="lang-options-list">${optionsHtml}</div>
@@ -580,10 +700,60 @@ function renderSettings() {
   container.querySelectorAll('.lang-option').forEach(btn => {
     btn.addEventListener('click', () => {
       I18n.setLang(btn.dataset.lang);
-      // Re-rend les options pour mettre à jour l'état actif
       renderSettings();
     });
   });
+
+  // Onglets compte (login / register)
+  container.querySelectorAll('.account-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _accountTab = btn.dataset.tab;
+      renderSettings();
+    });
+  });
+
+  // Logout
+  const logoutBtn = document.getElementById('btn-account-logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      logoutBtn.disabled = true;
+      await _doLogout();
+      renderSettings();
+    });
+  }
+
+  // Submit login / register
+  const submitBtn = document.getElementById('btn-account-submit');
+  if (submitBtn) {
+    const doSubmit = async () => {
+      const username = document.getElementById('acc-username').value.trim();
+      const email    = (document.getElementById('acc-email')?.value ?? '').trim();
+      const password = document.getElementById('acc-password').value;
+      const errEl    = document.getElementById('acc-error');
+      errEl.textContent = '';
+      submitBtn.disabled = true;
+
+      const error = _accountTab === 'login'
+        ? await _doLogin(username, password)
+        : await _doRegister(username, email, password);
+
+      if (error) {
+        errEl.textContent = error;
+        submitBtn.disabled = false;
+      } else {
+        await _syncAfterLogin();
+        renderSettings();
+      }
+    };
+
+    submitBtn.addEventListener('click', doSubmit);
+
+    // Submit on Enter key in any input
+    ['acc-username', 'acc-email', 'acc-password'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doSubmit(); });
+    });
+  }
 
   // Retour à la vue précédente
   document.getElementById('btn-settings-back')
@@ -840,7 +1010,12 @@ function spawnBlock() {
   );
   void elBlock.offsetWidth;
   elBlock.classList.add('anim-spawn');
-  elBlock.addEventListener('animationend', () => elBlock.classList.remove('anim-spawn'), { once: true });
+  // Re-render after animation: the GPU compositing layer (will-change:transform)
+  // is captured at scale(0), so the emoji texture is blank until scale returns to 1.
+  elBlock.addEventListener('animationend', () => {
+    elBlock.classList.remove('anim-spawn');
+    renderBlock();
+  }, { once: true });
   renderBlock();
 }
 
@@ -899,6 +1074,9 @@ function handleBlockDestroyed(cx, cy) {
 
 function onBlockHit(cx, cy) {
   if (blockAnimating) return;
+
+  // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
+  if (!Blocks.current) { spawnBlock(); return; }
 
   const destroyed = Blocks.hit(GameState.damage);
 
@@ -977,6 +1155,13 @@ document.getElementById('btn-settings').addEventListener('click', () => {
   switchView('settings');
 });
 
+// Bouton compte (raccourci direct vers les paramètres, section compte en premier)
+document.getElementById('btn-account').addEventListener('click', () => {
+  const activeBtn = document.querySelector('.nav-btn.active');
+  _previousView = activeBtn ? activeBtn.dataset.view : 'dig';
+  switchView('settings');
+});
+
 // Reset
 elResetBtn.addEventListener('click', () => {
   if (!confirm(t('ui.confirm_reset'))) return;
@@ -1045,7 +1230,7 @@ function init() {
     if (isViewActive('shop'))       renderShop();
   });
 
-  Save.onSave = showSaveToast;
+  Save.onSave = () => { showSaveToast(); _syncToCloud(); };
   Save.load();
 
   Relics.applyBonuses();   // recalcule les bonus depuis GameState.relics chargé
@@ -1069,6 +1254,9 @@ function init() {
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
   setInterval(() => { renderBoostBanner(); renderAdButton(); }, 1_000);
+
+  // Récupère l'état de session (non bloquant — la page est déjà jouable)
+  _fetchMe();
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -186,6 +186,25 @@ const I18n = (() => {
         lang_title: 'Langue',
         btn_back:   '← Retour',
       },
+      account: {
+        title:           'Compte',
+        tab_login:       'Connexion',
+        tab_register:    'Créer un compte',
+        label_username:  'Nom d\'utilisateur',
+        label_email:     'Adresse e-mail',
+        label_password:  'Mot de passe',
+        btn_login:       'Se connecter',
+        btn_register:    'Créer le compte',
+        btn_logout:      'Se déconnecter',
+        logged_as:       'Connecté : {name}',
+        hint_username:   '3-20 car. : lettres, chiffres, _ ou -',
+        hint_email:      'exemple@email.com',
+        hint_password:   '6 caractères minimum',
+        err_taken:       'Nom d\'utilisateur déjà pris.',
+        err_email_taken: 'Cette adresse e-mail est déjà utilisée.',
+        err_wrong:       'Identifiants incorrects.',
+        err_generic:     'Une erreur est survenue.',
+      },
     },
 
     /* ══════════════════════════════════════════════════════════════════════ */
@@ -341,6 +360,25 @@ const I18n = (() => {
         title:      'Settings',
         lang_title: 'Language',
         btn_back:   '← Back',
+      },
+      account: {
+        title:           'Account',
+        tab_login:       'Sign in',
+        tab_register:    'Register',
+        label_username:  'Username',
+        label_email:     'Email address',
+        label_password:  'Password',
+        btn_login:       'Sign in',
+        btn_register:    'Create account',
+        btn_logout:      'Sign out',
+        logged_as:       'Signed in as {name}',
+        hint_username:   '3-20 chars: letters, digits, _ or -',
+        hint_email:      'example@email.com',
+        hint_password:   'At least 6 characters',
+        err_taken:       'Username already taken.',
+        err_email_taken: 'This email address is already in use.',
+        err_wrong:       'Incorrect username or password.',
+        err_generic:     'An error occurred.',
       },
     },
 
@@ -498,6 +536,25 @@ const I18n = (() => {
         lang_title: 'Taal',
         btn_back:   '← Terug',
       },
+      account: {
+        title:           'Account',
+        tab_login:       'Inloggen',
+        tab_register:    'Registreren',
+        label_username:  'Gebruikersnaam',
+        label_email:     'E-mailadres',
+        label_password:  'Wachtwoord',
+        btn_login:       'Inloggen',
+        btn_register:    'Account aanmaken',
+        btn_logout:      'Uitloggen',
+        logged_as:       'Ingelogd als {name}',
+        hint_username:   '3-20 tek.: letters, cijfers, _ of -',
+        hint_email:      'voorbeeld@email.com',
+        hint_password:   'Minimaal 6 tekens',
+        err_taken:       'Gebruikersnaam al in gebruik.',
+        err_email_taken: 'Dit e-mailadres is al in gebruik.',
+        err_wrong:       'Onjuiste gebruikersnaam of wachtwoord.',
+        err_generic:     'Er is een fout opgetreden.',
+      },
     },
 
   }; // fin T
@@ -517,9 +574,10 @@ const I18n = (() => {
   }
 
   function setLang(lang) {
-    if (!T[lang] || lang === _current) return;
+    if (!T[lang]) return;
+    localStorage.setItem(STORAGE_KEY, lang); // toujours persister, même si déjà actif
+    if (lang === _current) return;
     _current = lang;
-    localStorage.setItem(STORAGE_KEY, lang);
     _applyAttr();
     applyTranslations();
     _callbacks.forEach(fn => fn(lang));
