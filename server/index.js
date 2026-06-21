@@ -280,15 +280,15 @@ app.post('/api/login', async (req, res) => {
  * Retourne l'utilisateur actuellement connecté, ou { user: null }.
  */
 app.get('/api/me', (req, res) => {
-  if (!req.session.userId) {
-    return res.json({ user: null });
+  try {
+    if (!req.session.userId) return res.json({ user: null });
+    const user = getUserById(req.session.userId);
+    if (!user) { req.session.destroy(() => {}); return res.json({ user: null }); }
+    res.json({ user: { id: user.id, username: user.username } });
+  } catch (err) {
+    console.error('[GET /api/me]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
-  const user = getUserById(req.session.userId);
-  if (!user) {
-    req.session.destroy(() => {});
-    return res.json({ user: null });
-  }
-  res.json({ user: { id: user.id, username: user.username } });
 });
 
 /**
@@ -306,18 +306,15 @@ app.post('/api/logout', (req, res) => {
  * Retourne la sauvegarde cloud de l'utilisateur connecté.
  */
 app.get('/api/me/save', (req, res) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: 'Non connecté.' });
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    const row = getUserSave(req.session.userId);
+    if (!row) return res.json({ save: null });
+    res.json({ save: { data: JSON.parse(row.data), version: row.version, saved_at: row.saved_at } });
+  } catch (err) {
+    console.error('[GET /api/me/save]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
-  const row = getUserSave(req.session.userId);
-  if (!row) return res.json({ save: null });
-  res.json({
-    save: {
-      data:     JSON.parse(row.data),
-      version:  row.version,
-      saved_at: row.saved_at,
-    },
-  });
 });
 
 /**
@@ -326,18 +323,23 @@ app.get('/api/me/save', (req, res) => {
  * Crée ou écrase la sauvegarde cloud de l'utilisateur connecté.
  */
 app.post('/api/me/save', (req, res) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ error: 'Non connecté.' });
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    const { data } = req.body ?? {};
+    if (!data || typeof data !== 'object') return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
+    const { version } = upsertUserSave(req.session.userId, JSON.stringify(data));
+    res.json({ ok: true, version });
+  } catch (err) {
+    console.error('[POST /api/me/save]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
-  const { data } = req.body ?? {};
-  if (!data || typeof data !== 'object') {
-    return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
-  }
-  const { version } = upsertUserSave(req.session.userId, JSON.stringify(data));
-  res.json({ ok: true, version });
 });
 
 // ── Démarrage ─────────────────────────────────────────────────────────────────
+
+// Empêche le processus de mourir sur une exception non gérée
+process.on('uncaughtException',   (err) => console.error('[uncaughtException]', err));
+process.on('unhandledRejection',  (r)   => console.error('[unhandledRejection]', r));
 
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
