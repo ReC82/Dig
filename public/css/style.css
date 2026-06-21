@@ -465,8 +465,11 @@ h1 {
 
 /* ── Récompense bloc ────────────────────────── */
 #block-reward { font-size: 0.75rem; color: var(--muted); min-height: 1em; }
-#block-reward .reward-value { color: var(--gold); font-weight: 700; }
-#block-reward .boost-tag    { font-size: 0.75em; color: #fbbf24; }
+#block-reward .reward-value     { color: var(--gold); font-weight: 700; }
+#block-reward .reward-base      { color: var(--muted); }
+#block-reward .reward-boost-sep { color: #fbbf24; font-weight: 600; }
+#block-reward .reward-final     { color: var(--gold); font-weight: 700; }
+#block-reward .reward-chest     { color: var(--text); font-style: italic; }
 
 /* ── Bouton pub récompensée ─────────────────── */
 #ad-zone {

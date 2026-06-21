@@ -29,8 +29,9 @@ const elRelics       = document.getElementById('stat-relics');
 let blockAnimating = false;
 let toastTimer     = null;
 let _previousView  = 'dig';   // vue à restaurer quand on ferme les paramètres
-let _account       = null;    // { id, username } si connecté, null sinon
-let _accountTab    = 'login'; // onglet actif dans le formulaire compte
+let _account              = null;    // { id, username } si connecté, null sinon
+let _accountTab           = 'login'; // onglet actif dans le formulaire compte
+let _hasShownGuestWarning = false;   // avertissement affiché une seule fois par session
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -211,11 +212,29 @@ function renderBlock() {
   // Pulsation critique
   elBlock.classList.toggle('hp-critical', ratio <= 0.25);
 
-  // Récompense affichée (avec boost multiplié)
-  const boostMult   = GameState.getCoinBoostMultiplier();
-  const finalReward = Math.ceil(b.reward * Upgrades.getRewardMultiplier() * boostMult);
-  const boostTag    = boostMult > 1 ? ` <span class="boost-tag">⚡×${boostMult}</span>` : '';
-  elBlockReward.innerHTML = `${t('ui.reward_label')} : <span class="reward-value">💰 ${finalReward}${boostTag}</span>`;
+  // Récompense : les coffres ont leur propre table de loot — on n'affiche pas de coins
+  let rewardHtml;
+  if (b.type.isChest) {
+    // Dérive les types de loot possibles depuis la table du coffre
+    const table  = Chests.TABLES[b.type.rarityKey] ?? Chests.TABLES.commun;
+    const ICONS  = { coins: '💰', relics: '🔮', boost: '⚡' };
+    const icons  = [...new Set(table.map(e => ICONS[e.type]))].filter(Boolean).join(' ');
+    rewardHtml   = `<span class="reward-chest">${icons} ${t('ui.chest_loot')}</span>`;
+  } else {
+    // Bloc normal : coins avec décomposition des multiplicateurs
+    const boostMult   = GameState.getCoinBoostMultiplier();
+    const upgradeBase = b.reward * Upgrades.getRewardMultiplier();
+    const baseReward  = Math.ceil(upgradeBase);
+    const finalReward = Math.ceil(upgradeBase * boostMult);
+    if (boostMult > 1) {
+      rewardHtml = `<span class="reward-base">💰 ${baseReward}</span>`
+                 + `<span class="reward-boost-sep"> ⚡×${boostMult} → </span>`
+                 + `<span class="reward-final">💰 ${finalReward}</span>`;
+    } else {
+      rewardHtml = `<span class="reward-value">💰 ${finalReward}</span>`;
+    }
+  }
+  elBlockReward.innerHTML = `${t('ui.reward_label')} : ${rewardHtml}`;
 }
 
 // ── Rendu upgrades ────────────────────────────────────────────────────────────
@@ -588,45 +607,83 @@ async function _doLogout() {
   _account = null;
 }
 
-/** Pousse la sauvegarde locale courante vers le cloud (silencieux). */
+/** Pousse la sauvegarde locale courante vers le cloud (silencieux).
+ *  N'attend pas _account — le cookie de session suffit ; le serveur retourne 401 si non connecté. */
 async function _syncToCloud() {
-  if (!_account) return;
   try {
     const raw = localStorage.getItem(Save.KEY);
     if (!raw) return;
     await _apiFetch('POST', '/api/me/save', { data: JSON.parse(raw) });
-  } catch (_) { /* silencieux */ }
+  } catch (_) { /* silencieux — 401 ignoré si non connecté */ }
 }
 
 /**
- * Après login/register : compare la sauvegarde cloud avec la sauvegarde locale.
- * Prend la plus récente (via lastSaveTime). Si le cloud n'a rien, pousse le local.
+ * Synchronise avec le cloud après login/register ou restauration de session.
+ * @param {boolean} forceCloud  true = connexion explicite → toujours appliquer le cloud.
+ *                              false = restauration de session → comparer les timestamps.
  */
-async function _syncAfterLogin() {
+async function _syncAfterLogin(forceCloud = false) {
   try {
     const { ok, data } = await _apiFetch('GET', '/api/me/save');
     if (!ok) return;
 
     if (data.save) {
-      const cloudTime = data.save.data?.lastSaveTime ?? 0;
+      const cloudData = data.save.data;
+      const cloudTime = cloudData?.lastSaveTime ?? 0;
       const localRaw  = localStorage.getItem(Save.KEY);
       const localTime = localRaw ? (JSON.parse(localRaw)?.lastSaveTime ?? 0) : 0;
 
-      if (cloudTime > localTime) {
-        // Sauvegarde cloud plus récente → on l'applique
-        Save.loadFromData(data.save.data);
+      if (forceCloud || cloudTime > localTime) {
+        // Appliquer la sauvegarde cloud
+        Save.loadFromData(cloudData);
+        // Persister immédiatement en localStorage pour les prochains refreshs
+        try {
+          localStorage.setItem(Save.KEY, JSON.stringify({
+            saveVersion:   Save.SAVE_VERSION,
+            lastSaveTime:  cloudData.lastSaveTime ?? Date.now(),
+            coins:         GameState.coins,
+            gems:          GameState.gems,
+            depth:         GameState.depth,
+            pickaxeLevel:  GameState.pickaxeLevel,
+            damage:        GameState.damage,
+            upgrades:      { ...GameState.upgrades },
+            collection:    [...GameState.collection],
+            quests:        { ...GameState.quests },
+            stats:         { ...GameState.stats },
+            daily:         { ...GameState.daily },
+            coinBoost:     { ...GameState.coinBoost },
+            monetization:  { ...GameState.monetization },
+            relicFragments: GameState.relicFragments,
+            relics:        [...GameState.relics],
+            dailyMissions: {
+              date:     GameState.dailyMissions.date,
+              missions: GameState.dailyMissions.missions.map(m => ({
+                id: m.id, target: m.target,
+                reward: { coins: m.reward.coins, gems: m.reward.gems },
+                claimed: m.claimed,
+              })),
+              baselineStats: GameState.dailyMissions.baselineStats
+                ? { ...GameState.dailyMissions.baselineStats } : null,
+            },
+          }));
+        } catch (_) { /* localStorage indisponible */ }
+
         Relics.applyBonuses();
         renderUpgrades();
         renderQuests();
         renderBoostBanner();
-        spawnBlock();
         renderStats();
+        // Respawn sans animation pour éviter le double-spawn et le bug de bloc vide
+        blockAnimating = false;
+        Blocks.spawn(GameState.depth);
+        renderBlock();
+        _hasShownGuestWarning = true; // connecté → plus besoin d'avertir
       } else {
-        // Sauvegarde locale plus récente → on la pousse vers le cloud
+        // Local plus récent → pousser vers le cloud
         await _syncToCloud();
       }
     } else {
-      // Pas de sauvegarde cloud → on pousse la locale
+      // Pas de sauvegarde cloud → pousser la locale
       await _syncToCloud();
     }
   } catch (_) { /* silencieux */ }
@@ -741,7 +798,7 @@ function renderSettings() {
         errEl.textContent = error;
         submitBtn.disabled = false;
       } else {
-        await _syncAfterLogin();
+        await _syncAfterLogin(true); // connexion explicite → toujours appliquer le cloud
         renderSettings();
       }
     };
@@ -1020,6 +1077,12 @@ function spawnBlock() {
 }
 
 function handleBlockDestroyed(cx, cy) {
+  // Avertissement unique si le joueur n'est pas connecté
+  if (!_account && !_hasShownGuestWarning) {
+    _hasShownGuestWarning = true;
+    showAchievement('⚠️', t('ui.guest_warning'));
+  }
+
   const { reward: baseReward, type } = Blocks.current;
   const depth = GameState.depth;
 
@@ -1128,17 +1191,28 @@ elBlock.addEventListener('touchstart', (e) => {
   onBlockHit(x, y);
 }, { passive: false });
 
-// Bouton pub récompensée
+// Bouton pub récompensée — accorde un boost ×2 pendant 2 min (visible sur le bloc)
+// Si un boost plus fort est déjà actif, le pub prolonge simplement sa durée.
 document.getElementById('btn-watch-ad').addEventListener('click', () => {
   if (!Monetization.canWatchAd()) return;
-  const b = Blocks.current;
-  if (!b) return;
-  const reward = Math.ceil(b.reward * Upgrades.getRewardMultiplier() * GameState.getCoinBoostMultiplier());
+  if (!Blocks.current) return;
 
   Monetization.showRewardedAd(
     () => {
-      GameState.addCoins(reward);
-      showAchievement('📺', t('notif.ad_bonus', { amount: reward }));
+      const currentMult = GameState.getCoinBoostMultiplier();
+      let finalMult;
+      if (currentMult >= 2) {
+        // Boost plus fort déjà actif → on prolonge sa durée de 2 min
+        GameState.coinBoost.expiresAt += 2 * 60_000;
+        finalMult = currentMult;
+      } else {
+        // Pas de boost actif → on active ×2 pendant 2 min
+        GameState.setCoinBoost(2, 2 * 60_000);
+        finalMult = 2;
+      }
+      showAchievement('📺', t('notif.boost_activated', { mult: finalMult }));
+      renderBlock();          // affiche immédiatement "💰 X ⚡×N → 💰 Y"
+      renderBoostBanner();
       renderStats();
       renderAdButton();
       Save.save();
