@@ -235,6 +235,12 @@
     </div>
   </div>
 
+  <!-- Bannière mise à jour (affichée par main.js si nouvelle version détectée) -->
+  <div id="update-banner" hidden role="alert" aria-live="polite">
+    <span id="update-banner-text">Nouvelle version disponible</span>
+    <button id="update-banner-btn" onclick="location.reload()">↻ Recharger</button>
+  </div>
+
   <script src="js/i18n.js"></script>
   <script src="js/balance.js"></script>
   <script src="js/gameState.js"></script>

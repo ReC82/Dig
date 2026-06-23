@@ -34,6 +34,36 @@ let _accountTab           = 'login'; // onglet actif dans le formulaire compte
 let _hasShownGuestWarning = false;   // avertissement affiché une seule fois par session
 let _seasonCpsLimit       = 8;       // seuil CPS récupéré depuis le serveur
 
+// ── Version / cache busting ───────────────────────────────────────────────────
+let _updateCheckLast = 0; // Timestamp du dernier check de version (ms)
+
+async function _checkForUpdate() {
+  try {
+    const r = await fetch('/api/version', { cache: 'no-store' });
+    if (!r.ok) return;
+    const { version } = await r.json();
+    if (version && version !== window.APP_VERSION) {
+      const el = document.getElementById('update-banner');
+      if (el) {
+        const textEl = document.getElementById('update-banner-text');
+        const btnEl  = document.getElementById('update-banner-btn');
+        if (textEl) textEl.textContent = t('ui.update_available');
+        if (btnEl)  btnEl.textContent  = t('ui.update_reload');
+        el.removeAttribute('hidden');
+      }
+    }
+  } catch (_) {}
+}
+
+// Vérifie une fois que la page regagne le focus, au maximum toutes les 5 min
+window.addEventListener('focus', () => {
+  const now = Date.now();
+  if (now - _updateCheckLast > 5 * 60 * 1000) {
+    _updateCheckLast = now;
+    _checkForUpdate();
+  }
+});
+
 // ── Anti-autoclicker ──────────────────────────────────────────────────────────
 const _clickLog        = [];           // Timestamps récents (fenêtre glissante 3 s) pour le CPS
 const _clickTimestamps = [];           // Derniers N timestamps pour détecter la régularité
@@ -1247,7 +1277,8 @@ function renderSettings() {
     </div>
     <button class="settings-back-btn" id="btn-settings-back">
       ${t('settings.btn_back')}
-    </button>`;
+    </button>
+    <p class="settings-version">${window.APP_VERSION || '—'}</p>`;
 
   // Changement de langue
   container.querySelectorAll('.lang-option').forEach(btn => {
