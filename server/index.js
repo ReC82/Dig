@@ -29,6 +29,9 @@ const session   = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt    = require('bcryptjs');
 const path      = require('path');
+const fs        = require('fs');
+
+const { APP_VERSION } = require('./version');
 
 const {
   initDb,
@@ -97,8 +100,72 @@ app.use(session({
 // Parse les corps JSON (les saves font quelques Ko au maximum)
 app.use(express.json({ limit: '512kb' }));
 
-// Sert tout le dossier public/ (index.html, css/, js/)
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// ── Cache busting ─────────────────────────────────────────────────────────────
+
+const _publicDir = path.join(__dirname, '..', 'public');
+const _htmlCache = new Map(); // Fichiers HTML pré-traités, mis en cache pour la durée du process
+
+/**
+ * Injecte ?v=APP_VERSION sur tous les assets locaux d'un fichier HTML
+ * et expose window.APP_VERSION avant </head>.
+ */
+function _versionHtml(raw) {
+  return raw
+    // Ajoute ?v= sur les assets locaux (href/src). Écrase un ?v= existant.
+    .replace(
+      /((?:href|src)=")(?!https?:\/\/|\/\/)([^"]+\.(?:css|js|png|jpg|jpeg|svg|ico|webp|gif))(?:\?[^"]*)?"/g,
+      (_m, prefix, assetPath) => `${prefix}${assetPath}?v=${APP_VERSION}"`,
+    )
+    // Injecte window.APP_VERSION juste avant </head>
+    .replace('</head>', `  <script>window.APP_VERSION='${APP_VERSION}';</script>\n</head>`);
+}
+
+function _getVersionedHtml(filePath) {
+  if (!_htmlCache.has(filePath)) {
+    try {
+      _htmlCache.set(filePath, _versionHtml(fs.readFileSync(filePath, 'utf8')));
+    } catch {
+      return null;
+    }
+  }
+  return _htmlCache.get(filePath);
+}
+
+/**
+ * Middleware : intercepte les requêtes vers des fichiers .html (et les index de dossiers)
+ * AVANT express.static pour contrôler les headers et injecter la version.
+ */
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+
+  let reqPath = req.path;
+  if (reqPath.endsWith('/'))    reqPath += 'index.html';
+  if (!reqPath.endsWith('.html')) return next();
+
+  const filePath = path.join(_publicDir, reqPath);
+  const html     = _getVersionedHtml(filePath);
+  if (!html) return next();
+
+  res.setHeader('Content-Type',  'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  res.setHeader('X-App-Version', APP_VERSION);
+  res.send(html);
+});
+
+// Sert tout le dossier public/ avec headers de cache longs pour les assets versionnés
+app.use(express.static(_publicDir, {
+  etag:         true,
+  lastModified: true,
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.html')) {
+      // Sécurité : ne devrait pas passer ici (intercepté avant), mais au cas où
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    } else {
+      // Assets avec ?v= → mise en cache permanente (URL change à chaque déploiement)
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  },
+}));
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
@@ -138,6 +205,16 @@ function isValidEmail(e) {
  */
 app.get('/health', (_req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
+});
+
+/**
+ * GET /api/version
+ * Retourne la version courante du serveur. Utilisé par le client pour détecter
+ * une mise à jour pendant qu'une session est ouverte.
+ */
+app.get('/api/version', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({ version: APP_VERSION });
 });
 
 /**
