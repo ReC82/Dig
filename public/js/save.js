@@ -14,11 +14,17 @@
  *   v7 — + dailyMissions{ date, missions[], baselineStats }
  *   v8 — + relics[] (relicBonuses non sauvegardé — calculé au chargement)
  *   v9 — + lastSaveTime (timestamp, non stocké dans GameState)
+ *   v10 — + seasonStats { seasonId, maxDepth, manualBlocks, isActive }
+ *   v11 — + seasonStats { autoBlocks, manualClicks, suspiciousScore }
+ *   v12 — + seasonStats { regularityScore }
+ *   v13 — + upgrades { fragment_shop, block_reroll }
+ *   v14 — relics[] → relics{} (multi-niveaux : { id: level })
+ *   v15 — + shopChestsBought { simple, rare, antique }
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 9,
+  SAVE_VERSION: 15,
 
   onSave: null,
 
@@ -44,8 +50,9 @@ const Save = {
         daily:        { ...GameState.daily },
         coinBoost:    { ...GameState.coinBoost },
         monetization:   { ...GameState.monetization },
-        relicFragments: GameState.relicFragments,
-        relics:         [...GameState.relics],
+        relicFragments:   GameState.relicFragments,
+        relics:           { ...GameState.relics },
+        shopChestsBought: { ...GameState.shopChestsBought },
         dailyMissions: {
           date:     GameState.dailyMissions.date,
           missions: GameState.dailyMissions.missions.map(m => ({
@@ -57,6 +64,7 @@ const Save = {
           baselineStats: GameState.dailyMissions.baselineStats
             ? { ...GameState.dailyMissions.baselineStats } : null,
         },
+        seasonStats: { ...GameState.seasonStats },
       };
       localStorage.setItem(this.KEY, JSON.stringify(data));
       if (typeof this.onSave === 'function') this.onSave();
@@ -90,9 +98,11 @@ const Save = {
     GameState.damage       = data.damage        ?? 1;
 
     const u = data.upgrades ?? {};
-    GameState.upgrades.luck    = u.luck    ?? 0;
-    GameState.upgrades.bag     = u.bag     ?? 0;
-    GameState.upgrades.autodig = u.autodig ?? 0;
+    GameState.upgrades.luck          = u.luck          ?? 0;
+    GameState.upgrades.bag           = u.bag           ?? 0;
+    GameState.upgrades.autodig       = u.autodig       ?? 0;
+    GameState.upgrades.fragment_shop = u.fragment_shop ?? 0;
+    GameState.upgrades.block_reroll  = u.block_reroll  ?? 0;
 
     GameState.collection = Array.isArray(data.collection) ? data.collection : [];
     GameState.quests     = (data.quests && typeof data.quests === 'object') ? data.quests : {};
@@ -117,9 +127,21 @@ const Save = {
     GameState.monetization.pickaxeSkin   = m.pickaxeSkin   ?? null;
 
     GameState.relicFragments = data.relicFragments ?? 0;
-    GameState.relics = Array.isArray(data.relics)
-      ? data.relics.filter(id => typeof id === 'string')
-      : [];
+
+    const scb = data.shopChestsBought ?? {};
+    GameState.shopChestsBought.simple  = scb.simple  ?? 0;
+    GameState.shopChestsBought.rare    = scb.rare     ?? 0;
+    GameState.shopChestsBought.antique = scb.antique  ?? 0;
+
+    const rawRelics = data.relics;
+    if (rawRelics && typeof rawRelics === 'object' && !Array.isArray(rawRelics)) {
+      GameState.relics = {};
+      for (const [id, level] of Object.entries(rawRelics)) {
+        if (typeof level === 'number' && level >= 1) GameState.relics[id] = level;
+      }
+    } else {
+      GameState.relics = {};
+    }
     // relicBonuses est un cache : recalculé par Relics.applyBonuses() dans init()
 
     const dm = data.dailyMissions ?? {};
@@ -135,6 +157,16 @@ const Save = {
     GameState.dailyMissions.baselineStats =
       (dm.baselineStats && typeof dm.baselineStats === 'object')
         ? { ...dm.baselineStats } : null;
+
+    const ss = data.seasonStats ?? {};
+    GameState.seasonStats.seasonId         = ss.seasonId         ?? 0;
+    GameState.seasonStats.maxDepth         = ss.maxDepth         ?? 0;
+    GameState.seasonStats.manualBlocks     = ss.manualBlocks     ?? 0;
+    GameState.seasonStats.autoBlocks       = ss.autoBlocks       ?? 0;
+    GameState.seasonStats.manualClicks     = ss.manualClicks     ?? 0;
+    GameState.seasonStats.suspiciousScore  = ss.suspiciousScore  ?? 0;
+    GameState.seasonStats.regularityScore  = ss.regularityScore  ?? 0;
+    GameState.seasonStats.isActive         = ss.isActive         ?? false;
   },
 
   /**
@@ -206,8 +238,47 @@ const Save = {
       // lastSaveTime est un champ hors-GameState : aucune migration nécessaire
       data.saveVersion = 9;
     }
-
-    // if (v < 10) { /* futures migrations */ }
+    if (v < 10) {
+      data.seasonStats = { seasonId: 0, maxDepth: 0, manualBlocks: 0, isActive: false };
+      data.saveVersion = 10;
+    }
+    if (v < 11) {
+      data.seasonStats = {
+        ...(data.seasonStats ?? {}),
+        autoBlocks:      0,
+        manualClicks:    0,
+        suspiciousScore: 0,
+      };
+      data.saveVersion = 11;
+    }
+    if (v < 12) {
+      data.seasonStats = { ...(data.seasonStats ?? {}), regularityScore: 0 };
+      data.saveVersion = 12;
+    }
+    if (v < 13) {
+      if (data.upgrades) {
+        data.upgrades.fragment_shop = data.upgrades.fragment_shop ?? 0;
+        data.upgrades.block_reroll  = data.upgrades.block_reroll  ?? 0;
+      }
+      data.saveVersion = 13;
+    }
+    if (v < 14) {
+      // Ancien format : tableau de strings → objet { id: niveau }
+      if (Array.isArray(data.relics)) {
+        const obj = {};
+        for (const id of data.relics) {
+          if (typeof id === 'string') obj[id] = 1;
+        }
+        data.relics = obj;
+      } else if (!data.relics || typeof data.relics !== 'object') {
+        data.relics = {};
+      }
+      data.saveVersion = 14;
+    }
+    if (v < 15) {
+      data.shopChestsBought = { simple: 0, rare: 0, antique: 0 };
+      data.saveVersion = 15;
+    }
 
     return data;
   },

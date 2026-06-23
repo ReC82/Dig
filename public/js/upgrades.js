@@ -1,11 +1,12 @@
 /**
  * upgrades.js
  * Catalogue des améliorations et logique d'achat.
- * Dépend de : GameState
+ * Dépend de : GameState, Balance
  */
 const Upgrades = {
 
   DEFS: [
+    // ── Améliorations saisonnières ──────────────────────────────────────────
     {
       id: 'pickaxe',
       icon: '⛏',
@@ -16,35 +17,38 @@ const Upgrades = {
       },
       getCost(level) {
         if (level >= 15) return null;
-        return { coins: Math.floor(10 * Math.pow(2, level - 1)), gems: 0 };
+        const c = Balance.PICKAXE[level - 1];
+        return (c !== undefined) ? { coins: c, gems: 0 } : null;
       },
     },
     {
       id: 'luck',
       icon: '🍀',
       name: 'upgrade.luck.name',
-      maxLevel: 8,
+      maxLevel: 12,
       describe(level) {
         if (level === 0) return t('upgrade.luck.desc_none');
         return t('upgrade.luck.desc', { pct: level * 20 });
       },
       getCost(level) {
-        if (level >= 8) return null;
-        return { coins: Math.floor(25 * Math.pow(1.9, level)), gems: 0 };
+        if (level >= 12) return null;
+        const c = Balance.LUCK[level];
+        return (c !== undefined) ? { coins: c, gems: 0 } : null;
       },
     },
     {
       id: 'bag',
       icon: '🎒',
       name: 'upgrade.bag.name',
-      maxLevel: 8,
+      maxLevel: 12,
       describe(level) {
         if (level === 0) return t('upgrade.bag.desc_normal');
         return t('upgrade.bag.desc', { mult: (1 + level * 0.3).toFixed(1) });
       },
       getCost(level) {
-        if (level >= 8) return null;
-        return { coins: Math.floor(40 * Math.pow(2, level)), gems: 0 };
+        if (level >= 12) return null;
+        const c = Balance.BAG[level];
+        return (c !== undefined) ? { coins: c, gems: 0 } : null;
       },
     },
     {
@@ -57,15 +61,37 @@ const Upgrades = {
         return t('upgrade.autodig.desc', { dmg: level, s: level > 1 ? 's' : '' });
       },
       getCost(level) {
-        const table = [
-          { coins: 80,  gems: 0  },
-          { coins: 280, gems: 0  },
-          { coins: 0,   gems: 2  },
-          { coins: 0,   gems: 5  },
-          { coins: 0,   gems: 12 },
-          { coins: 0,   gems: 25 },
-        ];
-        return table[level] ?? null;
+        return Balance.AUTODIG[level] ?? null;
+      },
+    },
+
+    // ── Coin sinks (resets chaque saison) ───────────────────────────────────
+    {
+      id: 'fragment_shop',
+      icon: '🔮',
+      name: 'upgrade.fragment_shop.name',
+      maxLevel: 10,
+      describe(level) {
+        if (level === 0) return t('upgrade.fragment_shop.desc_none');
+        return t('upgrade.fragment_shop.desc', { n: level });
+      },
+      getCost(level) {
+        if (level >= 10) return null;
+        const c = Balance.FRAGMENT_SHOP[level];
+        return (c !== undefined) ? { coins: c, gems: 0 } : null;
+      },
+    },
+    {
+      id: 'block_reroll',
+      icon: '🔄',
+      name: 'upgrade.block_reroll.name',
+      maxLevel: 99,
+      describe(level) {
+        if (level === 0) return t('upgrade.block_reroll.desc_none');
+        return t('upgrade.block_reroll.desc', { n: level, s: level > 1 ? 's' : '' });
+      },
+      getCost(level) {
+        return Balance.getRerollCost(level);
       },
     },
   ],
@@ -98,6 +124,12 @@ const Upgrades = {
     if (id === 'pickaxe') {
       GameState.pickaxeLevel += 1;
       GameState.damage = GameState.pickaxeLevel + (GameState.relicBonuses?.damageFlat ?? 0);
+    } else if (id === 'fragment_shop') {
+      GameState.upgrades.fragment_shop = (GameState.upgrades.fragment_shop ?? 0) + 1;
+      GameState.relicFragments         = (GameState.relicFragments ?? 0) + 1;
+    } else if (id === 'block_reroll') {
+      GameState.upgrades.block_reroll = (GameState.upgrades.block_reroll ?? 0) + 1;
+      // Effet (spawn du nouveau bloc) géré par main.js après buy()
     } else {
       GameState.upgrades[id] += 1;
     }

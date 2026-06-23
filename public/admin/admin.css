@@ -1,0 +1,348 @@
+:root {
+  --bg:      #1a1a1a;
+  --surface: #242424;
+  --border:  #333;
+  --text:    #e8e8e8;
+  --muted:   #888;
+  --gold:    #fbbf24;
+  --red:     #ef4444;
+  --green:   #22c55e;
+  --radius:  8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ── Auth ── */
+#auth-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-card h1 { text-align: center; font-size: 1.4rem; }
+
+/* ── Layout ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+header h1 { font-size: 1.1rem; }
+
+.admin-nav {
+  display: flex;
+  gap: 2px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-content { padding: 20px; max-width: 960px; }
+
+/* ── Buttons ── */
+.btn {
+  background: var(--gold);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  padding: 7px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: opacity 0.15s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-sm { padding: 4px 12px; font-size: 0.78rem; }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+.btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  transition: background 0.15s, color 0.15s;
+}
+.tab-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.tab-btn.active { background: rgba(251,191,36,0.15); color: var(--gold); font-weight: 600; }
+
+/* ── Section ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-header h2 { font-size: 1rem; }
+
+/* ── Forms ── */
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.form-card h3 { font-size: 0.9rem; margin-bottom: 4px; color: var(--muted); }
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+label small { color: var(--muted); font-size: 0.75rem; }
+input[type=text], input[type=password], input[type=number], input[type=datetime-local] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 0.85rem;
+  width: 100%;
+}
+input:focus { outline: none; border-color: var(--gold); }
+
+.form-actions { display: flex; gap: 8px; }
+
+/* ── Tables ── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+th, td {
+  padding: 9px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* ── Config ── */
+#config-rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+.config-key { width: 180px; font-family: monospace; color: var(--gold); }
+.config-value { flex: 1; }
+
+/* ── Misc ── */
+.error   { color: var(--red);   font-size: 0.82rem; }
+.success { color: var(--green); font-size: 0.82rem; }
+.hidden  { display: none !important; }
+.muted   { color: var(--muted); }
+.badge-active    { color: var(--green); font-weight: 600; font-size: 0.78rem; }
+.badge-closed    { color: var(--muted); font-size: 0.78rem; }
+.badge-ended     { color: var(--muted); font-size: 0.78rem; }
+.badge-archived  { color: var(--muted); font-size: 0.78rem; }
+.badge-scheduled { color: var(--gold);  font-size: 0.78rem; }
+.badge-flagged   { color: var(--red);   font-weight: 600; font-size: 0.78rem; }
+.badge-reduced   { color: #f97316;      font-size: 0.78rem; }
+
+/* ── Ligues & Saisons (vue d'ensemble) ── */
+
+.overview-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.overview-card-title {
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.stat-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-item--highlight {
+  border-color: var(--gold);
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stat-item--highlight .stat-value {
+  color: var(--gold);
+  font-size: 1.2rem;
+}
+
+.params-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.param-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.param-label {
+  font-size: 0.83rem;
+  color: var(--text);
+}
+
+.param-row input {
+  width: 140px;
+}
+
+.danger-zone {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.danger-zone .overview-card-title {
+  color: var(--red);
+}
+
+.confirm-dialog {
+  margin-top: 12px;
+  background: var(--bg);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.confirm-dialog p {
+  font-size: 0.88rem;
+}
+
+.league-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.league-select:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .admin-nav {
+    flex-wrap: wrap;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  .tab-btn { padding: 6px 10px; font-size: 0.8rem; }
+
+  .tab-content { padding: 12px; }
+
+  .section-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  /* Tables : scroll horizontal sur mobile */
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+  th, td { padding: 7px 8px; font-size: 0.78rem; }
+
+  /* Config : empiler la clé et la valeur */
+  .config-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .config-key { width: 100%; }
+
+  /* Formulaires : pleine largeur */
+  .auth-card { width: 94vw; padding: 20px; }
+  .form-actions { flex-direction: column; }
+  .form-actions .btn { width: 100%; }
+
+  /* Vue d'ensemble : stat-grid en 2 colonnes */
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Paramètres : empiler label + input */
+  .param-row { grid-template-columns: 1fr; }
+  .param-row input { width: 100%; }
+
+  /* Classement ligue : select pleine largeur */
+  .league-select { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  header { padding: 8px 12px; }
+  header h1 { font-size: 0.95rem; }
+  .btn { padding: 6px 12px; font-size: 0.8rem; }
+}

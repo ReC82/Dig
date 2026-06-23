@@ -17,10 +17,15 @@ const GameState = {
 
   // ── Niveaux d'upgrades ───────────────────────
   upgrades: {
-    luck:    0,
-    bag:     0,
-    autodig: 0,
+    luck:          0,
+    bag:           0,
+    autodig:       0,
+    fragment_shop: 0,   // fragments achetés cette saison
+    block_reroll:  0,   // rerolls utilisés cette saison
   },
+
+  // ── Coffres achetés cette saison ─────────────
+  shopChestsBought: { simple: 0, rare: 0, antique: 0 },
 
   // ── Collection & Objectifs ───────────────────
   collection: [],
@@ -57,7 +62,7 @@ const GameState = {
   },
 
   // ── Reliques ──────────────────────────────────
-  relics: [],             // IDs des reliques débloquées
+  relics: {},             // { [id]: level } — 0/absent = verrouillée, 1–5 = niveau
   relicBonuses: {         // cache calculé — NON sauvegardé, recalculé par Relics.applyBonuses()
     damageFlat:          0,   // dégâts supplémentaires par clic
     coinsPct:            0,   // multiplicateur de pièces (ex. 0.25 = +25%)
@@ -74,12 +79,27 @@ const GameState = {
     pickaxeSkin:   null,  // null | 'golden' | 'diamond'
   },
 
+  // ── Saison compétitive ────────────────────────
+  seasonStats: {
+    seasonId:       0,     // ID de la saison active au dernier sync serveur
+    maxDepth:       0,     // profondeur maximale atteinte pendant la saison
+    manualBlocks:   0,     // blocs détruits manuellement (hors autodig) pendant la saison
+    autoBlocks:     0,     // blocs détruits par l'autodig pendant la saison
+    manualClicks:   0,     // total de clics sur le bloc (y compris sans destruction)
+    suspiciousScore: 0,     // cumul de clics suspects détectés par l'anti-autoclicker
+    regularityScore: 0,     // régularité des intervalles (0=humain, 1=robotique)
+    isActive:        false, // true dès le 1er bloc manuel → joueur actif dans la saison
+  },
+
   // ── Helpers ──────────────────────────────────
 
   addCoins(amount)   { this.coins += amount; },
   spendCoins(amount) { this.coins -= amount; },
   spendGems(amount)  { this.gems  -= amount; },
-  nextDepth()        { this.depth += 1; },
+  nextDepth() {
+    this.depth += 1;
+    if (this.depth > this.seasonStats.maxDepth) this.seasonStats.maxDepth = this.depth;
+  },
 
   recordDestroy(reward, type) {
     this.stats.blocksDestroyed  += 1;
@@ -104,15 +124,16 @@ const GameState = {
     this.depth          = 1;
     this.pickaxeLevel = 1;
     this.damage       = 1;
-    this.upgrades     = { luck: 0, bag: 0, autodig: 0 };
-    this.collection   = [];
+    this.upgrades          = { luck: 0, bag: 0, autodig: 0, fragment_shop: 0, block_reroll: 0 };
+    this.shopChestsBought  = { simple: 0, rare: 0, antique: 0 };
+    this.collection        = [];
     this.quests       = {};
     this.stats        = {
       blocksDestroyed: 0, totalCoinsEarned: 0,
       gemsFound: 0, chestsFound: 0, totalUpgradesBought: 0,
     };
     this.daily        = { lastClaimDate: null, streakDay: 0 };
-    this.relics        = [];
+    this.relics        = {};
     this.relicBonuses  = { damageFlat: 0, coinsPct: 0, relicFragmentBonus: 0, luckPct: 0, hpReduction: 0, autodigBonus: 0 };
     this.dailyMissions = { date: null, missions: [], baselineStats: null };
     this.coinBoost    = { multiplier: 1, expiresAt: 0 };

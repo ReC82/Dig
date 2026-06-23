@@ -89,6 +89,8 @@
     <div id="view-upgrades" class="view hidden">
       <div class="view-title-bar" data-i18n="ui.view_upgrades">⚙ Améliorations</div>
       <div id="upgrades-list"></div>
+      <div class="section-divider"><span data-i18n="ui.section_shop_chests">🏪 Boutique de saison</span></div>
+      <div id="shop-chests-list"></div>
       <div class="section-divider"><span data-i18n="ui.section_objectives">🎯 Objectifs</span></div>
       <div id="quests-list"></div>
       <button id="btn-reset" data-i18n="ui.btn_reset">Réinitialiser la partie</button>
@@ -99,7 +101,7 @@
       <div class="view-title-bar" data-i18n="ui.view_collection">📦 Collection</div>
       <div id="collection-header"></div>
       <div id="collection-grid"></div>
-      <div class="section-divider" style="margin-top:22px"><span data-i18n="ui.section_relics">🔮 Reliques</span></div>
+      <div class="section-divider" style="margin-top:22px"><span data-i18n="ui.section_relics">✨ Reliques</span></div>
       <div id="relics-info"></div>
       <div id="relics-grid"></div>
     </div>
@@ -112,6 +114,9 @@
 
     <!-- Vue Boutique -->
     <div id="view-shop" class="view hidden"></div>
+
+    <!-- Vue Saison -->
+    <div id="view-season" class="view hidden"></div>
 
     <!-- ── Navigation bas ─────────────────────────────────────────────── -->
     <nav id="bottom-nav" role="navigation" aria-label="Navigation principale">
@@ -157,6 +162,14 @@
           <span class="nav-icon">🛒</span>
         </span>
         <span class="nav-label" data-i18n="nav.shop">Boutique</span>
+      </button>
+
+      <button class="nav-btn" data-view="season"
+        data-i18n-aria="season.title" aria-label="Saison">
+        <span class="nav-icon-wrap">
+          <span class="nav-icon">🏆</span>
+        </span>
+        <span class="nav-label" data-i18n="season.title">Saison</span>
       </button>
 
     </nav>
@@ -223,6 +236,7 @@
   </div>
 
   <script src="js/i18n.js"></script>
+  <script src="js/balance.js"></script>
   <script src="js/gameState.js"></script>
   <script src="js/blocks.js"></script>
   <script src="js/upgrades.js"></script>

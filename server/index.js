@@ -43,7 +43,37 @@ const {
   getUserByEmail,
   getUserSave,
   upsertUserSave,
+  searchUsers,
+  getAllSeasons,
+  createSeason,
+  updateSeason,
+  getSeasonById,
+  getAllLeagues,
+  createLeague,
+  updateLeague,
+  deleteLeague,
+  getAdminConfig,
+  setAdminConfig,
+  getSeasonLeaderboard,
+  getActiveSeason,
+  countSeasonActivePlayers,
+  getAllLeaguesWithStats,
+  getAntiCheatLogs,
+  countAntiCheatLogs,
 } = require('./db');
+
+const {
+  checkAndRotateSeason,
+  closeActiveSeason,
+  syncPlayerRanking,
+  buildCurrentSeasonResponse,
+  buildLeaderboard,
+  buildGlobalLeaderboard,
+  buildLeagueLeaderboard,
+  buildActiveSeasonLeaderboard,
+} = require('./seasons');
+
+const { SHOP_CHESTS, rollChest } = require('./chestShop');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -328,9 +358,426 @@ app.post('/api/me/save', (req, res) => {
     const { data } = req.body ?? {};
     if (!data || typeof data !== 'object') return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
     const { version } = upsertUserSave(req.session.userId, JSON.stringify(data));
+    // Sync saisonnier piggybacked
+    if (data.seasonStats) {
+      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats); } catch (_) {}
+    }
     res.json({ ok: true, version });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// ── Routes saisons (publiques) ────────────────────────────────────────────────
+
+/**
+ * GET /api/seasons/current
+ * Saison active + config + rang global + rang intraligue du joueur connecté.
+ */
+app.get('/api/seasons/current', (req, res) => {
+  try {
+    const userId = req.session.userId ?? null;
+    res.json(buildCurrentSeasonResponse(userId));
+  } catch (err) {
+    console.error('[GET /api/seasons/current]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * GET /api/seasons/active/leaderboard?page=1[&league=<leagueId>]
+ * Classement de la saison active (global si pas de ?league, intraligue sinon).
+ * DOIT être défini avant /api/seasons/:id/leaderboard pour ne pas matcher "active" comme ID.
+ */
+app.get('/api/seasons/active/leaderboard', (req, res) => {
+  try {
+    const page     = Math.max(1, parseInt(req.query.page    ?? '1', 10));
+    const leagueId = req.query.league ? parseInt(req.query.league, 10) : null;
+    if (req.query.league && isNaN(leagueId)) {
+      return res.status(400).json({ error: 'Paramètre league invalide.' });
+    }
+    const result = buildActiveSeasonLeaderboard(leagueId, page);
+    if (!result) return res.status(404).json({ error: 'Aucune saison active.' });
+    res.json(result);
+  } catch (err) {
+    console.error('[GET /api/seasons/active/leaderboard]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * GET /api/seasons/:seasonId/leagues/:leagueId/leaderboard?page=1
+ * Classement intraligue paginé.
+ * Règles : manual_blocks > 0, tri depth DESC puis manual_blocks DESC.
+ * auto_blocks jamais utilisé pour le tri.
+ */
+app.get('/api/seasons/:seasonId/leagues/:leagueId/leaderboard', (req, res) => {
+  try {
+    const seasonId = parseInt(req.params.seasonId, 10);
+    const leagueId = parseInt(req.params.leagueId, 10);
+    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    if (isNaN(seasonId) || isNaN(leagueId)) {
+      return res.status(400).json({ error: 'IDs invalides.' });
+    }
+    res.json(buildLeagueLeaderboard(seasonId, leagueId, page));
+  } catch (err) {
+    console.error('[GET /api/seasons/:seasonId/leagues/:leagueId/leaderboard]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * GET /api/seasons/:id/leaderboard?page=1
+ * Classement global paginé d'une saison (rétrocompat + nouvelles métadonnées).
+ */
+app.get('/api/seasons/:id/leaderboard', (req, res) => {
+  try {
+    const seasonId = parseInt(req.params.id, 10);
+    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    if (isNaN(seasonId)) return res.status(400).json({ error: 'ID saison invalide.' });
+    // rétrocompat : enveloppe { leaderboard: [...] } conservée
+    const result = buildGlobalLeaderboard(seasonId, page);
+    res.json({ leaderboard: result.leaderboard, page: result.page, total: result.total, totalPages: result.totalPages });
+  } catch (err) {
+    console.error('[GET /api/seasons/:id/leaderboard]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// ── Middleware admin ──────────────────────────────────────────────────────────
+
+function requireAdmin(req, res, next) {
+  const secret = process.env.ADMIN_SECRET;
+  if (!secret) return res.status(503).json({ error: 'Panel admin non configuré (ADMIN_SECRET manquant).' });
+  const auth = req.headers['authorization'] ?? '';
+  if (auth !== `Bearer ${secret}`) return res.status(401).json({ error: 'Accès refusé.' });
+  next();
+}
+
+// ── Routes admin ──────────────────────────────────────────────────────────────
+
+app.get('/api/admin/seasons', requireAdmin, (req, res) => {
+  try { res.json({ seasons: getAllSeasons() }); }
+  catch (err) { console.error('[GET /api/admin/seasons]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * GET /api/admin/seasons/active/summary
+ * Résumé complet de la saison active : données saison + joueurs actifs + ligues avec stats.
+ * DOIT être avant /api/admin/seasons/:id pour éviter le conflit de route.
+ */
+app.get('/api/admin/seasons/active/summary', requireAdmin, (req, res) => {
+  try {
+    const season = getActiveSeason();
+    if (!season) return res.status(404).json({ error: 'Aucune saison active.' });
+    const activePlayers = countSeasonActivePlayers(season.id);
+    const leagues       = getAllLeaguesWithStats(season.id);
+    res.json({ season, activePlayers, leagues });
+  } catch (err) {
+    console.error('[GET /api/admin/seasons/active/summary]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+app.post('/api/admin/seasons', requireAdmin, (req, res) => {
+  try {
+    const { name, start_at, end_at } = req.body ?? {};
+    if (!name || !start_at || !end_at) return res.status(400).json({ error: 'Champs name, start_at, end_at requis.' });
+    const season = createSeason(name, start_at, end_at);
+    res.json({ season });
+  } catch (err) { console.error('[POST /api/admin/seasons]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+app.put('/api/admin/seasons/:id', requireAdmin, (req, res) => {
+  try {
+    const id     = parseInt(req.params.id, 10);
+    const fields = {};
+    const { name, start_at, end_at, status } = req.body ?? {};
+    if (name)     fields.name     = name;
+    if (start_at) fields.start_at = start_at;
+    if (end_at)   fields.end_at   = end_at;
+    if (status)   fields.status   = status;
+    if (!Object.keys(fields).length) return res.status(400).json({ error: 'Aucun champ à modifier.' });
+    const season = updateSeason(id, fields);
+    res.json({ season });
+  } catch (err) { console.error('[PUT /api/admin/seasons/:id]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * POST /api/admin/seasons/:id/close
+ * Clôture manuellement une saison active : applique les promotions, crée la saison suivante.
+ * Protection intégrée : échoue si la saison n'est pas active (évite la double clôture).
+ *
+ * Body optionnel : {} (aucun champ requis — toute la logique vient de la config DB)
+ *
+ * Réponse :
+ *   { closedSeason, newSeason, report: [{ leagueId, leagueName, activePlayers, promoted, promotedUsers }] }
+ */
+app.post('/api/admin/seasons/:id/close', requireAdmin, (req, res) => {
+  try {
+    const seasonId = parseInt(req.params.id, 10);
+    if (isNaN(seasonId)) return res.status(400).json({ error: 'ID saison invalide.' });
+    const result = closeActiveSeason(seasonId);
+    res.json(result);
+  } catch (err) {
+    // Erreurs métier (double-clôture, saison introuvable) → 409 ; autres → 500
+    const status = err.message.includes('introuvable') ? 404
+                 : err.message.includes('déjà')        ? 409
+                 : 500;
+    console.error('[POST /api/admin/seasons/:id/close]', err.message);
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// Classement global admin d'une saison
+app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {
+  try {
+    const seasonId = parseInt(req.params.id, 10);
+    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    const result   = buildGlobalLeaderboard(seasonId, page);
+    res.json({ leaderboard: result.leaderboard, page: result.page, total: result.total, totalPages: result.totalPages });
+  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+// Classement intraligue admin
+app.get('/api/admin/seasons/:seasonId/leagues/:leagueId/leaderboard', requireAdmin, (req, res) => {
+  try {
+    const seasonId = parseInt(req.params.seasonId, 10);
+    const leagueId = parseInt(req.params.leagueId, 10);
+    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    if (isNaN(seasonId) || isNaN(leagueId)) return res.status(400).json({ error: 'IDs invalides.' });
+    res.json(buildLeagueLeaderboard(seasonId, leagueId, page));
+  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+app.get('/api/admin/leagues', requireAdmin, (req, res) => {
+  try { res.json({ leagues: getAllLeagues() }); }
+  catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+app.post('/api/admin/leagues', requireAdmin, (req, res) => {
+  try {
+    const { name, icon = '🏅', level = 0, rank_min, rank_max, sort_order = 0 } = req.body ?? {};
+    if (!name || rank_min == null) return res.status(400).json({ error: 'Champs name et rank_min requis.' });
+    const league = createLeague(name, icon, level, rank_min, rank_max ?? null, sort_order);
+    res.json({ league });
+  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+app.put('/api/admin/leagues/:id', requireAdmin, (req, res) => {
+  try {
+    const id     = parseInt(req.params.id, 10);
+    const fields = {};
+    const { name, icon, level, rank_min, rank_max, sort_order } = req.body ?? {};
+    if (name       != null) fields.name       = name;
+    if (icon       != null) fields.icon       = icon;
+    if (level      != null) fields.level      = level;
+    if (rank_min   != null) fields.rank_min   = rank_min;
+    if (rank_max   !== undefined) fields.rank_max = rank_max;
+    if (sort_order != null) fields.sort_order = sort_order;
+    if (!Object.keys(fields).length) return res.status(400).json({ error: 'Aucun champ à modifier.' });
+    const league = updateLeague(id, fields);
+    res.json({ league });
+  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+app.delete('/api/admin/leagues/:id', requireAdmin, (req, res) => {
+  try {
+    deleteLeague(parseInt(req.params.id, 10));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+app.get('/api/admin/config', requireAdmin, (req, res) => {
+  try { res.json({ config: getAdminConfig() }); }
+  catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * GET /api/admin/anticheat/logs?limit=100&offset=0&action=all
+ * Journal des événements anti-autoclicker.
+ * Filtre optionnel : ?action=flagged|reduced|none
+ */
+app.get('/api/admin/anticheat/logs', requireAdmin, (req, res) => {
+  try {
+    const limit  = Math.min(500, Math.max(1, parseInt(req.query.limit  ?? '100', 10)));
+    const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10));
+    const logs   = getAntiCheatLogs(limit, offset);
+    const total  = countAntiCheatLogs();
+    res.json({ logs, total, limit, offset });
+  } catch (err) {
+    console.error('[GET /api/admin/anticheat/logs]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+app.put('/api/admin/config', requireAdmin, (req, res) => {
+  try {
+    const { key, value } = req.body ?? {};
+    if (!key || value == null) return res.status(400).json({ error: 'Champs key et value requis.' });
+    setAdminConfig(key, value);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+// ── Coffres achetables ────────────────────────────────────────────────────────
+
+/**
+ * POST /api/me/shop/chest/open
+ * Body : { chestId: 'simple' | 'rare' | 'antique' }
+ *
+ * Valide le coût côté serveur, tire la récompense et met à jour la sauvegarde.
+ * Le client ne peut pas influencer le tirage ni falsifier le coût.
+ * Retourne : { ok, reward, boughtThisSeason, newCoins, newRelicFragments }
+ */
+app.post('/api/me/shop/chest/open', (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+
+    const { chestId } = req.body ?? {};
+    if (!SHOP_CHESTS[chestId]) return res.status(400).json({ error: 'Coffre inconnu.' });
+
+    const row = getUserSave(req.session.userId);
+    if (!row) return res.status(404).json({ error: 'Sauvegarde introuvable. Jouez d\'abord quelques blocs !' });
+
+    let data;
+    try { data = JSON.parse(row.data); }
+    catch { return res.status(500).json({ error: 'Sauvegarde corrompue.' }); }
+
+    const config = getAdminConfig();
+    let result;
+    try { result = rollChest(chestId, data, config); }
+    catch (err) { return res.status(400).json({ error: err.message }); }
+
+    upsertUserSave(req.session.userId, JSON.stringify(data));
+    logEvent(req.session.userId, 'chest_shop_open', { chestId, rewardType: result.reward.type });
+
+    res.json({
+      ok:                true,
+      reward:            result.reward,
+      boughtThisSeason:  result.boughtThisSeason,
+      newCoins:          data.coins,
+      newRelicFragments: data.relicFragments ?? 0,
+    });
+  } catch (err) {
+    console.error('[POST /api/me/shop/chest/open]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// ── Admin — Joueurs ───────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/players/search?q=<username>
+ * Recherche des joueurs par nom d'utilisateur (max 20 résultats).
+ */
+app.get('/api/admin/players/search', requireAdmin, (req, res) => {
+  try {
+    const q = (req.query.q ?? '').trim();
+    if (!q) return res.status(400).json({ error: 'Paramètre q requis.' });
+    const users = searchUsers(q);
+    res.json({ users });
+  } catch (err) {
+    console.error('[GET /api/admin/players/search]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * GET /api/admin/players/:userId/save
+ * Retourne les infos clés de la sauvegarde d'un joueur (sans le blob brut complet).
+ */
+app.get('/api/admin/players/:userId/save', requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'userId invalide.' });
+
+    const userRow = getUserById(userId);
+    if (!userRow) return res.status(404).json({ error: 'Joueur introuvable.' });
+
+    const saveRow = getUserSave(userId);
+    if (!saveRow) return res.json({ user: userRow, save: null });
+
+    let data;
+    try { data = JSON.parse(saveRow.data); }
+    catch { return res.status(500).json({ error: 'Sauvegarde corrompue.' }); }
+
+    const summary = {
+      coins:           data.coins           ?? 0,
+      depth:           data.depth           ?? 1,
+      pickaxeLevel:    data.pickaxeLevel     ?? 1,
+      damage:          data.damage           ?? 1,
+      gems:            data.gems             ?? 0,
+      relicFragments:  data.relicFragments   ?? 0,
+      relicsUnlocked:  Object.values(data.relics ?? {}).filter(l => l >= 1).length,
+      relicsObj:       data.relics           ?? {},
+      upgrades:        data.upgrades         ?? { luck: 0, bag: 0, autodig: 0 },
+      shopChestsBought: data.shopChestsBought ?? { simple: 0, rare: 0, antique: 0 },
+      seasonStats:     data.seasonStats      ?? {},
+      saveVersion:     data.saveVersion      ?? null,
+      updatedAt:       saveRow.updated_at    ?? null,
+    };
+
+    res.json({ user: userRow, save: summary });
+  } catch (err) {
+    console.error('[GET /api/admin/players/:userId/save]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * POST /api/admin/players/:userId/season-reset
+ * Réinitialise uniquement les données saisonnières d'un joueur.
+ * Conserve gems (plafonnés), reliques, fragments, collection, stats lifetime.
+ * Requiert { confirm: true } dans le body.
+ */
+app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'userId invalide.' });
+    if (req.body?.confirm !== true) return res.status(400).json({ error: 'Confirmation requise (confirm: true).' });
+
+    const userRow = getUserById(userId);
+    if (!userRow) return res.status(404).json({ error: 'Joueur introuvable.' });
+
+    const saveRow = getUserSave(userId);
+    if (!saveRow) return res.status(404).json({ error: 'Sauvegarde introuvable.' });
+
+    let data;
+    try { data = JSON.parse(saveRow.data); }
+    catch { return res.status(500).json({ error: 'Sauvegarde corrompue.' }); }
+
+    const config   = getAdminConfig();
+    const gemsCap  = parseInt(config.gems_cap ?? '100', 10);
+    const activeSeason = getActiveSeason();
+
+    // Reset saisonnier — conserve tout le reste
+    data.coins        = 0;
+    data.depth        = 1;
+    data.pickaxeLevel = 1;
+    data.damage       = 1;
+    data.coinBoost    = { multiplier: 1, expiresAt: 0 };
+    data.upgrades     = { luck: 0, bag: 0, autodig: 0 };
+    data.gems         = Math.min(data.gems ?? 0, gemsCap);
+    data.shopChestsBought = { simple: 0, rare: 0, antique: 0 };
+    data.seasonStats  = {
+      seasonId:     activeSeason?.id ?? null,
+      maxDepth:     0,
+      manualBlocks: 0,
+      autoBlocks:   0,
+      manualClicks: 0,
+      chestsOpened: 0,
+      relicsUnlocked: 0,
+      coinsSpent:   0,
+    };
+
+    upsertUserSave(userId, JSON.stringify(data));
+    logEvent(userId, 'admin_season_reset', { adminAction: true });
+
+    res.json({ ok: true, message: `Reset saisonnier appliqué pour ${userRow.username}.` });
+  } catch (err) {
+    console.error('[POST /api/admin/players/:userId/season-reset]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
