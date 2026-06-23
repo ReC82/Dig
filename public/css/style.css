@@ -1020,6 +1020,99 @@ h1 {
 }
 .quest-card.completed .quest-reward { color: var(--green); }
 
+/* ── Boutique de saison (coffres achetables) ─── */
+#shop-chests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.shop-chest-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.shop-chest-card.can-afford {
+  border-color: rgba(234,179,8,.40);
+  box-shadow: 0 0 8px rgba(234,179,8,.10);
+}
+.shop-chest-card.maxed {
+  opacity: 0.55;
+}
+
+.shop-chest-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.shop-chest-icon {
+  font-size: 1.6rem;
+  flex-shrink: 0;
+  width: 30px;
+  text-align: center;
+}
+.shop-chest-info {
+  flex: 1;
+  min-width: 0;
+}
+.shop-chest-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.shop-chest-desc {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+.shop-chest-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.shop-chest-limit {
+  font-size: 0.6rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.shop-chest-cost {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.shop-chest-cost.can-afford { color: var(--gold); }
+
+.shop-chest-btn {
+  align-self: stretch;
+  padding: 7px 0;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #b45309, #d97706);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter .15s, transform .1s;
+  letter-spacing: 0.04em;
+}
+.shop-chest-card.can-afford .shop-chest-btn {
+  background: linear-gradient(135deg, #d97706, #fbbf24);
+  color: #1a1a1a;
+}
+.shop-chest-btn:not(:disabled):hover  { filter: brightness(1.12); transform: scale(1.02); }
+.shop-chest-btn:not(:disabled):active { transform: scale(0.97); }
+.shop-chest-btn:disabled { opacity: 0.28; cursor: not-allowed; filter: grayscale(0.5); }
+
 /* ── Reset ──────────────────────────────────── */
 #btn-reset {
   display: block;
@@ -1248,6 +1341,11 @@ h1 {
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .relic-bonus {
@@ -1303,6 +1401,42 @@ h1 {
   font-weight: 700;
   color: var(--gold);
   margin-top: 2px;
+}
+
+.relic-level {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(234,179,8,.18);
+  border: 1px solid rgba(234,179,8,.45);
+  border-radius: 8px;
+  padding: 1px 5px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.relic-upgrade-btn {
+  margin-top: 4px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+  color: #1a1a1a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter .15s, transform .1s;
+}
+.relic-upgrade-btn:not(:disabled):hover  { filter: brightness(1.15); transform: scale(1.04); }
+.relic-upgrade-btn:not(:disabled):active { transform: scale(0.95); }
+.relic-upgrade-btn:disabled { opacity: 0.22; cursor: not-allowed; filter: grayscale(0.6); }
+
+.relic-max-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--gold);
+  letter-spacing: 0.08em;
+  margin-top: 4px;
 }
 
 /* ── Missions quotidiennes ───────────────────── */
@@ -1559,7 +1693,7 @@ h1 {
   max-width: 440px;
   height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: rgba(22, 22, 38, 0.97);
   border-top: 1px solid var(--border);
   backdrop-filter: blur(14px);
@@ -1607,7 +1741,7 @@ h1 {
 }
 
 .nav-icon {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   line-height: 1;
   transition: transform 0.15s;
 }
@@ -1615,13 +1749,14 @@ h1 {
 .nav-btn.active .nav-icon { transform: scale(1.12); }
 
 .nav-label {
-  font-size: 0.56rem;
+  font-size: 0.5rem;
   font-weight: 600;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 52px;
 }
 
 .nav-badge {
@@ -1892,4 +2027,215 @@ h1 {
   }
 
   /* La nav reste fixée en bas du viewport, mais déjà limitée à max-width: 440px */
+}
+
+/* ── Vue Saison ──────────────────────────────────────────────────────────── */
+
+#view-season {
+  /* Le padding .view est déjà appliqué ; on ne surcharge pas pour rester cohérent */
+}
+
+.season-ends-in {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 4px 0 12px;
+}
+
+.season-hint {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+  margin: 0 0 12px;
+}
+
+.season-loading, .season-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 20px;
+  font-size: 0.85rem;
+}
+
+/* ── Carte joueur ── */
+.season-player-card {
+  background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(251,191,36,0.04));
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.season-player-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.season-player-rank {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.season-league-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  background: rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.season-league-badge.muted { color: var(--muted); }
+
+.season-player-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  flex-wrap: wrap;   /* important : wrap sur petits écrans */
+}
+.season-player-stats span { white-space: nowrap; }
+.season-player-stats strong { color: var(--text); }
+
+/* ── Info saison (collapsible) ── */
+.season-info-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.season-info-card summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.season-info-card summary::-webkit-details-marker { display: none; }
+.season-info-card summary::after {
+  content: '›';
+  margin-left: auto;
+  font-size: 1rem;
+  transition: transform 0.2s;
+  line-height: 1;
+}
+.season-info-card[open] summary::after { transform: rotate(90deg); }
+.season-info-card[open] summary { color: var(--text); border-bottom: 1px solid var(--border); }
+
+.season-info-body {
+  padding: 10px 14px 12px;
+}
+
+.season-info-intro {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.season-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.season-info-col {
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.season-info-col-reset { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.18); }
+.season-info-col-kept  { background: rgba(74,222,128,0.07); border: 1px solid rgba(74,222,128,0.18); }
+
+.season-info-col-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.season-info-col-reset .season-info-col-title { color: #f87171; }
+.season-info-col-kept  .season-info-col-title { color: #4ade80; }
+
+.season-info-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.season-info-list li {
+  font-size: 0.77rem;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+/* ── Leaderboard ── */
+.season-section-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.season-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Rang | Nom  | Profondeur | Blocs */
+.lb-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr minmax(3rem, auto) minmax(2.8rem, auto);
+  align-items: center;
+  gap: 4px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  font-size: 0.82rem;
+  transition: background 0.15s;
+  min-width: 0;          /* permet aux enfants de tronquer */
+}
+.lb-row-me { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.2); }
+
+.lb-rank   { font-weight: 700; color: var(--muted); text-align: center; font-size: 0.78rem; }
+.lb-name   { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lb-depth  { text-align: right; color: var(--gold); font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
+.lb-blocks { text-align: right; color: var(--muted); font-size: 0.74rem; white-space: nowrap; }
+.lb-league { margin-right: 3px; font-size: 0.88em; }
+
+/* ── Responsive saison ── */
+@media (max-width: 360px) {
+  .lb-row {
+    grid-template-columns: 1.6rem 1fr minmax(2.8rem, auto) minmax(2.4rem, auto);
+    font-size: 0.78rem;
+    padding: 6px 6px;
+    gap: 3px;
+  }
+  .lb-rank   { font-size: 0.72rem; }
+  .lb-depth  { font-size: 0.72rem; }
+  .lb-blocks { font-size: 0.68rem; }
+  .season-player-stats { gap: 8px; font-size: 0.78rem; }
+}
+
+@media (max-width: 320px) {
+  /* Sur les très petits écrans, cacher la colonne blocs */
+  .lb-blocks { display: none; }
+  .lb-row    { grid-template-columns: 1.6rem 1fr minmax(2.8rem, auto); }
 }

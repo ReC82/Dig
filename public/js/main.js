@@ -32,6 +32,57 @@ let _previousView  = 'dig';   // vue à restaurer quand on ferme les paramètres
 let _account              = null;    // { id, username } si connecté, null sinon
 let _accountTab           = 'login'; // onglet actif dans le formulaire compte
 let _hasShownGuestWarning = false;   // avertissement affiché une seule fois par session
+let _seasonCpsLimit       = 8;       // seuil CPS récupéré depuis le serveur
+
+// ── Anti-autoclicker ──────────────────────────────────────────────────────────
+const _clickLog        = [];           // Timestamps récents (fenêtre glissante 3 s) pour le CPS
+const _clickTimestamps = [];           // Derniers N timestamps pour détecter la régularité
+const _TS_BUF          = 25;           // Taille du buffer d'intervalles
+let   _lastClickMs     = 0;            // Timestamp du dernier clic manuel
+
+/** Enregistre le timestamp du clic courant pour le calcul de régularité. */
+function _recordClickTs() {
+  const now = Date.now();
+  _clickTimestamps.push(now);
+  if (_clickTimestamps.length > _TS_BUF) _clickTimestamps.shift();
+  _lastClickMs = now;
+}
+
+/**
+ * Calcule un score de régularité des intervalles entre clics (0 = humain, 1 = robotique).
+ * Méthode : coefficient de variation (CV) des intervalles valides (<2 s).
+ * CV faible → rythme très régulier → suspect.
+ */
+function _computeRegularityScore() {
+  if (_clickTimestamps.length < 9) return 0;   // pas assez de données
+  const intervals = [];
+  for (let i = 1; i < _clickTimestamps.length; i++) {
+    const gap = _clickTimestamps[i] - _clickTimestamps[i - 1];
+    if (gap > 0 && gap < 2000) intervals.push(gap);   // ignorer les pauses longues
+  }
+  if (intervals.length < 5) return 0;
+  const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  if (mean <= 0) return 0;
+  const variance = intervals.reduce((s, v) => s + (v - mean) ** 2, 0) / intervals.length;
+  const cv = Math.sqrt(variance) / mean;  // 0 = parfaitement régulier, >0.25 = variation humaine normale
+  return Math.max(0, Math.min(1, 1 - cv / 0.25));
+}
+
+function _isSuspiciousCPS() {
+  const now      = Date.now();
+  const windowMs = 3000;
+  _clickLog.push(now);
+  while (_clickLog.length > 0 && _clickLog[0] < now - windowMs) _clickLog.shift();
+  const recentCps = _clickLog.length / (windowMs / 1000);
+
+  // Trop rapide → suspect
+  if (recentCps > _seasonCpsLimit) return true;
+
+  // Très régulier À vitesse modérée → possible autoclicker limité par sa config
+  if (GameState.seasonStats.regularityScore > 0.92 && recentCps > _seasonCpsLimit * 0.5) return true;
+
+  return false;
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
@@ -75,14 +126,15 @@ function switchView(viewId) {
   }
   if (viewId === 'upgrades') {
     renderUpgrades();
+    renderShopChests();
     renderQuests();
     clearNavBadge('upgrades');
   }
   if (viewId === 'collection') {
     renderCollection();
     renderRelics();
-    // Badge : effacer seulement si aucune relique n'est désormais abordable
-    if (!Relics.DEFS.some(r => Relics.canUnlock(r.id))) clearNavBadge('collection');
+    // Badge : effacer seulement si aucune relique n'est désormais abordable/améliorable
+    if (!Relics.DEFS.some(r => Relics.canUnlock(r.id) || Relics.canUpgrade(r.id))) clearNavBadge('collection');
   }
   if (viewId === 'daily') {
     renderDaily();
@@ -90,6 +142,9 @@ function switchView(viewId) {
   }
   if (viewId === 'shop') {
     renderShop();
+  }
+  if (viewId === 'season') {
+    _openSeasonView();
   }
   if (viewId === 'settings') {
     renderSettings();
@@ -277,6 +332,11 @@ function renderUpgrades() {
     if (!maxed) {
       card.querySelector('.upgrade-btn').addEventListener('click', () => {
         if (Upgrades.buy(def.id)) {
+          if (def.id === 'block_reroll') {
+            Blocks.spawn(GameState.depth);
+            renderBlock();
+          }
+          if (def.id === 'fragment_shop') renderRelics();
           renderUpgrades();
           renderStats();
           const completed = Quests.checkAll();
@@ -323,6 +383,230 @@ function renderQuests() {
       <div class="quest-reward">${done ? t('ui.quest_claimed') : parts.join(' + ')}</div>`;
     container.appendChild(card);
   }
+}
+
+// ── Boutique de saison (coffres achetables) ───────────────────────────────────
+
+function renderShopChests() {
+  const container = document.getElementById('shop-chests-list');
+  if (!container) return;
+  container.innerHTML = '';
+
+  for (const def of Balance.SHOP_CHESTS) {
+    const bought    = GameState.shopChestsBought[def.id] ?? 0;
+    const maxed     = def.maxPerSeason !== null && bought >= def.maxPerSeason;
+    const canAfford = !maxed && GameState.coins >= def.cost;
+
+    const card = document.createElement('div');
+    card.className = `shop-chest-card${canAfford ? ' can-afford' : ''}${maxed ? ' maxed' : ''}`;
+
+    const limitHtml = def.maxPerSeason !== null
+      ? `<span class="shop-chest-limit">${t('ui.shop_chest_bought', { n: bought, max: def.maxPerSeason })}</span>`
+      : '';
+
+    const btnLabel = maxed
+      ? t('ui.shop_chest_limit_reached')
+      : `${def.icon} ${t('shop_chest.' + def.id + '.name')} — 💰 ${def.cost.toLocaleString()}`;
+
+    card.innerHTML = `
+      <div class="shop-chest-header">
+        <span class="shop-chest-icon">${def.icon}</span>
+        <div class="shop-chest-info">
+          <div class="shop-chest-name">${t('shop_chest.' + def.id + '.name')}</div>
+          <div class="shop-chest-desc">${t('shop_chest.' + def.id + '.desc')}</div>
+        </div>
+        <div class="shop-chest-right">
+          ${limitHtml}
+          <div class="shop-chest-cost${canAfford ? ' can-afford' : ''}">💰 ${def.cost.toLocaleString()}</div>
+        </div>
+      </div>
+      <button class="shop-chest-btn" ${(canAfford && !maxed) ? '' : 'disabled'}
+        aria-label="${btnLabel}">
+        ${maxed ? t('ui.shop_chest_limit_reached') : t('ui.btn_open_chest')}
+      </button>`;
+
+    if (canAfford && !maxed) {
+      card.querySelector('.shop-chest-btn').addEventListener('click', () => {
+        openShopChest(def.id);
+      });
+    }
+
+    container.appendChild(card);
+  }
+}
+
+/**
+ * Ouvre un coffre achetable.
+ * - Joueur connecté  → validation + tirage côté serveur (anti-triche)
+ * - Joueur anonyme   → validation + tirage côté client (fallback)
+ */
+async function openShopChest(chestId) {
+  const def = Balance.SHOP_CHESTS.find(c => c.id === chestId);
+  if (!def) return;
+
+  // Validation préventive côté client (évite un aller-retour inutile)
+  if (GameState.coins < def.cost) return;
+  const bought = GameState.shopChestsBought[chestId] ?? 0;
+  if (def.maxPerSeason !== null && bought >= def.maxPerSeason) return;
+
+  let reward;
+
+  if (_account) {
+    // ── Mode connecté : le serveur valide et tire la récompense ──────────────
+    const btn = document.querySelector(`#shop-chests-list .shop-chest-btn[aria-label*="${t('shop_chest.' + chestId + '.name')}"]`);
+    if (btn) btn.disabled = true;
+
+    const { ok, data } = await _apiFetch('POST', '/api/me/shop/chest/open', { chestId });
+
+    if (!ok) {
+      if (btn) btn.disabled = false;
+      showAchievement('❌', data?.error ?? t('ui.shop_chest_error'));
+      return;
+    }
+
+    // Appliquer l'état retourné par le serveur (source de vérité)
+    GameState.coins          = data.newCoins;
+    GameState.relicFragments = data.newRelicFragments;
+    GameState.shopChestsBought[chestId] = data.boughtThisSeason;
+    reward = data.reward;
+
+  } else {
+    // ── Mode anonyme : tirage côté client ────────────────────────────────────
+    GameState.spendCoins(def.cost);
+    GameState.shopChestsBought[chestId] = bought + 1;
+    reward = _rollShopChestClient(chestId, def);
+  }
+
+  // Appliquer les effets qui ne sont pas dans le blob (boost, collection)
+  _applyShopChestReward(reward);
+
+  renderStats();
+  renderShopChests();
+  if (reward.type === 'boost') renderBoostBanner();
+  if (reward.type === 'relics' && Relics.DEFS.some(r => Relics.canUnlock(r.id) || Relics.canUpgrade(r.id))) {
+    setNavBadge('collection');
+  }
+
+  Save.save();
+  _showShopChestReward(def, reward);
+}
+
+/** Tirage client-side (joueurs anonymes uniquement — probabilités identiques au serveur). */
+function _rollShopChestClient(chestId, def) {
+  const tables = {
+    simple: [
+      { weight: 50, type: 'coins',  min:  80, max:  200 },
+      { weight: 25, type: 'coins',  min: 200, max:  500 },
+      { weight: 20, type: 'relics', amount: 1 },
+      { weight:  5, type: 'boost',  mult: 2, minutes: 3 },
+    ],
+    rare: [
+      { weight: 30, type: 'coins',      min: 1_000, max: 3_000 },
+      { weight: 20, type: 'coins',      min: 3_000, max: 8_000 },
+      { weight: 25, type: 'relics',     amount: 2 },
+      { weight: 12, type: 'relics',     amount: 3 },
+      { weight:  8, type: 'boost',      mult: 2, minutes: 10 },
+      { weight:  5, type: 'collection', amount: 1 },
+    ],
+    antique: [
+      { weight: 25, type: 'coins',      min: 10_000, max: 25_000 },
+      { weight: 25, type: 'relics',     amount:  5 },
+      { weight: 15, type: 'relics',     amount: 10 },
+      { weight: 13, type: 'boost',      mult: 3, minutes: 15 },
+      { weight: 12, type: 'collection', amount:  1 },
+      { weight:  7, type: 'relics',     amount: 20 },
+      { weight:  3, type: 'relics',     amount: 30 },
+    ],
+  };
+  const table = tables[chestId] ?? tables.simple;
+  const total = table.reduce((s, r) => s + r.weight, 0);
+  let r = Math.random() * total;
+  let entry;
+  for (const row of table) { r -= row.weight; if (r <= 0) { entry = row; break; } }
+  entry = entry ?? table[table.length - 1];
+
+  const reward = { type: entry.type };
+  if (entry.type === 'coins') {
+    reward.amount = entry.min + Math.floor(Math.random() * (entry.max - entry.min + 1));
+  } else if (entry.type === 'relics') {
+    reward.amount = entry.amount + (GameState.relicBonuses?.relicFragmentBonus ?? 0);
+  } else if (entry.type === 'boost') {
+    reward.mult = entry.mult; reward.minutes = entry.minutes;
+  } else if (entry.type === 'collection') {
+    const missing = Collection.FINDS.map(f => f.id).filter(id => !GameState.collection.includes(id));
+    if (missing.length > 0) {
+      reward.itemId = missing[Math.floor(Math.random() * missing.length)];
+    } else {
+      reward.type = 'relics'; reward.amount = 5;
+    }
+  }
+  return reward;
+}
+
+/**
+ * Applique les effets côté client d'une récompense de coffre shop
+ * (les champs coins/fragments ont déjà été mis à jour par le serveur ou _rollShopChestClient).
+ */
+function _applyShopChestReward(reward) {
+  if (reward.type === 'coins') {
+    // Déjà appliqué via GameState.coins = data.newCoins (connecté)
+    // ou reward.amount n'est pas ajouté ici — le serveur l'a intégré dans newCoins.
+    // En mode anonyme, on l'applique ici.
+    if (!_account) {
+      GameState.addCoins(reward.amount);
+      GameState.stats.totalCoinsEarned += reward.amount;
+    }
+  } else if (reward.type === 'relics') {
+    if (!_account) {
+      GameState.relicFragments += reward.amount;
+    }
+  } else if (reward.type === 'boost') {
+    GameState.setCoinBoost(reward.mult, reward.minutes * 60_000);
+  } else if (reward.type === 'collection' && reward.itemId) {
+    if (!GameState.collection.includes(reward.itemId)) {
+      GameState.collection.push(reward.itemId);
+      const find = Collection.FINDS.find(f => f.id === reward.itemId);
+      if (find) handleFindDrop(find);
+    }
+  }
+}
+
+/** Affiche la récompense du coffre shop dans la popup existante. */
+function _showShopChestReward(def, reward) {
+  const modal    = document.getElementById('chest-modal');
+  const inner    = document.getElementById('chest-modal-inner');
+  const iconEl   = document.getElementById('chest-modal-icon');
+  const rarityEl = document.getElementById('chest-modal-rarity');
+  const titleEl  = document.getElementById('chest-modal-title');
+  const rewardEl = document.getElementById('chest-modal-reward');
+  const btn      = document.getElementById('btn-collect-chest');
+  if (!modal) return;
+
+  inner.style.animation = 'none'; iconEl.style.animation = 'none';
+  void inner.offsetWidth;
+  inner.style.animation = ''; iconEl.style.animation = '';
+
+  iconEl.textContent   = def.icon;
+  rarityEl.innerHTML   = `<span class="rarity-badge rarity-rare">${t('shop_chest.' + def.id + '.name')}</span>`;
+  titleEl.textContent  = t('ui.shop_chest_opened', { name: t('shop_chest.' + def.id + '.name') });
+  rewardEl.textContent = _shopChestRewardLabel(reward);
+  modal.hidden = false;
+
+  btn.onclick = () => { modal.hidden = true; };
+}
+
+function _shopChestRewardLabel(reward) {
+  if (reward.type === 'coins')
+    return t('ui.chest_reward_coins', { amount: reward.amount.toLocaleString() });
+  if (reward.type === 'relics')
+    return t('ui.chest_reward_relics', { amount: reward.amount, s: reward.amount > 1 ? 's' : '' });
+  if (reward.type === 'boost')
+    return t('ui.chest_reward_boost', { mult: reward.mult, minutes: reward.minutes });
+  if (reward.type === 'collection' && reward.itemId) {
+    const find = Collection.FINDS.find(f => f.id === reward.itemId);
+    return find ? `${find.icon} ${t(find.name)}` : '';
+  }
+  return '';
 }
 
 // ── Rendu collection ──────────────────────────────────────────────────────────
@@ -437,53 +721,97 @@ function renderRelics() {
   const info = document.getElementById('relics-info');
   if (!grid) return;
 
-  const unlockedCount = GameState.relics.length;
+  const unlockedCount = Object.values(GameState.relics).filter(l => l >= 1).length;
   const totalCount    = Relics.DEFS.length;
   if (info) {
     info.textContent = t('ui.relic_header', {
       count: unlockedCount,
       total: totalCount,
-      s1: unlockedCount !== 1 ? 's' : '',
+      s1:    unlockedCount !== 1 ? 's' : '',
       frags: GameState.relicFragments,
-      s2: GameState.relicFragments !== 1 ? 's' : '',
+      s2:    GameState.relicFragments !== 1 ? 's' : '',
     });
   }
 
   grid.innerHTML = '';
 
   for (const def of Relics.DEFS) {
-    const unlocked  = Relics.isUnlocked(def.id);
-    const canAfford = Relics.canUnlock(def.id);
-    const shortfall = Math.max(0, def.cost - GameState.relicFragments);
+    const level      = Relics.getLevel(def.id);
+    const unlocked   = level >= 1;
+    const maxed      = level >= def.maxLevel;
+    const canUnlock  = Relics.canUnlock(def.id);
+    const canUpgrade = Relics.canUpgrade(def.id);
+    const nextCost   = Relics.getUpgradeCost(def.id);
+    const isAffordable = !unlocked ? canUnlock : canUpgrade;
+
+    const shortfall = !unlocked
+      ? Math.max(0, (nextCost ?? 0) - GameState.relicFragments)
+      : !maxed
+        ? Math.max(0, (nextCost ?? 0) - GameState.relicFragments)
+        : 0;
 
     const card = document.createElement('div');
-    card.className = `relic-card${unlocked ? ' relic-unlocked' : canAfford ? ' relic-affordable' : ''}`;
-    card.title = t(def.desc);   // description visible au survol / long-press
+    card.className = `relic-card${unlocked ? ' relic-unlocked' : isAffordable ? ' relic-affordable' : ''}`;
+    card.title = t(def.desc);
+
+    const levelChip = unlocked
+      ? `<span class="relic-level">${t('relic.level_label', { cur: level, max: def.maxLevel })}</span>`
+      : '';
+
+    let actionHtml = '';
+    if (!unlocked) {
+      actionHtml = `
+        <div class="relic-cost${canUnlock ? ' can-afford' : ''}">
+          ${t('ui.relic_cost', { n: nextCost, s: nextCost > 1 ? 's' : '' })}
+          ${!canUnlock ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
+        </div>
+        <button class="relic-unlock-btn" ${canUnlock ? '' : 'disabled'}
+          aria-label="${canUnlock ? `${t('ui.btn_unlock')} ${t(def.name)}` : t('ui.relic_shortfall', { n: shortfall })}">
+          ${t('ui.btn_unlock')}
+        </button>`;
+    } else if (maxed) {
+      actionHtml = `<div class="relic-max-badge">${t('ui.btn_max')}</div>`;
+    } else {
+      actionHtml = `
+        <div class="relic-cost${canUpgrade ? ' can-afford' : ''}">
+          ${t('ui.relic_upgrade_cost', { n: nextCost, next: level + 1, s: nextCost > 1 ? 's' : '' })}
+          ${!canUpgrade ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
+        </div>
+        <button class="relic-upgrade-btn" ${canUpgrade ? '' : 'disabled'}
+          aria-label="${t('ui.btn_upgrade')} ${t(def.name)} ${t('relic.level_label', { cur: level + 1, max: def.maxLevel })}">
+          ${t('ui.btn_upgrade')}
+        </button>`;
+    }
 
     card.innerHTML = `
       <div class="relic-icon">${def.icon}</div>
-      <div class="relic-name">${t(def.name)}</div>
-      <div class="relic-bonus">${t(def.bonusLabel)}</div>
-      ${unlocked
-        ? `<div class="relic-unlocked-badge">${t('ui.relic_unlocked_badge')}</div>`
-        : `<div class="relic-cost${canAfford ? ' can-afford' : ''}">
-             ${t('ui.relic_cost', { n: def.cost, s: def.cost > 1 ? 's' : '' })}
-             ${!canAfford ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
-           </div>
-           <button class="relic-unlock-btn" ${canAfford ? '' : 'disabled'}
-             aria-label="${canAfford ? `${t('ui.btn_unlock')} ${t(def.name)}` : t('ui.relic_shortfall', { n: shortfall })}">
-             ${t('ui.btn_unlock')}
-           </button>`
-      }`;
+      <div class="relic-name">${t(def.name)}${levelChip}</div>
+      <div class="relic-bonus">${Relics.formatBonus(def, level)}</div>
+      ${actionHtml}`;
 
-    if (!unlocked && canAfford) {
+    const _clearBadgeIfNeeded = () => {
+      if (!Relics.DEFS.some(r => Relics.canUnlock(r.id) || Relics.canUpgrade(r.id))) {
+        clearNavBadge('collection');
+      }
+    };
+
+    if (!unlocked && canUnlock) {
       card.querySelector('.relic-unlock-btn').addEventListener('click', () => {
         if (Relics.unlock(def.id)) {
           showAchievement('🔮', t('notif.relic_unlocked', { name: t(def.name) }));
           renderRelics();
           renderStats();
-          // Vide le badge si plus aucune relique n'est abordable
-          if (!Relics.DEFS.some(r => Relics.canUnlock(r.id))) clearNavBadge('collection');
+          _clearBadgeIfNeeded();
+          Save.save();
+        }
+      });
+    } else if (unlocked && !maxed && canUpgrade) {
+      card.querySelector('.relic-upgrade-btn').addEventListener('click', () => {
+        if (Relics.upgrade(def.id)) {
+          showAchievement('🔮', t('notif.relic_upgraded', { name: t(def.name), n: Relics.getLevel(def.id) }));
+          renderRelics();
+          renderStats();
+          _clearBadgeIfNeeded();
           Save.save();
         }
       });
@@ -588,6 +916,8 @@ async function _fetchMe() {
   } catch (_) {
     _account = null;
   }
+  // Initialise seasonId et CPS limit même sans compte connecté
+  _pollSeason();
 }
 
 async function _doRegister(username, email, password) {
@@ -654,7 +984,7 @@ async function _syncAfterLogin(forceCloud = false) {
             coinBoost:     { ...GameState.coinBoost },
             monetization:  { ...GameState.monetization },
             relicFragments: GameState.relicFragments,
-            relics:        [...GameState.relics],
+            relics:        { ...GameState.relics },
             dailyMissions: {
               date:     GameState.dailyMissions.date,
               missions: GameState.dailyMissions.missions.map(m => ({
@@ -687,6 +1017,172 @@ async function _syncAfterLogin(forceCloud = false) {
       await _syncToCloud();
     }
   } catch (_) { /* silencieux */ }
+}
+
+// ── Saisons ───────────────────────────────────────────────────────────────────
+
+/** Applique le reset de début de saison (côté client). */
+function _applySeasonReset(newSeasonId, gemsCap) {
+  GameState.coins           = 0;
+  GameState.gems            = Math.min(GameState.gems, gemsCap);
+  GameState.coinBoost       = { multiplier: 1, expiresAt: 0 };
+  GameState.depth           = 1;
+  GameState.pickaxeLevel    = 1;
+  GameState.damage          = 1;
+  GameState.upgrades         = { luck: 0, bag: 0, autodig: 0, fragment_shop: 0, block_reroll: 0 };
+  GameState.shopChestsBought = { simple: 0, rare: 0, antique: 0 };
+  GameState.seasonStats      = { seasonId: newSeasonId, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, regularityScore: 0, isActive: false };
+  _clickTimestamps.length   = 0;   // reset du buffer d'intervalles
+  _clickLog.length          = 0;   // reset du buffer CPS
+  // Recalcule damage = pickaxeLevel (1) + relicBonuses.damageFlat (permanent)
+  // et recompute tous les relicBonuses depuis GameState.relics (inchangé).
+  Relics.applyBonuses();
+  Save.save();
+  renderStats();
+  renderUpgrades();
+  renderShopChests();
+  renderBoostBanner();
+  blockAnimating = false;
+  Blocks.spawn(GameState.depth);
+  renderBlock();
+  showAchievement('🏆', t('season.new_season'));
+}
+
+/** Polling toutes les 5 min : détecte un changement de saison. */
+async function _pollSeason() {
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
+    if (!ok || !data.season) return;
+    _seasonCpsLimit = data.config?.cpsLimit ?? 8;
+    if (data.season.id !== GameState.seasonStats.seasonId && GameState.seasonStats.seasonId !== 0) {
+      _applySeasonReset(data.season.id, data.config?.gemsCap ?? 100);
+    } else if (GameState.seasonStats.seasonId === 0 && data.season.id) {
+      // Premier sync : on enregistre juste l'ID sans reset
+      GameState.seasonStats.seasonId = data.season.id;
+    }
+    if (isViewActive('season')) renderSeasonView(data);
+  } catch (_) { /* silencieux */ }
+}
+
+// ── Rendu vue Saison ─────────────────────────────────────────────────────────
+
+function renderSeasonView(apiData) {
+  const el = document.getElementById('view-season');
+  if (!el) return;
+
+  if (!apiData) {
+    el.innerHTML = `<div class="view-title-bar">${t('season.title')}</div>
+      <p class="season-loading">${t('season.loading')}</p>`;
+    return;
+  }
+
+  const { season, config, player } = apiData;
+  const endDate  = new Date(season.endAt + (season.endAt.includes('Z') ? '' : 'Z'));
+  const diffMs   = endDate - Date.now();
+  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
+  const diffHrs  = Math.max(0, Math.floor((diffMs % 86_400_000) / 3_600_000));
+  const endsIn   = t('season.ends_in', { d: diffDays, h: diffHrs });
+
+  let playerHtml = '';
+  if (!_account) {
+    playerHtml = `<p class="season-hint">${t('season.not_connected')}</p>`;
+  } else if (!player || !player.isActive) {
+    playerHtml = `<p class="season-hint">${t('season.not_active')}</p>`;
+  } else {
+    const leagueBadge = player.league
+      ? `<span class="season-league-badge">${player.league.icon} ${player.league.name}</span>`
+      : `<span class="season-league-badge muted">${t('season.no_league')}</span>`;
+    playerHtml = `
+      <div class="season-player-card">
+        <div class="season-player-card-top">
+          <div class="season-player-rank">${t('season.rank', { n: player.rank ?? '?' })}</div>
+          ${leagueBadge}
+        </div>
+        <div class="season-player-stats">
+          <span>⛏ ${t('season.depth_label')} : <strong>${player.maxDepth}m</strong></span>
+          <span>👆 ${t('season.blocks_label')} : <strong>${player.manualBlocks}</strong></span>
+        </div>
+      </div>`;
+  }
+
+  // Section info saison (collapsible)
+  const infoHtml = `
+    <details class="season-info-card">
+      <summary class="season-info-toggle">${t('season.info.toggle')}</summary>
+      <div class="season-info-body">
+        <p class="season-info-intro">${t('season.info.intro')}</p>
+        <div class="season-info-grid">
+          <div class="season-info-col season-info-col-reset">
+            <div class="season-info-col-title">${t('season.info.reset_title')}</div>
+            <ul class="season-info-list">
+              <li>💰 ${t('season.info.r_coins')}</li>
+              <li>⛏ ${t('season.info.r_depth')}</li>
+              <li>⬆ ${t('season.info.r_upgrades')}</li>
+              <li>⚡ ${t('season.info.r_boosts')}</li>
+              <li>🏆 ${t('season.info.r_rank')}</li>
+            </ul>
+          </div>
+          <div class="season-info-col season-info-col-kept">
+            <div class="season-info-col-title">${t('season.info.kept_title')}</div>
+            <ul class="season-info-list">
+              <li>💎 ${t('season.info.k_gems')}</li>
+              <li>🔮 ${t('season.info.k_frags')}</li>
+              <li>✨ ${t('season.info.k_relics')}</li>
+              <li>🎁 ${t('season.info.k_bonuses')}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </details>`;
+
+  // Charger le leaderboard
+  const lbId = 'season-lb-body';
+  el.innerHTML = `
+    <div class="view-title-bar">${t('season.title')} — ${season.name}</div>
+    <p class="season-ends-in">${endsIn}</p>
+    ${playerHtml}
+    ${infoHtml}
+    <h3 class="season-section-title">${t('season.leaderboard')}</h3>
+    <div class="season-leaderboard" id="${lbId}">
+      <p class="season-loading">${t('season.loading')}</p>
+    </div>`;
+
+  _loadLeaderboard(season.id, lbId);
+}
+
+async function _loadLeaderboard(seasonId, containerId) {
+  try {
+    const { ok, data } = await _apiFetch('GET', `/api/seasons/${seasonId}/leaderboard`);
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!ok || !data.leaderboard?.length) {
+      el.innerHTML = '<p class="season-empty">Aucun joueur actif pour l\'instant.</p>';
+      return;
+    }
+    el.innerHTML = data.leaderboard.map(row => {
+      const medal  = row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${row.rank}`;
+      const league = row.league ? `<span class="lb-league">${row.league.icon}</span>` : '';
+      const isMe   = _account && row.username === _account.username;
+      return `<div class="lb-row${isMe ? ' lb-row-me' : ''}">
+        <span class="lb-rank">${medal}</span>
+        <span class="lb-name">${league}${row.username}</span>
+        <span class="lb-depth">${row.maxDepth}m</span>
+        <span class="lb-blocks">👆${row.manualBlocks}</span>
+      </div>`;
+    }).join('');
+  } catch (_) {}
+}
+
+async function _openSeasonView() {
+  const el = document.getElementById('view-season');
+  if (el) el.innerHTML = `<div class="view-title-bar">${t('season.title')}</div><p class="season-loading">${t('season.loading')}</p>`;
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
+    if (ok && data.season) {
+      _seasonCpsLimit = data.config?.cpsLimit ?? 8;
+      renderSeasonView(data);
+    }
+  } catch (_) {}
 }
 
 // ── Rendu paramètres ─────────────────────────────────────────────────────────
@@ -799,6 +1295,7 @@ function renderSettings() {
         submitBtn.disabled = false;
       } else {
         await _syncAfterLogin(true); // connexion explicite → toujours appliquer le cloud
+        await _pollSeason();
         renderSettings();
       }
     };
@@ -1049,8 +1546,8 @@ function showChestPopup(chestType, reward) {
     spawnBlock();
     renderStats();
     if (reward.type === 'boost') renderBoostBanner();
-    // Si des fragments ont été gagnés, signaler si une relique devient abordable
-    if (reward.type === 'relics' && Relics.DEFS.some(r => Relics.canUnlock(r.id))) {
+    // Si des fragments ont été gagnés, signaler si une relique devient abordable/améliorable
+    if (reward.type === 'relics' && Relics.DEFS.some(r => Relics.canUnlock(r.id) || Relics.canUpgrade(r.id))) {
       setNavBadge('collection');
     }
     Save.save();
@@ -1076,11 +1573,18 @@ function spawnBlock() {
   renderBlock();
 }
 
-function handleBlockDestroyed(cx, cy) {
+function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {}) {
   // Avertissement unique si le joueur n'est pas connecté
   if (!_account && !_hasShownGuestWarning) {
     _hasShownGuestWarning = true;
     showAchievement('⚠️', t('ui.guest_warning'));
+  }
+
+  if (isManual) {
+    GameState.seasonStats.manualBlocks++;
+    GameState.seasonStats.isActive = true;
+  } else if (isAuto) {
+    GameState.seasonStats.autoBlocks++;
   }
 
   const { reward: baseReward, type } = Blocks.current;
@@ -1141,6 +1645,14 @@ function onBlockHit(cx, cy) {
   // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
   if (!Blocks.current) { spawnBlock(); return; }
 
+  // Chaque clic compte comme manuel, qu'il détruise ou non le bloc
+  GameState.seasonStats.manualClicks++;
+  _recordClickTs();
+  GameState.seasonStats.regularityScore = _computeRegularityScore();
+
+  const suspicious = _isSuspiciousCPS();
+  if (suspicious) GameState.seasonStats.suspiciousScore++;
+
   const destroyed = Blocks.hit(GameState.damage);
 
   elBlock.classList.remove('anim-hit');
@@ -1150,7 +1662,7 @@ function onBlockHit(cx, cy) {
 
   spawnFloatText(t('notif.damage_float', { amount: GameState.damage }), 'dmg', cx, cy);
 
-  if (destroyed) handleBlockDestroyed(cx, cy);
+  if (destroyed) handleBlockDestroyed(cx, cy, { isManual: !suspicious });
 
   renderBlock();
   renderStats();
@@ -1164,7 +1676,7 @@ function autoDigTick() {
   const destroyed = Blocks.hit(dmg);
   if (destroyed) {
     const rect = elBlock.getBoundingClientRect();
-    handleBlockDestroyed(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    handleBlockDestroyed(rect.left + rect.width / 2, rect.top + rect.height / 2, { isAuto: true });
   }
 
   renderBlock();
@@ -1242,6 +1754,7 @@ elResetBtn.addEventListener('click', () => {
   Save.reset();
   Relics.applyBonuses();          // recompute (tout à 0 après reset)
   renderUpgrades();
+  renderShopChests();
   renderQuests();
   renderCollection();
   if (isViewActive('collection')) renderRelics();
@@ -1298,7 +1811,7 @@ function init() {
   I18n.onLangChange(() => {
     if (isViewActive('dig'))        { renderBlock(); renderStats(); }
     if (isViewActive('settings'))   renderSettings();
-    if (isViewActive('upgrades'))   { renderUpgrades(); renderQuests(); }
+    if (isViewActive('upgrades'))   { renderUpgrades(); renderShopChests(); renderQuests(); }
     if (isViewActive('collection')) { renderCollection(); renderRelics(); }
     if (isViewActive('daily'))      renderDaily();
     if (isViewActive('shop'))       renderShop();
@@ -1314,6 +1827,7 @@ function init() {
   DailyMissions.refresh(); // génère les missions du jour si besoin
 
   renderUpgrades();
+  renderShopChests();
   renderQuests();
   renderBoostBanner();
   renderAdButton();
@@ -1321,13 +1835,14 @@ function init() {
   renderStats();
 
   updateDailyBadge();
-  if (Relics.DEFS.some(r => Relics.canUnlock(r.id))) setNavBadge('collection');
+  if (Relics.DEFS.some(r => Relics.canUnlock(r.id) || Relics.canUpgrade(r.id))) setNavBadge('collection');
 
   if (offlineGains) showOfflinePopup(offlineGains);
 
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
   setInterval(() => { renderBoostBanner(); renderAdButton(); }, 1_000);
+  setInterval(_pollSeason,      5 * 60_000); // vérifie la saison toutes les 5 min
 
   // Récupère l'état de session (non bloquant — la page est déjà jouable)
   _fetchMe();

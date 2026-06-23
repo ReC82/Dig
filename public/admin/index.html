@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DIG! Admin</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<div id="auth-screen">
+  <div class="auth-card">
+    <h1>⛏ DIG! Admin</h1>
+    <input id="secret-input" type="password" placeholder="Clé admin (ADMIN_SECRET)">
+    <button id="secret-btn">Accéder</button>
+    <p id="auth-error" class="error hidden"></p>
+  </div>
+</div>
+
+<div id="admin-app" class="hidden">
+  <header>
+    <h1>⛏ DIG! Admin</h1>
+    <button id="logout-btn" class="btn-sm btn-danger">Déconnexion</button>
+  </header>
+
+  <nav class="admin-nav">
+    <button class="tab-btn active" data-tab="seasons">🗓 Saisons</button>
+    <button class="tab-btn" data-tab="leagues">🏅 Ligues</button>
+    <button class="tab-btn" data-tab="leaderboard">🏆 Classement</button>
+    <button class="tab-btn" data-tab="config">⚙ Config</button>
+    <button class="tab-btn" data-tab="season-overview">📊 Ligues &amp; Saisons</button>
+    <button class="tab-btn" data-tab="economy">💰 Économie &amp; Joueurs</button>
+  </nav>
+
+  <!-- Tab Saisons -->
+  <section id="tab-seasons" class="tab-content">
+    <div class="section-header">
+      <h2>Saisons</h2>
+      <button class="btn" id="btn-new-season">+ Nouvelle saison</button>
+    </div>
+    <div id="new-season-form" class="form-card hidden">
+      <h3>Créer une saison</h3>
+      <label>Nom <input id="ns-name" type="text" placeholder="Saison 1-2025"></label>
+      <label>Début (UTC) <input id="ns-start" type="datetime-local"></label>
+      <label>Fin (UTC)   <input id="ns-end"   type="datetime-local"></label>
+      <div class="form-actions">
+        <button class="btn" id="btn-create-season">Créer</button>
+        <button class="btn btn-outline" id="btn-cancel-season">Annuler</button>
+      </div>
+      <p id="season-form-error" class="error hidden"></p>
+    </div>
+    <table id="seasons-table">
+      <thead><tr><th>ID</th><th>Nom</th><th>Début</th><th>Fin</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Tab Ligues -->
+  <section id="tab-leagues" class="tab-content hidden">
+    <div class="section-header">
+      <h2>Ligues</h2>
+      <button class="btn" id="btn-new-league">+ Nouvelle ligue</button>
+    </div>
+    <div id="new-league-form" class="form-card hidden">
+      <h3>Créer une ligue</h3>
+      <label>Nom    <input id="nl-name"   type="text"   placeholder="Bronze"></label>
+      <label>Icône  <input id="nl-icon"   type="text"   placeholder="🏅" maxlength="4"></label>
+      <label>Niveau <input id="nl-level"  type="number" placeholder="1" min="0"> <small>(0 = Mimosa = plus bas)</small></label>
+      <label>Rang min <input id="nl-rmin" type="number" placeholder="11" min="1"></label>
+      <label>Rang max <input id="nl-rmax" type="number" placeholder="50" min="1"> <small>(vide = illimité)</small></label>
+      <label>Ordre  <input id="nl-order"  type="number" placeholder="1"  min="0"></label>
+      <div class="form-actions">
+        <button class="btn" id="btn-create-league">Créer</button>
+        <button class="btn btn-outline" id="btn-cancel-league">Annuler</button>
+      </div>
+      <p id="league-form-error" class="error hidden"></p>
+    </div>
+    <table id="leagues-table">
+      <thead><tr><th>ID</th><th>Nom</th><th>Niv.</th><th>Rang min</th><th>Rang max</th><th>Ordre</th><th>Actions</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Tab Classement -->
+  <section id="tab-leaderboard" class="tab-content hidden">
+    <div class="section-header">
+      <h2>Classement — <span id="lb-season-name">saison en cours</span></h2>
+      <button class="btn" id="btn-refresh-lb">↻ Rafraîchir</button>
+    </div>
+    <table id="lb-table">
+      <thead><tr><th>Rang</th><th>Joueur</th><th>Prof. max</th><th>Blocs manuels</th><th>Ligue</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- Tab Config -->
+  <section id="tab-config" class="tab-content hidden">
+    <div class="section-header"><h2>Configuration</h2></div>
+    <div id="config-rows"></div>
+    <button class="btn" id="btn-save-config">Enregistrer</button>
+    <p id="config-msg" class="success hidden">Sauvegardé !</p>
+  </section>
+
+  <!-- Tab Ligues & Saisons -->
+  <section id="tab-season-overview" class="tab-content hidden">
+    <div class="section-header">
+      <h2>📊 Ligues &amp; Saisons</h2>
+      <button class="btn" id="btn-refresh-overview">↻ Rafraîchir</button>
+    </div>
+
+    <!-- Saison active -->
+    <div class="overview-card">
+      <h3 class="overview-card-title">Saison en cours</h3>
+      <p id="no-active-season" class="muted hidden">Aucune saison active.</p>
+      <div id="season-stats" class="stat-grid">
+        <div class="stat-item"><span class="stat-label">Nom</span><span class="stat-value" id="ov-season-name">—</span></div>
+        <div class="stat-item"><span class="stat-label">Statut</span><span class="stat-value" id="ov-season-status">—</span></div>
+        <div class="stat-item"><span class="stat-label">Début</span><span class="stat-value" id="ov-season-start">—</span></div>
+        <div class="stat-item"><span class="stat-label">Fin</span><span class="stat-value" id="ov-season-end">—</span></div>
+        <div class="stat-item stat-item--highlight"><span class="stat-label">Joueurs actifs</span><span class="stat-value" id="ov-season-players">—</span></div>
+      </div>
+    </div>
+
+    <!-- Ligues avec compteurs -->
+    <div class="overview-card">
+      <h3 class="overview-card-title">Ligues</h3>
+      <table id="ov-leagues-table">
+        <thead>
+          <tr><th>Ligue</th><th>Niv.</th><th>Joueurs (total)</th><th>Actifs (saison)</th><th>Classement</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- Paramètres saisonniers -->
+    <div class="overview-card">
+      <h3 class="overview-card-title">Paramètres saisonniers</h3>
+      <div class="params-grid" id="ov-params-grid"></div>
+      <div class="form-actions" style="margin-top:12px">
+        <button class="btn" id="btn-save-params">Enregistrer</button>
+      </div>
+      <p id="params-msg" class="success hidden">Paramètres sauvegardés !</p>
+      <p id="params-err" class="error hidden"></p>
+    </div>
+
+    <!-- Clôture manuelle -->
+    <div class="overview-card danger-zone">
+      <h3 class="overview-card-title">Zone critique</h3>
+      <p class="muted" style="margin-bottom:12px">Clore manuellement la saison active — les promotions seront appliquées et une nouvelle saison démarrera automatiquement.</p>
+      <button class="btn btn-danger" id="btn-close-season-manual">⚠ Clore la saison active</button>
+      <div id="close-season-confirm" class="confirm-dialog hidden">
+        <p>Confirmer la clôture de la saison <strong id="close-season-name"></strong> ?</p>
+        <p class="muted" style="margin-top:4px">Cette action est irréversible.</p>
+        <div class="form-actions" style="margin-top:12px">
+          <button class="btn btn-danger" id="btn-confirm-close">Confirmer la clôture</button>
+          <button class="btn btn-outline" id="btn-cancel-close">Annuler</button>
+        </div>
+      </div>
+      <div id="close-result" class="hidden" style="margin-top:12px"></div>
+    </div>
+
+    <!-- Classement par ligue -->
+    <div class="overview-card">
+      <div class="section-header" style="margin-bottom:12px">
+        <h3 class="overview-card-title" style="margin:0">Classement par ligue</h3>
+        <select id="ov-league-select" class="league-select">
+          <option value="">— Choisir une ligue —</option>
+        </select>
+      </div>
+      <table id="ov-lb-table">
+        <thead><tr><th>Rang</th><th>Joueur</th><th>Prof. max</th><th>Blocs manuels</th></tr></thead>
+        <tbody id="ov-lb-body"><tr><td colspan="4" class="muted">Sélectionner une ligue ci-dessus.</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- Journal anti-autoclicker -->
+    <div class="overview-card">
+      <div class="section-header" style="margin-bottom:12px">
+        <h3 class="overview-card-title" style="margin:0">🛡 Journal anti-autoclicker</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="ac-filter-action" class="league-select">
+            <option value="">Tous les événements</option>
+            <option value="flagged">⚠ Flagged seulement</option>
+            <option value="reduced">↓ Reduced seulement</option>
+          </select>
+          <button class="btn" id="btn-refresh-ac">↻ Rafraîchir</button>
+        </div>
+      </div>
+      <p id="ac-log-total" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
+      <div style="overflow-x:auto">
+        <table id="ac-log-table">
+          <thead>
+            <tr><th>Date (UTC)</th><th>Joueur</th><th>CPS inféré</th><th>Régularité</th><th>Ratio eff.</th><th>Action</th></tr>
+          </thead>
+          <tbody id="ac-log-body">
+            <tr><td colspan="6" class="muted">Aucun événement enregistré.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab Économie & Joueurs -->
+  <section id="tab-economy" class="tab-content hidden">
+
+    <!-- Multiplicateurs économiques -->
+    <div class="overview-card">
+      <h3 class="overview-card-title">Multiplicateurs économiques</h3>
+      <p class="muted" style="margin-bottom:12px">Ces valeurs modifient l'économie globale en temps réel. 1.0 = pas de modification.</p>
+      <div class="params-grid" id="eco-multipliers-grid">
+        <label class="param-row">
+          <span class="param-label">Coût des upgrades <small class="muted">× base</small></span>
+          <input type="number" id="eco-upgrade-cost" min="0.1" max="10" step="0.1" value="1.0">
+        </label>
+        <label class="param-row">
+          <span class="param-label">Gain de coins <small class="muted">× base</small></span>
+          <input type="number" id="eco-coin-gain" min="0.1" max="10" step="0.1" value="1.0">
+        </label>
+        <label class="param-row">
+          <span class="param-label">Chute de fragments <small class="muted">× base</small></span>
+          <input type="number" id="eco-frag-drop" min="0.1" max="10" step="0.1" value="1.0">
+        </label>
+      </div>
+    </div>
+
+    <!-- Coûts des coffres -->
+    <div class="overview-card">
+      <h3 class="overview-card-title">Coûts des coffres</h3>
+      <p class="muted" style="margin-bottom:12px">Override les coûts par défaut (vide = valeur par défaut du code).</p>
+      <div class="params-grid" id="eco-chest-costs-grid">
+        <label class="param-row">
+          <span class="param-label">📦 Coffre simple <small class="muted">def: 2 000</small></span>
+          <input type="number" id="eco-cost-simple" min="1" step="1" placeholder="2000">
+        </label>
+        <label class="param-row">
+          <span class="param-label">💎 Coffre rare <small class="muted">def: 15 000</small></span>
+          <input type="number" id="eco-cost-rare" min="1" step="1" placeholder="15000">
+        </label>
+        <label class="param-row">
+          <span class="param-label">🏺 Coffre antique <small class="muted">def: 80 000</small></span>
+          <input type="number" id="eco-cost-antique" min="1" step="1" placeholder="80000">
+        </label>
+      </div>
+    </div>
+
+    <div class="form-actions" style="margin-bottom:24px">
+      <button class="btn" id="btn-save-economy">Enregistrer les paramètres économiques</button>
+      <p id="eco-msg" class="success hidden">Paramètres sauvegardés !</p>
+      <p id="eco-err" class="error hidden"></p>
+    </div>
+
+    <!-- Recherche de joueurs -->
+    <div class="overview-card">
+      <h3 class="overview-card-title">Debug joueur</h3>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+        <input type="text" id="player-search-input" placeholder="Rechercher un joueur..." style="flex:1;min-width:180px">
+        <button class="btn" id="btn-player-search">Rechercher</button>
+      </div>
+      <div id="player-search-results" class="hidden">
+        <table id="player-results-table">
+          <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Ligue</th><th>Depuis</th><th>Action</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Détails d'un joueur -->
+    <div id="player-detail-card" class="overview-card hidden">
+      <div class="section-header" style="margin-bottom:12px">
+        <h3 class="overview-card-title" style="margin:0">👤 <span id="pd-username">—</span></h3>
+        <button class="btn btn-outline btn-sm" id="btn-close-player-detail">Fermer</button>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-item"><span class="stat-label">💰 Coins</span><span class="stat-value" id="pd-coins">—</span></div>
+        <div class="stat-item"><span class="stat-label">⛏ Profondeur</span><span class="stat-value" id="pd-depth">—</span></div>
+        <div class="stat-item"><span class="stat-label">🪨 Pioche niv.</span><span class="stat-value" id="pd-pickaxe">—</span></div>
+        <div class="stat-item"><span class="stat-label">💎 Gems</span><span class="stat-value" id="pd-gems">—</span></div>
+        <div class="stat-item"><span class="stat-label">🔮 Fragments</span><span class="stat-value" id="pd-frags">—</span></div>
+        <div class="stat-item"><span class="stat-label">✨ Reliques</span><span class="stat-value" id="pd-relics">—</span></div>
+        <div class="stat-item"><span class="stat-label">⬆ Chance</span><span class="stat-value" id="pd-luck">—</span></div>
+        <div class="stat-item"><span class="stat-label">⬆ Sac</span><span class="stat-value" id="pd-bag">—</span></div>
+        <div class="stat-item"><span class="stat-label">⬆ Auto-dig</span><span class="stat-value" id="pd-autodig">—</span></div>
+        <div class="stat-item"><span class="stat-label">📦 Coffres</span><span class="stat-value" id="pd-chests">—</span></div>
+        <div class="stat-item"><span class="stat-label">⏱ Sauvegardé</span><span class="stat-value" id="pd-updated">—</span></div>
+        <div class="stat-item"><span class="stat-label">🔢 Save v.</span><span class="stat-value" id="pd-version">—</span></div>
+      </div>
+
+      <!-- Reset saisonnier -->
+      <div class="danger-zone" style="margin-top:16px;padding:12px;border-radius:8px">
+        <p class="muted" style="margin-bottom:10px">Reset saisonnier : remet coins, profondeur, upgrades et coffres à zéro. Gems plafonnées. Reliques et fragments conservés.</p>
+        <button class="btn btn-danger btn-sm" id="btn-season-reset-player">⚠ Reset saisonnier</button>
+        <div id="player-reset-confirm" class="confirm-dialog hidden" style="margin-top:10px">
+          <p>Confirmer le reset saisonnier pour <strong id="pr-confirm-name"></strong> ?</p>
+          <p class="muted" style="margin-top:4px;font-size:0.85rem">Irréversible. Gems plafonnées, reliques/fragments conservés.</p>
+          <div class="form-actions" style="margin-top:10px">
+            <button class="btn btn-danger btn-sm" id="btn-confirm-player-reset">Confirmer</button>
+            <button class="btn btn-outline btn-sm" id="btn-cancel-player-reset">Annuler</button>
+          </div>
+        </div>
+        <p id="player-reset-msg" class="success hidden" style="margin-top:8px">Reset appliqué !</p>
+        <p id="player-reset-err" class="error hidden" style="margin-top:8px"></p>
+      </div>
+    </div>
+
+  </section>
+
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>
