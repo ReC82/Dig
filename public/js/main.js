@@ -235,24 +235,54 @@ function renderBoostBanner() {
 
 // ── Rendu bouton pub ──────────────────────────────────────────────────────────
 
-function renderAdButton() {
-  const btn     = document.getElementById('btn-watch-ad');
-  const timerEl = document.getElementById('ad-timer');
+/**
+ * Source de vérité unique pour l'état du bouton pub.
+ * Gère : visibilité (jamais display:none), disabled, icône, texte, timer.
+ *
+ * Trois états :
+ *   ready    — pub disponible → bouton actif, texte d'invitation
+ *   used     — regardée il y a < 30 s → icône ✅, "Bonus déjà utilisé"
+ *   cooldown — cooldown actif → icône ⏳, texte + countdown sous le bouton
+ */
+function updateAdButtonState() {
+  const btn    = document.getElementById('btn-watch-ad');
+  const textEl = btn ? btn.querySelector('.ad-btn-text') : null;
+  const iconEl = btn ? btn.querySelector('.ad-btn-icon') : null;
+  const timer  = document.getElementById('ad-timer');
   if (!btn) return;
 
-  const available = Monetization.canWatchAd();
-  btn.disabled = !available;
+  // Garantit la présence dans le flux — annule tout display:none hérité ou inline
+  btn.style.display = '';
 
-  if (timerEl) {
-    if (available) {
-      timerEl.textContent = '';
-    } else {
-      const ms = Monetization.getCooldownRemainingMs();
-      const totalSec = Math.ceil(ms / 1000);
-      const min = Math.floor(totalSec / 60);
-      const sec = totalSec % 60;
-      timerEl.textContent = t('ui.ad_cooldown', { min, sec: String(sec).padStart(2, '0') });
-    }
+  const available = Monetization.canWatchAd();
+  const remainMs  = Monetization.getCooldownRemainingMs();
+
+  if (available) {
+    // ── Pub disponible ────────────────────────────────────────────────────────
+    btn.disabled        = false;
+    btn.dataset.adState = 'ready';
+    if (iconEl) iconEl.textContent = '📺';
+    if (textEl) textEl.textContent = t('ui.btn_watch_ad');
+    if (timer)  timer.textContent  = '';
+
+  } else if (remainMs > Monetization.AD_COOLDOWN_MS - 30_000) {
+    // ── Vient d'être regardée (< 30 s) ───────────────────────────────────────
+    btn.disabled        = true;
+    btn.dataset.adState = 'used';
+    if (iconEl) iconEl.textContent = '✅';
+    if (textEl) textEl.textContent = t('ui.ad_used');
+    if (timer)  timer.textContent  = '';
+
+  } else {
+    // ── Cooldown actif ────────────────────────────────────────────────────────
+    btn.disabled        = true;
+    btn.dataset.adState = 'cooldown';
+    const totalSec = Math.ceil(remainMs / 1000);
+    const min      = Math.floor(totalSec / 60);
+    const sec      = totalSec % 60;
+    if (iconEl) iconEl.textContent = '⏳';
+    if (textEl) textEl.textContent = t('ui.ad_soon');
+    if (timer)  timer.textContent  = t('ui.ad_cooldown', { min, sec: String(sec).padStart(2, '0') });
   }
 }
 
@@ -1757,7 +1787,7 @@ document.getElementById('btn-watch-ad').addEventListener('click', () => {
       renderBlock();          // affiche immédiatement "💰 X ⚡×N → 💰 Y"
       renderBoostBanner();
       renderStats();
-      renderAdButton();
+      updateAdButtonState();
       Save.save();
     },
     () => { /* joueur a passé la pub — pas de récompense */ }
@@ -1790,7 +1820,7 @@ elResetBtn.addEventListener('click', () => {
   renderCollection();
   if (isViewActive('collection')) renderRelics();
   renderBoostBanner();
-  renderAdButton();
+  updateAdButtonState();
   if (isViewActive('daily')) renderDaily();
   if (isViewActive('shop'))  renderShop();
   updateDailyBadge();
@@ -1861,7 +1891,7 @@ function init() {
   renderShopChests();
   renderQuests();
   renderBoostBanner();
-  renderAdButton();
+  updateAdButtonState();
   spawnBlock();
   renderStats();
 
@@ -1872,7 +1902,7 @@ function init() {
 
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
-  setInterval(() => { renderBoostBanner(); renderAdButton(); }, 1_000);
+  setInterval(() => { renderBoostBanner(); updateAdButtonState(); }, 1_000);
   setInterval(_pollSeason,      5 * 60_000); // vérifie la saison toutes les 5 min
 
   // Récupère l'état de session (non bloquant — la page est déjà jouable)

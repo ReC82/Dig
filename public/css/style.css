@@ -504,9 +504,42 @@ h1 {
   transform: scale(1.03);
 }
 .ad-btn:not(:disabled):active { transform: scale(0.97); }
-.ad-btn:disabled { opacity: 0.38; cursor: not-allowed; }
 
-.ad-btn-icon { font-size: 1rem; }
+/* Base disabled — remplacé par les règles data-ad-state ci-dessous */
+.ad-btn:disabled { cursor: not-allowed; }
+
+/* ── États pub (appliqués par updateAdButtonState()) ── */
+/* display: flex est toujours garanti via btn.style.display = '' en JS */
+
+.ad-btn[data-ad-state="ready"] {
+  display: flex;                           /* sécurité CSS */
+  background: rgba(74, 222, 128, 0.07);
+  border-color: rgba(74, 222, 128, 0.22);
+  color: var(--green);
+  opacity: 1;
+}
+
+.ad-btn[data-ad-state="cooldown"] {
+  display: flex;
+  background: rgba(107, 114, 128, 0.06);
+  border-color: rgba(107, 114, 128, 0.18);
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.ad-btn[data-ad-state="used"] {
+  display: flex;
+  background: rgba(74, 222, 128, 0.04);
+  border-color: rgba(74, 222, 128, 0.14);
+  color: var(--green);
+  opacity: 0.55;
+}
+
+.ad-btn-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+  transition: none;        /* évite le flash à chaque tick de la seconde */
+}
 .ad-btn-text { }
 
 #ad-timer {
