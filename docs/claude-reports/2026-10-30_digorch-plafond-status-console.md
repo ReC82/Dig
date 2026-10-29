@@ -67,3 +67,27 @@ Rapport réécrit, avec un calcul d'état commun à `status` et `pulse` (`observ
 
 - Sauvegarde : `~/backups/dig-orch/config-20261029-235350/` (`lqorch.py`, `instance.env`, `README.md`, `dig-orch-console.service`).
 - Restaurer ces fichiers, lancer `sudo systemctl daemon-reload`, puis `digorch reload` (sans couper de session) et `sudo systemctl restart dig-orch-console`.
+
+## 6. Directive du 30/10 : déploiement continu (mise à jour)
+
+- **`/opt/dig-orch/session_prompt.md`** est réécrit selon la directive du propriétaire. Le cycle d'un ticket devient : développer → tester → sauvegarder → déployer → vérifier → test proposé → recette.
+- **Procédure de déploiement imposée aux sessions :**
+  1. release au SHA exact, avec `npm ci` et `npm test` ;
+  2. migration essayée sur une copie de la base en mode production, avec comparaison d'empreintes ;
+  3. avance rapide de `main` ;
+  4. `scripts/deploy.sh` de la release ;
+  5. vérifications ;
+  6. retour arrière sans jamais restaurer la base.
+- **Interdits maintenus :**
+  - suppression ou réinitialisation de données ;
+  - migration irréversible ;
+  - AWS ;
+  - dépense externe significative ;
+  - règle métier majeure non validée ;
+  - autres projets.
+- **#22 :** génération autorisée dans le plafond local, au plus 3 propositions par matériau, avec la pierre C en référence. `legacy` reste par défaut.
+- **Rapport de nuit :** `~/.local/state/dig-orch/reports/rapport-de-nuit.md`, tenu à jour par chaque session et envoyé par e-mail à 07:00 (timer transitoire `dig-rapport-de-nuit`).
+- **`digorch pulse`** affiche maintenant 3 lignes :
+  1. état, ticket, sessions X/30 et quota Claude (5 h et 7 jours) ;
+  2. dernière action de Claude ou raison de l'inactivité ;
+  3. version servie en production, commits de `develop` non déployés, tickets bloqués, et l'avertissement au-delà de 15 min sans activité.
