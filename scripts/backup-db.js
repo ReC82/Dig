@@ -69,6 +69,21 @@ function verifyDb(file) {
   }
 }
 
+/**
+ * Rend une copie autonome : l'API backup recopie l'en-tête WAL de la source, si bien que toute
+ * ouverture ultérieure recréait des fichiers -wal / -shm à côté de la copie. Passage en journal
+ * classique (DELETE), puis retrait de ces fichiers annexes.
+ */
+function finalizeCopy(file) {
+  const db = new Database(file, { fileMustExist: true });
+  try {
+    db.pragma('journal_mode = DELETE');
+  } finally {
+    db.close();
+  }
+  for (const extra of [`${file}-wal`, `${file}-shm`]) fs.rmSync(extra, { force: true });
+}
+
 /** Supprime les sauvegardes plus anciennes que la rétention, en gardant toujours les keepMin plus récentes. */
 function applyRetention(cfg, now = Date.now()) {
   const files = fs.readdirSync(cfg.backupDir).filter((f) => BACKUP_RE.test(f)).sort().reverse();
@@ -104,9 +119,10 @@ async function backup(cfg, label = '') {
   }
   let check;
   try {
+    finalizeCopy(tmp);
     check = verifyDb(tmp);
   } catch (err) {
-    fs.rmSync(tmp, { force: true });
+    for (const f of [tmp, `${tmp}-wal`, `${tmp}-shm`]) fs.rmSync(f, { force: true });
     throw new Error(`sauvegarde invalide, supprimée : ${err.message}`);
   }
   fs.renameSync(tmp, dest);
@@ -139,7 +155,7 @@ async function backup(cfg, label = '') {
   return manifest;
 }
 
-module.exports = { config, backup, verifyDb, applyRetention, BACKUP_RE };
+module.exports = { config, backup, verifyDb, finalizeCopy, applyRetention, BACKUP_RE };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
