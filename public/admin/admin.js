@@ -6,6 +6,39 @@
 let _secret = null;
 let _currentSeasonId = null;
 
+// ── Rendu sûr (ticket #15) ────────────────────────────────────────────────────
+// Toute donnée venant de l'API (noms, e-mails, dates, config…) passe par
+// textContent ou une propriété DOM, jamais par innerHTML : seules des chaînes
+// statiques sont affectées à innerHTML dans ce fichier (vérifié par les tests).
+
+/** Ajoute une cellule dont le contenu est du texte brut. */
+function addCell(tr, value) {
+  const td = document.createElement('td');
+  td.textContent = value === null || value === undefined ? '' : String(value);
+  tr.appendChild(td);
+  return td;
+}
+
+/** Ajoute une cellule contenant un bouton « fantôme ». */
+function addButtonCell(tr, label, onClick) {
+  const td  = document.createElement('td');
+  const btn = document.createElement('button');
+  btn.className   = 'btn-ghost';
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  td.appendChild(btn);
+  tr.appendChild(td);
+  return td;
+}
+
+/** Badge de statut ; la classe n'accepte que des caractères sûrs. */
+function statusBadge(status) {
+  const span = document.createElement('span');
+  span.className   = `badge-${String(status).replace(/[^a-z0-9_-]/gi, '')}`;
+  span.textContent = status;
+  return span;
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 async function api(method, path, body) {
@@ -79,16 +112,10 @@ async function loadSeasons() {
   data.seasons.forEach(s => {
     if (s.status === 'active') { _currentSeasonId = s.id; document.getElementById('lb-season-name').textContent = s.name; }
     const tr = document.createElement('tr');
-    const statusBadge = `<span class="badge-${s.status}">${s.status}</span>`;
-    tr.innerHTML = `
-      <td>${s.id}</td>
-      <td>${s.name}</td>
-      <td>${s.start_at}</td>
-      <td>${s.end_at}</td>
-      <td>${statusBadge}</td>
-      <td>
-        ${s.status === 'active' ? `<button class="btn-ghost" onclick="endSeason(${s.id})">Clore</button>` : ''}
-      </td>`;
+    [s.id, s.name, s.start_at, s.end_at].forEach(v => addCell(tr, v));
+    addCell(tr, '').appendChild(statusBadge(s.status));
+    if (s.status === 'active') addButtonCell(tr, 'Clore', () => endSeason(s.id));
+    else addCell(tr, '');
     tbody.appendChild(tr);
   });
 }
@@ -132,14 +159,8 @@ async function loadLeagues() {
 
   data.leagues.forEach(l => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${l.id}</td>
-      <td>${l.icon} ${l.name}</td>
-      <td>${l.level}</td>
-      <td>${l.rank_min}</td>
-      <td>${l.rank_max ?? '∞'}</td>
-      <td>${l.sort_order}</td>
-      <td><button class="btn-ghost" onclick="deleteLeague(${l.id}, '${l.name}')">Supprimer</button></td>`;
+    [l.id, `${l.icon} ${l.name}`, l.level, l.rank_min, l.rank_max ?? '∞', l.sort_order].forEach(v => addCell(tr, v));
+    addButtonCell(tr, 'Supprimer', () => deleteLeague(l.id, l.name));
     tbody.appendChild(tr);
   });
 }
@@ -196,19 +217,11 @@ async function loadLeaderboard() {
     const tr = document.createElement('tr');
     const reported = r.reportedMaxDepth != null && r.reportedMaxDepth !== r.maxDepth
       ? `${r.reportedMaxDepth}m ⚠` : '—';
-    const cells = [
+    [
       `#${r.rank}`, r.username, `${r.maxDepth}m`, reported, r.manualBlocks,
       r.league ? `${r.league.icon} ${r.league.name}` : '—',
-    ];
-    // textContent : le nom du joueur n'est jamais interprété comme du HTML
-    cells.forEach(v => { const td = document.createElement('td'); td.textContent = String(v); tr.appendChild(td); });
-    const td  = document.createElement('td');
-    const btn = document.createElement('button');
-    btn.className   = 'btn-ghost';
-    btn.textContent = 'Corriger';
-    btn.addEventListener('click', () => correctRanking(r));
-    td.appendChild(btn);
-    tr.appendChild(td);
+    ].forEach(v => addCell(tr, v));
+    addButtonCell(tr, 'Corriger', () => correctRanking(r));
     tbody.appendChild(tr);
   });
 }
@@ -254,10 +267,19 @@ async function loadConfig() {
   Object.entries(data.config).forEach(([key, value]) => {
     const div = document.createElement('div');
     div.className = 'config-row';
-    div.innerHTML = `
-      <span class="config-key">${key}</span>
-      <span class="muted config-label" style="flex:2">${CONFIG_LABELS[key] ?? ''}</span>
-      <input class="config-value" data-key="${key}" type="text" value="${value}">`;
+    const keyEl = document.createElement('span');
+    keyEl.className   = 'config-key';
+    keyEl.textContent = key;
+    const labelEl = document.createElement('span');
+    labelEl.className   = 'muted config-label';
+    labelEl.style.flex  = '2';
+    labelEl.textContent = CONFIG_LABELS[key] ?? '';
+    const input = document.createElement('input');
+    input.className   = 'config-value';
+    input.dataset.key = key;
+    input.type        = 'text';
+    input.value       = value ?? '';
+    div.append(keyEl, labelEl, input);
     container.appendChild(div);
   });
 }
@@ -310,7 +332,7 @@ async function loadSeasonOverview() {
   _overviewSeasonId = season.id;
 
   document.getElementById('ov-season-name').textContent    = season.name;
-  document.getElementById('ov-season-status').innerHTML    = `<span class="badge-${season.status}">${season.status}</span>`;
+  document.getElementById('ov-season-status').replaceChildren(statusBadge(season.status));
   document.getElementById('ov-season-start').textContent   = season.start_at;
   document.getElementById('ov-season-end').textContent     = season.end_at;
   document.getElementById('ov-season-players').textContent = activePlayers;
@@ -324,12 +346,8 @@ async function loadSeasonOverview() {
   } else {
     leagues.forEach(l => {
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${l.icon} ${l.name}</td>
-        <td>${l.level}</td>
-        <td>${l.total_players}</td>
-        <td>${l.active_players}</td>
-        <td><button class="btn-ghost" onclick="focusLeagueLeaderboard(${l.id})">Voir</button></td>`;
+      [`${l.icon} ${l.name}`, l.level, l.total_players, l.active_players].forEach(v => addCell(tr, v));
+      addButtonCell(tr, 'Voir', () => focusLeagueLeaderboard(l.id));
       tbody.appendChild(tr);
     });
   }
@@ -359,15 +377,20 @@ async function loadSeasonParams() {
     if (data.config[key] === undefined) return;
     const div = document.createElement('div');
     div.className = 'param-row';
-    const extra = [
-      type === 'number' ? `type="number"` : `type="text"`,
-      min  != null ? `min="${min}"` : '',
-      max  != null ? `max="${max}"` : '',
-      step != null ? `step="${step}"` : '',
-    ].filter(Boolean).join(' ');
-    div.innerHTML = `
-      <label class="param-label" for="param-${key}">${label}</label>
-      <input id="param-${key}" class="ov-param-value" data-key="${key}" ${extra} value="${data.config[key]}">`;
+    const labelEl = document.createElement('label');
+    labelEl.className   = 'param-label';
+    labelEl.htmlFor     = `param-${key}`;
+    labelEl.textContent = label;
+    const input = document.createElement('input');
+    input.id          = `param-${key}`;
+    input.className   = 'ov-param-value';
+    input.dataset.key = key;
+    input.type        = type === 'number' ? 'number' : 'text';
+    if (min  != null) input.min  = String(min);
+    if (max  != null) input.max  = String(max);
+    if (step != null) input.step = String(step);
+    input.value = data.config[key] ?? '';
+    div.append(labelEl, input);
     grid.appendChild(div);
   });
 }
@@ -435,7 +458,11 @@ document.getElementById('btn-confirm-close').addEventListener('click', async () 
     resultEl.textContent = data.error ?? 'Erreur lors de la clôture.';
   } else {
     resultEl.className = 'success';
-    resultEl.innerHTML = `✓ Saison <strong>${data.closedSeason?.name ?? ''}</strong> clôturée. Nouvelle saison : <strong>${data.newSeason?.name ?? ''}</strong>`;
+    const closedName = document.createElement('strong');
+    closedName.textContent = data.closedSeason?.name ?? '';
+    const newName = document.createElement('strong');
+    newName.textContent = data.newSeason?.name ?? '';
+    resultEl.replaceChildren('✓ Saison ', closedName, ' clôturée. Nouvelle saison : ', newName);
     // Recharge les onglets concernés après 3 s
     setTimeout(() => { resultEl.classList.add('hidden'); loadSeasonOverview(); loadSeasons(); }, 3000);
   }
@@ -469,7 +496,7 @@ async function loadLeagueLeaderboardView() {
 
   data.leaderboard.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>#${r.rank}</td><td>${r.username}</td><td>${r.maxDepth}m</td><td>${r.manualBlocks}</td>`;
+    [`#${r.rank}`, r.username, `${r.maxDepth}m`, r.manualBlocks].forEach(v => addCell(tr, v));
     tbody.appendChild(tr);
   });
 }
@@ -480,14 +507,14 @@ document.getElementById('ov-league-select').addEventListener('change', loadLeagu
 
 async function loadAntiCheatLogs() {
   const action = document.getElementById('ac-filter-action').value;
-  const url    = '/api/admin/anticheat/logs?limit=100' + (action ? `&action=${action}` : '');
+  const url    = '/api/admin/anticheat/logs?limit=100' + (action ? `&action=${encodeURIComponent(action)}` : '');
   const { ok, data } = await api('GET', url);
 
   const tbody   = document.getElementById('ac-log-body');
   const totalEl = document.getElementById('ac-log-total');
 
   if (!ok) {
-    tbody.innerHTML = `<tr><td colspan="6" class="error">Erreur lors du chargement.</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="6" class="error">Erreur lors du chargement.</td></tr>';
     return;
   }
 
@@ -624,12 +651,12 @@ async function searchPlayers() {
   const resultsDiv = document.getElementById('player-search-results');
   const tbody      = document.querySelector('#player-results-table tbody');
   if (!ok) {
-    tbody.innerHTML = `<tr><td colspan="6" class="error">Erreur lors de la recherche.</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="6" class="error">Erreur lors de la recherche.</td></tr>';
     resultsDiv.classList.remove('hidden');
     return;
   }
   if (!data.users.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="muted">Aucun joueur trouvé.</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucun joueur trouvé.</td></tr>';
     resultsDiv.classList.remove('hidden');
     return;
   }
@@ -637,8 +664,8 @@ async function searchPlayers() {
   data.users.forEach(u => {
     const tr    = document.createElement('tr');
     const since = (u.created_at ?? '').substring(0, 10);
-    const safeName = u.username.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    tr.innerHTML = `<td>${u.id}</td><td>${u.username}</td><td>${u.email ?? '—'}</td><td>${u.league_id ?? '—'}</td><td>${since}</td><td><button class="btn-ghost" onclick="viewPlayerSave(${u.id}, '${safeName}')">Voir</button></td>`;
+    [u.id, u.username, u.email ?? '—', u.league_id ?? '—', since].forEach(v => addCell(tr, v));
+    addButtonCell(tr, 'Voir', () => viewPlayerSave(u.id, u.username));
     tbody.appendChild(tr);
   });
   resultsDiv.classList.remove('hidden');
