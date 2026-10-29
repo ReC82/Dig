@@ -47,7 +47,7 @@ const logs = userId => db.getDb().prepare('SELECT * FROM anticheat_logs WHERE us
 
 test.before(() => {
   db.initDb();
-  seasonId = db.createSeason('Test', '2026-10-26 00:00:00', '2026-11-01 23:59:59').id;
+  seasonId = db.createSeason('Test', '2026-10-26 00:00:00', '2026-11-01 23:59:59', 'closed').id; // la saison active est celle du seed (#16)
 });
 
 test.after(() => {

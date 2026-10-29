@@ -18,28 +18,44 @@ const {
   getDepthTracking, upsertDepthTracking,
 } = db;
 
+const cal = require('./seasonCalendar');
+const { fmtUtc } = cal;
+
+/** Limite de rattrapage : nombre maximal de saisons enchaînées en une passe (serveur arrêté longtemps). */
+const MAX_CATCHUP_SEASONS = 520;
+/** Intervalle du planificateur de rotation (ms). */
+const SCHEDULER_INTERVAL_MS = 60_000;
+
+/** Nom de saison libre : "Saison 44-2026", sinon "Saison 44-2026 · 2"… (clôture anticipée). */
+function _uniqueSeasonName(start) {
+  const base = cal.seasonName(start);
+  let name = base;
+  for (let i = 2; db.seasonNameExists(name); i++) name = `${base} · ${i}`;
+  return name;
+}
+
 /**
- * Calcule le lundi et le dimanche de la semaine suivant une date donnée.
- * @param {Date} ref  Date de référence
+ * Ouvre la saison qui suit une saison terminée à `prevEnd` (null : aucune saison antérieure).
+ * À appeler dans une transaction, après la clôture de la précédente.
+ *  - début = prevEnd + 1 s (sans trou) ; sinon lundi de la semaine de `now` ;
+ *  - fin   = dimanche 23:59:59 de la semaine ISO du début ;
+ *  - une saison programmée par l'admin (status 'scheduled') prend le relais à sa date :
+ *    activée si elle a commencé, sinon la saison créée s'arrête juste avant elle.
  */
-function nextWeekBounds(ref) {
-  const day        = ref.getUTCDay(); // 0=dim … 6=sam
-  const diffToNext = (day === 0 ? 1 : 8 - day);
-  const monday     = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), ref.getUTCDate() + diffToNext));
-  const sunday     = new Date(monday.getTime() + 7 * 24 * 60 * 60 * 1000 - 1000);
-  return { monday, sunday };
-}
+function _openNextSeason(prevEnd, now) {
+  let { start, end } = prevEnd ? cal.nextSeasonPeriod(prevEnd) : cal.weekBounds(now);
 
-/** Formate une Date en "YYYY-MM-DD HH:MM:SS" UTC (format SQLite). */
-function fmtUtc(d) {
-  return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
-}
+  const scheduled = db.getNextScheduledSeason();
+  const schedStart = scheduled ? cal.parseUtc(scheduled.start_at) : null;
+  if (scheduled && schedStart && schedStart <= start) {
+    console.log(`[seasons] Saison programmée activée : ${scheduled.name} (id=${scheduled.id})`);
+    return updateSeason(scheduled.id, { status: 'active' });
+  }
+  if (schedStart && schedStart <= end) end = new Date(schedStart.getTime() - cal.SEC_MS);
 
-/** Numéro de semaine ISO approximatif pour le nom de la saison. */
-function weekLabel(monday) {
-  const start = new Date(Date.UTC(monday.getUTCFullYear(), 0, 1));
-  const week  = Math.ceil(((monday - start) / 86_400_000 + start.getUTCDay() + 1) / 7);
-  return `Saison ${week}-${monday.getUTCFullYear()}`;
+  const season = createSeason(_uniqueSeasonName(start), fmtUtc(start), fmtUtc(end));
+  console.log(`[seasons] Nouvelle saison : ${season.name} (id=${season.id}, ${season.start_at} → ${season.end_at})`);
+  return season;
 }
 
 // ── Noms / icônes pour les ligues auto-créées ─────────────────────────────────
@@ -139,7 +155,7 @@ function _applyPromotions(season, config) {
  * @returns {{ closedSeason, newSeason, report }}
  * @throws {Error} si la saison n'est pas active ou si elle n'existe pas
  */
-function closeActiveSeason(seasonId) {
+function closeActiveSeason(seasonId, now = new Date()) {
   const season = getSeasonById(seasonId);
   if (!season) throw new Error(`Saison ${seasonId} introuvable.`);
   if (season.status !== 'active') {
@@ -158,26 +174,29 @@ function closeActiveSeason(seasonId) {
     const promotionReport = _applyPromotions(season, config);
     report.push(...promotionReport);
 
-    const now = fmtUtc(new Date());
+    const closedAt = fmtUtc(now);
 
-    // 2. Marquer la saison comme fermée + stocker le rapport
+    // 2. Marquer la saison comme fermée + stocker le rapport.
+    // Clôture anticipée (admin) ou end_at illisible : la fin effective devient l'instant de
+    // clôture, pour que la saison suivante s'enchaîne sans trou ni chevauchement (#16).
+    const plannedEnd = cal.parseUtc(season.end_at);
+    const end        = plannedEnd && plannedEnd <= now ? plannedEnd : cal.endBefore(now);
     const closePayload = {
       promotionApplied: true,
-      closedAt:         now,
+      closedAt,
       gemsCap:          parseInt(config.gems_cap ?? '100', 10),
       report,
     };
+    if (fmtUtc(end) !== season.end_at) closePayload.plannedEndAt = season.end_at;
     updateSeason(season.id, {
       status:    'closed',
-      closed_at: now,
+      closed_at: closedAt,
+      end_at:    fmtUtc(end),
       config:    JSON.stringify(closePayload),
     });
 
-    // 3. Créer la saison suivante (lundi prochain → dimanche)
-    const { monday, sunday } = nextWeekBounds(new Date());
-    const newSeason = createSeason(weekLabel(monday), fmtUtc(monday), fmtUtc(sunday));
-    console.log(`[seasons][close] Nouvelle saison créée : ${newSeason.name} (id=${newSeason.id})`);
-    return newSeason;
+    // 3. Ouvrir la saison suivante, qui commence à la seconde suivant la fin (#16)
+    return _openNextSeason(end, now);
   });
 
   const newSeason = closeTx();
@@ -192,35 +211,77 @@ function closeActiveSeason(seasonId) {
 }
 
 /**
- * Vérifie si la saison active est expirée ; si oui, la clôture (avec promotions) et crée la suivante.
- * Appelée sur chaque POST /api/me/save et GET /api/seasons/current.
+ * Rotation des saisons (#16) : clôture la saison active expirée (avec promotions) et ouvre la
+ * suivante à end_at + 1 s. Rattrape plusieurs semaines si le serveur a été arrêté, chaque
+ * semaine gardant sa propre saison : l'historique reste contigu.
+ * Appelée par le planificateur (chaque minute), au démarrage, sur POST /api/me/save et
+ * GET /api/seasons/current. Idempotente.
+ * @param {Date} [now]  Horloge injectable (tests)
  * @returns {object} La saison active après rotation éventuelle.
  */
-function checkAndRotateSeason() {
-  let season = getActiveSeason();
+function checkAndRotateSeason(now = new Date()) {
+  for (let i = 0; i < MAX_CATCHUP_SEASONS; i++) {
+    const season = getActiveSeason();
 
-  if (season && new Date(season.end_at + 'Z') > new Date()) {
-    return season; // saison en cours, rien à faire
-  }
+    if (!season) {
+      // Aucune saison active (base existante sans saison active, clôture admin…) :
+      // reprise à la fin de la dernière saison terminée, sinon semaine courante.
+      getDb().transaction(() => {
+        if (getActiveSeason()) return;
+        const last = db.getLastEndedSeason();
+        const lastEnd = last ? cal.parseUtc(last.end_at) : null;
+        _openNextSeason(lastEnd, now);
+      })();
+      continue;
+    }
 
-  if (season) {
-    // Clôture avec promotions + création de la suivante
+    const end = cal.parseUtc(season.end_at);
+    if (!end) {
+      // Date illisible : ne jamais clôturer « par erreur » (ancien comportement) — à corriger via l'admin.
+      console.warn(`[seasons] end_at illisible pour la saison ${season.id} (${season.end_at}) : rotation suspendue`);
+      return season;
+    }
+    if (end > now) return season;
+
     try {
-      const { newSeason } = closeActiveSeason(season.id);
-      return newSeason;
+      closeActiveSeason(season.id, now);
     } catch (err) {
-      // La saison était déjà clôturée (race condition) — récupère la nouvelle active
       console.warn(`[seasons] checkAndRotateSeason : ${err.message}`);
-      const active = getActiveSeason();
-      if (active) return active;
+      return getActiveSeason() ?? season;
     }
   }
+  console.warn(`[seasons] Rattrapage interrompu après ${MAX_CATCHUP_SEASONS} saisons`);
+  return getActiveSeason();
+}
 
-  // Aucune saison active — en créer une maintenant
-  const { monday, sunday } = nextWeekBounds(new Date());
-  season = createSeason(weekLabel(monday), fmtUtc(monday), fmtUtc(sunday));
-  console.log(`[seasons] Saison initiale créée : ${season.name}`);
-  return season;
+/** Vrai si `nowMs` est dans la période [start_at, end_at] de la saison. */
+function isWithinSeason(season, nowMs = Date.now()) {
+  const start = cal.parseUtc(season?.start_at);
+  const end   = cal.parseUtc(season?.end_at);
+  return !!(start && end && nowMs >= start.getTime() && nowMs <= end.getTime());
+}
+
+let _schedulerTimer = null;
+
+/**
+ * Lance la rotation planifiée côté serveur : une passe immédiate puis une par minute.
+ * Le timer est `unref()` : il n'empêche pas l'arrêt du processus.
+ */
+function startSeasonScheduler(intervalMs = SCHEDULER_INTERVAL_MS) {
+  if (_schedulerTimer) return _schedulerTimer;
+  const tick = () => {
+    try { checkAndRotateSeason(new Date()); }
+    catch (err) { console.error('[seasons][scheduler]', err.message); }
+  };
+  tick();
+  _schedulerTimer = setInterval(tick, intervalMs);
+  if (typeof _schedulerTimer.unref === 'function') _schedulerTimer.unref();
+  return _schedulerTimer;
+}
+
+function stopSeasonScheduler() {
+  if (_schedulerTimer) clearInterval(_schedulerTimer);
+  _schedulerTimer = null;
 }
 
 // ── Anti-autoclicker (validation serveur) ─────────────────────────────────────
@@ -544,6 +605,11 @@ function syncPlayerRanking(userId, seasonStats) {
     console.warn(`[seasons] syncPlayerRanking : décalage de saison client=${seasonId} serveur=${season.id}`);
     return;
   }
+  // Aucun score hors de la période de la saison (avant start_at ou après end_at) — #16
+  if (!isWithinSeason(season)) {
+    console.warn(`[seasons] syncPlayerRanking : saison ${season.id} hors période (${season.start_at} → ${season.end_at}), score ignoré`);
+    return;
+  }
 
   const user       = getUserById(userId);
   const userLeague = getUserLeague(userId);
@@ -752,6 +818,9 @@ function buildActiveSeasonLeaderboard(leagueId = null, page = 1) {
 
 module.exports = {
   checkAndRotateSeason,
+  isWithinSeason,
+  startSeasonScheduler,
+  stopSeasonScheduler,
   closeActiveSeason,
   syncPlayerRanking,
   processAntiCheat,

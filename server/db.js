@@ -17,6 +17,7 @@
 const Database = require('better-sqlite3');
 const path     = require('path');
 const fs       = require('fs');
+const cal      = require('./seasonCalendar');
 
 const DATA_DIR = path.join(__dirname, 'data');
 // DB_FILE : nom relatif à server/data/ (défaut) ou chemin absolu (tests).
@@ -343,19 +344,24 @@ function initDb() {
     ).run('Mimosa', '🌼', 0, 1, 10, 0);
   }
 
-  // ── Seed : saison active ──────────────────────────────────────────────────
+  // ── Seed : saison active (semaine ISO courante, ticket #16) ───────────────
   const activeSeason = _db.prepare(`SELECT id FROM seasons WHERE status='active' LIMIT 1`).get();
-  if (!activeSeason) {
-    const now   = new Date();
-    const day   = now.getUTCDay();
-    const diffToMonday = (day === 0 ? -6 : 1 - day);
-    const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + diffToMonday));
-    const sunday = new Date(monday.getTime() + 7 * 24 * 60 * 60 * 1000 - 1000);
-    const fmt = d => d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
-    const weekNum = Math.ceil((monday.getUTCDate() + new Date(Date.UTC(monday.getUTCFullYear(), 0, 1)).getUTCDay()) / 7);
+  const anySeason    = _db.prepare(`SELECT id FROM seasons LIMIT 1`).get();
+  if (!activeSeason && !anySeason) {
+    // Base vierge uniquement : sinon la rotation (seasons.js) enchaîne depuis la dernière saison.
+    const { start, end } = cal.weekBounds(new Date());
     _db.prepare(
       `INSERT INTO seasons (name, start_at, end_at, status) VALUES (?,?,?,'active')`
-    ).run(`Saison ${weekNum}-${monday.getUTCFullYear()}`, fmt(monday), fmt(sunday));
+    ).run(cal.seasonName(start), cal.fmtUtc(start), cal.fmtUtc(end));
+  }
+
+  // ── Une seule saison active (index partiel, ticket #16) ───────────────────
+  // Ajout pur, idempotent ; n'est créé que si les données le permettent déjà.
+  const nActive = _db.prepare(`SELECT COUNT(*) AS n FROM seasons WHERE status='active'`).get().n;
+  if (nActive <= 1) {
+    _db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_seasons_one_active ON seasons(status) WHERE status='active'`);
+  } else {
+    console.warn(`[db] ${nActive} saisons actives : index d'unicité non créé — clôturer les saisons en trop depuis l'admin.`);
   }
 
   // ── Migration : assigner la ligue Mimosa aux joueurs sans ligue ───────────
@@ -577,12 +583,30 @@ function getSeasonById(id) {
   return getDb().prepare(`SELECT * FROM seasons WHERE id = ?`).get(id) ?? null;
 }
 
-function createSeason(name, startAt, endAt) {
+function createSeason(name, startAt, endAt, status = 'active') {
   const db = getDb();
   const info = db.prepare(
-    `INSERT INTO seasons (name, start_at, end_at, status) VALUES (?,?,?,'active')`
-  ).run(name, startAt, endAt);
+    `INSERT INTO seasons (name, start_at, end_at, status) VALUES (?,?,?,?)`
+  ).run(name, startAt, endAt, status);
   return db.prepare(`SELECT * FROM seasons WHERE id = ?`).get(info.lastInsertRowid);
+}
+
+/** Saison programmée (status 'scheduled') la plus proche, ou null. */
+function getNextScheduledSeason() {
+  return getDb().prepare(
+    `SELECT * FROM seasons WHERE status='scheduled' ORDER BY start_at ASC, id ASC LIMIT 1`
+  ).get() ?? null;
+}
+
+/** Dernière saison terminée (closed/archived), par date de fin. */
+function getLastEndedSeason() {
+  return getDb().prepare(
+    `SELECT * FROM seasons WHERE status IN ('closed','archived') ORDER BY end_at DESC, id DESC LIMIT 1`
+  ).get() ?? null;
+}
+
+function seasonNameExists(name) {
+  return !!getDb().prepare(`SELECT 1 FROM seasons WHERE name = ? LIMIT 1`).get(name);
 }
 
 function updateSeason(id, fields) {
@@ -992,6 +1016,7 @@ module.exports = {
   createUser, getUserByUsername, getUserById, getUserByEmail,
   getUserSave, upsertUserSave,
   getActiveSeason, getSeasonById, createSeason, updateSeason, getAllSeasons,
+  getNextScheduledSeason, getLastEndedSeason, seasonNameExists,
   getAllLeagues, createLeague, updateLeague, deleteLeague, getLeagueForRank,
   getLowestLeague, getLeagueById, getLeagueByLevel, getHighestLeague,
   getUserLeague, setUserLeague,

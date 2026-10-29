@@ -70,7 +70,9 @@ const {
   buildGlobalLeaderboard,
   buildLeagueLeaderboard,
   buildActiveSeasonLeaderboard,
+  startSeasonScheduler,
 } = require('./seasons');
+const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const security = require('./security');
@@ -472,28 +474,71 @@ app.get('/api/admin/seasons/active/summary', requireAdmin, (req, res) => {
   }
 });
 
+const SEASON_STATUSES = ['scheduled', 'active', 'closed', 'archived'];
+
+/** Erreur SQLite de l'index « une seule saison active » (#16). */
+const isOneActiveViolation = err => err?.code === 'SQLITE_CONSTRAINT_UNIQUE' && /seasons\.status/.test(err.message);
+
+/**
+ * POST /api/admin/seasons — dates normalisées en UTC "YYYY-MM-DD HH:MM:SS" (#16).
+ * Début futur → saison 'scheduled', activée par la rotation à sa date ; sinon 'active',
+ * refusé (409) si une saison est déjà active.
+ */
 app.post('/api/admin/seasons', requireAdmin, (req, res) => {
   try {
     const { name, start_at, end_at } = req.body ?? {};
     if (!name || !start_at || !end_at) return res.status(400).json({ error: 'Champs name, start_at, end_at requis.' });
-    const season = createSeason(name, start_at, end_at);
+    const start = normalizeDate(start_at), end = normalizeDate(end_at);
+    if (!start || !end) return res.status(400).json({ error: 'Dates invalides (format attendu : YYYY-MM-DD HH:MM:SS, UTC).' });
+    if (end <= start)   return res.status(400).json({ error: 'end_at doit être postérieur à start_at.' });
+    const status = parseUtc(start) > new Date() ? 'scheduled' : 'active';
+    if (status === 'active' && getActiveSeason()) {
+      return res.status(409).json({ error: 'Une saison est déjà active : clôturez-la ou programmez une date de début future.' });
+    }
+    const season = createSeason(String(name), start, end, status);
     res.json({ season });
-  } catch (err) { console.error('[POST /api/admin/seasons]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) {
+    if (isOneActiveViolation(err)) return res.status(409).json({ error: 'Une saison est déjà active.' });
+    console.error('[POST /api/admin/seasons]', err); res.status(500).json({ error: 'Erreur serveur.' });
+  }
 });
 
 app.put('/api/admin/seasons/:id', requireAdmin, (req, res) => {
   try {
     const id     = parseInt(req.params.id, 10);
+    const before = Number.isInteger(id) ? getSeasonById(id) : null;
+    if (!before) return res.status(404).json({ error: 'Saison introuvable.' });
     const fields = {};
     const { name, start_at, end_at, status } = req.body ?? {};
-    if (name)     fields.name     = name;
-    if (start_at) fields.start_at = start_at;
-    if (end_at)   fields.end_at   = end_at;
+    if (name)     fields.name     = String(name);
+    if (start_at) fields.start_at = normalizeDate(start_at);
+    if (end_at)   fields.end_at   = normalizeDate(end_at);
     if (status)   fields.status   = status;
     if (!Object.keys(fields).length) return res.status(400).json({ error: 'Aucun champ à modifier.' });
+    if (fields.start_at === null || fields.end_at === null) {
+      return res.status(400).json({ error: 'Dates invalides (format attendu : YYYY-MM-DD HH:MM:SS, UTC).' });
+    }
+    if (status && !SEASON_STATUSES.includes(status)) return res.status(400).json({ error: 'Statut invalide.' });
+    if ((fields.end_at ?? normalizeDate(before.end_at)) <= (fields.start_at ?? normalizeDate(before.start_at))) {
+      return res.status(400).json({ error: 'end_at doit être postérieur à start_at.' });
+    }
+    if (status === 'closed' && before.status === 'active') {
+      // Clôture manuelle sans promotion : la saison s'arrête maintenant, la rotation ouvre la
+      // suivante à la seconde suivante (pas de trou jusqu'à l'ancienne date de fin) — #16
+      const now = new Date(), plannedEnd = parseUtc(fields.end_at ?? before.end_at);
+      if (!fields.end_at || !plannedEnd || plannedEnd > now) {
+        fields.end_at = normalizeDate(!plannedEnd || plannedEnd > now ? endBefore(now) : plannedEnd);
+      }
+      fields.closed_at = normalizeDate(now);
+    }
+    const active = getActiveSeason();
+    if (status === 'active' && active && active.id !== id) return res.status(409).json({ error: 'Une autre saison est déjà active.' });
     const season = updateSeason(id, fields);
     res.json({ season });
-  } catch (err) { console.error('[PUT /api/admin/seasons/:id]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) {
+    if (isOneActiveViolation(err)) return res.status(409).json({ error: 'Une autre saison est déjà active.' });
+    console.error('[PUT /api/admin/seasons/:id]', err); res.status(500).json({ error: 'Erreur serveur.' });
+  }
 });
 
 /**
@@ -850,6 +895,9 @@ process.on('unhandledRejection',  (r)   => console.error('[unhandledRejection]',
 
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
+
+// Rotation planifiée des saisons : une passe au démarrage puis chaque minute (#16)
+startSeasonScheduler();
 
 app.listen(PORT, HOST, () => {
   console.log(`\n⛏  DIG! server — http://${HOST}:${PORT}\n`);
