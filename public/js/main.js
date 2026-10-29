@@ -1438,7 +1438,7 @@ function renderShop() {
     <div class="shop-grid shop-grid-2" id="shop-grid-skins"></div>
     <div class="section-divider"><span>${t('shop.section_boosts')}</span></div>
     <div class="shop-grid shop-grid-2" id="shop-grid-boosts"></div>
-    <div class="shop-disclaimer">${t('shop.disclaimer')}</div>
+    <div class="shop-disclaimer">${t(Monetization.PAYMENTS_ENABLED ? 'shop.disclaimer_live' : 'shop.disclaimer')}</div>
   `;
 
   const gems  = Monetization.SHOP_ITEMS.filter(i => i.type === 'gems');
@@ -1454,23 +1454,28 @@ function _fillShopGrid(gridId, items) {
   const grid = document.getElementById(gridId);
   if (!grid) return;
 
+  const enabled = Monetization.PAYMENTS_ENABLED;
+
   for (const item of items) {
     const owned = item.type === 'skin' && Monetization.hasSkin(item.value);
     const card  = document.createElement('div');
     card.className = 'shop-card';
 
+    // Sans fournisseur de paiement, la carte reste visible mais le bouton est
+    // désactivé : aucun article ne peut être obtenu (ticket #11).
+    const btnText = owned ? t('shop.btn_owned') : enabled ? item.price : t('shop.btn_soon');
     card.innerHTML = `
       ${item.badge ? `<div class="shop-badge">${t(item.badge)}</div>` : ''}
       <div class="shop-item-icon">${item.icon}</div>
       <div class="shop-item-name">${t(item.name)}</div>
       <div class="shop-item-label">${t(item.label)}</div>
       <button class="shop-btn${owned ? ' owned' : ''}"
-        ${owned ? 'disabled' : ''}
-        aria-label="${owned ? t('shop.btn_owned') : `${t('ui.btn_upgrade')} ${t(item.name)}`}">
-        ${owned ? t('shop.btn_owned') : item.price}
+        ${owned || !enabled ? 'disabled' : ''}
+        aria-label="${owned ? t('shop.btn_owned') : enabled ? `${t('ui.btn_upgrade')} ${t(item.name)}` : `${t(item.name)} — ${t('shop.btn_soon')}`}">
+        ${btnText}
       </button>`;
 
-    if (!owned) {
+    if (!owned && enabled) {
       card.querySelector('.shop-btn').addEventListener('click', () => {
         Monetization.purchase(item.id, (bought) => {
           const notif = bought.type === 'gems'  ? t('notif.gems_added', { amount: bought.value })

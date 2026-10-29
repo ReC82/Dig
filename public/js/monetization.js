@@ -14,9 +14,13 @@
  *
  *  2. PAIEMENTS IN-APP
  *     Cherchez le commentaire  // [PAYMENT_SDK] REMPLACER ICI
- *     Remplacez l'appel à this._fakePurchase() par votre SDK :
+ *     Remplacez le refus final de purchase() par votre SDK :
  *       Ex. Stripe, RevenueCat, Google Play Billing, Apple IAP…
- *     Supprimez la méthode _fakePurchase() et son appel.
+ *     C'est seulement dans le
+ *     rappel de succès (paiement vérifié) que _grantItem() doit être appelé,
+ *     puis passez PAYMENTS_ENABLED à true.
+ *     Tant qu'aucun fournisseur n'est branché, aucun article n'est accordé
+ *     (ticket #11 : l'ancien mode démo créditait gratuitement).
  *
  * ════════════════════════════════════════════════════════════════════════════
  */
@@ -25,6 +29,10 @@ const Monetization = {
   // ── Configuration ────────────────────────────────────────────────────────
   AD_COOLDOWN_MS: 5 * 60 * 1000,  // 5 min entre deux pubs
   AD_DURATION_S:  5,               // durée de la simulation
+
+  // Aucun fournisseur de paiement branché : la boutique est en aperçu et
+  // purchase() refuse tout achat (ticket #11).
+  PAYMENTS_ENABLED: false,
 
   // ── Catalogue boutique ────────────────────────────────────────────────────
   SHOP_ITEMS: [
@@ -171,29 +179,31 @@ const Monetization = {
    */
   purchase(itemId, onSuccess, onCancel) {
     const item = this.SHOP_ITEMS.find(i => i.id === itemId);
-    if (!item) return;
+    if (!item || !this.PAYMENTS_ENABLED) {
+      onCancel && onCancel(item);
+      return false;
+    }
 
     // [PAYMENT_SDK] REMPLACER ICI ────────────────────────────────────────────
     // Exemple de branchement SDK :
     //
     //   YourPaymentSDK.purchase(item.storeProductId, {
     //     onSuccess:   (receipt) => { this._grantItem(item); onSuccess && onSuccess(item); },
-    //     onCancelled: ()        => { onCancel && onCancel(); },
-    //     onError:     (e)       => { console.error('[Shop]', e); onCancel && onCancel(); },
+    //     onCancelled: ()        => { onCancel && onCancel(item); },
+    //     onError:     (e)       => { console.error('[Shop]', e); onCancel && onCancel(item); },
     //   });
+    //   return true;
     //
     // ─────────────────────────────────────────────────────────────────────────
-    // Mode démo — accorde l'article gratuitement (supprimer avant mise en prod) :
-    this._fakePurchase(item, onSuccess);
+    // Pas de SDK : on refuse plutôt que d'accorder l'article gratuitement.
+    onCancel && onCancel(item);
+    return false;
   },
 
-  /** DÉMO UNIQUEMENT — accorde l'article sans paiement réel. */
-  _fakePurchase(item, onSuccess) {
-    this._grantItem(item);
-    onSuccess && onSuccess(item);
-  },
-
-  /** Applique la récompense d'un article dans GameState. */
+  /**
+   * Applique la récompense d'un article dans GameState.
+   * À n'appeler QUE depuis le rappel de succès d'un paiement réel vérifié.
+   */
   _grantItem(item) {
     if (item.type === 'gems')  { GameState.gems += item.value; }
     if (item.type === 'skin')  { GameState.monetization.pickaxeSkin = item.value; }
