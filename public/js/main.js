@@ -293,7 +293,7 @@ function renderBlock() {
   if (!b) return;
 
   elBlockName.textContent  = t(b.type.name);
-  elBlockIcon.textContent  = b.type.icon;
+  IconLibrary.render(elBlockIcon, b.type);   // legacy (emoji) par défaut, v1 si activé
   elBlock.style.background = b.type.color;
 
   const rarityLabel = t('rarity.' + b.type.rarityKey.replace('-', '_'));
@@ -1900,6 +1900,8 @@ function init() {
 
   if (offlineGains) showOfflinePopup(offlineGains);
 
+  // Bibliothèque d'icônes (legacy par défaut) : re-rendu du bloc une fois la configuration lue.
+  IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
   setInterval(() => { renderBoostBanner(); updateAdButtonState(); }, 1_000);
