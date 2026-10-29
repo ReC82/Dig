@@ -1,9 +1,8 @@
 [Unit]
-Description=DIG! — sauvegarde quotidienne de la base (03:30)
+Description=DIG! — sauvegarde quotidienne de la base (03:30 précises)
 
 [Timer]
 OnCalendar=*-*-* 03:30:00
-RandomizedDelaySec=10min
 Persistent=true
 
 [Install]
