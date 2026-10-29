@@ -1,0 +1,17 @@
+# Sauvegarde quotidienne de la base DIG! (scripts/backup-db.js : API backup SQLite, vérifiée).
+# Installation (propriétaire) : voir docs/OPERATIONS.md.
+[Unit]
+Description=DIG! — sauvegarde vérifiée de la base SQLite
+After=dig.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Dig
+Environment=DIG_BACKUP_DIR=/home/ubuntu/backups/dig
+Environment=DIG_BACKUP_RETENTION_DAYS=14
+# Copie hors machine optionnelle : définir DIG_BACKUP_OFFSITE_CMD dans un drop-in
+# (ex. « aws s3 cp » vers un bucket dédié), jamais de secret dans ce fichier.
+ExecStart=/usr/bin/node /home/ubuntu/Dig/scripts/backup-db.js --label daily
+Nice=10
+IOSchedulingClass=idle
