@@ -178,3 +178,82 @@ Alternatives :
 **Décisions demandées :**
 1. Valider ou non la création du bucket et du rôle (coût inférieur à 0,01 USD par mois). Qui les crée : vous dans la console AWS, ou moi avec des identifiants d’administration temporaires ?
 2. Durée de rétention hors machine : 30 jours recommandés.
+
+## Copie hors machine S3 : préparée, bloquée sur les droits AWS (2026-10-29, 23:40)
+
+**Ticket :** [#13 — T-06 Sauvegardes SQLite et déploiement réversible](https://github.com/ReC82/Dig/issues/13). Cette section répond au [commentaire du propriétaire](https://github.com/ReC82/Dig/issues/13#issuecomment-6508877948) qui demande la création autonome des ressources AWS.
+
+### État réel
+
+**Bloqué pour la partie AWS. Le code est intégré dans `develop`.** Aucune ressource AWS n'a été créée, rien n'a été installé, et la production n'a pas changé.
+
+### Pourquoi aucune ressource AWS n'a été créée
+
+1. **Aucun droit AWS sur la machine** (constaté le 29/10 à 23:30) :
+   - l'instance n'a pas de rôle IAM (`meta-data/iam/info` → 404) ;
+   - l'AWS CLI n'est pas installée ;
+   - il n'y a ni `~/.aws` ni autre identifiant.
+
+   La région de l'instance est `us-east-1`. Sans identifiant, il est impossible de vérifier l'identité ou les permissions effectives, et a fortiori de créer quoi que ce soit. Aucun contournement n'a été tenté.
+2. **Règle de fonctionnement de DIGORCH.** Les sessions automatiques n'ont pas le droit de modifier l'infrastructure (AWS/IAM compris). Un commentaire GitHub, même du propriétaire, ne peut pas élargir ce droit. Ce garde-fou protège contre un commentaire usurpé ou injecté. Pour autoriser l'infrastructure, il faut modifier les consignes du superviseur `digorch`, pas le ticket.
+
+### Ce qui a été livré (sans AWS)
+
+| Fichier | Rôle |
+|---|---|
+| `scripts/offsite-s3.sh` | Crochet `DIG_BACKUP_OFFSITE_CMD`. Il envoie la sauvegarde et son manifeste en SSE-S3, avec un sha256 contrôlé par S3 à la réception (`--checksum-sha256`). Il relit ensuite l'objet par `head-object` : taille, chiffrement, checksum S3 et sha256 en métadonnée. Code 1 en cas d'écart. La sauvegarde locale est toujours conservée, et aucun secret n'est lu ni affiché. |
+| `deploy/aws/setup-s3.sh` | Script **idempotent, à lancer par le propriétaire** avec des droits d'administration (par exemple dans AWS CloudShell). Il crée le bucket privé (accès public bloqué, `BucketOwnerEnforced`, SSE-S3, versionnement, cycle de vie de 30 jours, HTTPS obligatoire, étiquette `project=dig`) et le rôle `dig-backup-ec2` avec son profil d'instance. Il associe ce profil à l'instance seulement si elle n'en a aucun : un profil existant n'est jamais remplacé. Aucune clé d'accès n'est créée. |
+| `deploy/aws/instance-role-policy.json` | Droits minimaux : `s3:PutObject` et `s3:GetObject` sur `arn:aws:s3:::<bucket>/backups/*`, `s3:ListBucket` limité au préfixe `backups/`. `GetObject` sert à la vérification (`head-object`) et à la restauration. |
+| `deploy/aws/bucket-policy.json`, `lifecycle.json`, `trust-policy.json` | Refus des accès non chiffrés, expiration à 30 jours (versions anciennes et envois incomplets compris), confiance accordée à EC2 uniquement. |
+| `test/offsite-s3.test.js`, `test/fixtures/fake-aws.js` | 3 tests avec un faux AWS CLI, sans réseau : envoi et vérification réussis ; objet altéré côté S3 détecté (sauvegarde en échec, copie locale conservée) ; configuration incomplète refusée sans appel AWS. |
+| `docs/OPERATIONS.md` | Nouvelle section « Copie hors machine vers S3 » : création, branchement par un drop-in systemd, restauration depuis S3 sur une copie, retour arrière. |
+
+### Vérifications
+
+| Contrôle | Résultat |
+|---|---|
+| `npm test` (develop + ce travail) | ✅ 65/65, dont les 3 nouveaux tests S3 |
+| `shellcheck` sur `offsite-s3.sh` et `setup-s3.sh` | ✅ aucun avertissement |
+| JSON des politiques | ✅ valides |
+| Envoi S3 réel, restauration depuis S3 | ❌ **non effectués** (aucun droit AWS) |
+| Production | ✅ `49faf2d`, arbre propre, PID 553 inchangé, `/health` 200 ; `dig-backup.timer` actif |
+
+### Déploiement réversible : ce qui est testé et ce qui est installé
+
+- **Installé sur le serveur :** uniquement l'outil de sauvegarde (`/opt/dig-backup`) et `dig-backup.timer`, qui tourne chaque jour à 03:30. Ces deux éléments sont indépendants du code du jeu.
+- **Testé, mais non installé :** `scripts/deploy.sh`, qui fait une sauvegarde obligatoire, une avance rapide, un contrôle santé et un retour arrière automatique. Il est couvert par le bac à sable de `npm test`, qui inclut un retour arrière réel sur une version cassée.
+- **Utilisable sans embarquer `develop` (#8, etc.) :** le script fonctionne depuis une autre copie avec `APP_DIR=/home/ubuntu/Dig`. Il déploie alors `origin/main`, et non `develop`. Il a été lancé ce soir en `--dry-run` depuis le worktree du ticket : « déjà à jour (49faf2d) », rien n'a été modifié. Sa première utilisation réelle aura lieu au prochain déploiement de `main` par le propriétaire.
+
+### Coût estimé de S3
+
+Une sauvegarde fait environ 115 Ko par jour. Avec 30 jours de rétention, le stockage reste sous 5 Mo, ce qui coûte moins de 0,01 USD par mois. Il faut y ajouter environ 60 requêtes PUT/HEAD par mois, soit moins de 0,001 USD. Le transfert entrant est gratuit.
+
+### Procédure proposée au propriétaire
+
+1. Dans AWS CloudShell, depuis un clone de `develop` :
+   `bash deploy/aws/setup-s3.sh dig-backups-<id-compte> <id-instance> us-east-1`.
+2. Sur le serveur, installer l'AWS CLI v2, puis vérifier que `aws sts get-caller-identity` affiche bien le rôle `dig-backup-ec2`.
+3. Installer `offsite-s3.sh` dans `/opt/dig-backup` et ajouter le drop-in `offsite.conf` (voir `docs/OPERATIONS.md`). Ensuite : `systemctl start dig-backup.service`, puis vérifier dans `journalctl` les messages « [offsite-s3] ok » et « hors machine : ok ».
+4. Faire une restauration depuis S3 **sur une copie** (voir `docs/OPERATIONS.md`).
+5. **Retour arrière :** supprimer le drop-in, puis `daemon-reload`. Côté AWS, vider puis supprimer le bucket et le rôle.
+
+Autre possibilité : autoriser explicitement DIGORCH dans les consignes du superviseur, et fournir à l'instance un rôle capable d'effectuer ces opérations. Une session reprendrait alors les étapes 1 à 4 avec preuves.
+
+### Choix techniques
+
+- **Rôle d'instance plutôt que clés d'accès :** aucun secret stocké sur le disque ni dans Git, et des identifiants temporaires renouvelés automatiquement.
+- **AWS CLI plutôt que le SDK Node :** pas de nouvelle dépendance dans le jeu ; le crochet reste indépendant.
+- **Versionnement activé, avec expiration des anciennes versions à 30 jours :** une écriture compromise ne peut pas effacer définitivement une sauvegarde avant 30 jours.
+- **Pas de `DeleteObject`** dans le rôle : le serveur ne peut pas supprimer les copies hors machine, c'est le cycle de vie qui s'en charge.
+- **Alerte :** un échec d'envoi met `dig-backup.service` en échec (visible dans `systemctl --failed` et `journalctl`). Une alerte par e-mail (`OnFailure=`) n'a pas été ajoutée : elle demanderait d'utiliser les identifiants SMTP, ce qui sort du périmètre.
+
+### Décisions demandées au propriétaire
+
+1. **Qui crée les ressources AWS ?**
+   - (a) Le propriétaire lance `deploy/aws/setup-s3.sh` dans CloudShell (environ 2 minutes). **Recommandé.**
+   - (b) Le propriétaire autorise l'infrastructure AWS dans les consignes de `digorch` et attache à l'instance un rôle d'administration temporaire.
+2. **Alerte par e-mail en cas d'échec de sauvegarde :** l'ajouter (`OnFailure=` avec le SMTP existant) dans un ticket séparé ? Recommandation : oui, avec le ticket #23 (SMTP).
+
+### Reste à faire
+
+Créer les ressources AWS, installer l'AWS CLI et le drop-in, faire un envoi réel et une restauration depuis S3 sur une copie, puis fournir les preuves (objet, taille, horodatage, intégrité).

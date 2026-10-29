@@ -17,7 +17,7 @@ node scripts/backup-db.js --label avant-migration
   - `~/backups/dig/dig-AAAAMMJJ-HHMMSS[-label].sqlite`, en mode 600 ;
   - le manifeste `.json` associé (sha256, taille, compteurs, durée).
 - **Rétention :** 14 jours (`DIG_BACKUP_RETENTION_DAYS`). Les 3 plus récentes (`DIG_BACKUP_KEEP_MIN`) sont toujours conservées, et seuls les fichiers `dig-*.sqlite` sont concernés.
-- **Copie hors machine :** optionnelle, via `DIG_BACKUP_OFFSITE_CMD`. Cette commande reçoit le chemin de la sauvegarde et celui du manifeste. Elle est désactivée par défaut.
+- **Copie hors machine :** optionnelle, via `DIG_BACKUP_OFFSITE_CMD`. Cette commande reçoit le chemin de la sauvegarde et celui du manifeste. Elle est désactivée par défaut. Pour S3, voir plus bas.
 
 ### Sauvegarde quotidienne (timer systemd)
 
@@ -29,6 +29,40 @@ sudo systemctl start dig-backup.service        # premier passage immédiat
 journalctl -u dig-backup -n 5                  # « [backup] OK … intégrité ok »
 systemctl list-timers dig-backup.timer
 ```
+
+### Copie hors machine vers S3 (ticket #13)
+
+`scripts/offsite-s3.sh` envoie chaque sauvegarde et son manifeste dans un bucket S3 privé, avec chiffrement SSE-S3 et sha256 contrôlé par S3 à la réception. Il relit ensuite l'objet (`head-object` : taille, chiffrement, sha256). En cas d'échec, `backup-db.js` sort en erreur et `dig-backup.service` passe en échec (`systemctl --failed`). La sauvegarde locale est toujours conservée.
+
+1. **Ressources AWS** (propriétaire, avec des droits d'administration, par exemple dans AWS CloudShell, jamais sur le serveur) :
+   `bash deploy/aws/setup-s3.sh dig-backups-<id-compte> <id-instance> us-east-1`.
+   Ce script crée un bucket privé (accès public bloqué, SSE-S3, versionnement, expiration à 30 jours, HTTPS obligatoire), puis le rôle d'instance `dig-backup-ec2`. Ce rôle est limité à `PutObject`/`GetObject` sur `backups/*` et à `ListBucket` sur ce préfixe. Aucune clé d'accès n'est créée.
+2. **Serveur** : installer l'AWS CLI v2, puis vérifier `aws sts get-caller-identity` (doit afficher le rôle `dig-backup-ec2`).
+3. **Brancher la copie** (outil installé dans `/opt/dig-backup`) :
+
+```bash
+sudo install -m 755 scripts/offsite-s3.sh /opt/dig-backup/offsite-s3.sh
+sudo mkdir -p /etc/systemd/system/dig-backup.service.d
+sudo tee /etc/systemd/system/dig-backup.service.d/offsite.conf >/dev/null <<'CONF'
+[Service]
+Environment=DIG_S3_BUCKET=dig-backups-<id-compte>
+Environment=AWS_REGION=us-east-1
+Environment=DIG_BACKUP_OFFSITE_CMD=/opt/dig-backup/offsite-s3.sh
+CONF
+sudo systemctl daemon-reload && sudo systemctl start dig-backup.service
+journalctl -u dig-backup -n 10      # « [offsite-s3] ok s3://… » puis « hors machine : ok »
+```
+
+4. **Restauration depuis S3, sur une copie :**
+
+```bash
+aws s3 ls s3://dig-backups-<id-compte>/backups/ | tail
+mkdir -p /tmp/dig-s3 && aws s3 cp s3://dig-backups-<id-compte>/backups/dig-….sqlite /tmp/dig-s3/ \
+  && aws s3 cp s3://dig-backups-<id-compte>/backups/dig-….json /tmp/dig-s3/
+node scripts/restore-db.js /tmp/dig-s3/dig-….sqlite --target /tmp/dig-restore-check.sqlite
+```
+
+**Retour arrière :** supprimer `offsite.conf`, puis `daemon-reload`. Les sauvegardes locales ne changent pas.
 
 ## Restauration
 
