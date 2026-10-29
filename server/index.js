@@ -65,6 +65,8 @@ const {
   getAllLeaguesWithStats,
   getAntiCheatLogs,
   countAntiCheatLogs,
+  correctSeasonRanking,
+  insertAntiCheatLog,
 } = require('./db');
 
 const {
@@ -615,9 +617,60 @@ app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {
   try {
     const seasonId = parseInt(req.params.id, 10);
     const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
-    const result   = buildGlobalLeaderboard(seasonId, page);
+    const result   = buildGlobalLeaderboard(seasonId, page, { admin: true });
     res.json({ leaderboard: result.leaderboard, page: result.page, total: result.total, totalPages: result.totalPages });
   } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * PUT /api/admin/seasons/:seasonId/rankings/:userId
+ * Body : { maxDepth?, effectiveManualBlocks?, reason? }
+ * Corrige une ligne du classement (valeurs imposées). Journalisé dans anticheat_logs
+ * (action « admin_fix ») avec les valeurs avant/après.
+ */
+app.put('/api/admin/seasons/:seasonId/rankings/:userId', requireAdmin, (req, res) => {
+  try {
+    const seasonId = parseInt(req.params.seasonId, 10);
+    const userId   = parseInt(req.params.userId, 10);
+    if (!Number.isInteger(seasonId) || !Number.isInteger(userId)) return res.status(400).json({ error: 'IDs invalides.' });
+
+    const { maxDepth, effectiveManualBlocks, reason } = req.body ?? {};
+    const isCount = v => Number.isSafeInteger(v) && v >= 0;
+    const fields  = {};
+    if (maxDepth != null) {
+      if (!isCount(maxDepth)) return res.status(400).json({ error: 'maxDepth doit être un entier ≥ 0.' });
+      fields.maxDepth = maxDepth;
+    }
+    if (effectiveManualBlocks != null) {
+      if (!isCount(effectiveManualBlocks)) return res.status(400).json({ error: 'effectiveManualBlocks doit être un entier ≥ 0.' });
+      fields.effectiveManualBlocks = effectiveManualBlocks;
+    }
+    if (!Object.keys(fields).length) return res.status(400).json({ error: 'Aucun champ à corriger.' });
+
+    const result = correctSeasonRanking(seasonId, userId, fields);
+    if (!result) return res.status(404).json({ error: 'Ligne de classement introuvable.' });
+
+    const { before, after } = result;
+    const user = getUserById(userId);
+    insertAntiCheatLog(
+      userId, user?.username ?? `user_${userId}`, seasonId, 0, 0, 0, 0,
+      before.max_depth > 0 ? parseFloat((after.max_depth / before.max_depth).toFixed(3)) : 1,
+      'admin_fix',
+      {
+        before: { maxDepth: before.max_depth, effectiveManualBlocks: before.effective_manual_blocks },
+        after:  { maxDepth: after.max_depth,  effectiveManualBlocks: after.effective_manual_blocks },
+        reason: typeof reason === 'string' ? reason.slice(0, 200) : '',
+      },
+    );
+    console.log(`[admin] Classement corrigé : saison ${seasonId}, joueur ${userId} — prof. ${before.max_depth}→${after.max_depth}, blocs ${before.effective_manual_blocks}→${after.effective_manual_blocks}`);
+    res.json({ ok: true, ranking: {
+      userId, maxDepth: after.max_depth, reportedMaxDepth: after.reported_max_depth,
+      effectiveManualBlocks: after.effective_manual_blocks,
+    } });
+  } catch (err) {
+    console.error('[PUT /api/admin/seasons/:seasonId/rankings/:userId]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
 });
 
 // Classement intraligue admin

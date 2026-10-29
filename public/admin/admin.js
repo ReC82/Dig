@@ -190,13 +190,43 @@ async function loadLeaderboard() {
   const tbody = document.querySelector('#lb-table tbody');
   tbody.innerHTML = '';
   if (!data.leaderboard.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="muted">Aucun joueur actif.</td></tr>'; return;
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Aucun joueur actif.</td></tr>'; return;
   }
   data.leaderboard.forEach(r => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>#${r.rank}</td><td>${r.username}</td><td>${r.maxDepth}m</td><td>${r.manualBlocks}</td><td>${r.league ? `${r.league.icon} ${r.league.name}` : '—'}</td>`;
+    const reported = r.reportedMaxDepth != null && r.reportedMaxDepth !== r.maxDepth
+      ? `${r.reportedMaxDepth}m ⚠` : '—';
+    const cells = [
+      `#${r.rank}`, r.username, `${r.maxDepth}m`, reported, r.manualBlocks,
+      r.league ? `${r.league.icon} ${r.league.name}` : '—',
+    ];
+    // textContent : le nom du joueur n'est jamais interprété comme du HTML
+    cells.forEach(v => { const td = document.createElement('td'); td.textContent = String(v); tr.appendChild(td); });
+    const td  = document.createElement('td');
+    const btn = document.createElement('button');
+    btn.className   = 'btn-ghost';
+    btn.textContent = 'Corriger';
+    btn.addEventListener('click', () => correctRanking(r));
+    td.appendChild(btn);
+    tr.appendChild(td);
     tbody.appendChild(tr);
   });
+}
+
+/** Corrige une ligne du classement (profondeur retenue et/ou blocs effectifs). */
+async function correctRanking(r) {
+  const depthStr = prompt(`Profondeur retenue pour ${r.username} (actuelle : ${r.maxDepth}m, déclarée : ${r.reportedMaxDepth ?? '?'}m)`, String(r.maxDepth));
+  if (depthStr === null) return;
+  const blocksStr = prompt(`Blocs manuels effectifs pour ${r.username} (actuels : ${r.manualBlocks})`, String(r.manualBlocks));
+  if (blocksStr === null) return;
+  const maxDepth = Number(depthStr), effectiveManualBlocks = Number(blocksStr);
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || !Number.isSafeInteger(effectiveManualBlocks) || effectiveManualBlocks < 0) {
+    alert('Valeurs invalides : entiers ≥ 0 attendus.'); return;
+  }
+  const reason = prompt('Motif (journalisé)', '') ?? '';
+  const { ok, data } = await api('PUT', `/api/admin/seasons/${_currentSeasonId}/rankings/${r.userId}`, { maxDepth, effectiveManualBlocks, reason });
+  if (!ok) { alert(data.error ?? 'Erreur.'); return; }
+  loadLeaderboard();
 }
 
 document.getElementById('btn-refresh-lb').addEventListener('click', loadLeaderboard);
@@ -212,6 +242,8 @@ const CONFIG_LABELS = {
   difficulty_coefficient:       'Coefficient de difficulté par ligue',
   min_active_players_per_league:'Joueurs actifs min pour créer une ligue',
   anti_autoclick_enabled:       'Anti-autoclicker activé (true/false)',
+  depth_validation_enabled:     'Validation serveur de la profondeur (true/false)',
+  depth_max_cps:                'Clics/s max retenus pour la profondeur',
 };
 
 async function loadConfig() {
@@ -474,22 +506,60 @@ async function loadAntiCheatLogs() {
   tbody.innerHTML = '';
   logs.forEach(log => {
     const tr = document.createElement('tr');
-    const actionBadge = log.action_taken === 'flagged'
-      ? `<span class="badge-flagged">⚠ flagged</span>`
-      : log.action_taken === 'reduced'
-      ? `<span class="badge-reduced">↓ reduced</span>`
-      : `<span class="muted">${log.action_taken}</span>`;
-    const regPct = (parseFloat(log.regularity_score) * 100).toFixed(0);
+    const regPct   = (parseFloat(log.regularity_score) * 100).toFixed(0);
     const ratioPct = (parseFloat(log.effective_ratio) * 100).toFixed(0);
-    tr.innerHTML = `
-      <td class="muted">${(log.logged_at ?? '').replace('T', ' ').substring(0, 19)}</td>
-      <td><strong>${log.username}</strong></td>
-      <td>${parseFloat(log.inferred_cps).toFixed(1)} CPS</td>
-      <td>${regPct}%</td>
-      <td>${ratioPct}%</td>
-      <td>${actionBadge}</td>`;
+    const cell = (text, cls) => {
+      const td = document.createElement('td');
+      if (cls) td.className = cls;
+      td.textContent = text;
+      tr.appendChild(td);
+      return td;
+    };
+    cell((log.logged_at ?? '').replace('T', ' ').substring(0, 19), 'muted');
+    const strong = document.createElement('strong');
+    strong.textContent = log.username;
+    cell('').appendChild(strong);
+    cell(`${parseFloat(log.inferred_cps).toFixed(1)} CPS`);
+    cell(`${regPct}%`);
+    cell(`${ratioPct}%`);
+    const badge = document.createElement('span');
+    const BADGES = {
+      flagged:        ['badge-flagged', '⚠ flagged'],
+      reduced:        ['badge-reduced', '↓ reduced'],
+      depth_capped:   ['badge-reduced', '↓ profondeur plafonnée'],
+      depth_rejected: ['badge-flagged', '✖ profondeur rejetée'],
+      admin_fix:      ['muted',         '✎ correction admin'],
+    };
+    const [cls, label] = BADGES[log.action_taken] ?? ['muted', log.action_taken];
+    badge.className   = cls;
+    badge.textContent = label;
+    const actionTd = cell('');
+    actionTd.appendChild(badge);
+    const detail = formatLogDetails(log.details);
+    if (detail) {
+      const small = document.createElement('div');
+      small.className   = 'muted';
+      small.style.fontSize = '0.75rem';
+      small.textContent = detail;
+      actionTd.appendChild(small);
+    }
     tbody.appendChild(tr);
   });
+}
+
+/** Résumé lisible du champ JSON `details` d'un événement (ticket #9). */
+function formatLogDetails(raw) {
+  if (!raw) return '';
+  let d;
+  try { d = JSON.parse(raw); } catch (_) { return ''; }
+  if (d.before && d.after) {
+    return `prof. ${d.before.maxDepth}→${d.after.maxDepth}m, blocs ${d.before.effectiveManualBlocks}→${d.after.effectiveManualBlocks}${d.reason ? ` — ${d.reason}` : ''}`;
+  }
+  if (d.reportedDepth != null) {
+    const rej = (d.discardedClicks || d.discardedAutoBlocks) ? ` — rejetés : ${d.discardedClicks} clics, ${d.discardedAutoBlocks} blocs auto` : '';
+    return `déclarée ${d.reportedDepth}m, retenue ${d.acceptedDepth}m${rej}`;
+  }
+  return '';
 }
 
 document.getElementById('btn-refresh-ac').addEventListener('click', loadAntiCheatLogs);
