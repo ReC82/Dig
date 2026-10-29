@@ -997,14 +997,59 @@ async function _doLogout() {
   _account = null;
 }
 
+// ── Sauvegarde cloud regroupée ────────────────────────────────────────────────
+// La sauvegarde locale reste immédiate (à chaque clic) ; le cloud reçoit au plus une
+// sauvegarde toutes les CLOUD_SYNC_INTERVAL_MS, plus une sauvegarde finale quand l'onglet
+// est masqué ou fermé (sendBeacon).
+
+const CLOUD_SYNC_INTERVAL_MS = 12_000;
+let _cloudLastSync  = 0;     // horodatage du dernier envoi cloud
+let _cloudTimer     = null;  // envoi différé en attente
+let _cloudLastExit  = 0;     // dernier envoi de sortie (évite le doublon visibilitychange + pagehide)
+
+/** Appelé après chaque sauvegarde locale : programme un envoi cloud (au plus 1 par intervalle). */
+function _scheduleCloudSync() {
+  if (_cloudTimer) return;
+  const wait = Math.max(0, _cloudLastSync + CLOUD_SYNC_INTERVAL_MS - Date.now());
+  _cloudTimer = setTimeout(() => {
+    showSaveToast();
+    _syncToCloud();
+  }, wait);
+}
+
 /** Pousse la sauvegarde locale courante vers le cloud (silencieux).
  *  N'attend pas _account — le cookie de session suffit ; le serveur retourne 401 si non connecté. */
 async function _syncToCloud() {
+  clearTimeout(_cloudTimer);
+  _cloudTimer    = null;
+  _cloudLastSync = Date.now();
   try {
     const raw = localStorage.getItem(Save.KEY);
     if (!raw) return;
     await _apiFetch('POST', '/api/me/save', { data: JSON.parse(raw) });
   } catch (_) { /* silencieux — 401 ignoré si non connecté */ }
+}
+
+/** Sauvegarde finale à la mise en arrière-plan / fermeture de l'onglet. */
+function _flushCloudOnExit() {
+  if (Date.now() - _cloudLastExit < 1000) return;
+  _cloudLastExit = Date.now();
+  Save.save(); // état local à jour (programme aussi un envoi, annulé ci-dessous)
+  clearTimeout(_cloudTimer);
+  _cloudTimer    = null;
+  _cloudLastSync = Date.now();
+  try {
+    const raw = localStorage.getItem(Save.KEY);
+    if (!raw) return;
+    const body = JSON.stringify({ data: JSON.parse(raw) });
+    // sendBeacon survit à la fermeture de la page ; repli sur fetch keepalive
+    const sent = navigator.sendBeacon?.('/api/me/save', new Blob([body], { type: 'application/json' }));
+    if (!sent) {
+      fetch('/api/me/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true,
+      }).catch(() => {});
+    }
+  } catch (_) { /* silencieux */ }
 }
 
 /**
@@ -1878,7 +1923,11 @@ function init() {
     if (isViewActive('shop'))       renderShop();
   });
 
-  Save.onSave = () => { showSaveToast(); _syncToCloud(); };
+  Save.onSave = _scheduleCloudSync;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') _flushCloudOnExit();
+  });
+  window.addEventListener('pagehide', _flushCloudOnExit);
   Save.load();
 
   Relics.applyBonuses();   // recalcule les bonus depuis GameState.relics chargé

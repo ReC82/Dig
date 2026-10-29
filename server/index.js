@@ -439,7 +439,8 @@ app.post('/api/me/save', (req, res) => {
     const { version } = upsertUserSave(req.session.userId, JSON.stringify(data));
     // Sync saisonnier piggybacked
     if (data.seasonStats) {
-      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats); } catch (_) {}
+      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats); }
+      catch (err) { console.error('[POST /api/me/save] sync saisonnier', err.message); }
     }
     res.json({ ok: true, version });
   } catch (err) {
