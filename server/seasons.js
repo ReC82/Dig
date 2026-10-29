@@ -15,6 +15,7 @@ const {
   getLeagueLeaderboard, countLeaguePlayers, getPlayerLeagueRank,
   getPlayerSeasonEntry, getOrCreateSeasonEntry, updateAutoBlocksOnly,
   getClickTracking, upsertClickTracking, insertAntiCheatLog, updateEffectiveBlocks,
+  getDepthTracking, upsertDepthTracking,
 } = db;
 
 /**
@@ -232,7 +233,7 @@ const AC_MAX_WINDOW_SECS = 120;
 /** Compteur client → entier ≥ 0 (valeur absente, négative ou non numérique → 0). */
 function _toCount(v) {
   const n = Math.floor(Number(v));
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, Number.MAX_SAFE_INTEGER) : 0;
 }
 
 /**
@@ -339,6 +340,133 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs
   return { effectiveManualBlocks: newAccepted, action, effectiveRatio };
 }
 
+// ── Validation serveur de la profondeur (ticket #9) ───────────────────────────
+//
+// Côté client, chaque bloc détruit (clic ou autodig) fait descendre d'un mètre :
+// maxDepth ≤ 1 + blocs détruits, un bloc détruit à la main exige au moins un clic, et
+// l'autodig frappe une fois par seconde (≤ 1 bloc/s). La profondeur retenue pour le
+// classement est donc plafonnée par les clics et blocs auto « plausibles » au vu du temps
+// réel écoulé côté serveur (seaux de jetons) :
+//   profondeur retenue ≤ profondeur retenue précédente + clics acceptés + blocs auto acceptés
+// Les compteurs qui dépassent le rythme maximal restent en attente et sont acceptés plus
+// tard (gigue réseau, sauvegardes perdues) ; au-delà de 10 min de jeu au rythme maximal,
+// l'excédent est rejeté et journalisé.
+
+/** Clics/s maximum retenus pour la progression (surchargeable : config depth_max_cps). */
+const DEPTH_MAX_CPS_DEFAULT = 20;
+/**
+ * Blocs/s maximum retenus pour l'autodig : autoDigTick frappe toutes les 1 s (au plus un bloc
+ * par coup) ; marge de 25 % pour pouvoir rattraper un retard (sauvegardes perdues).
+ */
+const AUTODIG_MAX_BPS = 1.25;
+/** Capacité des seaux : temps de jeu au rythme maximal accumulable entre deux sauvegardes. */
+const DEPTH_BUCKET_SECS = 20;
+/** Au-delà de ce temps de jeu au rythme maximal en attente, l'excédent est rejeté. */
+const DEPTH_PENDING_MAX_SECS = 600;
+/** Écart déclaré − retenu à partir duquel un plafonnement est journalisé. */
+const DEPTH_LOG_GAP = 50;
+
+/**
+ * Accepte une partie des compteurs en attente selon les jetons disponibles.
+ * @returns {{ ok: number, tokens: number, ref: number, discarded: number }}
+ */
+function _drainCounter(claimed, ref, tokens, rate) {
+  if (claimed < ref) return { ok: 0, tokens, ref: claimed, discarded: 0 }; // compteur revenu en arrière
+  const pending = claimed - ref;
+  const ok      = Math.min(pending, Math.floor(tokens));
+  let newRef    = ref + ok;
+  let discarded = 0;
+  if (pending - ok > rate * DEPTH_PENDING_MAX_SECS) {
+    discarded = pending - ok;
+    newRef    = claimed;
+  }
+  return { ok, tokens: tokens - ok, ref: newRef, discarded };
+}
+
+/**
+ * Calcule la profondeur maximale retenue pour le classement à partir de la sauvegarde.
+ *
+ * @param {number} userId
+ * @param {number} seasonId
+ * @param {object} seasonStats  Objet du client (maxDepth, manualClicks, autoBlocks, regularityScore…)
+ * @param {object} config       Config admin (depth_validation_enabled, depth_max_cps)
+ * @param {string} [username]   Pour le log
+ * @param {number} [nowMs]      Horloge injectable (tests)
+ * @returns {{ acceptedDepth: number, reportedDepth: number, action: string }}
+ *          action : none | init | capped | depth_capped | depth_rejected | disabled
+ */
+function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = Date.now()) {
+  const enabled  = String(config.depth_validation_enabled ?? 'true').toLowerCase() !== 'false';
+  const cfgRate  = parseFloat(config.depth_max_cps);
+  const handRate = Number.isFinite(cfgRate) && cfgRate > 0 ? cfgRate : DEPTH_MAX_CPS_DEFAULT;
+
+  const claimedDepth  = _toCount(seasonStats.maxDepth);
+  const claimedClicks = _toCount(seasonStats.manualClicks);
+  const claimedAuto   = _toCount(seasonStats.autoBlocks);
+
+  let t = getDepthTracking(userId);
+  let action = 'none';
+  if (!t || t.season_id !== seasonId) {
+    action = 'init';
+    // Ligne de classement antérieure à la validation (données existantes) : on la reprend
+    // telle quelle et on repart des derniers compteurs enregistrés, sans crédit.
+    const entry = getPlayerSeasonEntry(seasonId, userId);
+    t = entry && entry.max_depth > 0
+      ? { ref_clicks: entry.manual_clicks, ref_auto: entry.auto_blocks, accepted_depth: entry.max_depth }
+      : { ref_clicks: 0, ref_auto: 0, accepted_depth: 0 };
+    Object.assign(t, { season_id: seasonId, hand_tokens: 0, auto_tokens: 0, last_gap: 0, updated_ms: nowMs });
+  }
+
+  if (!enabled) {
+    const accepted = Math.max(t.accepted_depth, claimedDepth);
+    upsertDepthTracking(userId, { ...t, ref_clicks: claimedClicks, ref_auto: claimedAuto,
+      hand_tokens: 0, auto_tokens: 0, accepted_depth: accepted, last_gap: 0, updated_ms: nowMs });
+    return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: 'disabled' };
+  }
+
+  // Recharge des seaux selon le temps réel écoulé (plafonnée : l'inactivité ne s'accumule pas)
+  const dtSecs     = Math.max(0, (nowMs - t.updated_ms) / 1000);
+  const handTokens = Math.min(handRate * DEPTH_BUCKET_SECS, t.hand_tokens + handRate * dtSecs);
+  const autoTokens = Math.min(AUTODIG_MAX_BPS * DEPTH_BUCKET_SECS, t.auto_tokens + AUTODIG_MAX_BPS * dtSecs);
+
+  const pendingClicks = Math.max(0, claimedClicks - t.ref_clicks);
+  const hand = _drainCounter(claimedClicks, t.ref_clicks, handTokens, handRate);
+  const auto = _drainCounter(claimedAuto,   t.ref_auto,   autoTokens, AUTODIG_MAX_BPS);
+
+  const ceiling  = Math.max(t.accepted_depth, 1) + hand.ok + auto.ok;
+  const accepted = Math.max(t.accepted_depth, Math.min(claimedDepth, ceiling));
+  const gap      = Math.max(0, claimedDepth - accepted);
+
+  upsertDepthTracking(userId, {
+    season_id: seasonId, ref_clicks: hand.ref, ref_auto: auto.ref,
+    hand_tokens: hand.tokens, auto_tokens: auto.tokens,
+    accepted_depth: accepted, last_gap: gap, updated_ms: nowMs,
+  });
+
+  let logAction = null;
+  if (hand.discarded > 0 || auto.discarded > 0) logAction = 'depth_rejected';
+  else if (gap >= DEPTH_LOG_GAP && t.last_gap < DEPTH_LOG_GAP) logAction = 'depth_capped';
+
+  if (logAction) {
+    const cps = dtSecs > 0 ? pendingClicks / dtSecs : pendingClicks;
+    insertAntiCheatLog(
+      userId, username ?? `user_${userId}`, seasonId,
+      parseFloat(dtSecs.toFixed(2)),
+      pendingClicks,
+      parseFloat(cps.toFixed(2)),
+      parseFloat((Number(seasonStats.regularityScore) || 0).toFixed(3)),
+      parseFloat((claimedDepth > 0 ? accepted / claimedDepth : 1).toFixed(3)),
+      logAction,
+      { reportedDepth: claimedDepth, acceptedDepth: accepted,
+        discardedClicks: hand.discarded, discardedAutoBlocks: auto.discarded },
+    );
+    console.log(`[anticheat] ${username ?? userId} : profondeur déclarée ${claimedDepth} → retenue ${accepted} — ${logAction}`);
+    return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: logAction };
+  }
+
+  return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: gap > 0 ? 'capped' : action };
+}
+
 // ── Utilitaires de stats saisonnières ────────────────────────────────────────
 
 /**
@@ -359,13 +487,14 @@ function getOrCreateSeasonStats(userId, seasonId, leagueId) {
  * @param {number} userId
  * @param {object} season      Ligne de la table seasons
  * @param {object} opts
- * @param {number} opts.maxDepth
+ * @param {number} opts.maxDepth          Profondeur validée côté serveur (classement)
+ * @param {number} [opts.reportedMaxDepth] Profondeur déclarée par le client (audit)
  * @param {number} opts.manualBlocks
  * @param {number} opts.manualClicks   Total de clics (y compris sans destruction)
  * @param {number} opts.suspiciousScore Clics suspects détectés côté client
  * @param {number|null} opts.leagueId  Ligue actuelle du joueur
  */
-function recordManualBreaks(userId, season, { maxDepth, manualBlocks, manualClicks, suspiciousScore, leagueId }) {
+function recordManualBreaks(userId, season, { maxDepth, reportedMaxDepth, manualBlocks, manualClicks, suspiciousScore, leagueId }) {
   if (manualBlocks < 1) return;
   upsertSeasonRanking(
     season.id, userId,
@@ -373,7 +502,8 @@ function recordManualBreaks(userId, season, { maxDepth, manualBlocks, manualClic
     null,            // auto_blocks : géré exclusivement par recordAutoBreaks
     manualClicks  ?? 0,
     suspiciousScore ?? 0,
-    leagueId ?? null
+    leagueId ?? null,
+    reportedMaxDepth ?? maxDepth
   );
 }
 
@@ -418,6 +548,10 @@ function syncPlayerRanking(userId, seasonStats) {
   const user       = getUserById(userId);
   const userLeague = getUserLeague(userId);
   const leagueId   = userLeague ? userLeague.id : null;
+  const config     = getAdminConfig();
+
+  // ── Profondeur : validée côté serveur à chaque sauvegarde (ticket #9) ─────
+  const { acceptedDepth, reportedDepth } = validateDepth(userId, season.id, seasonStats, config, user?.username);
 
   // ── Blocs auto (jamais comptés dans le classement) ────────────────────────
   if ((autoBlocks ?? 0) > 0) {
@@ -428,29 +562,36 @@ function syncPlayerRanking(userId, seasonStats) {
   if (manualBlocks >= 1) {
     // Enregistre les stats brutes (audit) — marque le joueur actif
     recordManualBreaks(userId, season, {
-      maxDepth, manualBlocks,
+      maxDepth:         acceptedDepth,
+      reportedMaxDepth: reportedDepth,
+      manualBlocks,
       manualClicks:    manualClicks    ?? 0,
       suspiciousScore: suspiciousScore ?? 0,
       leagueId,
     });
 
     // Calcule les blocs effectifs validés côté serveur
-    const config = getAdminConfig();
     const { effectiveManualBlocks } = processAntiCheat(
       userId, season.id, seasonStats, config, user?.username
     );
 
-    // Met à jour le compteur effectif (utilisé pour le classement et les promotions)
-    updateEffectiveBlocks(season.id, userId, effectiveManualBlocks);
+    // Met à jour le compteur effectif (utilisé pour le classement et les promotions).
+    // Chaque bloc manuel fait descendre d'un mètre : blocs manuels ≤ profondeur retenue − 1.
+    updateEffectiveBlocks(season.id, userId, Math.min(effectiveManualBlocks, Math.max(0, acceptedDepth - 1)));
   }
 }
 
 const PAGE_SIZE = 50;
 
-/** Formate une ligne brute de season_rankings en objet API normalisé. */
-function _formatRow(r, leagueMap) {
+/**
+ * Formate une ligne brute de season_rankings en objet API normalisé.
+ * `admin` : ajoute les valeurs déclarées par le client (audit), absentes de l'API publique.
+ */
+function _formatRow(r, leagueMap, admin = false) {
   const league = r.league_id ? (leagueMap[r.league_id] ?? null) : null;
+  const audit  = admin ? { reportedMaxDepth: r.reported_max_depth ?? null, manualClicks: r.manual_clicks ?? null } : {};
   return {
+    ...audit,
     rank:                 r.rank ?? r.rank_in_league ?? null,
     userId:               r.user_id,
     username:             r.username,
@@ -534,7 +675,7 @@ function buildLeaderboard(seasonId, page = 1) {
 /**
  * Classement global paginé — réponse enrichie avec totaux et pagination.
  */
-function buildGlobalLeaderboard(seasonId, page = 1) {
+function buildGlobalLeaderboard(seasonId, page = 1, { admin = false } = {}) {
   const offset  = (page - 1) * PAGE_SIZE;
   const rows    = getSeasonLeaderboard(seasonId, PAGE_SIZE, offset);
   const total   = countSeasonActivePlayers(seasonId);
@@ -546,7 +687,7 @@ function buildGlobalLeaderboard(seasonId, page = 1) {
     pageSize:   PAGE_SIZE,
     total,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-    leaderboard: rows.map(r => _formatRow(r, leagueMap)),
+    leaderboard: rows.map(r => _formatRow(r, leagueMap, admin)),
   };
 }
 
@@ -614,6 +755,7 @@ module.exports = {
   closeActiveSeason,
   syncPlayerRanking,
   processAntiCheat,
+  validateDepth,
   getOrCreateSeasonStats,
   recordManualBreaks,
   recordAutoBreaks,

@@ -27,6 +27,9 @@ const bcrypt  = require('bcryptjs');
 
 db.initDb();
 const g = db.getDb();
+// Ce script injecte des profondeurs arbitraires pour tester tri et promotions : la validation
+// de plausibilité de la profondeur (ticket #9) est testée à part (test/ranking-depth.test.js).
+db.setAdminConfig('depth_validation_enabled', 'false');
 
 // ── Mini framework de test ────────────────────────────────────────────────────
 let _passed = 0, _failed = 0;

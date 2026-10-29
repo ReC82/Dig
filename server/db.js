@@ -180,6 +180,24 @@ function initDb() {
       accepted_blocks     INTEGER NOT NULL DEFAULT 0
     );
 
+    -- ── Validation serveur de la profondeur (ticket #9) ──────────────────────
+    -- Une ligne par joueur, réinitialisée au changement de saison.
+    -- ref_clicks / ref_auto : compteurs client déjà « consommés » (le reste est en attente)
+    -- hand_tokens / auto_tokens : seaux de jetons (clics / blocs auto autorisés par le temps)
+    -- accepted_depth : profondeur max retenue pour le classement
+    -- last_gap : écart déclaré − retenu à la dernière sauvegarde (limite les logs)
+    CREATE TABLE IF NOT EXISTS player_depth_tracking (
+      user_id        INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      season_id      INTEGER,
+      ref_clicks     INTEGER NOT NULL DEFAULT 0,
+      ref_auto       INTEGER NOT NULL DEFAULT 0,
+      hand_tokens    REAL    NOT NULL DEFAULT 0,
+      auto_tokens    REAL    NOT NULL DEFAULT 0,
+      accepted_depth INTEGER NOT NULL DEFAULT 0,
+      last_gap       INTEGER NOT NULL DEFAULT 0,
+      updated_ms     INTEGER NOT NULL DEFAULT 0
+    );
+
     -- ── Journal des événements anti-autoclicker ──────────────────────────────
     CREATE TABLE IF NOT EXISTS anticheat_logs (
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -274,6 +292,23 @@ function initDb() {
     console.log('[db] Migration : season_rankings.effective_manual_blocks ajouté (initialisé depuis manual_blocks)');
   }
 
+  // season_rankings : reported_max_depth (profondeur déclarée par le client, audit — ticket #9)
+  // max_depth devient la profondeur validée côté serveur.
+  if (!rankingCols.includes('reported_max_depth')) {
+    _db.prepare('ALTER TABLE season_rankings ADD COLUMN reported_max_depth INTEGER NOT NULL DEFAULT 0').run();
+    _db.prepare('UPDATE season_rankings SET reported_max_depth = max_depth').run();
+    console.log('[db] Migration : season_rankings.reported_max_depth ajouté (initialisé depuis max_depth)');
+  }
+
+  // anticheat_logs : details (JSON libre — profondeur déclarée/retenue, correction admin…)
+  {
+    const acCols = _db.prepare('PRAGMA table_info(anticheat_logs)').all().map(r => r.name);
+    if (!acCols.includes('details')) {
+      _db.prepare('ALTER TABLE anticheat_logs ADD COLUMN details TEXT').run();
+      console.log('[db] Migration : anticheat_logs.details ajouté');
+    }
+  }
+
   // ── Seeds config ──────────────────────────────────────────────────────────
   const cfgStmt = _db.prepare(
     `INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`
@@ -288,6 +323,9 @@ function initDb() {
   cfgStmt.run('difficulty_coefficient',       '0.45');
   cfgStmt.run('min_active_players_per_league','10');
   cfgStmt.run('anti_autoclick_enabled',       'true');
+  // Validation serveur de la profondeur (ticket #9)
+  cfgStmt.run('depth_validation_enabled',     'true');
+  cfgStmt.run('depth_max_cps',                '20');    // clics/s max retenus pour la progression
   // Économie — multiplicateurs globaux (informations + appliqués par chestShop)
   cfgStmt.run('upgrade_cost_multiplier',  '1.0');   // ×coût des upgrades saisonniers
   cfgStmt.run('coin_gain_multiplier',     '1.0');   // ×gains de pièces (blocs)
@@ -599,20 +637,21 @@ function getLeagueForRank(rank) {
  * NE touche pas auto_blocks (géré séparément par updateAutoBlocksOnly).
  * Marque le joueur actif (is_active = 1) → il entre dans le classement.
  */
-function upsertSeasonRanking(seasonId, userId, maxDepth, manualBlocks, _unused, manualClicks, suspiciousScore, leagueId) {
+function upsertSeasonRanking(seasonId, userId, maxDepth, manualBlocks, _unused, manualClicks, suspiciousScore, leagueId, reportedMaxDepth) {
   getDb().prepare(`
     INSERT INTO season_rankings
-      (season_id, user_id, league_id, max_depth, manual_blocks, manual_clicks, suspicious_score, is_active, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+      (season_id, user_id, league_id, max_depth, reported_max_depth, manual_blocks, manual_clicks, suspicious_score, is_active, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
     ON CONFLICT(season_id, user_id) DO UPDATE SET
-      league_id        = COALESCE(excluded.league_id, league_id),
-      max_depth        = MAX(max_depth, excluded.max_depth),
-      manual_blocks    = MAX(manual_blocks, excluded.manual_blocks),
-      manual_clicks    = MAX(manual_clicks, excluded.manual_clicks),
-      suspicious_score = MAX(suspicious_score, excluded.suspicious_score),
-      is_active        = 1,
-      updated_at       = excluded.updated_at
-  `).run(seasonId, userId, leagueId ?? null, maxDepth, manualBlocks, manualClicks ?? 0, suspiciousScore ?? 0);
+      league_id          = COALESCE(excluded.league_id, league_id),
+      max_depth          = MAX(max_depth, excluded.max_depth),
+      reported_max_depth = MAX(reported_max_depth, excluded.reported_max_depth),
+      manual_blocks      = MAX(manual_blocks, excluded.manual_blocks),
+      manual_clicks      = MAX(manual_clicks, excluded.manual_clicks),
+      suspicious_score   = MAX(suspicious_score, excluded.suspicious_score),
+      is_active          = 1,
+      updated_at         = excluded.updated_at
+  `).run(seasonId, userId, leagueId ?? null, maxDepth, reportedMaxDepth ?? maxDepth, manualBlocks, manualClicks ?? 0, suspiciousScore ?? 0);
 }
 
 function getLowestLeague() {
@@ -648,7 +687,9 @@ function getSeasonLeaderboard(seasonId, limit = 50, offset = 0) {
            u.username,
            r.league_id,
            r.max_depth,
+           r.reported_max_depth,
            r.manual_blocks,
+           r.manual_clicks,
            r.effective_manual_blocks,
            r.auto_blocks,
            ROW_NUMBER() OVER (ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC) AS rank
@@ -817,13 +858,67 @@ function upsertClickTracking(userId, seasonId, lastClicks, lastBlocks, saveAt, a
   `).run(userId, seasonId ?? null, lastClicks, lastBlocks, saveAt, acceptedBlocks);
 }
 
-/** Insère un événement dans le journal anti-autoclicker. */
-function insertAntiCheatLog(userId, username, seasonId, periodSecs, periodClicks, inferredCps, regularityScore, effectiveRatio, actionTaken) {
+/** Insère un événement dans le journal anti-autoclicker. `details` : objet sérialisé en JSON (optionnel). */
+function insertAntiCheatLog(userId, username, seasonId, periodSecs, periodClicks, inferredCps, regularityScore, effectiveRatio, actionTaken, details = null) {
   getDb().prepare(`
     INSERT INTO anticheat_logs
-      (user_id, username, season_id, period_seconds, period_clicks, inferred_cps, regularity_score, effective_ratio, action_taken)
+      (user_id, username, season_id, period_seconds, period_clicks, inferred_cps, regularity_score, effective_ratio, action_taken, details)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, username ?? '', seasonId ?? null, periodSecs, periodClicks, inferredCps, regularityScore, effectiveRatio, actionTaken,
+         details == null ? null : JSON.stringify(details));
+}
+
+// ── Helpers validation de profondeur (ticket #9) ──────────────────────────────
+
+/** Retourne l'état de validation de profondeur d'un joueur, ou null. */
+function getDepthTracking(userId) {
+  return getDb().prepare('SELECT * FROM player_depth_tracking WHERE user_id = ?').get(userId) ?? null;
+}
+
+/** Crée ou remplace l'état de validation de profondeur d'un joueur. */
+function upsertDepthTracking(userId, t) {
+  getDb().prepare(`
+    INSERT INTO player_depth_tracking
+      (user_id, season_id, ref_clicks, ref_auto, hand_tokens, auto_tokens, accepted_depth, last_gap, updated_ms)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(userId, username ?? '', seasonId ?? null, periodSecs, periodClicks, inferredCps, regularityScore, effectiveRatio, actionTaken);
+    ON CONFLICT(user_id) DO UPDATE SET
+      season_id      = excluded.season_id,
+      ref_clicks     = excluded.ref_clicks,
+      ref_auto       = excluded.ref_auto,
+      hand_tokens    = excluded.hand_tokens,
+      auto_tokens    = excluded.auto_tokens,
+      accepted_depth = excluded.accepted_depth,
+      last_gap       = excluded.last_gap,
+      updated_ms     = excluded.updated_ms
+  `).run(userId, t.season_id ?? null, t.ref_clicks, t.ref_auto, t.hand_tokens, t.auto_tokens, t.accepted_depth, t.last_gap, t.updated_ms);
+}
+
+/**
+ * Correction admin d'une ligne de classement (valeurs imposées, pas de MAX).
+ * Met aussi à jour les états de validation de la même saison pour que la sauvegarde
+ * suivante du joueur ne rétablisse pas l'ancienne valeur.
+ * @param {{ maxDepth?: number, effectiveManualBlocks?: number }} fields
+ * @returns {{ before: object, after: object } | null}  null si la ligne n'existe pas
+ */
+function correctSeasonRanking(seasonId, userId, fields) {
+  const db = getDb();
+  return db.transaction(() => {
+    const before = getPlayerSeasonEntry(seasonId, userId);
+    if (!before) return null;
+    if (fields.maxDepth != null) {
+      db.prepare('UPDATE season_rankings SET max_depth = ?, updated_at = datetime(\'now\') WHERE season_id = ? AND user_id = ?')
+        .run(fields.maxDepth, seasonId, userId);
+      db.prepare('UPDATE player_depth_tracking SET accepted_depth = ?, last_gap = 0 WHERE user_id = ? AND season_id = ?')
+        .run(fields.maxDepth, userId, seasonId);
+    }
+    if (fields.effectiveManualBlocks != null) {
+      db.prepare('UPDATE season_rankings SET effective_manual_blocks = ?, updated_at = datetime(\'now\') WHERE season_id = ? AND user_id = ?')
+        .run(fields.effectiveManualBlocks, seasonId, userId);
+      db.prepare('UPDATE player_click_tracking SET accepted_blocks = ? WHERE user_id = ? AND season_id = ?')
+        .run(fields.effectiveManualBlocks, userId, seasonId);
+    }
+    return { before, after: getPlayerSeasonEntry(seasonId, userId) };
+  })();
 }
 
 /** Retourne les derniers événements anti-autoclicker (tri chrono inverse). */
@@ -910,4 +1005,5 @@ module.exports = {
   getClickTracking, upsertClickTracking,
   insertAntiCheatLog, getAntiCheatLogs, countAntiCheatLogs,
   updateEffectiveBlocks,
+  getDepthTracking, upsertDepthTracking, correctSeasonRanking,
 };
