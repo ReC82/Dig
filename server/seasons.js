@@ -224,68 +224,104 @@ function checkAndRotateSeason() {
 
 // ── Anti-autoclicker (validation serveur) ─────────────────────────────────────
 
+/** Fenêtre minimale de mesure : en dessous, les clics restent en attente et sont cumulés. */
+const AC_MIN_WINDOW_SECS = 3;
+/** Fenêtre maximale retenue : une longue absence ne peut pas « diluer » une rafale de clics. */
+const AC_MAX_WINDOW_SECS = 120;
+
+/** Compteur client → entier ≥ 0 (valeur absente, négative ou non numérique → 0). */
+function _toCount(v) {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 /**
  * Analyse les clics reçus dans le lot de sauvegarde et retourne le nombre de blocs
  * effectivement acceptés après application du plafond CPS côté serveur.
  *
- * Logique :
- *  1. Compare le nombre de clics de la sauvegarde avec le snapshot précédent.
- *  2. Calcule le CPS inféré sur la période écoulée.
- *  3. Si CPS > max_effective_cps → réduit le delta de blocs proportionnellement.
- *  4. Journalise l'événement si suspect.
+ * Logique (fenêtre glissante entre deux mesures, table player_click_tracking) :
+ *  1. Δclics / Δblocs / Δt depuis la dernière mesure retenue.
+ *  2. Δt < 3 s → rien n'est décidé : la référence n'est pas avancée, les clics sont cumulés
+ *     et évalués à la sauvegarde suivante (plus de contournement par sauvegardes rapprochées).
+ *  3. Δblocs > Δclics est impossible (un bloc manuel exige un clic) : l'excédent est refusé,
+ *     en particulier Δclics = 0 avec Δblocs > 0 (manualClicks inchangé).
+ *  4. CPS = Δclics / min(Δt, 120 s) ; au-delà de max_effective_cps → réduction proportionnelle.
+ *  5. Journalise l'événement si réduit ou refusé.
  *
  * @param {number} userId
  * @param {number} seasonId
  * @param {object} seasonStats  Objet complet du client (manualClicks, manualBlocks, regularityScore…)
  * @param {object} config       Config admin (max_effective_cps, anti_autoclick_enabled…)
  * @param {string} [username]   Pour le log
- * @returns {{ effectiveManualBlocks: number, action: string }}
+ * @param {number} [nowMs]      Horloge injectable (tests)
+ * @returns {{ effectiveManualBlocks: number, action: string, effectiveRatio?: number }}
  */
-function processAntiCheat(userId, seasonId, seasonStats, config, username) {
+function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs = Date.now()) {
   const maxCps  = parseFloat(config.max_effective_cps ?? config.cps_limit ?? '8');
   const enabled = String(config.anti_autoclick_enabled ?? 'true').toLowerCase() !== 'false';
 
-  const newClicks     = seasonStats.manualClicks    ?? 0;
-  const newBlocks     = seasonStats.manualBlocks    ?? 0;
-  const clientRegScore = seasonStats.regularityScore ?? 0;
-  const nowIso        = fmtUtc(new Date());
+  const newClicks      = _toCount(seasonStats.manualClicks);
+  const newBlocks      = _toCount(seasonStats.manualBlocks);
+  const clientRegScore = Number(seasonStats.regularityScore) || 0;
+  const nowIso         = fmtUtc(new Date(nowMs));
 
   const tracking = getClickTracking(userId);
 
   // Première sauvegarde ou changement de saison → initialiser sans pénalité
+  // (sans dépasser le nombre de clics : un bloc manuel exige un clic)
   if (!tracking || tracking.season_id !== seasonId) {
-    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, newBlocks);
-    return { effectiveManualBlocks: newBlocks, action: 'init' };
+    const initial = enabled ? Math.min(newBlocks, newClicks) : newBlocks;
+    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, initial);
+    return { effectiveManualBlocks: initial, action: 'init' };
   }
 
-  const deltaClicks = Math.max(0, newClicks - tracking.last_manual_clicks);
-  const deltaBlocks = Math.max(0, newBlocks - tracking.last_blocks);
-  const deltaSecs   = Math.max(0, (Date.now() - new Date(tracking.last_save_at + 'Z').getTime()) / 1000);
+  const accepted = tracking.accepted_blocks;
 
-  // Délai trop court ou aucun nouveau clic → accepter les blocs (peuvent venir d'avant la fenêtre)
-  if (!enabled || deltaSecs < 3 || deltaClicks === 0) {
-    const newAccepted = tracking.accepted_blocks + deltaBlocks;
-    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, newAccepted);
-    return { effectiveManualBlocks: newAccepted, action: 'none' };
+  // Compteurs revenus en arrière (réinitialisation locale, autre appareil) → nouvelle référence
+  if (newClicks < tracking.last_manual_clicks || newBlocks < tracking.last_blocks) {
+    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, accepted);
+    return { effectiveManualBlocks: accepted, action: 'rebase' };
   }
 
-  const inferredCps = deltaClicks / deltaSecs;
+  const deltaClicks = newClicks - tracking.last_manual_clicks;
+  const deltaBlocks = newBlocks - tracking.last_blocks;
+  const deltaSecs   = Math.max(0, (nowMs - new Date(tracking.last_save_at + 'Z').getTime()) / 1000);
 
-  if (inferredCps <= maxCps) {
-    // Dans les limites normales
-    const newAccepted = tracking.accepted_blocks + deltaBlocks;
-    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, newAccepted);
-    return { effectiveManualBlocks: newAccepted, action: 'none' };
+  // Aucune activité manuelle : on avance la référence (l'inactivité ne compte pas dans la fenêtre)
+  if (deltaClicks === 0 && deltaBlocks === 0) {
+    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, accepted);
+    return { effectiveManualBlocks: accepted, action: 'none' };
   }
 
-  // ── CPS dépasse le seuil → réduction progressive ─────────────────────────
+  if (!enabled) {
+    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, accepted + deltaBlocks);
+    return { effectiveManualBlocks: accepted + deltaBlocks, action: 'none' };
+  }
+
+  // Fenêtre trop courte → cumul : la référence n'est pas avancée, décision à la prochaine mesure
+  if (deltaSecs < AC_MIN_WINDOW_SECS) {
+    return { effectiveManualBlocks: accepted, action: 'pending' };
+  }
+
+  const validBlocks    = Math.min(deltaBlocks, deltaClicks);
+  const windowSecs     = Math.min(deltaSecs, AC_MAX_WINDOW_SECS);
+  const inferredCps    = deltaClicks / windowSecs;
   // Minimum 10 % pour ne jamais bloquer totalement un joueur
-  const effectiveRatio  = Math.max(0.10, maxCps / inferredCps);
-  const effectiveDelta  = Math.floor(deltaBlocks * effectiveRatio);
-  const newAccepted     = tracking.accepted_blocks + effectiveDelta;
-  const action          = effectiveRatio < 0.40 ? 'flagged' : 'reduced';
+  const cpsRatio       = inferredCps <= maxCps ? 1 : Math.max(0.10, maxCps / inferredCps);
+  const effectiveDelta = Math.floor(validBlocks * cpsRatio);
+  const newAccepted    = accepted + effectiveDelta;
 
-  // Log de l'événement
+  upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, newAccepted);
+
+  if (cpsRatio === 1 && validBlocks === deltaBlocks) {
+    return { effectiveManualBlocks: newAccepted, action: 'none' };
+  }
+
+  const effectiveRatio = deltaBlocks > 0 ? effectiveDelta / deltaBlocks : cpsRatio;
+  const action = cpsRatio < 1
+    ? (cpsRatio < 0.40 ? 'flagged' : 'reduced')
+    : 'rejected'; // CPS normal mais plus de blocs que de clics
+
   insertAntiCheatLog(
     userId,
     username ?? `user_${userId}`,
@@ -298,9 +334,8 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username) {
     action
   );
 
-  console.log(`[anticheat] ${username ?? userId} : ${inferredCps.toFixed(1)} CPS (seuil=${maxCps}) → ratio ${(effectiveRatio * 100).toFixed(0)}% — ${action}`);
+  console.log(`[anticheat] ${username ?? userId} : ${inferredCps.toFixed(1)} CPS (seuil=${maxCps}), ${deltaBlocks} blocs/${deltaClicks} clics → ${effectiveDelta} acceptés — ${action}`);
 
-  upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, newAccepted);
   return { effectiveManualBlocks: newAccepted, action, effectiveRatio };
 }
 
@@ -312,9 +347,7 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username) {
  * @returns {object} L'entrée season_rankings (existante ou nouvelle)
  */
 function getOrCreateSeasonStats(userId, seasonId, leagueId) {
-  const entry = getOrCreateSeasonEntry(seasonId, userId, leagueId);
-  console.log(`[seasons] getOrCreateSeasonStats userId=${userId} seasonId=${seasonId} leagueId=${leagueId} → id=${entry.id}`);
-  return entry;
+  return getOrCreateSeasonEntry(seasonId, userId, leagueId);
 }
 
 /**
@@ -333,11 +366,7 @@ function getOrCreateSeasonStats(userId, seasonId, leagueId) {
  * @param {number|null} opts.leagueId  Ligue actuelle du joueur
  */
 function recordManualBreaks(userId, season, { maxDepth, manualBlocks, manualClicks, suspiciousScore, leagueId }) {
-  if (manualBlocks < 1) {
-    console.log(`[seasons] recordManualBreaks ignoré (manualBlocks=${manualBlocks}) userId=${userId}`);
-    return;
-  }
-  console.log(`[seasons] recordManualBreaks userId=${userId} seasonId=${season.id} depth=${maxDepth} blocks=${manualBlocks} clicks=${manualClicks} suspicious=${suspiciousScore}`);
+  if (manualBlocks < 1) return;
   upsertSeasonRanking(
     season.id, userId,
     maxDepth, manualBlocks,
@@ -360,7 +389,6 @@ function recordManualBreaks(userId, season, { maxDepth, manualBlocks, manualClic
  */
 function recordAutoBreaks(userId, seasonId, autoBlocks) {
   if (autoBlocks <= 0) return;
-  console.log(`[seasons] recordAutoBreaks userId=${userId} seasonId=${seasonId} autoBlocks=${autoBlocks}`);
   updateAutoBlocksOnly(seasonId, userId, autoBlocks);
 }
 
@@ -585,6 +613,7 @@ module.exports = {
   checkAndRotateSeason,
   closeActiveSeason,
   syncPlayerRanking,
+  processAntiCheat,
   getOrCreateSeasonStats,
   recordManualBreaks,
   recordAutoBreaks,
