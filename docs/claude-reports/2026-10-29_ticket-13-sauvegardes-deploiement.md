@@ -96,7 +96,7 @@ Les scripts sont installés hors de `/home/ubuntu/Dig` : des fichiers non suivis
 
 1. **Prérequis :** Node v22.23.0, better-sqlite3 9.6.0, 21 Go libres, service `dig` actif (`49faf2d`), aucune installation antérieure, DIGORCH en pause.
 2. **Sauvegarde de précaution** (outil indépendant, binaire `sqlite3 -readonly .backup`) : `~/backups/dig/precaution/dig-precaution-avant-installation-20261029-222553.sqlite`, `integrity_check = ok`, 1 compte / 1 sauvegarde de partie / 3 classements / 6 saisons, sha256 `0ce640de631e…`. Ce sous-dossier n’est jamais concerné par la rétention.
-3. **Installation et activation** : `systemd-analyze verify` sans erreur sur les unités, timer activé. Prochain passage : 30/10 vers 03:31.
+3. **Installation et activation** : `systemd-analyze verify` sans erreur sur les unités, timer activé. Prochain passage : 30/10 à 03:30:00.
 4. **Sauvegarde réelle n° 1** (22:26) : OK, mais elle a révélé un **défaut** non couvert par les tests : fichiers `…sqlite.partial-wal` / `-shm` résiduels (la copie héritait du mode WAL de la source). **Corrigé** (`99fb195`, copie passée en journal DELETE avant vérification, même chose en restauration), test renforcé qui échoue sur l’ancien code et passe avec le correctif, 14/14 sur develop (`9c4ff9f`), scripts réinstallés, résidus supprimés.
 5. **Sauvegarde réelle n° 2** (22:28, par le service systemd) : `dig-20261029-222840-daily.sqlite`, 11 tables / 29 lignes. Vérification indépendante : `integrity_check = ok` (binaire sqlite3), `journal_mode = delete`, sha256 du fichier identique au manifeste (`cf7d2e151964…`), aucun fichier annexe.
 6. **Restauration sur copie isolée** (dossier temporaire 700, supprimé ensuite) : 11 tables, **compteurs identiques à la production pour chaque table**, classement de la saison 6 identique, **`.dump` complet identique à la sauvegarde** (empreinte `62ba137d4d03…`), `integrity_check = ok`.
@@ -120,3 +120,61 @@ Désinstallation : `sudo systemctl disable --now dig-backup.timer`, puis retrait
 1. **Copie hors serveur :** non configurée (aucune AWS CLI ni aucun identifiant sur la machine). Recommandation : un bucket S3 dédié, avec un rôle IAM d’instance limité à `s3:PutObject` sur ce bucket, une expiration à 30 jours et le chiffrement SSE-S3. Ensuite, un drop-in `dig-backup.service.d/offsite.conf` avec `DIG_BACKUP_OFFSITE_CMD="aws s3 cp --only-show-errors"` complété de la destination. Aucun secret dans le dépôt.
 2. **Vérification finale du propriétaire**, puis passage du ticket à « terminé ».
 3. Plus tard, après validation du ticket #8 et des autres : déploiement de develop par `scripts/deploy.sh`. L unité pourra alors pointer vers `/home/ubuntu/Dig/scripts/backup-db.js`.
+
+### Commits et isolation du déploiement
+
+- **`main` = production = `49faf2d`**, inchangé. Aucun commit de `develop` n’est en production : `git log origin/main..origin/develop` liste 12 commits, dont ceux de #8 (`cb75ba3`, `84db536`, `9228f85`, `7a69583`), qui **restent non déployés**.
+- **Commits de #13 :**
+  - `0036466` : outils ;
+  - `e7c1f39` : intégration ;
+  - `99fb195`, puis `9c4ff9f` : correctif des fichiers -wal/-shm ;
+  - `279b618` : timer à 03:30 précises (délai aléatoire retiré) ;
+  - les commits de ce rapport.
+- **Isolation garantie :** seuls deux fichiers JavaScript autonomes sont installés, hors du dossier de production, à partir de `git show 99fb195:scripts/…` (empreintes vérifiées). Ils sont accompagnés de deux unités systemd et d’une commande. Aucun `git pull` ni `merge`, aucun `npm`, aucun redémarrage de `dig` (PID 553 inchangé). L’arbre de `/home/ubuntu/Dig` reste propre sur `49faf2d`.
+- **Timer :** prochain passage le 30/10 à 03:30:00.
+
+### Contrôle final de la production (22:30)
+
+- `https://dig.lodygames.com` et `https://dig.lodylands.com` répondent 200, `/health` ok, version `1.0.0+49faf2d`.
+- `quick_check` de la base de production : ok.
+- Compte, sauvegarde de partie (même taille), classements et saisons **identiques à la sauvegarde de précaution**.
+
+### Rollback de l’installation (sans effet sur le jeu ni sur la base)
+
+```bash
+sudo systemctl disable --now dig-backup.timer
+sudo rm /etc/systemd/system/dig-backup.service /etc/systemd/system/dig-backup.timer
+sudo rm -r /opt/dig-backup
+sudo rm /usr/local/bin/dig-backup-tool
+sudo systemctl daemon-reload
+# Les sauvegardes de ~/backups/dig sont conservées (à supprimer à la main seulement si voulu).
+```
+
+### Étude : copie hors machine sur S3 (aucune ressource créée)
+
+**Constat :** instance en `us-east-1`, **sans rôle IAM attaché** (`iam/security-credentials` → 404), sans AWS CLI, sans identifiants AWS. Aucune ressource AWS n’a été créée.
+
+**Volume et coût estimés :** environ 115 Ko par sauvegarde, plus le manifeste, une fois par jour. Sur 30 jours de rétention, cela fait environ 4 Mo stockés et environ 60 requêtes PUT par mois. Au tarif public de S3 Standard (environ 0,023 USD par Go-mois et 0,005 USD pour 1 000 PUT, à vérifier), on reste **sous 0,01 USD par mois**.
+
+**Configuration recommandée (à valider avant toute création) :**
+1. **Bucket privé dédié** (par exemple `dig-backups-<compte>`) en `us-east-1`, avec :
+   - blocage total de l’accès public ;
+   - chiffrement SSE-S3 ;
+   - versioning activé ;
+   - règle de cycle de vie : expiration à 30 jours, versions non courantes supprimées après 7 jours.
+2. **Rôle IAM `dig-backup-writer`**, rattaché à l’instance par un profil d’instance. Sa politique n’autorise que `s3:PutObject` sur `arn:aws:s3:::dig-backups-<compte>/dig/*` : pas de lecture, pas de suppression, pas de listage. Une compromission du serveur ne pourrait donc ni lire ni effacer les copies hors machine. Les identifiants sont temporaires et fournis par l’instance : **aucune clé n’est stockée sur le serveur**.
+3. **AWS CLI v2**, puis le drop-in `/etc/systemd/system/dig-backup.service.d/offsite.conf` (le script passe le chemin de la sauvegarde puis celui du manifeste) :
+   ```ini
+   [Service]
+   Environment="DIG_BACKUP_OFFSITE_CMD=/usr/local/bin/dig-backup-offsite"
+   ```
+   Le petit script `dig-backup-offsite` lance `aws s3 cp --only-show-errors "$1" s3://dig-backups-<compte>/dig/`, puis la même commande pour `"$2"`. Si la copie échoue, le service sort en erreur, ce qui est visible dans `systemctl status dig-backup`. La sauvegarde locale est conservée dans tous les cas.
+4. **Test :** lancer `sudo systemctl start dig-backup.service`, vérifier « hors machine : ok » dans le journal, puis contrôler la présence de l’objet dans la console S3.
+
+Alternatives :
+- **Copie vers une autre machine** (`rsync` vers un compte restreint) : pas d’AWS, mais une clé SSH à stocker sur le serveur.
+- **Rester en local :** le risque de perte avec la machine ou le disque est alors non couvert.
+
+**Décisions demandées :**
+1. Valider ou non la création du bucket et du rôle (coût inférieur à 0,01 USD par mois). Qui les crée : vous dans la console AWS, ou moi avec des identifiants d’administration temporaires ?
+2. Durée de rétention hors machine : 30 jours recommandés.
