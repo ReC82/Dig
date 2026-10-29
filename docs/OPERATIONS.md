@@ -148,10 +148,34 @@ ss -ltnp | grep ':3000'                                                         
 
 Retour arrière : `npm run deploy` vers le SHA précédent (ou `scripts/deploy.sh` le fait seul si le contrôle de santé échoue). Le drop-in peut rester en place : l'ancienne version ignore `SESSION_SECRET` (elle l'utilisait déjà s'il était défini).
 
+## Limitation de débit et API legacy (ticket #14)
+
+Compteurs en mémoire dans Node (remis à zéro au redémarrage), par IP réelle du client (`trust proxy` loopback, voir ci-dessus) :
+
+| Route | Limite par défaut | Variable | Ce qui compte |
+|---|---|---|---|
+| `POST /api/login` | 10 / minute / IP | `RATE_LOGIN_MAX` | les **échecs** seulement (une connexion réussie ne compte pas) |
+| `POST /api/register` | 10 / 15 minutes / IP | `RATE_REGISTER_MAX` | toutes les tentatives |
+| `POST /api/me/save` | 30 / minute / **compte** (IP si non connecté) | `RATE_SAVE_MAX` | toutes les sauvegardes cloud (le jeu en envoie ≤ 5/min) |
+
+Au-delà : réponse `429` JSON `{ "error": "Trop de tentatives. Réessayez dans N s.", "retryAfter": N }` avec `Retry-After` et `RateLimit` (draft-7). Le jeu affiche le message à la connexion/inscription ; une sauvegarde cloud refusée est ignorée silencieusement (la suivante passe, la sauvegarde locale n'est pas affectée). `RATE_LIMIT=off` désactive tout (diagnostic uniquement).
+
+L'ancienne API anonyme `/api/players/register` et `/api/players/:token/save` (GET/POST/DELETE) est **supprimée** : elle répond `404`, comme toute route `/api/*` inconnue (`{"error":"Route inconnue."}`). Les tables `players`, `player_saves`, `save_events` restent en base (vides en production, aucune migration).
+
+Vérification après déploiement (depuis n'importe quel poste) :
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://dig.lodygames.com/api/players/00000000-0000-4000-8000-000000000000/save   # 404
+for i in $(seq 1 11); do curl -s -o /dev/null -w '%{http_code} ' -H 'Content-Type: application/json' \
+  -d '{"username":"compte-inexistant","password":"mauvais-mdp"}' https://dig.lodygames.com/api/login; done; echo   # 401 ×10 puis 429
+```
+
+(Ce second test bloque les connexions **de votre IP** pendant une minute.)
+
 ## Tests
 
 ```bash
 npm test     # test/*.test.js : sauvegarde, rétention, restauration, déploiement + retour arrière
 ```
 
-Les tests n'utilisent que des bases temporaires et des ports ≥ 3105 (dont 3111 pour `test/security.test.js`, serveur en `NODE_ENV=production`). Ils ne touchent jamais au service `dig`, au port 3000 ni à `server/data/dig.sqlite`.
+Les tests n'utilisent que des bases temporaires et des ports ≥ 3105 (dont 3111 pour `test/security.test.js`, serveur en `NODE_ENV=production`, et 3112 pour `test/rate-limit.test.js`). Ils ne touchent jamais au service `dig`, au port 3000 ni à `server/data/dig.sqlite`.
