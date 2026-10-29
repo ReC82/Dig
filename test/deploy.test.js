@@ -40,6 +40,8 @@ function setup() {
 echo $! >"${dir}/pid"
 `, { mode: 0o755 });
   sh(dir, restart);
+  // Attendre le serveur de test (création de sa base comprise) avant tout déploiement.
+  sh(dir, `for i in $(seq 1 60); do curl -fsS -m 2 http://127.0.0.1:${PORT}/health >/dev/null 2>&1 && exit 0; sleep 0.5; done; cat "${dir}/server.log"; exit 1`);
   const env = {
     ...process.env, APP_DIR: app, PORT, HEALTH_TIMEOUT: '15', RESTART_CMD: restart,
     DIG_BACKUP_DIR: path.join(dir, 'backups'), DIG_DEPLOY_LOCK: path.join(dir, 'deploy.lock'),

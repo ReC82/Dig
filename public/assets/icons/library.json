@@ -1,0 +1,10 @@
+{
+  "defaultLibrary": "legacy",
+  "libraries": {
+    "v1": {
+      "version": "v1",
+      "base": "assets/icons/v1/",
+      "materials": {}
+    }
+  }
+}
