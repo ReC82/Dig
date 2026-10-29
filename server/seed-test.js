@@ -3,13 +3,25 @@
  * server/seed-test.js
  * Peuple la base avec des joueurs fictifs pour tester le classement saisonnier.
  *
+ * DB_FILE est obligatoire et ne peut pas viser dig.sqlite (voir server/testDbGuard.js).
+ *
  * Usage :
- *   node server/seed-test.js          — insère les données de test
- *   node server/seed-test.js --clean  — supprime uniquement les données de test
- *   node server/seed-test.js --check  — affiche le classement sans modifier la DB
+ *   DB_FILE=/tmp/dig-seed.sqlite node server/seed-test.js          — insère les données de test
+ *   DB_FILE=/tmp/dig-seed.sqlite node server/seed-test.js --clean  — supprime uniquement les données de test
+ *   DB_FILE=/tmp/dig-seed.sqlite node server/seed-test.js --check  — affiche le classement sans modifier la DB
  */
 
 'use strict';
+
+// Garde-fou (audit B10) : vérifié AVANT dotenv, pour qu'un DB_FILE venant de .env ne compte pas.
+try {
+  const target = require('./testDbGuard').resolveTestDbPath(process.env);
+  console.log(`[seed] Base de test : ${target}`);
+} catch (err) {
+  console.error(`[seed] ${err.message}`);
+  process.exit(2);
+}
+
 require('dotenv').config();
 
 const bcrypt  = require('bcryptjs');
@@ -18,6 +30,8 @@ const seasons = require('./seasons');
 
 db.initDb();
 const g = db.getDb();
+// Fermeture propre à la sortie : SQLite fusionne alors le journal et supprime -wal / -shm.
+process.on('exit', () => { try { g.close(); } catch (_) {} });
 
 const SEED_PREFIX = 'testplayer_'; // préfixe des comptes de test (pour cleanup propre)
 

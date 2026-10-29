@@ -106,7 +106,8 @@ app.use(security.securityHeaders);
 // Sessions persistées sur disque — survivent aux redémarrages du serveur
 app.use(session({
   store: new FileStore({
-    path:         path.join(__dirname, 'data', 'sessions'),
+    // SESSIONS_DIR : chemin absolu ou relatif à server/data/ (tests : dossier temporaire).
+    path:         path.resolve(__dirname, 'data', process.env.SESSIONS_DIR || 'sessions'),
     ttl:          7 * 24 * 3600,   // 7 jours en secondes
     reapInterval: 3600,            // nettoie les sessions expirées chaque heure
     logFn:        () => {},        // silence les logs de session-file-store

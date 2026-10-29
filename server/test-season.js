@@ -14,10 +14,14 @@
 require('dotenv').config();
 
 // ── DB de test isolée (définie AVANT tout require de db.js / seasons.js) ──────
+// Base dans un dossier temporaire (os.tmpdir()), jamais dans server/data/ : le dossier entier
+// (base + -wal + -shm) est supprimé à la sortie (ticket #17).
 const path     = require('path');
 const fs       = require('fs');
+const os       = require('os');
 const keepDb   = process.argv.includes('--keep-db');
-const TEST_DB  = `dig_test_${Date.now()}.sqlite`;
+const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'dig-test-season-'));
+const TEST_DB  = path.join(TEST_DIR, 'season.sqlite');
 process.env.DB_FILE = TEST_DB;
 
 // ── Imports (APRÈS avoir défini DB_FILE) ──────────────────────────────────────
@@ -107,12 +111,10 @@ process.on('exit', () => {
     process.exitCode = 1;
   }
   if (!keepDb) {
-    try {
-      const p = path.join(__dirname, 'data', TEST_DB);
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-    } catch (_) {}
+    try { g.close(); } catch (_) {}
+    try { fs.rmSync(TEST_DIR, { recursive: true, force: true }); } catch (_) {}
   } else {
-    console.log(`\n  DB de test conservée : server/data/${TEST_DB}`);
+    console.log(`\n  DB de test conservée : ${TEST_DB}`);
   }
 });
 
