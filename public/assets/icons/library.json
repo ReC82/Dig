@@ -4,7 +4,16 @@
     "v1": {
       "version": "v1",
       "base": "assets/icons/v1/",
-      "materials": {}
+      "materials": {
+        "pierre": {
+          "webp": {
+            "128": "pierre-128.webp",
+            "256": "pierre-256.webp"
+          },
+          "reference": "art/icons/v1/reference/pierre.png",
+          "validated": "2026-10-29"
+        }
+      }
     }
   }
 }

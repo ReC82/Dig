@@ -86,7 +86,12 @@ function loadKey(cfg) {
     if (!cfg.allowSharedKeyFile) throw err;
     process.emitWarning(`${err.message} — utilisé quand même (DIG_OPENAI_ALLOW_SHARED_KEY_FILE=1) ; passer à une clé dédiée.`);
   }
-  const key = parseEnvFile(cfg.keyFile)[cfg.keyVar];
+  let key = parseEnvFile(cfg.keyFile)[cfg.keyVar];
+  // Format accepté aussi : le fichier ne contient que la clé brute, sur une seule ligne.
+  if (!key) {
+    const raw = fs.readFileSync(cfg.keyFile, 'utf8').trim();
+    if (raw && !/[\s=#]/.test(raw)) key = raw;
+  }
   if (!key) throw new Error(`variable ${cfg.keyVar} absente de ${cfg.keyFile}`);
   return key;
 }

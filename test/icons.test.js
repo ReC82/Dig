@@ -109,7 +109,7 @@ test('v1 : image en erreur → repli legacy immédiat et définitif pour la sess
   });
 });
 
-test('v1 sans asset dans le manifeste (état actuel) → legacy partout', () => {
+test('manifeste livré : legacy par défaut, matériaux hors manifeste en legacy', () => {
   const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
   assert.strictEqual(lib.defaultLibrary, 'legacy', 'legacy doit rester la valeur par défaut livrée');
   withLibrary({ config: { ...lib, defaultLibrary: 'v1' } }, () => {
@@ -119,6 +119,20 @@ test('v1 sans asset dans le manifeste (état actuel) → legacy partout', () => 
       if (!lib.libraries.v1.materials[IconLibrary.materialId(type)]) assert.strictEqual(el.textContent, type.icon);
     }
   });
+});
+
+test('pierre v1 validée : manifeste, exports et référence officielle cohérents (empreintes)', () => {
+  const crypto = require('crypto');
+  const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, f))).digest('hex');
+  const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
+  const ref = JSON.parse(fs.readFileSync(path.join(ROOT, 'art/icons/v1/reference/pierre.json'), 'utf8'));
+  assert.deepStrictEqual(Object.keys(lib.libraries.v1.materials), ['pierre'], 'seule la pierre est en v1');
+  assert.strictEqual(sha('art/icons/v1/reference/pierre.png'), ref.sha256);
+  for (const size of ['128', '256']) {
+    const file = 'public/assets/icons/v1/' + lib.libraries.v1.materials.pierre.webp[size];
+    assert.strictEqual(sha(file), ref.exports[size].sha256, `export ${size} conforme à la référence validée`);
+  }
+  assert.strictEqual(require('../tools/icons/generate').officialReference(), path.join(ROOT, 'art/icons/v1/reference/pierre.png'));
 });
 
 test('surcharge par navigateur : ?icons=v1 / legacy mémorisé, ?icons=default efface', () => {
@@ -195,6 +209,18 @@ test('openai : configuration et clé refusées si lisibles par d\'autres comptes
     fs.chmodSync(t.cfg, 0o600);
     fs.chmodSync(t.key, 0o664);
     assert.throws(() => oa.loadKey(oa.loadConfig(t.cfg)), /trop ouvert/);
+  } finally {
+    fs.rmSync(t.dir, { recursive: true, force: true });
+  }
+});
+
+test('openai : clé brute sur une seule ligne acceptée, sans apparaître dans les erreurs', () => {
+  const t = tmpConfig();
+  try {
+    fs.writeFileSync(t.key, 'sk-test-brute-0123456789\n', { mode: 0o600 });
+    assert.strictEqual(oa.loadKey(oa.loadConfig(t.cfg)), 'sk-test-brute-0123456789');
+    fs.writeFileSync(t.key, '# commentaire\nAUTRE=1\n', { mode: 0o600 });
+    assert.throws(() => oa.loadKey(oa.loadConfig(t.cfg)), (e) => /absente/.test(e.message) && !/AUTRE=1/.test(e.message));
   } finally {
     fs.rmSync(t.dir, { recursive: true, force: true });
   }

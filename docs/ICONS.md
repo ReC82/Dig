@@ -5,7 +5,7 @@
 | Bibliothèque | Rendu | Statut |
 |---|---|---|
 | `legacy` | emoji d'origine (`Blocks.TYPES[].icon`) sur le fond CSS du bloc — **inchangé** | **par défaut** |
-| `v1` | images générées (`public/assets/icons/v1/<matériau>-128.webp` / `-256.webp`), matériau par matériau | en validation |
+| `v1` | images générées (`public/assets/icons/v1/<matériau>-128.webp` / `-256.webp`), matériau par matériau. Contenu actuel : **pierre** seule (validée le 29/10/2026) | disponible, **non activée par défaut** |
 
 - **Choix de la bibliothèque :** `public/js/iconLibrary.js`.
 - **Configuration :** `public/assets/icons/library.json`, lue sans cache par le navigateur. Une modification s'applique au prochain chargement de page, sans redémarrage ni migration.
@@ -59,3 +59,10 @@ node tools/icons/generate.js pierre --count 3             # 1 à 3 propositions
   - vrai canal alpha, marges, exports ;
   - garde-fous de la clé et du budget.
 - `node tools/icons/compare.js --before <url> --after <url> --out <dossier>` : captures du vrai composant `#block` pour les 14 matériaux. Le script vérifie que `legacy` est identique au pixel près et que `v1` ne change que les matériaux du manifeste.
+
+## Référence officielle
+
+- `art/icons/v1/reference/pierre.png` : PNG maître 1024 RGBA de la pierre, **proposition C validée par le propriétaire le 29/10/2026**.
+- `art/icons/v1/reference/pierre.json` : provenance (modèle, paramètres, prompt, coût) et empreintes du PNG maître et des exports WebP. `npm test` vérifie que les exports du jeu correspondent à cette référence.
+- `generate.js` joint cette image **automatiquement** à chaque génération d'un nouveau matériau, pour garder le même style.
+- **Ne pas remplacer ce fichier** sans nouvelle validation : il définit le style de toute la bibliothèque v1.
