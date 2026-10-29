@@ -75,6 +75,7 @@ const {
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const security = require('./security');
 const { createRateLimiters } = require('./rateLimits');
+const { isValidEmail } = require('./validation');
 
 // Secrets : refus de démarrer en production sans SESSION_SECRET solide (#12)
 let SESSION_SECRET, ADMIN_SECRET;
@@ -206,10 +207,6 @@ function isValidPassword(p) {
   return typeof p === 'string' && p.length >= 6;
 }
 
-/** Vérifie le format d'une adresse e-mail (validation basique). */
-function isValidEmail(e) {
-  return typeof e === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-}
 
 // ── Routes API ────────────────────────────────────────────────────────────────
 

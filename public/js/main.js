@@ -1195,17 +1195,17 @@ function renderSeasonView(apiData) {
     playerHtml = `<p class="season-hint">${t('season.not_active')}</p>`;
   } else {
     const leagueBadge = player.league
-      ? `<span class="season-league-badge">${player.league.icon} ${player.league.name}</span>`
+      ? `<span class="season-league-badge">${escapeHtml(player.league.icon)} ${escapeHtml(player.league.name)}</span>`
       : `<span class="season-league-badge muted">${t('season.no_league')}</span>`;
     playerHtml = `
       <div class="season-player-card">
         <div class="season-player-card-top">
-          <div class="season-player-rank">${t('season.rank', { n: player.rank ?? '?' })}</div>
+          <div class="season-player-rank">${t('season.rank', { n: escapeHtml(player.rank ?? '?') })}</div>
           ${leagueBadge}
         </div>
         <div class="season-player-stats">
-          <span>⛏ ${t('season.depth_label')} : <strong>${player.maxDepth}m</strong></span>
-          <span>👆 ${t('season.blocks_label')} : <strong>${player.manualBlocks}</strong></span>
+          <span>⛏ ${t('season.depth_label')} : <strong>${escapeHtml(player.maxDepth)}m</strong></span>
+          <span>👆 ${t('season.blocks_label')} : <strong>${escapeHtml(player.manualBlocks)}</strong></span>
         </div>
       </div>`;
   }
@@ -1243,7 +1243,7 @@ function renderSeasonView(apiData) {
   // Charger le leaderboard
   const lbId = 'season-lb-body';
   el.innerHTML = `
-    <div class="view-title-bar">${t('season.title')} — ${season.name}</div>
+    <div class="view-title-bar">${t('season.title')} — ${escapeHtml(season.name)}</div>
     <p class="season-ends-in">${endsIn}</p>
     ${playerHtml}
     ${infoHtml}
@@ -1265,14 +1265,14 @@ async function _loadLeaderboard(seasonId, containerId) {
       return;
     }
     el.innerHTML = data.leaderboard.map(row => {
-      const medal  = row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${row.rank}`;
-      const league = row.league ? `<span class="lb-league">${row.league.icon}</span>` : '';
+      const medal  = row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${escapeHtml(row.rank)}`;
+      const league = row.league ? `<span class="lb-league">${escapeHtml(row.league.icon)}</span>` : '';
       const isMe   = _account && row.username === _account.username;
       return `<div class="lb-row${isMe ? ' lb-row-me' : ''}">
         <span class="lb-rank">${medal}</span>
-        <span class="lb-name">${league}${row.username}</span>
-        <span class="lb-depth">${row.maxDepth}m</span>
-        <span class="lb-blocks">👆${row.manualBlocks}</span>
+        <span class="lb-name">${league}${escapeHtml(row.username)}</span>
+        <span class="lb-depth">${escapeHtml(row.maxDepth)}m</span>
+        <span class="lb-blocks">👆${escapeHtml(row.manualBlocks)}</span>
       </div>`;
     }).join('');
   } catch (_) {}
@@ -1313,7 +1313,7 @@ function renderSettings() {
     ? `<div class="settings-section">
         <div class="settings-section-label">${t('account.title')}</div>
         <div class="account-logged">
-          <div class="account-username">👤 ${t('account.logged_as', { name: _account.username })}</div>
+          <div class="account-username">👤 ${t('account.logged_as', { name: escapeHtml(_account.username) })}</div>
           <button class="account-logout-btn" id="btn-account-logout">${t('account.btn_logout')}</button>
         </div>
       </div>`
