@@ -41,7 +41,11 @@ async function capture(browser, base, query, outDir, scale) {
       document.getElementById('block').className = '';
       renderBlock();
     }, i);
-    await page.evaluate(() => Promise.all([...document.querySelectorAll('#block img')].map((im) => (im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })))));
+    // Attente sans toucher aux gestionnaires du jeu (onerror = repli legacy) ; puis un cycle d'affichage.
+    await page.evaluate(() => Promise.all([...document.querySelectorAll('#block img')].map((im) => (im.complete ? 0 : new Promise((r) => {
+      im.addEventListener('load', r, { once: true }); im.addEventListener('error', r, { once: true });
+    })))));
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
     const file = path.join(outDir, `${ids[i]}.png`);
     await page.locator('#block').screenshot({ path: file });
     shots[ids[i]] = { file, lib: await page.evaluate(() => document.getElementById('block-icon').getAttribute('data-icon-lib') || 'legacy') };
