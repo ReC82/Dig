@@ -200,6 +200,18 @@ test('openai : configuration et clé refusées si lisibles par d\'autres comptes
   }
 });
 
+test('openai : clé brute sur une seule ligne acceptée, sans apparaître dans les erreurs', () => {
+  const t = tmpConfig();
+  try {
+    fs.writeFileSync(t.key, 'sk-test-brute-0123456789\n', { mode: 0o600 });
+    assert.strictEqual(oa.loadKey(oa.loadConfig(t.cfg)), 'sk-test-brute-0123456789');
+    fs.writeFileSync(t.key, '# commentaire\nAUTRE=1\n', { mode: 0o600 });
+    assert.throws(() => oa.loadKey(oa.loadConfig(t.cfg)), (e) => /absente/.test(e.message) && !/AUTRE=1/.test(e.message));
+  } finally {
+    fs.rmSync(t.dir, { recursive: true, force: true });
+  }
+});
+
 test('openai : plafond de budget et nombre d\'images par commande', () => {
   const t = tmpConfig();
   try {
