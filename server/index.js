@@ -81,11 +81,28 @@ const {
 } = require('./seasons');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
+const security = require('./security');
+
+// Secrets : refus de démarrer en production sans SESSION_SECRET solide (#12)
+let SESSION_SECRET, ADMIN_SECRET;
+try {
+  SESSION_SECRET = security.resolveSessionSecret();
+  ADMIN_SECRET   = security.resolveAdminSecret();
+} catch (err) {
+  console.error(`[security] ${err.message}`);
+  process.exit(1);
+}
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 
 // ── Middlewares ───────────────────────────────────────────────────────────────
+
+// Derrière nginx (même machine) : req.secure / req.ip reflètent le client réel
+app.set('trust proxy', security.parseTrustProxy(process.env.TRUST_PROXY));
+app.disable('x-powered-by');
+app.use(security.securityHeaders);
 
 // Sessions persistées sur disque — survivent aux redémarrages du serveur
 app.use(session({
@@ -95,10 +112,15 @@ app.use(session({
     reapInterval: 3600,            // nettoie les sessions expirées chaque heure
     logFn:        () => {},        // silence les logs de session-file-store
   }),
-  secret:            process.env.SESSION_SECRET || 'dig-dev-secret-change-in-prod',
+  secret:            SESSION_SECRET,
   resave:            false,
   saveUninitialized: false,
-  cookie:            { maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax' },
+  cookie:            {
+    maxAge:   7 * 24 * 60 * 60 * 1000,
+    sameSite: 'lax',
+    httpOnly: true,
+    secure:   security.cookieSecure(), // true en production : cookie envoyé en HTTPS uniquement
+  },
 }));
 
 // Parse les corps JSON (les saves font quelques Ko au maximum)
@@ -530,10 +552,8 @@ app.get('/api/seasons/:id/leaderboard', (req, res) => {
 // ── Middleware admin ──────────────────────────────────────────────────────────
 
 function requireAdmin(req, res, next) {
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret) return res.status(503).json({ error: 'Panel admin non configuré (ADMIN_SECRET manquant).' });
-  const auth = req.headers['authorization'] ?? '';
-  if (auth !== `Bearer ${secret}`) return res.status(401).json({ error: 'Accès refusé.' });
+  if (!ADMIN_SECRET) return res.status(503).json({ error: 'Panel admin non configuré (ADMIN_SECRET manquant ou trop court).' });
+  if (!security.isValidBearer(req.headers['authorization'], ADMIN_SECRET)) return res.status(401).json({ error: 'Accès refusé.' });
   next();
 }
 
@@ -936,6 +956,6 @@ process.on('unhandledRejection',  (r)   => console.error('[unhandledRejection]',
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
 
-app.listen(PORT, () => {
-  console.log(`\n⛏  DIG! server — http://localhost:${PORT}\n`);
+app.listen(PORT, HOST, () => {
+  console.log(`\n⛏  DIG! server — http://${HOST}:${PORT}\n`);
 });
