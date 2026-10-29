@@ -1,0 +1,78 @@
+/**
+ * DIG! — Limitation de débit des routes sensibles (ticket #14).
+ *
+ * Compteurs en mémoire (un seul processus Node) : remis à zéro à chaque redémarrage.
+ * L'IP du client est celle vue par Express (`trust proxy` loopback : nginx local, #12).
+ *
+ * Variables d'environnement (facultatives) :
+ *   RATE_LOGIN_MAX       échecs de connexion par IP et par minute       (défaut 10)
+ *   RATE_REGISTER_MAX    tentatives d'inscription par IP / 15 minutes   (défaut 10)
+ *   RATE_SAVE_MAX        sauvegardes cloud par compte (ou IP) / minute  (défaut 30)
+ *   RATE_LIMIT           « off » désactive toutes les limites (diagnostic uniquement)
+ */
+
+'use strict';
+
+const { rateLimit } = require('express-rate-limit');
+
+const MINUTE = 60 * 1000;
+
+function intFromEnv(env, name, fallback) {
+  const n = parseInt(env[name], 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/** Réponse 429 JSON homogène, avec Retry-After (secondes). */
+function tooManyRequests(req, res) {
+  const reset = req.rateLimit?.resetTime;
+  const wait  = reset ? Math.max(1, Math.ceil((reset.getTime() - Date.now()) / 1000)) : 60;
+  res.setHeader('Retry-After', String(wait));
+  res.status(429).json({ error: `Trop de tentatives. Réessayez dans ${wait} s.`, retryAfter: wait });
+}
+
+/**
+ * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
+ * @returns {{ login: Function, register: Function, save: Function }}
+ */
+function createRateLimiters(env = process.env) {
+  if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
+    const pass = (_req, _res, next) => next();
+    return { login: pass, register: pass, save: pass };
+  }
+
+  const common = {
+    standardHeaders: 'draft-7', // en-tête RateLimit / RateLimit-Policy
+    legacyHeaders:   false,
+    handler:         tooManyRequests,
+  };
+
+  return {
+    // Connexion : seuls les échecs (réponses ≥ 400) comptent — un joueur qui se connecte
+    // normalement n'est jamais bloqué, une attaque par force brute l'est vite.
+    login: rateLimit({
+      ...common,
+      windowMs:               MINUTE,
+      limit:                  intFromEnv(env, 'RATE_LOGIN_MAX', 10),
+      skipSuccessfulRequests: true,
+    }),
+
+    // Inscription : toutes les tentatives comptent (création de comptes en masse).
+    register: rateLimit({
+      ...common,
+      windowMs: 15 * MINUTE,
+      limit:    intFromEnv(env, 'RATE_REGISTER_MAX', 10),
+    }),
+
+    // Sauvegarde cloud : le client envoie au plus 1 sauvegarde / 12 s (+ sortie d'onglet).
+    // Compté par compte connecté (plusieurs joueurs derrière une même IP ne se gênent pas),
+    // à défaut par IP.
+    save: rateLimit({
+      ...common,
+      windowMs:     MINUTE,
+      limit:        intFromEnv(env, 'RATE_SAVE_MAX', 30),
+      keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
+    }),
+  };
+}
+
+module.exports = { createRateLimiters, tooManyRequests };

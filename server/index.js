@@ -8,12 +8,9 @@
  * Routes statiques :
  *   GET  /*                          → public/  (le jeu HTML/CSS/JS)
  *
- * Routes API — Sauvegardes anonymes (token UUID) :
+ * Routes API :
  *   GET  /health                     → statut du serveur
- *   POST /api/players/register       → crée ou retrouve un joueur par token
- *   GET  /api/players/:token/save    → charge la sauvegarde
- *   POST /api/players/:token/save    → crée / met à jour la sauvegarde
- *   DELETE /api/players/:token/save  → supprime la sauvegarde (reset)
+ *   (L'ancienne API anonyme /api/players/:token/* est supprimée — 404, ticket #14.)
  *
  * Routes API — Comptes utilisateurs (session) :
  *   POST /api/register               → crée un compte (username + password)
@@ -35,11 +32,6 @@ const { APP_VERSION } = require('./version');
 
 const {
   initDb,
-  upsertPlayer,
-  getSave,
-  upsertSave,
-  deleteSave,
-  logEvent,
   logUserEvent,
   runTransaction,
   createUser,
@@ -82,6 +74,7 @@ const {
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const security = require('./security');
+const { createRateLimiters } = require('./rateLimits');
 
 // Secrets : refus de démarrer en production sans SESSION_SECRET solide (#12)
 let SESSION_SECRET, ADMIN_SECRET;
@@ -96,6 +89,9 @@ try {
 const app  = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
+
+// Limitation de débit : connexion, inscription, sauvegarde cloud (#14)
+const limit = createRateLimiters();
 
 // ── Middlewares ───────────────────────────────────────────────────────────────
 
@@ -195,14 +191,6 @@ app.use(express.static(_publicDir, {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-/** Vérifie qu'une chaîne ressemble à un UUID v4. */
-function isValidToken(token) {
-  return (
-    typeof token === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)
-  );
-}
-
 /** Normalise un nom d'utilisateur : minuscules + trim. */
 function normalizeUsername(u) {
   return typeof u === 'string' ? u.toLowerCase().trim() : '';
@@ -243,98 +231,6 @@ app.get('/api/version', (_req, res) => {
   res.json({ version: APP_VERSION });
 });
 
-/**
- * POST /api/players/register
- * Body : { token: "<uuid-v4>" }
- *
- * Crée le joueur s'il n'existe pas encore, le retourne dans tous les cas.
- * À appeler au premier lancement et à chaque démarrage côté client.
- */
-app.post('/api/players/register', (req, res) => {
-  const { token } = req.body ?? {};
-
-  if (!isValidToken(token)) {
-    return res.status(400).json({ error: 'Token invalide — UUID v4 attendu.' });
-  }
-
-  const player = upsertPlayer(token);
-  res.json({ player });
-});
-
-/**
- * GET /api/players/:token/save
- *
- * Retourne la sauvegarde du joueur.
- * Réponse : { save: { data, version, saved_at } } ou { save: null } si absente.
- */
-app.get('/api/players/:token/save', (req, res) => {
-  const { token } = req.params;
-
-  if (!isValidToken(token)) {
-    return res.status(400).json({ error: 'Token invalide.' });
-  }
-
-  const player = upsertPlayer(token);
-  const row    = getSave(player.id);
-
-  logEvent(player.id, 'load');
-
-  if (!row) return res.json({ save: null });
-
-  res.json({
-    save: {
-      data:     JSON.parse(row.data),
-      version:  row.version,
-      saved_at: row.saved_at,
-    },
-  });
-});
-
-/**
- * POST /api/players/:token/save
- * Body : { data: { ...GameState } }
- *
- * Crée ou écrase la sauvegarde. Retourne la version enregistrée.
- */
-app.post('/api/players/:token/save', (req, res) => {
-  const { token } = req.params;
-
-  if (!isValidToken(token)) {
-    return res.status(400).json({ error: 'Token invalide.' });
-  }
-
-  const { data } = req.body ?? {};
-  if (!data || typeof data !== 'object') {
-    return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
-  }
-
-  const player        = upsertPlayer(token);
-  const { version }   = upsertSave(player.id, JSON.stringify(data));
-
-  logEvent(player.id, 'save', { version });
-
-  res.json({ ok: true, version });
-});
-
-/**
- * DELETE /api/players/:token/save
- *
- * Supprime la sauvegarde du joueur côté serveur (équivalent reset).
- */
-app.delete('/api/players/:token/save', (req, res) => {
-  const { token } = req.params;
-
-  if (!isValidToken(token)) {
-    return res.status(400).json({ error: 'Token invalide.' });
-  }
-
-  const player = upsertPlayer(token);
-  deleteSave(player.id);
-  logEvent(player.id, 'reset');
-
-  res.json({ ok: true });
-});
-
 // ── Routes comptes utilisateurs ───────────────────────────────────────────────
 
 /**
@@ -342,7 +238,7 @@ app.delete('/api/players/:token/save', (req, res) => {
  * Body : { username, email, password }
  * Crée un compte, ouvre une session et retourne l'utilisateur.
  */
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', limit.register, async (req, res) => {
   const username = normalizeUsername(req.body?.username);
   const email    = (req.body?.email || '').trim().toLowerCase();
   const password = req.body?.password ?? '';
@@ -357,13 +253,10 @@ app.post('/api/register', async (req, res) => {
     return res.status(400).json({ error: 'Mot de passe trop court (6 caractères minimum).' });
   }
 
-  if (getUserByUsername(username)) {
-    return res.status(409).json({ error: 'Ce nom d\'utilisateur est déjà pris.' });
-  }
-
-  // Vérifier l'unicité de l'e-mail
-  if (getUserByEmail(email)) {
-    return res.status(409).json({ error: 'Cette adresse e-mail est déjà utilisée.' });
+  // Message identique pour le nom et l'e-mail : l'inscription ne révèle pas
+  // si une adresse e-mail possède déjà un compte (#14).
+  if (getUserByUsername(username) || getUserByEmail(email)) {
+    return res.status(409).json({ error: 'Ce nom d\'utilisateur ou cette adresse e-mail est déjà utilisé.' });
   }
 
   try {
@@ -382,7 +275,7 @@ app.post('/api/register', async (req, res) => {
  * Body : { username, password }  (username : insensible à la casse)
  * Vérifie les identifiants, ouvre une session et retourne l'utilisateur.
  */
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', limit.login, async (req, res) => {
   const username = normalizeUsername(req.body?.username);
   const password = req.body?.password ?? '';
 
@@ -455,7 +348,7 @@ app.get('/api/me/save', (req, res) => {
  * Body : { data: { ...GameState } }
  * Crée ou écrase la sauvegarde cloud de l'utilisateur connecté.
  */
-app.post('/api/me/save', (req, res) => {
+app.post('/api/me/save', limit.save, (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
     const { data } = req.body ?? {};
@@ -945,6 +838,11 @@ app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => 
     console.error('[POST /api/admin/players/:userId/season-reset]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
+});
+
+// Toute autre route /api/* (dont l'ancienne API /api/players/:token/*) : 404 JSON (#14)
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'Route inconnue.' });
 });
 
 // ── Démarrage ─────────────────────────────────────────────────────────────────
