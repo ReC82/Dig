@@ -1,0 +1,36 @@
+{
+  "material": "pierre",
+  "role": "référence officielle v1 pour tous les futurs matériaux",
+  "validatedBy": "propriétaire (ReC82)",
+  "validatedAt": "2026-10-29",
+  "choice": "proposition C",
+  "candidate": "pierre-20261029-215555-c",
+  "file": "pierre.png",
+  "sha256": "93527a1a0dc5a4d4d3bab6d8e2c325d054c681593c0d1124607040f84ff2e19d",
+  "raw_sha256": "a72b0c8a0955d4ac3e18faee83df09f619d1a67ca7f3ab4ccb6f92b91974acfe",
+  "model": "gpt-image-2.5-flare",
+  "params": {
+    "model": "gpt-image-2.5-flare",
+    "prompt": "A single irregular gray stone, premium stylized 3D low-poly game resource icon. Rounded asymmetrical rock silhouette, composed of large and medium polygonal facets with subtle fine mineral surface detail. Cool slate-gray and pale gray surfaces, softly illuminated by a warm golden-white key light from the upper left. Delicate highlights along a few facet edges, darker charcoal-gray lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated rock only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png"
+  },
+  "prompt": "A single irregular gray stone, premium stylized 3D low-poly game resource icon. Rounded asymmetrical rock silhouette, composed of large and medium polygonal facets with subtle fine mineral surface detail. Cool slate-gray and pale gray surfaces, softly illuminated by a warm golden-white key light from the upper left. Delicate highlights along a few facet edges, darker charcoal-gray lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated rock only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins.",
+  "prompt_source": "ownerPrompt (texte du propriétaire, mot pour mot)",
+  "prompt_master_version": "v1.0",
+  "cost_usd": 0.0712,
+  "generatedAt": "2026-10-29T21:57:03.398Z",
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/pierre-128.webp",
+      "sha256": "75feea7f5a8d6c066524b42ce3b738b9b49f10eabeeb28467a0a7a37b11135bd"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/pierre-256.webp",
+      "sha256": "0fc993065a750847431e0ca4fc2d2f0e82f13673b9460126845f840f6abf0acb"
+    }
+  }
+}

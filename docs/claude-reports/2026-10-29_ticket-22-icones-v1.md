@@ -88,3 +88,15 @@
 - **Vrai composant du jeu** (serveurs jetables en local, arrêtés ensuite) : pour chacune des trois, `legacy` identique au pixel près sur les 14 matériaux, et en `v1` seule la pierre change (13/13 autres identiques).
 - **Fichiers :** `art/icons/v1/candidates/pierre-20261029-215555-{a,b,c}/`, sur le serveur, **non committés** : seul le PNG maître validé sera versionné.
 - **En attente :** le choix A, B ou C par le propriétaire. Ensuite : référence `art/icons/v1/reference/pierre.png`, entrée `pierre` du manifeste v1, `legacy` toujours par défaut. Aucun déploiement.
+
+## 10. Validation et intégration de la pierre (29/10)
+
+- **Choix du propriétaire : proposition C** (`pierre-20261029-215555-c`), définitif.
+- **Référence officielle :** `art/icons/v1/reference/pierre.png`, copie exacte du PNG maître présenté (sha256 `93527a1a0dc5…`). Sa provenance est dans `pierre.json`. Elle sera jointe automatiquement à toute future génération.
+- **Bibliothèque v1 :** `public/assets/icons/v1/pierre-128.webp` et `pierre-256.webp`, identiques aux exports de la proposition C ; entrée `pierre` ajoutée au manifeste.
+- **Inchangé :** `defaultLibrary` reste `legacy`. Les emoji ne sont ni modifiés ni supprimés, et les trois niveaux de rollback de §5 s'appliquent tels quels.
+- **Vérifications :**
+  - `npm test` : 23/23, dont un nouveau test de cohérence entre manifeste, exports et référence ;
+  - vrai bloc du jeu : `legacy` identique au pixel près (14/14). En `v1`, seule la pierre change, avec un rendu identique à l'aperçu C validé.
+- **Rien n'est déployé.** Aucun autre matériau n'a été généré. Les propositions A et B restent sur le serveur, hors Git.
+- **Reste :** décider de l'activation de `v1` (au moment d'un déploiement validé), puis des matériaux suivants, sur ta demande.
