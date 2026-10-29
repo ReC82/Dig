@@ -83,10 +83,41 @@ rm -rf /tmp/dig-deploy
 
 Pour les déploiements suivants : `cd /home/ubuntu/Dig && npm run deploy`.
 
+## Secrets, sessions et HTTP (ticket #12)
+
+En production (`NODE_ENV=production`), le serveur **refuse de démarrer** si `SESSION_SECRET` est absent, fait moins de 32 caractères ou vaut l'ancienne valeur par défaut publiée dans le dépôt. Le secret est fourni par un `EnvironmentFile` systemd (`/etc/dig/dig.env`, root, mode 600 : systemd le lit en root avant de lancer Node), jamais dans le dépôt ni dans `dig.service`.
+
+Installation, **avant** de déployer une version qui contient ce changement :
+
+```bash
+sudo install -d -m 700 -o root -g root /etc/dig
+sudo install -m 600 -o root -g root /dev/null /etc/dig/dig.env
+# Génère le secret sans l'afficher. ADMIN_SECRET est facultatif (voir ci-dessous).
+printf 'SESSION_SECRET=%s\n' "$(openssl rand -hex 48)" | sudo tee /etc/dig/dig.env >/dev/null
+sudo install -D -m 644 deploy/systemd/dig.service.d/secrets.conf /etc/systemd/system/dig.service.d/secrets.conf
+sudo systemctl daemon-reload
+sudo systemctl show dig -p EnvironmentFiles     # doit citer /etc/dig/dig.env
+```
+
+- **Effet sur les joueurs :** le nouveau secret invalide les cookies de session existants ; chaque joueur connecté devra se reconnecter une fois (ses sauvegardes cloud et son classement sont intacts). Les anciens fichiers de `server/data/sessions/` deviennent inutilisables et sont purgés automatiquement à expiration ; on peut aussi les supprimer après le redémarrage.
+- **`ADMIN_SECRET` :** décision séparée. Absent ou plus court que 32 caractères, l'API admin répond 503 (panel désactivé, état actuel). Pour l'activer : `printf 'ADMIN_SECRET=%s\n' "$(openssl rand -hex 32)" | sudo tee -a /etc/dig/dig.env >/dev/null`, puis redémarrer. La comparaison du jeton est en temps constant.
+- **Réseau :** Node écoute sur `127.0.0.1` (variable `HOST`) ; seul nginx, sur la même machine, le joint. `trust proxy` vaut `loopback` (variable `TRUST_PROXY`) : `req.secure` et `req.ip` reflètent le client réel transmis par nginx (`X-Forwarded-Proto`, `X-Forwarded-For`, déjà configurés).
+- **Cookie de session :** `Secure` (HTTPS uniquement), `HttpOnly`, `SameSite=Lax`, 7 jours. Variable `COOKIE_SECURE=auto|true|false` pour un usage hors production.
+- **En-têtes :** `X-Powered-By` supprimé ; `X-Content-Type-Options`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`, CSP minimale (`frame-ancestors`, `base-uri`, `object-src`, `form-action`) et HSTS (180 jours, sur HTTPS uniquement).
+
+Vérifications après déploiement :
+
+```bash
+curl -sI https://dig.lodygames.com/ | grep -i -E 'strict-transport|x-frame|x-powered'   # HSTS + X-Frame, pas de X-Powered-By
+ss -ltnp | grep ':3000'                                                                  # 127.0.0.1:3000 seulement
+```
+
+Retour arrière : `npm run deploy` vers le SHA précédent (ou `scripts/deploy.sh` le fait seul si le contrôle de santé échoue). Le drop-in peut rester en place : l'ancienne version ignore `SESSION_SECRET` (elle l'utilisait déjà s'il était défini).
+
 ## Tests
 
 ```bash
 npm test     # test/*.test.js : sauvegarde, rétention, restauration, déploiement + retour arrière
 ```
 
-Les tests n'utilisent que des bases temporaires et le port 3105 (bac à sable Git local). Ils ne touchent jamais au service `dig`, au port 3000 ni à `server/data/dig.sqlite`.
+Les tests n'utilisent que des bases temporaires et des ports ≥ 3105 (dont 3111 pour `test/security.test.js`, serveur en `NODE_ENV=production`). Ils ne touchent jamais au service `dig`, au port 3000 ni à `server/data/dig.sqlite`.
