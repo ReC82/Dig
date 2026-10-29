@@ -44,6 +44,12 @@ test('sauvegarde cohérente pendant que la base est ouverte en écriture (WAL), 
     assert.strictEqual(manifest.sha256, m.sha256);
     assert.strictEqual(m.offsite, 'désactivée');
     assert.ok(!fs.existsSync(`${m.path}.partial`));
+    // Aucun fichier annexe : ni temporaire, ni -wal / -shm (copie autonome en journal DELETE).
+    assert.deepStrictEqual(fs.readdirSync(s.cfg.backupDir).sort(), [path.basename(m.path).replace(/\.sqlite$/, '.json'), path.basename(m.path)].sort());
+    const copy = new Database(m.path, { readonly: true });
+    assert.strictEqual(copy.pragma('journal_mode', { simple: true }), 'delete');
+    copy.close();
+    assert.ok(!fs.existsSync(`${m.path}-wal`) && !fs.existsSync(`${m.path}-shm`));
   } finally {
     s.cleanup();
   }
@@ -98,6 +104,7 @@ test('restauration sur copie : données identiques, ancienne base sauvegardée d
     assert.strictEqual(copy.prepare('SELECT COUNT(*) c FROM users').get().c, 50);
     assert.strictEqual(JSON.parse(copy.prepare('SELECT data FROM user_saves').get().data).coins, 42);
     copy.close();
+    assert.deepStrictEqual(fs.readdirSync(s.dir).filter((f) => f.includes('restore-tmp')), [], 'aucun fichier temporaire de restauration');
   } finally {
     s.cleanup();
   }

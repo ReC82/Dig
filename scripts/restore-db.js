@@ -24,7 +24,7 @@ const Database = require('better-sqlite3');
 const fs       = require('fs');
 const path     = require('path');
 const { spawnSync } = require('child_process');
-const { config, backup, verifyDb } = require('./backup-db');
+const { config, backup, verifyDb, finalizeCopy } = require('./backup-db');
 const crypto = require('crypto');
 
 function serviceActive(name) {
@@ -64,6 +64,7 @@ async function restore(source, target, { live = false, env = process.env } = {})
   } finally {
     src.close();
   }
+  finalizeCopy(tmp);
   verifyDb(tmp);
   for (const extra of [`${target}-wal`, `${target}-shm`]) fs.rmSync(extra, { force: true });
   fs.renameSync(tmp, target);
