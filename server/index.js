@@ -40,6 +40,8 @@ const {
   upsertSave,
   deleteSave,
   logEvent,
+  logUserEvent,
+  runTransaction,
   createUser,
   getUserByUsername,
   getUserById,
@@ -715,21 +717,31 @@ app.post('/api/me/shop/chest/open', (req, res) => {
     const { chestId } = req.body ?? {};
     if (!SHOP_CHESTS[chestId]) return res.status(400).json({ error: 'Coffre inconnu.' });
 
-    const row = getUserSave(req.session.userId);
-    if (!row) return res.status(404).json({ error: 'Sauvegarde introuvable. Jouez d\'abord quelques blocs !' });
-
-    let data;
-    try { data = JSON.parse(row.data); }
-    catch { return res.status(500).json({ error: 'Sauvegarde corrompue.' }); }
-
+    const userId = req.session.userId;
     const config = getAdminConfig();
-    let result;
-    try { result = rollChest(chestId, data, config); }
-    catch (err) { return res.status(400).json({ error: err.message }); }
 
-    upsertUserSave(req.session.userId, JSON.stringify(data));
-    logEvent(req.session.userId, 'chest_shop_open', { chestId, rewardType: result.reward.type });
+    // Lecture, débit/crédit et journalisation dans une seule transaction :
+    // si une étape échoue, la sauvegarde n'est pas modifiée.
+    const outcome = runTransaction(() => {
+      const row = getUserSave(userId);
+      if (!row) return { status: 404, error: 'Sauvegarde introuvable. Jouez d\'abord quelques blocs !' };
 
+      let data;
+      try { data = JSON.parse(row.data); }
+      catch { return { status: 500, error: 'Sauvegarde corrompue.' }; }
+
+      let result;
+      try { result = rollChest(chestId, data, config); }
+      catch (err) { return { status: 400, error: err.message }; }
+
+      upsertUserSave(userId, JSON.stringify(data));
+      logUserEvent(userId, 'chest_shop_open', { chestId, rewardType: result.reward.type });
+      return { data, result };
+    });
+
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+
+    const { data, result } = outcome;
     res.json({
       ok:                true,
       reward:            result.reward,
@@ -849,8 +861,10 @@ app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => 
       coinsSpent:   0,
     };
 
-    upsertUserSave(userId, JSON.stringify(data));
-    logEvent(userId, 'admin_season_reset', { adminAction: true });
+    runTransaction(() => {
+      upsertUserSave(userId, JSON.stringify(data));
+      logUserEvent(userId, 'admin_season_reset', { adminAction: true });
+    });
 
     res.json({ ok: true, message: `Reset saisonnier appliqué pour ${userRow.username}.` });
   } catch (err) {

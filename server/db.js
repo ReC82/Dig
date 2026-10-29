@@ -19,7 +19,8 @@ const path     = require('path');
 const fs       = require('fs');
 
 const DATA_DIR = path.join(__dirname, 'data');
-const DB_PATH  = path.join(DATA_DIR, process.env.DB_FILE || 'dig.sqlite');
+// DB_FILE : nom relatif à server/data/ (défaut) ou chemin absolu (tests).
+const DB_PATH  = path.resolve(DATA_DIR, process.env.DB_FILE || 'dig.sqlite');
 
 /** Instance unique — initialisée par initDb(). */
 let _db = null;
@@ -195,6 +196,18 @@ function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_anticheat_user ON anticheat_logs (user_id, logged_at DESC);
     CREATE INDEX IF NOT EXISTS idx_anticheat_action ON anticheat_logs (action_taken, logged_at DESC);
+
+    -- ── Journal d'événements des comptes ─────────────────────────────────────
+    -- save_events est réservé à l'API anonyme (players) et limite event_type :
+    -- les actions liées à un compte (achat de coffre, reset admin…) sont tracées ici.
+    CREATE TABLE IF NOT EXISTS user_events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      event_type TEXT    NOT NULL,
+      metadata   TEXT,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events (user_id, created_at DESC);
   `);
 
   // ── Migrations sur tables existantes ─────────────────────────────────────
@@ -403,6 +416,26 @@ function logEvent(playerId, eventType, metadata = null) {
   getDb()
     .prepare('INSERT INTO save_events (player_id, event_type, metadata) VALUES (?, ?, ?)')
     .run(playerId, eventType, metadata ? JSON.stringify(metadata) : null);
+}
+
+/**
+ * Enregistre un événement lié à un compte (table user_events).
+ * @param {number}      userId
+ * @param {string}      eventType  ex. 'chest_shop_open', 'admin_season_reset'
+ * @param {object|null} [metadata]
+ */
+function logUserEvent(userId, eventType, metadata = null) {
+  getDb()
+    .prepare('INSERT INTO user_events (user_id, event_type, metadata) VALUES (?, ?, ?)')
+    .run(userId, eventType, metadata ? JSON.stringify(metadata) : null);
+}
+
+/**
+ * Exécute fn dans une transaction SQLite : tout est validé, ou tout est annulé
+ * si fn lève une exception (l'exception est propagée).
+ */
+function runTransaction(fn) {
+  return getDb().transaction(fn)();
 }
 
 // ── Helpers comptes utilisateurs ─────────────────────────────────────────────
@@ -860,7 +893,7 @@ function setAdminConfig(key, value) {
 
 module.exports = {
   initDb, getDb,
-  upsertPlayer, getSave, upsertSave, deleteSave, logEvent,
+  upsertPlayer, getSave, upsertSave, deleteSave, logEvent, logUserEvent, runTransaction,
   createUser, getUserByUsername, getUserById, getUserByEmail,
   getUserSave, upsertUserSave,
   getActiveSeason, getSeasonById, createSeason, updateSeason, getAllSeasons,

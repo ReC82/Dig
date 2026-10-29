@@ -1,0 +1,177 @@
+/**
+ * Tests HTTP de l'achat des coffres de saison (POST /api/me/shop/chest/open), ticket #8.
+ * Lance le serveur sur un port de test avec une base temporaire (hors server/data/).
+ * Ne touche ni au service dig, ni au port 3000, ni à la base de production.
+ * Lancer : npm test
+ */
+
+'use strict';
+
+const test     = require('node:test');
+const assert   = require('node:assert');
+const Database = require('better-sqlite3');
+const crypto   = require('crypto');
+const fs       = require('fs');
+const os       = require('os');
+const path     = require('path');
+const { spawn } = require('child_process');
+
+const ROOT  = path.join(__dirname, '..');
+const PORT  = process.env.DIG_TEST_PORT_CHEST || '3108';
+const BASE  = `http://127.0.0.1:${PORT}`;
+const ADMIN = crypto.randomBytes(16).toString('hex');
+const COSTS = { simple: 2000, rare: 15000, antique: 80000 };
+
+let dir, dbPath, server, db;
+
+async function startServer() {
+  server = spawn(process.execPath, ['server/index.js'], {
+    cwd: ROOT,
+    env: { ...process.env, PORT, DB_FILE: dbPath, ADMIN_SECRET: ADMIN, SESSION_SECRET: crypto.randomBytes(16).toString('hex') },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let log = '';
+  server.stdout.on('data', d => { log += d; });
+  server.stderr.on('data', d => { log += d; });
+  for (let i = 0; i < 100; i++) {
+    try { await fetch(`${BASE}/api/version`); return; } catch (_) {}
+    if (server.exitCode !== null) break;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  throw new Error(`Serveur de test non démarré :\n${log}`);
+}
+
+/** Client HTTP minimal qui conserve le cookie de session. */
+function client() {
+  let cookie = '';
+  return async (method, url, body, headers = {}) => {
+    const res = await fetch(BASE + url, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}), ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const set = res.headers.get('set-cookie');
+    if (set) cookie = set.split(';')[0];
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+}
+
+async function newPlayer(name) {
+  const call = client();
+  const r = await call('POST', '/api/register', { username: name, email: `${name}@example.invalid`, password: 'secret123' });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  return { call, id: r.body.user.id };
+}
+
+function save(call, extra) {
+  return call('POST', '/api/me/save', {
+    data: { coins: 0, relicFragments: 0, collection: [], shopChestsBought: { simple: 0, rare: 0, antique: 0 }, ...extra },
+  });
+}
+
+const saveRow = id => db.prepare('SELECT data, version FROM user_saves WHERE user_id = ?').get(id);
+const events  = id => db.prepare('SELECT event_type, metadata FROM user_events WHERE user_id = ? ORDER BY id').all(id);
+
+test.before(async () => {
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dig-chest-test-'));
+  dbPath = path.join(dir, 'chest-test.sqlite');
+  await startServer();
+  db = new Database(dbPath);
+});
+
+test.after(() => {
+  if (db) db.close();
+  if (server) server.kill();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('les 3 coffres s\'achètent avec un solde suffisant : débit, crédit et journal cohérents', async () => {
+  const { call, id } = await newPlayer('chestok');
+  assert.strictEqual((await save(call, { coins: 200_000 })).status, 200);
+
+  let coins = 200_000;
+  for (const chestId of ['simple', 'rare', 'antique']) {
+    const before = saveRow(id);
+    const r = await call('POST', '/api/me/shop/chest/open', { chestId });
+    assert.strictEqual(r.status, 200, `${chestId} : ${JSON.stringify(r.body)}`);
+    assert.strictEqual(r.body.ok, true);
+    assert.strictEqual(r.body.boughtThisSeason, 1);
+    const gain = r.body.reward.type === 'coins' ? r.body.reward.amount : 0;
+    assert.strictEqual(r.body.newCoins, coins - COSTS[chestId] + gain);
+    coins = r.body.newCoins;
+
+    const after = saveRow(id);
+    const data  = JSON.parse(after.data);
+    assert.strictEqual(after.version, before.version + 1);
+    assert.strictEqual(data.coins, coins);
+    assert.strictEqual(data.shopChestsBought[chestId], 1);
+    assert.strictEqual(data.relicFragments, r.body.newRelicFragments);
+  }
+
+  const ev = events(id);
+  assert.deepStrictEqual(ev.map(e => e.event_type), ['chest_shop_open', 'chest_shop_open', 'chest_shop_open']);
+  assert.deepStrictEqual(ev.map(e => JSON.parse(e.metadata).chestId), ['simple', 'rare', 'antique']);
+});
+
+test('solde insuffisant : 400 pour chaque coffre, sauvegarde et journal inchangés', async () => {
+  const { call, id } = await newPlayer('chestpoor');
+  await save(call, { coins: 1999 });
+  const before = saveRow(id);
+
+  for (const chestId of ['simple', 'rare', 'antique']) {
+    const r = await call('POST', '/api/me/shop/chest/open', { chestId });
+    assert.strictEqual(r.status, 400, chestId);
+    assert.strictEqual(r.body.error, 'Coins insuffisants.');
+  }
+  assert.deepStrictEqual(saveRow(id), before);
+  assert.strictEqual(events(id).length, 0);
+});
+
+test('limite saisonnière du coffre antique : 400, rien n\'est débité', async () => {
+  const { call, id } = await newPlayer('chestmax');
+  await save(call, { coins: 1_000_000, shopChestsBought: { simple: 0, rare: 0, antique: 5 } });
+  const before = saveRow(id);
+  const r = await call('POST', '/api/me/shop/chest/open', { chestId: 'antique' });
+  assert.strictEqual(r.status, 400);
+  assert.strictEqual(r.body.error, 'Limite saisonnière atteinte.');
+  assert.deepStrictEqual(saveRow(id), before);
+});
+
+test('requêtes invalides : non connecté 401, coffre inconnu 400, sans sauvegarde 404', async () => {
+  assert.strictEqual((await client()('POST', '/api/me/shop/chest/open', { chestId: 'simple' })).status, 401);
+  const { call } = await newPlayer('chestnosave');
+  assert.strictEqual((await call('POST', '/api/me/shop/chest/open', { chestId: 'gold' })).status, 400);
+  assert.strictEqual((await call('POST', '/api/me/shop/chest/open', { chestId: 'simple' })).status, 404);
+});
+
+test('atomicité : si la journalisation échoue, la sauvegarde n\'est pas modifiée', async () => {
+  const { call, id } = await newPlayer('chestatomic');
+  await save(call, { coins: 50_000 });
+  const before = saveRow(id);
+
+  db.exec(`CREATE TRIGGER fail_user_events BEFORE INSERT ON user_events
+           BEGIN SELECT RAISE(ABORT, 'échec simulé'); END`);
+  try {
+    const r = await call('POST', '/api/me/shop/chest/open', { chestId: 'simple' });
+    assert.strictEqual(r.status, 500);
+    assert.deepStrictEqual(saveRow(id), before);
+  } finally {
+    db.exec('DROP TRIGGER fail_user_events');
+  }
+
+  // Une fois la panne levée, l'achat fonctionne à nouveau.
+  const r = await call('POST', '/api/me/shop/chest/open', { chestId: 'simple' });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(saveRow(id).version, before.version + 1);
+});
+
+test('reset saisonnier admin : ne renvoie plus 500 et est journalisé', async () => {
+  const { call, id } = await newPlayer('chestreset');
+  await save(call, { coins: 12_345, shopChestsBought: { simple: 3, rare: 1, antique: 2 } });
+  const r = await client()('POST', `/api/admin/players/${id}/season-reset`, { confirm: true }, { Authorization: `Bearer ${ADMIN}` });
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+  const data = JSON.parse(saveRow(id).data);
+  assert.strictEqual(data.coins, 0);
+  assert.deepStrictEqual(data.shopChestsBought, { simple: 0, rare: 0, antique: 0 });
+  assert.deepStrictEqual(events(id).map(e => e.event_type), ['admin_season_reset']);
+});
