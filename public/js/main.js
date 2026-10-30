@@ -359,7 +359,7 @@ function renderUpgrades() {
 
   for (const def of Upgrades.DEFS) {
     const level  = Upgrades.getLevel(def.id);
-    const cost   = def.getCost(level);
+    const cost   = Upgrades.getCost(def.id);
     const maxed  = cost === null;
 
     let costHtml = '';
@@ -533,6 +533,7 @@ async function openShopChest(chestId) {
     GameState.coins          = data.newCoins;
     GameState.relicFragments = data.newRelicFragments;
     GameState.shopChestsBought[chestId] = data.boughtThisSeason;
+    if (Number.isInteger(data.cost)) def.cost = data.cost;
     if (data.revision) _setCloudMeta(data.revision);
     reward = data.reward;
 
@@ -595,7 +596,8 @@ function _rollShopChestClient(chestId, def) {
   if (entry.type === 'coins') {
     reward.amount = entry.min + Math.floor(Math.random() * (entry.max - entry.min + 1));
   } else if (entry.type === 'relics') {
-    reward.amount = entry.amount + (GameState.relicBonuses?.relicFragmentBonus ?? 0);
+    const bonus = GameState.relicBonuses?.relicFragmentBonus ?? 0;
+    reward.amount = Math.max(1, Math.round((entry.amount + bonus) * Balance.economy.fragmentDropMultiplier));
   } else if (entry.type === 'boost') {
     reward.mult = entry.mult; reward.minutes = entry.minutes;
   } else if (entry.type === 'collection') {
@@ -1246,12 +1248,21 @@ function _applySeasonReset(newSeasonId, gemsCap) {
   showAchievement('🏆', t('season.new_season'));
 }
 
+/** Paramètres économiques de l'admin (#20) : redessine ce qui affiche un coût ou un gain. */
+function _applyServerEconomy(eco) {
+  if (!Balance.applyEconomy(eco)) return;
+  renderUpgrades();
+  renderShopChests();
+  if (!blockAnimating) renderBlock();   // gain affiché du bloc courant
+}
+
 /** Polling toutes les 5 min : détecte un changement de saison. */
 async function _pollSeason() {
   try {
     const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
     if (!ok || !data.season) return;
     _seasonCpsLimit = data.config?.cpsLimit ?? 8;
+    _applyServerEconomy(data.config?.economy);
     if (data.season.id !== GameState.seasonStats.seasonId && GameState.seasonStats.seasonId !== 0) {
       _applySeasonReset(data.season.id, data.config?.gemsCap ?? 100);
     } else if (GameState.seasonStats.seasonId === 0 && data.season.id) {
@@ -1378,6 +1389,7 @@ async function _openSeasonView() {
     const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
     if (ok && data.season) {
       _seasonCpsLimit = data.config?.cpsLimit ?? 8;
+      _applyServerEconomy(data.config?.economy);
       renderSeasonView(data);
     }
   } catch (_) {}

@@ -17,6 +17,7 @@ const {
   getClickTracking, upsertClickTracking, insertAntiCheatLog, updateEffectiveBlocks,
   getDepthTracking, upsertDepthTracking,
 } = db;
+const { getEconomy } = require('./economy');
 
 const cal = require('./seasonCalendar');
 const { fmtUtc } = cal;
@@ -719,6 +720,7 @@ function buildCurrentSeasonResponse(userId = null) {
       gemsCap:              parseInt(config.gems_cap          ?? '100',  10),
       cpsLimit:             parseInt(config.max_effective_cps ?? config.cps_limit ?? '8', 10),
       antiAutoclickEnabled: (config.anti_autoclick_enabled ?? 'true') === 'true',
+      economy:              getEconomy(config),
     },
     player: playerInfo,
   };

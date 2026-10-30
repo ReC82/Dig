@@ -29,6 +29,8 @@
  *    3% → 🔮 30 fragments (ultra-rare)
  */
 
+const { DEFAULT_CHEST_COSTS, getEconomy, relicFragmentBonus } = require('./economy');
+
 const COLLECTION_ITEM_IDS = [
   'fossil', 'crystal', 'ancient_coin', 'relic',
   'broken_crown', 'monster_tooth', 'map_fragment', 'mystic_orb',
@@ -36,7 +38,7 @@ const COLLECTION_ITEM_IDS = [
 
 const SHOP_CHESTS = {
   simple: {
-    cost:         2_000,
+    cost:         DEFAULT_CHEST_COSTS.simple,
     maxPerSeason: null,
     table: [
       { weight: 50, type: 'coins',  min:  80, max:  200 },
@@ -46,7 +48,7 @@ const SHOP_CHESTS = {
     ],
   },
   rare: {
-    cost:         15_000,
+    cost:         DEFAULT_CHEST_COSTS.rare,
     maxPerSeason: null,
     table: [
       { weight: 30, type: 'coins',      min: 1_000, max: 3_000 },
@@ -58,7 +60,7 @@ const SHOP_CHESTS = {
     ],
   },
   antique: {
-    cost:         80_000,
+    cost:         DEFAULT_CHEST_COSTS.antique,
     maxPerSeason: 5,
     table: [
       { weight: 25, type: 'coins',      min: 10_000, max: 25_000 },
@@ -92,16 +94,16 @@ function _pick(table) {
  * @param {string}  chestId   'simple' | 'rare' | 'antique'
  * @param {object}  data      Blob JSON parsé de la sauvegarde (modifié en place)
  * @param {object}  [config]  admin_config key→value (pour overrides coûts/multiplicateurs)
- * @returns {{ reward: object, boughtThisSeason: number }}
+ * @returns {{ reward: object, boughtThisSeason: number, cost: number }}
  * @throws {Error}  Message lisible si la validation échoue
  */
 function rollChest(chestId, data, config = {}) {
   const def = SHOP_CHESTS[chestId];
   if (!def) throw new Error('Coffre inconnu.');
 
-  // Coût overridé par admin_config si présent
-  const configCost = parseInt(config[`chest_cost_${chestId}`] ?? '', 10);
-  const cost = (!isNaN(configCost) && configCost > 0) ? configCost : def.cost;
+  // Coût et multiplicateur de fragments réglables dans l'admin (bornés, cf. economy.js)
+  const economy = getEconomy(config);
+  const cost    = economy.chestCosts[chestId] ?? def.cost;
 
   const coins = data.coins ?? 0;
   if (coins < cost) throw new Error('Coins insuffisants.');
@@ -112,8 +114,7 @@ function rollChest(chestId, data, config = {}) {
     throw new Error('Limite saisonnière atteinte.');
   }
 
-  // Multiplicateur de fragments
-  const fragMult = Math.max(0.1, parseFloat(config.fragment_drop_multiplier ?? '1') || 1);
+  const fragMult = economy.fragmentDropMultiplier;
 
   // Déduire le coût
   data.coins = coins - cost;
@@ -132,7 +133,7 @@ function rollChest(chestId, data, config = {}) {
     if (data.stats) data.stats.totalCoinsEarned = (data.stats.totalCoinsEarned ?? 0) + reward.amount;
 
   } else if (entry.type === 'relics') {
-    const bonus   = data.relicBonuses?.relicFragmentBonus ?? 0;
+    const bonus   = relicFragmentBonus(data);
     reward.amount = Math.max(1, Math.round((entry.amount + bonus) * fragMult));
     data.relicFragments = (data.relicFragments ?? 0) + reward.amount;
 
@@ -155,7 +156,7 @@ function rollChest(chestId, data, config = {}) {
     }
   }
 
-  return { reward, boughtThisSeason };
+  return { reward, boughtThisSeason, cost };
 }
 
 module.exports = { SHOP_CHESTS, rollChest, COLLECTION_ITEM_IDS };
