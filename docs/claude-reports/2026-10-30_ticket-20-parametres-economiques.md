@@ -2,7 +2,192 @@
 
 - Ticket : https://github.com/ReC82/Dig/issues/20
 - Source : audit général #6 (T-13, bug B8, risque P2 « paramètres d'admin morts »)
-- Branche : `feature/20-parametres-economiques` (commit `ee2340b`)
+- Branche : `feature/20-parametres-economiques` (dernier code : `e339a26`, `develop` : `9fd23e4`, déployé : `9fd23e4`)
+
+## Session du 30/10/2026 (soir, DIGORCH) — option A des coffres, chances visibles, aperçu des améliorations
+
+Commentaires du propriétaire traités :
+[recette du Sac et cas combinés](https://github.com/ReC82/Dig/issues/20#issuecomment-6519842869),
+[décision : option A + transparence avant achat](https://github.com/ReC82/Dig/issues/20#issuecomment-6519885255),
+[aperçu avant/après des améliorations](https://github.com/ReC82/Dig/issues/20#issuecomment-6520146241) et
+[Auto-Dig validé](https://github.com/ReC82/Dig/issues/20#issuecomment-6520597663).
+
+### 1. État réel
+
+**Déployé en production (SHA `9fd23e4`) — en attente de recette.** Ticket laissé ouvert : sa clôture
+revient au propriétaire, après validation en jeu de la fenêtre des chances et des cas combinés.
+
+### 2. Résultat et changements réalisés
+
+**a) Coffres : option A en service** (`server/chestShop.js`). Les prix sont inchangés et le panel
+admin reste désactivé.
+
+| Coffre | Chances (total 100 %) | Pièces rendues en moyenne |
+|---|---|---|
+| 📦 2 000 | 45 % 500–1 000 💰 · 30 % 1 🔮 · 15 % boost ×2 5 min · 10 % gros lot 2 000–3 500 💰 | 30,6 % du prix |
+| 💎 15 000 | 40 % 5 000–9 000 💰 · 30 % 4 🔮 · 12 % 7 🔮 · 8 % boost ×2 15 min · 8 % objet · 2 % gros lot 15 000–25 000 💰 | 21,3 % |
+| 🏺 80 000 (5/saison) | 30 % 25 000–40 000 💰 · 25 % 20 🔮 · 18 % 30 🔮 · 10 % boost ×3 20 min · 12 % objet · 4 % 50 🔮 · 1 % gros lot 100 000–150 000 💰 | 13,8 % |
+
+Quand un coffre donne des pièces, il rend au moins un quart de son prix. Cette garantie ne concerne
+que les pièces : les fragments, les boosts et les objets ne sont pas présentés comme un
+remboursement. En moyenne, un coffre rend toujours moins de pièces qu'il ne coûte, il n'y a donc pas
+de boucle de profit.
+
+**b) Fenêtre « ℹ️ Récompenses et chances »**, sous chaque coffre de la boutique de saison (vue
+Améliorations). Le lien est toujours actif : sans pièces, sans compte, ou quand la limite est
+atteinte. La fenêtre affiche :
+- le prix et la limite saisonnière (« Limité à 5 ouvertures par saison (n/5 cette saison) ») ;
+- toutes les récompenses avec leur probabilité exacte, les plages de pièces, la durée des boosts et
+  l'étiquette « gros lot » ;
+- les fragments que le joueur recevrait lui-même avec son Aimant à éclats (« tu en reçois 6 ») ;
+- les règles de tirage :
+  - une ouverture = un tirage ;
+  - le pourcentage est la probabilité d'obtenir ce type de récompense, la quantité est affichée à
+    côté ;
+  - les pièces ne sont multipliées ni par le Sac, ni par les reliques, ni par les boosts ;
+  - formule des fragments : (quantité + bonus Aimant de +1 à +5) × bonus de fragments du jeu s'il
+    est différent de 1, arrondi, au moins 1 ;
+  - objet de collection tiré à chances égales parmi les objets d'origine manquants, avec le nombre
+    et le % par objet pour ce joueur ;
+  - collection complète : 5 fragments à la place.
+
+La fenêtre ne contient **aucun bouton d'achat**. Elle se ferme par « Fermer », la touche Échap ou un
+clic à côté. Elle est traduite en FR, EN et NL.
+
+**c) Source unique des chances.** La nouvelle route `GET /api/shop/chests` (publique, lecture seule)
+publie la table utilisée par le tirage du serveur, ainsi que le coût admin et le multiplicateur de
+fragments. La fenêtre relit cette route à chaque ouverture. Le tirage des joueurs anonymes utilise
+désormais la même table : les tables recopiées en dur dans `main.js` ont été supprimées.
+
+**d) Aperçu avant/après des améliorations.** Chaque carte affiche maintenant le passage au niveau
+suivant, avec les valeurs réelles (reliques comprises) :
+- Sac : « Niveau 8 → 9 · Récompenses ×3,4 → ×3,7 » ;
+- Pioche : « Dégâts par clic : 7 → 8 », Œil du mineur compris ;
+- Auto-Dig : « Dégâts auto/sec : 6 → 7 », Moteur antique compris ;
+- Chance, Fragments et Reroll : « Niveau n → n+1 ». Chance garde en plus son aperçu des blocs rares ;
+- au niveau maximal : « Niveau maximal atteint ».
+
+Les descriptions de la Pioche et de l'Auto-Dig donnent désormais elles aussi la valeur réelle avec
+les reliques. Elles indiquaient auparavant le niveau seul. L'économie ne change pas.
+
+**e) Ligne « Récompense » sous le bloc.**
+- **Cœur d'or** : vérifié dans le moteur. Il multiplie les pièces des blocs par 1,15 / 1,30 / 1,50 /
+  1,75 / 2 selon son niveau, et il était déjà affiché à part (💛). Il n'est pas compris dans la base
+  du bloc, donc il n'est pas compté deux fois.
+- L'ordre de calcul est inchangé : base × 🎒 × 💛 × ✨ × ⚡, avec un seul arrondi supérieur à la fin,
+  comme pour le crédit réel.
+- **Grands nombres** : les montants sont toujours écrits en entier avec les séparateurs de la
+  langue (7 654 321 / 7,654,321 / 7.654.321), jamais abrégés.
+- Si la place manque, la ligne passe à la ligne entre deux facteurs. « = 💰 total » reste d'un seul
+  tenant et n'est jamais tronqué.
+
+### 3. SHA sur `develop`, branche, procédure de test
+
+- Branche `feature/20-parametres-economiques` : commit `e339a26`. Fusion dans `develop` : **`9fd23e4`**.
+- Lancer les tests : `npm test` (313 tests), ou `node --test test/chest-shop-odds.test.js` pour les
+  10 nouveaux tests.
+- Vérification rapide de l'API : `curl https://dig.lodygames.com/api/shop/chests` renvoie les 3
+  coffres, et la somme des `chance` de chaque coffre vaut 100.
+
+### 4. Vérifications effectuées, limites, données des joueurs
+
+**Tests automatiques** : `npm test` 313/313 sur la branche, sur `develop` et sur la release `9fd23e4`.
+
+Le nouveau fichier `test/chest-shop-odds.test.js` couvre :
+- les sommes à 100 % et les prix ;
+- le minimum d'un quart du prix et une espérance inférieure au prix ;
+- 20 000 tirages par coffre avec une graine fixe : fréquences à ±1,2 point près, montants dans les
+  bornes ;
+- l'égalité entre la description publique et le tirage, coût admin et multiplicateur compris ;
+- l'absence de pourcentages en dur côté client ;
+- les fragments du client égaux à ceux du serveur : Aimant de 0 à 5 × multiplicateurs 0,5 / 1 /
+  1,5 / 2 ;
+- l'aperçu avant/après avec reliques ;
+- la mise en forme FR/EN/NL ;
+- Cœur d'or 0–5 × Sac × bonus 1–3 × réglage admin × bases jusqu'à 7 654 321 : total affiché =
+  montant crédité, et produit des facteurs = multiplicateur appliqué ;
+- les règles CSS de retour à la ligne.
+
+Fichiers de tests existants adaptés :
+- `test/chest-shop.test.js` : nouvelle route publique testée (lecture seule, identique au tirage).
+  Le test « double clic » fixe le coût à 4 000 le temps du test, parce que le gros lot de 3 500
+  permettrait désormais de racheter un coffre.
+- `test/economy.test.js` : tirage simulé recalé sur la nouvelle table.
+
+**Contrôles Chromium** sur un serveur de test, en 1280×900 et 390×844, en FR, EN et NL, sans aucune
+erreur :
+- ligne « 💰 7 654 321 × 🎒 3,4 × 💛 1,3 × ⚡ 3 = 💰 101 496 297 » sur deux lignes, total entier
+  visible et sans débordement ;
+- 3 fenêtres de chances : 4, 6 et 7 lignes, total 100 %, aucun bouton d'achat, fermeture par Échap ;
+- achat anonyme d'un coffre simple tiré avec la table du serveur ;
+- aperçu « Niveau 8 → 9 · Récompenses ×3,4 → ×3,7 ».
+
+**En production**, en visiteur et sans achat : fenêtre du coffre antique et aperçus corrects sur
+ordinateur et smartphone, sans erreur.
+
+**Données des joueurs** : aucune migration, aucune donnée touchée. Seules les tirages futurs
+changent. Copie de la base de production démarrée avec la release : empreintes identiques.
+
+**Limites** :
+- Les coffres-blocs trouvés en creusant (table `Chests.TABLES`) ne sont pas concernés : ils
+  affichent toujours « Contenu aléatoire ». Voir le point 9.
+- Le boost d'un coffre multiplie les pièces des blocs. Sa valeur dépend donc du rythme de jeu et
+  n'est pas comptée dans le rendement en pièces.
+
+### 5. Déploiement
+
+- **SHA déployé : `9fd23e4`**, par `deploy.sh` de la release. Production précédente : `bbdb1d6`.
+- Sauvegarde vérifiée : `dig-20261030-195907-pre-deploy-9fd23e4.sqlite`.
+- Après déploiement :
+  - les 2 domaines répondent 200 en `1.0.0+9fd23e4`, `/api/shop/chests` répond 200 ;
+  - journal sans erreur, `quick_check` ok ;
+  - empreintes des tables joueurs identiques à la sauvegarde.
+- Retour arrière possible immédiatement : `git -C /home/ubuntu/Dig reset --keep bbdb1d6` puis
+  `sudo systemctl restart dig`. Aucun changement de schéma n'est à défaire.
+
+### 6. Test fonctionnel à faire par le propriétaire (≈ 3 min, sans acheter de coffre)
+
+Recharger la page une fois avant de commencer.
+
+1. **Améliorations → Boutique de saison → « ℹ️ Récompenses et chances »** sous chaque coffre.
+   Attendu :
+   - simple : 45 / 30 / 15 / 10 % ;
+   - rare : 40 / 30 / 12 / 8 / 8 / 2 % ;
+   - antique : 30 / 25 / 18 / 10 / 12 / 4 / 1 %, avec « Limité à 5 ouvertures par saison » ;
+   - pas de bouton d'achat dans la fenêtre ; fermeture par « Fermer » ou en touchant à côté.
+2. Si tu as l'Aimant à éclats, la mention « tu en reçois N » apparaît à côté des fragments.
+3. **Carte Sac** : « Niveau 8 → 9 · Récompenses ×3,4 → ×3,7 ». Pioche et Auto-Dig affichent aussi
+   « actuel → suivant ».
+4. **Cas combinés**, sous le bloc :
+   - avec un bonus ×2 actif : « 💰 base × 🎒 3,4 × ⚡ 2 = 💰 total » ;
+   - avec le Cœur d'or : un facteur 💛 en plus ;
+   - le compteur augmente exactement du total.
+5. Facultatif : en anglais ou en néerlandais (Paramètres), la fenêtre est traduite.
+
+**Classement : Bloquant MVP public** pour la transparence des chances, dès qu'on vend des coffres
+contre des pièces. Le reste relève du confort, **après lancement**.
+
+### 7. Choix techniques faits seul
+
+- **Route publique dédiée** `GET /api/shop/chests` plutôt qu'un champ dans `/api/seasons/current`.
+  C'est la seule source des chances : elle est relue à chaque ouverture de la fenêtre, ce qui reflète
+  aussitôt un réglage admin.
+- **Achat anonyme hors ligne** : il est refusé tant que la table n'a pas été chargée (message
+  d'erreur, aucun débit). Garder une copie locale des chances aurait recréé un doublon.
+- **Montants jamais abrégés** (pas de « 1,2 M »), pour éviter toute troncature ambiguë. Le retour à
+  la ligne suffit à rester lisible sur 390 px.
+- **Pioche et Auto-Dig** : effet réel avec les reliques. C'est « la formule effective » demandée, et
+  cela corrige une description qui ignorait l'Œil du mineur et le Moteur antique.
+
+### 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire. Il reste seulement la recette ci-dessus.
+
+### 9. Éléments restant à réaliser
+
+- Après lancement, suggestion à valider dans un ticket séparé : afficher les chances des
+  coffres-blocs trouvés en creusant, qui montrent seulement « Contenu aléatoire ».
+- Clôture du #20 par le propriétaire après la recette.
 
 ## Session du 30/10/2026 (matin, DIGORCH) — retours de recette du propriétaire
 
