@@ -2690,7 +2690,7 @@ function showChestPopup(chestType, reward) {
   inner.style.animation  = '';
   iconEl.style.animation = '';
 
-  iconEl.textContent   = chestType.icon;
+  IconLibrary.render(iconEl, chestType);   // image v1 du coffre (emoji en legacy)
   rarityEl.innerHTML   = `<span class="rarity-badge rarity-${chestType.rarityKey}">${t('rarity.' + chestType.rarityKey.replace('-', '_'))}</span>`;
   titleEl.textContent  = t('ui.chest_title', { name: t(chestType.name) });
   rewardEl.textContent = Chests.rewardLabel(reward);
@@ -3032,7 +3032,7 @@ function init() {
 
   if (offlineGains) showOfflinePopup(offlineGains);
 
-  // Bibliothèque d'icônes (legacy par défaut) : re-rendu du bloc une fois la configuration lue.
+  // Bibliothèque d'icônes (v1 par défaut, library.json) : re-rendu du bloc une fois la configuration lue.
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
   // Catalogue de blocs publié (#37) : s'applique aux prochains blocs, le bloc courant est conservé.
   Blocks.fetchCatalog(() => { if (Blocks.current && isViewActive('dig')) renderBlock(); });

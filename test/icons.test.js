@@ -109,9 +109,11 @@ test('v1 : image en erreur → repli legacy immédiat et définitif pour la sess
   });
 });
 
-test('manifeste livré : legacy par défaut, matériaux hors manifeste en legacy', () => {
+test('manifeste livré : v1 par défaut (validation du propriétaire du 30/10), matériaux hors manifeste en legacy', () => {
   const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
-  assert.strictEqual(lib.defaultLibrary, 'legacy', 'legacy doit rester la valeur par défaut livrée');
+  assert.strictEqual(lib.defaultLibrary, 'v1', 'v1 est la valeur par défaut livrée');
+  assert.ok(Object.values(lib.libraries.v1.materials).every((e) => e.validated), '14 blocs validés');
+  withLibrary({ config: lib }, () => assert.strictEqual(IconLibrary.active(), 'v1', 'sans paramètre ni choix mémorisé'));
   withLibrary({ config: { ...lib, defaultLibrary: 'v1' } }, () => {
     for (const type of loadBlockTypes()) {
       const el = new FakeEl('span');
@@ -161,13 +163,17 @@ test('pilotes v1 : chaque matériau hors pierre a une provenance cohérente (emp
   }
 });
 
-test('validations du propriétaire conservées : pierre (29/10), charbon et minerai de fer (30/10)', () => {
+test('validations du propriétaire : pierre (29/10), puis les 13 autres blocs (30/10)', () => {
   const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
   const m = lib.libraries.v1.materials;
   assert.strictEqual(m.pierre.validated, '2026-10-29');
   assert.strictEqual(m.charbon.validated, '2026-10-30');
   assert.strictEqual(m.minerai_fer.validated, '2026-10-30');
-  assert.notStrictEqual(m.diamant && m.diamant.validated, '2026-10-30', 'diamant refusé (glaçon) : non validé');
+  for (const id of ['terre_meuble', 'argile', 'gres', 'granite', 'minerai_or', 'vieille_caisse', 'coffre_bois', 'coffre_fer', 'rubis', 'emeraude', 'diamant']) {
+    assert.strictEqual(m[id].validated, '2026-10-30', id);
+  }
+  // Le diamant validé est le diamant brut (refait), pas l'ancien « glaçon ».
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(ROOT, m.diamant.provenance), 'utf8')).replaces, 'diamant-20261030-095353-c');
 });
 
 test('lot complet v1 : les 14 blocs ont une image, fichiers présents, aucun export orphelin', () => {
@@ -204,7 +210,7 @@ test('planche de prévisualisation : 14 blocs, statuts du manifeste', () => {
   const entries = require('../tools/icons/board').boardEntries();
   assert.strictEqual(entries.length, 14);
   assert.ok(entries.every((e) => e.image), 'chaque bloc a son image');
-  assert.deepStrictEqual(entries.filter((e) => e.validated).map((e) => e.id), ['pierre', 'charbon', 'minerai_fer']);
+  assert.ok(entries.every((e) => e.validated), 'les 14 blocs validés');
 });
 
 test('surcharge par navigateur : ?icons=v1 / legacy mémorisé, ?icons=default efface', () => {
@@ -215,6 +221,45 @@ test('surcharge par navigateur : ?icons=v1 / legacy mémorisé, ?icons=default e
   assert.strictEqual(IconLibrary.override('?icons=default', storage), null);
   assert.strictEqual(IconLibrary.override('?icons=nimporte', storage), null);
   withLibrary({ config: V1_PIERRE, search: '?icons=legacy' }, () => assert.strictEqual(IconLibrary.active(), 'legacy'));
+});
+
+test('passage à v1 par défaut : un ancien choix « legacy » mémorisé (ancienne clé) est ignoré et effacé', () => {
+  const storage = memoryStorage();
+  storage.setItem('dig.iconLibrary', 'legacy');
+  assert.strictEqual(IconLibrary.override('', storage), null);
+  assert.strictEqual(storage.getItem('dig.iconLibrary'), null);
+  withLibrary({ config: V1_PIERRE, storage }, () => assert.strictEqual(IconLibrary.active(), 'v1'));
+});
+
+test('chargement de la configuration : aucun emoji affiché en attendant, puis rendu final', async () => {
+  const pierre = loadBlockTypes().find((t) => IconLibrary.materialId(t) === 'pierre');
+  const saved = { fetch: global.fetch, config: IconLibrary.config, pending: IconLibrary.pending, override: IconLibrary.override };
+  IconLibrary.override = () => null;
+  IconLibrary.failed = new Set();
+  try {
+    for (const [name, fake, expectLib] of [
+      ['v1', () => Promise.resolve({ ok: true, json: () => Promise.resolve(V1_PIERRE) }), 'v1'],
+      ['erreur réseau', () => Promise.reject(new Error('hors ligne')), undefined],
+      ['404', () => Promise.resolve({ ok: false }), undefined],
+    ]) {
+      global.fetch = fake;
+      IconLibrary.config = null;
+      IconLibrary.pending = true;
+      const el = new FakeEl('span');
+      IconLibrary.render(el, pierre);
+      assert.strictEqual(el.textContent, '', `${name} : rien pendant le chargement`);
+      assert.deepStrictEqual(el.children, []);
+      let calls = 0;
+      await IconLibrary.load(() => { calls++; IconLibrary.render(el, pierre); });
+      assert.strictEqual(calls, 1, name);
+      assert.strictEqual(IconLibrary.pending, false, name);
+      assert.strictEqual(el.attrs['data-icon-lib'], expectLib, name);
+      if (!expectLib) assert.strictEqual(el.textContent, '🪨', `${name} : repli emoji`);
+    }
+  } finally {
+    Object.assign(IconLibrary, { config: saved.config, pending: saved.pending, override: saved.override });
+    global.fetch = saved.fetch;
+  }
 });
 
 // ── Traitement d'image ───────────────────────────────────────────────────────

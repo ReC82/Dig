@@ -1,7 +1,7 @@
 /**
  * iconLibrary.js
- * Choix de la bibliothèque d'icônes des blocs : `legacy` (emoji, rendu historique, PAR DÉFAUT)
- * ou `v1` (images générées, matériau par matériau).
+ * Choix de la bibliothèque d'icônes des blocs : `v1` (images générées, PAR DÉFAUT depuis le
+ * 30/10/2026, validées par le propriétaire) ou `legacy` (emoji, rendu historique).
  *
  * - `legacy` : exactement l'ancien rendu (`textContent = icône`), aucun attribut ajouté.
  * - `v1` : image seulement pour les matériaux présents dans assets/icons/library.json ;
@@ -10,19 +10,27 @@
  * Bibliothèque active, par ordre de priorité :
  *   1. paramètre d'URL `?icons=v1|legacy` (mémorisé pour ce navigateur ; `?icons=default` l'efface) ;
  *   2. `defaultLibrary` de assets/icons/library.json (lu sans cache : changement sans redéploiement) ;
- *   3. `legacy`.
+ *   3. `legacy` (configuration illisible ou absente, ex. hors ligne).
  * Rollback global immédiat : remettre `"defaultLibrary": "legacy"` dans library.json.
+ * Tant que la configuration est en cours de lecture (au plus LOAD_TIMEOUT_MS), le bloc est
+ * affiché sans icône plutôt qu'avec l'emoji, pour éviter un clignotement emoji → image.
  */
 const IconLibrary = {
 
   LIBRARIES: ['legacy', 'v1'],
-  STORAGE_KEY: 'dig.iconLibrary',
+  // Clé renouvelée au passage de v1 par défaut : un ancien choix mémorisé (?icons=legacy pendant
+  // la recette) ne doit pas garder les emoji. L'ancienne clé est effacée à la lecture.
+  STORAGE_KEY: 'dig.iconLibrary.2',
+  OLD_STORAGE_KEYS: ['dig.iconLibrary'],
+  LOAD_TIMEOUT_MS: 3000,
   CONFIG_URL: 'assets/icons/library.json',
 
   /** Configuration chargée (library.json) ; null tant qu'elle n'est pas lue → legacy. */
   config: null,
   /** Images v1 en échec de chargement pendant cette session (repli legacy définitif). */
   failed: new Set(),
+  /** Vrai dans le navigateur jusqu'à la fin de load() (succès, échec ou délai dépassé). */
+  pending: typeof window !== 'undefined' && typeof fetch !== 'undefined',
 
   /** Identifiant stable d'un type de bloc : « block.pierre » → « pierre ». */
   materialId(type) {
@@ -33,6 +41,7 @@ const IconLibrary = {
   override(search = (typeof location !== 'undefined' ? location.search : ''), storage = IconLibrary._storage()) {
     const asked = new URLSearchParams(search).get('icons');
     try {
+      if (storage) IconLibrary.OLD_STORAGE_KEYS.forEach((k) => storage.removeItem(k));
       if (asked === 'default') storage && storage.removeItem(IconLibrary.STORAGE_KEY);
       else if (IconLibrary.LIBRARIES.includes(asked)) storage && storage.setItem(IconLibrary.STORAGE_KEY, asked);
     } catch (_) { /* stockage indisponible : la surcharge vaut pour cette page seulement */ }
@@ -100,6 +109,11 @@ const IconLibrary = {
       el.appendChild(img);
       return;
     }
+    if (IconLibrary.pending) {
+      el.removeAttribute('data-icon-lib');
+      el.textContent = '';
+      return;
+    }
     const a = IconLibrary.active() === 'v1' ? IconLibrary.asset(type) : null;
     if (!a) return IconLibrary.renderLegacy(el, type);
 
@@ -123,14 +137,15 @@ const IconLibrary = {
 
   /** Charge library.json sans cache, puis rappelle `onReady` (re-rendu du bloc courant). */
   load(onReady) {
-    if (typeof fetch === 'undefined') return Promise.resolve();
+    const ready = () => { IconLibrary.pending = false; if (onReady) onReady(); };
+    if (typeof fetch === 'undefined') { ready(); return Promise.resolve(); }
+    // Réseau lent : au-delà du délai, legacy en attendant (la configuration reçue ensuite s'applique).
+    const timer = setTimeout(() => { if (IconLibrary.pending) ready(); }, IconLibrary.LOAD_TIMEOUT_MS);
     return fetch(IconLibrary.CONFIG_URL, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((cfg) => {
-        IconLibrary.config = cfg;
-        if (onReady) onReady();
-      })
-      .catch(() => { /* config absente ou invalide : legacy */ });
+      .then((cfg) => { IconLibrary.config = cfg; })
+      .catch(() => { /* config absente ou invalide : legacy */ })
+      .then(() => { clearTimeout(timer); ready(); });
   },
 };
 
