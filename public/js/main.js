@@ -461,6 +461,7 @@ function renderUpgrades() {
             <span class="upgrade-level">${t('stats.pickaxe_val', { n: level })}${maxed ? ` <span class="maxed-tag">${t('ui.btn_max')}</span>` : ''}</span>
           </div>
           <div class="upgrade-desc">${def.describe(level)}</div>
+          ${def.preview ? `<div class="upgrade-preview" data-id="${def.id}">${def.preview(level)}</div>` : ''}
         </div>
       </div>
       <button class="upgrade-btn${maxed ? ' is-maxed' : ''}" data-id="${def.id}"
@@ -492,6 +493,9 @@ function renderUpgrades() {
 
 function updateUpgradeButtonStates() {
   for (const def of Upgrades.DEFS) {
+    // Aperçu lié à la profondeur (carte Chance, #32) : suit la descente sans redessiner la carte
+    const preview = def.preview && elUpgradesList.querySelector(`.upgrade-preview[data-id="${def.id}"]`);
+    if (preview) preview.textContent = def.preview(Upgrades.getLevel(def.id));
     const btn = elUpgradesList.querySelector(`.upgrade-btn[data-id="${def.id}"]`);
     if (!btn || btn.classList.contains('is-maxed')) continue;
     btn.disabled = !Upgrades.canAfford(def.id);

@@ -140,17 +140,41 @@ const Blocks = {
   // Raretés boostées par l'upgrade Chance
   _BOOSTED_RARITIES: new Set(['rare', 'epique', 'legendaire']),
 
-  /** Tirage pondéré en tenant compte du niveau Chance. */
-  _pickType(depth) {
-    const luckLevel = GameState.upgrades ? (GameState.upgrades.luck || 0) : 0;
-    const luckMult  = 1 + luckLevel * 0.20 + (GameState.relicBonuses?.luckPct ?? 0);
+  /** Multiplicateur de poids des raretés boostées : Chance + relique Lentille fêlée. */
+  luckMultiplier(luckLevel = GameState.upgrades ? (GameState.upgrades.luck || 0) : 0) {
+    return 1 + luckLevel * 0.20 + (GameState.relicBonuses?.luckPct ?? 0);
+  },
 
-    const pool = this.TYPES
+  /** Pool pondéré des blocs possibles à cette profondeur (source unique du tirage et de l'affichage). */
+  _pool(depth, luckMult) {
+    return this.TYPES
       .filter(t => depth >= t.minDepth && depth <= t.maxDepth)
       .map(t => ({
         type: t,
         w: t.weight * (this._BOOSTED_RARITIES.has(t.rarityKey) ? luckMult : 1),
       }));
+  },
+
+  /**
+   * Probabilité exacte de chaque bloc à cette profondeur (#32).
+   * @returns {{ type: object, p: number }[]}
+   */
+  blockOdds(depth, luckLevel) {
+    const pool  = this._pool(depth, this.luckMultiplier(luckLevel));
+    const total = pool.reduce((s, e) => s + e.w, 0);
+    return pool.map(e => ({ type: e.type, p: e.w / total }));
+  },
+
+  /** Part des blocs rares, épiques et légendaires à cette profondeur (carte Chance, #32). */
+  rareShare(depth, luckLevel) {
+    return this.blockOdds(depth, luckLevel)
+      .filter(e => this._BOOSTED_RARITIES.has(e.type.rarityKey))
+      .reduce((s, e) => s + e.p, 0);
+  },
+
+  /** Tirage pondéré en tenant compte du niveau Chance. */
+  _pickType(depth) {
+    const pool = this._pool(depth, this.luckMultiplier());
 
     if (pool.length === 0) return this.TYPES[2]; // fallback : Pierre
 
