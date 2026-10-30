@@ -1,0 +1,54 @@
+{
+  "material": "granite",
+  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
+  "status": "pilote",
+  "choice": "génération unique (consigne du propriétaire du 30/10/2026 : une image par bloc)",
+  "candidate": "granite-20261030-121250-a",
+  "model": "gpt-image-2.5-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/edits",
+  "params": {
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "A single irregular chunk of granite, premium stylized 3D low-poly game resource icon. The same faceted rock as the reference stone, slightly more angular and dense, with a polished speckled crystalline surface: a clear granular pattern of black, white and salmon-pink mineral grains (feldspar, quartz, mica) across every facet. Medium gray base speckled with black, milky white and salmon-pink grains, tiny glinting mica flecks, charcoal lower faces; it must stay readable against a very dark zinc-gray background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png",
+    "reference": "pierre.png"
+  },
+  "prompt": "A single irregular chunk of granite, premium stylized 3D low-poly game resource icon. The same faceted rock as the reference stone, slightly more angular and dense, with a polished speckled crystalline surface: a clear granular pattern of black, white and salmon-pink mineral grains (feldspar, quartz, mica) across every facet. Medium gray base speckled with black, milky white and salmon-pink grains, tiny glinting mica flecks, charcoal lower faces; it must stay readable against a very dark zinc-gray background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+  "prompt_source": "prompt-master.md",
+  "prompt_master_version": "v1.0",
+  "reference": "art/icons/v1/reference/pierre.png",
+  "raw_sha256": "d1d6be326f1710b6783cf4550aab8c0bedc0ddd50a9e13fdaeaf0b6d22cadb92",
+  "cost_usd": 0.0819,
+  "generatedAt": "2026-10-30T12:13:31.502Z",
+  "legibility": {
+    "objectMeanRgb": [
+      126,
+      112,
+      102
+    ],
+    "highlightRatio": 0.334,
+    "contrast": {
+      "bloc pierre (#4b5563)": 1.58,
+      "bloc pierre (#374151)": 2.15,
+      "page (#111827)": 3.7
+    }
+  },
+  "master": {
+    "file": "art/icons/v1/pilot/granite.webp",
+    "format": "WebP sans perte 1024×1024 RGBA (PNG normalisé)",
+    "sha256": "25b0403e173a16402767dae87ead16fd55ff2ad26e385a1b49f7f75d4cd769a7"
+  },
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/granite-4100a75b-128.webp",
+      "sha256": "fd07f51ad2d6ac06fa4b57661c252d43e542093596c1d4ec35d914d5fad40cd0"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/granite-4100a75b-256.webp",
+      "sha256": "4100a75b52febcfb6929f733e2544b077652acb63e68fd10bd910fb996fc3502"
+    }
+  }
+}

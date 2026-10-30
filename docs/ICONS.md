@@ -5,7 +5,7 @@
 | Bibliothèque | Rendu | Statut |
 |---|---|---|
 | `legacy` | emoji d'origine (`Blocks.TYPES[].icon`) sur le fond CSS du bloc — **inchangé** | **par défaut** |
-| `v1` | images générées (`public/assets/icons/v1/<matériau>-128.webp` / `-256.webp`), matériau par matériau. Contenu actuel : **pierre** seule (validée le 29/10/2026) | disponible, **non activée par défaut** |
+| `v1` | images générées (`public/assets/icons/v1/<matériau>-128.webp` / `-256.webp`), matériau par matériau. Contenu actuel : **les 14 blocs du jeu** — pierre (validée le 29/10/2026), charbon et minerai de fer (validés le 30/10/2026), les 11 autres en statut « pilote » à valider | disponible, **non activée par défaut** |
 
 - **Choix de la bibliothèque :** `public/js/iconLibrary.js`.
 - **Configuration :** `public/assets/icons/library.json`, lue sans cache par le navigateur. Une modification s'applique au prochain chargement de page, sans redémarrage ni migration.
@@ -75,3 +75,9 @@ node tools/icons/generate.js pierre --count 3             # 1 à 3 propositions
 - Pour **changer de proposition**, copier `<id>/<matériau>-{128,256}.webp` depuis `art/icons/v1/candidates/` vers `public/assets/icons/v1/`, puis mettre à jour `candidate` et `exports` dans le fichier de provenance.
 - Pour **retirer un pilote**, supprimer son entrée du manifeste : le matériau repasse en emoji, même avec `?icons=v1`.
 - Après validation, l'entrée reçoit `"validated": "<date>"` et `status` disparaît. `defaultLibrary` ne bascule qu'une fois **tout le lot** validé.
+
+## Lot complet (30/10/2026)
+
+- Consigne du propriétaire (#22, 30/10) : **une seule génération par bloc**, sans variantes préventives ; correction ciblée sur demande.
+- `node tools/icons/promote.js <id-proposition> …` : intègre une proposition contrôlée en statut « pilote » (exports WebP vers `public/assets/icons/v1/`, maître 1024 en WebP sans perte et provenance dans `art/icons/v1/pilot/`, entrée du manifeste). Refuse de remplacer un matériau validé ; ne modifie jamais `defaultLibrary`.
+- `node tools/icons/board.js --out <png> [--webp <webp>]` : **planche exhaustive** des 14 blocs (ordre du jeu, fond réel du bloc, nom, rareté, profondeur, statut, emoji remplacé). Planche livrée : `art/icons/v1/planche-v1.png` et, en ligne, `https://dig.lodylands.com/assets/icons/planche-v1.webp` (image statique, aucune page ni route ajoutée).

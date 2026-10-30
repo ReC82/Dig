@@ -1,7 +1,7 @@
 {
   "material": "charbon",
-  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
-  "status": "pilote",
+  "role": "v1 validé par le propriétaire (recette en jeu sur PC, 30/10/2026, #22)",
+  "status": "validé",
   "choice": "proposition C (choix technique de la session, modifiable)",
   "candidate": "charbon-20261030-094915-c",
   "alternatives": [
@@ -50,5 +50,6 @@
       "file": "public/assets/icons/v1/charbon-256.webp",
       "sha256": "cf945cb2d78406bd4ca56c76f6b0db239eb89fe26de9d3316e43e21f42546fb9"
     }
-  }
+  },
+  "validated": "2026-10-30 — proposition C retenue par le propriétaire (commentaire #22 du 30/10 10:15)"
 }

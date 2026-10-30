@@ -16,26 +16,110 @@
     "charbon": {
       "block": "block.charbon",
       "legacyIcon": "🖤",
-      "status": "pilote",
+      "status": "validée",
       "subject": "A single irregular lump of raw coal",
       "details": "Rounded asymmetrical chunk with the same silhouette scale as the reference stone, composed of large and medium sharp polygonal facets; a few facets have a subtle glassy sheen typical of anthracite, with fine mineral surface detail.",
-      "palette": "Deep charcoal-black and very dark graphite surfaces with faint cool blue-gray reflections on the lit facets, near-black lower faces; it must stay clearly readable against a dark brown-black background."
+      "palette": "Deep charcoal-black and very dark graphite surfaces with faint cool blue-gray reflections on the lit facets, near-black lower faces; it must stay clearly readable against a dark brown-black background.",
+      "validated": "2026-10-30 — proposition C retenue par le propriétaire"
     },
     "minerai_fer": {
       "block": "block.minerai_fer",
       "legacyIcon": "⚙",
-      "status": "pilote",
+      "status": "validée",
       "subject": "A single irregular chunk of iron ore",
       "details": "The same faceted gray rock as the reference stone, with several embedded metallic iron nodules and veins breaking through the facets, plus small patches of rusty oxidation around them.",
-      "palette": "Cool slate-gray rock surfaces, steel-gray metallic inclusions with bright silver highlights, warm rust-orange and reddish-brown oxide patches, darker charcoal-gray lower faces."
+      "palette": "Cool slate-gray rock surfaces, steel-gray metallic inclusions with bright silver highlights, warm rust-orange and reddish-brown oxide patches, darker charcoal-gray lower faces.",
+      "validated": "2026-10-30 — proposition C retenue par le propriétaire"
     },
     "diamant": {
       "block": "block.diamant",
       "legacyIcon": "💎",
-      "status": "pilote",
-      "subject": "A single raw diamond crystal",
-      "details": "Rough uncut octahedral gemstone with the same silhouette scale as the reference stone, made of large and medium translucent polygonal facets with crisp internal refractions; not a jewelry cut, not set in rock.",
-      "palette": "Icy pale cyan, white and light sky-blue translucent facets with bright sparkling highlights, deeper blue tones on the lower faces."
+      "status": "lot complet",
+      "subject": "A single rough natural diamond crystal",
+      "details": "Uncut mineral diamond as found in a mine: a slightly irregular octahedron with softly rounded edges and triangular faces showing natural etch pits, growth steps and a frosted, partly matte surface, with small clear glassy windows that reveal strong adamantine brilliance; a few dark gray kimberlite rock fragments still cling to its base; same silhouette scale as the reference stone. Clearly a precious raw gemstone: not an ice cube, not frozen water, not glass, not a jewelry cut.",
+      "palette": "Mostly colorless white and pale silver-gray crystal with a very faint warm champagne tint, intense white sparkles and small prismatic rainbow flashes (fire) on the lit edges, soft cool gray lower faces, dark gray kimberlite; it must stay readable against a deep blue background.",
+      "previous": "2026-10-30 pilote C (diamant-20261030-095353-c) refusé par le propriétaire : ressemble à un glaçon"
+    },
+    "terre_meuble": {
+      "block": "block.terre_meuble",
+      "legacyIcon": "🟤",
+      "status": "lot complet",
+      "subject": "A single irregular clump of loose brown soil",
+      "details": "Rounded crumbly mound with the same silhouette scale as the reference stone, built from many small and medium soft polygonal clods and granules, with a few tiny pebbles and thin dry root fibers; matte, earthy, clearly loose dirt rather than rock.",
+      "palette": "Warm chocolate-brown and medium umber surfaces with lighter tan crumbs on the lit side, dark coffee-brown lower faces; it must stay readable against a dark brown background."
+    },
+    "argile": {
+      "block": "block.argile",
+      "legacyIcon": "🟫",
+      "status": "lot complet",
+      "subject": "A single dense lump of raw clay",
+      "details": "Compact rounded chunk with the same silhouette scale as the reference stone, smoother and softer than rock: broad gently bevelled polygonal faces, a slightly moist satin sheen and a few shallow finger-pressed dents and fine cracks.",
+      "palette": "Terracotta reddish-orange and warm ochre surfaces with soft peach highlights, deep rust-brown lower faces; it must stay readable against a brown-orange background."
+    },
+    "gres": {
+      "block": "block.gres",
+      "legacyIcon": "🏔",
+      "status": "lot complet",
+      "subject": "A single irregular chunk of sandstone",
+      "details": "The same faceted rock as the reference stone, but with clearly visible horizontal sedimentary layers running across the facets and a fine sandy granular surface texture.",
+      "palette": "Warm beige, sand-yellow and pale ochre strata alternating with light rose-tan bands, muted brown lower faces; it must stay readable against a warm gray background."
+    },
+    "granite": {
+      "block": "block.granite",
+      "legacyIcon": "⬛",
+      "status": "lot complet",
+      "subject": "A single irregular chunk of granite",
+      "details": "The same faceted rock as the reference stone, slightly more angular and dense, with a polished speckled crystalline surface: a clear granular pattern of black, white and salmon-pink mineral grains (feldspar, quartz, mica) across every facet.",
+      "palette": "Medium gray base speckled with black, milky white and salmon-pink grains, tiny glinting mica flecks, charcoal lower faces; it must stay readable against a very dark zinc-gray background."
+    },
+    "minerai_or": {
+      "block": "block.minerai_or",
+      "legacyIcon": "🟡",
+      "status": "lot complet",
+      "subject": "A single irregular chunk of gold ore",
+      "details": "The same faceted gray rock as the reference stone, with several bright embedded gold nuggets and branching gold veins breaking through the facets, plus a few tiny quartz specks.",
+      "palette": "Cool slate-gray rock surfaces, rich metallic gold inclusions with warm yellow highlights and amber shadows, darker charcoal-gray lower faces; it must stay readable against an amber-orange background."
+    },
+    "vieille_caisse": {
+      "block": "block.vieille_caisse",
+      "legacyIcon": "🧰",
+      "status": "lot complet",
+      "subject": "A single small old weathered wooden crate",
+      "details": "Closed square crate made of rough, slightly warped wooden planks with a diagonal brace, a few rusty nails, a cracked corner and a frayed rope loop, rendered in the same faceted low-poly style and silhouette scale as the reference stone; humble and worn, clearly a common find. The crate is fully isolated on a perfectly transparent background: no dark backdrop, no vignette, no glow or halo behind it.",
+      "palette": "Faded gray-brown and dusty honey-brown wood with darker grain lines, rusty brown nail heads, deep brown lower faces; it must stay readable against a dark brown background.",
+      "retry": "2026-10-30 : première génération (vieille_caisse-20261030-121419-a) refusée par process.js (fond opaque), relancée une seule fois"
+    },
+    "coffre_bois": {
+      "block": "block.coffre_bois",
+      "legacyIcon": "📦",
+      "status": "lot complet",
+      "subject": "A single closed wooden treasure chest",
+      "details": "Classic chest with a rounded barrel lid, sturdy wooden planks, polished brass corner fittings, two brass bands and a small golden lock plate, rendered in the same faceted low-poly style, three-quarter view and silhouette scale as the reference stone; a tiny warm golden glow escapes from the lid seam.",
+      "palette": "Rich warm reddish-brown wood with lighter caramel highlights, shiny brass and gold metal fittings, dark mahogany lower faces; it must stay readable against a brown-orange background."
+    },
+    "coffre_fer": {
+      "block": "block.coffre_fer",
+      "legacyIcon": "🗃",
+      "status": "lot complet",
+      "subject": "A single closed iron-bound treasure chest",
+      "details": "Heavy chest with a flat-topped bevelled lid, dark wooden panels almost entirely covered by riveted steel plates and thick iron bands, reinforced corners and a large ornate steel padlock, rendered in the same faceted low-poly style, three-quarter view and silhouette scale as the reference stone; it looks valuable and epic.",
+      "palette": "Cool steel-gray and gunmetal plates with bright silver edge highlights, small hints of dark walnut wood between the plates, a faint cool blue sheen, near-black lower faces; it must stay readable against a dark slate-blue background."
+    },
+    "rubis": {
+      "block": "block.rubis",
+      "legacyIcon": "🔴",
+      "status": "lot complet",
+      "subject": "A single raw ruby crystal",
+      "details": "Rough natural ruby: a stubby hexagonal tabular crystal with slightly uneven flat faces, natural growth steps and a few small chips, with the same silhouette scale as the reference stone; a mineral specimen, not a cut jewel, not glass.",
+      "palette": "Deep crimson and blood-red translucent facets with bright pinkish-red internal glow and crisp white sparkles on the lit edges, dark wine-red lower faces; it must stay readable against a red background."
+    },
+    "emeraude": {
+      "block": "block.emeraude",
+      "legacyIcon": "💚",
+      "status": "lot complet",
+      "subject": "A small cluster of raw emerald crystals",
+      "details": "Rough natural emerald specimen: two or three elongated hexagonal prism crystals with flat terminations growing from a small fragment of pale gray host rock, natural inclusions and growth lines, same overall silhouette scale as the reference stone; a mineral specimen, not a cut jewel, not glass.",
+      "palette": "Vivid emerald-green and deep forest-green translucent crystals with bright mint highlights and white sparkles on the lit edges, dark bottle-green lower faces, pale gray host rock; it must stay readable against a green background."
     }
   }
 }

@@ -1,0 +1,54 @@
+{
+  "material": "rubis",
+  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
+  "status": "pilote",
+  "choice": "génération unique (consigne du propriétaire du 30/10/2026 : une image par bloc)",
+  "candidate": "rubis-20261030-121627-a",
+  "model": "gpt-image-2.5-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/edits",
+  "params": {
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "A single raw ruby crystal, premium stylized 3D low-poly game resource icon. Rough natural ruby: a stubby hexagonal tabular crystal with slightly uneven flat faces, natural growth steps and a few small chips, with the same silhouette scale as the reference stone; a mineral specimen, not a cut jewel, not glass. Deep crimson and blood-red translucent facets with bright pinkish-red internal glow and crisp white sparkles on the lit edges, dark wine-red lower faces; it must stay readable against a red background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png",
+    "reference": "pierre.png"
+  },
+  "prompt": "A single raw ruby crystal, premium stylized 3D low-poly game resource icon. Rough natural ruby: a stubby hexagonal tabular crystal with slightly uneven flat faces, natural growth steps and a few small chips, with the same silhouette scale as the reference stone; a mineral specimen, not a cut jewel, not glass. Deep crimson and blood-red translucent facets with bright pinkish-red internal glow and crisp white sparkles on the lit edges, dark wine-red lower faces; it must stay readable against a red background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+  "prompt_source": "prompt-master.md",
+  "prompt_master_version": "v1.0",
+  "reference": "art/icons/v1/reference/pierre.png",
+  "raw_sha256": "5a814577ce7dd3a1849b234320ca3e04025c553b79321a02243d38eab661edf5",
+  "cost_usd": 0.0819,
+  "generatedAt": "2026-10-30T12:17:06.854Z",
+  "legibility": {
+    "objectMeanRgb": [
+      142,
+      35,
+      49
+    ],
+    "highlightRatio": 0.089,
+    "contrast": {
+      "bloc pierre (#4b5563)": 1.14,
+      "bloc pierre (#374151)": 1.19,
+      "page (#111827)": 2.05
+    }
+  },
+  "master": {
+    "file": "art/icons/v1/pilot/rubis.webp",
+    "format": "WebP sans perte 1024×1024 RGBA (PNG normalisé)",
+    "sha256": "8344e2d826928e576c41eb12a3b5c4d4d269e267457bda40a4ab1b33ee5d3b8f"
+  },
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/rubis-6c4e7673-128.webp",
+      "sha256": "c448107f07d1f65c63ac58fb22d95ffad474f8decc739ced1b39a9a7981461f2"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/rubis-6c4e7673-256.webp",
+      "sha256": "6c4e7673e1b1fb358aca44a70ac510c42b65db4863b8f8496fcc3076de36ae55"
+    }
+  }
+}
