@@ -1,8 +1,9 @@
 # Ligues, promotions et récompenses — spécification (proposition, ticket #19)
 
-> **Statut : proposition à valider par le propriétaire.** Seules les parties marquées
-> « en place » sont implémentées. Les autres décrivent la recommandation ; rien n'est codé
-> avant la réponse aux questions de la section 4.
+> **Statut (30/10/2026, orientation du propriétaire) : comportement actuel conservé pour le MVP.**
+> Seules les règles de la section 1 sont en place. Les évolutions de la section 2 sont classées
+> **après lancement** et **ne sont pas approuvées** : rien n'est codé, aucune sauvegarde ni aucun
+> classement n'est modifié. Une seule décision groupée sera demandée, au moment utile (section 4).
 
 ## 1. Ce qui existe (en place)
 
@@ -22,39 +23,51 @@ Production au 30 octobre 2026 : une seule ligue (Mimosa) et un seul joueur actif
 seuil de 10 actifs, **aucune promotion n'aura lieu tant qu'il n'y aura pas 10 joueurs actifs dans la
 même semaine**.
 
-## 2. Proposition (recommandations, à valider)
+## 2. Classement MVP et recommandation post-lancement
 
-1. **Structure** : garder une ligue unique par niveau pour le lancement. Les divisions de taille fixe
-   (groupes de 30 joueurs par niveau, à la Duolingo) ne deviennent utiles qu'au-delà de ~100 joueurs
-   actifs par niveau : à prévoir après le lancement.
-2. **Durée** : inchangée (hebdomadaire, UTC).
-3. **Promotion** : formule inchangée, mais seuil abaissé à **5 actifs** pour que les premières
-   promotions aient lieu avec une petite communauté.
-4. **Relégation** (niveaux ≥ 1 uniquement, jamais sous Mimosa) : les **20 % derniers actifs**
-   (arrondi inférieur, au moins 1 si la ligue a au moins 5 actifs) et **tous les inactifs** de la
-   ligue descendent d'un niveau. Un joueur promu à cette clôture ne peut pas être relégué à la même
-   clôture. Les ligues vides sont conservées.
-5. **Récompenses de fin de saison** en gemmes, par ligue, versées **après** le plafonnement à
-   `gems_cap` : 1er 50, 2e 30, 3e 20, autres actifs 5, multipliées par `1 + 0,5 × niveau`
-   (arrondi inférieur) ; +10 pour une promotion. Mécanisme : le serveur enregistre une récompense
-   « en attente » (nouvelle table, aucune sauvegarde réécrite) ; le client l'encaisse à la connexion
-   suivante, l'affiche, l'ajoute et sauvegarde ; le serveur la marque encaissée (une seule fois).
-6. **Reset de saison par le serveur** : appliqué **à la lecture** de la sauvegarde (chargement ou
-   première sauvegarde de la nouvelle saison), mêmes règles que le reset client actuel, idempotent
-   (marqué par l'identifiant de saison). Aucune réécriture en masse à la clôture.
-7. **Départage** (réalisé dans #29) : profondeur ↓, blocs validés ↓, **date à laquelle la profondeur max a été atteinte ↑**
-   (le premier arrivé gagne), puis identifiant ↑. Demande une colonne ajoutée
-   `season_rankings.max_depth_reached_at` (ajout seul ; les lignes existantes restent sans date et
-   passent après celles qui en ont une, à égalité).
+### 2.1 Classement
+
+| Élément | Classement | Raison |
+|---|---|---|
+| Ligues par niveau, promotion actuelle, départage déterministe, classement figé (#29) | **En place — MVP** | Stable, testé (`test/leagues.test.js`, tests #29), déployé. |
+| Récompenses de fin de saison | **En place via #33** (points de récompense) | Le canal de récompense au mérite validé par le propriétaire est le portefeuille de points #33, pas un nouveau barème de gemmes. |
+| Bonus de points par niveau de ligue (`leagueBonusPctPerLevel`) | **Après lancement** — reste à 0 % | Inutile tant qu'il n'existe qu'une ligue (Mimosa). |
+| Seuil de promotion (10 → 5 actifs) | **Après lancement** | Sans effet tant qu'il y a moins de 5 joueurs actifs par semaine. |
+| Relégation | **Après lancement** | Nécessite plusieurs ligues peuplées. |
+| Barème de gemmes par rang | **Abandonné (recommandation)** | Double emploi avec #33 et inflation de l'économie de jeu ; remplacé par le bonus de ligue de #33. |
+| Reset de saison par le serveur | **Après lancement** | Modifierait les sauvegardes ; le reset client actuel fonctionne. Accord écrit requis le jour venu. |
+| Divisions de 30 joueurs | **Après lancement** (> ~100 actifs par niveau) | Sans objet avec la population actuelle. |
+
+### 2.2 Recommandation cohérente avec #29 et #33 (non approuvée)
+
+Un seul classement figé (#29) sert de source à tout : rang global (`position`) et rang dans la ligue
+(`rank_in_league`). Les points #33 sont attribués sur le rang **global** au mérite ; la ligue n'agit
+que par un **bonus multiplicatif** déjà prévu dans le code (`leagueBonusPctPerLevel`, 0 % aujourd'hui).
+Aucune nouvelle monnaie, aucun nouveau circuit de crédit : idempotence, ledger et retour arrière de #33
+s'appliquent tels quels.
+
+Paquet proposé, à activer **ensemble** quand au moins 5 joueurs actifs par semaine seront atteints
+deux semaines de suite :
+1. seuil de promotion à **5 actifs**, formule inchangée (réglage `min_active_players_per_league` de la configuration, aucune migration) ;
+2. bonus de ligue #33 à **+10 % par niveau** (réglage du barème, sans rétroactivité) ;
+3. relégation des **20 % derniers actifs + inactifs** des niveaux ≥ 1, d'un niveau, jamais sous
+   Mimosa, jamais pour un promu de la même clôture (seul `users.league_id` change, comme pour la
+   promotion aujourd'hui).
+
+Hors paquet, à décider séparément s'il devient utile : reset de saison par le serveur (modifie les
+sauvegardes), divisions de taille fixe.
 
 ## 3. Impact sur les données
 
-- Points 3, 4, 5 et 7 : ajouts de colonnes/tables et changement de `users.league_id` à la clôture
-  (déjà le cas aujourd'hui pour la promotion). Rien n'est supprimé.
-- Point 6 : modifie les sauvegardes des joueurs (comme le fait déjà le client). Il exige un **accord
-  écrit** du propriétaire, une sauvegarde vérifiée et un test sur copie de la base.
+- MVP : **aucun changement** (rien n'est codé au-delà de la section 1).
+- Paquet 2.2 : réglages (seuil, bonus) et changement de `users.league_id` à la clôture, déjà pratiqué
+  pour la promotion. Aucune suppression, aucune sauvegarde réécrite.
+- Reset serveur : modifierait les sauvegardes ; accord écrit, sauvegarde vérifiée et test sur copie
+  obligatoires.
 
-## 4. Décisions demandées
+## 4. Décision (groupée, non urgente, après lancement)
 
-Voir le rapport `docs/claude-reports/2026-10-30_ticket-19-ligues-recompenses.md` (section 8) et le
-commentaire du ticket #19.
+Une seule question, à poser quand le seuil d'activité de 2.2 sera atteint : « Activer le paquet
+ligues 2.2 (seuil 5, bonus +10 %/niveau, relégation 20 % + inactifs) : oui / non / ajuster ? »
+Les 8 questions précédentes du ticket sont remplacées par celle-ci (questions 1, 3 : comportement
+actuel conservé ; 7 : réalisée dans #29 ; 6 : remplacée par le bonus #33 ; 2, 8 : hors paquet).

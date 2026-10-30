@@ -137,3 +137,49 @@ Détail et chiffres dans `docs/LIGUES.md`. Répondre par numéro (« OK » = rec
   `min_active_players_per_league`, tests associés (promotion **et** relégation sur 3 ligues × 30).
 - Après lancement : divisions par niveau si la communauté grandit ; affichage dans le jeu de la
   zone de promotion/relégation.
+
+---
+
+## Mise à jour du 30/10/2026 (soir) — orientation MVP du propriétaire
+
+Ticket : #19 — [P2] T-12 — Spécifier et implémenter ligues, promotions et récompenses — https://github.com/ReC82/Dig/issues/19
+
+**État réel : partie technique déployée en production depuis `b64af44` (toujours en ligne dans la
+version actuelle) ; aucune nouvelle règle implémentée, conformément à l'orientation du propriétaire.
+Mise à jour de la spécification seulement (documentation, aucun déploiement nécessaire).**
+
+Commentaire du propriétaire (11:19) : ne pas considérer les 8 règles proposées comme approuvées,
+conserver le comportement actuel, classer relégation, récompenses, reset serveur et nouveau barème en
+post-MVP, sans modification de sauvegarde ni de classement ; recommandation cohérente avec #29/#33 ;
+une seule décision groupée quand nécessaire ; ne pas redemander la recette profondeur/rang (couverte
+par #9).
+
+**Changements** : `docs/LIGUES.md` uniquement.
+- Section 2.1 : classement de chaque élément — en place MVP (ligues par niveau, promotion actuelle,
+  départage, classement figé #29), récompenses assurées par les points #33, après lancement (bonus de
+  ligue, seuil 5, relégation, reset serveur, divisions), barème de gemmes abandonné (recommandation :
+  double emploi avec #33, inflation de l'économie).
+- Section 2.2 : recommandation unifiée — un seul classement figé (#29), points #33 sur le rang global,
+  ligue = bonus multiplicatif `leagueBonusPctPerLevel` déjà présent (0 % aujourd'hui). Paquet à activer
+  ensemble quand ≥ 5 actifs/semaine deux semaines de suite : seuil 5, bonus +10 %/niveau, relégation
+  20 % derniers + inactifs (niveaux ≥ 1).
+- Section 4 : les 8 questions sont remplacées par **une seule décision groupée, non urgente, après
+  lancement**.
+
+**Vérifications** : relecture du code en place (`server/seasons.js` : seuil `min_active_players_per_league`
+et `promotion_rate` en configuration ; `server/rewardPoints.js` : attribution sur le rang global de
+`season_standings`, bonus de ligue à 0 % imposé par la décision #33). Aucun code modifié, donc pas de
+nouveau test ni de déploiement. Impact données : aucun.
+
+**Test fonctionnel à faire par le propriétaire** : aucun nouveau (la recette profondeur/rang relève de
+#9, celle des points de #33). Lecture de `docs/LIGUES.md` sections 2 et 4 si souhaité.
+
+**Classement MVP** : #19 — partie en place suffisante pour le MVP ; tout le reste **après lancement**.
+Ticket non bloquant ; il peut être clôturé par le propriétaire ou laissé ouvert pour le paquet post-lancement.
+
+**Décision demandée** : aucune maintenant. Plus tard (quand ≥ 5 actifs/semaine) : « Activer le paquet
+ligues 2.2 (seuil 5, bonus +10 %/niveau, relégation 20 % + inactifs) : oui / non / ajuster ? »
+Recommandation : oui.
+
+**Restant à réaliser (après lancement)** : paquet 2.2 sur décision ; éventuellement reset serveur et
+divisions de taille fixe.
