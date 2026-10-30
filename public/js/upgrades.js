@@ -26,9 +26,9 @@ const Upgrades = {
       icon: '🍀',
       name: 'upgrade.luck.name',
       maxLevel: 12,
-      describe(level) {
-        if (level === 0) return t('upgrade.luck.desc_none');
-        return t('upgrade.luck.desc', { pct: level * 20 });
+      /** Le pourcentage réel est dans l'aperçu ci-dessous (#32 : plus de « +x % », qui était un poids). */
+      describe() {
+        return t('upgrade.luck.desc');
       },
       /** Effet concret à la profondeur actuelle : part de blocs rares maintenant → au niveau suivant (#32). */
       preview(level) {

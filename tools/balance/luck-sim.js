@@ -66,15 +66,20 @@ function setLuck(luckLevel, { luckPct = 0, hpReduction = 0 } = {}) {
 
 /**
  * Distribution exacte des blocs à une profondeur (Blocks.blockOdds) et moyennes associées.
+ * Règles actuelles : PV tirés sans Chance (#32) ; `variant: 'avant'` : PV du bloc tiré avec la
+ * Chance à +20 %/niveau (règles d'avant #32).
  * @returns {{ rareShare, meanHp, meanReward, chestShare, gemShare }}
  */
-function expectedAt(depth, luckLevel, relic = {}) {
+function expectedAt(depth, luckLevel, relic = {}, variant = 'actuel') {
   setLuck(luckLevel, relic);
-  const odds = G.Blocks.blockOdds(depth);
+  const odds = withRules(variant, () => G.Blocks.blockOdds(depth));
+  const hpOdds = variant === 'avant' ? odds : neutralOdds(depth);
   const scale = 1 + (depth - 1) * 0.12;
   let meanHp = 0, meanReward = 0, rareShare = 0, chestShare = 0, gemShare = 0;
-  for (const { type, p } of odds) {
+  for (const { type, p } of hpOdds) {
     meanHp += p * Math.ceil(type.hpBase * scale * (1 - (relic.hpReduction ?? 0)));
+  }
+  for (const { type, p } of odds) {
     if (!type.isChest) meanReward += p * Math.ceil(type.reward * (1 + (depth - 1) * 0.05));
     if (G.Blocks._BOOSTED_RARITIES.has(type.rarityKey)) rareShare += p;
     if (type.isChest) chestShare += p;
@@ -83,30 +88,34 @@ function expectedAt(depth, luckLevel, relic = {}) {
   return { rareShare, meanHp, meanReward, chestShare, gemShare };
 }
 
-// ── Variantes d'équilibrage étudiées (hypothèses du rapport #32, absentes du jeu) ──
-//   actuel         : Blocks.spawn tel quel ;
-//   deux-temps     : la résistance (PV) est tirée SANS Chance, la nature et la récompense du bloc
-//                    AVEC Chance → PV moyens identiques à Chance 0 quel que soit le niveau ;
-//   rares-fragiles : tirage actuel, mais PV des blocs rares/épiques/légendaires ÷ multiplicateur
-//                    de Chance (1 + 0,2 × niveau + relique).
+// ── Règles comparées (rapport #32) ───────────────────────────────────────────
+//   actuel : Blocks.spawn tel quel (option A, depuis #32) : nature et récompense tirées avec la
+//            Chance à +10 %/niveau, PV tirés sans Chance ;
+//   avant  : règles d'avant #32 : un seul tirage, avec la Chance à +20 %/niveau, PV du bloc tiré.
+
+/** Exécute `fn` avec le coefficient de Chance de la variante, puis restaure celui du jeu. */
+function withRules(variant, fn) {
+  const saved = G.Blocks.LUCK_PER_LEVEL;
+  if (variant === 'avant') G.Blocks.LUCK_PER_LEVEL = 0.20;
+  try { return fn(); } finally { G.Blocks.LUCK_PER_LEVEL = saved; }
+}
+
+/** Distribution des blocs sans aucune Chance (ni niveau ni relique) : celle des PV actuels. */
+function neutralOdds(depth) {
+  const pool = G.Blocks._pool(depth, 1);
+  const total = pool.reduce((s, e) => s + e.w, 0);
+  return pool.map(e => ({ type: e.type, p: e.w / total }));
+}
+
 function spawnVariant(depth, variant) {
-  if (variant === 'deux-temps') {
-    const luck = G.GameState.upgrades.luck;
-    G.GameState.upgrades.luck = 0;
-    const lucky = G.GameState.relicBonuses.luckPct;
-    G.GameState.relicBonuses.luckPct = 0;
-    const { hp } = G.Blocks.spawn(depth);
-    G.GameState.upgrades.luck = luck;
-    G.GameState.relicBonuses.luckPct = lucky;
-    const b = G.Blocks.spawn(depth);
-    b.hp = b.maxHp = hp;
-    return b;
-  }
-  const b = G.Blocks.spawn(depth);
-  if (variant === 'rares-fragiles' && G.Blocks._BOOSTED_RARITIES.has(b.type.rarityKey)) {
-    b.hp = b.maxHp = Math.max(1, Math.ceil(b.hp / G.Blocks.luckMultiplier()));
-  }
-  return b;
+  if (variant !== 'avant') return G.Blocks.spawn(depth);
+  return withRules('avant', () => {
+    const type = G.Blocks._pickType(depth);
+    const hpReduct = G.GameState.relicBonuses?.hpReduction ?? 0;
+    const hp = Math.ceil(type.hpBase * (1 + (depth - 1) * 0.12) * (1 - hpReduct));
+    const reward = Math.ceil(type.reward * (1 + (depth - 1) * 0.05));
+    return { type, hp, maxHp: hp, reward };
+  });
 }
 
 // ── Simulation d'une séance à équipement fixe ───────────────────────────────
@@ -123,7 +132,7 @@ function spawnVariant(depth, variant) {
  * @param {number} [o.boost]     bonus temporaire de pièces (×2, ×3…)
  * @param {number} [o.chestDelay] secondes avant « Récupérer » sur un coffre de la mine
  * @param {object} [o.relic]     { luckPct, hpReduction }
- * @param {string} [o.variant]   'actuel' (défaut) | 'deux-temps' | 'rares-fragiles'
+ * @param {string} [o.variant]   'actuel' (défaut) | 'avant' (règles d'avant #32)
  * @param {number} o.seed
  */
 function simulate(o) {
@@ -207,7 +216,7 @@ function distribution(o, runs) {
  * Chance < `luckTarget`. Ses fragments (coffres de la mine + boutique) vont aux deux reliques qui
  * font descendre plus vite : Œil du mineur (+dégâts) et Griffe d'obsidienne (−PV), la moins chère
  * d'abord. Reliques à zéro au départ (première saison). Sans coffres de la boutique de saison.
- * Renvoie la profondeur atteinte aux instants `checkpoints` (secondes).
+ * Renvoie la profondeur atteinte aux instants `checkpoints` (secondes). `o.variant` : voir simulate.
  */
 function season(o) {
   const random = rng(o.seed);
@@ -223,7 +232,7 @@ function season(o) {
   const depthAt = [];
   const levelsAt = [];
   let depth = 1;
-  let block = G.Blocks.spawn(depth);
+  let block = spawnVariant(depth, o.variant);
   let hp = block.hp;
   let blockedUntil = 0;
   let nextClick = random() / o.cps;
@@ -288,7 +297,7 @@ function season(o) {
     }
     buy();
     buyRelics();
-    block = G.Blocks.spawn(depth);
+    block = spawnVariant(depth, o.variant);
     hp = block.hp;
   }
   return { depthAt, levelsAt };
@@ -304,14 +313,16 @@ function main() {
   const RUNS = quick ? 20 : 200;
   const LEVELS = [0, 1, 4, 7, LUCK_MAX];
   const out = [];
+  const pair = (a, b) => `${a} → **${b}**`;
 
+  out.push('Chaque cellule : **avant #32 → après #32** (règles actuelles du jeu).\n');
   out.push('### A. Espérances exactes par bloc (Chance seule, sans relique)\n');
-  out.push('| Profondeur | Chance | Blocs « rares » | PV moyens | Pièces moyennes / bloc (base) | Pièces / PV | Coffres | Gemmes |');
-  out.push('|---|---|---|---|---|---|---|---|');
+  out.push('| Profondeur | Chance | Blocs « rares » | PV moyens | Pièces moyennes / bloc (base) | Pièces / PV | Gemmes |');
+  out.push('|---|---|---|---|---|---|---|');
   for (const d of [20, 50, 100, 150, 250]) {
     for (const L of LEVELS) {
-      const e = expectedAt(d, L);
-      out.push(`| ${d} m | ${L} | ${fmt(e.rareShare * 100, 1)} % | ${fmt(e.meanHp, 1)} | ${fmt(e.meanReward, 1)} | ${fmt(e.meanReward / e.meanHp, 2)} | ${fmt(e.chestShare * 100, 1)} % | ${fmt(e.gemShare * 100, 1)} % |`);
+      const [o, n] = ['avant', 'actuel'].map(v => expectedAt(d, L, {}, v));
+      out.push(`| ${d} m | ${L} | ${pair(`${fmt(o.rareShare * 100, 1)} %`, `${fmt(n.rareShare * 100, 1)} %`)} | ${pair(fmt(o.meanHp, 1), fmt(n.meanHp, 1))} | ${pair(fmt(o.meanReward, 1), fmt(n.meanReward, 1))} | ${pair(fmt(o.meanReward / o.meanHp, 2), fmt(n.meanReward / n.meanHp, 2))} | ${pair(`${fmt(o.gemShare * 100, 1)} %`, `${fmt(n.gemShare * 100, 1)} %`)} |`);
     }
   }
 
@@ -321,63 +332,44 @@ function main() {
     { name: 'Fin de saison — pioche 15, 7 clics/s, Auto-Dig 6, Sac 12, 200 m', depth0: 200, damage: 15, cps: 7, autodig: 6, bag: 12 },
     { name: 'Inactif — Auto-Dig 6 seul, pioche 15, 200 m, popups de coffre fermées en 30 s', depth0: 200, damage: 15, cps: 0, autodig: 6, bag: 12, chestDelay: 30 },
   ];
-  for (const p of PROFILES) {
-    for (const boost of [1, 2]) {
-      out.push(`\n### B. ${p.name} — 1 h${boost > 1 ? ', bonus temporaire ×2 pendant toute l’heure' : ''} (${RUNS} tirages)\n`);
-      out.push('| Chance | Mètres/h (p10 · médiane · p90) | Écart vs Chance 0 | Pièces/h (p10 · médiane · p90) | Écart | Fragments/h | Gemmes/h | Coffres/h |');
-      out.push('|---|---|---|---|---|---|---|---|');
-      let ref;
-      for (const L of LEVELS) {
-        const r = distribution({ ...p, seconds: 3600, luck: L, boost }, RUNS);
-        ref ??= r;
-        out.push(`| ${L} | ${fmt(r.meters.p10)} · **${fmt(r.meters.p50)}** · ${fmt(r.meters.p90)} | ${pct(r.meters.mean / ref.meters.mean - 1)} | ${fmt(r.coins.p10)} · **${fmt(r.coins.p50)}** · ${fmt(r.coins.p90)} | ${pct(r.coins.mean / ref.coins.mean - 1)} | ${fmt(r.fragments.mean, 1)} | ${fmt(r.gems.mean, 1)} | ${fmt(r.chests.mean, 1)} |`);
-      }
-    }
-  }
-
-  out.push(`\n### E. Solutions étudiées — profil « milieu », 1 h, sans bonus (${RUNS} tirages)\n`);
-  out.push('Écarts par rapport au jeu actuel à Chance 0 (référence commune).\n');
-  out.push('| Chance | Actuel : mètres/h · pièces/h | A « deux temps » : mètres/h · pièces/h | B « rares fragiles » : mètres/h · pièces/h |');
-  out.push('|---|---|---|---|');
-  {
-    const p = PROFILES[1];
-    const ref = distribution({ ...p, seconds: 3600, luck: 0 }, RUNS);
+  const sessionTable = (title, p, relic) => {
+    out.push(`\n### ${title} (${RUNS} tirages)\n`);
+    out.push('Écarts : moyenne par rapport à Chance 0 **avec les mêmes règles**.\n');
+    out.push('| Chance | Mètres/h : écart avant → après | Mètres/h médiane après (p10 · p90) | Pièces/h : écart avant → après | Fragments/h après | Gemmes/h après |');
+    out.push('|---|---|---|---|---|---|');
+    const ref = Object.fromEntries(['avant', 'actuel'].map(v => [v, distribution({ ...p, seconds: 3600, luck: 0, variant: v }, RUNS)]));
     for (const L of LEVELS) {
-      const cells = ['actuel', 'deux-temps', 'rares-fragiles'].map(variant => {
-        const r = distribution({ ...p, seconds: 3600, luck: L, variant }, RUNS);
-        return `${fmt(r.meters.p50)} (${pct(r.meters.mean / ref.meters.mean - 1)}) · ${fmt(r.coins.p50)} (${pct(r.coins.mean / ref.coins.mean - 1)})`;
-      });
-      out.push(`| ${L} | ${cells.join(' | ')} |`);
+      const r = Object.fromEntries(['avant', 'actuel'].map(v => [v, distribution({ ...p, seconds: 3600, luck: L, relic, variant: v }, RUNS)]));
+      const d = (v, k) => pct(r[v][k].mean / ref[v][k].mean - 1);
+      const n = r.actuel;
+      out.push(`| ${L}${relic ? ' + relique' : ''} | ${pair(d('avant', 'meters'), d('actuel', 'meters'))} | **${fmt(n.meters.p50)}** (${fmt(n.meters.p10)} · ${fmt(n.meters.p90)}) | ${pair(d('avant', 'coins'), d('actuel', 'coins'))} | ${fmt(n.fragments.mean, 1)} | ${fmt(n.gems.mean, 1)} |`);
     }
-  }
-
-  out.push('\n### C. Avec la relique Lentille fêlée niveau 5 (+130 % Chance) — profil « milieu », 1 h\n');
-  out.push('| Chance | Mètres/h médiane | Écart vs Chance 0 sans relique | Pièces/h médiane | Écart |');
-  out.push('|---|---|---|---|---|');
-  {
-    const p = PROFILES[1];
-    const ref = distribution({ ...p, seconds: 3600, luck: 0 }, RUNS);
-    for (const L of LEVELS) {
-      const r = distribution({ ...p, seconds: 3600, luck: L, relic: { luckPct: 1.3 } }, RUNS);
-      out.push(`| ${L} + relique | ${fmt(r.meters.p50)} | ${pct(r.meters.mean / ref.meters.mean - 1)} | ${fmt(r.coins.p50)} | ${pct(r.coins.mean / ref.coins.mean - 1)} |`);
-    }
-  }
+  };
+  for (const p of PROFILES) sessionTable(`B. ${p.name} — 1 h`, p);
+  sessionTable('C. Avec la relique Lentille fêlée niveau 5 (+130 % de poids) — profil « milieu », 1 h', PROFILES[1], { luckPct: 1.3 });
 
   const CHECK = [1, 3, 6, 10, 20].map(h => h * 3600);
   const SEEDS = quick ? 5 : 30;
   out.push(`\n### D. Saison complète depuis zéro, 6 clics/s, réinvestissement automatique (${SEEDS} tirages)\n`);
-  out.push('Le joueur achète toujours l’amélioration la moins chère disponible (pioche, Sac, Auto-Dig, boutique de fragments, et Chance jusqu’au niveau visé) ; ses fragments vont à l’Œil du mineur et à la Griffe d’obsidienne. Valeurs : p10 · **médiane** · p90.\n');
-  out.push('| Chance visée | Profondeur après 1 h | 3 h | 6 h | 10 h | 20 h de jeu | Niveaux à 10 h (médiane) |');
-  out.push('|---|---|---|---|---|---|---|');
-  for (const L of LEVELS) {
-    const runs = [];
-    for (let s = 0; s < SEEDS; s++) runs.push(season({ cps: 6, luckTarget: L, checkpoints: CHECK, seed: 5000 + s }));
-    const cells = CHECK.map((_, i) => {
-      const v = runs.map(r => r.depthAt[i]).sort((a, b) => a - b);
-      return `${fmt(quantile(v, 0.1))} · **${fmt(quantile(v, 0.5))}** · ${fmt(quantile(v, 0.9))}`;
+  out.push('Le joueur achète toujours l’amélioration la moins chère disponible (pioche, Sac, Auto-Dig, boutique de fragments, et Chance jusqu’au niveau visé) ; ses fragments vont à l’Œil du mineur et à la Griffe d’obsidienne. Profondeur médiane, avant → après ; écart avec « Chance visée 0 » des mêmes règles.\n');
+  out.push('| Chance visée | Après 1 h | 3 h | 6 h | 10 h | 20 h de jeu |');
+  out.push('|---|---|---|---|---|---|');
+  const med = {};
+  for (const v of ['avant', 'actuel']) {
+    med[v] = LEVELS.map(L => {
+      const runs = [];
+      for (let s = 0; s < SEEDS; s++) runs.push(season({ cps: 6, luckTarget: L, checkpoints: CHECK, seed: 5000 + s, variant: v }));
+      return CHECK.map((_, i) => quantile(runs.map(r => r.depthAt[i]).sort((a, b) => a - b), 0.5));
     });
-    out.push(`| ${L} | ${cells.join(' | ')} | ${runs[Math.floor(SEEDS / 2)].levelsAt[3]} |`);
   }
+  LEVELS.forEach((L, li) => {
+    const cells = CHECK.map((_, i) => {
+      const [o, n] = ['avant', 'actuel'].map(v => med[v][li][i]);
+      const [go, gn] = ['avant', 'actuel'].map(v => med[v][li][i] / med[v][0][i] - 1);
+      return li === 0 ? pair(fmt(o), fmt(n)) : `${pair(fmt(o), fmt(n))} (${pair(pct(go), pct(gn))})`;
+    });
+    out.push(`| ${L} | ${cells.join(' | ')} |`);
+  });
   console.log(out.join('\n'));
 }
 
