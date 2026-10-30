@@ -127,6 +127,30 @@ test('solde insuffisant : 400 pour chaque coffre, sauvegarde et journal inchang�
   assert.strictEqual(events(id).length, 0);
 });
 
+test('double clic / requêtes simultanées : un seul débit quand le solde ne permet qu\'un coffre', async () => {
+  const { call, id } = await newPlayer('chestdouble');
+  await save(call, { coins: COSTS.simple });
+  const before = saveRow(id);
+
+  // Le gain maximal d'un coffre simple (500) ne permet pas d'en racheter un second.
+  const results = await Promise.all(
+    Array.from({ length: 5 }, () => call('POST', '/api/me/shop/chest/open', { chestId: 'simple' })),
+  );
+  const ok = results.filter(r => r.status === 200);
+  assert.strictEqual(ok.length, 1, JSON.stringify(results.map(r => r.status)));
+  for (const r of results.filter(r => r.status !== 200)) {
+    assert.strictEqual(r.status, 400);
+    assert.strictEqual(r.body.error, 'Coins insuffisants.');
+  }
+
+  const gain = ok[0].body.reward.type === 'coins' ? ok[0].body.reward.amount : 0;
+  const data = JSON.parse(saveRow(id).data);
+  assert.strictEqual(data.coins, gain, 'débité une seule fois');
+  assert.strictEqual(data.shopChestsBought.simple, 1);
+  assert.strictEqual(saveRow(id).version, before.version + 1);
+  assert.strictEqual(events(id).length, 1);
+});
+
 test('limite saisonnière du coffre antique : 400, rien n\'est débité', async () => {
   const { call, id } = await newPlayer('chestmax');
   await save(call, { coins: 1_000_000, shopChestsBought: { simple: 0, rare: 0, antique: 5 } });

@@ -76,3 +76,36 @@ Aucune décision utilisateur nécessaire.
 
 - Validation par le propriétaire, puis déploiement (§6).
 - Dans T-03 (#10) : sauvegarde cloud forcée avant l'achat d'un coffre (voir §5).
+
+---
+
+## Mise à jour du 30/10/2026 — preuves automatisées des cas limites après la recette
+
+**Ticket :** #8 — [P0] T-01 — Corriger l'achat des coffres de saison — https://github.com/ReC82/Dig/issues/8
+
+**État réel :** correctif **déployé en production** depuis `18e3881`. La version servie aujourd'hui est `1.0.0+232c0b9`, qui le contient. Recette du propriétaire **réussie** le 30/10 sur téléphone : achat d'un coffre simple, récompense reçue, solde correct après rechargement. Cette mise à jour n'ajoute qu'un test : pas de nouveau déploiement, car le code servi est inchangé.
+
+**Ce que le propriétaire a demandé :** couvrir par des tests automatisés les cas qu'il ne peut pas vérifier sans dépenser beaucoup de pièces. Si ces tests existent, #8 peut être clôturé sans le solliciter à nouveau.
+
+| Cas demandé | Preuve automatisée (sur `develop`) |
+|---|---|
+| Solde insuffisant (3 coffres) | `test/chest-shop.test.js` « solde insuffisant » : réponse 400, sauvegarde et journal inchangés |
+| Coffres rare et antique (débit, crédit, récompense) | `test/chest-shop.test.js` « les 3 coffres… » : coût exact, gain, compteur saisonnier, révision, journal ; limite 5/5 du coffre antique |
+| **Double débit** (double clic, requêtes simultanées) | **Nouveau** test `test/chest-shop.test.js` « double clic / requêtes simultanées » : 5 achats envoyés en parallèle avec un solde pour un seul coffre → 1 réussite, 4 refus (400), débit unique, révision +1, une seule ligne de journal |
+| Pas de 500 / atomicité | `test/chest-shop.test.js` « atomicité » et « requêtes invalides » (401/400/404) |
+| Concurrence avec la sauvegarde cloud espacée (#10/#18) | `test/save-revision.test.js` « coffre : la réponse donne la nouvelle révision » : une sauvegarde partie avant l'achat est refusée (409) et ne réécrit pas le débit. Côté client (`public/js/main.js`, `openShopChest`), l'état local est envoyé au serveur **avant** l'achat ; si le serveur avait une sauvegarde plus récente, l'achat est annulé. |
+| Coût configurable (#20) | `test/economy.test.js` : achat au coût réglé par l'admin |
+
+**Changement :** `test/chest-shop.test.js` contient un test de plus. Le code de production n'est pas modifié.
+
+**Tests :** `npm test` complet passe **130/130** sur la branche (base `develop` b83c163 + ce test).
+
+**Choix technique :** pas de verrou supplémentaire. La route fait lecture, contrôle, débit et journalisation dans une transaction `better-sqlite3` synchrone : deux requêtes ne peuvent pas s'entrelacer dans le même processus Node. Le nouveau test protège cette garantie contre une future réécriture asynchrone.
+
+**Classement :** Bloquant MVP public, désormais levé côté technique.
+
+**Test fonctionnel restant :** aucun. Le propriétaire a demandé de ne pas lui faire dépenser 15 000 ou 80 000 pièces. L'équilibrage des récompenses (2 000 pièces pour 90 gagnées) est suivi dans #20.
+
+**Décisions demandées au propriétaire :** aucune, à part clôturer #8 s'il est d'accord. La session automatique ne ferme pas les tickets.
+
+**Reste à faire :** rien dans le périmètre de #8.
