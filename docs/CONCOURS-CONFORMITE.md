@@ -17,6 +17,18 @@
 > justifiée, fournisseurs, données, remise ; récompenses virtuelles et points convertibles
 > distingués). Les §§ 2.5, 2.6, 3 et 4 sont mis à jour en conséquence. Le verrou reste en place.
 
+> **Décision du propriétaire — 30/10/2026, 12 h 09 et 12 h 20** ([décision](https://github.com/ReC82/Dig/issues/27#issuecomment-6521207300), [statut](https://github.com/ReC82/Dig/issues/27#issuecomment-6521405115)) :
+> **jeu mondial, États-Unis inclus**, sans restriction de pays ni d'âge dans le gameplay, les
+> classements, les points saisonniers et l'interface de la boutique. Les questions juridiques
+> (pays ouverts, procédure mineurs, organisateur, avis juridique, fournisseur) **ne bloquent plus
+> le développement** de #29, #30, #31, #33 et #34 et ne sont plus posées pour l'instant. Pas de
+> géoblocage ni de barrière 18+ globale codés par défaut ; une **configuration d'éligibilité des
+> cadeaux réels** est prévue mais reste désactivée. **Limite conservée** : cadeaux de valeur réelle
+> et envoi de codes **désactivés** jusqu'à une décision explicite d'activation et la vérification
+> des obligations applicables (§ « Conditions d'activation ») ; aucune annonce d'échanges réels ; le
+> faible montant des lots n'est pas une exemption acquise. Ce ticket devient une **vérification
+> différée avant activation**.
+
 ## 1. Verdict
 
 | Formule | Qualification probable en Belgique | Verdict |
@@ -169,9 +181,25 @@ lots A (observation) et B (« budget de dégâts ») de #25 sont donc un **préa
 | #25 Anti-bot | Lots A et B préalables à tout prix réel. |
 | #11 / monétisation | Avant d'activer de vrais paiements ou de vraies publicités récompensées, vérifier qu'ils n'influencent pas le critère du concours (ou réévaluer ce cadrage). |
 
+**Cadre de développement depuis la décision du 30/10/2026 (12 h 09)** — s'applique à #29, #30,
+#31, #33 et #34, qui ne dépendent plus de ce ticket :
+
+- Classements, points saisonniers, boutique et récompenses **virtuelles** : ouverts à tous les
+  joueurs, **sans géoblocage ni âge minimal** ; textes internationalisés (FR/EN au minimum).
+- Attribution **déterministe au mérite** (aucun tirage, aucune boîte mystère), points ni
+  achetables, ni transférables, ni convertibles en argent, aucun achat qui améliore le classement.
+- Catalogue extensible (articles virtuels et réels), **contrôle d'inventaire**, **journal d'audit**
+  des attributions et échanges, **mode simulation** des échanges réels.
+- **Configuration d'éligibilité des cadeaux réels** (pays, âge/accord parental, fournisseur) :
+  structure prévue, **vide et désactivée par défaut** ; l'interrupteur global « cadeaux réels »
+  reste **éteint** et aucun code n'est envoyé tant que la liste du § 4 n'est pas remplie.
+- Interface : ne pas présenter les échanges réels comme ouverts (mention « bientôt » ou absence).
+
 ## 4. Conditions d'activation d'un prix réel (liste de contrôle)
 
-Toutes sont nécessaires ; aucune ne peut être cochée par une session automatique.
+Toutes sont nécessaires ; aucune ne peut être cochée par une session automatique. **Vérification
+différée** (décision du 30/10/2026) : elle n'est faite qu'au moment où le propriétaire veut activer
+les cadeaux réels ; elle ne bloque pas le développement.
 
 1. ~~Choix de la formule~~ : **concours au mérite par points saisonniers retenu le 30/10/2026** ;
    barème (#33) et catalogue (#34) restent à décider.

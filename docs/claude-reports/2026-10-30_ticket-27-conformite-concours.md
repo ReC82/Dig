@@ -213,3 +213,65 @@ intrusive ; barème non fixé (relève de #33).
   retenus) ; comparaison des agrégateurs si option 5(b).
 - Mettre à jour #29 (moteur → classement déterministe, le tirage reste simulation seule) et #31
   (afficher rang/points au lieu d'une probabilité) — signalé, hors périmètre de cette session.
+
+# Session 3 — 30/10/2026 : déblocage du développement (décision du propriétaire)
+
+## S3.1 État réel
+
+**Intégré dans develop — non déployé (documentation seule, rien à mettre en ligne).** Le ticket
+n'est plus bloquant : il devient une **vérification différée** à faire avant toute activation de
+cadeaux de valeur réelle. Production inchangée.
+
+## S3.2 Ce que demandait le propriétaire
+
+Commentaires du propriétaire du 30/10/2026 ([décision](https://github.com/ReC82/Dig/issues/27#issuecomment-6521207300),
+[statut](https://github.com/ReC82/Dig/issues/27#issuecomment-6521405115)) :
+
+- jeu **mondial, États-Unis inclus**, sans restriction arbitraire de pays ni d'âge dans le
+  gameplay, les classements, les points et l'interface de la boutique ;
+- ne plus demander de décisions juridiques pour avancer ; retirer le blocage de #29, #30, #31,
+  #33, #34 ; ne pas demander maintenant l'organisateur, le fournisseur, les pays ou l'avis
+  juridique ;
+- pas de tirage, pas de pay-to-win, pas de géoblocage ni de barrière 18+ globale par défaut ;
+  configuration d'éligibilité des cadeaux réels prévue mais non activée ;
+- **limite conservée** : cadeaux réels et envoi de codes désactivés jusqu'à décision explicite
+  d'activation et vérification des obligations ; ne pas annoncer d'échanges réels ; le faible
+  montant des lots n'est pas une exemption acquise.
+
+## S3.3 Changements réalisés
+
+- `docs/CONCOURS-CONFORMITE.md` : encadré de décision ; nouveau « Cadre de développement » (§ 3)
+  pour #29/#30/#31/#33/#34 (virtuel ouvert à tous sans géoblocage ni âge minimal, mérite
+  déterministe, catalogue extensible, inventaire, audit, simulation, configuration d'éligibilité
+  vide et désactivée, interrupteur « cadeaux réels » éteint) ; § 4 marqué « vérification
+  différée ».
+- `docs/CONCOURS-INTERNATIONAL-MINEURS.md` : encadré de décision ; § 7 marqué « vérification
+  différée » ; la liste blanche et la procédure mineurs deviennent des pistes, pas des règles à
+  coder.
+- `docs/REGLEMENT-CONCOURS.md` : encadré de décision ; annexe 1 vide tant que les cadeaux réels ne
+  sont pas activés.
+- Les 5 questions de la session 2 sont **retirées** (non posées, conformément à la demande).
+
+## S3.4 Révision, branche et vérification
+
+Branche `docs/27-conformite-concours`, intégrée dans `develop` (SHA indiqué dans le commentaire
+du ticket). Contrôle : `npm test` complet sur la fusion. Aucune donnée joueur touchée.
+
+## S3.5 Déploiement et test fonctionnel
+
+Non déployé : documentation seule. **Test en jeu : aucun.** Lecture conseillée (2 min) : encadré
+et « Cadre de développement » de `docs/CONCOURS-CONFORMITE.md` § 3.
+
+Classement : **Après lancement** (la vérification ne compte qu'au moment d'activer des cadeaux
+réels ; elle ne retarde pas le MVP public).
+
+## S3.6 Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire maintenant. Le jour où tu voudras activer les cadeaux
+réels, la liste de `docs/CONCOURS-CONFORMITE.md` § 4 servira de vérification.
+
+## S3.7 Restant à réaliser
+
+- #29, #30, #31, #33, #34 : développement selon le cadre ci-dessus (plus de dépendance à #27).
+- #27 : vérification différée avant activation (organisateur, avis ou acceptation du risque,
+  notice vie privée, pays, mineurs, fournisseur, budget).
