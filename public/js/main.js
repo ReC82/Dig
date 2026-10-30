@@ -350,17 +350,18 @@ function renderBlock() {
     const icons  = [...new Set(table.map(e => ICONS[e.type]))].filter(Boolean).join(' ');
     rewardHtml   = `<span class="reward-chest">${icons} ${t('ui.chest_loot')}</span>`;
   } else {
-    // Bloc normal : coins avec décomposition des multiplicateurs
-    const boostMult   = GameState.getCoinBoostMultiplier();
-    const upgradeBase = b.reward * Upgrades.getRewardMultiplier();
-    const baseReward  = Math.ceil(upgradeBase);
-    const finalReward = Math.ceil(upgradeBase * boostMult);
-    if (boostMult > 1) {
-      rewardHtml = `<span class="reward-base">💰 ${baseReward}</span>`
-                 + `<span class="reward-boost-sep"> ⚡×${boostMult} → </span>`
-                 + `<span class="reward-final">💰 ${finalReward}</span>`;
+    // Bloc normal : base × multiplicateurs actifs = total réel (#20)
+    const { base, factors, total } = Upgrades.getRewardBreakdown(b.reward, GameState.getCoinBoostMultiplier());
+    if (factors.length > 0) {
+      const ICONS = { bag: '🎒', relic: '💛', event: '✨', boost: '⚡' };
+      const fmt   = m => Number(m.toFixed(2)).toLocaleString(I18n.getCurrent());
+      rewardHtml = `<span class="reward-base">💰 ${base.toLocaleString(I18n.getCurrent())}</span>`
+                 + factors.map(f =>
+                     ` <span class="reward-factor reward-factor-${f.key}" title="${t('ui.reward_factor.' + f.key)}">`
+                   + `× ${ICONS[f.key]} ${fmt(f.mult)}</span>`).join('')
+                 + ` <span class="reward-eq">=</span> <span class="reward-final">💰 ${total.toLocaleString(I18n.getCurrent())}</span>`;
     } else {
-      rewardHtml = `<span class="reward-value">💰 ${finalReward}</span>`;
+      rewardHtml = `<span class="reward-value">💰 ${total.toLocaleString(I18n.getCurrent())}</span>`;
     }
   }
   elBlockReward.innerHTML = `${t('ui.reward_label')} : ${rewardHtml}`;

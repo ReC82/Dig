@@ -146,6 +146,23 @@ const Upgrades = {
       * Balance.economy.coinGainMultiplier;
   },
 
+  /**
+   * Décomposition affichable de la récompense d'un bloc (#20) : base du bloc, facteurs ≠ 1
+   * dans l'ordre du moteur (sac, relique, réglage admin, bonus temporaire) et total réel,
+   * calculé avec la même expression que la destruction du bloc (main.js).
+   * @returns {{ base: number, factors: {key: string, mult: number}[], total: number }}
+   */
+  getRewardBreakdown(blockReward, boostMult = 1) {
+    const factors = [
+      { key: 'bag',   mult: 1 + GameState.upgrades.bag * 0.3 },
+      { key: 'relic', mult: 1 + (GameState.relicBonuses?.coinsPct ?? 0) },
+      { key: 'event', mult: Balance.economy.coinGainMultiplier },
+      { key: 'boost', mult: boostMult },
+    ].filter(f => Math.abs(f.mult - 1) > 1e-9);
+    const total = Math.ceil(blockReward * this.getRewardMultiplier() * boostMult);
+    return { base: blockReward, factors, total };
+  },
+
   getAutoDigDamage() {
     return GameState.upgrades.autodig + (GameState.relicBonuses?.autodigBonus ?? 0);
   },

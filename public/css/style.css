@@ -484,7 +484,10 @@ h1 {
 #block-reward { font-size: 0.75rem; color: var(--muted); min-height: 1em; }
 #block-reward .reward-value     { color: var(--gold); font-weight: 700; }
 #block-reward .reward-base      { color: var(--muted); }
-#block-reward .reward-boost-sep { color: #fbbf24; font-weight: 600; }
+#block-reward .reward-factor     { color: var(--text); font-weight: 600; white-space: nowrap; }
+#block-reward .reward-factor-boost { color: #fbbf24; }
+#block-reward .reward-eq         { color: var(--muted); }
+#block-reward .reward-base, #block-reward .reward-final { white-space: nowrap; }
 #block-reward .reward-final     { color: var(--gold); font-weight: 700; }
 #block-reward .reward-chest     { color: var(--text); font-style: italic; }
 
