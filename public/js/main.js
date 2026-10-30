@@ -1331,6 +1331,7 @@ async function _doLogout() {
   _cloudReady = false;
   _clearCloudMeta();
   Save.purge();
+  NotifLog.clear();   // appareil partagé : le joueur suivant ne voit pas l'historique (#26)
   _refreshAllAfterReset();
   _pollSeason();
 }
@@ -1388,9 +1389,22 @@ function _syncToCloud() {
   clearTimeout(_cloudTimer);
   _cloudTimer    = null;
   _cloudLastSync = Date.now();
-  const run = _cloudChain.then(() => _pushSave(true));
+  const run = _cloudChain.then(() => _pushSave(true)).then(_noteCloudResult);
   _cloudChain = run.catch(() => {});
   return run;
+}
+
+/** Historique (#26) : un seul message à la première erreur d'envoi, un autre à la reprise. */
+let _cloudFailing = false;
+function _noteCloudResult(result) {
+  if (result === 'error' && !_cloudFailing) {
+    _cloudFailing = true;
+    NotifLog.add({ icon: '⚠️', type: 'warning', text: t('notif.cloud_save_error') });
+  } else if ((result === 'ok' || result === 'adopted') && _cloudFailing) {
+    _cloudFailing = false;
+    NotifLog.add({ icon: '☁️', type: 'success', text: t('notif.cloud_save_restored') });
+  }
+  return result;
 }
 
 async function _pushSave(retry) {
@@ -1517,7 +1531,11 @@ async function _syncAfterLogin(forceCloud = false) {
         adopt = (cloud.data?.lastSaveTime ?? 0) > localTime;
         if (!adopt) _setCloudMeta(revision);
       }
-      if (adopt) _applyCloudSave(cloud);
+      if (adopt) {
+        _applyCloudSave(cloud);
+        // Reprise silencieuse (autre appareil, « Jouer ici ») : gardée dans l'historique (#26)
+        if (!forceCloud) NotifLog.add({ icon: '☁️', type: 'info', text: t('notif.cloud_resumed') });
+      }
     } else {
       _clearCloudMeta(); // aucune sauvegarde cloud : la save locale devient celle du compte
     }
@@ -1558,6 +1576,7 @@ function _lockPlay(reason) {
   _cloudTimer = null;
   Save.disabled = true;
   const device = reason === 'device';
+  NotifLog.add({ icon: device ? '📱' : '🗂️', type: 'warning', text: t(device ? 'ui.device_inactive_title' : 'ui.tab_inactive_title') });
   const modal = document.getElementById('tab-inactive-modal');
   if (!modal) return;
   document.getElementById('tab-inactive-icon').textContent = device ? '📱' : '🗂️';
@@ -2066,6 +2085,7 @@ function renderSettings() {
       <div class="settings-section-label">${t('settings.lang_title')}</div>
       <div class="lang-options-list">${optionsHtml}</div>
     </div>
+    <div class="settings-section" id="notif-history"></div>
     <button class="settings-back-btn" id="btn-settings-back">
       ${t('settings.btn_back')}
     </button>
@@ -2080,10 +2100,47 @@ function renderSettings() {
   });
 
   _bindAccountSection(container);
+  _refreshNotifHistory();
 
   // Retour à la vue précédente
   document.getElementById('btn-settings-back')
     .addEventListener('click', () => switchView(_previousView));
+}
+
+// ── Historique des notifications (Paramètres, #26) ──────────────────────────
+
+function _refreshNotifHistory() {
+  const box = document.getElementById('notif-history');
+  if (!box) return;
+  const entries = NotifLog.list();
+  const lang = I18n.getCurrent();
+  const when = at => {
+    try { return new Date(at).toLocaleString(lang, { dateStyle: 'short', timeStyle: 'medium' }); }
+    catch (_) { return new Date(at).toLocaleString(); }
+  };
+  const items = entries.map(e => {
+    const type = NotifLog.TYPES.includes(e.type) ? e.type : 'info';
+    return `
+    <li class="notif-entry notif-${type}">
+      <div class="notif-meta">
+        <span class="notif-type">${escapeHtml(t(`settings.notif_type_${type}`))}</span>
+        <time datetime="${escapeHtml(new Date(e.at).toJSON() ?? '')}">${escapeHtml(when(e.at))}</time>
+        ${e.count > 1 ? `<span class="notif-count">×${Math.floor(Number(e.count))}</span>` : ''}
+      </div>
+      <div class="notif-text">${escapeHtml(e.icon)} ${escapeHtml(e.text)}</div>
+    </li>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="settings-section-label">${t('settings.notif_title')}</div>
+    ${entries.length
+      ? `<ul class="notif-list">${items}</ul>
+         <button class="notif-clear-btn" id="btn-notif-clear">${t('settings.notif_clear')}</button>`
+      : `<p class="notif-empty">${t('settings.notif_empty')}</p>`}`;
+  box.querySelector('#btn-notif-clear')?.addEventListener('click', () => {
+    if (!confirm(t('settings.notif_clear_confirm'))) return;
+    NotifLog.clear();
+    _refreshNotifHistory();
+  });
 }
 
 // ── Section compte (Paramètres) ─────────────────────────────────────────────
@@ -2543,7 +2600,13 @@ function _fillShopGrid(gridId, items) {
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 
-function showAchievement(icon, text) {
+/**
+ * Toast de notification, aussi enregistré dans l'historique de Paramètres (#26).
+ * @param {string} [type]  info | success | warning | error (déduit de l'icône sinon)
+ */
+function showAchievement(icon, text, type) {
+  NotifLog.add({ icon, text, type });
+  if (isViewActive('settings')) _refreshNotifHistory();
   const el = document.createElement('div');
   el.className   = 'float-text achievement';
   el.textContent = `${icon} ${text}`;
