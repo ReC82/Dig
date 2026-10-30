@@ -2336,6 +2336,40 @@ h1 {
 .season-player-stats span { white-space: nowrap; }
 .season-player-stats strong { color: var(--text); }
 
+/* ── Points de récompense saisonniers (#33) ── */
+.points-card {
+  background: linear-gradient(135deg, rgba(167,139,250,0.12), rgba(167,139,250,0.04));
+  border: 1px solid rgba(167,139,250,0.28);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.points-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.points-title { font-weight: 700; color: #c4b5fd; }
+.points-balance { color: var(--muted); white-space: nowrap; }
+.points-balance strong { color: var(--text); font-size: 1rem; }
+.points-sim-banner {
+  margin: 0; padding: 6px 9px; border-radius: 8px; font-size: 0.78rem;
+  background: rgba(251,191,36,0.10); border: 1px dashed rgba(251,191,36,0.4); color: var(--gold);
+}
+.points-potential { margin: 0; color: var(--text); }
+.points-details summary { cursor: pointer; color: var(--muted); padding: 4px 0; min-height: 32px; display: flex; align-items: center; }
+.points-details[open] summary { color: var(--text); }
+.points-table { width: 100%; border-collapse: collapse; }
+.points-table td { padding: 4px 2px; border-bottom: 1px solid var(--border); }
+.points-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.points-num.pos { color: #4ade80; }
+.points-num.neg { color: #f87171; }
+.points-min, .points-sim, .points-note, .points-empty { color: var(--muted); font-size: 0.78rem; }
+.points-note { margin: 6px 0 0; }
+.points-list { list-style: none; margin: 0; padding: 0; }
+.points-list li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.points-rules { margin: 0; color: var(--muted); font-size: 0.74rem; }
+
 /* ── Info saison (collapsible) ── */
 .season-info-card {
   background: rgba(255,255,255,0.03);

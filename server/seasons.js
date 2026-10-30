@@ -22,6 +22,7 @@ const { getEconomy } = require('./economy');
 const cal = require('./seasonCalendar');
 const antibot = require('./antibot');
 const standings = require('./standings');
+const rewardPoints = require('./rewardPoints');
 const { fmtUtc } = cal;
 
 /** Limite de rattrapage : nombre maximal de saisons enchaînées en une passe (serveur arrêté longtemps). */
@@ -217,6 +218,13 @@ function closeActiveSeason(seasonId, now = new Date()) {
 
   console.log(`[seasons][close] Clôture terminée. Promotions : ${report.filter(r => !r.skipped).reduce((s, r) => s + r.promoted, 0)} joueur(s) promu(s).`);
 
+  // 5. Points de récompense (#33) : hors transaction de clôture (une panne ne la bloque pas) ;
+  // le planificateur rattrape les saisons figées sans attribution (awardMissingSeasons).
+  if (standings.getSnapshot(season.id)) {
+    try { rewardPoints.awardSeason(season.id, { now }); }
+    catch (err) { console.error(`[seasons][close] Points non attribués pour ${season.id} : ${err.message}`); }
+  }
+
   const snap = standings.getSnapshot(season.id);
   return {
     closedSeason: getSeasonById(season.id),
@@ -290,6 +298,8 @@ function startSeasonScheduler(intervalMs = SCHEDULER_INTERVAL_MS) {
     catch (err) { console.error('[seasons][scheduler]', err.message); }
     try { standings.freezeMissingSnapshots(new Date()); }
     catch (err) { console.error('[seasons][scheduler] classement figé', err.message); }
+    try { rewardPoints.awardMissingSeasons(new Date()); }
+    catch (err) { console.error('[seasons][scheduler] points de récompense', err.message); }
   };
   tick();
   _schedulerTimer = setInterval(tick, intervalMs);

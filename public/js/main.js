@@ -1497,6 +1497,7 @@ function renderSeasonView(apiData, lbData) {
     <div class="view-title-bar">${t('season.title')} — ${escapeHtml(season.name)}</div>
     <p class="season-ends-in">${endsIn}</p>
     ${playerHtml}
+    <div id="season-points">${_pointsHtml()}</div>
     ${infoHtml}
     <h3 class="season-section-title">${t('season.leaderboard')}</h3>
     <div class="season-leaderboard" id="${lbId}">
@@ -1505,6 +1506,85 @@ function renderSeasonView(apiData, lbData) {
   el.scrollTop = scrollTop;
 
   if (!lbData) _loadLeaderboard(season.id, lbId);
+  if (!_pointsData && _account) _loadPoints();
+}
+
+// ── Points de récompense saisonniers (#33) ───────────────────────────────────
+
+let _pointsData = null;   // dernière réponse de GET /api/points/me (joueur connecté)
+
+async function _loadPoints() {
+  if (!_account) { _pointsData = null; return; }
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/points/me');
+    _pointsData = ok ? data : null;
+    const el = document.getElementById('season-points');
+    if (el) el.innerHTML = _pointsHtml();
+  } catch (_) {}
+}
+
+/** Libellé traduit d'une catégorie du barème (construit depuis sa règle, pas le libellé serveur). */
+function _tierLabel(tier) {
+  if (!tier) return '';
+  if (tier.rankMax === 1)  return t('points.tier_rank', { n: 1 });
+  if (tier.rankMax)        return t('points.tier_ranks', { n: tier.rankMax });
+  if (tier.percentMax)     return t('points.tier_pct', { p: tier.percentMax.toLocaleString(I18n.getCurrent()) });
+  return t('points.tier_active');
+}
+
+function _pointsHtml() {
+  const d = _pointsData;
+  if (!_account || !d) return '';
+  const n = v => Number(v).toLocaleString(I18n.getCurrent());
+  const tiers = d.scale?.tiers ?? [];
+  const tierById = Object.fromEntries(tiers.map(x => [x.id, x]));
+  const open = sel => document.querySelector(`#season-points ${sel}`)?.open ? ' open' : '';
+
+  const pot = d.potential;
+  const potHtml = pot && pot.rank && pot.points > 0
+    ? t('points.potential', { rank: n(pot.tied ? pot.tieRank : pot.rank) + (pot.tied ? ` (${t('points.tied')})` : ''), n: n(pot.eligibleCount), tier: escapeHtml(_tierLabel(tierById[pot.tier])), pts: n(pot.points) })
+    : t('points.potential_none');
+
+  const scaleRows = tiers.map(x => `
+      <tr><td>${escapeHtml(_tierLabel(x))}${x.minEligible > 1 ? ` <span class="points-min">(${t('points.tier_min', { n: n(x.minEligible) })})</span>` : ''}</td>
+          <td class="points-num">${t('points.pts', { n: n(x.points) })}</td></tr>`).join('');
+  const notes = [d.scale?.tiesShareTier ? t('points.ties_note') : '',
+    d.scale?.leagueBonusPctPerLevel ? t('points.league_note', { p: n(d.scale.leagueBonusPctPerLevel) }) : '']
+    .filter(Boolean).map(x => `<p class="points-note">${x}</p>`).join('');
+
+  // Historique : mouvements du portefeuille, puis attributions simulées (non créditées)
+  const items = [
+    ...(d.history ?? []).map(h => ({
+      label: t(`points.k_${h.kind}`) + (h.seasonName ? ` — ${escapeHtml(h.seasonName)}` : ''),
+      delta: h.delta, sim: false })),
+    ...(d.awards ?? []).filter(a => a.mode === 'simulation' && d.mode !== 'live').map(a => ({
+      label: `${escapeHtml(a.seasonName ?? '')} — #${n(a.rank)}/${n(a.eligibleCount)}`,
+      delta: a.points, sim: true })),
+  ];
+  const histHtml = items.length
+    ? items.map(i => `<li><span>${i.label}${i.sim ? ` <em class="points-sim">(${t('points.sim_award')})</em>` : ''}</span>
+        <span class="points-num ${i.delta < 0 ? 'neg' : 'pos'}">${i.delta > 0 ? '+' : ''}${t('points.pts', { n: n(i.delta) })}</span></li>`).join('')
+    : `<li class="points-empty">${t('points.history_empty')}</li>`;
+
+  return `
+    <div class="points-card">
+      <div class="points-head">
+        <span class="points-title">${t('points.title')}</span>
+        <span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
+      </div>
+      ${d.mode !== 'live' ? `<p class="points-sim-banner">${t('points.simulation')}</p>` : ''}
+      <p class="points-potential">${potHtml}</p>
+      <details class="points-details points-scale"${open('.points-scale')}>
+        <summary>${t('points.scale_toggle')}</summary>
+        <table class="points-table">${scaleRows}</table>
+        ${notes}
+      </details>
+      <details class="points-details points-history"${open('.points-history')}>
+        <summary>${t('points.history_toggle')}</summary>
+        <ul class="points-list">${histHtml}</ul>
+      </details>
+      <p class="points-rules">${t('points.rules')}</p>
+    </div>`;
 }
 
 async function _loadLeaderboard(seasonId, containerId) {
@@ -1549,6 +1629,7 @@ async function _refreshSeasonView() {
     if (!cur.ok || !cur.data.season) return;
     const lb = await _apiFetch('GET', `/api/seasons/${cur.data.season.id}/leaderboard`);
     if (isViewActive('season')) renderSeasonView(cur.data, lb.ok ? lb.data : null);
+    if (isViewActive('season')) _loadPoints();
   } catch (_) {
   } finally { _seasonRefreshing = false; }
 }
@@ -1565,6 +1646,7 @@ async function _openSeasonView() {
       _seasonCpsLimit = data.config?.cpsLimit ?? 8;
       _applyServerEconomy(data.config?.economy);
       _seasonRefreshAt = Date.now();
+      _pointsData = null;   // rechargé par renderSeasonView (compte courant)
       renderSeasonView(data);
     }
   } catch (_) {}

@@ -522,6 +522,88 @@ function initDb() {
       BEGIN SELECT RAISE(ABORT, 'contest_winners : aucune suppression, utiliser le statut expired (#30)'); END;
   `);
 
+  // Points de récompense saisonniers (#33) : réglages (une ligne), barèmes versionnés, registre
+  // des mouvements et portefeuilles, attributions par saison. Ajouts seuls ; aucune clé étrangère
+  // vers users (l'historique survit à un compte supprimé). Registre, barèmes, attributions et
+  // exécutions en ajout seul (déclencheurs) ; solde jamais négatif (CHECK).
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS reward_points_settings (
+      id            INTEGER PRIMARY KEY CHECK (id = 1),
+      mode          TEXT    NOT NULL DEFAULT 'simulation' CHECK (mode IN ('simulation', 'live')),
+      live_since    TEXT,
+      scale_version INTEGER,
+      updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT OR IGNORE INTO reward_points_settings (id) VALUES (1);
+    CREATE TABLE IF NOT EXISTS reward_point_scales (
+      version     INTEGER PRIMARY KEY AUTOINCREMENT,
+      scale       TEXT    NOT NULL,
+      note        TEXT,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS reward_point_wallets (
+      user_id      INTEGER PRIMARY KEY,
+      balance      INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
+      earned_total INTEGER NOT NULL DEFAULT 0,
+      spent_total  INTEGER NOT NULL DEFAULT 0,
+      updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS reward_point_ledger (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      user_id       INTEGER NOT NULL,
+      delta         INTEGER NOT NULL CHECK (delta <> 0),
+      balance_after INTEGER NOT NULL CHECK (balance_after >= 0),
+      kind          TEXT    NOT NULL CHECK (kind IN ('season_award', 'spend', 'refund', 'admin_credit', 'admin_debit')),
+      use           TEXT    CHECK (use IS NULL OR use IN ('virtual', 'real')),
+      season_id     INTEGER,
+      idem_key      TEXT    NOT NULL UNIQUE,
+      reason        TEXT,
+      meta          TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_point_ledger_user ON reward_point_ledger (user_id, id DESC);
+    CREATE TABLE IF NOT EXISTS reward_point_awards (
+      season_id      INTEGER NOT NULL,
+      mode           TEXT    NOT NULL CHECK (mode IN ('simulation', 'live')),
+      user_id        INTEGER NOT NULL,
+      rank           INTEGER NOT NULL,
+      eligible_count INTEGER NOT NULL,
+      tier           TEXT,
+      points         INTEGER NOT NULL,
+      scale_version  INTEGER NOT NULL,
+      ledger_id      INTEGER,
+      PRIMARY KEY (season_id, mode, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_point_awards_user ON reward_point_awards (user_id, season_id);
+    CREATE TABLE IF NOT EXISTS reward_point_runs (
+      season_id     INTEGER NOT NULL,
+      mode          TEXT    NOT NULL CHECK (mode IN ('simulation', 'live')),
+      created_at    TEXT    NOT NULL,
+      scale_version INTEGER NOT NULL,
+      snapshot_hash TEXT    NOT NULL,
+      eligible      INTEGER NOT NULL,
+      recipients    INTEGER NOT NULL,
+      total_points  INTEGER NOT NULL,
+      PRIMARY KEY (season_id, mode)
+    );
+    CREATE TRIGGER IF NOT EXISTS trg_point_ledger_no_update BEFORE UPDATE ON reward_point_ledger
+      BEGIN SELECT RAISE(ABORT, 'reward_point_ledger est en ajout seul (#33)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_point_ledger_no_delete BEFORE DELETE ON reward_point_ledger
+      BEGIN SELECT RAISE(ABORT, 'reward_point_ledger est en ajout seul (#33)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_point_scales_no_update BEFORE UPDATE ON reward_point_scales
+      BEGIN SELECT RAISE(ABORT, 'reward_point_scales est en ajout seul (#33)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_point_scales_no_delete BEFORE DELETE ON reward_point_scales
+      BEGIN SELECT RAISE(ABORT, 'reward_point_scales est en ajout seul (#33)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_point_awards_no_update BEFORE UPDATE ON reward_point_awards
+      BEGIN SELECT RAISE(ABORT, 'reward_point_awards est en ajout seul (#33)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_point_awards_no_delete BEFORE DELETE ON reward_point_awards
+      BEGIN SELECT RAISE(ABORT, 'reward_point_awards est en ajout seul (#33)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_point_runs_no_update BEFORE UPDATE ON reward_point_runs
+      BEGIN SELECT RAISE(ABORT, 'reward_point_runs est en ajout seul (#33)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_point_runs_no_delete BEFORE DELETE ON reward_point_runs
+      BEGIN SELECT RAISE(ABORT, 'reward_point_runs est en ajout seul (#33)'); END;
+  `);
+
   // Journal de sécurité (lot A) : aucune IP en clair (HMAC tronqué), purge à 90 jours.
   // Score de risque par compte et par saison (composantes par catégorie, décroissantes).
   _db.exec(`
