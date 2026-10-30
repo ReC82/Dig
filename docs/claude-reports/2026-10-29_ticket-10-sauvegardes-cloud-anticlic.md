@@ -6,8 +6,10 @@
 
 ## 1. État réel
 
-**Intégré dans `develop` — en attente de validation et de déploiement.** Rien n'est déployé :
-`main` et la production ne sont pas modifiés.
+**Mise à jour du 30/10/2026 : déployé en production (SHA `041ed21`).** Les deux volets demandés
+par le propriétaire (cadences abusives plafonnées / clics légitimes acceptés, compatibilité #8 × #10)
+sont couverts par des tests automatisés verts. Voir la section « Session du 30/10/2026 » en fin de
+rapport. (29/10 : intégré dans `develop` ; premier déploiement `18e3881` le 30/10 à 00:48.)
 
 ## 2. Problème de départ (audit B3)
 
@@ -158,3 +160,97 @@ Aucune décision utilisateur nécessaire.
 - Test de charge réel une fois un environnement de recette disponible.
 - Le script du contrôle navigateur (Playwright) n'est pas versionné faute de dépendance de test ;
   il pourrait l'être avec #17 (T-10, CI).
+
+---
+
+## Session du 30/10/2026 — recette : tests de cadences et compatibilité #8 × #10
+
+### 1. Ticket
+#10 — [P0] T-03 — Regrouper les sauvegardes cloud et réparer l'anti-autoclic —
+https://github.com/ReC82/Dig/issues/10
+
+### 2. État réel
+**Déployé en production (SHA `041ed21`) — contrôles techniques verts.** La recette du propriétaire
+du 30/10 a accepté la persistance de la progression (téléphone : minage, fermeture, réouverture)
+et le minage manuel (taps rapides fluides). Le propriétaire a demandé que les deux derniers
+volets soient confirmés par des **tests automatisés déterministes** et a indiqué qu'il clôturerait
+alors #10 sans nouvelle validation en jeu. C'est fait ; la clôture reste à faire par le propriétaire.
+
+Important : la recette manuelle **ne démontre pas** la détection d'un vrai autoclicker ; ce sont
+les tests ci-dessous qui le montrent, à horloge simulée.
+
+### 3. Résultat et changements
+- **Défaut trouvé et corrigé** (`server/seasons.js`, `processAntiCheat`) : le plancher « au moins
+  10 % des blocs acceptés » laissait passer **plus** de blocs qu'un joueur au seuil dès que la
+  cadence dépassait 10 × `max_effective_cps` (à 100 CPS : 120 blocs acceptés par fenêtre de 12 s
+  au lieu de 96 au maximum ; à 1000 CPS : 1200). Désormais les blocs acceptés d'une fenêtre ne
+  dépassent **jamais `max_effective_cps` × durée de la fenêtre** (fenêtre plafonnée à 120 s).
+  Le jeu normal (≤ seuil) n'est pas concerné : rien ne change pour lui.
+- **Tests ajoutés** (`test/anticheat.test.js`, horloge injectée, aucun aléa) :
+  - clics légitimes à 1, 3, 5, 6,5 et 8 CPS pendant 2 min (sauvegardes toutes les 12 s) :
+    100 % des blocs acceptés, aucun journal anti-triche ;
+  - rafales humaines (8 CPS pendant 10 s, pause, reprise) avec une sauvegarde à chaque clic +
+    sauvegarde de sortie : rien n'est refusé ;
+  - autoclic à 12, 20, 50, 100 et 1000 CPS pendant 2 min : blocs acceptés ≤ 8 × 120 = 960,
+    jamais 0, chaque fenêtre journalisée `reduced`/`flagged` ;
+  - autoclic avec sauvegardes toutes les 0,5 s : cumul (`pending`), même plafond, pas de
+    contournement ; sauvegardes toutes les 10 min : plafond de la fenêtre de 120 s.
+  - Sans le correctif, 3 de ces tests échouent (100 CPS, 1000 CPS, sauvegardes espacées).
+- **Test #8 × #10 ajouté** (`test/chest-shop.test.js`, serveur HTTP de test) :
+  - pièces gagnées depuis le dernier envoi groupé (connues seulement du client) : achat sans
+    synchro → 400 « Coins insuffisants », sauvegarde inchangée ;
+  - parcours réel du client (`openShopChest` : synchro forcée puis achat) → achat accepté,
+    débit unique, révision +1 ;
+  - envoi tardif portant l'état d'avant l'achat (sendBeacon d'un autre onglet, réponse perdue)
+    → **409 conflit, le débit n'est pas annulé** (pas de coffre gratuit) ;
+  - sauvegarde suivante depuis la révision renvoyée par l'achat → acceptée, compteur de coffres
+    conservé, classement de saison suivi, aucun journal anti-triche.
+
+### 4. SHA, branche, procédure de test
+- Commit : `ba2f014` sur `fix/10-sauvegardes-cloud-anticlic` (également poussé sur
+  `fix/10-recette-autoclic-coffres`, même commit) ; intégration dans `develop` : **`041ed21`**.
+- `npm ci && npm test` → 147/147 ;
+  `node --test test/anticheat.test.js` → 22/22 ; `node --test test/chest-shop.test.js` → 8/8.
+
+### 5. Vérifications, limites, impact données
+- Production en lecture seule : **aucune entrée `anticheat_logs` depuis le premier déploiement**
+  de #10 (29/10 23:48 UTC), malgré les taps rapides du propriétaire → pas de faux positif constaté.
+- Limites : l'anti-autoclic ne plafonne que les **blocs manuels du classement** ; les pièces et la
+  progression restent calculées par le client. Un client modifié peut donc toujours s'enrichir
+  localement : c'est le périmètre du ticket #25 (progression serveur), pas de #10.
+- La limite de sauvegardes (30/min par compte) laisse de la marge : un achat de coffre ajoute une
+  synchro forcée ; il faudrait > ~25 achats par minute pour l'atteindre.
+- Impact données : aucune migration, aucune donnée modifiée. Les blocs déjà acceptés ne sont pas
+  recalculés.
+
+### 6. Déploiement
+- SHA déployé : **`041ed21`** (`f5019c0` → `041ed21`, 4 commits, pas de changement du lock).
+- Avant : release détachée, `npm ci` + `npm test` 147/147 sur le SHA exact ; copie de la base de
+  production démarrée en mode production sur le port 3122 (santé, version `1.0.0+041ed21`),
+  empreintes des 6 tables identiques avant/après ; copie supprimée.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261030-102248-pre-deploy-041ed21.sqlite`.
+- Après : 200 et `1.0.0+041ed21` sur https://dig.lodygames.com et https://dig.lodylands.com ;
+  journaux sans erreur ; `quick_check` ok ; empreintes joueurs identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep f5019c0` puis `sudo systemctl restart dig`
+  (base jamais restaurée).
+- **Test fonctionnel à faire par le propriétaire** : aucun nouveau test exigé (décision du 30/10).
+  Facultatif : jouer normalement, acheter un coffre simple juste après avoir gagné les pièces
+  nécessaires → l'achat passe, le solde est débité une seule fois et reste correct après
+  rechargement.
+- Classement : **Bloquant MVP public** (P0) — techniquement terminé, en attente de clôture.
+
+### 7. Choix techniques faits seul
+- Plafond `min(proportionnel, max_effective_cps × fenêtre)` plutôt que suppression du plancher de
+  10 % : changement minimal, le plancher continue de garantir qu'un joueur n'est jamais bloqué à
+  0 tant que sa cadence reste < 10 × le seuil.
+- Dans le test HTTP, les blocs « effectifs » ne sont pas comparés (temps réel de quelques ms :
+  la validation de profondeur #9 les plafonne légitimement) ; les cadences sont testées à horloge
+  fixe dans `anticheat.test.js`.
+
+### 8. Décisions demandées au propriétaire
+Aucune décision utilisateur nécessaire. Le ticket peut être clôturé par le propriétaire, comme
+prévu dans son commentaire du 30/10 (08:38).
+
+### 9. Éléments restant à réaliser
+- Rien pour #10.
+- Après lancement (#25) : progression et pièces validées côté serveur, sanctions graduelles.
