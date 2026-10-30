@@ -83,6 +83,32 @@ function expectedAt(depth, luckLevel, relic = {}) {
   return { rareShare, meanHp, meanReward, chestShare, gemShare };
 }
 
+// ── Variantes d'équilibrage étudiées (hypothèses du rapport #32, absentes du jeu) ──
+//   actuel         : Blocks.spawn tel quel ;
+//   deux-temps     : la résistance (PV) est tirée SANS Chance, la nature et la récompense du bloc
+//                    AVEC Chance → PV moyens identiques à Chance 0 quel que soit le niveau ;
+//   rares-fragiles : tirage actuel, mais PV des blocs rares/épiques/légendaires ÷ multiplicateur
+//                    de Chance (1 + 0,2 × niveau + relique).
+function spawnVariant(depth, variant) {
+  if (variant === 'deux-temps') {
+    const luck = G.GameState.upgrades.luck;
+    G.GameState.upgrades.luck = 0;
+    const lucky = G.GameState.relicBonuses.luckPct;
+    G.GameState.relicBonuses.luckPct = 0;
+    const { hp } = G.Blocks.spawn(depth);
+    G.GameState.upgrades.luck = luck;
+    G.GameState.relicBonuses.luckPct = lucky;
+    const b = G.Blocks.spawn(depth);
+    b.hp = b.maxHp = hp;
+    return b;
+  }
+  const b = G.Blocks.spawn(depth);
+  if (variant === 'rares-fragiles' && G.Blocks._BOOSTED_RARITIES.has(b.type.rarityKey)) {
+    b.hp = b.maxHp = Math.max(1, Math.ceil(b.hp / G.Blocks.luckMultiplier()));
+  }
+  return b;
+}
+
 // ── Simulation d'une séance à équipement fixe ───────────────────────────────
 
 /**
@@ -97,6 +123,7 @@ function expectedAt(depth, luckLevel, relic = {}) {
  * @param {number} [o.boost]     bonus temporaire de pièces (×2, ×3…)
  * @param {number} [o.chestDelay] secondes avant « Récupérer » sur un coffre de la mine
  * @param {object} [o.relic]     { luckPct, hpReduction }
+ * @param {string} [o.variant]   'actuel' (défaut) | 'deux-temps' | 'rares-fragiles'
  * @param {number} o.seed
  */
 function simulate(o) {
@@ -108,7 +135,7 @@ function simulate(o) {
   const r = { meters: 0, blocks: 0, coins: 0, fragments: 0, gems: 0, chests: 0, rare: 0 };
 
   let depth = o.depth0;
-  let block = G.Blocks.spawn(depth);
+  let block = spawnVariant(depth, o.variant);
   let hp = block.hp;
   let blockedUntil = 0;
   let chestBoost = { mult: 1, until: 0 };
@@ -145,7 +172,7 @@ function simulate(o) {
       if (type.isGem) r.gems++;
     }
     if (!Number.isFinite(blockedUntil)) break;      // joueur absent devant un coffre
-    block = G.Blocks.spawn(depth);
+    block = spawnVariant(depth, o.variant);
     hp = block.hp;
   }
   return r;
@@ -305,6 +332,22 @@ function main() {
         ref ??= r;
         out.push(`| ${L} | ${fmt(r.meters.p10)} · **${fmt(r.meters.p50)}** · ${fmt(r.meters.p90)} | ${pct(r.meters.mean / ref.meters.mean - 1)} | ${fmt(r.coins.p10)} · **${fmt(r.coins.p50)}** · ${fmt(r.coins.p90)} | ${pct(r.coins.mean / ref.coins.mean - 1)} | ${fmt(r.fragments.mean, 1)} | ${fmt(r.gems.mean, 1)} | ${fmt(r.chests.mean, 1)} |`);
       }
+    }
+  }
+
+  out.push(`\n### E. Solutions étudiées — profil « milieu », 1 h, sans bonus (${RUNS} tirages)\n`);
+  out.push('Écarts par rapport au jeu actuel à Chance 0 (référence commune).\n');
+  out.push('| Chance | Actuel : mètres/h · pièces/h | A « deux temps » : mètres/h · pièces/h | B « rares fragiles » : mètres/h · pièces/h |');
+  out.push('|---|---|---|---|');
+  {
+    const p = PROFILES[1];
+    const ref = distribution({ ...p, seconds: 3600, luck: 0 }, RUNS);
+    for (const L of LEVELS) {
+      const cells = ['actuel', 'deux-temps', 'rares-fragiles'].map(variant => {
+        const r = distribution({ ...p, seconds: 3600, luck: L, variant }, RUNS);
+        return `${fmt(r.meters.p50)} (${pct(r.meters.mean / ref.meters.mean - 1)}) · ${fmt(r.coins.p50)} (${pct(r.coins.mean / ref.coins.mean - 1)})`;
+      });
+      out.push(`| ${L} | ${cells.join(' | ')} |`);
     }
   }
 
