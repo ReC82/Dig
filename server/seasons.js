@@ -330,6 +330,13 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs
 
   const tracking = getClickTracking(userId);
 
+  // Invariant : les blocs validés ne dépassent jamais les blocs déclarés (plus grand total
+  // connu : sauvegarde reçue, référence, ligne de classement). Corrige aussi un compteur
+  // accepté gonflé par une version antérieure de l'anti-autoclic (recette #9 du 30/10).
+  const entry      = getPlayerSeasonEntry(seasonId, userId);
+  const claimedMax = Math.max(newBlocks, tracking?.season_id === seasonId ? tracking.last_blocks : 0, entry?.manual_blocks ?? 0);
+  const cap        = n => Math.min(n, claimedMax);
+
   // Première sauvegarde ou changement de saison → initialiser sans pénalité
   // (sans dépasser le nombre de clics : un bloc manuel exige un clic)
   if (!tracking || tracking.season_id !== seasonId) {
@@ -338,7 +345,7 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs
     return { effectiveManualBlocks: initial, action: 'init' };
   }
 
-  const accepted = tracking.accepted_blocks;
+  const accepted = cap(tracking.accepted_blocks);
 
   // Compteurs revenus en arrière (réinitialisation locale, autre appareil) → nouvelle référence
   if (newClicks < tracking.last_manual_clicks || newBlocks < tracking.last_blocks) {
@@ -357,8 +364,9 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs
   }
 
   if (!enabled) {
-    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, accepted + deltaBlocks);
-    return { effectiveManualBlocks: accepted + deltaBlocks, action: 'none' };
+    const next = cap(accepted + deltaBlocks);
+    upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, next);
+    return { effectiveManualBlocks: next, action: 'none' };
   }
 
   // Fenêtre trop courte → cumul : la référence n'est pas avancée, décision à la prochaine mesure
@@ -372,7 +380,7 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs
   // Minimum 10 % pour ne jamais bloquer totalement un joueur
   const cpsRatio       = inferredCps <= maxCps ? 1 : Math.max(0.10, maxCps / inferredCps);
   const effectiveDelta = Math.floor(validBlocks * cpsRatio);
-  const newAccepted    = accepted + effectiveDelta;
+  const newAccepted    = cap(accepted + effectiveDelta);
 
   upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, newAccepted);
 
@@ -651,6 +659,16 @@ function syncPlayerRanking(userId, seasonStats) {
 const PAGE_SIZE = 50;
 
 /**
+ * « Blocs manuels » affichés partout (carte du joueur, classement global et de ligue) :
+ * les blocs validés côté serveur, jamais plus que les blocs déclarés. Une seule définition
+ * pour que toutes les vues d'une même saison affichent la même valeur (recette #9).
+ */
+function _validatedBlocks(r) {
+  const raw = r.manual_blocks ?? 0;
+  return Math.min(r.effective_manual_blocks ?? raw, raw);
+}
+
+/**
  * Formate une ligne brute de season_rankings en objet API normalisé.
  * `admin` : ajoute les valeurs déclarées par le client (audit), absentes de l'API publique.
  */
@@ -665,7 +683,7 @@ function _formatRow(r, leagueMap, admin = false) {
     leagueId:             r.league_id ?? null,
     league:               league ? { id: league.id, name: league.name, icon: league.icon } : null,
     maxDepth:             r.max_depth,
-    manualBlocks:         r.effective_manual_blocks ?? r.manual_blocks, // classement basé sur l'effectif
+    manualBlocks:         _validatedBlocks(r),      // classement basé sur l'effectif
     manualBlocksBroken:   r.manual_blocks,          // total brut revendiqué par le client
     effectiveBlocks:      r.effective_manual_blocks, // validé côté serveur
     autoBlocksBroken:     r.auto_blocks,             // informatif uniquement
@@ -697,7 +715,8 @@ function buildCurrentSeasonResponse(userId = null) {
 
       playerInfo = {
         maxDepth:      entry.max_depth,
-        manualBlocks:  entry.manual_blocks,
+        manualBlocks:  _validatedBlocks(entry),   // même valeur que la ligne du classement
+        manualBlocksBroken: entry.manual_blocks,  // total brut revendiqué par le client
         autoBlocks:    entry.auto_blocks,
         isActive:      true,
         rankGlobal,
@@ -793,6 +812,7 @@ function buildLeagueLeaderboard(seasonId, leagueId, page = 1) {
         icon: leagueMap[r.league_id].icon,
       } : null,
       maxDepth:           r.max_depth,
+      manualBlocks:       _validatedBlocks(r),
       manualBlocksBroken: r.manual_blocks,
       autoBlocksBroken:   r.auto_blocks,  // informatif uniquement
     })),

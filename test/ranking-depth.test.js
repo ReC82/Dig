@@ -208,6 +208,79 @@ test('syncPlayerRanking : blocs manuels effectifs ≤ profondeur retenue − 1 (
   assert.ok(row.effective_manual_blocks <= row.max_depth - 1, JSON.stringify(row));
 });
 
+// ── Recette #9 du 30/10 : carte du joueur et classement affichaient deux « blocs manuels » ──
+
+/** Joueur actif dans la saison active avec une ligne de classement cohérente. */
+function rankedPlayer({ depth, blocks, clicks }) {
+  const u = newUser();
+  const active = db.getActiveSeason();
+  seasons.syncPlayerRanking(u, { seasonId: active.id, maxDepth: 0, manualBlocks: 0, manualClicks: 0, autoBlocks: 0 });
+  db.getDb().prepare('UPDATE player_depth_tracking SET hand_tokens = 400, auto_tokens = 25 WHERE user_id = ?').run(u);
+  seasons.syncPlayerRanking(u, { seasonId: active.id, maxDepth: depth, manualBlocks: blocks, manualClicks: clicks, autoBlocks: 0 });
+  return { u, active };
+}
+
+const rowOf = (lb, u) => lb.leaderboard.find(x => x.userId === u);
+
+test('compteur anti-autoclic hérité gonflé (accepted 456 > 124 déclarés) : affiché ≤ déclaré, puis réparé', () => {
+  const { u, active } = rankedPlayer({ depth: 145, blocks: 124, clicks: 5771 });
+  // État constaté en production : accepted_blocks gonflé par l'ancienne version, effectif = profondeur − 1
+  db.getDb().prepare('UPDATE player_click_tracking SET accepted_blocks = 456 WHERE user_id = ?').run(u);
+  db.getDb().prepare('UPDATE season_rankings SET effective_manual_blocks = 144 WHERE season_id = ? AND user_id = ?').run(active.id, u);
+
+  // Avant toute nouvelle sauvegarde : les deux vues affichent la même valeur, jamais > déclaré
+  let card = seasons.buildCurrentSeasonResponse(u).player;
+  let row  = rowOf(seasons.buildGlobalLeaderboard(active.id), u);
+  assert.strictEqual(card.manualBlocks, 124);
+  assert.strictEqual(row.manualBlocks, card.manualBlocks, 'carte et classement identiques');
+  assert.strictEqual(card.maxDepth, row.maxDepth);
+
+  // Sauvegarde suivante : le compteur interne est ramené au total déclaré, puis progresse normalement
+  const tr = db.getClickTracking(u);
+  db.getDb().prepare("UPDATE player_click_tracking SET last_save_at = datetime(last_save_at, '-30 seconds') WHERE user_id = ?").run(u);
+  db.getDb().prepare('UPDATE player_depth_tracking SET hand_tokens = 400, auto_tokens = 25 WHERE user_id = ?').run(u);
+  seasons.syncPlayerRanking(u, { seasonId: active.id, maxDepth: 150, manualBlocks: 129, manualClicks: tr.last_manual_clicks + 60, autoBlocks: 0 });
+  assert.strictEqual(db.getClickTracking(u).accepted_blocks, 129);
+  card = seasons.buildCurrentSeasonResponse(u).player;
+  row  = rowOf(seasons.buildGlobalLeaderboard(active.id), u);
+  assert.strictEqual(db.getPlayerSeasonEntry(active.id, u).effective_manual_blocks, 129);
+  assert.strictEqual(card.manualBlocks, 129);
+  assert.strictEqual(row.manualBlocks, 129);
+  assert.strictEqual(card.manualBlocksBroken, 129);
+});
+
+test('compteurs qui oscillent (deux sources de sauvegarde) : blocs validés jamais > blocs déclarés', () => {
+  const u = newUser();
+  const steps = [];
+  for (let i = 0; i < 10; i++) {
+    const high = i % 2 === 0;
+    steps.push({ t: i * 15, clicks: high ? 300 : 270, blocks: high ? 100 : 90 });
+  }
+  const t0 = Date.UTC(2026, 9, 29, 12, 0, 0);
+  const res = steps.map(s => seasons.processAntiCheat(
+    u, seasonId, { manualClicks: s.clicks, manualBlocks: s.blocks, regularityScore: 0.2 },
+    { max_effective_cps: '8', anti_autoclick_enabled: 'true' }, 'tester', t0 + s.t * 1000,
+  ));
+  for (const r of res) assert.ok(r.effectiveManualBlocks <= 100, JSON.stringify(res));
+  assert.ok(db.getClickTracking(u).accepted_blocks <= 100);
+});
+
+test('classement de ligue : mêmes « blocs manuels » que la carte du joueur', () => {
+  const u = newUser();
+  db.setUserLeague(u, db.getLowestLeague().id);
+  const active = db.getActiveSeason();
+  seasons.syncPlayerRanking(u, { seasonId: active.id, maxDepth: 0, manualBlocks: 0, manualClicks: 0, autoBlocks: 0 });
+  db.getDb().prepare('UPDATE player_depth_tracking SET hand_tokens = 400, auto_tokens = 25 WHERE user_id = ?').run(u);
+  seasons.syncPlayerRanking(u, { seasonId: active.id, maxDepth: 30, manualBlocks: 20, manualClicks: 60, autoBlocks: 0 });
+  const card = seasons.buildCurrentSeasonResponse(u).player;
+  const entry = db.getPlayerSeasonEntry(active.id, u);
+  const lrow = rowOf(seasons.buildLeagueLeaderboard(active.id, entry.league_id), u);
+  assert.ok(lrow, 'joueur présent dans sa ligue');
+  assert.strictEqual(lrow.manualBlocks, card.manualBlocks);
+  assert.strictEqual(lrow.maxDepth, card.maxDepth);
+  assert.strictEqual(card.manualBlocks, 20);
+});
+
 // ── Scénario HTTP : triche, classement public, correction admin ─────────────────────────────
 
 test('HTTP : POST maxDepth=1e9 ne change pas le classement ; outil admin de correction', async () => {
