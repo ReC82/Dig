@@ -1,75 +1,83 @@
 /**
  * server/chestShop.js
  * Source de vérité pour les coffres achetables : coûts, limites et tables de probabilités.
- * Importé par server/index.js — jamais exposé au client.
+ * Le serveur tire ici les coffres des joueurs connectés ; la même table est publiée en lecture
+ * seule par GET /api/shop/chests (describeChests) pour la fenêtre « Récompenses et chances » et
+ * pour le tirage des joueurs anonymes : aucun pourcentage n'est recopié côté client.
  *
- * Tables de probabilités :
+ * Tables (option A validée par le propriétaire le 30/10/2026, #20) — poids = % exacts :
  *
- * 📦 simple  (2 000 coins, illimité/saison)
- *   50% → 💰 80–200 coins
- *   25% → 💰 200–500 coins
- *   20% → 🔮 1 fragment
- *    5% → ⚡ Boost ×2, 3 min
+ * 📦 simple  (2 000 pièces, illimité/saison)
+ *   45% → 💰 500–1 000 pièces
+ *   30% → 🔮 1 fragment
+ *   15% → ⚡ Boost ×2, 5 min
+ *   10% → 💰 2 000–3 500 pièces (gros lot)
  *
- * 💎 rare    (15 000 coins, illimité/saison)
- *   30% → 💰 1 000–3 000 coins
- *   20% → 💰 3 000–8 000 coins
- *   25% → 🔮 2 fragments
- *   12% → 🔮 3 fragments
- *    8% → ⚡ Boost ×2, 10 min
- *    5% → 📿 Objet de collection
+ * 💎 rare    (15 000 pièces, illimité/saison)
+ *   40% → 💰 5 000–9 000 pièces
+ *   30% → 🔮 4 fragments
+ *   12% → 🔮 7 fragments
+ *    8% → ⚡ Boost ×2, 15 min
+ *    8% → 📿 Objet de collection
+ *    2% → 💰 15 000–25 000 pièces (gros lot)
  *
- * 🏺 antique (80 000 coins, max 5/saison)
- *   25% → 💰 10 000–25 000 coins
- *   25% → 🔮 5 fragments
- *   15% → 🔮 10 fragments
- *   13% → ⚡ Boost ×3, 15 min
+ * 🏺 antique (80 000 pièces, max 5/saison)
+ *   30% → 💰 25 000–40 000 pièces
+ *   25% → 🔮 20 fragments
+ *   18% → 🔮 30 fragments
+ *   10% → ⚡ Boost ×3, 20 min
  *   12% → 📿 Objet de collection
- *    7% → 🔮 20 fragments (jackpot)
- *    3% → 🔮 30 fragments (ultra-rare)
+ *    4% → 🔮 50 fragments
+ *    1% → 💰 100 000–150 000 pièces (gros lot)
+ *
+ * Un tirage de pièces rend toujours au moins un quart du prix par défaut ; l'espérance en pièces
+ * reste inférieure au prix (pas de boucle de profit, cf. test/chest-shop-odds.test.js).
  */
 
-const { DEFAULT_CHEST_COSTS, getEconomy, relicFragmentBonus } = require('./economy');
+const { DEFAULT_CHEST_COSTS, SHARD_MAGNET_BONUS, getEconomy, relicFragmentBonus } = require('./economy');
 
 const COLLECTION_ITEM_IDS = [
   'fossil', 'crystal', 'ancient_coin', 'relic',
   'broken_crown', 'monster_tooth', 'map_fragment', 'mystic_orb',
 ];
 
+/** Repli si toute la collection d'origine est déjà possédée (fragments fixes, sans bonus). */
+const COLLECTION_CONSOLATION_FRAGMENTS = 5;
+
 const SHOP_CHESTS = {
   simple: {
     cost:         DEFAULT_CHEST_COSTS.simple,
     maxPerSeason: null,
     table: [
-      { weight: 50, type: 'coins',  min:  80, max:  200 },
-      { weight: 25, type: 'coins',  min: 200, max:  500 },
-      { weight: 20, type: 'relics', amount: 1 },
-      { weight:  5, type: 'boost',  mult: 2, minutes: 3 },
+      { weight: 45, type: 'coins',  min:   500, max: 1_000 },
+      { weight: 30, type: 'relics', amount: 1 },
+      { weight: 15, type: 'boost',  mult: 2, minutes: 5 },
+      { weight: 10, type: 'coins',  min: 2_000, max: 3_500, jackpot: true },
     ],
   },
   rare: {
     cost:         DEFAULT_CHEST_COSTS.rare,
     maxPerSeason: null,
     table: [
-      { weight: 30, type: 'coins',      min: 1_000, max: 3_000 },
-      { weight: 20, type: 'coins',      min: 3_000, max: 8_000 },
-      { weight: 25, type: 'relics',     amount: 2 },
-      { weight: 12, type: 'relics',     amount: 3 },
-      { weight:  8, type: 'boost',      mult: 2, minutes: 10 },
-      { weight:  5, type: 'collection', amount: 1 },
+      { weight: 40, type: 'coins',      min:  5_000, max:  9_000 },
+      { weight: 30, type: 'relics',     amount: 4 },
+      { weight: 12, type: 'relics',     amount: 7 },
+      { weight:  8, type: 'boost',      mult: 2, minutes: 15 },
+      { weight:  8, type: 'collection', amount: 1 },
+      { weight:  2, type: 'coins',      min: 15_000, max: 25_000, jackpot: true },
     ],
   },
   antique: {
     cost:         DEFAULT_CHEST_COSTS.antique,
     maxPerSeason: 5,
     table: [
-      { weight: 25, type: 'coins',      min: 10_000, max: 25_000 },
-      { weight: 25, type: 'relics',     amount:  5 },
-      { weight: 15, type: 'relics',     amount: 10 },
-      { weight: 13, type: 'boost',      mult: 3, minutes: 15 },
+      { weight: 30, type: 'coins',      min:  25_000, max:  40_000 },
+      { weight: 25, type: 'relics',     amount: 20 },
+      { weight: 18, type: 'relics',     amount: 30 },
+      { weight: 10, type: 'boost',      mult: 3, minutes: 20 },
       { weight: 12, type: 'collection', amount:  1 },
-      { weight:  7, type: 'relics',     amount: 20 },
-      { weight:  3, type: 'relics',     amount: 30 },
+      { weight:  4, type: 'relics',     amount: 50 },
+      { weight:  1, type: 'coins',      min: 100_000, max: 150_000, jackpot: true },
     ],
   },
 };
@@ -151,12 +159,43 @@ function rollChest(chestId, data, config = {}) {
     } else {
       // Collection complète : fragments de consolation
       reward.type   = 'relics';
-      reward.amount = 5;
-      data.relicFragments = (data.relicFragments ?? 0) + 5;
+      reward.amount = COLLECTION_CONSOLATION_FRAGMENTS;
+      data.relicFragments = (data.relicFragments ?? 0) + COLLECTION_CONSOLATION_FRAGMENTS;
     }
   }
 
   return { reward, boughtThisSeason, cost };
 }
 
-module.exports = { SHOP_CHESTS, rollChest, COLLECTION_ITEM_IDS };
+/**
+ * Description publique et en lecture seule des coffres (GET /api/shop/chests) : coût effectif,
+ * limite saisonnière et table exacte (probabilité en %, plages, durées), plus les règles de
+ * quantité des fragments et de sélection des objets. Sert à l'affichage des chances ET au tirage
+ * des joueurs anonymes, pour que le client n'ait aucune probabilité recopiée en dur.
+ */
+function describeChests(config = {}) {
+  const economy = getEconomy(config);
+  const chests = Object.entries(SHOP_CHESTS).map(([id, def]) => {
+    const total = def.table.reduce((s, r) => s + r.weight, 0);
+    return {
+      id,
+      cost:         economy.chestCosts[id] ?? def.cost,
+      maxPerSeason: def.maxPerSeason,
+      table: def.table.map(row => ({ ...row, chance: Math.round(row.weight / total * 1e6) / 1e4 })),
+    };
+  });
+  return {
+    chests,
+    fragments: {
+      shardMagnetBonus: SHARD_MAGNET_BONUS,
+      multiplier:       economy.fragmentDropMultiplier,
+      minimum:          1,
+    },
+    collection: {
+      itemIds:               COLLECTION_ITEM_IDS,
+      consolationFragments:  COLLECTION_CONSOLATION_FRAGMENTS,
+    },
+  };
+}
+
+module.exports = { SHOP_CHESTS, rollChest, describeChests, COLLECTION_ITEM_IDS, COLLECTION_CONSOLATION_FRAGMENTS };

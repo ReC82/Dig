@@ -85,7 +85,7 @@ const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
 const rewardPoints = require('./rewardPoints');
 
-const { SHOP_CHESTS, rollChest } = require('./chestShop');
+const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
 const { validateEconomyValue } = require('./economy');
 const security = require('./security');
 const { createRateLimiters, describeMailLimits } = require('./rateLimits');
@@ -1326,6 +1326,20 @@ app.get('/api/admin/security/events', requireAdmin, (req, res) => {
 });
 
 // ── Coffres achetables ────────────────────────────────────────────────────────
+
+/**
+ * GET /api/shop/chests
+ * Public, lecture seule : coûts effectifs, limites, probabilités exactes et règles de quantité des
+ * coffres — la table même utilisée par rollChest (fenêtre « Récompenses et chances », #20).
+ */
+app.get('/api/shop/chests', (req, res) => {
+  try {
+    res.json(describeChests(getAdminConfig()));
+  } catch (err) {
+    console.error('[GET /api/shop/chests]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
 
 /**
  * POST /api/me/shop/chest/open

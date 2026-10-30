@@ -416,16 +416,19 @@ function renderBlock() {
   } else {
     // Bloc normal : base × multiplicateurs actifs = total réel (#20)
     const { base, factors, total } = Upgrades.getRewardBreakdown(b.reward, GameState.getCoinBoostMultiplier());
+    // Montants entiers en toutes lettres (séparateurs de milliers, jamais abrégés) ; en cas de
+    // manque de place, retour à la ligne entre deux facteurs, « = total » toujours d'un seul tenant.
+    const lang = I18n.getCurrent();
     if (factors.length > 0) {
       const ICONS = { bag: '🎒', relic: '💛', event: '✨', boost: '⚡' };
-      const fmt   = m => Number(m.toFixed(2)).toLocaleString(I18n.getCurrent());
-      rewardHtml = `<span class="reward-base">💰 ${base.toLocaleString(I18n.getCurrent())}</span>`
+      const fmt   = m => Number(m).toLocaleString(lang, { maximumFractionDigits: 3 });
+      rewardHtml = `<span class="reward-base">💰 ${base.toLocaleString(lang)}</span>`
                  + factors.map(f =>
                      ` <span class="reward-factor reward-factor-${f.key}" title="${t('ui.reward_factor.' + f.key)}">`
                    + `× ${ICONS[f.key]} ${fmt(f.mult)}</span>`).join('')
-                 + ` <span class="reward-eq">=</span> <span class="reward-final">💰 ${total.toLocaleString(I18n.getCurrent())}</span>`;
+                 + ` <span class="reward-result"><span class="reward-eq">=</span> <span class="reward-final">💰 ${total.toLocaleString(lang)}</span></span>`;
     } else {
-      rewardHtml = `<span class="reward-value">💰 ${total.toLocaleString(I18n.getCurrent())}</span>`;
+      rewardHtml = `<span class="reward-value">💰 ${total.toLocaleString(lang)}</span>`;
     }
   }
   elBlockReward.innerHTML = `${t('ui.reward_label')} : ${rewardHtml}`;
@@ -461,6 +464,7 @@ function renderUpgrades() {
             <span class="upgrade-level">${t('stats.pickaxe_val', { n: level })}${maxed ? ` <span class="maxed-tag">${t('ui.btn_max')}</span>` : ''}</span>
           </div>
           <div class="upgrade-desc">${def.describe(level)}</div>
+          <div class="upgrade-next">${_upgradeNextHtml(def)}</div>
           ${def.preview ? `<div class="upgrade-preview" data-id="${def.id}">${def.preview(level)}</div>` : ''}
         </div>
       </div>
@@ -489,6 +493,16 @@ function renderUpgrades() {
 
     elUpgradesList.appendChild(card);
   }
+}
+
+/** Aperçu avant/après de l'achat (#20) : « Niveau 8 → 9 · Récompenses ×3,4 → ×3,7 ». */
+function _upgradeNextHtml(def) {
+  const p = Upgrades.getLevelPreview(def.id);
+  if (p.next === null) return t('upgrade.max_level');
+  const level = `<span class="upgrade-next-level">${t('upgrade.next_level', { cur: p.cur, next: p.next })}</span>`;
+  if (!p.effect) return level;
+  const fmt = def.id === 'bag' ? Upgrades.formatMult : n => Number(n).toLocaleString(I18n.getCurrent());
+  return `${level} <span class="upgrade-next-effect">${t(`upgrade.${def.id}.effect`, { cur: fmt(p.effect.cur), next: fmt(p.effect.next) })}</span>`;
 }
 
 function updateUpgradeButtonStates() {
@@ -549,7 +563,7 @@ function renderShopChests() {
 
     const btnLabel = maxed
       ? t('ui.shop_chest_limit_reached')
-      : `${def.icon} ${t('shop_chest.' + def.id + '.name')} — 💰 ${def.cost.toLocaleString()}`;
+      : `${def.icon} ${t('shop_chest.' + def.id + '.name')} — 💰 ${def.cost.toLocaleString(I18n.getCurrent())}`;
 
     card.innerHTML = `
       <div class="shop-chest-header">
@@ -560,13 +574,17 @@ function renderShopChests() {
         </div>
         <div class="shop-chest-right">
           ${limitHtml}
-          <div class="shop-chest-cost${canAfford ? ' can-afford' : ''}">💰 ${def.cost.toLocaleString()}</div>
+          <div class="shop-chest-cost${canAfford ? ' can-afford' : ''}">💰 ${def.cost.toLocaleString(I18n.getCurrent())}</div>
         </div>
       </div>
       <button class="shop-chest-btn" ${(canAfford && !maxed) ? '' : 'disabled'}
         aria-label="${btnLabel}">
         ${maxed ? t('ui.shop_chest_limit_reached') : t('ui.btn_open_chest')}
-      </button>`;
+      </button>
+      <button type="button" class="shop-chest-odds-btn">${t('chest_odds.btn')}</button>`;
+
+    // Consultable avant tout achat, même sans pièces, sans compte ou limite atteinte (#20)
+    card.querySelector('.shop-chest-odds-btn').addEventListener('click', e => showChestOdds(def.id, e.currentTarget));
 
     if (canAfford && !maxed) {
       card.querySelector('.shop-chest-btn').addEventListener('click', () => {
@@ -622,7 +640,9 @@ async function openShopChest(chestId) {
     reward = data.reward;
 
   } else {
-    // ── Mode anonyme : tirage côté client ────────────────────────────────────
+    // ── Mode anonyme : tirage côté client, avec la table publiée par le serveur ──
+    if (!def.table && !(await _loadChestCatalog())) { showAchievement('❌', t('ui.shop_chest_error')); return; }
+    if (GameState.coins < def.cost) return;
     GameState.spendCoins(def.cost);
     GameState.shopChestsBought[chestId] = bought + 1;
     reward = _rollShopChestClient(chestId, def);
@@ -642,34 +662,12 @@ async function openShopChest(chestId) {
   _showShopChestReward(def, reward);
 }
 
-/** Tirage client-side (joueurs anonymes uniquement — probabilités identiques au serveur). */
+/**
+ * Tirage client-side (joueurs anonymes uniquement) : table et règles de quantité reçues de
+ * GET /api/shop/chests (server/chestShop.js), donc probabilités identiques au serveur (#20).
+ */
 function _rollShopChestClient(chestId, def) {
-  const tables = {
-    simple: [
-      { weight: 50, type: 'coins',  min:  80, max:  200 },
-      { weight: 25, type: 'coins',  min: 200, max:  500 },
-      { weight: 20, type: 'relics', amount: 1 },
-      { weight:  5, type: 'boost',  mult: 2, minutes: 3 },
-    ],
-    rare: [
-      { weight: 30, type: 'coins',      min: 1_000, max: 3_000 },
-      { weight: 20, type: 'coins',      min: 3_000, max: 8_000 },
-      { weight: 25, type: 'relics',     amount: 2 },
-      { weight: 12, type: 'relics',     amount: 3 },
-      { weight:  8, type: 'boost',      mult: 2, minutes: 10 },
-      { weight:  5, type: 'collection', amount: 1 },
-    ],
-    antique: [
-      { weight: 25, type: 'coins',      min: 10_000, max: 25_000 },
-      { weight: 25, type: 'relics',     amount:  5 },
-      { weight: 15, type: 'relics',     amount: 10 },
-      { weight: 13, type: 'boost',      mult: 3, minutes: 15 },
-      { weight: 12, type: 'collection', amount:  1 },
-      { weight:  7, type: 'relics',     amount: 20 },
-      { weight:  3, type: 'relics',     amount: 30 },
-    ],
-  };
-  const table = tables[chestId] ?? tables.simple;
+  const table = def.table;
   const total = table.reduce((s, r) => s + r.weight, 0);
   let r = Math.random() * total;
   let entry;
@@ -680,20 +678,114 @@ function _rollShopChestClient(chestId, def) {
   if (entry.type === 'coins') {
     reward.amount = entry.min + Math.floor(Math.random() * (entry.max - entry.min + 1));
   } else if (entry.type === 'relics') {
-    const bonus = GameState.relicBonuses?.relicFragmentBonus ?? 0;
-    reward.amount = Math.max(1, Math.round((entry.amount + bonus) * Balance.economy.fragmentDropMultiplier));
+    reward.amount = Balance.chestFragmentAmount(entry.amount, Relics.getLevel('shard_magnet'));
   } else if (entry.type === 'boost') {
     reward.mult = entry.mult; reward.minutes = entry.minutes;
   } else if (entry.type === 'collection') {
-    // Mêmes objets que le serveur (chestShop.js) : les 8 trouvailles d'origine (#39)
-    const missing = Collection.ORIGIN_IDS.filter(id => !GameState.collection.includes(id));
+    const { itemIds, consolationFragments } = Balance.chestRules.collection;
+    const missing = itemIds.filter(id => !GameState.collection.includes(id) && Collection.getById(id));
     if (missing.length > 0) {
       reward.itemId = missing[Math.floor(Math.random() * missing.length)];
     } else {
-      reward.type = 'relics'; reward.amount = 5;
+      reward.type = 'relics'; reward.amount = consolationFragments;
     }
   }
   return reward;
+}
+
+/** Charge la table publique des coffres (probabilités, coûts, règles). @returns {Promise<boolean>} */
+async function _loadChestCatalog() {
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/shop/chests');
+    if (!ok || !Balance.applyChestCatalog(data)) return false;
+    if (isViewActive('upgrades')) renderShopChests();   // coffres affichés sous les améliorations
+    return true;
+  } catch (err) {
+    console.warn('[coffres] table indisponible', err);
+    return false;
+  }
+}
+
+/**
+ * Fenêtre « Récompenses et chances » d'un coffre (#20) : toutes les récompenses possibles avec leur
+ * probabilité exacte, les quantités (y compris celles que le joueur recevrait avec ses reliques),
+ * la limite saisonnière et les règles de tirage. Données relues sur le serveur à chaque ouverture.
+ * Aucun bouton d'achat : impossible d'acheter par erreur depuis cette fenêtre.
+ */
+async function showChestOdds(chestId, opener) {
+  const modal = document.getElementById('odds-modal');
+  const def   = Balance.SHOP_CHESTS.find(c => c.id === chestId);
+  if (!modal || !def) return;
+  const $     = id => document.getElementById(id);
+  const close = $('btn-odds-modal-close');
+  const lang  = I18n.getCurrent();
+  const n     = v => Number(v).toLocaleString(lang);
+  const name  = t('shop_chest.' + chestId + '.name');
+
+  const hide = () => { modal.hidden = true; if (opener && opener.isConnected) opener.focus(); };
+  close.onclick   = hide;
+  modal.onclick   = e => { if (e.target === modal) hide(); };
+  modal.onkeydown = e => { if (e.key === 'Escape') hide(); };
+
+  $('odds-modal-title').textContent = t('chest_odds.title', { name: `${def.icon} ${name}` });
+  $('odds-modal-meta').textContent  = '';
+  const body = $('odds-modal-body');
+  body.textContent = t('chest_odds.loading');
+  modal.hidden = false;
+  close.focus();
+
+  if (!(await _loadChestCatalog()) || !def.table) {
+    body.textContent = t('chest_odds.error');
+    return;
+  }
+
+  const bought = GameState.shopChestsBought[chestId] ?? 0;
+  $('odds-modal-meta').textContent = t('chest_odds.price', { cost: n(def.cost) }) + ' · '
+    + (def.maxPerSeason !== null ? t('chest_odds.limit', { max: def.maxPerSeason, n: bought }) : t('chest_odds.unlimited'));
+
+  const shardLevel = Relics.getLevel('shard_magnet');
+  const pct = v => Number(v).toLocaleString(lang, { maximumFractionDigits: 4 }) + '\u00a0%';
+  const rows = def.table.map(row => {
+    let label;
+    if (row.type === 'coins') {
+      label = escapeHtml(t('chest_odds.coins', { min: n(row.min), max: n(row.max) }))
+        + (row.jackpot ? `<span class="odds-tag">${escapeHtml(t('chest_odds.jackpot'))}</span>` : '');
+    } else if (row.type === 'relics') {
+      const you = Balance.chestFragmentAmount(row.amount, shardLevel);
+      label = escapeHtml(t('chest_odds.relics', { n: n(row.amount), s: row.amount > 1 ? 's' : '' }))
+        + (you !== row.amount ? `<span class="odds-you">${escapeHtml(t('chest_odds.relics_you', { n: n(you) }))}</span>` : '');
+    } else if (row.type === 'boost') {
+      label = escapeHtml(t('chest_odds.boost', { mult: row.mult, minutes: row.minutes }));
+    } else if (row.type === 'collection') {
+      label = escapeHtml(t('chest_odds.collection'));
+    } else {
+      label = escapeHtml(row.type);
+    }
+    return `<tr><td class="odds-chance">${pct(row.chance)}</td><td>${label}</td></tr>`;
+  }).join('');
+
+  const types = new Set(def.table.map(r => r.type));
+  const { fragments, collection } = Balance.chestRules;
+  const rules = [t('chest_odds.rule_draw')];
+  if (types.has('coins')) rules.push(t('chest_odds.rule_coins'));
+  if (types.has('relics')) {
+    rules.push(t('chest_odds.rule_fragments', {
+      mult: fragments.multiplier !== 1 ? t('chest_odds.rule_fragments_mult', { mult: Upgrades.formatMult(fragments.multiplier) }) : '',
+    }));
+  }
+  if (types.has('boost')) rules.push(t('chest_odds.rule_boost'));
+  if (types.has('collection')) {
+    const missing = collection.itemIds.filter(id => !GameState.collection.includes(id)).length;
+    rules.push(missing > 0
+      ? t('chest_odds.rule_collection', { total: collection.itemIds.length, missing, pct: Number(100 / missing).toLocaleString(lang, { maximumFractionDigits: 1 }), n: collection.consolationFragments })
+      : t('chest_odds.rule_collection_full', { total: collection.itemIds.length, n: collection.consolationFragments }));
+  }
+
+  body.innerHTML = `<table class="odds-table">
+      <thead><tr><th scope="col">${escapeHtml(t('chest_odds.col_chance'))}</th><th scope="col">${escapeHtml(t('chest_odds.col_reward'))}</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <ul class="odds-rules">${rules.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
 }
 
 /**
@@ -1173,6 +1265,7 @@ async function _fetchMe() {
   if (isViewActive('settings')) renderSettings();
   // Initialise seasonId et CPS limit même sans compte connecté
   _pollSeason();
+  _loadChestCatalog();   // probabilités des coffres (fenêtre des chances, tirage anonyme, #20)
 }
 
 async function _doRegister(username, email, password) {

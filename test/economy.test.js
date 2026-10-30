@@ -81,7 +81,7 @@ test('relicFragmentBonus : recalculé depuis le niveau de Shard Magnet (B8)', ()
 });
 
 test('rollChest : coût admin, multiplicateur et bonus de relique appliqués au tirage', (t) => {
-  t.mock.method(Math, 'random', () => 0.85); // simple : 3e ligne (poids 75→95) → 1 fragment
+  t.mock.method(Math, 'random', () => 0.6); // simple : 2e ligne (poids 45→75) → 1 fragment
   const data = { coins: 1000, relicFragments: 0, relics: { shard_magnet: 2 }, shopChestsBought: {} };
   const { reward, cost } = rollChest('simple', data, { chest_cost_simple: '700', fragment_drop_multiplier: '2' });
   assert.strictEqual(cost, 700);

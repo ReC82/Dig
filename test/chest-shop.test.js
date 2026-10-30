@@ -129,13 +129,21 @@ test('solde insuffisant : 400 pour chaque coffre, sauvegarde et journal inchang�
 
 test('double clic / requêtes simultanées : un seul débit quand le solde ne permet qu\'un coffre', async () => {
   const { call, id } = await newPlayer('chestdouble');
-  await save(call, { coins: COSTS.simple });
+  // Le gros lot du coffre simple (jusqu'à 3 500) permettrait d'en racheter un second : le coût est
+  // porté le temps du test à 4 000 (réglage admin), au-delà de tout gain possible.
+  const cost = 4000;
+  db.prepare(`INSERT OR REPLACE INTO admin_config (key, value) VALUES ('chest_cost_simple', ?)`).run(String(cost));
+  await save(call, { coins: cost });
   const before = saveRow(id);
 
-  // Le gain maximal d'un coffre simple (500) ne permet pas d'en racheter un second.
-  const results = await Promise.all(
-    Array.from({ length: 5 }, () => call('POST', '/api/me/shop/chest/open', { chestId: 'simple' })),
-  );
+  let results;
+  try {
+    results = await Promise.all(
+      Array.from({ length: 5 }, () => call('POST', '/api/me/shop/chest/open', { chestId: 'simple' })),
+    );
+  } finally {
+    db.prepare(`DELETE FROM admin_config WHERE key = 'chest_cost_simple'`).run();
+  }
   const ok = results.filter(r => r.status === 200);
   assert.strictEqual(ok.length, 1, JSON.stringify(results.map(r => r.status)));
   for (const r of results.filter(r => r.status !== 200)) {
@@ -149,6 +157,26 @@ test('double clic / requêtes simultanées : un seul débit quand le solde ne pe
   assert.strictEqual(data.shopChestsBought.simple, 1);
   assert.strictEqual(saveRow(id).version, before.version + 1);
   assert.strictEqual(events(id).length, 1);
+});
+
+test('GET /api/shop/chests : public, lecture seule, table identique à celle du tirage serveur', async () => {
+  const { describeChests, SHOP_CHESTS } = require('../server/chestShop');
+  const r = await client()('GET', '/api/shop/chests');
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual(r.body, JSON.parse(JSON.stringify(describeChests({}))));
+  for (const chest of r.body.chests) {
+    assert.deepStrictEqual(chest.table.map(({ chance, ...row }) => row), SHOP_CHESTS[chest.id].table);
+  }
+  // Réglage admin (coût, multiplicateur de fragments) visible aussitôt dans la table publiée
+  db.prepare(`INSERT OR REPLACE INTO admin_config (key, value) VALUES ('fragment_drop_multiplier', '2')`).run();
+  try {
+    const r2 = await client()('GET', '/api/shop/chests');
+    assert.strictEqual(r2.body.fragments.multiplier, 2);
+  } finally {
+    db.prepare(`DELETE FROM admin_config WHERE key = 'fragment_drop_multiplier'`).run();
+  }
+  const post = await client()('POST', '/api/shop/chests', {});
+  assert.strictEqual(post.status, 404, 'aucune écriture possible');
 });
 
 test('limite saisonnière du coffre antique : 400, rien n\'est débité', async () => {

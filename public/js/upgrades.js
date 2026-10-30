@@ -12,8 +12,13 @@ const Upgrades = {
       icon: '⛏',
       name: 'upgrade.pickaxe.name',
       maxLevel: 15,
+      /** Dégâts réels par clic (pioche + relique Œil du mineur), comme GameState.damage. */
+      effect(level) {
+        return level + (GameState.relicBonuses?.damageFlat ?? 0);
+      },
       describe(level) {
-        return t('upgrade.pickaxe.desc', { damage: level, s: level > 1 ? 's' : '' });
+        const damage = this.effect(level);
+        return t('upgrade.pickaxe.desc', { damage, s: damage > 1 ? 's' : '' });
       },
       getCost(level) {
         if (level >= 15) return null;
@@ -49,9 +54,13 @@ const Upgrades = {
       icon: '🎒',
       name: 'upgrade.bag.name',
       maxLevel: 12,
+      /** Multiplicateur du Sac, facteur 🎒 de la récompense des blocs (getRewardBreakdown). */
+      effect(level) {
+        return 1 + level * 0.3;
+      },
       describe(level) {
         if (level === 0) return t('upgrade.bag.desc_normal');
-        return t('upgrade.bag.desc', { mult: (1 + level * 0.3).toFixed(1) });
+        return t('upgrade.bag.desc', { mult: Upgrades.formatMult(this.effect(level)) });
       },
       getCost(level) {
         if (level >= 12) return null;
@@ -64,9 +73,14 @@ const Upgrades = {
       icon: '⚙',
       name: 'upgrade.autodig.name',
       maxLevel: 6,
+      /** Dégâts automatiques réels par seconde (relique Moteur antique incluse), cf. getAutoDigDamage. */
+      effect(level) {
+        return level + (GameState.relicBonuses?.autodigBonus ?? 0);
+      },
       describe(level) {
-        if (level === 0) return t('upgrade.autodig.desc_off');
-        return t('upgrade.autodig.desc', { dmg: level, s: level > 1 ? 's' : '' });
+        const dmg = this.effect(level);
+        if (dmg === 0) return t('upgrade.autodig.desc_off');
+        return t('upgrade.autodig.desc', { dmg, s: dmg > 1 ? 's' : '' });
       },
       getCost(level) {
         return Balance.AUTODIG[level] ?? null;
@@ -183,6 +197,25 @@ const Upgrades = {
       now:  Blocks.rareShare(depth, level),
       next: level < def.maxLevel ? Blocks.rareShare(depth, level + 1) : null,
     };
+  },
+
+  /**
+   * Aperçu avant/après de l'achat (#20) : niveau actuel → suivant et, pour les améliorations à
+   * effet chiffré (pioche, sac, auto-dig), valeur effective actuelle → après achat.
+   * @returns {{ cur: number, next: number|null, effect: {cur: number, next: number}|null }}
+   */
+  getLevelPreview(id) {
+    const def   = this.DEFS.find(d => d.id === id);
+    const cur   = this.getLevel(id);
+    const next  = this.getCost(id) === null ? null : cur + 1;
+    const effect = def?.effect && next !== null ? { cur: def.effect(cur), next: def.effect(next) } : null;
+    return { cur, next, effect };
+  },
+
+  /** Multiplicateur lisible dans la langue du joueur (3,4 en français, 3.4 en anglais). */
+  formatMult(m) {
+    const lang = typeof I18n !== 'undefined' ? I18n.getCurrent() : 'fr';
+    return Number(m).toLocaleString(lang, { maximumFractionDigits: 2 });
   },
 
   getAutoDigDamage() {
