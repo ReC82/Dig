@@ -535,6 +535,11 @@ function initDb() {
       updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
     );
     INSERT OR IGNORE INTO reward_points_settings (id) VALUES (1);
+    CREATE TABLE IF NOT EXISTS reward_points_decisions (
+      id          TEXT    PRIMARY KEY,
+      applied_at  TEXT    NOT NULL,
+      note        TEXT
+    );
     CREATE TABLE IF NOT EXISTS reward_point_scales (
       version     INTEGER PRIMARY KEY AUTOINCREMENT,
       scale       TEXT    NOT NULL,

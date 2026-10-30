@@ -201,6 +201,35 @@ function getSettings() {
   };
 }
 
+/**
+ * Décision du propriétaire du 30/10/2026 (#33, commentaire 6525152677) : barème v1 validé tel
+ * quel, crédit réel activé sans rétroactivité, portefeuille unique, bonus de ligue 0 % (#19).
+ * Appliquée une seule fois (table `reward_points_decisions`) : un retour ultérieur en
+ * simulation depuis le panel est respecté au redémarrage. N'active que le crédit des points ;
+ * les échanges contre cadeaux réels restent verrouillés (#27).
+ */
+const OWNER_DECISION_ID = '2026-10-30-bareme-v1-live';
+const VALIDATED_LABEL   = 'Barème v1 (validé le 30/10/2026)';
+
+function applyOwnerDecision(now = new Date()) {
+  if (_settingsRow().scale_version == null) ensureDefaults();
+  return conn().transaction(() => {
+    if (conn().prepare('SELECT 1 FROM reward_points_decisions WHERE id = ?').get(OWNER_DECISION_ID)) return false;
+    const at = cal.fmtUtc(now);
+    const scale = validateScale({ ...PROPOSED_SCALE, label: VALIDATED_LABEL, leagueBonusPctPerLevel: 0 });
+    const info = conn().prepare('INSERT INTO reward_point_scales (scale, note) VALUES (?, ?)')
+      .run(JSON.stringify(scale), 'Barème v1 validé par le propriétaire le 30/10/2026 (#33)');
+    const s = _settingsRow();
+    conn().prepare(`UPDATE reward_points_settings SET scale_version = ?, mode = 'live',
+                      live_since = CASE WHEN mode = 'live' AND live_since IS NOT NULL THEN live_since ELSE ? END,
+                      updated_at = datetime('now') WHERE id = 1`).run(info.lastInsertRowid, at);
+    conn().prepare('INSERT INTO reward_points_decisions (id, applied_at, note) VALUES (?, ?, ?)')
+      .run(OWNER_DECISION_ID, at, `barème v${info.lastInsertRowid}, crédit réel (mode précédent : ${s.mode})`);
+    console.log(`[points] Décision propriétaire appliquée : barème v${info.lastInsertRowid} validé, crédit réel actif depuis ${at} UTC`);
+    return true;
+  })();
+}
+
 /** Enregistre une nouvelle version du barème (les anciennes restent, pour l'audit). */
 function setScale(input, note = '') {
   const scale = validateScale(input);
@@ -528,7 +557,7 @@ function previewScale(input, seasonId) {
 module.exports = {
   MODES, USES, PROPOSED_SCALE, PointsError,
   validateScale, percentCutoff, tierForRank, computeAwards,
-  ensureDefaults, getSettings, setScale, setMode, listScales,
+  ensureDefaults, applyOwnerDecision, getSettings, setScale, setMode, listScales,
   getWallet, spend, refund, adminAdjust, getHistory, verifyLedger,
   awardSeason, awardMissingSeasons,
   publicScale, potentialFor, buildPlayerSummary, buildAdminSummary, seasonAwards, previewScale,

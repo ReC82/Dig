@@ -29,13 +29,22 @@ dans la boutique de cadeaux (#34). Code : `server/rewardPoints.js`.
 
 | Mode | Effet | Par défaut |
 |---|---|---|
-| `simulation` | À chaque clôture, les points sont **calculés et affichés** (aperçu joueur, panel), **jamais crédités**. | **oui** |
-| `live` | Les saisons qui se terminent **après l'activation** sont créditées au portefeuille. Aucune saison antérieure n'est créditée rétroactivement. | non — décision du propriétaire |
+| `simulation` | À chaque clôture, les points sont **calculés et affichés** (aperçu joueur, panel), **jamais crédités**. | base neuve, avant la décision |
+| `live` | Les saisons qui se terminent **après l'activation** sont créditées au portefeuille. Aucune saison antérieure n'est créditée rétroactivement. | **oui, depuis la décision du 30/10/2026** |
 
-Le passage en `live` vaut validation du barème en vigueur : panel admin, onglet **🏅 Points**,
-bouton « Activer le crédit réel des points ».
+**Décision du propriétaire du 30/10/2026** (#33) : barème v1 accepté tel quel, crédit réel activé
+sans rétroactivité, portefeuille unique, bonus de ligue 0 % jusqu'à #19. Elle est appliquée **une
+seule fois** au démarrage du serveur (`applyOwnerDecision`, trace dans `reward_points_decisions`) :
+nouvelle version du barème « Barème v1 (validé le 30/10/2026) » (mêmes catégories), mode `live`,
+`live_since` = instant du démarrage. La saison en cours à ce moment est donc créditée à sa clôture ;
+les saisons déjà closes restent en simulation. Un retour en `simulation` depuis le panel (onglet
+**🏅 Points**) est respecté aux redémarrages suivants. Les échanges contre des cadeaux réels restent
+verrouillés (`CONTEST_REAL_PRIZES`, #27).
 
-## 3. Barème proposé (version 1, **non validé**, appliqué en simulation seulement)
+Note : une clôture anticipée fixe la fin de saison à l'instant de clôture − 1 s ; une saison close
+avant l'activation n'est jamais créditée.
+
+## 3. Barème v1 (**validé le 30/10/2026**, crédité réellement)
 
 | Catégorie | Condition | Points |
 |---|---|---|

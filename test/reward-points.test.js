@@ -275,6 +275,49 @@ test('barème : nouvelle version conservée, aperçu sur une saison figée, migr
   assert.strictEqual(points.getSettings().scaleVersion, before + 1, 'redémarrage : barème choisi conservé');
 });
 
+test('décision du propriétaire (30/10/2026) : barème v1 validé, crédit réel une seule fois, sans rétroactivité', () => {
+  points.setMode('simulation');
+  const closedBefore = conn().prepare('SELECT season_id FROM season_snapshots').all().map(r => r.season_id);
+  const liveBefore = conn().prepare("SELECT COUNT(*) AS n FROM reward_point_runs WHERE mode = 'live'").get().n;
+  const ledgerBefore = conn().prepare('SELECT COUNT(*) AS n FROM reward_point_ledger').get().n;
+  const active = db.getActiveSeason();
+  const at = new Date(cal.parseUtc(active.start_at).getTime() + 2000);
+
+  assert.strictEqual(points.applyOwnerDecision(at), true);
+  const s = points.getSettings();
+  assert.strictEqual(s.mode, 'live');
+  assert.strictEqual(s.liveSince, cal.fmtUtc(at));
+  assert.strictEqual(s.scale.label, 'Barème v1 (validé le 30/10/2026)');
+  assert.deepStrictEqual(s.scale.tiers, SCALE.tiers, 'barème v1 tel quel');
+  assert.strictEqual(s.scale.leagueBonusPctPerLevel, 0);
+
+  // Rejouée (redémarrage) : rien ne change ; un retour en simulation depuis le panel est respecté
+  assert.strictEqual(points.applyOwnerDecision(new Date(at.getTime() + 60_000)), false);
+  assert.strictEqual(points.getSettings().scaleVersion, s.scaleVersion);
+  points.setMode('simulation');
+  assert.strictEqual(points.applyOwnerDecision(), false);
+  assert.strictEqual(points.getSettings().mode, 'simulation');
+  points.setMode('live', at);
+
+  // Aucune saison close avant l'activation n'est créditée
+  points.awardMissingSeasons();
+  assert.strictEqual(conn().prepare("SELECT COUNT(*) AS n FROM reward_point_runs WHERE mode = 'live'").get().n, liveBefore);
+  assert.strictEqual(conn().prepare('SELECT COUNT(*) AS n FROM reward_point_ledger').get().n, ledgerBefore);
+  assert.ok(closedBefore.length > 0);
+
+  // Prochaine clôture : crédit réel, une fois
+  const [a, b, c] = [newUser(), newUser(), newUser()];
+  putRanking(active.id, a, { depth: 90, blocks: 40 });
+  putRanking(active.id, b, { depth: 60, blocks: 40 });
+  putRanking(active.id, c, { depth: 30, blocks: 40 });
+  closeActive();
+  points.awardMissingSeasons();
+  points.awardMissingSeasons();
+  assert.deepStrictEqual([a, b, c].map(u => points.getWallet(u).balance), [100, 12, 5]);
+  assert.strictEqual(conn().prepare('SELECT COUNT(*) AS n FROM reward_point_ledger WHERE season_id = ?').get(active.id).n, 3);
+  assert.strictEqual(points.verifyLedger().ok, true);
+});
+
 // ── Routes HTTP ───────────────────────────────────────────────────────────────
 
 test('routes : portefeuille joueur, barème public, administration', async (t) => {
@@ -303,7 +346,7 @@ test('routes : portefeuille joueur, barème public, administration', async (t) =
 
   let r = await call('GET', '/api/points/scale', undefined, { auth: false });
   assert.strictEqual(r.status, 200);
-  assert.strictEqual(r.body.mode, 'simulation');
+  assert.strictEqual(r.body.mode, 'live', 'décision du 30/10/2026 appliquée au démarrage');
   assert.strictEqual(r.body.tiers[0].id, 'first');
   r = await call('GET', '/api/points/me', undefined, { auth: false });
   assert.strictEqual(r.status, 401);
@@ -324,7 +367,7 @@ test('routes : portefeuille joueur, barème public, administration', async (t) =
   r = await call('GET', '/api/points/me', undefined, { auth: false, cookie });
   assert.strictEqual(r.status, 200);
   assert.deepStrictEqual([r.body.balance, r.body.mode, r.body.potential.rank, r.body.potential.tier, r.body.potential.points],
-    [0, 'simulation', 1, 'active', 5]);
+    [0, 'live', 1, 'active', 5]);
 
   r = await call('GET', '/api/admin/points', undefined, { auth: false });
   assert.strictEqual(r.status, 401);
@@ -344,16 +387,22 @@ test('routes : portefeuille joueur, barème public, administration', async (t) =
   assert.strictEqual(r.body.verification.ok, true);
   assert.strictEqual(r.body.totals.balance, 4);
 
-  // Clôture admin manuelle : le planificateur fige puis attribue (simulation) ; on force ici le rattrapage
+  // Clôture admin manuelle : la saison en cours (ouverte avant l'activation, close après) est créditée
+  // (clôture anticipée = fin à l'instant − 1 s : on laisse passer l'activation d'au moins 2 s)
+  await new Promise(res => setTimeout(res, 2100));
   r = await call('POST', `/api/admin/seasons/${cur.id}/close`, {});
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   r = await call('GET', `/api/admin/points/seasons/${cur.id}`);
-  assert.deepStrictEqual(r.body.awards.map(a => [a.mode, a.username, a.tier, a.points, a.ledger_id]), [['simulation', 'pointeur', 'active', 5, null]]);
+  assert.deepStrictEqual(r.body.awards.map(a => [a.mode, a.username, a.tier, a.points, a.ledger_id != null]).sort(),
+    [['live', 'pointeur', 'active', 5, true], ['simulation', 'pointeur', 'active', 5, false]]);
   r = await call('POST', '/api/admin/points/scale/preview', { seasonId: cur.id, scale: { tiers: [{ id: 'x', points: 2 }] } });
   assert.deepStrictEqual([r.status, r.body.total], [200, 2]);
   r = await call('GET', '/api/points/me', undefined, { auth: false, cookie });
-  assert.strictEqual(r.body.balance, 4, 'simulation : solde inchangé');
-  assert.strictEqual(r.body.awards[0].mode, 'simulation');
+  assert.strictEqual(r.body.balance, 9, 'crédit réel : 4 + 5');
+  assert.ok(r.body.history.some(h => h.kind === 'season_award' && h.delta === 5));
+  r = await call('POST', `/api/admin/seasons/${cur.id}/close`, {});
+  r = await call('GET', '/api/points/me', undefined, { auth: false, cookie });
+  assert.strictEqual(r.body.balance, 9, 'pas de double crédit');
 });
 
 test.after(() => {

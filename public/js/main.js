@@ -1572,7 +1572,7 @@ function _pointsHtml() {
         <span class="points-title">${t('points.title')}</span>
         <span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
       </div>
-      ${d.mode !== 'live' ? `<p class="points-sim-banner">${t('points.simulation')}</p>` : ''}
+      ${d.mode !== 'live' ? `<p class="points-sim-banner">${t('points.simulation')}</p>` : `<p class="points-live-banner">${t('points.live')}</p>`}
       <p class="points-potential">${potHtml}</p>
       <details class="points-details points-scale"${open('.points-scale')}>
         <summary>${t('points.scale_toggle')}</summary>
