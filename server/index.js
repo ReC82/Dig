@@ -88,7 +88,7 @@ const rewardPoints = require('./rewardPoints');
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const { validateEconomyValue } = require('./economy');
 const security = require('./security');
-const { createRateLimiters } = require('./rateLimits');
+const { createRateLimiters, describeMailLimits } = require('./rateLimits');
 const antibot = require('./antibot');
 const playSession = require('./playSession');
 const { isValidEmail, intParam } = require('./validation');
@@ -118,6 +118,16 @@ antibot.configure({ ipSecret: SESSION_SECRET });
 
 // E-mails de compte (#28) : désactivés tant que le SMTP n'est pas configuré
 const mailer = createMailer();
+if (mailer.enabled) {
+  // Journal sans secret, contrôlé par scripts/dig-smtp-config.sh (#43).
+  console.log(`[mail] e-mails de compte actifs : ${mailer.summary}, liens vers ${mailer.baseUrl}, limites ${describeMailLimits()}`);
+  if (mailer.mode === 'smtp') {
+    mailer.verify().then(r => {
+      if (r.ok) console.log('[mail] connexion SMTP vérifiée');
+      else console.error(`[mail] connexion SMTP refusée : ${r.error}`);
+    });
+  }
+}
 
 // Connexion Google via Auth0 (#28) : désactivée tant que SOCIAL_LOGIN n'est pas « link »
 const socialConfig = resolveSocialConfig(process.env, { publicBaseUrl: mailer.baseUrl });

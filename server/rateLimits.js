@@ -140,4 +140,10 @@ function createRateLimiters(env = process.env) {
   };
 }
 
-module.exports = { createRateLimiters, tooManyRequests };
+/** Limites des e-mails de compte, pour le journal de démarrage (#43). */
+function describeMailLimits(env = process.env) {
+  if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') return 'DÉSACTIVÉES (RATE_LIMIT=off)';
+  return `${intFromEnv(env, 'RATE_MAIL_MAX', 5)} envois/IP/15 min, ${intFromEnv(env, 'RATE_TOKEN_MAX', 20)} liens refusés/IP/15 min`;
+}
+
+module.exports = { createRateLimiters, tooManyRequests, describeMailLimits };

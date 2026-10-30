@@ -175,17 +175,44 @@ for i in $(seq 1 11); do curl -s -o /dev/null -w '%{http_code} ' -H 'Content-Typ
 ## E-mails de compte : vérification et mot de passe oublié (ticket #28)
 
 Désactivés tant que le SMTP n'est pas configuré (le jeu fonctionne alors comme avant ; seul le
-changement de mot de passe, qui n'envoie rien, est proposé). Pour les activer, ajouter dans
-`/etc/dig/dig.env` puis `sudo systemctl restart dig` :
+changement de mot de passe, qui n'envoie rien, est proposé). Ce SMTP est **distinct** de celui de
+DIGORCH (rapports de l'orchestrateur).
+
+### Configuration : `scripts/dig-smtp-config.sh` (ticket #43)
 
 ```
-SMTP_HOST=…  SMTP_PORT=587  SMTP_USER=…  SMTP_PASS=…
-MAIL_FROM=DIG! <adresse@domaine>   MAIL_REPLY_TO=…   PUBLIC_BASE_URL=https://dig.lodygames.com
+sudo bash /home/ubuntu/Dig/scripts/dig-smtp-config.sh          # configurer / reconfigurer
+sudo bash /home/ubuntu/Dig/scripts/dig-smtp-config.sh --test   # contrôler + e-mail de test
+sudo bash /home/ubuntu/Dig/scripts/dig-smtp-config.sh --off    # désactiver (retour arrière)
 ```
 
-(une variable par ligne). Contrôle : `curl -s http://127.0.0.1:3000/api/me` → `"mail":true`.
-Un échec d'envoi est journalisé (`journalctl -u dig | grep '\[mail\]'`) sans le mot de passe.
-Limites : `RATE_MAIL_MAX` (5 envois / IP / 15 min), `RATE_TOKEN_MAX` (20 liens refusés / IP / 15 min).
+Le script demande le serveur, le port (587 = STARTTLS, 465 = TLS direct), l'identifiant, le
+**mot de passe (saisie sans écho)**, l'adresse d'expédition, une adresse de réponse facultative et
+l'adresse publique du jeu. Puis :
+
+1. il teste la connexion et l'authentification SMTP **sans rien modifier** (échec → rien n'est écrit) ;
+2. il affiche les enregistrements SPF et DMARC du domaine d'expédition (DKIM : voir l'e-mail reçu) ;
+3. il sauvegarde `/etc/dig/dig.env` (`dig.env.avant-smtp-AAAAMMJJ-HHMMSS`), écrit les variables
+   `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, `MAIL_REPLY_TO`,
+   `PUBLIC_BASE_URL` (valeurs entre apostrophes = littérales pour systemd ; root, 600) et redémarre le jeu ;
+4. il contrôle le journal (`[mail] e-mails de compte actifs …, limites …` puis
+   `[mail] connexion SMTP vérifiée`), `/api/me` → `"mail":true`, la connexion classique, et
+   envoie un e-mail de test à l'adresse indiquée ;
+5. au moindre échec après l'écriture : **retour automatique** à l'ancienne configuration et redémarrage.
+
+Aucun secret n'est affiché, journalisé ou passé en argument : les contrôles
+(`scripts/mail-check.js`) reçoivent la configuration sur leur entrée standard et réduisent les
+erreurs à leur code (`EAUTH 535` = identifiants refusés, `ECONNECTION`/`ETIMEDOUT` = serveur
+ou port injoignable, souvent le port 25 bloqué par AWS). Mot de passe contenant une apostrophe :
+non pris en charge (en choisir un autre).
+
+Retour arrière manuel : `sudo bash …/dig-smtp-config.sh --off`, ou
+`sudo cp -p /etc/dig/dig.env.avant-smtp-… /etc/dig/dig.env && sudo systemctl restart dig`.
+
+Journal : `journalctl -u dig | grep '\[mail\]'` (jamais le mot de passe ni l'identifiant).
+Limites : `RATE_MAIL_MAX` (5 envois / IP / 15 min), `RATE_TOKEN_MAX` (20 liens refusés / IP / 15 min),
+plus 1 envoi par compte et par type toutes les 60 s ; elles figurent dans la ligne de démarrage
+`[mail] e-mails de compte actifs`. Le script refuse d'activer les e-mails si `RATE_LIMIT=off`.
 Comparatif Auth0 et choix : `docs/AUTH-COMPARATIF.md`.
 
 ## Connexion Google via Auth0 Free (ticket #28)
