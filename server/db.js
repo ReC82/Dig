@@ -301,6 +301,15 @@ function initDb() {
     console.log('[db] Migration : season_rankings.reported_max_depth ajouté (initialisé depuis max_depth)');
   }
 
+  // Index alignés sur le tri réel des classements et des promotions (#19) :
+  // max_depth DESC, effective_manual_blocks DESC, user_id ASC. Ajout seul, idempotent.
+  _db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_rankings_sort ON season_rankings
+      (season_id, max_depth DESC, effective_manual_blocks DESC, user_id);
+    CREATE INDEX IF NOT EXISTS idx_rankings_league_sort ON season_rankings
+      (season_id, league_id, max_depth DESC, effective_manual_blocks DESC, user_id);
+  `);
+
   // anticheat_logs : details (JSON libre — profondeur déclarée/retenue, correction admin…)
   {
     const acCols = _db.prepare('PRAGMA table_info(anticheat_logs)').all().map(r => r.name);
@@ -714,7 +723,8 @@ function setUserLeague(userId, leagueId) {
 
 /**
  * Classement global d'une saison (paginé).
- * Tri : max_depth DESC, effective_manual_blocks DESC (blocs validés anti-cheat).
+ * Tri : max_depth DESC, effective_manual_blocks DESC (blocs validés anti-cheat), puis user_id ASC
+ * (départage provisoire, déterministe — #19).
  * auto_blocks jamais utilisé pour le tri.
  */
 function getSeasonLeaderboard(seasonId, limit = 50, offset = 0) {
@@ -728,13 +738,13 @@ function getSeasonLeaderboard(seasonId, limit = 50, offset = 0) {
            r.manual_clicks,
            r.effective_manual_blocks,
            r.auto_blocks,
-           ROW_NUMBER() OVER (ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC) AS rank
+           ROW_NUMBER() OVER (ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC) AS rank
     FROM season_rankings r
     JOIN users u ON u.id = r.user_id
     WHERE r.season_id   = ?
       AND r.is_active    = 1
       AND r.manual_blocks > 0
-    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC
+    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC
     LIMIT ? OFFSET ?
   `).all(seasonId, limit, offset);
 }
@@ -753,7 +763,7 @@ function getPlayerSeasonRank(seasonId, userId) {
   return getDb().prepare(`
     SELECT rank_global FROM (
       SELECT user_id,
-             ROW_NUMBER() OVER (ORDER BY max_depth DESC, effective_manual_blocks DESC) AS rank_global
+             ROW_NUMBER() OVER (ORDER BY max_depth DESC, effective_manual_blocks DESC, user_id ASC) AS rank_global
       FROM season_rankings
       WHERE season_id = ? AND is_active = 1 AND manual_blocks > 0
     ) WHERE user_id = ?
@@ -762,7 +772,7 @@ function getPlayerSeasonRank(seasonId, userId) {
 
 /**
  * Classement intraligue d'une saison (paginé).
- * Tri : max_depth DESC, effective_manual_blocks DESC — auto_blocks ignoré.
+ * Tri : max_depth DESC, effective_manual_blocks DESC, user_id ASC — auto_blocks ignoré.
  */
 function getLeagueLeaderboard(seasonId, leagueId, limit = 50, offset = 0) {
   return getDb().prepare(`
@@ -773,14 +783,14 @@ function getLeagueLeaderboard(seasonId, leagueId, limit = 50, offset = 0) {
            r.manual_blocks,
            r.effective_manual_blocks,
            r.auto_blocks,
-           ROW_NUMBER() OVER (ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC) AS rank_in_league
+           ROW_NUMBER() OVER (ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC) AS rank_in_league
     FROM season_rankings r
     JOIN users u ON u.id = r.user_id
     WHERE r.season_id   = ?
       AND r.league_id   = ?
       AND r.is_active   = 1
       AND r.manual_blocks > 0
-    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC
+    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC
     LIMIT ? OFFSET ?
   `).all(seasonId, leagueId, limit, offset);
 }
@@ -807,7 +817,7 @@ function getAllActivePlayersInLeague(seasonId, leagueId) {
       AND r.league_id   = ?
       AND r.is_active   = 1
       AND r.manual_blocks > 0
-    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC
+    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC
   `).all(seasonId, leagueId);
 }
 
@@ -826,7 +836,7 @@ function getPlayerLeagueRank(seasonId, userId, leagueId) {
   const row = getDb().prepare(`
     SELECT rank_in_league FROM (
       SELECT user_id,
-             ROW_NUMBER() OVER (ORDER BY max_depth DESC, effective_manual_blocks DESC) AS rank_in_league
+             ROW_NUMBER() OVER (ORDER BY max_depth DESC, effective_manual_blocks DESC, user_id ASC) AS rank_in_league
       FROM season_rankings
       WHERE season_id   = ?
         AND league_id   = ?
