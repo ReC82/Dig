@@ -6,8 +6,10 @@
  * Catalogue administrable (#37) : TYPES ci-dessous est le catalogue d'origine (version 1 côté
  * serveur, server/blockCatalog.js le relit tel quel). Le catalogue publié depuis le panel admin
  * (GET /api/blocks/catalog) le remplace dès qu'il est reçu, puis est mémorisé localement pour le
- * démarrage suivant. Aucune profondeur maximale par défaut (`maxDepth` absent = illimité) ; un
- * type n'est jamais retiré du catalogue (désactivé : `active: false`, sauvegardes compatibles).
+ * démarrage suivant. Aucune profondeur maximale (#22, règle du propriétaire du 30/10/2026) : un bloc
+ * apparaît « dès minDepth m » puis à toute profondeur, avec une probabilité > 0 ; un `maxDepth`
+ * reçu d'un ancien catalogue est ignoré. Un type n'est jamais retiré du catalogue (désactivé :
+ * `active: false`, sauvegardes compatibles).
  * Étape B : un type peut être atténué au-delà de `fadeFrom` m (poids `fadeWeight` > 0) et une
  * gemme peut ne pas rapporter de gemme (`gemReward: false`) — catalogue au format 2.
  */
@@ -21,7 +23,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#78350f,#431407)',
       accent: '#92400e',
       hpBase: 3,  reward: 1,
-      minDepth: 1, maxDepth: 12, weight: 70,
+      minDepth: 1, weight: 70, fadeFrom: 12, fadeWeight: 2.1,
     },
     {
       category: 'terre', name: 'block.argile', icon: '🟫',
@@ -29,7 +31,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#92400e,#6b2d08)',
       accent: '#b45309',
       hpBase: 6,  reward: 2,
-      minDepth: 4, maxDepth: 22, weight: 45,
+      minDepth: 4, weight: 45, fadeFrom: 22, fadeWeight: 1.35,
     },
 
     // ── Pierre ───────────────────────────────────────────────────────────────
@@ -177,7 +179,7 @@ const Blocks = {
       category: String(c.category || 'pierre'), icon: String(c.icon || '⬜'), image: c.image || null,
       rarityKey: String(c.rarity || 'commun'),
       color: String(c.color || '#4b5563'), accent: String(c.accent || '#6b7280'),
-      hpBase, reward, minDepth, maxDepth: num(c.maxDepth, minDepth), weight,
+      hpBase, reward, minDepth, weight,
       fadeFrom: fadeFrom !== null && fadeWeight > 0 ? fadeFrom : null, fadeWeight,
       active: c.active !== false, isChest: c.category === 'coffre', isGem: c.category === 'gemme' && c.gemReward !== false,
     };
@@ -235,9 +237,9 @@ const Blocks = {
     return 1 + luckLevel * this.LUCK_PER_LEVEL + (GameState.relicBonuses?.luckPct ?? 0);
   },
 
-  /** Type tirable à cette profondeur : actif, `dès minDepth`, borne maximale héritée éventuelle. */
+  /** Type tirable à cette profondeur : actif et `dès minDepth` (jamais de profondeur maximale). */
   available(t, depth) {
-    return t.active !== false && depth >= t.minDepth && (t.maxDepth == null || depth <= t.maxDepth);
+    return t.active !== false && depth >= t.minDepth;
   },
 
   /** Poids à cette profondeur : atténué au-delà de `fadeFrom` (toujours > 0). */

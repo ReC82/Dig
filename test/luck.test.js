@@ -39,9 +39,11 @@ test('blockOdds : probabilités exactes, somme = 1, poids des raretés boostées
       assert.ok(Math.abs(sum - 1) < 1e-12, `somme ${sum} à ${depth} m, Chance ${luck}`);
     }
   }
-  // 100 m : 170 de poids commun/peu commun, 23 de poids rare+ (or 8, bois 6, fer 3, rubis 4, émeraude 2)
-  assert.ok(Math.abs(Blocks.rareShare(100, 0) - 23 / 193) < 1e-12);
-  assert.ok(Math.abs(Blocks.rareShare(100, 7) - (23 * 1.7) / (170 + 23 * 1.7)) < 1e-12);
+  // 100 m : 170 de poids commun/peu commun + terre et argile atténuées (2,1 + 1,35, aucune profondeur
+  // maximale, #22), 23 de poids rare+ (or 8, bois 6, fer 3, rubis 4, émeraude 2)
+  const common = 170 + 2.1 + 1.35;
+  assert.ok(Math.abs(Blocks.rareShare(100, 0) - 23 / (common + 23)) < 1e-12);
+  assert.ok(Math.abs(Blocks.rareShare(100, 7) - (23 * 1.7) / (common + 23 * 1.7)) < 1e-12);
   assert.strictEqual(Blocks.rareShare(3, 12), 0, 'aucun bloc rare avant 5 m');
 });
 
@@ -87,9 +89,14 @@ test('spawn : PV tirés sans Chance (profondeur neutre), nature et récompense a
     assert.ok(Math.abs(r.rare - r.expectedRare) < 0.012, `part rare ${r.rare} vs ${r.expectedRare}`);
   }
   assert.ok(c12.rare > c0.rare * 1.7 && c12.reward > c0.reward * 1.4, 'la Chance enrichit sans ralentir');
-  // Résistance minimale inchangée (server/antibot.js s'appuie sur le plus petit hpBase tirable).
+  // Résistance minimale inchangée (server/antibot.js s'appuie sur le plus petit hpBase tirable hors
+  // blocs atténués) : seuls terre meuble et argile, atténuées au-delà de 12 / 22 m, descendent plus bas.
   GameState.upgrades.luck = 12;
-  for (let i = 0; i < 5000; i++) assert.ok(Blocks.spawn(30).maxHp >= Math.ceil(8 * (1 + 29 * 0.12)));
+  const faded = new Set(Blocks.TYPES.filter(t => t.fadeFrom != null && 30 > t.fadeFrom).map(t => Math.ceil(t.hpBase * (1 + 29 * 0.12))));
+  for (let i = 0; i < 5000; i++) {
+    const hp = Blocks.spawn(30).maxHp;
+    assert.ok(hp >= Math.ceil(8 * (1 + 29 * 0.12)) || faded.has(hp), String(hp));
+  }
 });
 
 test('getLuckPreview : part rare maintenant → niveau suivant, relique incluse, null au max', () => {
@@ -105,9 +112,9 @@ test('getLuckPreview : part rare maintenant → niveau suivant, relique incluse,
 
 test('carte Chance : libellé et aperçu traduits FR/EN/NL, séparateur décimal de la langue', () => {
   const expected = {
-    fr: ['À 100m : 11,9% de blocs rares\u00a0→\u00a013,0%', 'À 100m : 22,9% de blocs rares', 'Aucun bloc rare avant 5m', 'Plus de rares, sans ralentir'],
-    en: ['At 100m: 11.9% rare blocks\u00a0→\u00a013.0%', 'At 100m: 22.9% rare blocks', 'No rare blocks before 5m', 'More rares, no slowdown'],
-    nl: ['Op 100m: 11,9% zeldzame blokken\u00a0→\u00a013,0%', 'Op 100m: 22,9% zeldzame blokken', 'Geen zeldzame blokken vóór 5m', 'Meer zeldzame, niet trager'],
+    fr: ['À 100m : 11,7% de blocs rares\u00a0→\u00a012,7%', 'À 100m : 22,6% de blocs rares', 'Aucun bloc rare avant 5m', 'Plus de rares, sans ralentir'],
+    en: ['At 100m: 11.7% rare blocks\u00a0→\u00a012.7%', 'At 100m: 22.6% rare blocks', 'No rare blocks before 5m', 'More rares, no slowdown'],
+    nl: ['Op 100m: 11,7% zeldzame blokken\u00a0→\u00a012,7%', 'Op 100m: 22,6% zeldzame blokken', 'Geen zeldzame blokken vóór 5m', 'Meer zeldzame, niet trager'],
   };
   for (const [lang, [mid, max, none, desc]] of Object.entries(expected)) {
     const { Upgrades, GameState, I18n } = loadBrowser(lang);

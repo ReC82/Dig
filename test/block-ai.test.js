@@ -194,7 +194,7 @@ test('routes : protégées, mode test, image servie', async (t) => {
   const d = await call('POST', `/api/admin/blocks/ai/proposals/${p.body.proposal.id}/draft`, {});
   assert.deepStrictEqual([d.status, d.body.type.id], [200, 'basalte_lunaire']);
   const view = await call('GET', '/api/admin/blocks');
-  assert.strictEqual(view.body.published.version, 3, 'pas de publication automatique');
+  assert.strictEqual(view.body.published.version, 2, 'pas de publication automatique');
 });
 
 test.after(() => {

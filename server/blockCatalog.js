@@ -10,9 +10,9 @@
  *     simulé (10 000 / 100 000 tirages) puis publié atomiquement ; journal `block_catalog_audit`
  *     en ajout seul ;
  *   - un type n'est jamais supprimé une fois publié (les sauvegardes y font référence) : il se
- *     désactive. Aucune profondeur maximale pour un nouveau type ; la borne des deux blocs de
- *     surface d'origine (terre meuble ≤ 12 m, argile ≤ 22 m) est conservée telle quelle comme
- *     « borne héritée » jusqu'à décision du propriétaire ;
+ *     désactive. Aucune profondeur maximale (#22, règle du propriétaire du 30/10/2026) : une
+ *     ancienne borne (`maxDepth`, versions 1-2) est convertie en atténuation à la validation
+ *     (retour arrière compris) et refusée à la saisie ;
  *   - le budget de dégâts anti-bot (#25) suit le catalogue : PV minimum par profondeur calculés
  *     sur TOUTES les versions publiées (jamais plus strict que l'origine, cf. antibot.js).
  *
@@ -26,7 +26,7 @@
  *   - migrations de contenu (`CONTENT_MIGRATIONS`) : publiées une seule fois, par-dessus la
  *     version en vigueur, tracées dans le journal ; annulables par « Revenir à vN » ;
  *   - le catalogue public garde une projection compatible pour les clients non rechargés
- *     (`format` absent : atténuation → ancienne borne, gemme sans gemme → minerai).
+ *     (`format` absent : jamais de borne — type atténué au poids normal —, gemme sans gemme → minerai).
  */
 
 'use strict';
@@ -82,8 +82,9 @@ function originTypes() {
     hpBase: t.hpBase,
     reward: t.reward,
     minDepth: t.minDepth,
-    maxDepth: t.maxDepth ?? null,
+    maxDepth: null,
     weight: t.weight,
+    ...(t.fadeFrom != null ? { fadeFrom: t.fadeFrom, fadeWeight: t.fadeWeight } : {}),
     active: true,
   }));
   return _origin.map(t => ({ ...t }));
@@ -169,6 +170,25 @@ const STEP_B_TYPES = [
 /** Poids résiduel des deux blocs de surface au-delà de leur ancienne borne (≈ 2 % à eux deux en profondeur). */
 const SURFACE_FADE = { terre_meuble: { fadeFrom: 12, fadeWeight: 2.1 }, argile: { fadeFrom: 22, fadeWeight: 1.35 } };
 
+/** Part du poids gardée au-delà d'une ancienne borne inconnue (même ordre que terre/argile : 3 %). */
+const LEGACY_FADE_SHARE = 0.03;
+
+/**
+ * Aucune profondeur maximale (#22, règle du propriétaire du 30/10/2026). Une ancienne borne
+ * `maxDepth` (versions 1-2, brouillon antérieur) devient une atténuation au-delà de cette
+ * profondeur : le bloc reste possible partout après son seuil.
+ */
+function liftLegacyBound(t) {
+  if (!t || typeof t !== 'object' || t.maxDepth === null || t.maxDepth === undefined || t.maxDepth === '') return t;
+  const { maxDepth, ...rest } = t;
+  const from = Number(maxDepth);
+  if (rest.fadeFrom != null || !Number.isFinite(from)) return { ...rest, maxDepth: null };
+  const known = SURFACE_FADE[t.id];
+  const fadeWeight = known && known.fadeFrom === from ? known.fadeWeight
+    : Math.max(0.001, Math.round(Number(t.weight) * LEGACY_FADE_SHARE * 1000) / 1000);
+  return { ...rest, maxDepth: null, fadeFrom: from, fadeWeight };
+}
+
 /**
  * Migrations de contenu, appliquées une seule fois dans l'ordre (marqueur : action `content:<key>`
  * du journal). Chacune transforme la version en vigueur ; sans changement, rien n'est publié.
@@ -190,6 +210,7 @@ const CONTENT_MIGRATIONS = [
       // Uniquement si la borne d'origine est intacte (une modification de l'admin n'est pas écrasée)
       if (!f || t.maxDepth !== f.fadeFrom || t.fadeFrom != null) return t;
       return { ...t, maxDepth: null, ...f };
+      // Depuis #22, validateCatalog convertit de toute façon une borne restante (liftLegacyBound).
     }),
   },
 ];
@@ -258,15 +279,16 @@ function getDraft() {
 /**
  * Catalogue public (jeu) : version en vigueur, types inactifs compris (reprise du bloc #35).
  * `format` 2 : champs de l'étape B (atténuation, gemReward). Sans format (client pas encore
- * rechargé, qui ignorerait ces champs) : projection équivalente pour lui — l'atténuation redevient
- * l'ancienne borne et une gemme sans gemme est présentée comme minerai (aucune gemme distribuée).
+ * rechargé, qui ignorerait ces champs) : projection pour lui — jamais de borne maximale (#22 : un
+ * type atténué garde son poids normal chez ce client) et une gemme sans gemme est présentée comme
+ * minerai (aucune gemme distribuée).
  */
 function publicCatalog({ format = 1 } = {}) {
   const p = getPublished();
   if (format >= 2) return { version: p.version, format: 2, types: p.types };
   return { version: p.version, types: p.types.map(t => {
     const { fadeFrom, fadeWeight, gemReward, ...rest } = t;
-    if (fadeFrom != null) rest.maxDepth = fadeFrom;
+    rest.maxDepth = null;
     if (t.category === 'gemme' && gemReward === false) rest.category = 'minerai';
     return rest;
   }) };
@@ -323,15 +345,13 @@ function normalizeType(input, { legacyIds = new Set(originTypes().map(t => t.id)
   if (!_int(minDepth, 1, 1e6)) throw new CatalogError(400, `${where} : profondeur minimale (dès X m) entière ≥ 1.`);
   if (!(Number.isFinite(weight) && weight > 0 && weight <= 1e6)) throw new CatalogError(400, `${where} : poids d'apparition > 0 requis (pour retirer un bloc, le désactiver).`);
   const _opt = v => (v === null || v === undefined || v === '' ? null : Number(v));
-  const maxDepth = _opt(input.maxDepth);
-  if (maxDepth !== null) {
-    if (!legacyIds.has(id)) throw new CatalogError(400, `${where} : pas de profondeur maximale pour un nouveau bloc (#37).`);
-    if (!_int(maxDepth, minDepth, 1e6)) throw new CatalogError(400, `${where} : borne héritée ≥ profondeur minimale.`);
+  if (_opt(input.maxDepth) !== null) {
+    throw new CatalogError(400, `${where} : aucune profondeur maximale (un bloc débloqué reste possible à toute profondeur) — utilisez « atténué au-delà de ».`);
   }
+  const maxDepth = null;
   const fadeFrom = _opt(input.fadeFrom);
   let fadeWeight = null;
   if (fadeFrom !== null) {
-    if (maxDepth !== null) throw new CatalogError(400, `${where} : atténuation et borne héritée sont exclusives (retirez la borne).`);
     if (!_int(fadeFrom, minDepth, 1e6)) throw new CatalogError(400, `${where} : « atténué au-delà de » entier ≥ profondeur minimale.`);
     fadeWeight = _opt(input.fadeWeight);
     if (!(Number.isFinite(fadeWeight) && fadeWeight > 0 && fadeWeight < weight)) {
@@ -353,13 +373,13 @@ function _breakpoints(types) {
   const cuts = new Set([1]);
   for (const t of types) {
     cuts.add(t.minDepth);
-    if (t.maxDepth != null) cuts.add(t.maxDepth + 1);
     if (t.fadeFrom != null) cuts.add(t.fadeFrom + 1);
   }
   return [...cuts].sort((a, b) => a - b);
 }
 
-const _available = (t, d) => t.active && d >= t.minDepth && (t.maxDepth == null || d <= t.maxDepth);
+/** Tirable à la profondeur d : actif et `dès minDepth` (aucune profondeur maximale, #22). */
+const _available = (t, d) => t.active && d >= t.minDepth;
 /** Poids à la profondeur d (atténuation éventuelle au-delà de `fadeFrom`). */
 const weightAt = (t, d) => (t.fadeFrom != null && d > t.fadeFrom ? t.fadeWeight : t.weight);
 
@@ -375,7 +395,11 @@ function validateCatalog(rawTypes, { requiredIds = publishedIds() } = {}) {
   const seen = new Set();
   for (const raw of rawTypes) {
     try {
-      const t = normalizeType(raw);
+      const lifted = liftLegacyBound(raw);
+      if (lifted !== raw && lifted?.fadeFrom != null && raw.fadeFrom == null) {
+        warnings.push(`« ${raw.id} » : ancienne borne de ${raw.maxDepth} m convertie en atténuation (poids ${lifted.fadeWeight}), aucune profondeur maximale.`);
+      }
+      const t = normalizeType(lifted);
       if (seen.has(t.id)) { errors.push(`Identifiant « ${t.id} » en double.`); continue; }
       seen.add(t.id);
       types.push(t);
@@ -391,7 +415,6 @@ function validateCatalog(rawTypes, { requiredIds = publishedIds() } = {}) {
     if (!types.some(t => _available(t, d))) errors.push(`Aucun bloc actif à ${d} m : chaque profondeur doit avoir au moins un bloc.`);
   }
   for (const t of types) {
-    if (t.maxDepth != null) warnings.push(`« ${t.id} » garde une borne héritée (jusqu'à ${t.maxDepth} m) : à valider par le propriétaire.`);
     if (t.fadeFrom != null) warnings.push(`« ${t.id} » est atténué au-delà de ${t.fadeFrom} m (poids ${t.weight} → ${t.fadeWeight}).`);
     if (t.category === 'gemme' && t.gemReward === false) warnings.push(`« ${t.id} » : catégorie gemme sans gain de gemme (étape D / #20).`);
     if (!t.active) warnings.push(`« ${t.id} » est désactivé : il n'apparaît plus (les blocs en cours restent valides).`);
@@ -484,7 +507,7 @@ function diff(fromTypes, toTypes) {
  */
 function minHpSegments() {
   const all = [];
-  for (const r of conn().prepare('SELECT types FROM block_catalog_versions').all()) all.push(...JSON.parse(r.types).filter(t => t.active));
+  for (const r of conn().prepare('SELECT types FROM block_catalog_versions').all()) all.push(...JSON.parse(r.types).filter(t => t.active).map(liftLegacyBound));
   const cuts = _breakpoints(all);
   const segs = [];
   for (let i = 0; i < cuts.length; i++) {
@@ -617,7 +640,7 @@ function buildAdminView() {
 
 module.exports = {
   CatalogError, CATEGORIES, RARITIES, LANGS,
-  init, originTypes, getPublished, getVersion, getDraft, listVersions, publicCatalog, publishedIds,
+  init, originTypes, liftLegacyBound, getPublished, getVersion, getDraft, listVersions, publicCatalog, publishedIds,
   STEP_B_TYPES, SURFACE_FADE, CONTENT_MIGRATIONS,
   normalizeType, validateCatalog, odds, weightAt, simulate, diff, minHpSegments, refreshAntibot,
   upsertDraftType, removeDraftType, discardDraft, publishDraft, rollbackTo, listAudit, buildAdminView,
