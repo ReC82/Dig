@@ -12,6 +12,30 @@
           },
           "reference": "art/icons/v1/reference/pierre.png",
           "validated": "2026-10-29"
+        },
+        "charbon": {
+          "webp": {
+            "128": "charbon-128.webp",
+            "256": "charbon-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/charbon.json",
+          "status": "pilote"
+        },
+        "minerai_fer": {
+          "webp": {
+            "128": "minerai_fer-128.webp",
+            "256": "minerai_fer-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/minerai_fer.json",
+          "status": "pilote"
+        },
+        "diamant": {
+          "webp": {
+            "128": "diamant-128.webp",
+            "256": "diamant-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/diamant.json",
+          "status": "pilote"
         }
       }
     }

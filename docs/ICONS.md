@@ -48,6 +48,7 @@ node tools/icons/generate.js pierre --count 3             # 1 à 3 propositions
   - les WebP 256 et 128 ;
   - un aperçu sur fond sombre ;
   - `generation.json`, qui donne le modèle, les paramètres, le prompt, l'usage, le coût et les empreintes.
+- **`input_fidelity` :** envoyé seulement si `DIG_IMAGE_INPUT_FIDELITY` est défini dans la configuration. Le modèle d'édition actuel le refuse (HTTP 400). Après une erreur 4xx, les propositions suivantes de la commande sont annulées, ce qui évite de répéter l'appel.
 - **Référence officielle :** une fois validée, elle est placée dans `art/icons/v1/reference/` et envoyée **systématiquement** à l'endpoint d'édition pour chaque nouveau matériau.
 
 ## Contrôles
@@ -66,3 +67,11 @@ node tools/icons/generate.js pierre --count 3             # 1 à 3 propositions
 - `art/icons/v1/reference/pierre.json` : provenance (modèle, paramètres, prompt, coût) et empreintes du PNG maître et des exports WebP. `npm test` vérifie que les exports du jeu correspondent à cette référence.
 - `generate.js` joint cette image **automatiquement** à chaque génération d'un nouveau matériau, pour garder le même style.
 - **Ne pas remplacer ce fichier** sans nouvelle validation : il définit le style de toute la bibliothèque v1.
+
+## Matériaux pilotes (non validés)
+
+- Un matériau en aperçu, mais pas encore validé par le propriétaire, figure dans le manifeste v1 avec `"status": "pilote"`.
+- Sa provenance est dans `art/icons/v1/pilot/<matériau>.json` : proposition retenue, alternatives, modèle, prompt, coût et empreintes des exports. `npm test` vérifie que les exports correspondent à cette provenance.
+- Pour **changer de proposition**, copier `<id>/<matériau>-{128,256}.webp` depuis `art/icons/v1/candidates/` vers `public/assets/icons/v1/`, puis mettre à jour `candidate` et `exports` dans le fichier de provenance.
+- Pour **retirer un pilote**, supprimer son entrée du manifeste : le matériau repasse en emoji, même avec `?icons=v1`.
+- Après validation, l'entrée reçoit `"validated": "<date>"` et `status` disparaît. `defaultLibrary` ne bascule qu'une fois **tout le lot** validé.

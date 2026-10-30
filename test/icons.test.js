@@ -126,13 +126,34 @@ test('pierre v1 validée : manifeste, exports et référence officielle cohéren
   const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, f))).digest('hex');
   const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
   const ref = JSON.parse(fs.readFileSync(path.join(ROOT, 'art/icons/v1/reference/pierre.json'), 'utf8'));
-  assert.deepStrictEqual(Object.keys(lib.libraries.v1.materials), ['pierre'], 'seule la pierre est en v1');
+  assert.strictEqual(lib.libraries.v1.materials.pierre.validated, '2026-10-29');
   assert.strictEqual(sha('art/icons/v1/reference/pierre.png'), ref.sha256);
   for (const size of ['128', '256']) {
     const file = 'public/assets/icons/v1/' + lib.libraries.v1.materials.pierre.webp[size];
     assert.strictEqual(sha(file), ref.exports[size].sha256, `export ${size} conforme à la référence validée`);
   }
   assert.strictEqual(require('../tools/icons/generate').officialReference(), path.join(ROOT, 'art/icons/v1/reference/pierre.png'));
+});
+
+test('pilotes v1 : chaque matériau hors pierre a une provenance cohérente (empreintes, coût, référence)', () => {
+  const crypto = require('crypto');
+  const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, f))).digest('hex');
+  const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
+  const blocks = loadBlockTypes().map((t) => IconLibrary.materialId(t));
+  for (const [id, entry] of Object.entries(lib.libraries.v1.materials)) {
+    assert.ok(blocks.includes(id), `${id} : bloc existant`);
+    if (id === 'pierre') continue;
+    assert.strictEqual(entry.status, 'pilote', `${id} : non validé, donc pilote`);
+    const prov = JSON.parse(fs.readFileSync(path.join(ROOT, entry.provenance), 'utf8'));
+    assert.strictEqual(prov.material, id);
+    assert.strictEqual(prov.reference, 'art/icons/v1/reference/pierre.png', `${id} : généré depuis la pierre C`);
+    assert.ok(prov.cost_usd > 0 && prov.raw_sha256 && prov.candidate.startsWith(id + '-'));
+    for (const size of ['128', '256']) {
+      const file = 'public/assets/icons/v1/' + entry.webp[size];
+      assert.strictEqual(prov.exports[size].file, file);
+      assert.strictEqual(sha(file), prov.exports[size].sha256, `${id} ${size} : export conforme à la provenance`);
+    }
+  }
 });
 
 test('surcharge par navigateur : ?icons=v1 / legacy mémorisé, ?icons=default efface', () => {
@@ -251,7 +272,8 @@ test('openai : requête sans référence (JSON, fond transparent) et avec réfé
     const edit = oa.buildRequest(cfg, { prompt: 'p', reference: ref });
     assert.match(edit.endpoint, /images\/edits$/);
     assert.strictEqual(edit.body.get('model'), 'modele-edition');
-    assert.strictEqual(edit.body.get('input_fidelity'), 'high');
+    assert.strictEqual(edit.body.get('input_fidelity'), null, 'input_fidelity absent sauf configuration explicite');
+    assert.strictEqual(oa.buildRequest({ ...cfg, inputFidelity: 'high' }, { prompt: 'p', reference: ref }).body.get('input_fidelity'), 'high');
     assert.strictEqual(edit.body.get('background'), 'transparent');
     assert.ok(edit.body.get('image[]'), 'référence jointe');
   } finally {
@@ -281,7 +303,12 @@ test('openai : aucune trace de la clé dans les erreurs (y compris la forme masq
 
 test('prompt : texte du propriétaire mot pour mot sans référence ; gabarit maître + clause avec référence', () => {
   const materials = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools/icons/materials.json'), 'utf8')).materials;
-  assert.deepStrictEqual(Object.keys(materials), ['pierre'], 'seule la pierre est décrite');
+  const blocks = fs.readFileSync(path.join(ROOT, 'public/js/blocks.js'), 'utf8');
+  for (const [id, m] of Object.entries(materials)) {
+    assert.strictEqual(m.block, `block.${id}`, `${id} : clé = identifiant du bloc (IconLibrary.materialId)`);
+    assert.ok(blocks.includes(`name: '${m.block}'`), `${id} : bloc existant dans blocks.js`);
+    for (const k of ['subject', 'details', 'palette']) assert.ok(m[k], `${id} : ${k} renseigné`);
+  }
   const owner = buildPrompt(materials.pierre, { withReference: false });
   assert.strictEqual(owner.prompt, materials.pierre.ownerPrompt);
   const ref = buildPrompt(materials.pierre, { withReference: true });

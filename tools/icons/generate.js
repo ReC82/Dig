@@ -97,6 +97,7 @@ async function main(argv) {
       oa.appendLedger({ at: new Date().toISOString(), material: name, candidate: id, model: r.params.model, endpoint: r.endpoint, ok: false, error: err.message.slice(0, 300), cost_usd: 0 });
       console.error(`[icons] ${id} : ÉCHEC ${err.message}`);
       results.push({ id, ok: false, error: err.message });
+      if (/^OpenAI 4\d\d /.test(err.message)) { console.error('[icons] erreur de requête : propositions suivantes annulées'); break; }
       continue;
     }
     const cost = oa.costFromUsage(cfg, out.usage);

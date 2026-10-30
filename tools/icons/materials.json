@@ -12,6 +12,30 @@
       "note": "Première génération sans référence (consigne du propriétaire du 29/10/2026) : le prompt envoyé est ownerPrompt, mot pour mot.",
       "reference": "art/icons/v1/reference/pierre.png",
       "validated": "2026-10-29 — proposition C (pierre-20261029-215555-c) retenue par le propriétaire"
+    },
+    "charbon": {
+      "block": "block.charbon",
+      "legacyIcon": "🖤",
+      "status": "pilote",
+      "subject": "A single irregular lump of raw coal",
+      "details": "Rounded asymmetrical chunk with the same silhouette scale as the reference stone, composed of large and medium sharp polygonal facets; a few facets have a subtle glassy sheen typical of anthracite, with fine mineral surface detail.",
+      "palette": "Deep charcoal-black and very dark graphite surfaces with faint cool blue-gray reflections on the lit facets, near-black lower faces; it must stay clearly readable against a dark brown-black background."
+    },
+    "minerai_fer": {
+      "block": "block.minerai_fer",
+      "legacyIcon": "⚙",
+      "status": "pilote",
+      "subject": "A single irregular chunk of iron ore",
+      "details": "The same faceted gray rock as the reference stone, with several embedded metallic iron nodules and veins breaking through the facets, plus small patches of rusty oxidation around them.",
+      "palette": "Cool slate-gray rock surfaces, steel-gray metallic inclusions with bright silver highlights, warm rust-orange and reddish-brown oxide patches, darker charcoal-gray lower faces."
+    },
+    "diamant": {
+      "block": "block.diamant",
+      "legacyIcon": "💎",
+      "status": "pilote",
+      "subject": "A single raw diamond crystal",
+      "details": "Rough uncut octahedral gemstone with the same silhouette scale as the reference stone, made of large and medium translucent polygonal facets with crisp internal refractions; not a jewelry cut, not set in rock.",
+      "palette": "Icy pale cyan, white and light sky-blue translucent facets with bright sparkling highlights, deeper blue tones on the lower faces."
     }
   }
 }
