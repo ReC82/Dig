@@ -33,6 +33,14 @@ const TEMPLATES = {
       subject: 'DIG! — Adresse e-mail modifiée',
       text: (u, newEmail) => `Bonjour ${u},\n\nL'adresse e-mail de ton compte DIG! vient d'être remplacée par ${newEmail}.\nSi ce n'est pas toi, réponds à ce message ou contacte le support.\n\n— DIG!`,
     },
+    socialLinked: {
+      subject: 'DIG! — Compte Google lié',
+      text: (u, email) => `Bonjour ${u},\n\nLe compte Google ${email} vient d'être lié à ton compte DIG! : tu peux maintenant te connecter avec Google.\nSi ce n'est pas toi, change ton mot de passe et réponds à ce message.\n\n— DIG!`,
+    },
+    socialUnlinked: {
+      subject: 'DIG! — Compte Google retiré',
+      text: (u, email) => `Bonjour ${u},\n\nLe compte Google ${email} n'est plus lié à ton compte DIG!. Ton mot de passe reste valable.\nSi ce n'est pas toi, change ton mot de passe et réponds à ce message.\n\n— DIG!`,
+    },
   },
   en: {
     verify: {
@@ -47,6 +55,14 @@ const TEMPLATES = {
       subject: 'DIG! — Email address changed',
       text: (u, newEmail) => `Hi ${u},\n\nThe email address of your DIG! account was just changed to ${newEmail}.\nIf this was not you, reply to this message or contact support.\n\n— DIG!`,
     },
+    socialLinked: {
+      subject: 'DIG! — Google account linked',
+      text: (u, email) => `Hi ${u},\n\nThe Google account ${email} was just linked to your DIG! account: you can now sign in with Google.\nIf this was not you, change your password and reply to this message.\n\n— DIG!`,
+    },
+    socialUnlinked: {
+      subject: 'DIG! — Google account removed',
+      text: (u, email) => `Hi ${u},\n\nThe Google account ${email} is no longer linked to your DIG! account. Your password still works.\nIf this was not you, change your password and reply to this message.\n\n— DIG!`,
+    },
   },
   nl: {
     verify: {
@@ -60,6 +76,14 @@ const TEMPLATES = {
     emailChanged: {
       subject: 'DIG! — E-mailadres gewijzigd',
       text: (u, newEmail) => `Hallo ${u},\n\nHet e-mailadres van je DIG!-account is zojuist gewijzigd in ${newEmail}.\nWas jij dit niet? Antwoord op dit bericht of neem contact op met de support.\n\n— DIG!`,
+    },
+    socialLinked: {
+      subject: 'DIG! — Google-account gekoppeld',
+      text: (u, email) => `Hallo ${u},\n\nHet Google-account ${email} is zojuist aan je DIG!-account gekoppeld: je kunt nu inloggen met Google.\nWas jij dit niet? Wijzig je wachtwoord en antwoord op dit bericht.\n\n— DIG!`,
+    },
+    socialUnlinked: {
+      subject: 'DIG! — Google-account ontkoppeld',
+      text: (u, email) => `Hallo ${u},\n\nHet Google-account ${email} is niet langer gekoppeld aan je DIG!-account. Je wachtwoord blijft geldig.\nWas jij dit niet? Wijzig je wachtwoord en antwoord op dit bericht.\n\n— DIG!`,
     },
   },
 };
@@ -132,8 +156,8 @@ function createMailer(env = process.env) {
 
 /**
  * Prépare un message { to, subject, text }.
- * @param {'verify'|'reset'|'emailChanged'} kind
- * @param {{ to: string, username: string, lang?: string, arg: string }} p  arg = lien ou nouvelle adresse
+ * @param {'verify'|'reset'|'emailChanged'|'socialLinked'|'socialUnlinked'} kind
+ * @param {{ to: string, username: string, lang?: string, arg: string }} p  arg = lien, nouvelle adresse ou adresse Google
  */
 function compose(kind, { to, username, lang, arg }) {
   const tpl = TEMPLATES[pickLang(lang)][kind];

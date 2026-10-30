@@ -84,6 +84,7 @@ const antibot = require('./antibot');
 const { isValidEmail, intParam } = require('./validation');
 const { createMailer } = require('./mailer');
 const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
+const { resolveSocialConfig, registerSocialRoutes } = require('./socialAuth');
 
 // Secrets : refus de démarrer en production sans SESSION_SECRET solide (#12)
 let SESSION_SECRET, ADMIN_SECRET;
@@ -107,6 +108,11 @@ antibot.configure({ ipSecret: SESSION_SECRET });
 
 // E-mails de compte (#28) : désactivés tant que le SMTP n'est pas configuré
 const mailer = createMailer();
+
+// Connexion Google via Auth0 (#28) : désactivée tant que SOCIAL_LOGIN n'est pas « link »
+const socialConfig = resolveSocialConfig(process.env, { publicBaseUrl: mailer.baseUrl });
+let social;   // routes enregistrées plus bas, après les routes de compte
+if (socialConfig.enabled) console.log(`[social] connexion Google : mode ${socialConfig.mode}${socialConfig.users.size ? ` (${socialConfig.users.size} compte(s) autorisé(s))` : ''}`);
 
 // ── Middlewares ───────────────────────────────────────────────────────────────
 
@@ -334,7 +340,9 @@ app.post('/api/login', limit.login, async (req, res) => {
     }
     req.session.userId      = row.id;
     req.session.authVersion = row.auth_version ?? 0;
-    res.json({ user: { id: row.id, username: row.username } });
+    // Compte Google en attente (#28) : proposé à la liaison, jamais lié sans confirmation.
+    const socialPending = social.onPasswordLogin(req, row);
+    res.json({ user: { id: row.id, username: row.username }, ...(socialPending ? { socialPending } : {}) });
   } catch (err) {
     console.error('[login]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -348,10 +356,10 @@ app.post('/api/login', limit.login, async (req, res) => {
 app.get('/api/me', (req, res) => {
   try {
     const mail = mailer.enabled;
-    if (!req.session.userId) return res.json({ user: null, mail });
+    if (!req.session.userId) return res.json({ user: null, mail, social: social.describe(req, null) });
     const user = getUserAuth(req.session.userId);
     if (!user) { req.session.destroy(() => {}); return res.json({ user: null, mail }); }
-    res.json({ user: publicAccount(user), mail });
+    res.json({ user: publicAccount(user), mail, social: social.describe(req, user) });
   } catch (err) {
     console.error('[GET /api/me]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -368,6 +376,10 @@ app.post('/api/logout', (req, res) => {
 
 // E-mail vérifié et récupération de compte (#28)
 registerAccountRoutes(app, { limit, mailer });
+
+// Connexion Google via Auth0 Free, liaison explicite des comptes (#28)
+social = registerSocialRoutes(app, { limit, mailer, config: socialConfig });
+
 
 // ── Routes sauvegardes cloud (liées au compte) ────────────────────────────────
 

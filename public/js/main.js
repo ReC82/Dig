@@ -33,6 +33,9 @@ let _account              = null;    // { id, username, email, emailVerified } s
 let _accountTab           = 'login'; // onglet actif : login | register | forgot | reset (#28)
 let _mailEnabled          = false;   // e-mails de compte disponibles côté serveur (#28)
 let _resetToken           = null;    // jeton du lien « mot de passe oublié » ouvert (#28)
+let _social               = null;    // connexion Google (#28) : null = désactivée côté serveur
+let _socialResult         = null;    // résultat du retour Google (?social=…), lu au chargement
+const SOCIAL_SEEN_KEY     = 'dig.socialLinked'; // un compte Google a été lié sur cet appareil
 let _hasShownGuestWarning = false;   // avertissement affiché une seule fois par session
 let _seasonCpsLimit       = 8;       // seuil CPS récupéré depuis le serveur
 
@@ -1057,12 +1060,14 @@ async function _loadAccount() {
   const { ok, data } = await _apiFetch('GET', '/api/me');
   _account     = ok ? (data.user ?? null) : null;
   _mailEnabled = ok && !!data.mail;
+  _social      = ok ? (data.social ?? null) : null;
 }
 
 async function _fetchMe() {
   try {
     await _loadAccount();
-    if (_account) await _syncAfterLogin();
+    // Retour de connexion Google : même chemin qu'une connexion explicite (#18, #28)
+    if (_account) await _syncAfterLogin(_socialResult === 'ok');
   } catch (_) {
     _account = null;
   }
@@ -1091,12 +1096,23 @@ function _handleAccountLinks() {
   const params = new URLSearchParams(location.search);
   const verify = params.get('verify');
   const reset  = params.get('reset');
-  if (!verify && !reset) return;
+  const social = params.get('social');
+  if (!verify && !reset && !social) return;
   params.delete('verify');
   params.delete('reset');
+  params.delete('social');
   const qs = params.toString();
   history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash);
 
+  // Retour de connexion Google (#28) : message, puis retour dans Paramètres → Compte.
+  if (social && /^[a-z]{1,20}$/.test(social)) {
+    _socialResult = social;
+    if (social === 'linked') { try { localStorage.setItem(SOCIAL_SEEN_KEY, '1'); } catch (_) {} }
+    const good = social === 'ok' || social === 'linked';
+    const key  = `account.social_msg_${social}`;
+    showAchievement(good ? '🔗' : (social === 'pending' ? '👤' : '⚠️'), t(key) !== key ? t(key) : t('account.social_msg_error'));
+    switchView('settings');   // le parcours Google part toujours de Paramètres → Compte
+  }
   if (reset) {
     _resetToken = reset;
     _accountTab = 'reset';
@@ -1663,6 +1679,7 @@ function _accountSectionHtml() {
         </form>
       </details>
       ${changeEmail}
+      ${_socialAccountHtml()}
     </div>`;
   }
 
@@ -1702,7 +1719,77 @@ function _accountSectionHtml() {
         ? `<button type="button" class="account-link-btn" data-tab="forgot">${t('account.btn_forgot')}</button>` : ''}
       <p class="account-error" id="acc-error" role="alert"></p>
     </form>
+    ${tab === 'login' ? _socialLoginHtml() : ''}
   </div>`;
+}
+
+/**
+ * Connexion Google (#28), sous le formulaire de connexion. Bouton visible si le serveur l'ouvre
+ * à tous, ou si un compte Google a déjà été lié sur cet appareil (phase de test restreinte).
+ */
+function _socialLoginHtml() {
+  if (!_social) return '';
+  let seen = false;
+  try { seen = localStorage.getItem(SOCIAL_SEEN_KEY) === '1'; } catch (_) {}
+  const pending = _social.pending
+    ? `<div class="account-social-pending" role="status">
+        <p class="account-hint">${t('account.social_pending_hint')}</p>
+        <button type="button" class="account-link-btn" id="btn-social-pending-cancel">${t('account.btn_social_ignore')}</button>
+      </div>`
+    : '';
+  const button = (_social.loginButton || seen)
+    ? `<div class="account-social">
+        <button type="button" class="account-google-btn" id="btn-social-google">
+          <span class="account-google-g" aria-hidden="true">G</span>${t('account.social_continue')}
+        </button>
+      </div>`
+    : '';
+  return pending + button;
+}
+
+/** Bloc Google du compte connecté (#28) : identité en attente, compte lié, ou lier un compte. */
+function _socialAccountHtml() {
+  if (!_social) return '';
+  const linked = (_social.identities || []).find(i => i.provider === 'google');
+  if (_social.pending && _social.pending.email !== undefined) {
+    return `<div class="account-social-pending" role="status">
+      <p class="account-hint">${t('account.social_confirm', { email: escapeHtml(_social.pending.email || 'Google') })}</p>
+      <button type="button" class="account-submit-btn" id="btn-social-pending-link">${t('account.btn_social_confirm')}</button>
+      <button type="button" class="account-link-btn" id="btn-social-pending-cancel">${t('account.btn_social_ignore')}</button>
+      <p class="account-msg" id="acc-social-pending-msg" role="status"></p>
+    </div>`;
+  }
+  if (linked) {
+    return `<div class="account-email">
+        <span class="account-email-addr">🔗 ${t('account.social_linked_as', { email: escapeHtml(linked.email || 'Google') })}</span>
+      </div>
+      <details class="account-details">
+        <summary>${t('account.social_unlink_title')}</summary>
+        <form class="account-form" id="form-account-social-unlink" novalidate>
+          ${_accInput('acc-social-unlink-password', 'password', t('account.label_password'), 'current-password')}
+          <p class="account-hint">${t('account.social_unlink_hint')}</p>
+          <button type="submit" class="account-submit-btn" id="btn-social-unlink">${t('account.btn_social_unlink')}</button>
+          <p class="account-msg" id="acc-social-unlink-msg" role="status"></p>
+        </form>
+      </details>`;
+  }
+  if (!_social.canLink) return '';
+  return `<details class="account-details">
+      <summary>${t('account.social_link_title')}</summary>
+      <form class="account-form" id="form-account-social-link" novalidate>
+        ${_accInput('acc-social-link-password', 'password', t('account.label_password'), 'current-password')}
+        <p class="account-hint">${t('account.social_link_hint')}</p>
+        <button type="submit" class="account-submit-btn" id="btn-social-link">${t('account.btn_social_link')}</button>
+        <p class="account-msg" id="acc-social-link-msg" role="status"></p>
+      </form>
+    </details>`;
+}
+
+/** Quitte la page vers Google (via Auth0) après un dernier enregistrement local et cloud. */
+async function _goToGoogle(url) {
+  Save.save();
+  if (_account) await _syncToCloud();
+  location.assign(url);
 }
 
 /** Affiche un message de résultat sous un formulaire du compte. */
@@ -1855,6 +1942,38 @@ function _bindAccountSection(container) {
     return { ok, text: ok
       ? (data.alreadyVerified ? t('account.email_verified') : t('account.email_change_sent', { email: data.pending }))
       : (data.error || t('account.err_generic')) };
+  });
+
+  // Connexion Google (#28)
+  _onAccountClick('btn-social-google', () => _goToGoogle('/api/auth/social/start?intent=login'));
+  _onAccountClick('btn-social-pending-cancel', async () => {
+    await _apiFetch('POST', '/api/auth/social/pending/cancel');
+    await _loadAccount();
+    renderSettings();
+  });
+  _onAccountClick('btn-social-pending-link', async () => {
+    const { ok, data } = await _apiFetch('POST', '/api/auth/social/pending/link', { lang });
+    if (!ok) return _accMsg('acc-social-pending-msg', data.error || t('account.err_generic'), false);
+    try { localStorage.setItem(SOCIAL_SEEN_KEY, '1'); } catch (_) {}
+    showAchievement('🔗', t('account.social_msg_linked'));
+    await _loadAccount();
+    renderSettings();
+  });
+  _onAccountSubmit('form-account-social-link', 'acc-social-link-msg', async () => {
+    const password = document.getElementById('acc-social-link-password').value;
+    const { ok, data } = await _apiFetch('POST', '/api/auth/social/link/prepare', { password });
+    if (!ok) return { ok: false, text: data.error || t('account.err_generic') };
+    await _goToGoogle(data.url);
+    return null;
+  });
+  _onAccountSubmit('form-account-social-unlink', 'acc-social-unlink-msg', async () => {
+    const password = document.getElementById('acc-social-unlink-password').value;
+    const { ok, data } = await _apiFetch('POST', '/api/auth/social/unlink', { password, lang });
+    if (!ok) return { ok: false, text: data.error || t('account.err_generic') };
+    showAchievement('🔗', t('account.social_unlinked'));
+    await _loadAccount();
+    renderSettings();
+    return null;
   });
 
   // Connexion / inscription

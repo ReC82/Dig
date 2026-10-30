@@ -188,6 +188,76 @@ Un échec d'envoi est journalisé (`journalctl -u dig | grep '\[mail\]'`) sans l
 Limites : `RATE_MAIL_MAX` (5 envois / IP / 15 min), `RATE_TOKEN_MAX` (20 liens refusés / IP / 15 min).
 Comparatif Auth0 et choix : `docs/AUTH-COMPARATIF.md`.
 
+## Connexion Google via Auth0 Free (ticket #28)
+
+**Désactivée par défaut** (`SOCIAL_LOGIN` absent ou `off`) : aucune route `/api/auth/social/*`,
+aucun bouton, aucun appel à Auth0. La table `user_identities` reste vide. Le mot de passe
+reste toujours valable, même pour un compte lié.
+
+Mode `link` : un joueur **existant** lie son compte Google dans Paramètres → Compte. Il confirme
+d'abord son mot de passe, puis se connecte à Google. Ensuite, « Continuer avec Google » le
+connecte. Ce mode ne crée aucun compte « Google seul » et ne fait aucune liaison sur la seule
+égalité des adresses e-mail.
+
+### Mise en service par le propriétaire (≈ 20 min, gratuit)
+
+1. **Auth0** (https://auth0.com, offre Free) :
+   - créer le tenant en **région EU** (domaine `…eu.auth0.com`) ;
+   - activer la **MFA** du compte administrateur.
+2. **Auth0 → Applications → Create Application** : « DIG! », type **Regular Web Application**.
+   Dans *Settings* :
+   - **Allowed Callback URLs** :
+     `https://dig.lodygames.com/api/auth/social/callback, https://dig.lodylands.com/api/auth/social/callback`
+   - Noter **Domain**, **Client ID** et **Client Secret**.
+   - Laisser les autres champs vides. Les valeurs par défaut conviennent : signature RS256,
+     authentification du client par secret.
+3. **Google Cloud** (https://console.cloud.google.com) :
+   - créer un projet « DIG » ;
+   - *Écran de consentement OAuth* : type Externe, nom « DIG! », e-mail d'assistance, statut
+     **Test**, ton adresse Gmail en *utilisateur test* ;
+   - *Identifiants → Créer un ID client OAuth → Application Web* :
+     - origine JavaScript : `https://<domaine Auth0>` ;
+     - URI de redirection : `https://<domaine Auth0>/login/callback`.
+   - Noter l'ID client et le secret Google.
+4. **Auth0 → Authentication → Social → Google / Gmail** :
+   - coller l'ID client et le secret Google ;
+   - garder seulement les attributs de base (email, profile) ;
+   - dans *Applications*, activer la connexion pour « DIG! » uniquement.
+   - Dans **Database → Username-Password-Authentication → Applications**, désactiver « DIG! » :
+     les mots de passe restent gérés par DIG!.
+5. **Serveur** : ajouter dans `/etc/dig/dig.env` (une variable par ligne), puis
+   `sudo systemctl restart dig` :
+
+   ```
+   SOCIAL_LOGIN=link
+   SOCIAL_LOGIN_USERS=<ton nom d'utilisateur DIG!>
+   AUTH0_DOMAIN=<domaine>.eu.auth0.com
+   AUTH0_CLIENT_ID=…
+   AUTH0_CLIENT_SECRET=…
+   ```
+
+   Contrôle :
+   - `journalctl -u dig --since -2min | grep social` → `connexion Google : mode link (1 compte(s) autorisé(s))` ;
+   - un message `désactivée : …` indique le réglage manquant.
+
+`SOCIAL_LOGIN_USERS` limite la liaison et la connexion Google aux comptes listés : c'est la phase
+de recette du propriétaire. Une fois la recette faite, retirer la ligne pour ouvrir la liaison à
+tous. Le bouton « Continuer avec Google » apparaît alors pour tous sur l'écran de connexion. Le
+passage du consentement Google en « Production » se fait dans la console Google.
+
+Autres variables : `AUTH0_CONNECTION` (défaut `google-oauth2`), `SOCIAL_ORIGINS` (défaut : les deux
+domaines du jeu) et `RATE_SOCIAL_MAX` (30 départs/retours par IP et par 15 min).
+`OIDC_ISSUER` sert aux tests uniquement et est refusé en production.
+
+**Retour arrière** : `SOCIAL_LOGIN=off` (ou supprimer la ligne), puis `sudo systemctl restart dig`.
+Les joueurs se connectent alors par mot de passe, comme avant. Les liaisons restent en base sans
+effet et resservent à la réactivation.
+
+**Journal** :
+- `user_events` reçoit `social_linked`, `social_login` et `social_unlinked` ;
+- les refus sont journalisés (`journalctl -u dig | grep '\[social\]'`) sans jeton ;
+- si le SMTP est configuré, chaque liaison ou retrait est notifié à l'adresse du compte.
+
 ## Tests
 
 ```bash

@@ -160,6 +160,12 @@ progression n'est jamais touchée : on ajoute une ligne `user_identities`, sans 
 
 ## 5. Plan de test et de mise en place progressive (avec retour arrière)
 
+> **Avancement (30/10/2026, session 5)** : étape 1 livrée. Le code est déployé, endormi derrière
+> `SOCIAL_LOGIN=off`. Les tests OIDC utilisent un faux émetteur local. Le mode `link` et la liste
+> blanche `SOCIAL_LOGIN_USERS` sont prêts pour l'étape 2. La procédure de mise en service est dans
+> `docs/OPERATIONS.md`, section « Connexion Google via Auth0 Free ». Le mode `on` (création de
+> comptes « Google seul », étape 4) n'est pas développé : il attend le SMTP.
+
 **Tests automatisés** (avant toute activation), avec un faux émetteur OIDC local dans les tests
 (clé générée au lancement, aucun appel extérieur) :
 nouveau compte ; identité connue ; adresse identique **sans** liaison automatique ; liaison après

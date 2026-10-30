@@ -10,6 +10,7 @@
  *   RATE_SAVE_MAX        sauvegardes cloud par compte (ou IP) / minute  (défaut 30)
  *   RATE_MAIL_MAX        envois d'e-mails de compte par IP / 15 minutes (défaut 5, #28)
  *   RATE_TOKEN_MAX       liens e-mail refusés par IP / 15 minutes       (défaut 20, #28)
+ *   RATE_SOCIAL_MAX      départs/retours de connexion Google par IP / 15 min (défaut 30, #28)
  *   RATE_LIMIT           « off » désactive toutes les limites (diagnostic uniquement)
  */
 
@@ -34,12 +35,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass };
   }
 
   const common = {
@@ -99,6 +100,13 @@ function createRateLimiters(env = process.env) {
       windowMs:               15 * MINUTE,
       limit:                  intFromEnv(env, 'RATE_TOKEN_MAX', 20),
       skipSuccessfulRequests: true,
+    }),
+
+    // Connexion Google (#28) : départs et retours d'Auth0, toutes les requêtes comptent.
+    social: rateLimit({
+      ...common,
+      windowMs: 15 * MINUTE,
+      limit:    intFromEnv(env, 'RATE_SOCIAL_MAX', 30),
     }),
   };
 }
