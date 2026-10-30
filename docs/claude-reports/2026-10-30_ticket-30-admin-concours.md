@@ -9,11 +9,10 @@
 
 ## 1. État réel
 
-**Déployé en production (SHA `1ef0693`) le 30/10/2026 à 14:34 (Bruxelles) — en attente de recette.**
-Aucun changement visible pour les joueurs. Le nouvel onglet admin « 🎁 Concours » est en ligne, mais
-**le panel admin est désactivé en production depuis #12** : `ADMIN_SECRET` n'est pas défini dans
-`/etc/dig/dig.env` (l'API admin répond 503, comme avant ce déploiement). Le propriétaire doit
-l'ajouter pour faire la recette (§ 6).
+**Déployé en production (SHA `1ef0693`, toujours présent dans la version servie `36b9e70`) —
+en attente de recette.** Mise à jour du 30/10/2026 à 16:55 (Bruxelles, session 2) : le propriétaire
+a ajouté `ADMIN_SECRET` ; **le panel admin est désormais actif en production** et protégé (§ 10).
+Aucun changement visible pour les joueurs.
 
 ## 2. Périmètre retenu
 
@@ -165,7 +164,7 @@ tard (valeurs modifiables dans le panel, sans code) :
    sans nouveau gain, le lot passe au suivant (recommandation de #27).
 2. **Lot expiré** : (a) non réattribué, il retourne au stock (comportement actuel, **recommandé**,
    simple et transparent) ; (b) réattribué au suivant du classement (développement à prévoir).
-3. **Panel admin en production** : ajouter `ADMIN_SECRET` (§ 6, étape 0) — nécessaire pour la recette.
+3. ~~Panel admin en production : ajouter `ADMIN_SECRET`~~ — **fait par le propriétaire le 30/10, vérifié (§ 10).**
 
 ## 9. Restant à réaliser
 
@@ -175,3 +174,45 @@ tard (valeurs modifiables dans le panel, sans code) :
 - Harmoniser la clôture admin manuelle (`PUT … status: closed`) avec les promotions (#19, repéré
   dans #29, hors périmètre).
 - Option : attribution automatique en simulation à chaque clôture.
+
+## 10. Mise à jour du 30/10/2026, 16:55 (session 2) — `ADMIN_SECRET` actif en production
+
+Demande du propriétaire (commentaire du 30/10, 15:40 UTC) : vérifier, **sans afficher ni divulguer
+la valeur**, que le service charge `ADMIN_SECRET`, que `/admin/` n'est accessible qu'avec
+l'authentification attendue et que les fonctions admin (#30, #33, #34, #44) répondent.
+
+Aucune modification de code, aucune écriture en base de production, **aucun redémarrage
+nécessaire** : `dig.service` avait déjà été redémarré à 16:30 (Bruxelles), après l'ajout de la
+variable. Le fichier `/etc/dig/dig.env` et l'environnement du service n'ont pas été lus ; la
+vérification se fait uniquement par le comportement de l'API.
+
+**Production (`1.0.0+36b9e70`, les deux domaines)**
+
+| Contrôle | Résultat |
+|---|---|
+| `/admin/` (page de connexion, statique) | 200 sur https://dig.lodygames.com et https://dig.lodylands.com |
+| 15 routes `GET /api/admin/…` sans jeton | **401** « Accès refusé » (et non plus **503** « non configuré ») → la variable est chargée et de longueur suffisante |
+| Les mêmes routes avec un jeton faux | **401** |
+| Journal `dig` depuis 16:30 | aucune erreur ni avertissement (pas de « ADMIN_SECRET trop faible ») |
+
+Les routes couvrent #30 (`contest`, `contest/winners`, `contest/audit`), #33 (`points`),
+#34 (`shop`, `shop/audit`), #44 (`seasons/active/end`), ainsi que saisons, ligues, config,
+sécurité et anti-triche.
+
+**Réponses authentifiées** — je ne connais pas la clé de production (et ne dois pas la lire).
+Le même code (`36b9e70`) a donc été démarré sur une **copie de la base de production** en mode
+production, avec une clé de test aléatoire (port 3122, copie et clé supprimées ensuite) :
+
+- 14 routes admin → **200** ; `players/search` sans paramètre → 400 attendu ;
+- #30 : réglages du concours (`enabled: false`), gagnants `[]`, journal vide ; **aperçu de la saison
+  « Saison 44-2026 » (close, figée par #44) → 200**, mode simulation, source « snapshot » avec
+  l'empreinte du classement figé ; saison active « Saison 44-2026 · 2 » → aperçu en direct (200) ;
+- #33 : barème des points (`mode: live`) ; #34 : boutique (`realEnabled: false`) ; #44 : fin de la
+  saison active (200) ;
+- **lots réels toujours verrouillés** (`CONTEST_REAL_PRIZES` absent → bandeau simulation),
+  aucune attribution ni action d'écriture effectuée.
+
+**Recette par le propriétaire** : la procédure du § 6 s'applique telle quelle, **sans l'étape 0**
+(déjà faite). À l'étape 3, choisir la saison **« Saison 44-2026 (closed, figée) »** (clôturée le
+30/10 à 16h par #44). Résultat attendu : connexion refusée avec une mauvaise clé ; avec la bonne
+clé, l'onglet 🎁 Concours s'ouvre avec le bandeau jaune « Simulation uniquement ».
