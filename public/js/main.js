@@ -1096,7 +1096,11 @@ async function _pushSave(retry) {
   try {
     res = await _apiFetch('POST', '/api/me/save', { data, baseRevision: _baseRevision() });
   } catch (_) { return 'error'; }
-  if (res.ok) { _setCloudMeta(res.data.revision); return 'ok'; }
+  if (res.ok) {
+    _setCloudMeta(res.data.revision);
+    _refreshSeasonView();   // onglet Saison ouvert : chiffres serveur à jour après la sauvegarde
+    return 'ok';
+  }
   if (res.status === 409 && res.data?.conflict) return _handleSaveConflict(res.data.save, retry);
   if (res.status === 401) { _account = null; _cloudReady = false; }
   return 'error';
@@ -1290,7 +1294,11 @@ async function _pollSeason() {
 
 // ── Rendu vue Saison ─────────────────────────────────────────────────────────
 
-function renderSeasonView(apiData) {
+/**
+ * @param {object} apiData    Réponse de GET /api/seasons/current
+ * @param {object} [lbData]   Classement déjà chargé (actualisation : pas d'écran de chargement)
+ */
+function renderSeasonView(apiData, lbData) {
   const el = document.getElementById('view-season');
   if (!el) return;
 
@@ -1329,9 +1337,10 @@ function renderSeasonView(apiData) {
       </div>`;
   }
 
-  // Section info saison (collapsible)
+  // Section info saison (collapsible) — reste ouverte lors d'une actualisation
+  const infoOpen = el.querySelector('.season-info-card')?.open ? ' open' : '';
   const infoHtml = `
-    <details class="season-info-card">
+    <details class="season-info-card"${infoOpen}>
       <summary class="season-info-toggle">${t('season.info.toggle')}</summary>
       <div class="season-info-body">
         <p class="season-info-intro">${t('season.info.intro')}</p>
@@ -1361,6 +1370,7 @@ function renderSeasonView(apiData) {
 
   // Charger le leaderboard
   const lbId = 'season-lb-body';
+  const scrollTop = el.scrollTop;
   el.innerHTML = `
     <div class="view-title-bar">${t('season.title')} — ${escapeHtml(season.name)}</div>
     <p class="season-ends-in">${endsIn}</p>
@@ -1368,10 +1378,11 @@ function renderSeasonView(apiData) {
     ${infoHtml}
     <h3 class="season-section-title">${t('season.leaderboard')}</h3>
     <div class="season-leaderboard" id="${lbId}">
-      <p class="season-loading">${t('season.loading')}</p>
+      ${lbData ? _leaderboardHtml(lbData) : `<p class="season-loading">${t('season.loading')}</p>`}
     </div>`;
+  el.scrollTop = scrollTop;
 
-  _loadLeaderboard(season.id, lbId);
+  if (!lbData) _loadLeaderboard(season.id, lbId);
 }
 
 async function _loadLeaderboard(seasonId, containerId) {
@@ -1379,11 +1390,13 @@ async function _loadLeaderboard(seasonId, containerId) {
     const { ok, data } = await _apiFetch('GET', `/api/seasons/${seasonId}/leaderboard`);
     const el = document.getElementById(containerId);
     if (!el) return;
-    if (!ok || !data.leaderboard?.length) {
-      el.innerHTML = `<p class="season-empty">${escapeHtml(t('season.empty'))}</p>`;
-      return;
-    }
-    el.innerHTML = data.leaderboard.map(row => {
+    el.innerHTML = _leaderboardHtml(ok ? data : null);
+  } catch (err) { console.warn('[saison] classement indisponible', err); }
+}
+
+function _leaderboardHtml(data) {
+  if (!data?.leaderboard?.length) return `<p class="season-empty">${escapeHtml(t('season.empty'))}</p>`;
+  return data.leaderboard.map(row => {
       const medal  = row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${escapeHtml(row.rank)}`;
       const league = row.league ? `<span class="lb-league">${escapeHtml(row.league.icon)}</span>` : '';
       const isMe   = _account && row.username === _account.username;
@@ -1393,18 +1406,43 @@ async function _loadLeaderboard(seasonId, containerId) {
         <span class="lb-depth">${escapeHtml(row.maxDepth)}m</span>
         <span class="lb-blocks">👆${escapeHtml(row.manualBlocks)}</span>
       </div>`;
-    }).join('');
-  } catch (err) { console.warn('[saison] classement indisponible', err); }
+  }).join('');
+}
+
+// Actualisation de l'onglet Saison lorsqu'il est affiché : après chaque sauvegarde cloud
+// réussie (≤ 1 toutes les 12 s pendant le minage) et toutes les 30 s sinon (progression des
+// autres joueurs). Rien n'est demandé si l'onglet est masqué ou la page en arrière-plan.
+const SEASON_REFRESH_MIN_MS  = 10_000;
+const SEASON_REFRESH_IDLE_MS = 30_000;
+let _seasonRefreshAt   = 0;
+let _seasonRefreshing  = false;
+
+async function _refreshSeasonView() {
+  if (!isViewActive('season') || document.hidden || _seasonRefreshing) return;
+  if (Date.now() - _seasonRefreshAt < SEASON_REFRESH_MIN_MS) return;
+  _seasonRefreshing = true;
+  _seasonRefreshAt  = Date.now();
+  try {
+    const cur = await _apiFetch('GET', '/api/seasons/current');
+    if (!cur.ok || !cur.data.season) return;
+    const lb = await _apiFetch('GET', `/api/seasons/${cur.data.season.id}/leaderboard`);
+    if (isViewActive('season')) renderSeasonView(cur.data, lb.ok ? lb.data : null);
+  } catch (_) {
+  } finally { _seasonRefreshing = false; }
 }
 
 async function _openSeasonView() {
   const el = document.getElementById('view-season');
   if (el) el.innerHTML = `<div class="view-title-bar">${t('season.title')}</div><p class="season-loading">${t('season.loading')}</p>`;
   try {
+    // Sauvegarde cloud en attente envoyée d'abord : le classement reflète le minage récent
+    _seasonRefreshAt = Date.now();
+    if (_cloudTimer) await _syncToCloud();
     const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
     if (ok && data.season) {
       _seasonCpsLimit = data.config?.cpsLimit ?? 8;
       _applyServerEconomy(data.config?.economy);
+      _seasonRefreshAt = Date.now();
       renderSeasonView(data);
     }
   } catch (_) {}
@@ -2099,6 +2137,7 @@ function init() {
   setInterval(autoDigTick,         1_000);
   setInterval(() => { renderBoostBanner(); updateAdButtonState(); }, 1_000);
   setInterval(_pollSeason,      5 * 60_000); // vérifie la saison toutes les 5 min
+  setInterval(_refreshSeasonView, SEASON_REFRESH_IDLE_MS); // onglet Saison affiché uniquement
 
   // Récupère l'état de session (non bloquant — la page est déjà jouable)
   _fetchMe();
