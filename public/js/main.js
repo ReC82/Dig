@@ -1752,9 +1752,17 @@ function renderSeasonView(apiData, lbData) {
               <li>🔮 ${t('season.info.k_frags')}</li>
               <li>✨ ${t('season.info.k_relics')}</li>
               <li>🎁 ${t('season.info.k_bonuses')}</li>
+              <li>🏅 ${t('season.info.k_points')}</li>
             </ul>
           </div>
         </div>
+        <div class="season-info-col-title">${t('season.merit.title')}</div>
+        <ul class="season-info-list season-merit-list">
+          <li>${t('season.merit.join')}</li>
+          <li>${t('season.merit.order')}</li>
+          <li>${t('season.merit.freeze', { date: escapeHtml(_fmtUtc(season.endAt, { dateStyle: 'medium', timeStyle: 'short' })) })}</li>
+          <li>${t('season.merit.points')}</li>
+        </ul>
       </div>
     </details>`;
 
@@ -1765,6 +1773,7 @@ function renderSeasonView(apiData, lbData) {
     <div class="view-title-bar">${t('season.title')} — ${escapeHtml(season.name)}</div>
     <p class="season-ends-in">${endsIn}</p>
     ${playerHtml}
+    <div id="season-last">${_lastResultHtml()}</div>
     <div id="season-points">${_pointsHtml()}</div>
     <div id="season-shop">${_shopHtml()}</div>
     ${infoHtml}
@@ -1776,6 +1785,79 @@ function renderSeasonView(apiData, lbData) {
 
   if (!lbData) _loadLeaderboard(season.id, lbId);
   if (!_pointsData && _account) _loadPoints();
+  if (!_lastResult) _loadLastResult();
+}
+
+/** Date UTC du serveur (« AAAA-MM-JJ hh:mm:ss[.mmm] ») affichée en heure locale. */
+function _fmtUtc(v, opts = { dateStyle: 'medium' }) {
+  const x = new Date(String(v ?? '').replace(' ', 'T') + (String(v ?? '').includes('Z') ? '' : 'Z'));
+  return isNaN(x) ? String(v ?? '') : x.toLocaleString(I18n.getCurrent(), opts);
+}
+
+/** Message d'erreur de l'onglet Saison, avec bouton « Réessayer ». */
+function _seasonErrorHtml() {
+  return `<p class="season-error" role="alert">${t('season.error')}
+    <button type="button" class="season-retry-btn" data-season-retry>${t('season.retry')}</button></p>`;
+}
+
+// ── Résultat figé de la saison précédente (#29, #31) ─────────────────────────
+
+let _lastResult = null;   // { state: 'ok', data } | { state: 'none' } | { state: 'error' }
+
+async function _loadLastResult() {
+  try {
+    const res = await _apiFetch('GET', '/api/seasons/last/standings');
+    _lastResult = res.ok ? { state: 'ok', data: res.data } : res.status === 404 ? { state: 'none' } : { state: 'error' };
+  } catch (_) { _lastResult = { state: 'error' }; }
+  const el = document.getElementById('season-last');
+  if (el) el.innerHTML = _lastResultHtml();
+}
+
+function _lastResultHtml() {
+  const r = _lastResult;
+  if (!r || r.state === 'none') return '';
+  if (r.state === 'error') return `<div class="last-card">${_seasonErrorHtml()}</div>`;
+  const { season, snapshot, standings, me } = r.data;
+  const n = v => Number(v).toLocaleString(I18n.getCurrent());
+  const open = document.querySelector('#season-last .last-proof')?.open ? ' open' : '';
+
+  const podium = standings.filter(x => x.eligible && x.rank <= 3).map(x => {
+    const medal = ['🥇', '🥈', '🥉'][x.rank - 1];
+    const isMe  = me && x.userId === me.userId;
+    return `<li class="${isMe ? 'last-me' : ''}"><span><span aria-hidden="true">${medal}</span>
+        <span class="sr-only">${t('season.last.rank_sr', { n: n(x.rank) })}</span>
+        ${x.league ? `<span aria-hidden="true">${escapeHtml(x.league.icon)}</span>` : ''}${escapeHtml(x.username ?? t('season.last.deleted'))}</span>
+      <span class="points-num">${t('season.last.depth', { n: n(x.maxDepth) })}</span></li>`;
+  }).join('');
+
+  let mine;
+  if (!_account)           mine = '';
+  else if (!me)            mine = t('season.last.me_absent');
+  else if (!me.eligible)   mine = t('season.last.me_ineligible');
+  else {
+    const award = (_pointsData?.awards ?? []).find(a => a.seasonId === season.id && (a.mode === 'live' || _pointsData.mode !== 'live'));
+    const pts = !award ? '' : award.mode === 'live'
+      ? ' · ' + t('season.last.me_points', { n: n(award.points) })
+      : ' · ' + t('season.last.me_points_sim', { n: n(award.points) });
+    mine = t('season.last.me_rank', { rank: n(me.rank), n: n(snapshot.eligible), depth: n(me.maxDepth) }) + pts;
+  }
+
+  return `
+    <section class="points-card last-card" aria-labelledby="last-title">
+      <div class="points-head">
+        <h3 class="points-title" id="last-title">${t('season.last.title', { name: escapeHtml(season.name ?? '') })}</h3>
+      </div>
+      <p class="points-note">${t('season.last.frozen', { date: escapeHtml(_fmtUtc(snapshot.createdAt, { dateStyle: 'medium', timeStyle: 'short' })), p: n(snapshot.participants), e: n(snapshot.eligible) })}</p>
+      ${snapshot.eligible ? `<ol class="points-list last-podium" aria-label="${t('season.last.podium')}">${podium}</ol>`
+        : `<p class="points-empty">${t('season.last.nobody')}</p>`}
+      ${mine ? `<p class="points-potential last-mine">${mine}</p>` : ''}
+      <details class="points-details last-proof"${open}>
+        <summary>${t('season.last.proof_toggle')}</summary>
+        <p class="points-note">${t('season.last.proof_text')}</p>
+        <p class="points-note">${t('season.last.hash')} <code class="last-hash">${escapeHtml(snapshot.hash)}</code></p>
+        <p class="points-note"><a href="/api/seasons/${encodeURIComponent(season.id)}/standings" target="_blank" rel="noopener">${t('season.last.proof_link')}</a></p>
+      </details>
+    </section>`;
 }
 
 // ── Points de récompense saisonniers (#33) ───────────────────────────────────
@@ -1794,6 +1876,8 @@ async function _loadPoints() {
     if (el) el.innerHTML = _pointsHtml();
     const sh = document.getElementById('season-shop');
     if (sh) sh.innerHTML = _shopHtml();
+    const last = document.getElementById('season-last');
+    if (last) last.innerHTML = _lastResultHtml();
   } catch (_) {}
 }
 
@@ -1848,6 +1932,7 @@ function _pointsHtml() {
       </div>
       ${d.mode !== 'live' ? `<p class="points-sim-banner">${t('points.simulation')}</p>` : `<p class="points-live-banner">${t('points.live')}</p>`}
       <p class="points-potential">${potHtml}</p>
+      ${_shopData ? `<button type="button" class="points-shop-link" data-scroll-shop>${t('points.shop_link', { n: n(_shopData.items.length) })}</button>` : ''}
       <details class="points-details points-scale"${open('.points-scale')}>
         <summary>${t('points.scale_toggle')}</summary>
         <table class="points-table">${scaleRows}</table>
@@ -1986,7 +2071,14 @@ document.addEventListener('click', (e) => {
   const buy = e.target.closest?.('[data-shop-item]');
   if (buy) { _shopExchange(Number(buy.dataset.shopItem)); return; }
   const cancel = e.target.closest?.('[data-shop-cancel]');
-  if (cancel) _shopCancel(Number(cancel.dataset.shopCancel));
+  if (cancel) { _shopCancel(Number(cancel.dataset.shopCancel)); return; }
+  if (e.target.closest?.('[data-scroll-shop]')) {
+    const sh = document.querySelector('#season-shop .shop-card');
+    sh?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    sh?.querySelector('button:not([disabled]), summary')?.focus({ preventScroll: true });
+    return;
+  }
+  if (e.target.closest?.('[data-season-retry]')) { _lastResult = null; _openSeasonView(); }
 });
 
 async function _loadLeaderboard(seasonId, containerId) {
@@ -2051,9 +2143,12 @@ async function _openSeasonView() {
       _pointsData = null;   // rechargé par renderSeasonView (compte courant)
       _shopData   = null;
       _shopMsg    = null;
+      _lastResult = null;   // résultat figé : rechargé (nouvelle clôture, compte courant)
       renderSeasonView(data);
+      return;
     }
   } catch (_) {}
+  if (el && isViewActive('season')) el.innerHTML = `<div class="view-title-bar">${t('season.title')}</div>${_seasonErrorHtml()}`;
 }
 
 // ── Rendu paramètres ─────────────────────────────────────────────────────────
