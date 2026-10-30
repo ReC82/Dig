@@ -53,6 +53,8 @@ function loadConfig(file = CONFIG_FILE) {
     model:          c.DIG_IMAGE_MODEL || 'gpt-image-2.5-flare',
     editModel:      c.DIG_IMAGE_EDIT_MODEL || '',
     quality:        c.DIG_IMAGE_QUALITY || 'high',
+    // Facultatif : certains modèles d'édition refusent input_fidelity (400 invalid_input_fidelity_model).
+    inputFidelity:  c.DIG_IMAGE_INPUT_FIDELITY || '',
     budgetUsd:      num('DIG_IMAGE_BUDGET_USD', 3),
     maxPerRun:      num('DIG_IMAGE_MAX_PER_RUN', 3),
     estCostUsd:     num('DIG_IMAGE_EST_COST_USD', 0.25),
@@ -136,14 +138,14 @@ function costFromUsage(cfg, usage) {
  * Prépare la requête (sans l'envoyer) : édition avec référence si fournie, sinon génération.
  * Paramètres fixes pour la cohérence de la bibliothèque : carré 1024, PNG, fond transparent.
  */
-function buildRequest(cfg, { prompt, reference = null, size = '1024x1024', inputFidelity = 'high' }) {
+function buildRequest(cfg, { prompt, reference = null, size = '1024x1024', inputFidelity = cfg.inputFidelity }) {
   const params = { model: cfg.model, prompt, size, quality: cfg.quality, n: 1, background: 'transparent', output_format: 'png' };
   if (!reference) {
     return { endpoint: `${API}/images/generations`, params, body: JSON.stringify(params), json: true };
   }
   const form = new FormData();
   const editParams = { ...params, model: cfg.editModel || cfg.model };
-  if (cfg.editModel && inputFidelity) editParams.input_fidelity = inputFidelity;
+  if (inputFidelity) editParams.input_fidelity = inputFidelity;
   for (const [k, v] of Object.entries(editParams)) form.append(k, String(v));
   const buf = fs.readFileSync(reference);
   form.append('image[]', new Blob([buf], { type: 'image/png' }), path.basename(reference));

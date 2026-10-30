@@ -1,0 +1,54 @@
+{
+  "material": "minerai_fer",
+  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
+  "status": "pilote",
+  "choice": "proposition C (choix technique de la session, modifiable)",
+  "candidate": "minerai_fer-20261030-095139-c",
+  "alternatives": [
+    "minerai_fer-20261030-095139-a",
+    "minerai_fer-20261030-095139-b"
+  ],
+  "master_sha256": "c178533b7516f810a0944b10454f6c844dc2f64b02a84967f67c3a09f3bd1508",
+  "raw_sha256": "33d6fb675ef66d0fe80ab69dccc9fc2e3978d61b82cfe10d0aea4bde0fdeda8f",
+  "model": "gpt-image-2.5-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/edits",
+  "params": {
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "A single irregular chunk of iron ore, premium stylized 3D low-poly game resource icon. The same faceted gray rock as the reference stone, with several embedded metallic iron nodules and veins breaking through the facets, plus small patches of rusty oxidation around them. Cool slate-gray rock surfaces, steel-gray metallic inclusions with bright silver highlights, warm rust-orange and reddish-brown oxide patches, darker charcoal-gray lower faces. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png",
+    "reference": "pierre.png"
+  },
+  "prompt": "A single irregular chunk of iron ore, premium stylized 3D low-poly game resource icon. The same faceted gray rock as the reference stone, with several embedded metallic iron nodules and veins breaking through the facets, plus small patches of rusty oxidation around them. Cool slate-gray rock surfaces, steel-gray metallic inclusions with bright silver highlights, warm rust-orange and reddish-brown oxide patches, darker charcoal-gray lower faces. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+  "prompt_source": "prompt-master.md",
+  "prompt_master_version": "v1.0",
+  "reference": "art/icons/v1/reference/pierre.png",
+  "cost_usd": 0.0818,
+  "generatedAt": "2026-10-30T09:53:49.094Z",
+  "legibility": {
+    "objectMeanRgb": [
+      120,
+      103,
+      92
+    ],
+    "highlightRatio": 0.266,
+    "contrast": {
+      "bloc pierre (#4b5563)": 1.4,
+      "bloc pierre (#374151)": 1.91,
+      "page (#111827)": 3.29
+    }
+  },
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/minerai_fer-128.webp",
+      "sha256": "90be68f961f591bf0d1a044b90d249edb4f8def384022839ef02cbf082ec66f3"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/minerai_fer-256.webp",
+      "sha256": "0bda2b571291f786048442f9331b414eeafc8a9b9f940a7a700ed4af294cdcc0"
+    }
+  }
+}
