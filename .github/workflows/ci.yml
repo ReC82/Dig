@@ -22,14 +22,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
-      fail-fast: false
       matrix:
-        node: ['20', '22']   # 22 = version de production ; 20 = minimum de sharp (outils icônes)
+        node: ['22']   # version de production (Node 20 est en fin de vie depuis avril 2026)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0     # test/deploy.test.js clone le dépôt et rejoue un déploiement git
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
           cache: npm
