@@ -6,6 +6,8 @@
 
 ## 1. État réel
 
+> **Mise à jour du 30/10, 13:29 (voir §13) :** **lot complet — les 14 blocs du jeu** ont leur icône v1, **déployé en production** (SHA `0f58670`). Visible seulement avec `?icons=v1` ; l'adresse normale garde les emoji. **Planche complète : https://dig.lodylands.com/assets/icons/planche-v1.webp**. En attente de **ta recette visuelle globale**.
+
 > **Mise à jour du 30/10, 11:07 (voir §12) :** pilote **charbon, minerai de fer et diamant** **déployé en production** (SHA `4988e19`). Les icônes sont visibles seulement avec `?icons=v1` : l'adresse normale garde les emoji pour tous les joueurs. **En attente de ta recette visuelle.**
 
 > **Mise à jour du 30/10 (voir §11) :** la pierre C est **en production depuis le 30/10 à 00:48** (SHA déployé `18e3881`, aujourd'hui `e32398d`). On la voit seulement avec `https://dig.lodylands.com/?icons=v1`. L'adresse normale garde les emoji pour tous les joueurs. **En attente de ton retour visuel sur téléphone.** Aucune autre image générée.
@@ -290,3 +292,81 @@ Dans le vrai bloc du jeu (en haut : emoji actuels ; en bas : v1). De gauche à d
 - Validation visuelle du pilote ; nouvelle série pour le diamant si tu choisis 2c.
 - 10 matériaux restants : terre meuble, argile, grès, granite, minerai d’or, rubis, émeraude, et les 3 coffres (vieille caisse, coffre en bois, coffre en fer).
 - Bascule de `defaultLibrary` vers `v1` seulement après validation visuelle **du lot complet**.
+
+## 13. Lot complet : les 14 blocs (30/10)
+
+**Ce qui a déclenché cette étape :** tes commentaires du 30/10 (10:15, 10:43, 11:21) — charbon C et fer C validés en jeu, diamant refusé (« glaçon »), puis : une seule génération par bloc restant, recensement exhaustif, planche accessible par URL, priorité immédiate.
+
+### État réel
+**Déployé en production (SHA `0f58670`) — en attente de recette visuelle globale.** `defaultLibrary` reste `legacy` : sans `?icons=v1`, aucun joueur ne voit de changement.
+
+### Liens
+- **Planche complète (téléphone ou PC) : https://dig.lodylands.com/assets/icons/planche-v1.webp** — les 14 blocs, dans l'ordre du jeu, sur le fond réel de leur bloc, avec nom, rareté, profondeur, statut et emoji remplacé.
+- Même planche dans le dépôt : [`art/icons/v1/planche-v1.png`](https://github.com/ReC82/Dig/blob/develop/art/icons/v1/planche-v1.png).
+- Avant / après dans le vrai composant du jeu (colonnes : avant, après sans paramètre, après `?icons=v1`) : [`art/icons/v1/pilot/en-jeu-lot-complet-20261030.png`](https://github.com/ReC82/Dig/blob/develop/art/icons/v1/pilot/en-jeu-lot-complet-20261030.png).
+- En jeu : https://dig.lodylands.com/?icons=v1
+
+![Planche v1](https://raw.githubusercontent.com/ReC82/Dig/develop/art/icons/v1/planche-v1.png)
+
+### Inventaire exhaustif (source : `public/js/blocks.js`, 14 types — il n'en existe pas d'autre)
+
+| Bloc | Rareté | Profondeur | Emoji remplacé | Icône v1 | Statut |
+|---|---|---|---|---|---|
+| Terre meuble | Commun | 1–12 m | 🟤 | motte de terre | à valider |
+| Argile | Commun | 4–22 m | 🟫 | bloc d'argile terracotta | à valider |
+| Pierre | Commun | dès 5 m | 🪨 | pierre C (référence) | **validée 29/10** |
+| Grès | Commun | dès 12 m | 🏔 | roche à strates beige | à valider |
+| Granite | Peu commun | dès 25 m | ⬛ | roche mouchetée noir/blanc/rose | à valider |
+| Charbon | Peu commun | dès 8 m | 🖤 | charbon C | **validé 30/10** |
+| Minerai de fer | Peu commun | dès 20 m | ⚙ | fer C | **validé 30/10** |
+| Minerai d'or | Rare | dès 40 m | 🟡 | roche à pépites et veines d'or | à valider |
+| Vieille caisse | Commun | dès 1 m | 🧰 | caisse en bois usée | à valider |
+| Coffre en bois | Rare | dès 5 m | 📦 | coffre au trésor cerclé de laiton | à valider |
+| Coffre en fer | Épique | dès 30 m | 🗃 | coffre blindé, cadenas | à valider |
+| Rubis | Épique | dès 35 m | 🔴 | cristal de rubis brut | à valider |
+| Émeraude | Légendaire | dès 70 m | 💚 | prismes d'émeraude sur roche | à valider |
+| Diamant | Légendaire | dès 120 m | 💎 | **nouveau** : diamant brut octaédrique, gangue de kimberlite | à valider |
+
+### Ce qui a été fait
+- **Génération :** une image par bloc restant (11), toujours avec la pierre C jointe comme référence et le gabarit maître `v1.0`. Fiches ajoutées dans `tools/icons/materials.json` ; la fiche diamant est réécrite (« diamant brut minéral, pas un glaçon ni du verre, incolore avec feux prismatiques, fragments de kimberlite »).
+- **Contrôles `process.js` :** 10/11 conformes du premier coup. La **vieille caisse** est sortie sur un fond opaque (refus automatique « coins non transparents ») : défaut technique, **une seule relance**, conforme. Aucune variante préventive.
+- **Coût réel (journal `~/.local/state/dig-icons/ledger.jsonl`) :** 12 appels × ~0,082 USD = **0,98 USD** (dont 0,08 USD pour la caisse refusée). **Cumul du ticket : 1,93 USD sur le plafond de 3 USD** (non modifié). Reste ~1,07 USD, soit ~13 images : de quoi corriger les blocs que tu refuserais, sans risque de dépassement à ce stade.
+- **Intégration v1 :** nouvel outil `tools/icons/promote.js` — copie les WebP 128/256, conserve le maître 1024 (WebP sans perte) et la provenance dans `art/icons/v1/pilot/`, met à jour le manifeste, **refuse de remplacer un matériau validé**, ne touche jamais `defaultLibrary`.
+- **Charbon C et fer C** marqués validés (`"validated": "2026-10-30"`) suite à ta recette ; pierre C inchangée.
+- **Planche :** nouvel outil `tools/icons/board.js` (Chromium headless, lit uniquement les fichiers du dépôt), publiée comme **image statique** dans `public/assets/icons/planche-v1.webp` — aucune page HTML ni route ajoutée.
+- **Tests (`test/icons.test.js`, +4) :** les 14 blocs ont une image et dans l'ordre du jeu ; fichiers présents, aucun export orphelin ; validations conservées (pierre, charbon, fer ; diamant non validé) ; exports des pilotes nommés avec empreinte ; planche à 14 entrées.
+
+### Vérifications
+- `npm test` : **188/188** sur la branche, sur `develop` `0f58670` et sur la release `0f58670`.
+- `compare.js` dans le vrai composant `#block` (production `ea23431` contre branche) : **0 différence inattendue** ; `legacy` identique au pixel près pour les 14 blocs ; `?icons=v1` montre une image pour les 14.
+- Copie de la base de production démarrée en `NODE_ENV=production` sur `0f58670` : empreintes des 6 tables **identiques** avant/après.
+- Après déploiement : 2 domaines → 200 et version `1.0.0+0f58670` ; planche → 200 ; `library.json`, planche et diamant servis identiques au dépôt ; `journalctl` sans erreur ; `quick_check` ok ; empreintes de production **identiques** à la sauvegarde pré-déploiement.
+- Chromium sur la production, 390×844 et 1280×900 : `?icons=v1` → **14/14 images chargées** ; `?icons=default` → 0 image (emoji) ; 28 fichiers v1 accessibles ; `defaultLibrary` = `legacy` ; 0 erreur JS ; 0 écriture.
+- Non fait : je n'ai miné aucun bloc en production (aucune progression créée) ; le rendu a été vérifié en forçant l'affichage du composant.
+
+### Déploiement
+- SHA déployé : **`0f58670`** (30/10, 13:29), depuis `ea23431`. Sauvegarde vérifiée : `dig-20261030-132909-pre-deploy-0f58670.sqlite`.
+- Impact joueurs : aucun (fichiers statiques et outils hors ligne ; aucune migration, aucune donnée touchée ; taux d'apparition, économie et sauvegardes inchangés).
+- Retour arrière : un bloc → retirer son entrée de `library.json` ; tout → `git reset --keep ea23431` + redémarrage (voir `docs/ICONS.md`).
+
+### Test à faire par le propriétaire (une seule recette globale)
+1. Ouvre **https://dig.lodylands.com/assets/icons/planche-v1.webp** : les 14 blocs, y compris coffres, rubis, émeraude et diamant, sans avoir à les rencontrer.
+2. Réponds en listant **seulement les blocs à corriger** (une correction = une nouvelle image, ~0,08 USD).
+3. Facultatif : https://dig.lodylands.com/?icons=v1 en jeu ; `?icons=default` pour revenir aux emoji.
+
+Classement : **Après lancement** (cosmétique, rien ne bloque le MVP).
+
+### Choix techniques faits seul
+- **Noms d'export avec empreinte** (`diamant-24816390-128.webp`) : les assets sont servis « immutable » pendant un an ; remplacer le diamant sous le même nom t'aurait laissé l'ancien glaçon en cache. Pierre, charbon et fer gardent leurs noms (inchangés).
+- **Relance unique de la vieille caisse** : c'était un rejet technique (fond opaque), pas une variante de style.
+- **Planche en image statique** plutôt qu'une page : directement lisible sur téléphone, aucune route ni page ajoutée.
+- **Maîtres 1024 versionnés** en WebP sans perte (~650 Ko chacun) : permet de régénérer d'autres tailles sans nouvel appel payant.
+
+### Décisions demandées au propriétaire
+1. Recette visuelle globale : quels blocs corriger ? *Recommandation : ne citer que ceux qui ne conviennent pas.*
+2. Une fois le lot accepté : activer `v1` **par défaut** pour tous les joueurs (`"defaultLibrary": "v1"`, réversible sans redéploiement) ? *Recommandation : oui, après ta recette.*
+
+### Reste à faire
+- Corrections éventuelles demandées après ta recette.
+- Bascule par défaut, sur ton accord.
+- Les propositions non retenues restent hors dépôt (`art/icons/v1/candidates/`, dans le worktree du ticket, conservé).
