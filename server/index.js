@@ -335,31 +335,48 @@ app.get('/api/me/save', (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
     const row = getUserSave(req.session.userId);
-    if (!row) return res.json({ save: null });
-    res.json({ save: { data: JSON.parse(row.data), version: row.version, saved_at: row.saved_at } });
+    res.json({ save: savePayload(row) });
   } catch (err) {
     console.error('[GET /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
+/** Sauvegarde renvoyée au client : `revision` = révision serveur (alias historique `version`). */
+function savePayload(row) {
+  if (!row) return null;
+  return { data: JSON.parse(row.data), revision: row.version, version: row.version, saved_at: row.saved_at };
+}
+
 /**
  * POST /api/me/save
- * Body : { data: { ...GameState } }
+ * Body : { data: { ...GameState }, baseRevision?: number|null }
  * Crée ou écrase la sauvegarde cloud de l'utilisateur connecté.
+ * `baseRevision` = révision serveur sur laquelle le client a travaillé (null : aucune
+ * sauvegarde connue). Si la sauvegarde a changé depuis (autre onglet ou appareil,
+ * coffre, reset admin), la sauvegarde est refusée en 409 avec la version actuelle,
+ * que le client applique au lieu de l'écraser (#18). Sans `baseRevision` (ancien client
+ * encore ouvert), l'écriture reste acceptée comme avant.
  */
 app.post('/api/me/save', limit.save, (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
-    const { data } = req.body ?? {};
-    if (!data || typeof data !== 'object') return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
-    const { version } = upsertUserSave(req.session.userId, JSON.stringify(data));
+    const { data, baseRevision } = req.body ?? {};
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
+    if (baseRevision !== undefined && baseRevision !== null && !Number.isSafeInteger(baseRevision)) {
+      return res.status(400).json({ error: 'Champ "baseRevision" invalide.' });
+    }
+    const result = upsertUserSave(req.session.userId, JSON.stringify(data), { expectedVersion: baseRevision });
+    if (result.conflict) {
+      return res.status(409).json({ error: 'Sauvegarde obsolète.', conflict: true, save: savePayload(result.current) });
+    }
+    const { version } = result;
     // Sync saisonnier piggybacked
     if (data.seasonStats) {
       try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats); }
       catch (err) { console.error('[POST /api/me/save] sync saisonnier', err.message); }
     }
-    res.json({ ok: true, version });
+    res.json({ ok: true, revision: version, version });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -744,16 +761,17 @@ app.post('/api/me/shop/chest/open', (req, res) => {
       try { result = rollChest(chestId, data, config); }
       catch (err) { return { status: 400, error: err.message }; }
 
-      upsertUserSave(userId, JSON.stringify(data));
+      const { version } = upsertUserSave(userId, JSON.stringify(data));
       logUserEvent(userId, 'chest_shop_open', { chestId, rewardType: result.reward.type });
-      return { data, result };
+      return { data, result, revision: version };
     });
 
     if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
 
-    const { data, result } = outcome;
+    const { data, result, revision } = outcome;
     res.json({
       ok:                true,
+      revision,
       reward:            result.reward,
       boughtThisSeason:  result.boughtThisSeason,
       newCoins:          data.coins,
@@ -815,7 +833,8 @@ app.get('/api/admin/players/:userId/save', requireAdmin, (req, res) => {
       shopChestsBought: data.shopChestsBought ?? { simple: 0, rare: 0, antique: 0 },
       seasonStats:     data.seasonStats      ?? {},
       saveVersion:     data.saveVersion      ?? null,
-      updatedAt:       saveRow.updated_at    ?? null,
+      updatedAt:       saveRow.saved_at      ?? null,
+      revision:        saveRow.version,
     };
 
     res.json({ user: userRow, save: summary });
@@ -860,6 +879,8 @@ app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => 
     data.upgrades     = { luck: 0, bag: 0, autodig: 0 };
     data.gems         = Math.min(data.gems ?? 0, gemsCap);
     data.shopChestsBought = { simple: 0, rare: 0, antique: 0 };
+    // Horodatage récent : un ancien client qui compare encore les dates garde aussi le reset (#18)
+    data.lastSaveTime = Date.now();
     data.seasonStats  = {
       seasonId:     activeSeason?.id ?? null,
       maxDepth:     0,
@@ -871,12 +892,15 @@ app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => 
       coinsSpent:   0,
     };
 
-    runTransaction(() => {
-      upsertUserSave(userId, JSON.stringify(data));
+    // La révision augmente : la prochaine sauvegarde du client (basée sur l'ancienne
+    // révision) est refusée et le client applique le reset au lieu de l'écraser (#18).
+    const revision = runTransaction(() => {
+      const { version } = upsertUserSave(userId, JSON.stringify(data));
       logUserEvent(userId, 'admin_season_reset', { adminAction: true });
+      return version;
     });
 
-    res.json({ ok: true, message: `Reset saisonnier appliqué pour ${userRow.username}.` });
+    res.json({ ok: true, revision, message: `Reset saisonnier appliqué pour ${userRow.username}.` });
   } catch (err) {
     console.error('[POST /api/admin/players/:userId/season-reset]', err);
     res.status(500).json({ error: 'Erreur serveur.' });

@@ -552,25 +552,37 @@ function getUserSave(userId) {
 
 /**
  * Crée ou écrase la sauvegarde cloud d'un utilisateur.
+ * La colonne `version` sert de révision serveur : elle augmente à chaque écriture
+ * (sauvegarde client, coffre, reset admin), ce qui permet de détecter les
+ * sauvegardes obsolètes (#18).
  * @param   {number} userId
  * @param   {string} dataJson  JSON stringify du GameState
- * @returns {{ version: number }}
+ * @param   {object} [opts]
+ * @param   {number|null} [opts.expectedVersion]  révision sur laquelle le client a travaillé :
+ *          null = aucune sauvegarde ne doit exister ; undefined = pas de contrôle (ancien client).
+ * @returns {{ version: number } | { conflict: true, current: object|null }}
  */
-function upsertUserSave(userId, dataJson) {
-  const db      = getDb();
-  const current = getUserSave(userId);
-  const version = current ? current.version + 1 : 1;
+function upsertUserSave(userId, dataJson, opts = {}) {
+  const db = getDb();
+  return db.transaction(() => {
+    const current = getUserSave(userId);
+    if (opts.expectedVersion !== undefined) {
+      const currentVersion = current ? current.version : null;
+      if (opts.expectedVersion !== currentVersion) return { conflict: true, current };
+    }
+    const version = current ? current.version + 1 : 1;
 
-  db.prepare(`
-    INSERT INTO user_saves (user_id, data, version, saved_at)
-    VALUES (?, ?, ?, datetime('now'))
-    ON CONFLICT(user_id) DO UPDATE SET
-      data     = excluded.data,
-      version  = excluded.version,
-      saved_at = excluded.saved_at
-  `).run(userId, dataJson, version);
+    db.prepare(`
+      INSERT INTO user_saves (user_id, data, version, saved_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(user_id) DO UPDATE SET
+        data     = excluded.data,
+        version  = excluded.version,
+        saved_at = excluded.saved_at
+    `).run(userId, dataJson, version);
 
-  return { version };
+    return { version };
+  })();
 }
 
 // ── Helpers saisons ───────────────────────────────────────────────────────────

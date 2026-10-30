@@ -676,6 +676,47 @@ h1 {
 }
 #btn-skip-ad:hover { color: var(--text); }
 
+/* ── Jeu ouvert dans un autre onglet (#18) ─── */
+#tab-inactive-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: 24px;
+}
+#tab-inactive-modal[hidden] { display: none; }
+#tab-inactive-inner {
+  background: var(--surface2);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 320px;
+  padding: 30px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+#tab-inactive-icon { font-size: 2.6rem; line-height: 1; }
+#tab-inactive-title { font-size: 1.05rem; font-weight: 800; color: var(--text); }
+#tab-inactive-text { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+#btn-tab-play-here {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  color: #1a1a1a;
+  font-weight: 800;
+  font-size: 0.95rem;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
 /* ── Modale gains offline ───────────────────── */
 #offline-modal {
   position: fixed;

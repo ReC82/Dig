@@ -516,6 +516,11 @@ async function openShopChest(chestId) {
     const btn = document.querySelector(`#shop-chests-list .shop-chest-btn[aria-label*="${t('shop_chest.' + chestId + '.name')}"]`);
     if (btn) btn.disabled = true;
 
+    // Le serveur tire le coffre sur sa sauvegarde : on lui envoie d'abord l'état local à jour.
+    // Si la sauvegarde serveur était plus récente, elle vient d'être appliquée : achat annulé.
+    Save.save();
+    if (await _syncToCloud() === 'adopted') { renderShopChests(); return; }
+
     const { ok, data } = await _apiFetch('POST', '/api/me/shop/chest/open', { chestId });
 
     if (!ok) {
@@ -528,6 +533,7 @@ async function openShopChest(chestId) {
     GameState.coins          = data.newCoins;
     GameState.relicFragments = data.newRelicFragments;
     GameState.shopChestsBought[chestId] = data.boughtThisSeason;
+    if (data.revision) _setCloudMeta(data.revision);
     reward = data.reward;
 
   } else {
@@ -993,23 +999,57 @@ async function _doLogin(username, password) {
 }
 
 async function _doLogout() {
+  // Dernier envoi de la progression, puis purge locale : le compte suivant part
+  // d'une sauvegarde vierge (#18).
+  Save.save();
+  await _syncToCloud();
   await _apiFetch('POST', '/api/logout');
-  _account = null;
+  _account    = null;
+  _cloudReady = false;
+  _clearCloudMeta();
+  Save.purge();
+  _refreshAllAfterReset();
+  _pollSeason();
 }
 
 // ── Sauvegarde cloud regroupée ────────────────────────────────────────────────
 // La sauvegarde locale reste immédiate (à chaque clic) ; le cloud reçoit au plus une
 // sauvegarde toutes les CLOUD_SYNC_INTERVAL_MS, plus une sauvegarde finale quand l'onglet
-// est masqué ou fermé (sendBeacon).
+// est masqué ou fermé (fetch keepalive).
+//
+// Révision serveur (#18) : chaque écriture cloud augmente la révision de la sauvegarde.
+// Le client envoie la révision sur laquelle il travaille (baseRevision) ; si la sauvegarde
+// a changé entre-temps (autre appareil, coffre, reset admin), le serveur refuse (409) et
+// renvoie la version actuelle, que le client applique au lieu de l'écraser.
 
 const CLOUD_SYNC_INTERVAL_MS = 12_000;
+const CLOUD_META_KEY = 'dig_cloud_meta'; // { userId, revision } : révision connue de la save locale
 let _cloudLastSync  = 0;     // horodatage du dernier envoi cloud
 let _cloudTimer     = null;  // envoi différé en attente
 let _cloudLastExit  = 0;     // dernier envoi de sortie (évite le doublon visibilitychange + pagehide)
+let _cloudReady     = false; // true une fois la synchro de connexion faite (pas d'envoi avant)
+let _cloudChain     = Promise.resolve(); // envois cloud sérialisés
+let _lastSentSaveTime = null; // lastSaveTime du dernier envoi (reconnaît notre propre écriture)
+
+function _getCloudMeta() {
+  try { return JSON.parse(localStorage.getItem(CLOUD_META_KEY)) ?? null; } catch (_) { return null; }
+}
+function _setCloudMeta(revision) {
+  if (!_account) return;
+  try { localStorage.setItem(CLOUD_META_KEY, JSON.stringify({ userId: _account.id, revision })); } catch (_) {}
+}
+function _clearCloudMeta() {
+  try { localStorage.removeItem(CLOUD_META_KEY); } catch (_) {}
+}
+/** Révision serveur de la save locale pour le compte connecté (null : aucune connue). */
+function _baseRevision() {
+  const meta = _getCloudMeta();
+  return (meta && _account && meta.userId === _account.id) ? meta.revision ?? null : null;
+}
 
 /** Appelé après chaque sauvegarde locale : programme un envoi cloud (au plus 1 par intervalle). */
 function _scheduleCloudSync() {
-  if (_cloudTimer) return;
+  if (_cloudTimer || !_cloudReady) return;
   const wait = Math.max(0, _cloudLastSync + CLOUD_SYNC_INTERVAL_MS - Date.now());
   _cloudTimer = setTimeout(() => {
     showSaveToast();
@@ -1017,111 +1057,164 @@ function _scheduleCloudSync() {
   }, wait);
 }
 
-/** Pousse la sauvegarde locale courante vers le cloud (silencieux).
- *  N'attend pas _account — le cookie de session suffit ; le serveur retourne 401 si non connecté. */
-async function _syncToCloud() {
+/**
+ * Pousse la sauvegarde locale courante vers le cloud (silencieux, envois sérialisés).
+ * @returns {Promise<'ok'|'adopted'|'skipped'|'error'>}  'adopted' = la version serveur a été appliquée
+ */
+function _syncToCloud() {
   clearTimeout(_cloudTimer);
   _cloudTimer    = null;
   _cloudLastSync = Date.now();
+  const run = _cloudChain.then(() => _pushSave(true));
+  _cloudChain = run.catch(() => {});
+  return run;
+}
+
+async function _pushSave(retry) {
+  if (!_account || !_cloudReady || Save.disabled) return 'skipped';
+  const raw = localStorage.getItem(Save.KEY);
+  if (!raw) return 'skipped';
+  const data = JSON.parse(raw);
+  _lastSentSaveTime = data.lastSaveTime ?? null;
+  let res;
   try {
-    const raw = localStorage.getItem(Save.KEY);
-    if (!raw) return;
-    await _apiFetch('POST', '/api/me/save', { data: JSON.parse(raw) });
-  } catch (_) { /* silencieux — 401 ignoré si non connecté */ }
+    res = await _apiFetch('POST', '/api/me/save', { data, baseRevision: _baseRevision() });
+  } catch (_) { return 'error'; }
+  if (res.ok) { _setCloudMeta(res.data.revision); return 'ok'; }
+  if (res.status === 409 && res.data?.conflict) return _handleSaveConflict(res.data.save, retry);
+  if (res.status === 401) { _account = null; _cloudReady = false; }
+  return 'error';
+}
+
+/**
+ * Sauvegarde refusée car obsolète. Si la version serveur est notre propre dernier envoi
+ * (réponse perdue, envoi de sortie), on reprend sa révision et on renvoie ; sinon on
+ * applique la version serveur et on prévient le joueur.
+ */
+async function _handleSaveConflict(serverSave, retry) {
+  if (!serverSave) { _clearCloudMeta(); return retry ? _pushSave(false) : 'error'; }
+  const serverTime = serverSave.data?.lastSaveTime ?? null;
+  if (retry && serverTime !== null && serverTime === _lastSentSaveTime) {
+    _setCloudMeta(serverSave.revision);
+    return _pushSave(false);
+  }
+  _applyCloudSave(serverSave);
+  showAchievement('☁️', t('notif.save_conflict'));
+  return 'adopted';
+}
+
+/** Applique une sauvegarde cloud ({ data, revision }) au jeu et à la save locale. */
+function _applyCloudSave(cloudSave) {
+  const cloudData = cloudSave.data;
+  Save.loadFromData(cloudData);
+  // Même sérialisation que Save.save() (seasonStats et shopChestsBought compris)
+  Save.writeLocal(cloudData.lastSaveTime ?? Date.now());
+  _setCloudMeta(cloudSave.revision ?? cloudSave.version);
+
+  Relics.applyBonuses();
+  renderUpgrades();
+  renderShopChests();
+  renderQuests();
+  renderBoostBanner();
+  renderStats();
+  // Respawn sans animation pour éviter le double-spawn et le bug de bloc vide
+  blockAnimating = false;
+  Blocks.spawn(GameState.depth);
+  renderBlock();
 }
 
 /** Sauvegarde finale à la mise en arrière-plan / fermeture de l'onglet. */
 function _flushCloudOnExit() {
+  if (Save.disabled) return;
   if (Date.now() - _cloudLastExit < 1000) return;
   _cloudLastExit = Date.now();
   Save.save(); // état local à jour (programme aussi un envoi, annulé ci-dessous)
   clearTimeout(_cloudTimer);
   _cloudTimer    = null;
   _cloudLastSync = Date.now();
+  if (!_account || !_cloudReady) return;
   try {
     const raw = localStorage.getItem(Save.KEY);
     if (!raw) return;
-    const body = JSON.stringify({ data: JSON.parse(raw) });
-    // sendBeacon survit à la fermeture de la page ; repli sur fetch keepalive
-    const sent = navigator.sendBeacon?.('/api/me/save', new Blob([body], { type: 'application/json' }));
-    if (!sent) {
-      fetch('/api/me/save', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true,
-      }).catch(() => {});
-    }
+    const data = JSON.parse(raw);
+    _lastSentSaveTime = data.lastSaveTime ?? null;
+    const body = JSON.stringify({ data, baseRevision: _baseRevision() });
+    // keepalive survit à la fermeture de la page ; si l'onglet reste ouvert, la réponse
+    // met à jour la révision connue.
+    fetch('/api/me/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true,
+    }).then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.revision) _setCloudMeta(d.revision); })
+      .catch(() => {});
   } catch (_) { /* silencieux */ }
 }
 
 /**
  * Synchronise avec le cloud après login/register ou restauration de session.
  * @param {boolean} forceCloud  true = connexion explicite → toujours appliquer le cloud.
- *                              false = restauration de session → comparer les timestamps.
+ *                              false = restauration de session → comparer les révisions.
  */
 async function _syncAfterLogin(forceCloud = false) {
+  _cloudReady = false;
   try {
     const { ok, data } = await _apiFetch('GET', '/api/me/save');
-    if (!ok) return;
+    if (!ok || !_account) return;
 
-    if (data.save) {
-      const cloudData = data.save.data;
-      const cloudTime = cloudData?.lastSaveTime ?? 0;
-      const localRaw  = localStorage.getItem(Save.KEY);
-      const localTime = localRaw ? (JSON.parse(localRaw)?.lastSaveTime ?? 0) : 0;
+    const cloud = data.save;
+    const meta  = _getCloudMeta();
+    let adopt = false;
 
-      if (forceCloud || cloudTime > localTime) {
-        // Appliquer la sauvegarde cloud
-        Save.loadFromData(cloudData);
-        // Persister immédiatement en localStorage pour les prochains refreshs
-        try {
-          localStorage.setItem(Save.KEY, JSON.stringify({
-            saveVersion:   Save.SAVE_VERSION,
-            lastSaveTime:  cloudData.lastSaveTime ?? Date.now(),
-            coins:         GameState.coins,
-            gems:          GameState.gems,
-            depth:         GameState.depth,
-            pickaxeLevel:  GameState.pickaxeLevel,
-            damage:        GameState.damage,
-            upgrades:      { ...GameState.upgrades },
-            collection:    [...GameState.collection],
-            quests:        { ...GameState.quests },
-            stats:         { ...GameState.stats },
-            daily:         { ...GameState.daily },
-            coinBoost:     { ...GameState.coinBoost },
-            monetization:  { ...GameState.monetization },
-            relicFragments: GameState.relicFragments,
-            relics:        { ...GameState.relics },
-            dailyMissions: {
-              date:     GameState.dailyMissions.date,
-              missions: GameState.dailyMissions.missions.map(m => ({
-                id: m.id, target: m.target,
-                reward: { coins: m.reward.coins, gems: m.reward.gems },
-                claimed: m.claimed,
-              })),
-              baselineStats: GameState.dailyMissions.baselineStats
-                ? { ...GameState.dailyMissions.baselineStats } : null,
-            },
-          }));
-        } catch (_) { /* localStorage indisponible */ }
-
-        Relics.applyBonuses();
-        renderUpgrades();
-        renderQuests();
-        renderBoostBanner();
-        renderStats();
-        // Respawn sans animation pour éviter le double-spawn et le bug de bloc vide
-        blockAnimating = false;
-        Blocks.spawn(GameState.depth);
-        renderBlock();
-        _hasShownGuestWarning = true; // connecté → plus besoin d'avertir
+    if (cloud) {
+      const revision = cloud.revision ?? cloud.version;
+      if (forceCloud) {
+        adopt = true;
+      } else if (meta && meta.userId === _account.id) {
+        // La save locale continue la révision `meta.revision` de ce compte :
+        // si le serveur a avancé depuis (autre appareil, reset admin), il gagne.
+        adopt = revision !== meta.revision;
+      } else if (meta) {
+        adopt = true; // save locale d'un autre compte
       } else {
-        // Local plus récent → pousser vers le cloud
-        await _syncToCloud();
+        // Save locale sans révision (avant #18) : comparaison des dates, comme avant
+        const localRaw  = localStorage.getItem(Save.KEY);
+        const localTime = localRaw ? (JSON.parse(localRaw)?.lastSaveTime ?? 0) : 0;
+        adopt = (cloud.data?.lastSaveTime ?? 0) > localTime;
+        if (!adopt) _setCloudMeta(revision);
       }
+      if (adopt) _applyCloudSave(cloud);
     } else {
-      // Pas de sauvegarde cloud → pousser la locale
+      _clearCloudMeta(); // aucune sauvegarde cloud : la save locale devient celle du compte
+    }
+    _hasShownGuestWarning = true; // connecté → plus besoin d'avertir
+    _cloudReady = true;
+    if (!adopt) {
+      // Local plus récent (ou pas de cloud) → pousser ; état vierge écrit si aucune save locale
+      if (!localStorage.getItem(Save.KEY)) Save.writeLocal();
       await _syncToCloud();
     }
   } catch (_) { /* silencieux */ }
+}
+
+// ── Onglet unique (#18) ───────────────────────────────────────────────────────
+// Deux onglets du même navigateur partagent la même save locale : le dernier ouvert
+// prend la main, les autres cessent d'écrire et affichent un écran « Jouer ici ».
+
+const ACTIVE_TAB_KEY = 'dig_active_tab';
+const _tabId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+function _claimActiveTab() {
+  try { localStorage.setItem(ACTIVE_TAB_KEY, `${_tabId}:${Date.now()}`); } catch (_) {}
+}
+
+function _onStorageEvent(e) {
+  if (e.key !== ACTIVE_TAB_KEY || !e.newValue || Save.disabled) return;
+  if (e.newValue.split(':')[0] === _tabId) return;
+  // Un autre onglet a pris la main : on n'écrit plus rien (ni local, ni cloud)
+  clearTimeout(_cloudTimer);
+  _cloudTimer = null;
+  Save.disabled = true;
+  const modal = document.getElementById('tab-inactive-modal');
+  if (modal) modal.hidden = false;
 }
 
 // ── Saisons ───────────────────────────────────────────────────────────────────
@@ -1863,6 +1956,11 @@ document.getElementById('btn-account').addEventListener('click', () => {
 elResetBtn.addEventListener('click', () => {
   if (!confirm(t('ui.confirm_reset'))) return;
   Save.reset();
+  _refreshAllAfterReset();
+});
+
+/** Re-rendu complet après une remise à zéro de GameState (reset, déconnexion). */
+function _refreshAllAfterReset() {
   Relics.applyBonuses();          // recompute (tout à 0 après reset)
   renderUpgrades();
   renderShopChests();
@@ -1877,7 +1975,7 @@ elResetBtn.addEventListener('click', () => {
   clearNavBadge('collection');    // plus de reliques abordables après reset
   spawnBlock();
   renderStats();
-});
+}
 
 // ── Sélection langue (premier lancement) ─────────────────────────────────────
 
@@ -1927,6 +2025,10 @@ function init() {
     if (isViewActive('daily'))      renderDaily();
     if (isViewActive('shop'))       renderShop();
   });
+
+  _claimActiveTab();
+  window.addEventListener('storage', _onStorageEvent);
+  document.getElementById('btn-tab-play-here')?.addEventListener('click', () => location.reload());
 
   Save.onSave = _scheduleCloudSync;
   document.addEventListener('visibilitychange', () => {

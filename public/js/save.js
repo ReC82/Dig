@@ -33,40 +33,62 @@ const Save = {
 
   // ── Sauvegarde ────────────────────────────────────────────────────────────
 
-  save() {
+  /**
+   * Sérialisation unique de GameState (utilisée pour localStorage et pour le cloud, #18).
+   * @param {number} [lastSaveTime]  horodatage à enregistrer (par défaut : maintenant)
+   */
+  serialize(lastSaveTime = Date.now()) {
+    return {
+      saveVersion:  this.SAVE_VERSION,
+      lastSaveTime,
+      coins:        GameState.coins,
+      gems:         GameState.gems,
+      depth:        GameState.depth,
+      pickaxeLevel: GameState.pickaxeLevel,
+      damage:       GameState.damage,
+      upgrades:     { ...GameState.upgrades },
+      collection:   [...GameState.collection],
+      quests:       { ...GameState.quests },
+      stats:        { ...GameState.stats },
+      daily:        { ...GameState.daily },
+      coinBoost:    { ...GameState.coinBoost },
+      monetization:   { ...GameState.monetization },
+      relicFragments:   GameState.relicFragments,
+      relics:           { ...GameState.relics },
+      shopChestsBought: { ...GameState.shopChestsBought },
+      dailyMissions: {
+        date:     GameState.dailyMissions.date,
+        missions: GameState.dailyMissions.missions.map(m => ({
+          id:      m.id,
+          target:  m.target,
+          reward:  { coins: m.reward.coins, gems: m.reward.gems },
+          claimed: m.claimed,
+        })),
+        baselineStats: GameState.dailyMissions.baselineStats
+          ? { ...GameState.dailyMissions.baselineStats } : null,
+      },
+      seasonStats: { ...GameState.seasonStats },
+    };
+  },
+
+  /**
+   * Écrit l'état courant dans localStorage sans déclencher onSave (pas d'envoi cloud).
+   * @param {number} [lastSaveTime]
+   */
+  writeLocal(lastSaveTime) {
+    if (this.disabled) return;
     try {
-      const data = {
-        saveVersion:  this.SAVE_VERSION,
-        lastSaveTime: Date.now(),
-        coins:        GameState.coins,
-        gems:         GameState.gems,
-        depth:        GameState.depth,
-        pickaxeLevel: GameState.pickaxeLevel,
-        damage:       GameState.damage,
-        upgrades:     { ...GameState.upgrades },
-        collection:   [...GameState.collection],
-        quests:       { ...GameState.quests },
-        stats:        { ...GameState.stats },
-        daily:        { ...GameState.daily },
-        coinBoost:    { ...GameState.coinBoost },
-        monetization:   { ...GameState.monetization },
-        relicFragments:   GameState.relicFragments,
-        relics:           { ...GameState.relics },
-        shopChestsBought: { ...GameState.shopChestsBought },
-        dailyMissions: {
-          date:     GameState.dailyMissions.date,
-          missions: GameState.dailyMissions.missions.map(m => ({
-            id:      m.id,
-            target:  m.target,
-            reward:  { coins: m.reward.coins, gems: m.reward.gems },
-            claimed: m.claimed,
-          })),
-          baselineStats: GameState.dailyMissions.baselineStats
-            ? { ...GameState.dailyMissions.baselineStats } : null,
-        },
-        seasonStats: { ...GameState.seasonStats },
-      };
-      localStorage.setItem(this.KEY, JSON.stringify(data));
+      localStorage.setItem(this.KEY, JSON.stringify(this.serialize(lastSaveTime)));
+    } catch (_) { /* localStorage indisponible */ }
+  },
+
+  /** true = cet onglet n'écrit plus rien (le jeu est ouvert dans un autre onglet, #18). */
+  disabled: false,
+
+  save() {
+    if (this.disabled) return;
+    try {
+      localStorage.setItem(this.KEY, JSON.stringify(this.serialize()));
       if (typeof this.onSave === 'function') this.onSave();
     } catch (_) { /* localStorage indisponible */ }
   },
@@ -185,6 +207,18 @@ const Save = {
   },
 
   // ── Reset ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Purge complète de la progression locale (déconnexion, #18) : le compte suivant
+   * part d'une sauvegarde vierge, achats cosmétiques compris (ils appartiennent au compte).
+   */
+  purge() {
+    try { localStorage.removeItem(this.KEY); } catch (_) {}
+    GameState.reset();
+    GameState.monetization = { adLastWatched: 0, pickaxeSkin: null };
+    GameState.seasonStats  = { seasonId: 0, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, regularityScore: 0, isActive: false };
+    this.loadedSaveTime = null;
+  },
 
   reset() {
     // On conserve la clé mais on sauvegarde juste la progression game
