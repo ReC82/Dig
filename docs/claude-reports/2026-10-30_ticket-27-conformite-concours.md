@@ -58,13 +58,11 @@ Aucun fichier de code, aucune migration, aucune donnée joueur touchée.
 
 ## 4. Révision, branche et vérification
 
-- Branche : `docs/27-conformite-concours` ; SHA sur `develop` : voir le commit de fusion
-  « Merge docs/27-conformite-concours dans develop (#27) » (SHA indiqué dans le commentaire du
-  ticket).
+- Branche : `docs/27-conformite-concours` (commit `b00b97f`) ; **SHA sur `develop` : `c6b56c7`**
+  (fusion « Merge docs/27-conformite-concours dans develop (#27) »).
 - Procédure de relecture : lire `docs/CONCOURS-CONFORMITE.md` § 1 (verdict, 1 tableau) puis § 4
   (liste de contrôle) ; compléter les crochets de `docs/REGLEMENT-CONCOURS.md`.
-- Contrôle : `npm test` complet sur la fusion dans `develop` (documentation seule, aucun impact
-  attendu).
+- Contrôle : `npm test` complet sur la fusion `c6b56c7` : **149/149 réussis**.
 
 ## 5. Vérifications et limites
 
@@ -80,7 +78,7 @@ Aucun fichier de code, aucune migration, aucune donnée joueur touchée.
 ## 6. Déploiement
 
 Non déployé : documentation seule, rien ne change en production (règle « un commit de rapport ou
-de documentation seul ne justifie pas un déploiement »). La production reste au SHA en ligne.
+de documentation seul ne justifie pas un déploiement »). La production reste à `4988e19` (vérifié via `/api/version`).
 
 **Test fonctionnel à faire par le propriétaire** : pas de test en jeu. Relire le verdict (§ 1 du
 document), répondre aux questions ci-dessous et compléter le projet de règlement.
