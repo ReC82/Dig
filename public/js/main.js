@@ -370,7 +370,7 @@ function renderBlock() {
   const b = Blocks.current;
   if (!b) return;
 
-  elBlockName.textContent  = t(b.type.name);
+  elBlockName.textContent  = Blocks.displayName(b.type);   // nom du catalogue (#37) ou i18n
   IconLibrary.render(elBlockIcon, b.type);   // legacy (emoji) par défaut, v1 si activé
   elBlock.style.background = b.type.color;
 
@@ -2821,6 +2821,7 @@ function init() {
     else _playHeartbeat();   // retour sur la page : vérifie qu'elle a toujours la main (#35)
   });
   window.addEventListener('pagehide', _flushCloudOnExit);
+  Blocks.loadCached();     // catalogue de blocs publié (#37) mémorisé, avant la reprise du bloc
   Save.load();
 
   Relics.applyBonuses();   // recalcule les bonus depuis GameState.relics chargé
@@ -2845,6 +2846,8 @@ function init() {
 
   // Bibliothèque d'icônes (legacy par défaut) : re-rendu du bloc une fois la configuration lue.
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
+  // Catalogue de blocs publié (#37) : s'applique aux prochains blocs, le bloc courant est conservé.
+  Blocks.fetchCatalog(() => { if (Blocks.current && isViewActive('dig')) renderBlock(); });
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
   setInterval(_playHeartbeat, PLAY_HEARTBEAT_MS);

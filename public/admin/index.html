@@ -34,6 +34,7 @@
     <button class="tab-btn" data-tab="contest">🎁 Concours</button>
     <button class="tab-btn" data-tab="points">🏅 Points</button>
     <button class="tab-btn" data-tab="shop">🛍 Boutique</button>
+    <button class="tab-btn" data-tab="blocks">🧱 Blocs</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -662,6 +663,117 @@
       </div>
     </div>
   </section>
+
+  <!-- Tab Catalogue de blocs (#37) -->
+  <section id="tab-blocks" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🧱 Catalogue de blocs</h2>
+      <button class="btn" id="btn-refresh-blocks">↻ Rafraîchir</button>
+    </div>
+    <p id="bk-banner" class="contest-banner"></p>
+    <p class="muted" style="font-size:0.78rem">Contenu du jeu (minerais, pierres, coffres, gemmes) — distinct des cadeaux réels (onglets Concours / Boutique).
+      Les modifications vont dans un <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier ». Un bloc déjà publié ne se supprime pas, il se désactive.
+      Aucune profondeur maximale : un bloc apparaît <strong>dès X m</strong> puis à toutes les profondeurs suivantes.</p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Blocs <span id="bk-list-source" class="muted"></span></h3>
+      <div class="form-actions">
+        <input id="bk-filter-text" type="search" placeholder="Filtrer (identifiant, nom)" style="flex:1">
+        <select id="bk-filter-cat"><option value="">Toutes catégories</option></select>
+        <select id="bk-filter-status"><option value="">Tous</option><option value="active">Actifs</option><option value="inactive">Désactivés</option><option value="changed">Modifiés dans le brouillon</option></select>
+        <label>Probabilités à <input id="bk-odds-depth" type="number" min="1" value="250" style="width:80px"> m</label>
+      </div>
+      <table>
+        <thead><tr><th></th><th>Identifiant</th><th>Nom FR</th><th>Catégorie</th><th>Rareté</th><th>PV</th><th>Récompense</th><th>Dès</th><th>Poids</th><th>Prob.</th><th>Statut</th><th></th></tr></thead>
+        <tbody id="bk-body"></tbody>
+      </table>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title" id="bk-form-title">Nouveau bloc</h3>
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div id="bk-preview" style="width:110px;height:110px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:3rem;border:3px solid #6b7280"></div>
+        <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
+          <label>Identifiant stable<input id="bk-id" type="text" maxlength="40" placeholder="obsidienne"></label>
+          <label>Nom FR<input id="bk-name-fr" type="text" maxlength="40"></label>
+          <label>Nom EN<input id="bk-name-en" type="text" maxlength="40"></label>
+          <label>Nom NL<input id="bk-name-nl" type="text" maxlength="40"></label>
+          <label>Catégorie<select id="bk-category"></select></label>
+          <label>Rareté<select id="bk-rarity"></select></label>
+          <label>Icône (emoji)<input id="bk-icon" type="text" maxlength="8"></label>
+          <label>Image (/assets/…, facultatif)<input id="bk-image" type="text" maxlength="200"></label>
+          <label>Couleur (#… ou linear-gradient)<input id="bk-color" type="text" maxlength="80"></label>
+          <label>Accent (#…)<input id="bk-accent" type="text" maxlength="9"></label>
+          <label>PV de base<input id="bk-hp" type="number" min="1"></label>
+          <label>Récompense de base<input id="bk-reward" type="number" min="0"></label>
+          <label>Dès (m)<input id="bk-min" type="number" min="1"></label>
+          <label>Borne héritée (m, blocs d'origine)<input id="bk-max" type="number" min="1" placeholder="aucune"></label>
+          <label>Poids d'apparition<input id="bk-weight" type="number" min="0.001" step="any"></label>
+          <label><input type="checkbox" id="bk-active" checked> Actif</label>
+        </div>
+      </div>
+      <p class="muted" style="font-size:0.78rem">PV et récompense augmentent avec la profondeur (+12 % et +5 % par mètre). Les noms des 14 blocs d'origine viennent des traductions intégrées tant que les champs Nom sont vides. Les raretés rare, épique et légendaire sont favorisées par la Chance du joueur.</p>
+      <div class="form-actions">
+        <button class="btn" id="btn-bk-save">Enregistrer dans le brouillon</button>
+        <button class="btn btn-ghost" id="btn-bk-new">Nouveau (vider)</button>
+        <button class="btn btn-ghost" id="btn-bk-remove">Retirer du brouillon (jamais publié)</button>
+      </div>
+      <p id="bk-form-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Brouillon et publication</h3>
+      <p id="bk-draft-state" class="muted"></p>
+      <ul id="bk-draft-errors" class="error"></ul>
+      <ul id="bk-draft-warnings" class="muted"></ul>
+      <table>
+        <thead><tr><th>Bloc</th><th>Changement</th></tr></thead>
+        <tbody id="bk-changes-body"></tbody>
+      </table>
+      <div class="form-actions" style="margin-top:8px">
+        <input id="bk-publish-note" type="text" maxlength="300" placeholder="Note de publication (facultatif)" style="flex:1">
+        <button class="btn" id="btn-bk-publish">Publier</button>
+        <button class="btn btn-danger" id="btn-bk-discard">Abandonner le brouillon</button>
+      </div>
+      <p id="bk-publish-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Simulation des apparitions</h3>
+      <div class="form-actions">
+        <label>Catalogue<select id="bk-sim-source"><option value="published">Publié</option><option value="draft">Brouillon</option></select></label>
+        <label>Tirages<select id="bk-sim-n"><option value="10000">10 000</option><option value="100000">100 000</option></select></label>
+        <label>Chance (niveau)<input id="bk-sim-luck" type="number" min="0" max="100" value="0" style="width:70px"></label>
+        <label>Profondeurs<input id="bk-sim-depths" type="text" value="1, 25, 100, 250, 400" style="width:180px"></label>
+        <button class="btn" id="btn-bk-simulate">Simuler</button>
+      </div>
+      <p id="bk-sim-msg" class="hidden"></p>
+      <table>
+        <thead><tr><th>Profondeur</th><th>PV moyens</th><th>Récompense moyenne</th><th>Bloc</th><th>Rareté</th><th>Probabilité</th><th>Observé</th></tr></thead>
+        <tbody id="bk-sim-body"></tbody>
+      </table>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Versions publiées (retour arrière)</h3>
+      <table>
+        <thead><tr><th>Version</th><th>Date (UTC)</th><th>Origine</th><th>Types (actifs)</th><th>Note</th><th></th></tr></thead>
+        <tbody id="bk-versions-body"></tbody>
+      </table>
+      <p id="bk-rollback-msg" class="hidden"></p>
+      <p class="muted" style="font-size:0.78rem">Un retour arrière publie une nouvelle version au contenu de l'ancienne ; les blocs ajoutés depuis restent présents mais désactivés.
+        Anti-bot (#25) : PV minimum par profondeur retenus pour le budget de dégâts : <span id="bk-antibot"></span>.</p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Journal</h3>
+      <table>
+        <thead><tr><th>Date (UTC)</th><th>Action</th><th>Version</th><th>Détails</th></tr></thead>
+        <tbody id="bk-audit-body"></tbody>
+      </table>
+    </div>
+  </section>
+
 
 </div>
 

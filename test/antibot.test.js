@@ -88,7 +88,7 @@ function simulate(userId, o, config = CONFIG) {
   client.GameState.relicBonuses.hpReduction = o.hpReduction ?? 0;
   const B = client.Blocks;
   const pick = o.weakest
-    ? depth => B.TYPES.filter(t => depth >= t.minDepth && depth <= t.maxDepth).sort((a, b) => a.hpBase - b.hpBase)[0]
+    ? depth => B.TYPES.filter(t => B.available(t, depth)).sort((a, b) => a.hpBase - b.hpBase)[0]
     : depth => B._pickType(depth);
   const spawn = depth => {
     const type = pick(depth);
@@ -157,12 +157,13 @@ test('budget : dégâts max par clic et par seconde = valeurs max du client', ()
 
 test('budget : PV minimum serveur ≤ PV réels minimum du client à chaque profondeur (1–12 000 m)', () => {
   for (let d = 1; d <= 12_000; d++) {
-    const types = client.Blocks.TYPES.filter(t => d >= t.minDepth && d <= t.maxDepth);
-    const minBase = types.length ? Math.min(...types.map(t => t.hpBase)) : client.Blocks.TYPES[2].hpBase;
+    const types = client.Blocks.TYPES.filter(t => client.Blocks.available(t, d));
+    assert.ok(types.length, `profondeur ${d} : aucun bloc tirable`);
+    const minBase = Math.min(...types.map(t => t.hpBase));
     const realMin = Math.ceil(minBase * (1 + (d - 1) * 0.12) * (1 - antibot.MAX_HP_REDUCTION));
     assert.ok(antibot.minBlockHp(d) <= realMin, `profondeur ${d} : ${antibot.minBlockHp(d)} > ${realMin}`);
-    // Au-delà de 9 999 m, le client retombe sur la pierre (12) : borne volontairement plus lâche
-    if (d <= 9999) assert.ok(antibot.minBlockHp(d) > realMin - 1, `profondeur ${d} : borne trop lâche`);
+    // Aucune profondeur maximale (#37) : la borne reste exacte à toutes les profondeurs
+    assert.ok(antibot.minBlockHp(d) > realMin - 1, `profondeur ${d} : borne trop lâche`);
   }
   // Coût cumulé = somme des PV minimum, et recherche de profondeur cohérente
   let sum = 0;
@@ -245,7 +246,7 @@ test('honnête, clics + pauses : alternance 2 min de jeu / 3 min de pause, 1 h',
   const cpsAt = s => (Math.floor(s / 300) % 1 === 0 && s % 300 < 120 ? 9 : 0);
   // Simulation inline (cps variable)
   let depth = 1, maxDepth = 0, clicks = 0, mb = 0, ab = 0;
-  const spawn = d => Math.ceil(Math.min(...client.Blocks.TYPES.filter(t => d >= t.minDepth && d <= t.maxDepth).map(t => t.hpBase)) * (1 + (d - 1) * 0.12) * (1 - o.hpReduction));
+  const spawn = d => Math.ceil(Math.min(...client.Blocks.TYPES.filter(t => client.Blocks.available(t, d)).map(t => t.hpBase)) * (1 + (d - 1) * 0.12) * (1 - o.hpReduction));
   let hp = spawn(1);
   const hit = (dmg, manual) => { hp = Math.max(0, hp - dmg); if (hp === 0) { manual ? mb++ : ab++; depth++; maxDepth = Math.max(maxDepth, depth); hp = spawn(depth); } };
   const save = t => {

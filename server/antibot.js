@@ -48,6 +48,50 @@ const MIN_HP_SEGMENTS = [
   { from: 13, to: 22,       hpBase: 6 },
   { from: 23, to: Infinity, hpBase: 8 },
 ];
+/**
+ * Segments réellement utilisés par le budget. Le catalogue de blocs administrable (#37) les
+ * remplace via setMinHpSegments() par le minimum, profondeur par profondeur, des hpBase de
+ * TOUTES les versions publiées du catalogue (un client resté sur une ancienne version ne peut
+ * donc jamais être freiné), et jamais au-dessus de MIN_HP_SEGMENTS (valeurs d'origine).
+ */
+let _minHpSegments = MIN_HP_SEGMENTS;
+
+/** Plus petit hpBase des segments à la profondeur d (Infinity si aucun). */
+function _segmentsMinAt(segs, d) {
+  let m = Infinity;
+  for (const s of segs) if (d >= s.from && d <= s.to && s.hpBase < m) m = s.hpBase;
+  return m;
+}
+
+/**
+ * Remplace les segments de PV minimum (#37). Chaque segment est borné par les valeurs d'origine
+ * (minimum point par point) : un catalogue ne peut que rendre le budget plus permissif.
+ * @param {{ from: number, to: number, hpBase: number }[]} segs  Segments contigus depuis 1 m
+ */
+function setMinHpSegments(segs) {
+  if (!Array.isArray(segs) || !segs.length) { _minHpSegments = MIN_HP_SEGMENTS; return _minHpSegments; }
+  const cuts = new Set([1]);
+  for (const s of [...segs, ...MIN_HP_SEGMENTS]) {
+    if (!(Number.isInteger(s.from) && s.from >= 1 && (s.to === Infinity || Number.isInteger(s.to)) && s.to >= s.from
+      && Number.isFinite(s.hpBase) && s.hpBase > 0)) throw new Error('setMinHpSegments : segment invalide');
+    cuts.add(s.from);
+    if (s.to !== Infinity) cuts.add(s.to + 1);
+  }
+  const sorted = [...cuts].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const from = sorted[i];
+    const to   = i + 1 < sorted.length ? sorted[i + 1] - 1 : Infinity;
+    const hpBase = Math.min(_segmentsMinAt(segs, from), _segmentsMinAt(MIN_HP_SEGMENTS, from));
+    const last = out[out.length - 1];
+    if (last && last.hpBase === hpBase) last.to = to; else out.push({ from, to, hpBase });
+  }
+  _minHpSegments = out;
+  return out;
+}
+
+function getMinHpSegments() { return _minHpSegments.map(s => ({ ...s })); }
+
 /** Crédit de dégâts non dépensé conservé : 10 min au rythme maximal théorique. */
 const DAMAGE_POOL_SECS = 600;
 /** Écart (m) à partir duquel un plafonnement par le budget est journalisé. */
@@ -56,7 +100,7 @@ const DAMAGE_LOG_GAP = 5;
 /** Somme des PV minimum (borne inférieure, sans arrondi) des blocs aux profondeurs a..b. */
 function _minHpSum(a, b) {
   let sum = 0;
-  for (const s of MIN_HP_SEGMENTS) {
+  for (const s of _minHpSegments) {
     const lo = Math.max(a, s.from);
     const hi = Math.min(b, s.to);
     if (hi < lo) continue;
@@ -444,7 +488,7 @@ function listEvents({ limit = 100, offset = 0, type = null, userId = null } = {}
 module.exports = {
   // Lot B
   MAX_CLICK_DAMAGE, MAX_AUTODIG_DPS, AUTODIG_MARGIN, CLICK_MARGIN, MAX_HP_REDUCTION, HP_SCALE_PER_M,
-  MIN_HP_SEGMENTS, DAMAGE_POOL_SECS, DAMAGE_LOG_GAP,
+  MIN_HP_SEGMENTS, DAMAGE_POOL_SECS, DAMAGE_LOG_GAP, setMinHpSegments, getMinHpSegments,
   damageCost, minBlockHp, reachableDepth, maxDamageRate, applyDamageBudget,
   // Interrupteurs
   getAntibotMode, getDamageBudgetMode, validateConfigValue,

@@ -79,6 +79,7 @@ const seasonEnd = require('./seasonEnd');
 const standings = require('./standings');
 const contest   = require('./contest');
 const shop      = require('./shop');
+const blockCatalog = require('./blockCatalog');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
@@ -653,6 +654,22 @@ app.post('/api/shop/orders', limit.shop, requireUser, shopRoute('POST /api/shop/
 app.post('/api/shop/orders/:id/cancel', limit.shop, requireUser, shopRoute('POST /api/shop/orders/:id/cancel', req =>
   shop.cancelByPlayer(req.session.userId, Number(req.params.id))));
 
+// Catalogue de blocs publié (#37) : lu par le jeu au démarrage (types désactivés compris).
+app.get('/api/blocks/catalog', (_req, res) => {
+  try { res.set('Cache-Control', 'no-cache'); res.json(blockCatalog.publicCatalog()); }
+  catch (err) { console.error('[GET /api/blocks/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+function catalogRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof blockCatalog.CatalogError) return res.status(err.status).json({ error: err.message, details: err.details });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
 // ── Middleware admin ──────────────────────────────────────────────────────────
 
 function requireAdmin(req, res, next) {
@@ -946,6 +963,39 @@ app.post('/api/admin/shop/orders/:id/status', requireAdmin, shopRoute('POST /api
 
 app.get('/api/admin/shop/audit', requireAdmin, shopRoute('GET /api/admin/shop/audit',
   req => ({ audit: shop.listAudit({ limit: intParam(req.query.limit, { def: 100, min: 1, max: 500 }) }) })));
+
+// Catalogue de blocs (#37) : brouillon validé et simulé, publication atomique, retour arrière.
+app.get('/api/admin/blocks', requireAdmin, catalogRoute('GET /api/admin/blocks', () => blockCatalog.buildAdminView()));
+
+app.put('/api/admin/blocks/draft/types/:id', requireAdmin, catalogRoute('PUT /api/admin/blocks/draft/types/:id', req => {
+  const type = req.body?.type;
+  if (!type || type.id !== req.params.id) throw new blockCatalog.CatalogError(400, 'Identifiant incohérent.');
+  return { type: blockCatalog.upsertDraftType(type) };
+}));
+
+app.delete('/api/admin/blocks/draft/types/:id', requireAdmin, catalogRoute('DELETE /api/admin/blocks/draft/types/:id',
+  req => { blockCatalog.removeDraftType(String(req.params.id)); return { ok: true }; }));
+
+app.delete('/api/admin/blocks/draft', requireAdmin, catalogRoute('DELETE /api/admin/blocks/draft',
+  () => ({ discarded: blockCatalog.discardDraft() })));
+
+app.post('/api/admin/blocks/simulate', requireAdmin, catalogRoute('POST /api/admin/blocks/simulate', req => {
+  const source = req.body?.source === 'draft' ? blockCatalog.getDraft() : blockCatalog.getPublished();
+  if (!source) throw new blockCatalog.CatalogError(404, 'Aucun brouillon.');
+  const v = blockCatalog.validateCatalog(source.types);
+  if (v.errors.length) throw new blockCatalog.CatalogError(400, 'Catalogue invalide.', v.errors);
+  return { results: blockCatalog.simulate(v.types, {
+    depths: req.body?.depths, n: Number(req.body?.n ?? 10000), luckLevel: Number(req.body?.luckLevel ?? 0) }) };
+}));
+
+app.post('/api/admin/blocks/publish', requireAdmin, catalogRoute('POST /api/admin/blocks/publish',
+  req => blockCatalog.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null })));
+
+app.post('/api/admin/blocks/rollback', requireAdmin, catalogRoute('POST /api/admin/blocks/rollback',
+  req => blockCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+app.get('/api/admin/blocks/audit', requireAdmin, catalogRoute('GET /api/admin/blocks/audit',
+  req => ({ audit: blockCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
 
 // Classement global admin d'une saison
 app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {
@@ -1349,6 +1399,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
+blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 
