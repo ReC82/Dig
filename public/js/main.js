@@ -29,8 +29,10 @@ const elRelics       = document.getElementById('stat-relics');
 let blockAnimating = false;
 let toastTimer     = null;
 let _previousView  = 'dig';   // vue à restaurer quand on ferme les paramètres
-let _account              = null;    // { id, username } si connecté, null sinon
-let _accountTab           = 'login'; // onglet actif dans le formulaire compte
+let _account              = null;    // { id, username, email, emailVerified } si connecté, null sinon
+let _accountTab           = 'login'; // onglet actif : login | register | forgot | reset (#28)
+let _mailEnabled          = false;   // e-mails de compte disponibles côté serveur (#28)
+let _resetToken           = null;    // jeton du lien « mot de passe oublié » ouvert (#28)
 let _hasShownGuestWarning = false;   // avertissement affiché une seule fois par session
 let _seasonCpsLimit       = 8;       // seuil CPS récupéré depuis le serveur
 
@@ -991,14 +993,21 @@ async function _apiFetch(method, url, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
+/** Relit le compte connecté (adresse e-mail, vérification) et la disponibilité des e-mails. */
+async function _loadAccount() {
+  const { ok, data } = await _apiFetch('GET', '/api/me');
+  _account     = ok ? (data.user ?? null) : null;
+  _mailEnabled = ok && !!data.mail;
+}
+
 async function _fetchMe() {
   try {
-    const { ok, data } = await _apiFetch('GET', '/api/me');
-    _account = ok ? (data.user ?? null) : null;
+    await _loadAccount();
     if (_account) await _syncAfterLogin();
   } catch (_) {
     _account = null;
   }
+  if (isViewActive('settings')) renderSettings();
   // Initialise seasonId et CPS limit même sans compte connecté
   _pollSeason();
 }
@@ -1013,6 +1022,36 @@ async function _doLogin(username, password) {
   const { ok, data } = await _apiFetch('POST', '/api/login', { username, password });
   if (ok) { _account = data.user; return null; }
   return data.error || t('account.err_generic');
+}
+
+/**
+ * Liens reçus par e-mail (#28) : ?verify=… confirme l'adresse, ?reset=… ouvre le formulaire
+ * de nouveau mot de passe. Le jeton est retiré de l'adresse aussitôt (historique, partage).
+ */
+function _handleAccountLinks() {
+  const params = new URLSearchParams(location.search);
+  const verify = params.get('verify');
+  const reset  = params.get('reset');
+  if (!verify && !reset) return;
+  params.delete('verify');
+  params.delete('reset');
+  const qs = params.toString();
+  history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash);
+
+  if (reset) {
+    _resetToken = reset;
+    _accountTab = 'reset';
+    switchView('settings');
+  }
+  if (verify) {
+    _apiFetch('POST', '/api/auth/email/verify', { token: verify, lang: I18n.getCurrent() })
+      .then(({ ok, data }) => {
+        showAchievement(ok ? '✉️' : '⚠️', ok ? t('account.verify_ok') : (data.error || t('account.verify_fail')));
+        if (ok && _account) { _account.email = data.email; _account.emailVerified = true; }
+        if (isViewActive('settings')) renderSettings();
+      })
+      .catch(() => showAchievement('⚠️', t('account.verify_fail')));
+  }
 }
 
 async function _doLogout() {
@@ -1468,38 +1507,7 @@ function renderSettings() {
     </button>`).join('');
 
   // ── Section compte ──
-  const accountHtml = _account
-    ? `<div class="settings-section">
-        <div class="settings-section-label">${t('account.title')}</div>
-        <div class="account-logged">
-          <div class="account-username">👤 ${t('account.logged_as', { name: escapeHtml(_account.username) })}</div>
-          <button class="account-logout-btn" id="btn-account-logout">${t('account.btn_logout')}</button>
-        </div>
-      </div>`
-    : `<div class="settings-section">
-        <div class="settings-section-label">${t('account.title')}</div>
-        <div class="account-tabs">
-          <button class="account-tab${_accountTab === 'login'    ? ' is-active' : ''}" data-tab="login">${t('account.tab_login')}</button>
-          <button class="account-tab${_accountTab === 'register' ? ' is-active' : ''}" data-tab="register">${t('account.tab_register')}</button>
-        </div>
-        <div class="account-form">
-          <input class="account-input" id="acc-username" type="text"
-            placeholder="${t('account.label_username')}" autocomplete="username" maxlength="20">
-          ${_accountTab === 'register'
-            ? `<input class="account-input" id="acc-email" type="email"
-                placeholder="${t('account.label_email')}" autocomplete="email">`
-            : ''}
-          <input class="account-input" id="acc-password" type="password"
-            placeholder="${t('account.label_password')}" autocomplete="${_accountTab === 'register' ? 'new-password' : 'current-password'}">
-          ${_accountTab === 'register'
-            ? `<p class="account-hint">${t('account.hint_username')}<br>${t('account.hint_email')}<br>${t('account.hint_password')}</p>`
-            : ''}
-          <button class="account-submit-btn" id="btn-account-submit">
-            ${_accountTab === 'login' ? t('account.btn_login') : t('account.btn_register')}
-          </button>
-          <p class="account-error" id="acc-error"></p>
-        </div>
-      </div>`;
+  const accountHtml = _accountSectionHtml();
 
   // Compte en premier → plus visible, puis langue
   container.innerHTML = `
@@ -1522,8 +1530,144 @@ function renderSettings() {
     });
   });
 
-  // Onglets compte (login / register)
-  container.querySelectorAll('.account-tab').forEach(btn => {
+  _bindAccountSection(container);
+
+  // Retour à la vue précédente
+  document.getElementById('btn-settings-back')
+    .addEventListener('click', () => switchView(_previousView));
+}
+
+// ── Section compte (Paramètres) ─────────────────────────────────────────────
+
+/** Champ de saisie du formulaire compte. */
+function _accInput(id, type, label, autocomplete, extra = '') {
+  return `<input class="account-input" id="${id}" type="${type}" placeholder="${label}"
+    aria-label="${label}" autocomplete="${autocomplete}" ${extra}>`;
+}
+
+function _accountSectionHtml() {
+  const head = `<div class="settings-section-label">${t('account.title')}</div>`;
+
+  // Lien « mot de passe oublié » ouvert : prioritaire, connecté ou non (#28)
+  if (_resetToken) {
+    return `<div class="settings-section">${head}
+      <div class="account-form">
+        <p class="account-hint">${t('account.reset_intro')}</p>
+        ${_accInput('acc-new-password', 'password', t('account.label_new_password'), 'new-password', 'maxlength="200"')}
+        <p class="account-hint">${t('account.hint_password')}</p>
+        <button class="account-submit-btn" id="btn-account-reset">${t('account.btn_reset')}</button>
+        <button class="account-link-btn" id="btn-account-reset-cancel">${t('account.btn_cancel')}</button>
+        <p class="account-error" id="acc-error" role="alert"></p>
+      </div></div>`;
+  }
+
+  if (_account) {
+    const email = _account.email
+      ? `<div class="account-email">
+          <span class="account-email-addr">✉️ ${escapeHtml(_account.email)}</span>
+          <span class="account-badge ${_account.emailVerified ? 'is-ok' : 'is-warn'}">${
+            _account.emailVerified ? t('account.email_verified') : t('account.email_unverified')}</span>
+          ${(!_account.emailVerified && _mailEnabled)
+            ? `<button class="account-link-btn" id="btn-account-send-verify">${t('account.btn_send_verify')}</button>` : ''}
+          <p class="account-msg" id="acc-verify-msg" role="status"></p>
+        </div>`
+      : '';
+    const changeEmail = _mailEnabled
+      ? `<details class="account-details">
+          <summary>${t('account.change_email')}</summary>
+          <div class="account-form">
+            ${_accInput('acc-new-email', 'email', t('account.label_new_email'), 'email', 'maxlength="254"')}
+            ${_accInput('acc-email-password', 'password', t('account.label_password'), 'current-password')}
+            <p class="account-hint">${t('account.hint_change_email')}</p>
+            <button class="account-submit-btn" id="btn-account-change-email">${t('account.btn_change_email')}</button>
+            <p class="account-msg" id="acc-email-msg" role="status"></p>
+          </div>
+        </details>`
+      : '';
+    return `<div class="settings-section">${head}
+      <div class="account-logged">
+        <div class="account-username">👤 ${t('account.logged_as', { name: escapeHtml(_account.username) })}</div>
+        <button class="account-logout-btn" id="btn-account-logout">${t('account.btn_logout')}</button>
+      </div>
+      ${email}
+      <details class="account-details">
+        <summary>${t('account.change_password')}</summary>
+        <div class="account-form">
+          ${_accInput('acc-cur-password', 'password', t('account.label_current_password'), 'current-password')}
+          ${_accInput('acc-new-password', 'password', t('account.label_new_password'), 'new-password', 'maxlength="200"')}
+          <p class="account-hint">${t('account.hint_password_others')}</p>
+          <button class="account-submit-btn" id="btn-account-change-password">${t('account.btn_change_password')}</button>
+          <p class="account-msg" id="acc-password-msg" role="status"></p>
+        </div>
+      </details>
+      ${changeEmail}
+    </div>`;
+  }
+
+  if (_accountTab === 'forgot') {
+    return `<div class="settings-section">${head}
+      <div class="account-form">
+        <p class="account-hint">${t('account.forgot_intro')}</p>
+        ${_accInput('acc-identifier', 'text', t('account.label_identifier'), 'username', 'maxlength="254"')}
+        <button class="account-submit-btn" id="btn-account-forgot">${t('account.btn_forgot_send')}</button>
+        <button class="account-link-btn" data-tab="login">${t('account.btn_back_login')}</button>
+        <p class="account-msg" id="acc-forgot-msg" role="status"></p>
+      </div></div>`;
+  }
+
+  const tab = _accountTab === 'register' ? 'register' : 'login';
+  return `<div class="settings-section">${head}
+    <div class="account-tabs">
+      <button class="account-tab${tab === 'login'    ? ' is-active' : ''}" data-tab="login">${t('account.tab_login')}</button>
+      <button class="account-tab${tab === 'register' ? ' is-active' : ''}" data-tab="register">${t('account.tab_register')}</button>
+    </div>
+    <div class="account-form">
+      <input class="account-input" id="acc-username" type="text"
+        placeholder="${t('account.label_username')}" autocomplete="username" maxlength="20">
+      ${tab === 'register'
+        ? `<input class="account-input" id="acc-email" type="email"
+            placeholder="${t('account.label_email')}" autocomplete="email">`
+        : ''}
+      <input class="account-input" id="acc-password" type="password"
+        placeholder="${t('account.label_password')}" autocomplete="${tab === 'register' ? 'new-password' : 'current-password'}">
+      ${tab === 'register'
+        ? `<p class="account-hint">${t('account.hint_username')}<br>${t('account.hint_email')}<br>${t('account.hint_password')}</p>`
+        : ''}
+      <button class="account-submit-btn" id="btn-account-submit">
+        ${tab === 'login' ? t('account.btn_login') : t('account.btn_register')}
+      </button>
+      ${(tab === 'login' && _mailEnabled)
+        ? `<button class="account-link-btn" data-tab="forgot">${t('account.btn_forgot')}</button>` : ''}
+      <p class="account-error" id="acc-error" role="alert"></p>
+    </div>
+  </div>`;
+}
+
+/** Affiche un message de résultat sous un formulaire du compte. */
+function _accMsg(id, text, ok) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle('is-ok', !!ok);
+  el.classList.toggle('is-error', !ok);
+}
+
+/** Bouton désactivé pendant l'appel, réactivé ensuite. */
+function _onAccountClick(id, handler) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    try { await handler(); } catch (_) { /* réseau : message générique ci-dessous */ }
+    if (btn.isConnected) btn.disabled = false;
+  });
+}
+
+function _bindAccountSection(container) {
+  const lang = I18n.getCurrent();
+
+  // Onglets et liens de navigation (login / register / forgot)
+  container.querySelectorAll('.account-tab, .account-link-btn[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       _accountTab = btn.dataset.tab;
       renderSettings();
@@ -1540,7 +1684,79 @@ function renderSettings() {
     });
   }
 
-  // Submit login / register
+  // Nouveau mot de passe depuis le lien reçu par e-mail
+  _onAccountClick('btn-account-reset', async () => {
+    const password = document.getElementById('acc-new-password').value;
+    // Compte déjà connecté : dernier envoi de sa progression, puis aucun envoi cloud pendant
+    // le changement de session (le serveur connecte ce navigateur au compte du lien).
+    const prev = _account;
+    if (prev) { Save.save(); await _syncToCloud(); }
+    _cloudReady = false;
+    const { ok, data } = await _apiFetch('POST', '/api/auth/password/reset', { token: _resetToken, password });
+    if (!ok) {
+      if (prev) _cloudReady = true;
+      _accMsg('acc-error', data.error || t('account.err_generic'), false);
+      return;
+    }
+    _resetToken = null;
+    _accountTab = 'login';
+    if (prev && prev.id === data.user.id) {
+      _cloudReady = true;
+    } else {
+      // Autre compte (ou invité) : même chemin qu'une connexion explicite (#18)
+      if (prev) { _clearCloudMeta(); Save.purge(); _refreshAllAfterReset(); }
+      _account = data.user;
+      await _syncAfterLogin(true);
+      await _pollSeason();
+    }
+    await _loadAccount();
+    showAchievement('🔑', t('account.reset_ok'));
+    renderSettings();
+  });
+  const cancelReset = document.getElementById('btn-account-reset-cancel');
+  if (cancelReset) cancelReset.addEventListener('click', () => {
+    _resetToken = null;
+    _accountTab = 'login';
+    renderSettings();
+  });
+
+  // Mot de passe oublié
+  _onAccountClick('btn-account-forgot', async () => {
+    const identifier = document.getElementById('acc-identifier').value.trim();
+    const { ok, data } = await _apiFetch('POST', '/api/auth/password/forgot', { identifier, lang });
+    _accMsg('acc-forgot-msg', ok ? t('account.forgot_sent') : (data.error || t('account.err_generic')), ok);
+  });
+
+  // Renvoi du lien de vérification
+  _onAccountClick('btn-account-send-verify', async () => {
+    const { ok, data } = await _apiFetch('POST', '/api/auth/email/send-verification', { lang });
+    _accMsg('acc-verify-msg', ok ? t('account.verify_sent') : (data.error || t('account.err_generic')), ok);
+  });
+
+  // Changement de mot de passe
+  _onAccountClick('btn-account-change-password', async () => {
+    const currentPassword = document.getElementById('acc-cur-password').value;
+    const newPassword     = document.getElementById('acc-new-password').value;
+    const { ok, data } = await _apiFetch('POST', '/api/me/password', { currentPassword, newPassword });
+    if (ok) {
+      document.getElementById('acc-cur-password').value = '';
+      document.getElementById('acc-new-password').value = '';
+    }
+    _accMsg('acc-password-msg', ok ? t('account.password_changed') : (data.error || t('account.err_generic')), ok);
+  });
+
+  // Changement d'adresse e-mail (effectif après confirmation par lien)
+  _onAccountClick('btn-account-change-email', async () => {
+    const email    = document.getElementById('acc-new-email').value.trim();
+    const password = document.getElementById('acc-email-password').value;
+    const { ok, data } = await _apiFetch('POST', '/api/me/email', { email, password, lang });
+    if (ok) document.getElementById('acc-email-password').value = '';
+    _accMsg('acc-email-msg', ok
+      ? (data.alreadyVerified ? t('account.email_verified') : t('account.email_change_sent', { email: data.pending }))
+      : (data.error || t('account.err_generic')), ok);
+  });
+
+  // Connexion / inscription
   const submitBtn = document.getElementById('btn-account-submit');
   if (submitBtn) {
     const doSubmit = async () => {
@@ -1551,9 +1767,9 @@ function renderSettings() {
       errEl.textContent = '';
       submitBtn.disabled = true;
 
-      const error = _accountTab === 'login'
-        ? await _doLogin(username, password)
-        : await _doRegister(username, email, password);
+      const error = _accountTab === 'register'
+        ? await _doRegister(username, email, password)
+        : await _doLogin(username, password);
 
       if (error) {
         errEl.textContent = error;
@@ -1561,6 +1777,7 @@ function renderSettings() {
       } else {
         await _syncAfterLogin(true); // connexion explicite → toujours appliquer le cloud
         await _pollSeason();
+        try { await _loadAccount(); } catch (_) { /* l'adresse s'affichera au prochain chargement */ }
         renderSettings();
       }
     };
@@ -1573,10 +1790,6 @@ function renderSettings() {
       if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doSubmit(); });
     });
   }
-
-  // Retour à la vue précédente
-  document.getElementById('btn-settings-back')
-    .addEventListener('click', () => switchView(_previousView));
 }
 
 // ── Rendu boutique ────────────────────────────────────────────────────────────
@@ -2139,6 +2352,9 @@ function init() {
   setInterval(() => { renderBoostBanner(); updateAdButtonState(); }, 1_000);
   setInterval(_pollSeason,      5 * 60_000); // vérifie la saison toutes les 5 min
   setInterval(_refreshSeasonView, SEASON_REFRESH_IDLE_MS); // onglet Saison affiché uniquement
+
+  // Liens reçus par e-mail (vérification, mot de passe oublié — #28)
+  _handleAccountLinks();
 
   // Récupère l'état de session (non bloquant — la page est déjà jouable)
   _fetchMe();

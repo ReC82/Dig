@@ -172,6 +172,22 @@ for i in $(seq 1 11); do curl -s -o /dev/null -w '%{http_code} ' -H 'Content-Typ
 
 (Ce second test bloque les connexions **de votre IP** pendant une minute.)
 
+## E-mails de compte : vérification et mot de passe oublié (ticket #28)
+
+Désactivés tant que le SMTP n'est pas configuré (le jeu fonctionne alors comme avant ; seul le
+changement de mot de passe, qui n'envoie rien, est proposé). Pour les activer, ajouter dans
+`/etc/dig/dig.env` puis `sudo systemctl restart dig` :
+
+```
+SMTP_HOST=…  SMTP_PORT=587  SMTP_USER=…  SMTP_PASS=…
+MAIL_FROM=DIG! <adresse@domaine>   MAIL_REPLY_TO=…   PUBLIC_BASE_URL=https://dig.lodygames.com
+```
+
+(une variable par ligne). Contrôle : `curl -s http://127.0.0.1:3000/api/me` → `"mail":true`.
+Un échec d'envoi est journalisé (`journalctl -u dig | grep '\[mail\]'`) sans le mot de passe.
+Limites : `RATE_MAIL_MAX` (5 envois / IP / 15 min), `RATE_TOKEN_MAX` (20 liens refusés / IP / 15 min).
+Comparatif Auth0 et choix : `docs/AUTH-COMPARATIF.md`.
+
 ## Tests
 
 ```bash

@@ -17,6 +17,7 @@
  *   POST /api/login                  → ouvre une session
  *   GET  /api/me                     → retourne l'utilisateur connecté (ou null)
  *   POST /api/logout                 → détruit la session
+ *   E-mail vérifié, mot de passe oublié / changé, changement d'adresse : server/accountRoutes.js (#28)
  */
 
 require('dotenv').config();
@@ -38,6 +39,7 @@ const {
   getUserByUsername,
   getUserById,
   getUserByEmail,
+  getUserAuth,
   getUserSave,
   upsertUserSave,
   searchUsers,
@@ -79,6 +81,8 @@ const { validateEconomyValue } = require('./economy');
 const security = require('./security');
 const { createRateLimiters } = require('./rateLimits');
 const { isValidEmail, intParam } = require('./validation');
+const { createMailer } = require('./mailer');
+const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
 
 // Secrets : refus de démarrer en production sans SESSION_SECRET solide (#12)
 let SESSION_SECRET, ADMIN_SECRET;
@@ -96,6 +100,9 @@ const HOST = process.env.HOST || '127.0.0.1';
 
 // Limitation de débit : connexion, inscription, sauvegarde cloud (#14)
 const limit = createRateLimiters();
+
+// E-mails de compte (#28) : désactivés tant que le SMTP n'est pas configuré
+const mailer = createMailer();
 
 // ── Middlewares ───────────────────────────────────────────────────────────────
 
@@ -123,6 +130,9 @@ app.use(session({
     secure:   security.cookieSecure(), // true en production : cookie envoyé en HTTPS uniquement
   },
 }));
+
+// Mot de passe changé ailleurs : les autres sessions du compte sont fermées (#28)
+app.use(authVersionGuard);
 
 // Parse les corps JSON (les saves font quelques Ko au maximum)
 app.use(express.json({ limit: '512kb' }));
@@ -286,7 +296,8 @@ app.post('/api/register', limit.register, async (req, res) => {
   try {
     const hash = await bcrypt.hash(password, 10);
     const user = createUser(username, email, hash);
-    req.session.userId = user.id;
+    req.session.userId      = user.id;
+    req.session.authVersion = 0;
     res.json({ user: { id: user.id, username: user.username } });
   } catch (err) {
     console.error('[register]', err);
@@ -317,7 +328,8 @@ app.post('/api/login', limit.login, async (req, res) => {
     if (!ok) {
       return res.status(401).json({ error: 'Nom d\'utilisateur ou mot de passe incorrect.' });
     }
-    req.session.userId = row.id;
+    req.session.userId      = row.id;
+    req.session.authVersion = row.auth_version ?? 0;
     res.json({ user: { id: row.id, username: row.username } });
   } catch (err) {
     console.error('[login]', err);
@@ -331,10 +343,11 @@ app.post('/api/login', limit.login, async (req, res) => {
  */
 app.get('/api/me', (req, res) => {
   try {
-    if (!req.session.userId) return res.json({ user: null });
-    const user = getUserById(req.session.userId);
-    if (!user) { req.session.destroy(() => {}); return res.json({ user: null }); }
-    res.json({ user: { id: user.id, username: user.username } });
+    const mail = mailer.enabled;
+    if (!req.session.userId) return res.json({ user: null, mail });
+    const user = getUserAuth(req.session.userId);
+    if (!user) { req.session.destroy(() => {}); return res.json({ user: null, mail }); }
+    res.json({ user: publicAccount(user), mail });
   } catch (err) {
     console.error('[GET /api/me]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -348,6 +361,9 @@ app.get('/api/me', (req, res) => {
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
+
+// E-mail vérifié et récupération de compte (#28)
+registerAccountRoutes(app, { limit, mailer });
 
 // ── Routes sauvegardes cloud (liées au compte) ────────────────────────────────
 

@@ -2129,6 +2129,59 @@ h1 {
   text-align: center;
 }
 
+/* Compte : e-mail vérifié, mot de passe oublié / changé (#28) */
+.account-link-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-decoration: underline;
+  padding: 6px 4px;
+  cursor: pointer;
+  align-self: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.account-link-btn:hover { color: var(--text); }
+.account-email {
+  padding: 0 16px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+.account-email-addr { overflow-wrap: anywhere; }
+.account-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 2px 8px;
+}
+.account-badge.is-ok   { color: var(--green); background: rgba(74,222,128,0.12); }
+.account-badge.is-warn { color: var(--gold); background: rgba(245,197,24,0.12); }
+.account-email .account-link-btn { padding: 2px 0; }
+.account-details { border-top: 1px solid var(--border); }
+.account-details > summary {
+  padding: 11px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.account-details[open] > summary { color: var(--text); }
+.account-details > .account-form { padding-top: 0; }
+.account-msg {
+  font-size: 0.73rem;
+  color: var(--muted);
+  text-align: center;
+  flex-basis: 100%;
+}
+.account-msg:empty { display: none; }
+.account-msg.is-ok    { color: var(--green); }
+.account-msg.is-error { color: var(--red); }
+
 /* ── Responsive ─────────────────────────────── */
 @media (max-width: 380px) {
   #stats { grid-template-columns: repeat(3, 1fr); } /* 2 lignes de 3 avec 6 stats */

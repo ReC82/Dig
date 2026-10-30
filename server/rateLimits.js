@@ -8,6 +8,8 @@
  *   RATE_LOGIN_MAX       échecs de connexion par IP et par minute       (défaut 10)
  *   RATE_REGISTER_MAX    tentatives d'inscription par IP / 15 minutes   (défaut 10)
  *   RATE_SAVE_MAX        sauvegardes cloud par compte (ou IP) / minute  (défaut 30)
+ *   RATE_MAIL_MAX        envois d'e-mails de compte par IP / 15 minutes (défaut 5, #28)
+ *   RATE_TOKEN_MAX       liens e-mail refusés par IP / 15 minutes       (défaut 20, #28)
  *   RATE_LIMIT           « off » désactive toutes les limites (diagnostic uniquement)
  */
 
@@ -32,12 +34,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass };
   }
 
   const common = {
@@ -71,6 +73,23 @@ function createRateLimiters(env = process.env) {
       windowMs:     MINUTE,
       limit:        intFromEnv(env, 'RATE_SAVE_MAX', 30),
       keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
+    }),
+
+    // E-mails de compte (vérification, mot de passe oublié) : chaque demande compte, pour
+    // qu'une IP ne puisse pas faire envoyer des messages en masse (#28).
+    mail: rateLimit({
+      ...common,
+      windowMs: 15 * MINUTE,
+      limit:    intFromEnv(env, 'RATE_MAIL_MAX', 5),
+    }),
+
+    // Liens reçus par e-mail (vérification, réinitialisation) : seuls les refus comptent,
+    // ce qui rend inutile l'essai de jetons au hasard (#28).
+    token: rateLimit({
+      ...common,
+      windowMs:               15 * MINUTE,
+      limit:                  intFromEnv(env, 'RATE_TOKEN_MAX', 20),
+      skipSuccessfulRequests: true,
     }),
   };
 }
