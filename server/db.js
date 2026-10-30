@@ -609,6 +609,26 @@ function initDb() {
       BEGIN SELECT RAISE(ABORT, 'reward_point_runs est en ajout seul (#33)'); END;
   `);
 
+  // Fin de saison configurable (#44) : journal en ajout seul des changements de date de fin
+  // de la saison active (programmation, annulation), avec l'ancienne et la nouvelle valeur.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS season_end_changes (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      season_id   INTEGER NOT NULL,
+      action      TEXT    NOT NULL CHECK (action IN ('set','cancel')),
+      old_end_at  TEXT    NOT NULL,
+      new_end_at  TEXT    NOT NULL,
+      weekly_end  TEXT    NOT NULL,
+      reason      TEXT,
+      created_at  TEXT    NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_season_end_changes_season ON season_end_changes (season_id, id);
+    CREATE TRIGGER IF NOT EXISTS trg_season_end_changes_no_update BEFORE UPDATE ON season_end_changes
+      BEGIN SELECT RAISE(ABORT, 'season_end_changes est en ajout seul (#44)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_season_end_changes_no_delete BEFORE DELETE ON season_end_changes
+      BEGIN SELECT RAISE(ABORT, 'season_end_changes est en ajout seul (#44)'); END;
+  `);
+
   // Journal de sécurité (lot A) : aucune IP en clair (HMAC tronqué), purge à 90 jours.
   // Score de risque par compte et par saison (composantes par catégorie, décroissantes).
   _db.exec(`

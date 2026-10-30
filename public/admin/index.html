@@ -124,6 +124,37 @@
       </div>
     </div>
 
+    <!-- Date de fin de la saison active (#44) -->
+    <div class="overview-card" id="season-end-card">
+      <h3 class="overview-card-title">Date de fin de la saison active</h3>
+      <p class="muted">Heure du serveur : <span id="se-now">—</span></p>
+      <p>Fin actuelle : <strong id="se-current">—</strong> <span id="se-badge"></span></p>
+      <p class="muted">Fin hebdomadaire d'origine : <span id="se-weekly">—</span></p>
+      <p class="muted" style="margin:8px 0">À l'échéance, le planificateur clôt la saison (classement figé, points crédités une seule fois, nouvelle saison jusqu'au dimanche 23:59:59 UTC). Saisie en heure de <strong>Bruxelles</strong> ; minimum <span id="se-lead">10</span> min dans le futur.</p>
+      <div class="form-actions">
+        <label for="se-local">Nouvelle fin (Europe/Brussels)</label>
+        <input type="datetime-local" id="se-local" step="60">
+        <button class="btn" id="btn-se-preview">Prévisualiser</button>
+        <button class="btn btn-outline hidden" id="btn-se-cancel">Annuler la fin exceptionnelle</button>
+      </div>
+      <div id="se-preview" class="confirm-dialog hidden">
+        <ul id="se-consequences"></ul>
+        <label for="se-confirm">Pour confirmer, saisissez le nom exact de la saison (<strong id="se-name"></strong>) :</label>
+        <input type="text" id="se-confirm" autocomplete="off">
+        <label for="se-reason">Motif (journal d'audit)</label>
+        <input type="text" id="se-reason" maxlength="300">
+        <div class="form-actions" style="margin-top:12px">
+          <button class="btn btn-danger" id="btn-se-apply">Programmer cette fin</button>
+          <button class="btn btn-outline" id="btn-se-abort">Fermer</button>
+        </div>
+      </div>
+      <p id="se-msg" class="success hidden"></p>
+      <p id="se-err" class="error hidden"></p>
+      <details style="margin-top:8px"><summary>Journal des changements</summary>
+        <table id="se-history"><thead><tr><th>Date</th><th>Action</th><th>Ancienne fin</th><th>Nouvelle fin</th><th>Motif</th></tr></thead><tbody></tbody></table>
+      </details>
+    </div>
+
     <!-- Ligues avec compteurs -->
     <div class="overview-card">
       <h3 class="overview-card-title">Ligues</h3>

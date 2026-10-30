@@ -379,6 +379,7 @@ async function loadSeasonOverview() {
 
   // Paramètres
   await loadSeasonParams();
+  await loadSeasonEnd();
 }
 
 async function loadSeasonParams() {
@@ -436,6 +437,93 @@ document.getElementById('btn-save-params').addEventListener('click', async () =>
 });
 
 document.getElementById('btn-refresh-overview').addEventListener('click', loadSeasonOverview);
+
+// ── Date de fin de la saison active (#44) ────────────────────────────────────
+
+let _seState = null, _sePreview = null;
+const _seBoth = v => (v ? `${v.local ?? '—'} — ${v.utc} UTC` : '—');
+
+function _seMsg(id, text) {
+  for (const k of ['se-msg', 'se-err']) document.getElementById(k).classList.add('hidden');
+  if (!text) return;
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.remove('hidden');
+}
+
+async function loadSeasonEnd() {
+  const { ok, data } = await api('GET', '/api/admin/seasons/active/end');
+  if (!ok || !data.season) { _seState = null; document.getElementById('se-current').textContent = 'Aucune saison active.'; return; }
+  _seState = data;
+  document.getElementById('se-now').textContent     = _seBoth(data.serverNow);
+  document.getElementById('se-current').textContent = _seBoth(data.season.endAt);
+  document.getElementById('se-weekly').textContent  = _seBoth(data.weeklyEnd);
+  document.getElementById('se-lead').textContent    = data.minLeadMinutes;
+  document.getElementById('se-badge').textContent   = data.exceptional ? '⚠ fin exceptionnelle programmée' : '';
+  document.getElementById('btn-se-cancel').classList.toggle('hidden', !data.cancellable);
+  const tbody = document.querySelector('#se-history tbody');
+  tbody.innerHTML = '';
+  if (!data.history.length) tbody.innerHTML = '<tr><td colspan="5" class="muted">Aucun changement.</td></tr>';
+  for (const h of data.history) {
+    const tr = document.createElement('tr');
+    [_seBoth(h.createdAt), h.action === 'set' ? 'Programmée' : 'Annulée', _seBoth(h.oldEnd), _seBoth(h.newEnd), h.reason ?? '']
+      .forEach(v => addCell(tr, v));
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById('btn-se-preview').addEventListener('click', async () => {
+  _seMsg();
+  document.getElementById('se-preview').classList.add('hidden');
+  if (!_seState) return;
+  const endLocal = document.getElementById('se-local').value;
+  if (!endLocal) return _seMsg('se-err', 'Choisissez une date et une heure (Bruxelles).');
+  const { ok, data } = await api('POST', '/api/admin/seasons/active/end/preview', { seasonId: _seState.season.id, end_local: endLocal });
+  if (!ok) return _seMsg('se-err', data.error ?? 'Aperçu impossible.');
+  _sePreview = { ...data, endLocal };
+  const ul = document.getElementById('se-consequences');
+  ul.innerHTML = '';
+  const lines = [
+    `Fin actuelle : ${_seBoth(data.currentEnd)}`,
+    `Nouvelle fin : ${_seBoth(data.newEnd)}`,
+    `Joueurs actifs cette saison : ${data.activePlayers}`,
+    ...data.consequences,
+  ];
+  for (const line of lines) { const li = document.createElement('li'); li.textContent = line; ul.appendChild(li); }
+  document.getElementById('se-name').textContent = data.season.name;
+  document.getElementById('se-confirm').value = '';
+  document.getElementById('se-preview').classList.remove('hidden');
+});
+
+document.getElementById('btn-se-abort').addEventListener('click', () => {
+  document.getElementById('se-preview').classList.add('hidden');
+  _sePreview = null;
+});
+
+document.getElementById('btn-se-apply').addEventListener('click', async () => {
+  if (!_sePreview) return;
+  const btn = document.getElementById('btn-se-apply');
+  btn.disabled = true;
+  const { ok, data } = await api('PUT', '/api/admin/seasons/active/end', {
+    seasonId: _sePreview.season.id, end_local: _sePreview.endLocal, expectedEndAt: _sePreview.expectedEndAt,
+    confirm: document.getElementById('se-confirm').value.trim(), reason: document.getElementById('se-reason').value.trim(),
+  });
+  btn.disabled = false;
+  if (!ok) return _seMsg('se-err', data.error ?? 'Programmation impossible.');
+  document.getElementById('se-preview').classList.add('hidden');
+  _sePreview = null;
+  await loadSeasonOverview();
+  _seMsg('se-msg', `Fin programmée : ${_seBoth(data.season.endAt)}.`);
+});
+
+document.getElementById('btn-se-cancel').addEventListener('click', async () => {
+  if (!_seState) return;
+  if (!confirm(`Annuler la fin exceptionnelle et revenir à la fin hebdomadaire (${_seBoth(_seState.weeklyEnd)}) ?`)) return;
+  const { ok, data } = await api('DELETE', '/api/admin/seasons/active/end', { seasonId: _seState.season.id, expectedEndAt: _seState.expectedEndAt });
+  if (!ok) return _seMsg('se-err', data.error ?? 'Annulation impossible.');
+  await loadSeasonOverview();
+  _seMsg('se-msg', `Fin exceptionnelle annulée : retour à ${_seBoth(data.season.endAt)}.`);
+});
 
 // ── Clôture manuelle de saison ────────────────────────────────────────────────
 

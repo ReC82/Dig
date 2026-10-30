@@ -1397,6 +1397,18 @@ function _applyServerEconomy(eco) {
   if (!blockAnimating) renderBlock();   // gain affiché du bloc courant
 }
 
+/** Rotation : nouvelle synchronisation ~1 min après la fin (le planificateur passe chaque minute). */
+let _seasonEndTimer = null;
+function _scheduleSeasonEndPoll(diffMs) {
+  if (_seasonEndTimer) clearTimeout(_seasonEndTimer);
+  _seasonEndTimer = null;
+  if (!(diffMs > -60_000) || diffMs > 6 * 3_600_000) return;
+  _seasonEndTimer = setTimeout(() => {
+    _seasonEndTimer = null;
+    _pollSeason().then(() => { if (isViewActive('season')) _openSeasonView(); });
+  }, Math.max(0, diffMs) + 75_000);
+}
+
 /** Polling toutes les 5 min : détecte un changement de saison. */
 async function _pollSeason() {
   try {
@@ -1435,7 +1447,11 @@ function renderSeasonView(apiData, lbData) {
   const diffMs   = endDate - Date.now();
   const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
   const diffHrs  = Math.max(0, Math.floor((diffMs % 86_400_000) / 3_600_000));
-  const endsIn   = t('season.ends_in', { d: diffDays, h: diffHrs });
+  const diffMin  = Math.max(0, Math.floor((diffMs % 3_600_000) / 60_000));
+  // Dernières 24 h : heures et minutes (fin exceptionnelle #44) ; date de fin en heure locale
+  const endsIn   = (diffDays ? t('season.ends_in', { d: diffDays, h: diffHrs }) : t('season.ends_in_hm', { h: diffHrs, m: diffMin }))
+    + ' · ' + t('season.ends_at', { date: escapeHtml(endDate.toLocaleString(I18n.getCurrent(), { dateStyle: 'medium', timeStyle: 'short' })) });
+  _scheduleSeasonEndPoll(diffMs);
 
   let playerHtml = '';
   if (!_account) {
