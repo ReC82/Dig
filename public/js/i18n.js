@@ -60,7 +60,7 @@ const I18n = (() => {
       },
       upgrade: {
         pickaxe:  { name: 'Pioche',    desc: '{damage} dégât{s} par clic', },
-        luck:     { name: 'Chance',    desc_none: 'Aucun bonus de rareté', desc: '+{pct}% chance de blocs rares',
+        luck:     { name: 'Chance',    desc: 'Plus de rares, sans ralentir',
                     preview: 'À {depth}m : {now}% de blocs rares\u00a0→\u00a0{next}%', preview_max: 'À {depth}m : {now}% de blocs rares', preview_none: 'Aucun bloc rare avant 5m', },
         bag:      { name: 'Sac',       desc_normal: 'Récompenses normales', desc: 'Récompenses ×{mult}', },
         autodig:  { name: 'Auto-Dig',  desc_off: 'Inactif', desc: '{dmg} dégât{s} automatique/sec', },
@@ -381,7 +381,7 @@ const I18n = (() => {
       },
       upgrade: {
         pickaxe:  { name: 'Pickaxe',   desc: '{damage} damage per click', },
-        luck:     { name: 'Luck',      desc_none: 'No rarity bonus', desc: '+{pct}% chance of rare blocks',
+        luck:     { name: 'Luck',      desc: 'More rares, no slowdown',
                     preview: 'At {depth}m: {now}% rare blocks\u00a0→\u00a0{next}%', preview_max: 'At {depth}m: {now}% rare blocks', preview_none: 'No rare blocks before 5m', },
         bag:      { name: 'Bag',       desc_normal: 'Normal rewards', desc: 'Rewards ×{mult}', },
         autodig:  { name: 'Auto-Dig',  desc_off: 'Inactive', desc: '{dmg} automatic damage/sec', },
@@ -702,7 +702,7 @@ const I18n = (() => {
       },
       upgrade: {
         pickaxe:  { name: 'Houweel',      desc: '{damage} schade per klik', },
-        luck:     { name: 'Geluk',        desc_none: 'Geen zeldzaamheidsbonus', desc: '+{pct}% kans op zeldzame blokken',
+        luck:     { name: 'Geluk',        desc: 'Meer zeldzame, niet trager',
                     preview: 'Op {depth}m: {now}% zeldzame blokken\u00a0→\u00a0{next}%', preview_max: 'Op {depth}m: {now}% zeldzame blokken', preview_none: 'Geen zeldzame blokken vóór 5m', },
         bag:      { name: 'Tas',          desc_normal: 'Normale beloningen', desc: 'Beloningen ×{mult}', },
         autodig:  { name: 'Auto-graven',  desc_off: 'Inactief', desc: '{dmg} automatische schade/sec', },

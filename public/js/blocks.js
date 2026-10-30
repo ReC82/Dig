@@ -140,9 +140,12 @@ const Blocks = {
   // Raretés boostées par l'upgrade Chance
   _BOOSTED_RARITIES: new Set(['rare', 'epique', 'legendaire']),
 
+  /** Bonus de poids des raretés boostées par niveau de Chance (#32 : 0,20 → 0,10). */
+  LUCK_PER_LEVEL: 0.10,
+
   /** Multiplicateur de poids des raretés boostées : Chance + relique Lentille fêlée. */
   luckMultiplier(luckLevel = GameState.upgrades ? (GameState.upgrades.luck || 0) : 0) {
-    return 1 + luckLevel * 0.20 + (GameState.relicBonuses?.luckPct ?? 0);
+    return 1 + luckLevel * this.LUCK_PER_LEVEL + (GameState.relicBonuses?.luckPct ?? 0);
   },
 
   /** Pool pondéré des blocs possibles à cette profondeur (source unique du tirage et de l'affichage). */
@@ -172,9 +175,9 @@ const Blocks = {
       .reduce((s, e) => s + e.p, 0);
   },
 
-  /** Tirage pondéré en tenant compte du niveau Chance. */
-  _pickType(depth) {
-    const pool = this._pool(depth, this.luckMultiplier());
+  /** Tirage pondéré ; par défaut avec la Chance du joueur, `luckMult = 1` pour un tirage neutre. */
+  _pickType(depth, luckMult = this.luckMultiplier()) {
+    const pool = this._pool(depth, luckMult);
 
     if (pool.length === 0) return this.TYPES[2]; // fallback : Pierre
 
@@ -187,12 +190,18 @@ const Blocks = {
     return pool[pool.length - 1].type;
   },
 
-  /** Crée un nouveau bloc adapté à la profondeur. */
+  /**
+   * Crée un nouveau bloc adapté à la profondeur, en deux tirages (#32, option A) :
+   *   - la nature du bloc (apparence, récompense, coffre, gemme) est tirée AVEC la Chance ;
+   *   - sa résistance (PV) est tirée SANS Chance, sur le même pool : la Chance ne ralentit
+   *     jamais la descente (PV moyens identiques à Chance 0).
+   */
   spawn(depth) {
-    const type   = this._pickType(depth);
+    const type       = this._pickType(depth);
+    const hpType     = this._pickType(depth, 1);
     const scale      = 1 + (depth - 1) * 0.12;
     const hpReduct   = GameState.relicBonuses?.hpReduction ?? 0;
-    const hp         = Math.ceil(type.hpBase * scale * (1 - hpReduct));
+    const hp         = Math.ceil(hpType.hpBase * scale * (1 - hpReduct));
     const reward = Math.ceil(type.reward  * (1 + (depth - 1) * 0.05));
     this.current = { type, hp, maxHp: hp, reward };
     return this.current;
