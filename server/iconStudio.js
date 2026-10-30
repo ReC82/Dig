@@ -55,6 +55,7 @@ const UI_TARGETS = [
   { id: 'collection', emoji: '📦', name: 'Collection', subject: 'A small open treasure crate showing a few collectible relics', details: 'Wooden crate, lid open, a fossil bone and a blue crystal peeking out.', palette: 'Palette: warm wood, hints of blue and bone white.' },
   { id: 'quotidien', emoji: '📅', name: 'Récompense quotidienne', subject: 'A small calendar page with a gift ribbon', details: 'Single calendar sheet with a check mark and a red ribbon bow.', palette: 'Palette: off-white page, red ribbon, gold check.' },
   { id: 'boutique', emoji: '🛒', name: 'Boutique', subject: 'A small mine cart full of gold coins', details: 'Rail mine cart seen in three-quarter view, heaped with coins.', palette: 'Palette: dark iron cart, shiny gold coins.' },
+  { id: 'logo', emoji: '⛏', name: 'Logo DIG! — emblème compact', subject: 'A compact square emblem for the DIG! mining game: a chunky faceted stone block with a golden pickaxe planted in its top', details: 'Badge-like square emblem that stays readable at 32 to 40 pixels in a phone header, placed just before the word DIG!; no text, no letters, no ribbon, no wide shape.', palette: 'Palette: cool stone gray block like the reference stone, bright gold pickaxe head, warm wooden handle.' },
   { id: 'saison', emoji: '🏆', name: 'Saison / classement', subject: 'A golden trophy cup', details: 'Two-handled cup on a short base, faceted gold.', palette: 'Palette: rich gold with warm highlights.' },
 ];
 
