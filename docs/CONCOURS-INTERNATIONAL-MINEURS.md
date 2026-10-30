@@ -10,6 +10,18 @@
 > que la conformité et le règlement ne sont pas validés par le propriétaire. Les récompenses
 > purement virtuelles et les simulations restent possibles.
 
+> **Décision du propriétaire — 30/10/2026, 12 h 09 et 12 h 20** ([décision](https://github.com/ReC82/Dig/issues/27#issuecomment-6521207300), [statut](https://github.com/ReC82/Dig/issues/27#issuecomment-6521405115)) :
+> **jeu mondial, États-Unis inclus**, sans restriction de pays ni d'âge dans le gameplay, les
+> classements, les points saisonniers et l'interface de la boutique. Les questions juridiques
+> (pays ouverts, procédure mineurs, organisateur, avis juridique, fournisseur) **ne bloquent plus
+> le développement** de #29, #30, #31, #33 et #34 et ne sont plus posées pour l'instant. Pas de
+> géoblocage ni de barrière 18+ globale codés par défaut ; une **configuration d'éligibilité des
+> cadeaux réels** est prévue mais reste désactivée. **Limite conservée** : cadeaux de valeur réelle
+> et envoi de codes **désactivés** jusqu'à une décision explicite d'activation et la vérification
+> des obligations applicables (§ « Conditions d'activation ») ; aucune annonce d'échanges réels ; le
+> faible montant des lots n'est pas une exemption acquise. Ce ticket devient une **vérification
+> différée avant activation**.
+
 Complète `docs/CONCOURS-CONFORMITE.md` (cadrage belge) et `docs/REGLEMENT-CONCOURS.md` (projet de
 règlement). Tickets concernés : #33 (points), #34 (boutique), #30 (admin), #31 (interface), #28
 (identité), #25 (anti-bot), #32 (équilibrage Chance).
@@ -171,6 +183,11 @@ Aucun de ces seuils n'impose d'exclure les mineurs du **jeu** ni du **gain de po
   côté organisateur, dépense de promotion à documenter (à confirmer par un comptable).
 
 ## 7. Conditions d'activation des récompenses réelles (mise à jour)
+
+*Vérification différée (décision du 30/10/2026) : ces points ne sont traités qu'au moment de
+l'activation des cadeaux réels ; ils ne bloquent ni le code ni la boutique virtuelle. Les
+propositions de pays (liste blanche) et de procédure mineurs restent des pistes pour ce moment-là,
+pas des règles à coder par défaut.*
 
 1. Décision métier sur le barème des points (#33) et le catalogue (#34) — barème illustratif non
    appliqué sans décision.

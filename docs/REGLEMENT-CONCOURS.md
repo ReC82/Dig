@@ -7,6 +7,18 @@
 > propriétaire (passages entre crochets) avant toute publication. Tant qu'il n'est pas validé,
 > aucune récompense de valeur réelle n'est attribuée ni annoncée.
 
+> **Décision du propriétaire — 30/10/2026, 12 h 09 et 12 h 20** ([décision](https://github.com/ReC82/Dig/issues/27#issuecomment-6521207300), [statut](https://github.com/ReC82/Dig/issues/27#issuecomment-6521405115)) :
+> **jeu mondial, États-Unis inclus**, sans restriction de pays ni d'âge dans le gameplay, les
+> classements, les points saisonniers et l'interface de la boutique. Les questions juridiques
+> (pays ouverts, procédure mineurs, organisateur, avis juridique, fournisseur) **ne bloquent plus
+> le développement** de #29, #30, #31, #33 et #34 et ne sont plus posées pour l'instant. Pas de
+> géoblocage ni de barrière 18+ globale codés par défaut ; une **configuration d'éligibilité des
+> cadeaux réels** est prévue mais reste désactivée. **Limite conservée** : cadeaux de valeur réelle
+> et envoi de codes **désactivés** jusqu'à une décision explicite d'activation et la vérification
+> des obligations applicables (§ « Conditions d'activation ») ; aucune annonce d'échanges réels ; le
+> faible montant des lots n'est pas une exemption acquise. Ce ticket devient une **vérification
+> différée avant activation**.
+
 ## Article 1 — Organisateur
 
 Le programme « Récompenses saisonnières DIG! » (ci-après « le programme ») est organisé par
@@ -132,6 +144,10 @@ version française fait foi dans la mesure permise par la loi applicable. Toute 
 annoncée dans le jeu et s'applique à partir de la saison suivante.
 
 ## Annexe 1 — Pays où l'échange contre une récompense réelle est ouvert
+
+[Vide tant que les cadeaux réels ne sont pas activés. Le jeu, les points et les récompenses
+virtuelles sont ouverts dans tous les pays (décision du 30/10/2026). La proposition ci-dessous
+n'est qu'une piste pour la vérification d'activation.]
 
 [À VALIDER — proposition : Belgique, France, Pays-Bas, Allemagne ; Luxembourg après vérification.
 Italie non ouverte (déclaration ministérielle obligatoire des concours promotionnels).
