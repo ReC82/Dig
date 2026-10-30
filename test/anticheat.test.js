@@ -142,6 +142,69 @@ test('anti-autoclic désactivé : blocs acceptés sans contrôle', () => {
   assert.strictEqual(logs(u).length, 0);
 });
 
+// ── Recette #10 (30/10) : cadences déterministes, horloge injectée ───────────────────────
+
+/**
+ * Simule `secs` secondes de clics à `cps` (un bloc tous les `clicksPerBlock` clics), avec une
+ * sauvegarde toutes les `every` s. Retourne { r, total } (total = blocs effectivement acceptés).
+ */
+function simulate(cps, { secs = 120, every = 12, clicksPerBlock = 3, config = CONFIG } = {}) {
+  const u = newUser();
+  const steps = [{ t: 0, clicks: 0, blocks: 0 }];
+  for (let t = every; t <= secs + 1e-9; t += every) {
+    const clicks = Math.round(cps * t);
+    steps.push({ t, clicks, blocks: Math.floor(clicks / clicksPerBlock) });
+  }
+  const r = play(u, steps, config);
+  return { u, r, steps, total: r.at(-1).effectiveManualBlocks };
+}
+
+for (const cps of [1, 3, 5, 6.5, 8]) {
+  test(`clics légitimes à ${cps} CPS pendant 2 min : 100 % des blocs acceptés, aucun log`, () => {
+    const { u, r, steps, total } = simulate(cps);
+    assert.ok(r.slice(1).every(x => x.action === 'none'), JSON.stringify(r.map(x => x.action)));
+    assert.strictEqual(total, steps.at(-1).blocks);
+    assert.strictEqual(logs(u).length, 0);
+  });
+}
+
+test('rafale humaine (8 CPS pendant 10 s, pause, reprise) avec sauvegarde à chaque clic : rien n\'est refusé', () => {
+  const u = newUser();
+  const steps = [{ t: 0, clicks: 0, blocks: 0 }];
+  let clicks = 0;
+  for (const [start, dur] of [[0, 10], [25, 10], [50, 10]]) {
+    for (let i = 1; i <= 8 * dur; i++) {
+      clicks++;
+      steps.push({ t: start + i / 8, clicks, blocks: Math.floor(clicks / 2) });
+    }
+  }
+  steps.push({ t: 75, clicks, blocks: Math.floor(clicks / 2) }); // sauvegarde finale (sortie d'onglet)
+  const r = play(u, steps);
+  assert.strictEqual(r.at(-1).effectiveManualBlocks, Math.floor(clicks / 2));
+  assert.strictEqual(logs(u).length, 0);
+});
+
+for (const cps of [12, 20, 50, 100, 1000]) {
+  test(`autoclic à ${cps} CPS pendant 2 min : blocs plafonnés à max_effective_cps × durée et journalisés`, () => {
+    const { u, r, total } = simulate(cps, { clicksPerBlock: 1 });
+    assert.ok(total <= 8 * 120, `${total} blocs acceptés en 120 s (max 960)`);
+    assert.ok(total > 0, 'jamais bloqué totalement');
+    assert.ok(r.slice(1).every(x => x.action === 'reduced' || x.action === 'flagged'), JSON.stringify(r.map(x => x.action)));
+    assert.strictEqual(logs(u).length, 10);
+  });
+}
+
+test('autoclic avec sauvegardes rapprochées (toutes les 0,5 s) : même plafond, pas de contournement', () => {
+  const { total, r } = simulate(50, { every: 0.5, clicksPerBlock: 1 });
+  assert.ok(r.some(x => x.action === 'pending'));
+  assert.ok(total <= 8 * 120, `${total} blocs acceptés en 120 s`);
+});
+
+test('autoclic avec sauvegardes espacées (toutes les 10 min) : plafond de la fenêtre de 120 s', () => {
+  const { total } = simulate(30, { secs: 3600, every: 600, clicksPerBlock: 1 });
+  assert.ok(total <= 6 * 8 * 120, `${total} blocs acceptés`);
+});
+
 // ── Route HTTP : sauvegarde finale envoyée par sendBeacon (Blob application/json) ──────────
 
 test('POST /api/me/save accepte le corps d\'un sendBeacon et ne journalise plus chaque sauvegarde', async () => {
