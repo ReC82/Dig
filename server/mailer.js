@@ -21,6 +21,10 @@ const path = require('path');
 /** Textes des e-mails (texte brut : rien à échapper, aucun contenu distant). */
 const TEMPLATES = {
   fr: {
+    test: {
+      subject: 'DIG! — E-mail de test',
+      text: (u, when) => `Bonjour ${u},\n\nCet e-mail de test confirme que DIG! peut envoyer des messages (${when}).\nVérifie qu'il n'est pas arrivé dans les indésirables.\n\n— DIG!`,
+    },
     verify: {
       subject: 'DIG! — Confirme ton adresse e-mail',
       text: (u, link) => `Bonjour ${u},\n\nConfirme ton adresse e-mail pour sécuriser ton compte DIG! :\n${link}\n\nCe lien est valable 48 heures. Si tu n'as rien demandé, ignore ce message.\n\n— DIG!`,
@@ -43,6 +47,10 @@ const TEMPLATES = {
     },
   },
   en: {
+    test: {
+      subject: 'DIG! — Test email',
+      text: (u, when) => `Hi ${u},\n\nThis test email confirms that DIG! can send messages (${when}).\nCheck that it did not land in your spam folder.\n\n— DIG!`,
+    },
     verify: {
       subject: 'DIG! — Confirm your email address',
       text: (u, link) => `Hi ${u},\n\nConfirm your email address to secure your DIG! account:\n${link}\n\nThis link is valid for 48 hours. If you did not ask for it, ignore this message.\n\n— DIG!`,
@@ -65,6 +73,10 @@ const TEMPLATES = {
     },
   },
   nl: {
+    test: {
+      subject: 'DIG! — Test-e-mail',
+      text: (u, when) => `Hallo ${u},\n\nDeze test-e-mail bevestigt dat DIG! berichten kan versturen (${when}).\nControleer of hij niet in je spammap is beland.\n\n— DIG!`,
+    },
     verify: {
       subject: 'DIG! — Bevestig je e-mailadres',
       text: (u, link) => `Hallo ${u},\n\nBevestig je e-mailadres om je DIG!-account te beveiligen:\n${link}\n\nDeze link is 48 uur geldig. Heb je niets aangevraagd? Negeer dan dit bericht.\n\n— DIG!`,
@@ -104,7 +116,8 @@ function resolvePublicBaseUrl(env = process.env) {
 /**
  * Construit le service d'envoi. `enabled` = false : aucune fonction e-mail n'est proposée
  * (le jeu et les comptes fonctionnent exactement comme avant #28).
- * @returns {{ enabled: boolean, mode: string, baseUrl: string, send: Function, compose: Function }}
+ * `summary` décrit la configuration sans aucun secret (journal) ; `verify()` teste la connexion SMTP.
+ * @returns {{ enabled: boolean, mode: string, baseUrl: string, send: Function, compose: Function, verify: Function, summary: string }}
  */
 function createMailer(env = process.env) {
   const smtpHost = (env.SMTP_HOST || '').trim();
@@ -113,10 +126,16 @@ function createMailer(env = process.env) {
   const baseUrl  = resolvePublicBaseUrl(env);
   const disabled = (reason) => {
     if (reason) console.warn(`[mail] e-mails de compte désactivés : ${reason}`);
-    return { enabled: false, mode: 'off', baseUrl, compose, send: async () => { throw new Error('mail désactivé'); } };
+    return {
+      enabled: false, mode: 'off', baseUrl, compose, summary: 'désactivé',
+      send: async () => { throw new Error('mail désactivé'); },
+      verify: async () => ({ ok: false, error: 'désactivé' }),
+    };
   };
 
   let deliver;
+  let verify  = async () => ({ ok: true });
+  let summary = mode;
   if (mode === 'file') {
     // Boîte d'envoi locale : tests automatisés uniquement.
     if (env.NODE_ENV === 'production') return disabled('MAIL_TRANSPORT=file refusé en production');
@@ -131,6 +150,7 @@ function createMailer(env = process.env) {
   } else if (mode === 'smtp') {
     if (!smtpHost) return disabled('SMTP_HOST manquant');
     if (!from)     return disabled('MAIL_FROM manquant');
+    if (!senderDomain(from)) return disabled('MAIL_FROM sans adresse valide');
     const nodemailer = require('nodemailer');
     const port = parseInt(env.SMTP_PORT, 10) || 587;
     const transport = nodemailer.createTransport({
@@ -147,16 +167,38 @@ function createMailer(env = process.env) {
     });
     const replyTo = (env.MAIL_REPLY_TO || '').trim() || undefined;
     deliver = (msg) => transport.sendMail({ from, replyTo, ...msg });
+    // Connexion et authentification sans envoi (ticket #43) : erreur réduite à son code.
+    verify = () => transport.verify().then(() => ({ ok: true }), err => ({ ok: false, error: smtpErrorSummary(err) }));
+    summary = `SMTP ${smtpHost}:${port} (${port === 465 || String(env.SMTP_SECURE || '').toLowerCase() === 'true' ? 'TLS direct' : 'STARTTLS si proposé'}), `
+      + `expéditeur @${senderDomain(from) || '?'}${env.SMTP_USER ? ', authentifié' : ', sans authentification'}`;
   } else {
     return disabled(mode === 'off' ? null : `MAIL_TRANSPORT=${mode} inconnu`);
   }
 
-  return { enabled: true, mode, baseUrl, compose, send: deliver };
+  return { enabled: true, mode, baseUrl, compose, send: deliver, verify, summary };
+}
+
+/** Domaine de l'adresse d'expédition (« DIG! <dig@exemple.be> » → « exemple.be »). */
+function senderDomain(from) {
+  const m = /@([A-Za-z0-9.-]+\.[A-Za-z]{2,})>?\s*$/.exec(String(from || '').trim());
+  return m ? m[1].toLowerCase() : null;
+}
+
+/**
+ * Résumé d'une erreur SMTP pour le journal : code et réponse numérique seulement. Le texte du
+ * serveur distant peut citer l'identifiant ; le mot de passe n'y figure jamais, mais on s'en tient
+ * aux codes, suffisants pour diagnostiquer (EAUTH = identifiants refusés, ECONNECTION…).
+ */
+function smtpErrorSummary(err) {
+  const parts = [];
+  if (err && err.code) parts.push(String(err.code).replace(/[^A-Z0-9_]/gi, ''));
+  if (err && err.responseCode) parts.push(String(err.responseCode).replace(/\D/g, ''));
+  return parts.length ? parts.join(' ') : 'erreur inconnue';
 }
 
 /**
  * Prépare un message { to, subject, text }.
- * @param {'verify'|'reset'|'emailChanged'|'socialLinked'|'socialUnlinked'} kind
+ * @param {'verify'|'reset'|'emailChanged'|'socialLinked'|'socialUnlinked'|'test'} kind
  * @param {{ to: string, username: string, lang?: string, arg: string }} p  arg = lien, nouvelle adresse ou adresse Google
  */
 function compose(kind, { to, username, lang, arg }) {
@@ -164,4 +206,4 @@ function compose(kind, { to, username, lang, arg }) {
   return { to, subject: tpl.subject, text: tpl.text(username, arg) };
 }
 
-module.exports = { createMailer, resolvePublicBaseUrl, compose, pickLang };
+module.exports = { createMailer, resolvePublicBaseUrl, compose, pickLang, senderDomain, smtpErrorSummary };
