@@ -92,6 +92,8 @@ const security = require('./security');
 const { createRateLimiters, describeMailLimits } = require('./rateLimits');
 const antibot = require('./antibot');
 const playSession = require('./playSession');
+const ads = require('./ads');
+const legal = require('./legal');
 const { isValidEmail, intParam } = require('./validation');
 const { createMailer } = require('./mailer');
 const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
@@ -642,6 +644,61 @@ app.get('/api/points/scale', pointsRoute('GET /api/points/scale', () => rewardPo
 app.get('/api/points/me', (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
   pointsRoute('GET /api/points/me', r => rewardPoints.buildPlayerSummary(r.session.userId))(req, res);
+});
+
+// ── Publicité (#45) : désactivée par défaut, domaine officiel seulement ─────────
+
+// Domaine public officiel (canonical, robots, ads.txt) ; l'adresse alternative reste
+// accessible telle quelle, sans redirection (décision du propriétaire, #45).
+const CANONICAL_HOST = ads.normalizeHost(process.env.CANONICAL_HOST || 'dig.lodygames.com');
+
+function adsRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof ads.AdError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+// Configuration lue par le jeu : emplacements actifs pour CE domaine (jamais de clé de régie).
+app.get('/api/ads/config', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  adsRoute('GET /api/ads/config', r => ads.publicConfig(r.hostname, { userId: r.session.userId }))(req, res);
+});
+
+// Document d'un emplacement, chargé UNIQUEMENT dans une iframe sandbox (origine opaque).
+app.get('/ads/frame/:slot', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex');
+  let doc = null;
+  try { doc = ads.frameDocument(req.params.slot, req.hostname); }
+  catch (err) { console.error('[GET /ads/frame]', err); }
+  if (!doc) return res.status(404).type('text/plain').send('');
+  res.setHeader('Content-Security-Policy', doc.csp);
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-read=()');
+  res.type('html').send(doc.html);
+});
+
+app.get('/ads.txt', (req, res) => {
+  let txt = null;
+  try { txt = ads.adsTxt(req.hostname); } catch (err) { console.error('[GET /ads.txt]', err); }
+  if (!txt) return res.status(404).type('text/plain').send('');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.type('text/plain').send(txt);
+});
+
+app.get('/robots.txt', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.type('text/plain').send(ads.robotsTxt(req.hostname, CANONICAL_HOST));
+});
+
+app.get('/legal/confidentialite', (req, res) => {
+  try {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.type('html').send(legal.privacyPage(req.hostname, CANONICAL_HOST));
+  } catch (err) { console.error('[GET /legal/confidentialite]', err); res.status(500).type('text/plain').send('Erreur serveur.'); }
 });
 
 // ── Boutique de cadeaux (#34) ────────────────────────────────────────────────
@@ -1286,6 +1343,17 @@ app.delete('/api/admin/leagues/:id', requireAdmin, (req, res) => {
     res.json({ ok: true });
   } catch (err) { console.error('[DELETE /api/admin/leagues/:id]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
+
+// Publicité (#45) : réglages, emplacements, état effectif par domaine, cadres servis.
+app.get('/api/admin/ads', requireAdmin, adsRoute('GET /api/admin/ads', req => ads.adminView(req.hostname)));
+app.put('/api/admin/ads/settings', requireAdmin, adsRoute('PUT /api/admin/ads/settings', req => {
+  ads.updateSettings(req.body || {});
+  return ads.adminView(req.hostname);
+}));
+app.put('/api/admin/ads/slots/:slot', requireAdmin, adsRoute('PUT /api/admin/ads/slots/:slot', req => {
+  ads.updateSlot(req.params.slot, req.body || {});
+  return ads.adminView(req.hostname);
+}));
 
 app.get('/api/admin/config', requireAdmin, (req, res) => {
   try { res.json({ config: getAdminConfig() }); }

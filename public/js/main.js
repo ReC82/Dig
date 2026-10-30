@@ -2251,6 +2251,8 @@ function renderSettings() {
       </div>
     </div>
     <div class="settings-section" id="notif-history"></div>
+    ${DigAds.settingsSectionHtml()}
+    <p class="settings-legal"><a href="/legal/confidentialite" target="_blank" rel="noopener">${t('ads.privacy_link')}</a></p>
     <button class="settings-back-btn" id="btn-settings-back">
       ${t('settings.btn_back')}
     </button>
@@ -2260,6 +2262,7 @@ function renderSettings() {
 
   _bindAccountSection(container);
   _refreshNotifHistory();
+  DigAds.bindSettings(container, renderSettings);
 
   // Retour à la vue précédente
   document.getElementById('btn-settings-back')
@@ -3296,6 +3299,8 @@ function init() {
 
   if (offlineGains) showOfflinePopup(offlineGains);
 
+  // Publicité (#45) : désactivée par défaut ; bannière haute seulement si le serveur l'autorise ici.
+  DigAds.init();
   // Bibliothèque d'icônes (v1 par défaut, library.json) : re-rendu du bloc une fois la configuration lue.
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
   // Catalogue de blocs publié (#37) : s'applique aux prochains blocs, le bloc courant est conservé.

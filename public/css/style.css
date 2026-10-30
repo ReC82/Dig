@@ -3006,3 +3006,78 @@ header {
 /* Aperçu d'emblème généré dans l'atelier (#41, ?logo=media:…) : emblème + mot « DIG! ». */
 #game-logo.logo-preview-emblem { display: flex; align-items: center; gap: 6px; line-height: 1; font-size: 1.9rem; }
 #game-logo.logo-preview-emblem img { height: 38px; width: 38px; }
+
+/* ── Publicité (#45) : bannière haute réservée, hors zone de jeu ────────────
+   Rien de tout ceci ne s'applique tant que DigAds n'a pas monté d'emplacement
+   (body.has-ad-top) : sans publicité, la mise en page est inchangée. */
+body.has-ad-top {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+#ad-top {
+  flex-shrink: 0;
+  width: 100%;
+  height: calc(var(--ad-h, 0px) + env(safe-area-inset-top, 0px));
+  padding-top: calc(4px + env(safe-area-inset-top, 0px));
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+  background: #08080f;
+}
+#ad-top iframe { border: 0; display: block; max-width: 100%; background: transparent; }
+body.has-ad-top #app { height: calc(100dvh - var(--ad-h, 0px) - env(safe-area-inset-top, 0px)); }
+body.has-ad-top header { padding-top: 10px; }
+body.has-ad-top.ad-top-collapsed #ad-top { display: none; }
+body.has-ad-top.ad-top-collapsed #app { height: 100dvh; }
+body.has-ad-top.ad-top-collapsed header { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+
+#ad-consent {
+  position: fixed;
+  inset: 0;
+  z-index: 560;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) 18px max(24px, env(safe-area-inset-bottom, 0px));
+}
+#ad-consent-inner {
+  max-width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+#ad-consent-inner h2 { font-size: 1.05rem; color: var(--gold); margin-bottom: 10px; }
+#ad-consent-inner p { margin-bottom: 10px; color: var(--text); }
+#ad-consent-inner a, .settings-legal a { color: var(--gold); }
+.ad-consent-btns { display: flex; gap: 10px; margin-top: 6px; }
+/* Deux boutons de même poids visuel : refuser est aussi simple qu'accepter. */
+.ad-consent-btns button {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--gold-dim);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.settings-ad-state { font-size: 0.85rem; color: var(--muted); margin: 0 16px 10px; }
+.settings-ad-btn {
+  margin: 0 16px 16px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.settings-legal { text-align: center; font-size: 0.8rem; margin: 10px 0 4px; }

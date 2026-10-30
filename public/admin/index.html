@@ -38,6 +38,7 @@
     <button class="tab-btn" data-tab="collections">📿 Collections</button>
     <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
     <button class="tab-btn" data-tab="badges">🏅 Badges</button>
+    <button class="tab-btn" data-tab="ads">📢 Publicité</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -1079,6 +1080,58 @@
           <tbody id="bg-audit-body"></tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+  <!-- ── Publicité (#45) ──────────────────────────────────────────────── -->
+  <section id="tab-ads" class="tab-content hidden">
+    <div class="section-header">
+      <h2>📢 Publicité</h2>
+      <button class="btn" id="btn-refresh-ads">↻ Rafraîchir</button>
+    </div>
+    <p id="ad-banner" class="contest-banner"></p>
+    <p class="muted" style="font-size:0.8rem">Tout est désactivé par défaut. Une bannière ne s'affiche que si : interrupteur général activé, régie choisie,
+      domaine autorisé, emplacement activé avec son code, <strong>et</strong> consentement du joueur. Le code de la régie tourne dans une iframe isolée
+      (sandbox), jamais dans la page du jeu. <code>ADS_DISABLED=1</code> dans l'environnement coupe tout.</p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Réglages généraux</h3>
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+        <label>Régie<select id="ad-provider"><option value="">— aucune —</option></select></label>
+        <label>Domaines autorisés (séparés par des virgules)<input id="ad-hosts" type="text" maxlength="300"></label>
+      </div>
+      <label style="display:block;margin-top:8px">Éditeur et contact (affichés sur /legal/confidentialite)
+        <textarea id="ad-contact" rows="3" maxlength="500" style="width:100%"></textarea></label>
+      <label style="display:block;margin-top:8px">ads.txt (laisser vide tant que la régie n'en fournit pas)
+        <textarea id="ad-adstxt" rows="3" maxlength="5000" style="width:100%;font-family:monospace"></textarea></label>
+      <div class="form-actions">
+        <label><input type="checkbox" id="ad-bump"> Redemander le consentement à tous les joueurs</label>
+        <button class="btn" id="btn-ad-settings">Enregistrer</button>
+      </div>
+      <div class="form-actions">
+        <label><input type="checkbox" id="ad-enabled"> Interrupteur général</label>
+        <input id="ad-confirm" type="text" maxlength="10" placeholder="Saisir ACTIVER pour activer">
+        <button class="btn" id="btn-ad-toggle">Appliquer l'interrupteur</button>
+      </div>
+      <p id="ad-settings-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Emplacements</h3>
+      <div id="ad-slots"></div>
+      <p id="ad-slot-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">État effectif par domaine</h3>
+      <div style="overflow-x:auto"><table><thead><tr><th>Domaine</th><th>Publicité</th><th>Raison</th><th>Emplacements servis</th></tr></thead><tbody id="ad-effective"></tbody></table></div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Cadres servis (14 derniers jours)</h3>
+      <p class="muted" style="font-size:0.78rem">Nombre de fois où le serveur a servi le cadre d'un emplacement (mesure technique, sans donnée personnelle).
+        Ce ne sont <strong>pas</strong> des impressions facturées : impressions et revenus réels sont dans le tableau de bord de la régie.</p>
+      <div style="overflow-x:auto"><table><thead><tr><th>Jour (UTC)</th><th>Emplacement</th><th>Cadres servis</th></tr></thead><tbody id="ad-stats"></tbody></table></div>
     </div>
   </section>
 

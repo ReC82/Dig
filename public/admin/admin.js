@@ -97,6 +97,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'collections')     loadCollections();
     if (btn.dataset.tab === 'icons')           loadIcons();
     if (btn.dataset.tab === 'badges')          loadBadges();
+    if (btn.dataset.tab === 'ads')             loadAds();
   });
 });
 
@@ -2723,4 +2724,128 @@ document.getElementById('btn-bg-save').addEventListener('click', async () => {
   ptMessage('bg-msg', `Badge « ${r.data.badge.id} » enregistré.`, true);
   bgFillForm(r.data.badge);
   loadBadges();
+});
+
+// ── Publicité (#45) ───────────────────────────────────────────────────────────
+
+const AD_REASONS = {
+  kill_switch: 'coupée par ADS_DISABLED', disabled: 'interrupteur général désactivé', no_provider: 'aucune régie',
+  host_not_allowed: 'domaine non autorisé', no_slot: 'aucun emplacement actif et configuré', ad_free: 'joueur sans publicité',
+};
+
+function adMessage(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = ok ? 'success' : 'error';
+}
+
+function renderAds(data) {
+  const s = data.settings;
+  const banner = document.getElementById('ad-banner');
+  const live = data.effective.filter(e => e.enabled).map(e => e.host);
+  banner.className = `contest-banner contest-banner--${live.length ? 'open' : 'locked'}`;
+  banner.textContent = data.killSwitch ? '⛔ Publicité coupée par ADS_DISABLED (environnement).'
+    : live.length ? `📢 Publicité ACTIVE sur : ${live.join(', ')} (après consentement du joueur).`
+    : '🔒 Aucune publicité diffusée.';
+
+  const sel = document.getElementById('ad-provider');
+  sel.textContent = '';
+  sel.appendChild(new Option('— aucune —', ''));
+  for (const p of data.providers) sel.appendChild(new Option(p.label, p.id));
+  sel.value = s.provider;
+  document.getElementById('ad-hosts').value = s.allowedHosts.join(', ');
+  document.getElementById('ad-contact').value = s.legalContact;
+  document.getElementById('ad-adstxt').value = s.adsTxt;
+  document.getElementById('ad-bump').checked = false;
+  document.getElementById('ad-enabled').checked = s.enabled;
+  document.getElementById('ad-confirm').value = '';
+
+  const box = document.getElementById('ad-slots');
+  box.textContent = '';
+  for (const slot of data.slots) {
+    const card = document.createElement('div');
+    card.className = 'overview-card';
+    const title = document.createElement('h4');
+    title.textContent = `${slot.label} — ${slot.enabled ? 'activé' : 'désactivé'} — ${slot.configured ? `code enregistré (clé …${slot.adKey.slice(-6)}, script ${slot.scriptHost})` : 'aucun code'}`;
+    card.appendChild(title);
+    const ta = document.createElement('textarea');
+    ta.rows = 4; ta.style.width = '100%'; ta.style.fontFamily = 'monospace';
+    ta.placeholder = 'Coller ici le code « GET CODE » de l\u2019unité (atOptions + script). Il est analysé, jamais exécuté dans le panel.';
+    card.appendChild(ta);
+    const row = document.createElement('div');
+    row.className = 'form-actions';
+    const mk = (labelText, checked) => {
+      const l = document.createElement('label'); const c = document.createElement('input');
+      c.type = 'checkbox'; c.checked = checked; l.append(c, ` ${labelText}`); row.appendChild(l); return c;
+    };
+    const en = mk('Emplacement activé', slot.enabled);
+    const hide = mk('Masquer sur l\u2019écran de minage', slot.hideOnDig);
+    const save = document.createElement('button');
+    save.className = 'btn'; save.textContent = 'Enregistrer';
+    save.addEventListener('click', async () => {
+      const { ok, data: d } = await api('PUT', `/api/admin/ads/slots/${slot.slot}`, { snippet: ta.value, enabled: en.checked, hideOnDig: hide.checked });
+      if (!ok) return adMessage('ad-slot-msg', d.error || 'Erreur.', false);
+      adMessage('ad-slot-msg', 'Emplacement enregistré.', true);
+      renderAds(d);
+    });
+    const clear = document.createElement('button');
+    clear.className = 'btn-ghost'; clear.textContent = 'Effacer le code';
+    clear.addEventListener('click', async () => {
+      if (!confirm('Effacer le code de cet emplacement (il sera désactivé) ?')) return;
+      const { ok, data: d } = await api('PUT', `/api/admin/ads/slots/${slot.slot}`, { clearCode: true, enabled: false });
+      if (!ok) return adMessage('ad-slot-msg', d.error || 'Erreur.', false);
+      renderAds(d);
+    });
+    row.append(save, clear);
+    card.appendChild(row);
+    box.appendChild(card);
+  }
+
+  const eb = document.getElementById('ad-effective');
+  eb.textContent = '';
+  for (const e of data.effective) {
+    const tr = document.createElement('tr');
+    [e.host, e.enabled ? 'oui' : 'non', e.reason ? (AD_REASONS[e.reason] || e.reason) : '—', e.slots.map(x => x.slot).join(', ') || '—']
+      .forEach(x => addCell(tr, x));
+    eb.appendChild(tr);
+  }
+  const sb = document.getElementById('ad-stats');
+  sb.textContent = '';
+  if (!data.stats.length) sb.innerHTML = '<tr><td colspan="3" class="muted">Aucun cadre servi.</td></tr>';
+  for (const r of data.stats) {
+    const tr = document.createElement('tr');
+    [r.day, r.slot, r.frames].forEach(x => addCell(tr, x));
+    sb.appendChild(tr);
+  }
+}
+
+async function loadAds() {
+  const { ok, data } = await api('GET', '/api/admin/ads');
+  if (!ok) { adMessage('ad-settings-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  renderAds(data);
+}
+
+document.getElementById('btn-refresh-ads').addEventListener('click', loadAds);
+
+document.getElementById('btn-ad-settings').addEventListener('click', async () => {
+  const { ok, data } = await api('PUT', '/api/admin/ads/settings', {
+    provider:     document.getElementById('ad-provider').value,
+    allowedHosts: document.getElementById('ad-hosts').value,
+    legalContact: document.getElementById('ad-contact').value,
+    adsTxt:       document.getElementById('ad-adstxt').value,
+    bumpConsent:  document.getElementById('ad-bump').checked,
+  });
+  if (!ok) return adMessage('ad-settings-msg', data.error || 'Erreur.', false);
+  adMessage('ad-settings-msg', 'Réglages enregistrés.', true);
+  renderAds(data);
+});
+
+document.getElementById('btn-ad-toggle').addEventListener('click', async () => {
+  const { ok, data } = await api('PUT', '/api/admin/ads/settings', {
+    enabled: document.getElementById('ad-enabled').checked,
+    confirm: document.getElementById('ad-confirm').value.trim(),
+  });
+  if (!ok) return adMessage('ad-settings-msg', data.error || 'Erreur.', false);
+  adMessage('ad-settings-msg', data.settings.enabled ? 'Interrupteur général ACTIVÉ.' : 'Interrupteur général désactivé.', true);
+  renderAds(data);
 });

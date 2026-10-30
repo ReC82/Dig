@@ -739,6 +739,39 @@ function initDb() {
     );
   `);
 
+  // Publicité (#45) : réglages (une ligne, tout désactivé par défaut), emplacements réservés et
+  // compteur journalier des affichages du cadre publicitaire (aucune donnée personnelle).
+  // Tables ajoutées seules ; aucune donnée existante modifiée.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS ad_settings (
+      id              INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled         INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+      provider        TEXT    NOT NULL DEFAULT '',
+      allowed_hosts   TEXT    NOT NULL DEFAULT '["dig.lodygames.com"]',
+      consent_version INTEGER NOT NULL DEFAULT 1,
+      ads_txt         TEXT    NOT NULL DEFAULT '',
+      legal_contact   TEXT    NOT NULL DEFAULT '',
+      updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT OR IGNORE INTO ad_settings (id) VALUES (1);
+    CREATE TABLE IF NOT EXISTS ad_slots (
+      slot        TEXT    PRIMARY KEY,
+      enabled     INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+      ad_key      TEXT    NOT NULL DEFAULT '',
+      script_url  TEXT    NOT NULL DEFAULT '',
+      hide_on_dig INTEGER NOT NULL DEFAULT 0 CHECK (hide_on_dig IN (0, 1)),
+      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT OR IGNORE INTO ad_slots (slot, hide_on_dig) VALUES ('top_mobile', 1);
+    INSERT OR IGNORE INTO ad_slots (slot, hide_on_dig) VALUES ('top_desktop', 0);
+    CREATE TABLE IF NOT EXISTS ad_daily_stats (
+      day    TEXT    NOT NULL,
+      slot   TEXT    NOT NULL,
+      frames INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, slot)
+    );
+  `);
+
   // ── Seeds config ──────────────────────────────────────────────────────────
   const cfgStmt = _db.prepare(
     `INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`
