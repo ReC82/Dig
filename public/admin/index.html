@@ -33,6 +33,7 @@
     <button class="tab-btn" data-tab="security">🛡 Anti-bot</button>
     <button class="tab-btn" data-tab="contest">🎁 Concours</button>
     <button class="tab-btn" data-tab="points">🏅 Points</button>
+    <button class="tab-btn" data-tab="shop">🛍 Boutique</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -552,6 +553,113 @@
         <button class="btn" id="btn-pt-adjust">Appliquer</button>
       </div>
       <p id="pt-adj-msg" class="hidden"></p>
+    </div>
+  </section>
+
+  <!-- Tab Boutique de cadeaux (#34) -->
+  <section id="tab-shop" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🛍 Boutique de cadeaux</h2>
+      <button class="btn" id="btn-refresh-shop">↻ Rafraîchir</button>
+    </div>
+    <p id="sh-banner" class="contest-banner"></p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Réglages</h3>
+      <div class="form-actions">
+        <label><input type="checkbox" id="sh-open"> Échanges ouverts</label>
+        <input id="sh-notice" type="text" maxlength="300" placeholder="Message affiché aux joueurs (facultatif)" style="flex:1">
+        <button class="btn" id="btn-sh-settings">Enregistrer</button>
+      </div>
+      <p class="muted" style="font-size:0.78rem">Fermer les échanges bloque tout nouvel échange (urgence, fraude) sans masquer le catalogue. Les cadeaux réels restent refusés tant que <code>CONTEST_REAL_PRIZES</code> ≠ <code>on</code> (#27).</p>
+      <p id="sh-settings-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title" id="sh-form-title">Nouvel article</h3>
+      <input type="hidden" id="sh-id">
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+        <label>Sorte<select id="sh-kind"><option value="virtual">Virtuel</option><option value="real">Réel (verrouillé)</option></select></label>
+        <label>Coût (points)<input id="sh-cost" type="number" min="1"></label>
+        <label>Stock restant (vide = illimité)<input id="sh-stock" type="number" min="0"></label>
+        <label>Max. par joueur (vide = illimité)<input id="sh-max" type="number" min="1"></label>
+        <label>Icône (emoji)<input id="sh-icon" type="text" maxlength="8" placeholder="🎁"></label>
+        <label>Image (/chemin ou https://…)<input id="sh-image" type="text" maxlength="300"></label>
+        <label>Valeur faciale (centimes)<input id="sh-face" type="number" min="0"></label>
+        <label>Devise (EUR…)<input id="sh-currency" type="text" maxlength="3"></label>
+        <label>Territoires (BE,FR… ; vide = non précisé)<input id="sh-territories" type="text" maxlength="200"></label>
+        <label>Âge minimal (vide = aucun)<input id="sh-age" type="number" min="0" max="99"></label>
+        <label>Début de validité (UTC)<input id="sh-from" type="text" placeholder="AAAA-MM-JJ HH:MM:SS"></label>
+        <label>Fin de validité (UTC)<input id="sh-until" type="text" placeholder="AAAA-MM-JJ HH:MM:SS"></label>
+        <label>Ordre d'affichage<input id="sh-sort" type="number" value="0"></label>
+        <label><input type="checkbox" id="sh-visible"> Visible des joueurs</label>
+        <label><input type="checkbox" id="sh-unavailable"> Indisponible (affiché, non échangeable)</label>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:8px">
+        <fieldset><legend>FR (obligatoire)</legend>
+          <input id="sh-fr-title" type="text" maxlength="80" placeholder="Titre" style="width:100%">
+          <textarea id="sh-fr-description" rows="2" maxlength="500" placeholder="Description" style="width:100%"></textarea>
+          <textarea id="sh-fr-conditions" rows="2" maxlength="1000" placeholder="Conditions" style="width:100%"></textarea>
+        </fieldset>
+        <fieldset><legend>EN</legend>
+          <input id="sh-en-title" type="text" maxlength="80" placeholder="Title" style="width:100%">
+          <textarea id="sh-en-description" rows="2" maxlength="500" placeholder="Description" style="width:100%"></textarea>
+          <textarea id="sh-en-conditions" rows="2" maxlength="1000" placeholder="Conditions" style="width:100%"></textarea>
+        </fieldset>
+        <fieldset><legend>NL</legend>
+          <input id="sh-nl-title" type="text" maxlength="80" placeholder="Titel" style="width:100%">
+          <textarea id="sh-nl-description" rows="2" maxlength="500" placeholder="Beschrijving" style="width:100%"></textarea>
+          <textarea id="sh-nl-conditions" rows="2" maxlength="1000" placeholder="Voorwaarden" style="width:100%"></textarea>
+        </fieldset>
+      </div>
+      <div class="form-actions" style="margin-top:8px">
+        <button class="btn" id="btn-sh-save">Enregistrer l'article</button>
+        <button class="btn btn-ghost" id="btn-sh-new">Nouveau (vider le formulaire)</button>
+      </div>
+      <p class="muted" style="font-size:0.78rem">Un article n'est jamais supprimé : décocher « Visible » le retire du catalogue (les commandes passées restent).</p>
+      <p id="sh-item-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Catalogue</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>ID</th><th>Article</th><th>Sorte</th><th>Coût</th><th>Stock</th><th>Max/joueur</th><th>Visible</th><th>État</th><th></th></tr></thead>
+          <tbody id="sh-items-body"><tr><td colspan="9" class="muted">Aucun article.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Commandes</h3>
+      <p id="sh-totals" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
+      <div class="form-actions">
+        <select id="sh-order-filter" class="league-select">
+          <option value="">Tous les statuts</option>
+          <option value="pending">En attente</option>
+          <option value="processing">En préparation</option>
+          <option value="delivered">Remis</option>
+          <option value="cancelled">Annulé</option>
+        </select>
+        <input id="sh-order-note" type="text" maxlength="300" placeholder="Note (facultative, sans e-mail ni code)" style="flex:1">
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>N°</th><th>Date (UTC)</th><th>Joueur</th><th>Article</th><th>Coût</th><th>Statut</th><th>Note</th><th>Actions</th></tr></thead>
+          <tbody id="sh-orders-body"><tr><td colspan="8" class="muted">Aucune commande.</td></tr></tbody>
+        </table>
+      </div>
+      <p id="sh-order-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Journal de la boutique (ajout seul)</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Acteur</th><th>Action</th><th>Article</th><th>Commande</th><th>Joueur</th><th>Détails</th></tr></thead>
+          <tbody id="sh-audit-body"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 

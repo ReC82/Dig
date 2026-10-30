@@ -92,6 +92,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'security')        loadSecurity();
     if (btn.dataset.tab === 'contest')         loadContest();
     if (btn.dataset.tab === 'points')          loadPoints();
+    if (btn.dataset.tab === 'shop')            loadShop();
   });
 });
 
@@ -1324,4 +1325,138 @@ document.getElementById('btn-pt-adjust').addEventListener('click', async () => {
   const { ok, data } = await api('POST', '/api/admin/points/adjust', { userId, amount, reason });
   ptMessage('pt-adj-msg', ok ? `Nouveau solde : ${data.wallet.balance} pts.` : (data.error || 'Erreur.'), ok);
   if (ok) loadPoints();
+});
+
+// ── Boutique de cadeaux (#34) ─────────────────────────────────────────────────
+
+const SH_STATUS = { pending: 'En attente', processing: 'En préparation', delivered: 'Remis', cancelled: 'Annulé' };
+const SH_FIELDS = { kind: 'sh-kind', cost: 'sh-cost', stock_remaining: 'sh-stock', max_per_user: 'sh-max', icon: 'sh-icon',
+  image_url: 'sh-image', face_value_cents: 'sh-face', currency: 'sh-currency', territories: 'sh-territories', min_age: 'sh-age',
+  valid_from: 'sh-from', valid_until: 'sh-until', sort: 'sh-sort' };
+const SH_NUMBERS = ['cost', 'stock_remaining', 'max_per_user', 'face_value_cents', 'min_age', 'sort'];
+let _shItems = [];
+
+function shMessage(id, text, ok) { ptMessage(id, text, ok); }
+
+function shFillForm(item) {
+  document.getElementById('sh-id').value = item ? item.id : '';
+  document.getElementById('sh-form-title').textContent = item ? `Modifier l'article #${item.id}` : 'Nouvel article';
+  for (const [k, id] of Object.entries(SH_FIELDS)) {
+    const v = item ? item[k] : (k === 'kind' ? 'virtual' : k === 'sort' ? 0 : '');
+    document.getElementById(id).value = v === null || v === undefined ? '' : v;
+  }
+  document.getElementById('sh-visible').checked = item ? item.visible : false;
+  document.getElementById('sh-unavailable').checked = item ? item.unavailable : false;
+  for (const lang of ['fr', 'en', 'nl']) for (const f of ['title', 'description', 'conditions']) {
+    document.getElementById(`sh-${lang}-${f}`).value = item?.texts?.[lang]?.[f] ?? '';
+  }
+}
+
+function shReadForm() {
+  const item = {};
+  for (const [k, id] of Object.entries(SH_FIELDS)) {
+    const v = document.getElementById(id).value.trim();
+    item[k] = SH_NUMBERS.includes(k) ? (v === '' ? null : Number(v)) : v;
+  }
+  item.visible = document.getElementById('sh-visible').checked;
+  item.unavailable = document.getElementById('sh-unavailable').checked;
+  item.texts = {};
+  for (const lang of ['fr', 'en', 'nl']) {
+    item.texts[lang] = {};
+    for (const f of ['title', 'description', 'conditions']) item.texts[lang][f] = document.getElementById(`sh-${lang}-${f}`).value;
+  }
+  return item;
+}
+
+async function loadShop() {
+  const status = document.getElementById('sh-order-filter').value;
+  const { ok, data } = await api('GET', `/api/admin/shop${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+  if (!ok) { shMessage('sh-item-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  const s = data.settings;
+  const banner = document.getElementById('sh-banner');
+  banner.className = `contest-banner contest-banner--${s.exchangesOpen ? 'open' : 'locked'}`;
+  banner.textContent = `${s.exchangesOpen ? '✅ Échanges ouverts' : '⛔ Échanges fermés'} — cadeaux réels : ${s.realEnabled ? 'DÉVERROUILLÉS' : 'verrouillés (#27)'}. `
+    + `Registre des points : ${data.ledger.ok ? 'OK' : 'ÉCART'}.`;
+  document.getElementById('sh-open').checked = s.exchangesOpen;
+  document.getElementById('sh-notice').value = s.notice || '';
+
+  _shItems = data.items;
+  const ib = document.getElementById('sh-items-body');
+  ib.textContent = '';
+  if (!data.items.length) ib.innerHTML = '<tr><td colspan="9" class="muted">Aucun article.</td></tr>';
+  for (const it of data.items) {
+    const tr = document.createElement('tr');
+    [it.id, `${it.icon || ''} ${it.texts.fr.title}`, it.kind === 'real' ? 'réel' : 'virtuel', it.cost,
+     it.stock_remaining ?? '∞', it.max_per_user ?? '—', it.visible ? 'oui' : 'non', it.unavailable ? 'indisponible' : 'disponible']
+      .forEach(x => addCell(tr, x));
+    addButtonCell(tr, 'Modifier', () => { shFillForm(it); document.getElementById('sh-form-title').scrollIntoView({ behavior: 'smooth' }); });
+    ib.appendChild(tr);
+  }
+
+  document.getElementById('sh-totals').textContent = data.totals.length
+    ? data.totals.map(x => `${SH_STATUS[x.status] || x.status} : ${x.n} (${x.points} pts)`).join(' · ')
+    : 'Aucune commande.';
+  const ob = document.getElementById('sh-orders-body');
+  ob.textContent = '';
+  if (!data.orders.length) ob.innerHTML = '<tr><td colspan="8" class="muted">Aucune commande.</td></tr>';
+  for (const o of data.orders) {
+    const tr = document.createElement('tr');
+    [o.id, o.createdAt, o.username ?? `#${o.userId}`, `${o.icon || ''} ${o.texts.fr.title}`, o.cost].forEach(x => addCell(tr, x));
+    const td = document.createElement('td'); td.appendChild(statusBadge(o.status)); tr.appendChild(td);
+    addCell(tr, o.note ?? '');
+    const act = document.createElement('td');
+    for (const to of o.transitions) {
+      const b = document.createElement('button');
+      b.className = 'btn-ghost';
+      b.textContent = to === 'cancelled' ? 'Annuler + rembourser' : `→ ${SH_STATUS[to]}`;
+      b.addEventListener('click', () => shopTransition(o, to));
+      act.appendChild(b);
+    }
+    tr.appendChild(act);
+    ob.appendChild(tr);
+  }
+  loadShopAudit();
+}
+
+async function loadShopAudit() {
+  const { ok, data } = await api('GET', '/api/admin/shop/audit?limit=100');
+  const tb = document.getElementById('sh-audit-body');
+  tb.textContent = '';
+  if (!ok) return;
+  for (const a of data.audit) {
+    const tr = document.createElement('tr');
+    [a.created_at, a.actor, a.action, a.item_id ?? '', a.order_id ?? '', a.user_id ?? '', a.details ? JSON.stringify(a.details).slice(0, 300) : '']
+      .forEach(x => addCell(tr, x));
+    tb.appendChild(tr);
+  }
+}
+
+async function shopTransition(o, to) {
+  const label = to === 'cancelled' ? `Annuler la commande n° ${o.id} et rembourser ${o.cost} pts ?` : `Passer la commande n° ${o.id} à « ${SH_STATUS[to]} » ?`;
+  if (!confirm(label)) return;
+  const note = document.getElementById('sh-order-note').value;
+  const { ok, data } = await api('POST', `/api/admin/shop/orders/${encodeURIComponent(o.id)}/status`, { status: to, note });
+  shMessage('sh-order-msg', ok ? `Commande n° ${o.id} : ${SH_STATUS[data.order.status]}.` : (data.error || 'Erreur.'), ok);
+  if (ok) { document.getElementById('sh-order-note').value = ''; loadShop(); }
+}
+
+document.getElementById('btn-refresh-shop').addEventListener('click', loadShop);
+document.getElementById('sh-order-filter').addEventListener('change', loadShop);
+document.getElementById('btn-sh-new').addEventListener('click', () => shFillForm(null));
+
+document.getElementById('btn-sh-settings').addEventListener('click', async () => {
+  const body = { exchangesOpen: document.getElementById('sh-open').checked, notice: document.getElementById('sh-notice').value };
+  const { ok, data } = await api('PUT', '/api/admin/shop/settings', body);
+  shMessage('sh-settings-msg', ok ? 'Réglages enregistrés.' : (data.error || 'Erreur.'), ok);
+  if (ok) loadShop();
+});
+
+document.getElementById('btn-sh-save').addEventListener('click', async () => {
+  const id = document.getElementById('sh-id').value;
+  const item = shReadForm();
+  const { ok, data } = id
+    ? await api('PUT', `/api/admin/shop/items/${encodeURIComponent(id)}`, { item })
+    : await api('POST', '/api/admin/shop/items', { item });
+  shMessage('sh-item-msg', ok ? `Article #${data.item.id} enregistré.` : (data.error || 'Erreur.'), ok);
+  if (ok) { shFillForm(data.item); loadShop(); }
 });
