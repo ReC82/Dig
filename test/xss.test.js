@@ -85,7 +85,7 @@ test('POST /api/register refuse un e-mail piégé', async (t) => {
   const dir   = fs.mkdtempSync(path.join(os.tmpdir(), 'dig-xss-'));
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
-    env: { PATH: process.env.PATH, NODE_ENV: 'test', PORT, DB_FILE: path.join(dir, 't.sqlite'),
+    env: { PATH: process.env.PATH, NODE_ENV: 'test', PORT, SESSIONS_DIR: path.join(dir, 'sessions'), DB_FILE: path.join(dir, 't.sqlite'),
       SESSION_SECRET: crypto.randomBytes(32).toString('hex') },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

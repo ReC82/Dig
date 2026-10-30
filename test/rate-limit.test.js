@@ -25,7 +25,7 @@ test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 async function startUp(env = {}) {
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
-    env: { PATH: process.env.PATH, PORT, DB_FILE: path.join(dir, `t-${Date.now()}.sqlite`), ...env },
+    env: { PATH: process.env.PATH, PORT, SESSIONS_DIR: path.join(dir, 'sessions'), DB_FILE: path.join(dir, `t-${Date.now()}.sqlite`), ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.log = '';
@@ -87,9 +87,14 @@ test('connexion : 429 après RATE_LOGIN_MAX échecs par minute et par IP ; les s
   try {
     assert.strictEqual((await register('alice')).r.status, 200);
 
-    // Connexions réussies répétées : jamais limitées
+    // Connexions réussies répétées : jamais limitées. Le décompte d'un succès n'est retiré
+    // qu'à l'événement « finish » côté serveur, qui peut suivre la réception de la réponse :
+    // on lit le corps puis on laisse ce retrait se faire, sinon le test échoue au hasard (#17).
     for (let i = 0; i < 5; i++) {
-      assert.strictEqual((await post('/api/login', { username: 'alice', password: 'secret123' })).status, 200);
+      const ok = await post('/api/login', { username: 'alice', password: 'secret123' });
+      assert.strictEqual(ok.status, 200);
+      await ok.text();
+      await new Promise(r => setTimeout(r, 100));
     }
     // Le décompte d'un succès est retiré à la fin de l'envoi de la réponse (événement
     // « finish ») : on laisse ce retrait se faire avant d'enchaîner les échecs.

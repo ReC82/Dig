@@ -148,7 +148,7 @@ test('POST /api/me/save accepte le corps d\'un sendBeacon et ne journalise plus 
   const httpDb = path.join(dir, 'http.sqlite');
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT, DB_FILE: httpDb, ADMIN_SECRET: crypto.randomBytes(16).toString('hex'), SESSION_SECRET: crypto.randomBytes(16).toString('hex') },
+    env: { ...process.env, PORT, SESSIONS_DIR: path.join(dir, 'sessions'), DB_FILE: httpDb, ADMIN_SECRET: crypto.randomBytes(16).toString('hex'), SESSION_SECRET: crypto.randomBytes(16).toString('hex') },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

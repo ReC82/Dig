@@ -36,8 +36,17 @@ cp .env.example .env
 |-----------|--------------|------------------------------------------------|
 | `PORT`    | `3000`       | Port d'écoute du serveur                       |
 | `DB_FILE` | `dig.sqlite` | Nom du fichier SQLite dans `server/data/`      |
+| `SESSIONS_DIR` | `sessions` | Dossier des sessions (relatif à `server/data/` ou absolu) |
 
 Le dossier `server/data/` est créé automatiquement au premier démarrage.
+
+## Tests
+
+```bash
+npm test        # tests automatisés (bases temporaires, ports 3105-3117, jamais la production)
+```
+
+Détails, intégration continue GitHub Actions et `seed-test.js` : `docs/OPERATIONS.md`, section « Tests ».
 
 ## Structure
 

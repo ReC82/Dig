@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "check": "git ls-files -z '*.js' | xargs -0 -n1 node --check",
     "backup": "node scripts/backup-db.js",
     "restore": "node scripts/restore-db.js",
     "deploy": "bash scripts/deploy.sh"

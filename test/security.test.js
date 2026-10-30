@@ -29,7 +29,7 @@ test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 function start(env) {
   const child = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
-    env: { PATH: process.env.PATH, NODE_ENV: 'production', PORT, DB_FILE: path.join(dir, `t-${Date.now()}.sqlite`), ...env },
+    env: { PATH: process.env.PATH, NODE_ENV: 'production', PORT, SESSIONS_DIR: path.join(dir, 'sessions'), DB_FILE: path.join(dir, `t-${Date.now()}.sqlite`), ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.log = '';
