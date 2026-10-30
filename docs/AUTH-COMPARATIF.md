@@ -8,6 +8,18 @@ https://auth0.com/pricing, relevée le 30/10/2026.
 > **Rien n'a été souscrit, aucun tenant n'a été créé, aucune connexion sociale n'est active.**
 > Ce document sert à préparer une décision. Il ne l'applique pas.
 
+## Décision du propriétaire (30/10/2026)
+
+> **La connexion classique (identifiant ou e-mail + mot de passe) est conservée.** Les connexions
+> sociales s'**ajoutent** à elle : ni remplacement, ni migration forcée. Les joueurs existants se
+> connectent comme avant. Une identité sociale se relie **explicitement** à un compte DIG!
+> existant (§4), sans toucher à la progression, à l'inventaire ni au classement. Le plan, les
+> coûts et les limites sont présentés avant toute activation. La connexion en production ne
+> change pas sans nouvelle décision.
+
+Les deux architectures (§3) et le plan (§5) respectent déjà cette règle : le formulaire et la
+route `/api/login` restent tels quels ; le drapeau `SOCIAL_LOGIN` n'ajoute qu'un bouton.
+
 ## 0. Rectificatif de la version 1
 
 | Version 1 (erronée ou incomplète) | Correction |
