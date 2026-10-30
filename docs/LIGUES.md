@@ -11,7 +11,8 @@
 | Durée | Saison hebdomadaire, lundi 00:00:00 → dimanche 23:59:59 UTC, rotation serveur chaque minute, sans trou (#16). |
 | Structure | Une ligue par **niveau** : tous les joueurs d'un niveau sont classés ensemble. Niveau 0 = Mimosa 🌼 (ligue d'arrivée), puis Bronze, Argent, Or, Platine, Diamant, Émeraude, Maître, Grand Maître, puis « Ligue N ». Une ligue supérieure est **créée à la volée** dès que quelqu'un doit y monter : il n'y a pas de limite au nombre de ligues. |
 | Joueur actif | Au moins un bloc cassé manuellement dans la saison (`manual_blocks > 0`). |
-| Classement | Profondeur max validée par le serveur ↓, puis blocs manuels validés par l'anti-autoclic ↓, puis **identifiant du compte ↑** (départage provisoire, déterministe, depuis #19). |
+| Classement | Profondeur max validée par le serveur ↓, puis blocs manuels validés par l'anti-autoclic ↓, puis **premier à avoir atteint cette profondeur ↑** (`max_depth_reached_at`, à la milliseconde ; lignes antérieures à #29 sans date : après), puis identifiant du compte ↑. Aucun hasard. |
+| Classement figé (#29) | À la clôture, le classement est copié dans `season_standings` / `season_snapshots` (tables immuables, empreintes SHA-256 chaînées). Participants : actifs avec ≥ 1 bloc manuel ; éligibles : profondeur > 0. Le niveau de risque anti-bot est noté pour l'audit, sans exclusion automatique. Mode `simulation` : aucun prix réel. API : `GET /api/seasons/:id|last/standings`, admin `GET /api/admin/seasons/:id/standings` (avec vérification). |
 | Promotion | À la clôture, pour chaque ligue ayant au moins `min_active_players_per_league` actifs (10) : les `max(1, ⌊actifs × promotion_rate / (1 + niveau × difficulty_coefficient)⌋)` premiers montent d'un niveau (0,50 et 0,45 par défaut). Exemple avec 30 actifs : 15 promus en Mimosa, 10 en Bronze, 7 en Argent, 6 en Or. Un joueur monte d'au plus un niveau par saison. |
 | Relégation | **Aucune.** Un joueur ne descend jamais. |
 | Récompenses | **Aucune.** |
@@ -41,7 +42,7 @@ même semaine**.
 6. **Reset de saison par le serveur** : appliqué **à la lecture** de la sauvegarde (chargement ou
    première sauvegarde de la nouvelle saison), mêmes règles que le reset client actuel, idempotent
    (marqué par l'identifiant de saison). Aucune réécriture en masse à la clôture.
-7. **Départage** : profondeur ↓, blocs validés ↓, **date à laquelle la profondeur max a été atteinte ↑**
+7. **Départage** (réalisé dans #29) : profondeur ↓, blocs validés ↓, **date à laquelle la profondeur max a été atteinte ↑**
    (le premier arrivé gagne), puis identifiant ↑. Demande une colonne ajoutée
    `season_rankings.max_depth_reached_at` (ajout seul ; les lignes existantes restent sans date et
    passent après celles qui en ont une, à égalité).
