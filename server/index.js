@@ -76,6 +76,7 @@ const {
 } = require('./seasons');
 const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
 const standings = require('./standings');
+const contest   = require('./contest');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const { validateEconomyValue } = require('./economy');
@@ -696,6 +697,68 @@ app.get('/api/admin/seasons/:id/standings', requireAdmin, (req, res) => {
     res.json(result);
   } catch (err) { console.error('[GET /api/admin/seasons/:id/standings]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
+
+// ── Concours au mérite (#30) ──────────────────────────────────────────────────
+// Réglages, aperçu, attribution (aucun tirage), suivi des gagnants et journal. Cadeaux réels
+// verrouillés tant que CONTEST_REAL_PRIZES ≠ « on ». Aucun e-mail ni code dans les journaux.
+
+/** Exécute un handler du concours : ContestError → statut et message, autre erreur → 500. */
+function contestRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof contest.ContestError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err.message);
+      res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+function idParam(value, what) {
+  const id = intParam(value, { def: NaN, min: 1 });
+  if (!Number.isInteger(id)) throw new contest.ContestError(400, `ID ${what} invalide.`);
+  return id;
+}
+
+app.get('/api/admin/contest', requireAdmin, contestRoute('GET /api/admin/contest', () => ({
+  settings: contest.getSettings(), seasons: contest.listSeasons(),
+  statuses: contest.STATUSES, transitions: contest.TRANSITIONS,
+})));
+
+app.put('/api/admin/contest/settings', requireAdmin, contestRoute('PUT /api/admin/contest/settings',
+  req => ({ settings: contest.updateSettings(req.body) })));
+
+app.get('/api/admin/contest/seasons/:id/preview', requireAdmin, contestRoute('GET /api/admin/contest/seasons/:id/preview',
+  req => contest.preview(idParam(req.params.id, 'saison'), { mode: req.query.mode === 'real' ? 'real' : 'simulation' })));
+
+app.post('/api/admin/contest/seasons/:id/attribute', requireAdmin, contestRoute('POST /api/admin/contest/seasons/:id/attribute',
+  req => ({ winners: contest.attribute(idParam(req.params.id, 'saison'), { mode: req.body?.mode === 'real' ? 'real' : 'simulation' }) })));
+
+app.post('/api/admin/contest/seasons/:id/exclusions', requireAdmin, contestRoute('POST /api/admin/contest/seasons/:id/exclusions',
+  req => { contest.setExclusion(idParam(req.params.id, 'saison'), idParam(req.body?.userId, 'joueur'), req.body?.reason); return { ok: true }; }));
+
+app.delete('/api/admin/contest/seasons/:id/exclusions/:userId', requireAdmin, contestRoute('DELETE /api/admin/contest/seasons/:id/exclusions/:userId',
+  req => { contest.removeExclusion(idParam(req.params.id, 'saison'), idParam(req.params.userId, 'joueur')); return { ok: true }; }));
+
+app.get('/api/admin/contest/winners', requireAdmin, contestRoute('GET /api/admin/contest/winners', req => ({
+  winners: contest.listWinners({
+    mode:   contest.MODES.includes(req.query.mode) ? req.query.mode : null,
+    status: contest.STATUSES.includes(req.query.status) ? req.query.status : null,
+  }),
+})));
+
+app.post('/api/admin/contest/winners/:id/status', requireAdmin, contestRoute('POST /api/admin/contest/winners/:id/status',
+  req => ({ winner: contest.transition(idParam(req.params.id, 'gagnant'), req.body?.status, req.body?.note) })));
+
+// Coordonnées du gagnant : POST (jamais en cache ni dans un historique d'URL), consultation journalisée.
+app.post('/api/admin/contest/winners/:id/contact', requireAdmin, contestRoute('POST /api/admin/contest/winners/:id/contact',
+  req => contest.contact(idParam(req.params.id, 'gagnant'))));
+
+app.get('/api/admin/contest/audit', requireAdmin, contestRoute('GET /api/admin/contest/audit', req => contest.listAudit({
+  limit:    intParam(req.query.limit,  { def: 100, min: 1, max: 500 }),
+  offset:   intParam(req.query.offset, { def: 0,   min: 0 }),
+  winnerId: req.query.winnerId ? intParam(req.query.winnerId, { def: 0, min: 0 }) || null : null,
+})));
 
 // Classement global admin d'une saison
 app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {

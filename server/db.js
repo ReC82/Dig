@@ -451,6 +451,77 @@ function initDb() {
       BEGIN SELECT RAISE(ABORT, 'season_snapshots est immuable (classement figé #29)'); END;
   `);
 
+  // Concours au mérite (#30) : réglages (une seule ligne), exclusions motivées après la clôture
+  // (sans toucher à l'instantané figé), lots attribués et leur suivi, journal d'audit.
+  // Ajouts seuls ; aucune clé étrangère vers users : l'historique survit à un compte supprimé.
+  // Les journaux sont en ajout seul (déclencheurs) et ne contiennent jamais d'e-mail ni de code.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS contest_settings (
+      id                 INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled            INTEGER NOT NULL DEFAULT 0,
+      title              TEXT    NOT NULL DEFAULT 'Concours hebdomadaire DIG!',
+      description        TEXT    NOT NULL DEFAULT '',
+      prize_label        TEXT    NOT NULL DEFAULT 'Carte cadeau Amazon',
+      prize_provider     TEXT    NOT NULL DEFAULT 'Amazon',
+      prize_value_cents  INTEGER NOT NULL DEFAULT 500,
+      prize_currency     TEXT    NOT NULL DEFAULT 'EUR',
+      prize_stock        INTEGER NOT NULL DEFAULT 0,
+      lots_per_season    INTEGER NOT NULL DEFAULT 1,
+      starts_at          TEXT,
+      ends_at            TEXT,
+      min_depth          INTEGER NOT NULL DEFAULT 1,
+      max_risk_level     INTEGER,
+      cooldown_seasons   INTEGER NOT NULL DEFAULT 0,
+      claim_days         INTEGER NOT NULL DEFAULT 30,
+      real_eligibility   TEXT    NOT NULL DEFAULT '{}',
+      updated_at         TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT OR IGNORE INTO contest_settings (id) VALUES (1);
+    CREATE TABLE IF NOT EXISTS contest_exclusions (
+      season_id   INTEGER NOT NULL,
+      user_id     INTEGER NOT NULL,
+      reason      TEXT    NOT NULL,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (season_id, user_id)
+    );
+    CREATE TABLE IF NOT EXISTS contest_winners (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      season_id      INTEGER NOT NULL,
+      mode           TEXT    NOT NULL CHECK (mode IN ('simulation', 'real')),
+      lot_no         INTEGER NOT NULL,
+      user_id        INTEGER NOT NULL,
+      username       TEXT,
+      rank           INTEGER NOT NULL,
+      max_depth      INTEGER NOT NULL,
+      snapshot_hash  TEXT    NOT NULL,
+      prize          TEXT    NOT NULL,
+      status         TEXT    NOT NULL DEFAULT 'designated',
+      created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+      expires_at     TEXT    NOT NULL,
+      UNIQUE (season_id, mode, lot_no),
+      UNIQUE (season_id, mode, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_contest_winners_user ON contest_winners (user_id, season_id);
+    CREATE TABLE IF NOT EXISTS contest_audit (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      action      TEXT    NOT NULL,
+      season_id   INTEGER,
+      winner_id   INTEGER,
+      from_status TEXT,
+      to_status   TEXT,
+      details     TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_contest_audit_winner ON contest_audit (winner_id, id);
+    CREATE TRIGGER IF NOT EXISTS trg_contest_audit_no_update BEFORE UPDATE ON contest_audit
+      BEGIN SELECT RAISE(ABORT, 'contest_audit est en ajout seul (#30)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_contest_audit_no_delete BEFORE DELETE ON contest_audit
+      BEGIN SELECT RAISE(ABORT, 'contest_audit est en ajout seul (#30)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_contest_winners_no_delete BEFORE DELETE ON contest_winners
+      BEGIN SELECT RAISE(ABORT, 'contest_winners : aucune suppression, utiliser le statut expired (#30)'); END;
+  `);
+
   // Journal de sécurité (lot A) : aucune IP en clair (HMAC tronqué), purge à 90 jours.
   // Score de risque par compte et par saison (composantes par catégorie, décroissantes).
   _db.exec(`
