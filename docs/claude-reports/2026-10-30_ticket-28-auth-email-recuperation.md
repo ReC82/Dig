@@ -3,6 +3,104 @@
 - Ticket : https://github.com/ReC82/Dig/issues/28
 - Session du 30/10/2026 (DIGORCH)
 
+## Session 2 (30/10/2026) — connexions sociales : comparatif Auth0 rectifié
+
+### 1. État réel
+
+- **Comparatif rectifié, intégré dans `develop`.** Aucun déploiement : seul de la documentation a
+  changé, et le fichier n'est pas servi par le jeu.
+- La production reste `994705e` (session 1).
+- **Connexion sociale : rien d'activé.** Aucun tenant, aucune souscription, aucun code, comme
+  demandé par le propriétaire. Une décision du propriétaire est attendue (§8).
+
+### 2. Retour du propriétaire pris en compte
+
+Commentaire du 30/10, 10:54 :
+- **Recette validée** : Paramètres → Compte affiche bien l'adresse et « Adresse non vérifiée ».
+- **Objectif clarifié** : les connexions sociales.
+- **Correction demandée** : la version 1 du comparatif écartait Auth0 en s'appuyant sur
+  Essentials. Or l'offre **Free** couvre 25 000 MAU et des connexions sociales illimitées.
+
+### 3. Changements
+
+`docs/AUTH-COMPARATIF.md`, version 2, entièrement réécrit :
+- **§0 Rectificatif** des erreurs de la version 1 (Free suffit pour le social ; e-mails sans
+  effet ; sessions et mots de passe conservés).
+- **§1 Grille officielle Free / Essentials** relevée le 30/10 :
+  - **Account Linking, Email Workflow et la personnalisation de la connexion** sont absents du
+    Free.
+  - **Custom Database Connections** est absent du Free **et aussi d'Essentials**, selon la page.
+  - S'y ajoutent les limites de débit Free, les clés de développement interdites en production
+    et Apple à 99 $/an.
+- **§3 Deux architectures** : (A) Auth0 Free en fournisseur OIDC, avec DIG! comme source de
+  vérité ; (B) OAuth direct. Elles sont comparées sur l'effort, la sécurité, le RGPD, les
+  fournisseurs, les coûts, le risque de doublons et le retour arrière.
+- **§4 Liaison sûre des comptes** : jamais sur la seule égalité d'e-mail ; preuve des deux
+  identités ; refus d'une identité déjà liée ailleurs ; jamais de fusion de progressions ;
+  notification. La liaison est gérée par DIG!, ce qui neutralise l'absence d'Account Linking en
+  Free.
+- **§5 Plan de test** (faux émetteur OIDC local) et **mise en place en 5 étapes** derrière un
+  drapeau `SOCIAL_LOGIN` (`off` / `link` / `on`), avec retour arrière à chaque étape.
+
+### 4. SHA et vérification
+
+- Branche `feature/28-auth-email-recuperation`.
+- SHA sur `develop` : voir le commentaire GitHub de cette session.
+- Lecture : `docs/AUTH-COMPARATIF.md` sur `develop`.
+- `npm test` complet sur la fusion `develop`.
+
+### 5. Choix faits seul
+
+- **Recommandation : A, en commençant par Google seul.**
+  - Avec un fournisseur, A et B demandent presque le même effort.
+  - A devient plus rentable à partir du deuxième fournisseur, sans coût mensuel.
+  - Le `sub` natif est conservé, ce qui permet de passer plus tard à B sans relier les comptes à
+    nouveau.
+- **Pas d'Auth0 Account Linking, même payant** : DIG! reste la seule source de vérité des
+  liaisons.
+- **Aucun code écrit** avant le choix de l'architecture, pour respecter la consigne « ne pas
+  activer sans décision ».
+
+### 6. Données des joueurs
+
+Aucune modification : pas de code, pas de migration, pas de déploiement.
+
+### 7. Test fonctionnel à faire par le propriétaire
+
+- Relire `docs/AUTH-COMPARATIF.md` (§0, §3 et §4) et répondre aux décisions du §6 de ce document.
+- La recette de l'existant continue :
+  - « Changer le mot de passe » ;
+  - après configuration du SMTP : vérification de l'adresse et « Mot de passe oublié ».
+
+### 8. Décisions demandées au propriétaire
+
+1. **Architecture** : A (Auth0 Free) ou B (OAuth direct). **Recommandé : A**, Google d'abord.
+2. **Apple** : 99 $/an (Apple Developer Program). **Recommandé : plus tard.**
+3. **Tenant Auth0**, créé par le propriétaire :
+   - région **UE** ;
+   - MFA sur le compte administrateur ;
+   - client Google à son nom ;
+   - secrets dans `/etc/dig/dig.env` ;
+   - domaine par défaut pour les essais.
+4. **Comptes « Google seul »** : attendre l'activation du SMTP. Au début, liaison des comptes
+   existants seulement. **Recommandé : oui.**
+5. Toujours en attente :
+   - configuration du SMTP du jeu ;
+   - adresse vérifiée obligatoire pour le concours.
+
+### 9. Reste à faire
+
+- Après la décision : implémentation selon le §5 du comparatif (≈ 2 jours pour Google, tests
+  compris), puis déploiement progressif.
+- **Classement : Après lancement.**
+  - Le MVP public peut ouvrir avec la connexion par mot de passe et la récupération par e-mail.
+  - Le propriétaire peut avancer la connexion sociale s'il en fait une condition de lancement.
+- **Bloquant MVP** : l'activation du SMTP uniquement.
+
+---
+
+# Session 1
+
 ## 1. État réel
 
 **Déployé en production (SHA `994705e`) — en attente de recette.**
