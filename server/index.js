@@ -75,6 +75,7 @@ const {
   startSeasonScheduler,
 } = require('./seasons');
 const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
+const seasonEnd = require('./seasonEnd');
 const standings = require('./standings');
 const contest   = require('./contest');
 const rewardPoints = require('./rewardPoints');
@@ -609,6 +610,30 @@ app.get('/api/admin/seasons/active/summary', requireAdmin, (req, res) => {
   }
 });
 
+// ── Date de fin configurable de la saison active (#44) ────────────────────────
+// Aperçu → confirmation (nom exact de la saison + fin actuelle attendue) → programmation ;
+// annulation tant que l'échéance n'est pas atteinte. La clôture reste celle du planificateur.
+function seasonEndRoute(label, handler) {
+  return (req, res) => {
+    try { res.json(handler(req)); }
+    catch (err) {
+      if (err instanceof seasonEnd.SeasonEndError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+const optSeasonId = v => (v == null || v === '' ? null : intParam(v, { def: NaN, min: 1 }));
+app.get('/api/admin/seasons/active/end', requireAdmin, seasonEndRoute('GET /api/admin/seasons/active/end',
+  () => seasonEnd.state()));
+app.post('/api/admin/seasons/active/end/preview', requireAdmin, seasonEndRoute('POST /api/admin/seasons/active/end/preview',
+  req => seasonEnd.preview(optSeasonId(req.body?.seasonId), seasonEnd.parseRequestedEnd(req.body))));
+app.put('/api/admin/seasons/active/end', requireAdmin, seasonEndRoute('PUT /api/admin/seasons/active/end',
+  req => seasonEnd.setEnd(optSeasonId(req.body?.seasonId), seasonEnd.parseRequestedEnd(req.body), {
+    confirm: req.body?.confirm, expectedEndAt: req.body?.expectedEndAt, reason: req.body?.reason,
+  })));
+app.delete('/api/admin/seasons/active/end', requireAdmin, seasonEndRoute('DELETE /api/admin/seasons/active/end',
+  req => seasonEnd.cancel(optSeasonId(req.body?.seasonId), { expectedEndAt: req.body?.expectedEndAt, reason: req.body?.reason })));
+
 const SEASON_STATUSES = ['scheduled', 'active', 'closed', 'archived'];
 
 /** Erreur SQLite de l'index « une seule saison active » (#16). */
@@ -654,6 +679,10 @@ app.put('/api/admin/seasons/:id', requireAdmin, (req, res) => {
       return res.status(400).json({ error: 'Dates invalides (format attendu : YYYY-MM-DD HH:MM:SS, UTC).' });
     }
     if (status && !SEASON_STATUSES.includes(status)) return res.status(400).json({ error: 'Statut invalide.' });
+    // Fin de la saison active : uniquement via la route dédiée (aperçu, confirmation, audit — #44)
+    if (before.status === 'active' && fields.end_at && status !== 'closed') {
+      return res.status(409).json({ error: 'Fin de la saison active : utilisez « Date de fin » (PUT /api/admin/seasons/active/end).' });
+    }
     if ((fields.end_at ?? normalizeDate(before.end_at)) <= (fields.start_at ?? normalizeDate(before.start_at))) {
       return res.status(400).json({ error: 'end_at doit être postérieur à start_at.' });
     }

@@ -39,6 +39,20 @@ function _uniqueSeasonName(start) {
 }
 
 /**
+ * Période de la saison qui suivra une saison terminée à `prevEnd` (lecture seule, aussi utilisée
+ * pour l'aperçu admin #44) : { scheduled } si une saison programmée prend le relais, sinon
+ * { start, end } (calendrier hebdomadaire, raccourci avant une saison programmée).
+ */
+function planNextSeason(prevEnd, now) {
+  let { start, end } = prevEnd ? cal.nextSeasonPeriod(prevEnd) : cal.weekBounds(now);
+  const scheduled = db.getNextScheduledSeason();
+  const schedStart = scheduled ? cal.parseUtc(scheduled.start_at) : null;
+  if (scheduled && schedStart && schedStart <= start) return { scheduled, start: schedStart, end: cal.parseUtc(scheduled.end_at) };
+  if (schedStart && schedStart <= end) end = new Date(schedStart.getTime() - cal.SEC_MS);
+  return { scheduled: null, start, end };
+}
+
+/**
  * Ouvre la saison qui suit une saison terminée à `prevEnd` (null : aucune saison antérieure).
  * À appeler dans une transaction, après la clôture de la précédente.
  *  - début = prevEnd + 1 s (sans trou) ; sinon lundi de la semaine de `now` ;
@@ -47,15 +61,11 @@ function _uniqueSeasonName(start) {
  *    activée si elle a commencé, sinon la saison créée s'arrête juste avant elle.
  */
 function _openNextSeason(prevEnd, now) {
-  let { start, end } = prevEnd ? cal.nextSeasonPeriod(prevEnd) : cal.weekBounds(now);
-
-  const scheduled = db.getNextScheduledSeason();
-  const schedStart = scheduled ? cal.parseUtc(scheduled.start_at) : null;
-  if (scheduled && schedStart && schedStart <= start) {
+  const { scheduled, start, end } = planNextSeason(prevEnd, now);
+  if (scheduled) {
     console.log(`[seasons] Saison programmée activée : ${scheduled.name} (id=${scheduled.id})`);
     return updateSeason(scheduled.id, { status: 'active' });
   }
-  if (schedStart && schedStart <= end) end = new Date(schedStart.getTime() - cal.SEC_MS);
 
   const season = createSeason(_uniqueSeasonName(start), fmtUtc(start), fmtUtc(end));
   console.log(`[seasons] Nouvelle saison : ${season.name} (id=${season.id}, ${season.start_at} → ${season.end_at})`);
@@ -933,6 +943,7 @@ function buildActiveSeasonLeaderboard(leagueId = null, page = 1) {
 
 module.exports = {
   checkAndRotateSeason,
+  planNextSeason,
   isWithinSeason,
   startSeasonScheduler,
   stopSeasonScheduler,

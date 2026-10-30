@@ -102,8 +102,65 @@ function nextSeasonPeriod(prevEnd) {
   return { start, end };
 }
 
+/** Fuseau de référence du propriétaire et des joueurs (affichage et saisie admin, #44). */
+const LOCAL_TZ = 'Europe/Brussels';
+
+const _tzFormatters = new Map();
+function _tzParts(date, tz) {
+  let f = _tzFormatters.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    _tzFormatters.set(tz, f);
+  }
+  const p = Object.fromEntries(f.formatToParts(date).map(x => [x.type, x.value]));
+  return [+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second];
+}
+
+/** Décalage (ms) du fuseau `tz` par rapport à UTC à l'instant `date` (+3 600 000 pour UTC+1). */
+function tzOffsetMs(date, tz = LOCAL_TZ) {
+  const ms = Math.floor(date.getTime() / SEC_MS) * SEC_MS;
+  return Date.UTC(..._tzParts(new Date(ms), tz)) - ms;
+}
+
+/** Formate une Date en heure locale `tz` : "YYYY-MM-DD HH:MM:SS (UTC+1)". */
+function fmtLocal(date, tz = LOCAL_TZ) {
+  const [y, mo, d, h, mi, s] = _tzParts(date, tz);
+  const pad = n => String(n).padStart(2, '0');
+  const off = tzOffsetMs(date, tz) / 60_000;
+  const offTxt = `UTC${off < 0 ? '-' : '+'}${Math.floor(Math.abs(off) / 60)}${Math.abs(off) % 60 ? ':' + pad(Math.abs(off) % 60) : ''}`;
+  return `${y}-${pad(mo + 1)}-${pad(d)} ${pad(h)}:${pad(mi)}:${pad(s)} (${offTxt})`;
+}
+
+/**
+ * Convertit une heure locale "YYYY-MM-DD[T ]HH:MM[:SS]" du fuseau `tz` en Date UTC.
+ * Retourne { date } ou { error: 'invalid' | 'nonexistent' | 'ambiguous' } : une heure sautée
+ * (passage à l'heure d'été) ou répétée (retour à l'heure d'hiver) est refusée plutôt que devinée.
+ */
+function localToUtc(value, tz = LOCAL_TZ) {
+  const m = typeof value === 'string'
+    && value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return { error: 'invalid' };
+  const fields = [+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] ?? 0)];
+  const naive = Date.UTC(...fields);
+  const back = new Date(naive);
+  if (back.getUTCFullYear() !== fields[0] || back.getUTCMonth() !== fields[1] || back.getUTCDate() !== fields[2]
+      || back.getUTCHours() !== fields[3] || back.getUTCMinutes() !== fields[4] || back.getUTCSeconds() !== fields[5]) {
+    return { error: 'invalid' };
+  }
+  const offsets = new Set([tzOffsetMs(new Date(naive - DAY_MS), tz), tzOffsetMs(new Date(naive + DAY_MS), tz)]);
+  const hits = [...offsets].map(o => naive - o)
+    .filter(t => _tzParts(new Date(t), tz).every((v, i) => v === fields[i]));
+  if (!hits.length) return { error: 'nonexistent' };
+  if (hits.length > 1) return { error: 'ambiguous' };
+  return { date: new Date(hits[0]) };
+}
+
 module.exports = {
   SEC_MS, DAY_MS, WEEK_MS,
   fmtUtc, parseUtc, normalizeDate, endBefore,
   weekStart, weekBounds, isoWeek, seasonName, nextSeasonPeriod,
+  LOCAL_TZ, tzOffsetMs, fmtLocal, localToUtc,
 };
