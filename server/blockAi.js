@@ -105,7 +105,7 @@ if (process.env.DIG_AI_FAKE === '1' && process.env.NODE_ENV !== 'production') {
 }
 
 function fakeText(kind, concept) {
-  const names = { fr: 'Basalte lunaire', en: 'Lunar basalt', nl: 'Maanbasalt' };
+  const names = { fr: 'Basalte lunaire', en: 'Lunar basalt', nl: 'Maanbasalt', es: 'Basalto lunar' };
   if (kind === 'names') return { names };
   return {
     names, idSuggestion: 'basalte_lunaire', category: 'pierre', rarity: 'rare', icon: '🌑',

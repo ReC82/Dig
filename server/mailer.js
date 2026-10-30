@@ -98,6 +98,32 @@ const TEMPLATES = {
       text: (u, email) => `Hallo ${u},\n\nHet Google-account ${email} is niet langer gekoppeld aan je DIG!-account. Je wachtwoord blijft geldig.\nWas jij dit niet? Wijzig je wachtwoord en antwoord op dit bericht.\n\n— DIG!`,
     },
   },
+  es: {
+    test: {
+      subject: 'DIG! — Correo de prueba',
+      text: (u, when) => `Hola ${u}:\n\nEste correo de prueba confirma que DIG! puede enviar mensajes (${when}).\nComprueba que no haya llegado a la carpeta de spam.\n\n— DIG!`,
+    },
+    verify: {
+      subject: 'DIG! — Confirma tu correo electrónico',
+      text: (u, link) => `Hola ${u}:\n\nConfirma tu correo electrónico para proteger tu cuenta DIG!:\n${link}\n\nEste enlace es válido durante 48 horas. Si no has pedido nada, ignora este mensaje.\n\n— DIG!`,
+    },
+    reset: {
+      subject: 'DIG! — Restablecer la contraseña',
+      text: (u, link) => `Hola ${u}:\n\nSe ha solicitado restablecer la contraseña de tu cuenta DIG!.\nElige una nueva contraseña aquí:\n${link}\n\nEste enlace es válido durante 1 hora y solo funciona una vez. Si no has pedido nada, ignora este mensaje: tu contraseña actual sigue siendo válida.\n\n— DIG!`,
+    },
+    emailChanged: {
+      subject: 'DIG! — Correo electrónico cambiado',
+      text: (u, newEmail) => `Hola ${u}:\n\nEl correo electrónico de tu cuenta DIG! acaba de cambiarse a ${newEmail}.\nSi no has sido tú, responde a este mensaje o contacta con el soporte.\n\n— DIG!`,
+    },
+    socialLinked: {
+      subject: 'DIG! — Cuenta de Google vinculada',
+      text: (u, email) => `Hola ${u}:\n\nLa cuenta de Google ${email} acaba de vincularse a tu cuenta DIG!: ahora puedes iniciar sesión con Google.\nSi no has sido tú, cambia tu contraseña y responde a este mensaje.\n\n— DIG!`,
+    },
+    socialUnlinked: {
+      subject: 'DIG! — Cuenta de Google quitada',
+      text: (u, email) => `Hola ${u}:\n\nLa cuenta de Google ${email} ya no está vinculada a tu cuenta DIG!. Tu contraseña sigue siendo válida.\nSi no has sido tú, cambia tu contraseña y responde a este mensaje.\n\n— DIG!`,
+    },
+  },
 };
 
 function pickLang(lang) {

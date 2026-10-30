@@ -161,10 +161,17 @@ const Blocks = {
     return this.TYPES.find(t => this.idOf(t) === id) || null;
   },
 
-  /** Nom affiché : nom du catalogue dans la langue du joueur, sinon la traduction intégrée. */
+  /**
+   * Nom affiché, par ordre de repli (#42) : nom du catalogue dans la langue du joueur, puis
+   * traduction intégrée au jeu dans cette langue (blocs d'origine, minerais de l'étape B), puis nom
+   * FR du catalogue, puis traduction intégrée (FR à défaut).
+   */
   displayName(type, lang = typeof I18n !== 'undefined' ? I18n.getCurrent() : 'fr') {
     const names = type.names || {};
-    return names[lang] || names.fr || t(type.name);
+    if (names[lang]) return names[lang];
+    const builtIn = typeof I18n !== 'undefined' && typeof I18n.has === 'function'
+      && lang === I18n.getCurrent() && I18n.has(type.name, lang);
+    return builtIn ? t(type.name) : names.fr || t(type.name);
   },
 
   /** Type du catalogue publié → type du jeu (mêmes champs que TYPES). Null si invalide. */

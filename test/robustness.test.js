@@ -88,7 +88,7 @@ test('mission « profondeur » : jamais négative, progression du jour conservé
   assert.strictEqual(DailyMissions.getProgress(0), 0);
 });
 
-test('i18n : EN et NL ont toutes les clés FR, et les clés utilisées existent', () => {
+test('i18n : EN, NL et ES ont toutes les clés FR, et les clés utilisées existent', () => {
   const ctx = loadBrowser([['i18n.js', 'I18n', s => s.replace('return { init,', 'return { _T: T, init,')]]);
   const T = ctx.I18n._T;
   const flat = (o, p = '', out = {}) => {
@@ -99,7 +99,7 @@ test('i18n : EN et NL ont toutes les clés FR, et les clés utilisées existent'
     return out;
   };
   const F = Object.fromEntries(Object.keys(T).map(l => [l, flat(T[l])]));
-  for (const lang of ['en', 'nl']) {
+  for (const lang of ['en', 'nl', 'es']) {
     assert.deepStrictEqual(Object.keys(F.fr).filter(k => !(k in F[lang])), [], `clés absentes en ${lang}`);
   }
   const used = new Set();

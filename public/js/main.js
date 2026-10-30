@@ -2220,12 +2220,13 @@ function renderSettings() {
 
   const current = I18n.getCurrent();
 
-  // Construit la liste des langues disponibles
+  // Sélecteur compact (#42) : un bouton « drapeau + langue » qui déplie une courte liste
+  const curLang = I18n.LANGS.find(l => l.code === current) || I18n.LANGS[0];
   const optionsHtml = I18n.LANGS.map(lang => `
-    <button class="lang-option${lang.code === current ? ' is-active' : ''}"
-      data-lang="${lang.code}"
+    <button type="button" class="lang-option${lang.code === current ? ' is-active' : ''}"
+      data-lang="${lang.code}" lang="${lang.code}"
       aria-pressed="${lang.code === current}">
-      <span class="lang-option-flag">${lang.flag}</span>
+      ${lang.flagSvg}
       <span class="lang-option-name">${lang.label}</span>
       <span class="lang-option-check" aria-hidden="true">✓</span>
     </button>`).join('');
@@ -2237,9 +2238,17 @@ function renderSettings() {
   container.innerHTML = `
     <div class="view-title-bar">${t('settings.title')}</div>
     ${accountHtml}
-    <div class="settings-section">
-      <div class="settings-section-label">${t('settings.lang_title')}</div>
-      <div class="lang-options-list">${optionsHtml}</div>
+    <div class="settings-section settings-section-lang">
+      <div class="settings-section-label" id="lang-title">${t('settings.lang_title')}</div>
+      <div class="lang-picker">
+        <button type="button" class="lang-current" id="lang-current" lang="${curLang.code}"
+          aria-haspopup="true" aria-expanded="false" aria-controls="lang-menu" aria-labelledby="lang-title lang-current">
+          ${curLang.flagSvg}
+          <span class="lang-option-name">${curLang.label}</span>
+          <span class="lang-current-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="lang-menu" id="lang-menu" role="group" aria-labelledby="lang-title" hidden>${optionsHtml}</div>
+      </div>
     </div>
     <div class="settings-section" id="notif-history"></div>
     <button class="settings-back-btn" id="btn-settings-back">
@@ -2247,13 +2256,7 @@ function renderSettings() {
     </button>
     <p class="settings-version">${window.APP_VERSION || '—'}</p>`;
 
-  // Changement de langue
-  container.querySelectorAll('.lang-option').forEach(btn => {
-    btn.addEventListener('click', () => {
-      I18n.setLang(btn.dataset.lang);
-      renderSettings();
-    });
-  });
+  _bindLangPicker(container);
 
   _bindAccountSection(container);
   _refreshNotifHistory();
@@ -2261,6 +2264,45 @@ function renderSettings() {
   // Retour à la vue précédente
   document.getElementById('btn-settings-back')
     .addEventListener('click', () => switchView(_previousView));
+}
+
+/** Ouverture/fermeture du sélecteur de langue compact (#42) : clic, Échap, clic à l'extérieur. */
+function _bindLangPicker(container) {
+  const toggle = container.querySelector('#lang-current');
+  const menu   = container.querySelector('#lang-menu');
+  if (!toggle || !menu) return;
+  const onOutside = e => { if (!menu.contains(e.target) && !toggle.contains(e.target)) close(false); };
+  function close(focusToggle) {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', onOutside, true);
+    if (focusToggle) toggle.focus();
+  }
+  function open() {
+    menu.hidden = false;
+    toggle.setAttribute('aria-expanded', 'true');
+    document.addEventListener('pointerdown', onOutside, true);
+    (menu.querySelector('.lang-option.is-active') || menu.querySelector('.lang-option'))?.focus();
+  }
+  toggle.addEventListener('click', () => (menu.hidden ? open() : close(true)));
+  container.querySelector('.lang-picker').addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !menu.hidden) { e.preventDefault(); close(true); return; }
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !menu.hidden) {
+      const items = [...menu.querySelectorAll('.lang-option')];
+      const i = items.indexOf(document.activeElement);
+      items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+      e.preventDefault();
+    }
+  });
+  menu.querySelectorAll('.lang-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      close(false);
+      I18n.setLang(btn.dataset.lang);
+      renderSettings();
+      document.getElementById('lang-current')?.focus();
+    });
+  });
 }
 
 // ── Historique des notifications (Paramètres, #26) ──────────────────────────
@@ -3181,8 +3223,8 @@ function _showLangPickScreen(onPicked) {
   screen.hidden = false;
 
   list.innerHTML = I18n.LANGS.map(lang => `
-    <button class="lang-pick-btn" data-lang="${lang.code}">
-      <span class="lang-pick-flag">${lang.flag}</span>
+    <button type="button" class="lang-pick-btn" data-lang="${lang.code}" lang="${lang.code}">
+      ${lang.flagSvg}
       <span class="lang-pick-label">${lang.label}</span>
     </button>`).join('');
 

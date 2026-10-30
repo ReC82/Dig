@@ -41,7 +41,7 @@ const antibot = require('./antibot');
 const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];
 const RARITIES   = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
 const BOOSTED    = new Set(['rare', 'epique', 'legendaire']);
-const LANGS      = ['fr', 'en', 'nl'];
+const LANGS      = ['fr', 'en', 'nl', 'es'];
 const MAX_TYPES  = 200;
 /** Mêmes constantes que public/js/blocks.js (Chance #32, PV et récompense par mètre). */
 const LUCK_PER_LEVEL = 0.10;

@@ -76,7 +76,7 @@ test('la boutique désactive les boutons sans fournisseur et les textes existent
   assert.match(main, /owned \|\| !enabled \? 'disabled' : ''/);
   assert.match(main, /if \(!owned && enabled\)/);
   const i18n = read('public/js/i18n.js');
-  assert.strictEqual((i18n.match(/btn_soon:/g) || []).length, 3);
-  assert.strictEqual((i18n.match(/disclaimer_live:/g) || []).length, 3);
+  assert.strictEqual((i18n.match(/btn_soon:/g) || []).length, 4);
+  assert.strictEqual((i18n.match(/disclaimer_live:/g) || []).length, 4);
   assert.doesNotMatch(read('public/js/monetization.js') + main, /_fakePurchase\s*\(/);
 });

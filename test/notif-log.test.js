@@ -93,6 +93,6 @@ test('jeu : toasts historisés, « Sauvegardé » exclu, section Paramètres et 
   const i18n = read('public/js/i18n.js');
   for (const key of ['notif_title', 'notif_empty', 'notif_clear', 'notif_clear_confirm', 'notif_type_info',
     'notif_type_success', 'notif_type_warning', 'notif_type_error', 'cloud_resumed', 'cloud_save_error', 'cloud_save_restored']) {
-    assert.strictEqual(i18n.split(`${key}:`).length - 1, 3, `clé ${key} en fr/en/nl`);
+    assert.strictEqual(i18n.split(`${key}:`).length - 1, 4, `clé ${key} en fr/en/nl/es`);
   }
 });
