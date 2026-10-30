@@ -114,5 +114,5 @@ test('accessibilité : bloc jouable au clavier, focus visible, mouvements rédui
 
 test('i18n : libellé du bloc traduit dans toutes les langues', () => {
   const src = read('public/js/i18n.js');
-  assert.strictEqual((src.match(/block_aria:/g) || []).length, 3);
+  assert.strictEqual((src.match(/block_aria:/g) || []).length, 4);
 });

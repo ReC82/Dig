@@ -40,7 +40,7 @@ let textCalls = 0;
 const fake = {
   text: async ({ kind }) => {
     textCalls += 1;
-    const names = { fr: 'Cuivre oxydé', en: 'Oxidised copper', nl: 'Geoxideerd koper' };
+    const names = { fr: 'Cuivre oxydé', en: 'Oxidised copper', nl: 'Geoxideerd koper', es: 'Cobre oxidado' };
     if (kind === 'names') return { data: { names: { ...names, nl: 'Verweerd koper' } } };
     return { data: {
       names, idSuggestion: 'Cuivre oxydé!', category: 'minerai', rarity: 'peu-commun', icon: '🟢<b>',
@@ -54,7 +54,7 @@ ai.setFakeTransport(fake);
 
 test('proposition IA : noms localisés, paramètres bornés, image persistante, journal', async () => {
   const p = await ai.createProposal({ concept: 'Un minerai de cuivre oxydé vers 300 m' });
-  assert.deepStrictEqual(p.names, { fr: 'Cuivre oxydé', en: 'Oxidised copper', nl: 'Geoxideerd koper' });
+  assert.deepStrictEqual(p.names, { fr: 'Cuivre oxydé', en: 'Oxidised copper', nl: 'Geoxideerd koper', es: 'Cobre oxidado' });
   assert.strictEqual(p.idSuggestion, 'cuivre_oxyde');
   assert.strictEqual(p.icon, '🟢', 'balises retirées de l\'emoji');
   assert.strictEqual(p.color, 'linear-gradient(145deg,#14532d,#1f2937)', 'couleur invalide remplacée');
@@ -107,7 +107,7 @@ test('ajout au brouillon seulement, identifiant unique, impact avant publication
 });
 
 test('gemme créée par IA : pas de gemme premium par défaut ; échec et quota journalisés', async () => {
-  fake.text = async () => ({ data: { names: { fr: 'Opale', en: 'Opal', nl: 'Opaal' }, idSuggestion: 'opale', category: 'gemme', rarity: 'epique',
+  fake.text = async () => ({ data: { names: { fr: 'Opale', en: 'Opal', nl: 'Opaal', es: 'Ópalo' }, idSuggestion: 'opale', category: 'gemme', rarity: 'epique',
     icon: '🌈', color1: '#a21caf', color2: '#3b0764', accent: '#f0abfc', hpBase: 180, reward: 2800, minDepth: 560, weight: 2,
     rationale: 'x', image: { subject: 'opal', details: '', palette: '' } } });
   const p = await ai.createProposal({ concept: 'opale', withImage: false });

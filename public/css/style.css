@@ -137,16 +137,65 @@ h1 {
   padding: 14px 16px 8px;
 }
 
-.lang-options-list { display: flex; flex-direction: column; }
+.lang-flag {
+  width: 1.5em;
+  height: 1em;
+  flex-shrink: 0;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.18);
+}
+
+/* Sélecteur de langue compact (#42) : bouton « drapeau + langue » + courte liste dépliante */
+/* La liste dépasse de la carte : pas de rognage (les autres sections restent en overflow: hidden) */
+.settings-section-lang { overflow: visible; position: relative; z-index: 2; }
+.lang-picker {
+  position: relative;
+  padding: 0 16px 14px;
+}
+
+.lang-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.lang-current:hover,
+.lang-current[aria-expanded="true"] { border-color: rgba(245,197,24,0.4); }
+.lang-current-caret { font-size: 0.8rem; color: var(--muted); }
+.lang-current[aria-expanded="true"] .lang-current-caret { transform: rotate(180deg); }
+
+.lang-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% - 8px);
+  left: 16px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+}
+.lang-menu[hidden] { display: none; }
 
 .lang-option {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 15px 16px;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 14px;
   background: none;
   border: none;
-  border-top: 1px solid var(--border);
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -155,17 +204,10 @@ h1 {
   touch-action: manipulation;
   width: 100%;
 }
-.lang-option:first-child { border-top: none; }
-.lang-option:hover       { background: rgba(255,255,255,0.04); }
+.lang-option:hover       { background: rgba(255,255,255,0.05); }
 
 .lang-option.is-active {
-  background: rgba(245,197,24,0.05);
-}
-
-.lang-option-flag {
-  font-size: 1.45rem;
-  line-height: 1;
-  flex-shrink: 0;
+  background: rgba(245,197,24,0.07);
 }
 
 .lang-option-name {
@@ -2263,23 +2305,25 @@ h1 {
 
 #lang-pick-list {
   width: 100%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
 
 .lang-pick-btn {
   width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 15px 20px;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 12px;
   cursor: pointer;
   color: var(--text);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   text-align: left;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
@@ -2294,11 +2338,8 @@ h1 {
 }
 .lang-pick-btn:active { transform: scale(0.97); }
 
-.lang-pick-flag {
-  font-size: 1.6rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
+.lang-pick-btn .lang-flag { width: 1.6em; height: 1.07em; }
+.lang-pick-label { min-width: 0; overflow-wrap: anywhere; }
 
 /* ── Section compte (dans Paramètres) ────────── */
 .account-logged {

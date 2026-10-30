@@ -53,7 +53,7 @@ test('en-tête : Profil (personne) et Paramètres (engrenage) différenciés, la
     assert.match(b, /type="button"/);
   }
   const i18n = read('public/js/i18n.js');
-  assert.strictEqual((i18n.match(/header_aria: +'/g) ?? []).length, 3, 'libellé Profil en fr, en et nl');
+  assert.strictEqual((i18n.match(/header_aria: +'/g) ?? []).length, 4, 'libellé Profil en fr, en, nl et es');
   assert.match(i18n, /data-i18n-title/);
   const css = read('public/css/style.css');
   const rule = css.match(/\.header-btns button \{[\s\S]*?\}/)[0];

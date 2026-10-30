@@ -1342,6 +1342,8 @@ let _shItems = [];
 
 function shMessage(id, text, ok) { ptMessage(id, text, ok); }
 
+const SH_LANGS = ['fr', 'en', 'nl', 'es'];
+
 function shFillForm(item) {
   document.getElementById('sh-id').value = item ? item.id : '';
   document.getElementById('sh-form-title').textContent = item ? `Modifier l'article #${item.id}` : 'Nouvel article';
@@ -1351,7 +1353,7 @@ function shFillForm(item) {
   }
   document.getElementById('sh-visible').checked = item ? item.visible : false;
   document.getElementById('sh-unavailable').checked = item ? item.unavailable : false;
-  for (const lang of ['fr', 'en', 'nl']) for (const f of ['title', 'description', 'conditions']) {
+  for (const lang of SH_LANGS) for (const f of ['title', 'description', 'conditions']) {
     document.getElementById(`sh-${lang}-${f}`).value = item?.texts?.[lang]?.[f] ?? '';
   }
 }
@@ -1365,7 +1367,7 @@ function shReadForm() {
   item.visible = document.getElementById('sh-visible').checked;
   item.unavailable = document.getElementById('sh-unavailable').checked;
   item.texts = {};
-  for (const lang of ['fr', 'en', 'nl']) {
+  for (const lang of SH_LANGS) {
     item.texts[lang] = {};
     for (const f of ['title', 'description', 'conditions']) item.texts[lang][f] = document.getElementById(`sh-${lang}-${f}`).value;
   }
@@ -1520,12 +1522,14 @@ function bkPreview() {
   }
 }
 
+const BK_LANGS = ['fr', 'en', 'nl', 'es'];
+
 function bkFillForm(t) {
   document.getElementById('bk-form-title').textContent = t ? `Modifier « ${t.id} »` : 'Nouveau bloc';
   const idEl = document.getElementById('bk-id');
   idEl.value = t ? t.id : '';
   idEl.readOnly = !!t;
-  for (const l of ['fr', 'en', 'nl']) document.getElementById(`bk-name-${l}`).value = t?.names?.[l] ?? '';
+  for (const l of BK_LANGS) document.getElementById(`bk-name-${l}`).value = t?.names?.[l] ?? '';
   document.getElementById('bk-name-fr').placeholder = t && _bk.legacyIds.includes(t.id) ? '(traduction intégrée)' : '';
   document.getElementById('bk-category').value = t ? t.category : 'minerai';
   document.getElementById('bk-rarity').value = t ? t.rarity : 'commun';
@@ -1548,7 +1552,7 @@ function bkFillForm(t) {
 function bkReadForm() {
   const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : Number(v); };
   const names = {};
-  for (const l of ['fr', 'en', 'nl']) { const v = document.getElementById(`bk-name-${l}`).value.trim(); if (v) names[l] = v; }
+  for (const l of BK_LANGS) { const v = document.getElementById(`bk-name-${l}`).value.trim(); if (v) names[l] = v; }
   return {
     id: document.getElementById('bk-id').value.trim(),
     names: Object.keys(names).length ? names : null,
@@ -1581,7 +1585,7 @@ function bkRenderTable() {
   const tb = document.getElementById('bk-body');
   tb.textContent = '';
   for (const t of types) {
-    if (text && !`${t.id} ${t.names?.fr ?? ''} ${t.names?.en ?? ''} ${t.names?.nl ?? ''}`.toLowerCase().includes(text)) continue;
+    if (text && !`${t.id} ${t.names?.fr ?? ''} ${t.names?.en ?? ''} ${t.names?.nl ?? ''} ${t.names?.es ?? ''}`.toLowerCase().includes(text)) continue;
     if (cat && t.category !== cat) continue;
     if (status === 'active' && !t.active) continue;
     if (status === 'inactive' && t.active) continue;
@@ -1672,7 +1676,7 @@ document.getElementById('btn-refresh-blocks').addEventListener('click', loadBloc
 
 // ── Création de blocs assistée par IA (#37) ─────────────────────────────────
 
-const AI_LANGS = [['fr', 'Français'], ['en', 'English'], ['nl', 'Nederlands']];
+const AI_LANGS = [['fr', 'Français'], ['en', 'English'], ['nl', 'Nederlands'], ['es', 'Español']];
 
 function aiEl(tag, attrs = {}, text) {
   const el = document.createElement(tag);
@@ -1722,7 +1726,7 @@ function aiRenderProposal(p, configured) {
   if (p.image) { const img = aiEl('img', { src: p.image, alt: '', width: '112', height: '112' }); prev.appendChild(img); }
   else prev.textContent = p.icon || '⬜';
   row.appendChild(prev);
-  const names = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:0.5rem;flex:1' });
+  const names = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.5rem;flex:1' });
   const nameInputs = {};
   for (const [l, label] of AI_LANGS) {
     const [lab, inp] = aiInput(`${label} (${l.toUpperCase()})`, p.names?.[l], { maxlength: '40' });
