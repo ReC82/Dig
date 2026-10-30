@@ -8,6 +8,15 @@
 > Tant que ce cadrage n'est pas validé par le propriétaire : **aucune annonce publique, aucune
 > promesse de carte cadeau et aucun prix réel**. Les simulations techniques restent autorisées.
 
+> **Mise à jour du 30/10/2026 — décision du propriétaire** ([commentaire](https://github.com/ReC82/Dig/issues/27#issuecomment-6520561353)) :
+> la formule **concours au mérite** est retenue, **sans tirage au sort**, sous forme de **points
+> de récompense saisonniers** attribués selon le classement et échangeables contre des cadeaux
+> (#33, #34). Les restrictions « 18 ans minimum » et « Belgique uniquement » proposées ci-dessous
+> **ne sont pas retenues comme règles** : elles sont remplacées par l'étude
+> `docs/CONCOURS-INTERNATIONAL-MINEURS.md` (territoires par liste blanche, procédure mineurs
+> justifiée, fournisseurs, données, remise ; récompenses virtuelles et points convertibles
+> distingués). Les §§ 2.5, 2.6, 3 et 4 sont mis à jour en conséquence. Le verrou reste en place.
+
 ## 1. Verdict
 
 | Formule | Qualification probable en Belgique | Verdict |
@@ -95,18 +104,22 @@ lots A (observation) et B (« budget de dégâts ») de #25 sont donc un **préa
   pour un lot sans encadrement.
 - Âge du consentement numérique en Belgique pour les services en ligne : 13 ans (loi du 30 juillet
   2018, art. 7, mise en œuvre du RGPD).
-- **Recommandation : réserver la participation au concours aux joueurs majeurs (18 ans)**, par
-  déclaration sur l'honneur lors de l'inscription au concours, vérifiable au moment de la remise du
-  lot. Le jeu lui-même reste ouvert à tous.
+- ~~Recommandation initiale : réserver le concours aux majeurs.~~ **Non retenue (30/10/2026).**
+  Aucune loi n'impose 18 ans pour un concours gratuit au mérite. Proposition actuelle : points et
+  récompenses virtuelles ouverts à tous ; échange contre un cadeau réel par un mineur avec
+  l'accord de son représentant légal, à qui le cadeau est remis — voir
+  `docs/CONCOURS-INTERNATIONAL-MINEURS.md` § 4.
 
 ### 2.6 Territoire
 
 - L'analyse ne couvre que la Belgique. Les règles diffèrent ailleurs (France : jeux promotionnels
   gratuits admis sous conditions ; Pays-Bas : code de conduite des jeux promotionnels). Le jeu est
   accessible partout et en FR/EN/NL.
-- **Recommandation : concours réservé aux résidents de Belgique** (déclaration + adresse de
-  résidence demandée seulement au gagnant). Élargissement possible plus tard, pays par pays, après
-  vérification.
+- ~~Recommandation initiale : Belgique uniquement.~~ **Non retenue (30/10/2026).** Proposition
+  actuelle : jeu et points mondiaux ; échange contre un cadeau réel ouvert aux résidents d'une
+  **liste blanche** de pays vérifiés (proposition initiale BE, FR, NL, DE ; LU à vérifier ;
+  Italie exclue à cause de la déclaration ministérielle obligatoire) — voir
+  `docs/CONCOURS-INTERNATIONAL-MINEURS.md` § 3.
 
 ### 2.7 Fiscalité
 
@@ -151,7 +164,8 @@ lots A (observation) et B (« budget de dégâts ») de #25 sont donc un **préa
 | #29 Moteur | Le tirage pondéré peut être développé et testé **en simulation uniquement** ; il ne doit jamais attribuer de prix réel. Si la formule « concours au mérite » est retenue, le moteur réel devient un **classement déterministe figé à la clôture** (snapshot #16, profondeur validée #9, protections #25), avec journal et preuve — plus simple que le tirage. |
 | #30 Admin | Interrupteur « prix réel » désactivé par défaut et **impossible à activer** tant que la conformité n'est pas validée ; workflow gagnant inchangé. |
 | #31 Interface | Pas de « probabilité de gagner » en formule mérite : afficher le **rang** et l'écart avec le premier. Aucune mention de carte cadeau avant feu vert. Lien vers le règlement et la notice vie privée, mention « Amazon n'est pas partenaire ». |
-| #28 Identité | E-mail vérifié, un compte par personne, déclaration « majeur et résident en Belgique », contact privé du gagnant. |
+| #28 Identité | E-mail vérifié, un compte par personne, contact privé ; à l'échange d'un cadeau réel : pays de résidence, déclaration de majorité ou accord du représentant légal (pas de restriction « majeur et résident belge »). |
+| #33 Points / #34 Boutique | Attribution déterministe au classement ; pas de hasard dans la boutique (pas de boîte mystère contre des points convertibles) ; pas d'achat ni de transfert de points ; catalogue par pays ; lots réels sous verrou. |
 | #25 Anti-bot | Lots A et B préalables à tout prix réel. |
 | #11 / monétisation | Avant d'activer de vrais paiements ou de vraies publicités récompensées, vérifier qu'ils n'influencent pas le critère du concours (ou réévaluer ce cadrage). |
 
@@ -159,15 +173,15 @@ lots A (observation) et B (« budget de dégâts ») de #25 sont donc un **préa
 
 Toutes sont nécessaires ; aucune ne peut être cochée par une session automatique.
 
-1. Le propriétaire choisit la formule (recommandé : concours au mérite) et la règle d'attribution
-   (voir le rapport #27, questions).
+1. ~~Choix de la formule~~ : **concours au mérite par points saisonniers retenu le 30/10/2026** ;
+   barème (#33) et catalogue (#34) restent à décider.
 2. Relecture du présent cadrage et du règlement par un avocat belge, ou acceptation écrite du
    risque par le propriétaire.
 3. Identité complète de l'organisateur renseignée dans le règlement (nom ou dénomination,
    adresse, n° BCE le cas échéant, e-mail de contact).
 4. Notice vie privée publiée et liée depuis le jeu.
-5. #28 (e-mail vérifié, déclaration d'âge et de résidence), #25 lots A+B, #29, #30 et #31 livrés
-   et recettés.
+5. #28 (e-mail vérifié), #25 lots A+B, #30, #31, #33 et #34 livrés et recettés ; liste blanche
+   des pays et procédure mineurs validées (`docs/CONCOURS-INTERNATIONAL-MINEURS.md` § 7).
 6. Règlement publié en FR, NL et EN (la version française fait foi) avant la première semaine
    concernée, sans modification en cours de semaine.
 7. Achats intégrés et publicités récompensées réelles sans effet sur le critère du concours.
