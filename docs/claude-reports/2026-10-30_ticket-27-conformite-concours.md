@@ -171,10 +171,10 @@ Points clés de l'étude :
 
 ## S2.4 Révision, branche et vérification
 
-- Branche `docs/27-conformite-concours` (commit `__C1__`) ; **SHA sur `develop` : `__D1__`**.
+- Branche `docs/27-conformite-concours` (commit `8d247a1`) ; **SHA sur `develop` : `84a7ddd`**.
 - Relecture : `docs/CONCOURS-INTERNATIONAL-MINEURS.md` § 1 (synthèse), § 2 (tableau
   virtuel/convertible), § 3 (pays), § 4.2 (procédure mineurs) ; puis l'annexe 1 du règlement.
-- Contrôle : `npm test` complet sur la fusion `develop` : __TESTS__.
+- Contrôle : `npm test` complet sur la fusion `develop` : **155/155 réussis** (fusion `84a7ddd`).
 - Limites : **pas un avis juridique** ; sources surtout secondaires (notes de cabinets, guides) ;
   textes officiels non lus en intégralité ; Luxembourg, Espagne et autres pays non étudiés ;
   seuils RGPD nationaux à reconfirmer ; conditions des agrégateurs non lues.
@@ -182,7 +182,7 @@ Points clés de l'étude :
 
 ## S2.5 Déploiement
 
-Non déployé : documentation seule. Production inchangée (`__PROD__`, vérifié via `/api/version`).
+Non déployé : documentation seule. Production inchangée (`994705e`, vérifié via `/api/version`).
 **Test fonctionnel** : aucun test en jeu ; relire l'étude et répondre au § S2.6.
 
 Choix faits seul : liste blanche plutôt que liste noire (un pays non vérifié n'est jamais ouvert
