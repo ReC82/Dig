@@ -3,6 +3,244 @@
 - Ticket : https://github.com/ReC82/Dig/issues/28
 - Session du 30/10/2026 (DIGORCH)
 
+## Session 5 (30/10/2026) — connexion Google via Auth0 Free, code dormant déployé
+
+### 1. État réel
+
+**Déployé en production (SHA `64332b2`), drapeau `SOCIAL_LOGIN` à `off`.** Rien ne change pour
+les joueurs : aucun bouton, aucune route sociale (404), aucun appel à Auth0.
+
+- **Avant la recette :** le propriétaire doit créer le tenant Auth0 et le client Google, puis
+  déposer les secrets (§6). La recette de liaison ne peut pas commencer avant.
+- `develop` : `64332b2` (fusion de `66b5d29`, branche `feature/28-auth-email-recuperation`).
+- Production : `0f58670` → `64332b2`, sur les deux domaines.
+
+### 2. Point de départ
+
+- **Dépendance #22 levée :** la planche des 14 blocs a été présentée (commentaire #22, `0f58670`).
+- **Travail repris selon l'autorisation du propriétaire** (commentaire 6521243869) :
+  - architecture A : Auth0 Free (UE) pour Google, en complément du mot de passe ;
+  - base DIG! source de vérité ;
+  - liaison explicite avec preuve des deux identités ;
+  - aucune fusion de progression ;
+  - drapeau `SOCIAL_LOGIN=off` en production jusqu'à la recette ;
+  - aucun tenant ni secret créé à la place du propriétaire.
+
+### 3. Changements
+
+| Fichier | Rôle |
+|---|---|
+| `server/socialAuth.js` (nouveau) | Client OIDC et routes `/api/auth/social/*` (détail ci-dessous) |
+| `server/db.js` | Table `user_identities` (ajout seul, vide) et ses fonctions |
+| `server/index.js` | Branchement. `/api/me` renvoie `social` (`null` si désactivé). `/api/login` signale une identité Google en attente |
+| `server/rateLimits.js` | Limiteur `social` : 30 départs ou retours par IP et par 15 min |
+| `server/mailer.js` | E-mails « Compte Google lié / retiré » en FR, EN et NL |
+| `public/js/main.js`, `i18n.js`, `css/style.css` | Paramètres → Compte : bouton, liaison, confirmation, retrait ; traitement du retour `?social=` |
+| `test/social-login.test.js` (nouveau) | 8 tests avec un faux émetteur OIDC local |
+| `docs/OPERATIONS.md` | Procédure de mise en service et retour arrière |
+| `docs/AUTH-COMPARATIF.md` | Avancement du plan |
+
+**Client OIDC (`server/socialAuth.js`) :**
+- flux par code d'autorisation, avec **PKCE S256** ;
+- `state`, `nonce` et vérificateur à usage unique, valables 10 min ;
+- jeton d'identité vérifié : signature RS256 par la clé publiée (JWKS), puis `iss`, `aud`/`azp`,
+  `exp`, `iat` et `nonce` ;
+- seuls les identifiants Google (`google-oauth2|…`) sont acceptés ;
+- aucune dépendance ajoutée ; aucun jeton Auth0 ou Google conservé.
+
+**Fonctionnement en mode `link` :**
+- **Lier depuis Paramètres** (joueur connecté) : « Lier un compte Google ». Le joueur confirme
+  son mot de passe DIG!, valable une fois pendant 5 min, puis se connecte à Google
+  (`prompt=login`).
+- **« Continuer avec Google » avec un compte Google inconnu** :
+  - rien n'est lié, même si l'adresse Google est celle d'un compte DIG! ;
+  - l'identité est gardée 10 min dans la session du navigateur ;
+  - le joueur se connecte ensuite par mot de passe, puis confirme « Lier ce compte Google ».
+- **Règles de liaison :**
+  - un compte Google est lié à un seul compte DIG! (refus « déjà lié à un autre compte ») ;
+  - un compte DIG! a au plus un compte Google ;
+  - aucune progression n'est touchée : seule une ligne est ajoutée dans `user_identities`.
+- **Connexion par Google d'un compte lié :** nouvelle session, avec un identifiant régénéré.
+  Le mot de passe reste valable.
+- **Retrait :** mot de passe exigé ; les autres appareils sont déconnectés.
+- **Adresse vérifiée :** elle est marquée vérifiée seulement si Google la dit vérifiée **et**
+  qu'elle est identique à l'adresse du compte.
+- **Liste blanche `SOCIAL_LOGIN_USERS` :**
+  - seuls les comptes listés peuvent lier ou se connecter par Google ;
+  - c'est la phase de recette du propriétaire ;
+  - le bouton de connexion n'apparaît que sur un appareil où un compte Google a été lié.
+- **Adresse de retour :** construite sur le domaine de la page (lodygames ou lodylands, pour
+  garder le cookie de session). Un domaine non déclaré est refusé.
+- **Hors périmètre :** le mode `on` (création de comptes « Google seul ») n'est pas développé ;
+  il attend le SMTP. Apple : plus tard.
+
+### 4. SHA et procédure de test
+
+- Branche `feature/28-auth-email-recuperation`, commit `66b5d29`.
+- `develop` et production : **`64332b2`**.
+- **Tests automatisés :** `npm ci && npm test`, **196/196**, sur la branche, sur `develop` et sur
+  la release. `node --test test/social-login.test.js` (8/8) couvre :
+  - **Drapeau `off`** : toutes les routes en 404, `social: null`, connexion classique inchangée ;
+  - **configuration** : incomplète, donc désactivée ; `OIDC_ISSUER` refusé en production ;
+    origines par défaut (les deux domaines) ;
+  - **même adresse sans liaison automatique** : l'identité reste en attente, aucune ligne liée ;
+  - **liaison après mot de passe et confirmation** :
+    - l'identité en attente ne sert qu'une fois ;
+    - la connexion Google ouvre le même compte ;
+    - la sauvegarde `user_saves` est **identique octet pour octet** ;
+    - le mot de passe marche toujours ;
+  - **liaison depuis Paramètres** :
+    - mot de passe exigé ; la preuve ne sert qu'une fois ;
+    - `prompt=login` ;
+    - refus d'un deuxième Google sur le même compte ;
+    - refus d'un compte Google déjà lié à un autre compte, sans fusion ;
+  - **retrait** :
+    - mot de passe exigé ;
+    - l'autre session est fermée ;
+    - le compte Google redevient inconnu ;
+    - les e-mails de liaison et de retrait sont envoyés (SMTP simulé) ;
+  - **sécurité du retour**, chaque cas refusé sans session ouverte :
+    - `state` rejoué ;
+    - mauvaise signature ;
+    - `iss`, `aud` ou `azp` faux ;
+    - jeton expiré ;
+    - `nonce` faux ;
+    - `alg: none` ;
+    - clé inconnue ;
+    - autre fournisseur que Google ;
+    - retour sans départ ;
+    - annulation chez Google ;
+    - domaine non déclaré ;
+  - **liste blanche** ;
+  - **migration** : base sans la table, 2 démarrages, `users` identique.
+- **Navigateur** : Chromium headless, serveur de test (port 3101) et faux Google local.
+  - **Ordinateur 1280×900** :
+    1. mauvais mot de passe → « Mot de passe incorrect. » ;
+    2. liaison → retour dans Paramètres, « Google : … », badge « Adresse vérifiée » ;
+    3. déconnexion → bouton « Continuer avec Google » → connecté.
+  - **Smartphone 390×844** :
+    1. retrait du compte Google ;
+    2. annulation chez Google ;
+    3. compte Google inconnu → message d'attente ;
+    4. connexion par mot de passe → « Lier ce compte Google » → lié.
+  - La session de l'ordinateur a bien été fermée par le retrait. **0 erreur JavaScript.**
+- **Essai manuel** (sans Auth0, faux émetteur à écrire comme dans `test/social-login.test.js`) :
+  `SOCIAL_LOGIN=link OIDC_ISSUER=http://127.0.0.1:<port>/ AUTH0_CLIENT_ID=… AUTH0_CLIENT_SECRET=… SOCIAL_ORIGINS=http://127.0.0.1:3101 DB_FILE=test-28.sqlite PORT=3101 node server/index.js`.
+
+### 5. Données des joueurs
+
+- **Ajout seul :** la table `user_identities`, vide.
+- **Inchangés :**
+  - comptes, sauvegardes et classements ;
+  - colonnes existantes ;
+  - sessions ouvertes.
+- La migration est idempotente : `CREATE TABLE IF NOT EXISTS`.
+
+### 6. Déploiement
+
+**Avant :**
+- release `64332b2` : `npm ci`, 196/196 ;
+- copie de la base de production démarrée en mode production (port 3122) :
+  - `/health` ok, `/api/version` = `1.0.0+64332b2`, `/api/me` → `social: null` ;
+  - départ Google → 404 ;
+  - **empreintes identiques** de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`
+    et `player_click_tracking` ; `user_identities` vide ;
+  - copie supprimée ensuite.
+
+**Déploiement :**
+- `main` avancé `0f58670` → `64332b2` (avance rapide) ;
+- `scripts/deploy.sh` de la release ;
+- sauvegarde vérifiée `~/backups/dig/dig-20261030-135541-pre-deploy-64332b2.sqlite` ;
+- santé et version OK.
+
+**Après :**
+- les deux domaines → 200, `1.0.0+64332b2`, `social: null`, départ Google → 404 ;
+- journal sans erreur ; `quick_check` ok ;
+- **empreintes identiques à la sauvegarde** ;
+- Chromium en production (ordinateur et smartphone) : formulaire de connexion présent, aucun
+  bouton Google, 0 erreur JavaScript.
+
+**Retour arrière :**
+- code : `git -C /home/ubuntu/Dig reset --keep 0f58670` + `sudo systemctl restart dig` (verrou
+  inchangé, pas de `npm ci`) ;
+- fonction : `SOCIAL_LOGIN=off` ;
+- aucune donnée à restaurer.
+
+### 7. Test fonctionnel à faire par le propriétaire
+
+**Mise en service (≈ 20 min, gratuit)** : suivre `docs/OPERATIONS.md`, section « Connexion Google
+via Auth0 Free ».
+1. Tenant Auth0 en **région EU**, avec MFA.
+2. Application « Regular Web Application ». Callbacks :
+   `https://dig.lodygames.com/api/auth/social/callback` et
+   `https://dig.lodylands.com/api/auth/social/callback`.
+3. Client OAuth Google « Application Web » : redirection `https://<domaine Auth0>/login/callback`,
+   consentement en mode Test avec ta propre adresse.
+4. Connexion Google activée pour l'application dans Auth0 ; base de mots de passe Auth0
+   désactivée pour l'application.
+5. Dans `/etc/dig/dig.env` : `SOCIAL_LOGIN=link`, `SOCIAL_LOGIN_USERS=<ton pseudo>`,
+   `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`. Puis `sudo systemctl restart dig`.
+
+**Recette de liaison (5 min, ordinateur puis téléphone) :**
+1. Paramètres → Compte → « Lier un compte Google » : saisir ton mot de passe, puis choisir ton
+   compte Google.
+   - Attendu : retour dans Paramètres, « 🔗 Google : ton adresse ».
+   - Attendu : progression identique (pièces, profondeur, classement).
+2. Se déconnecter, puis « Continuer avec Google ».
+   - Attendu : connecté au même compte, progression intacte.
+3. Sur le téléphone (navigateur où tu n'as rien lié), te connecter par mot de passe.
+   - Attendu : la connexion classique marche toujours.
+4. Facultatif : « Retirer le compte Google » (mot de passe demandé).
+   - Attendu : l'ordinateur est déconnecté ; le mot de passe marche.
+
+**Retour arrière immédiat :** `SOCIAL_LOGIN=off`, puis redémarrage.
+
+### 8. Classement MVP
+
+- Connexion Google : **Après lancement**. Le code est prêt et sans effet.
+- SMTP du jeu : **Bloquant MVP public**, inchangé.
+
+### 9. Choix techniques faits seul
+
+- **Client OIDC écrit dans DIG!** (≈ 150 lignes, module `crypto` de Node) plutôt que la
+  bibliothèque `openid-client` :
+  - la version 6 de cette bibliothèque est en ESM uniquement ;
+  - on n'utilise qu'un seul flux (code + PKCE) ;
+  - toutes les vérifications du jeton sont explicites et testées (signature, émetteur, audience,
+    expiration, nonce, algorithme).
+- **Pas de PKCE seul :** secret client en plus (« Regular Web Application »).
+- **Identité en attente dans la session** (10 min), jamais en base : rien n'est écrit avant la
+  preuve des deux identités.
+- **Confirmation explicite après la connexion par mot de passe**, plutôt qu'une liaison
+  automatique : le joueur voit l'adresse Google qu'il lie.
+- **Adresse de retour sur le domaine de la page**, parmi une liste déclarée : le cookie de
+  session dépend du domaine. L'en-tête `Host` n'est jamais utilisé tel quel.
+- **Retour toujours vers Paramètres → Compte**, avec un message ; après une connexion Google, la
+  sauvegarde cloud est appliquée comme pour une connexion explicite (#18).
+- **Un compte Google par compte DIG!** (contrainte `UNIQUE (user_id, provider)`).
+- **Mode `on` non développé** : la création de comptes « Google seul » attend le SMTP (étape 4 du
+  plan).
+
+### 10. Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Actions de ton côté :
+1. Créer le tenant Auth0 Free (UE) et le client Google, et déposer les 5 variables (§7).
+   **Recommandé : oui, quand tu veux tester la liaison.**
+2. Toujours en attente : **SMTP du jeu** (bloquant MVP) et adresse vérifiée exigée pour le
+   concours (#30/#31). **Recommandé : oui.**
+
+### 11. Reste à faire
+
+- Recette de liaison après mise en service (§7). Ensuite : retirer `SOCIAL_LOGIN_USERS` pour
+  ouvrir la liaison à tous (étape 3).
+- Étape 4 (`on`, création de comptes par Google) après le SMTP. *Après lancement.*
+- Apple (99 $/an), si décidé. *Après lancement.*
+- **Limite connue (cosmétique) :** une adresse construite à la main `/?social=ok` affiche le
+  message « Connecté avec Google » sans connecter personne. *Après lancement.*
+- **Amélioration repérée, hors périmètre :** régénérer l'identifiant de session à la connexion
+  par mot de passe (`/api/login`). C'est déjà fait pour Google et pour la réinitialisation.
+  *Après lancement.*
+
 ## Session 4 (30/10/2026) — recettes validées, Google/Auth0 reporté après #22
 
 ### État réel
