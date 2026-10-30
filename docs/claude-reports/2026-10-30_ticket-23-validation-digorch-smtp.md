@@ -68,7 +68,7 @@ OK   ticket interrompu repris en premier (devant un P0 READY)
 ## 4. SHA, branche, procédure de test
 
 - Branche : `docs/23-validation-digorch-smtp` (rapport + script, aucun code de Dig).
-- SHA sur `develop` : voir le commentaire du ticket (fusion du rapport).
+- SHA sur `develop` : `5a36e00` (fusion du rapport ; commit de branche `39de579`).
 - Refaire les contrôles :
   ```
   digorch status ; digorch notifications
