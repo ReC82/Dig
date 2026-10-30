@@ -13,6 +13,7 @@
  *   RATE_SOCIAL_MAX      départs/retours de connexion Google par IP / 15 min (défaut 30, #28)
  *   RATE_SHOP_MAX        échanges/annulations boutique par compte / minute (défaut 10, #34)
  *   RATE_PLAY_MAX        prises de contrôle + signaux de présence par compte / minute (défaut 30, #35)
+ *   RATE_ICONS_MAX       actions de l'atelier d'icônes (génération, téléversement, application) par IP / 15 min (défaut 60, #40)
  *   RATE_LIMIT           « off » désactive toutes les limites (diagnostic uniquement)
  */
 
@@ -37,12 +38,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass };
   }
 
   const common = {
@@ -127,6 +128,14 @@ function createRateLimiters(env = process.env) {
       ...common,
       windowMs: 15 * MINUTE,
       limit:    intFromEnv(env, 'RATE_SOCIAL_MAX', 30),
+    }),
+
+    // Atelier d'icônes du panel (#40) : actions qui modifient ou dépensent (en plus de la clé
+    // admin, du quota d'images par 24 h et du plafond de dépense du module).
+    icons: rateLimit({
+      ...common,
+      windowMs: 15 * MINUTE,
+      limit:    intFromEnv(env, 'RATE_ICONS_MAX', 60),
     }),
   };
 }

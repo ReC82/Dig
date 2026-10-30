@@ -33,7 +33,7 @@ const MAX_IMAGE_BYTES = 350 * 1024;
 const MAX_CHANCE = 0.5;
 
 const ID_RE    = /^[a-z][a-z0-9_]{1,39}$/;
-const IMAGE_RE = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp))$/;
+const IMAGE_RE = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp)|\/media\/icons\/[a-f0-9]{16}\.webp)$/;
 
 class CatalogError extends Error {
   constructor(status, message, details) { super(message); this.status = status; this.details = details; }
@@ -297,7 +297,7 @@ function normalizeItem(input) {
   const rarity = String(input.rarity ?? '');
   if (!RARITIES.includes(rarity)) throw new CatalogError(400, `${where} : rareté invalide (${RARITIES.join(', ')}).`);
   const image = input.image ? String(input.image).trim() : null;
-  if (image && (!IMAGE_RE.test(image) || image.includes('..'))) throw new CatalogError(400, `${where} : image attendue (téléversée, ou /assets/… .webp/.png/.svg).`);
+  if (image && (!IMAGE_RE.test(image) || image.includes('..'))) throw new CatalogError(400, `${where} : image attendue (téléversée, atelier d'icônes /media/icons/…, ou /assets/… .webp/.png/.svg).`);
   const d = input.drop && typeof input.drop === 'object' ? input.drop : {};
   const from = Array.isArray(d.from) ? [...new Set(d.from.map(String))] : [];
   if (!from.length || from.some(c => !CATEGORIES.includes(c))) throw new CatalogError(400, `${where} : blocs sources (au moins une catégorie parmi ${CATEGORIES.join(', ')}).`);
