@@ -81,6 +81,7 @@ const contest   = require('./contest');
 const shop      = require('./shop');
 const blockCatalog = require('./blockCatalog');
 const blockAi      = require('./blockAi');
+const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
 const rewardPoints = require('./rewardPoints');
 
@@ -153,8 +154,11 @@ app.use(session({
 // Mot de passe changé ailleurs : les autres sessions du compte sont fermées (#28)
 app.use(authVersionGuard);
 
-// Parse les corps JSON (les saves font quelques Ko au maximum)
-app.use(express.json({ limit: '512kb' }));
+// Parse les corps JSON (les saves font quelques Ko au maximum). Exception : le téléversement
+// d'icônes du panel (#40, image ≤ 4 Mo en base64) est lu par sa route, APRÈS la clé admin.
+const ICON_UPLOAD_PATH = /^\/api\/admin\/icons\/targets\/[^/]+\/upload$/;
+const jsonBody = express.json({ limit: '512kb' });
+app.use((req, res, next) => (ICON_UPLOAD_PATH.test(req.path) ? next() : jsonBody(req, res, next)));
 
 // ── Cache busting ─────────────────────────────────────────────────────────────
 
@@ -1054,6 +1058,54 @@ app.post('/api/admin/blocks/ai/proposals/:id/draft', requireAdmin, catalogRoute(
 app.delete('/api/admin/blocks/ai/proposals/:id', requireAdmin, catalogRoute('DELETE /api/admin/blocks/ai/proposals/:id',
   req => { blockAi.discardProposal(Number(req.params.id)); return { ok: true }; }));
 
+// ── Atelier d'icônes IA (#40) ─────────────────────────────────────────────────
+
+function iconRoute(label, fn) {
+  return async (req, res) => {
+    try { res.json(await fn(req)); }
+    catch (err) {
+      if (err instanceof iconStudio.StudioError || err instanceof blockCatalog.CatalogError || err instanceof collectionCatalog.CatalogError) {
+        return res.status(err.status).json({ error: err.message, details: err.details });
+      }
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+// Images de l'atelier : stockées dans la base, adressées par empreinte (immuables).
+app.get('/media/icons/:file', (req, res) => {
+  const m = /^([a-f0-9]{16})\.webp$/.exec(String(req.params.file));
+  const img = m && iconStudio.getImage(m[1]);
+  if (!img) return res.status(404).end();
+  res.set({ 'Content-Type': img.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+  res.send(img.bytes);
+});
+
+app.get('/api/admin/icons', requireAdmin, iconRoute('GET /api/admin/icons', () => iconStudio.overview()));
+
+app.get('/api/admin/icons/job', requireAdmin, iconRoute('GET /api/admin/icons/job', () => ({ job: iconStudio.jobView(), status: iconStudio.status() })));
+
+app.put('/api/admin/icons/budget', requireAdmin, limit.icons, iconRoute('PUT /api/admin/icons/budget',
+  req => ({ status: iconStudio.setStudioBudget(req.body?.studioBudgetUsd ?? null) })));
+
+app.post('/api/admin/icons/jobs', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/jobs',
+  req => ({ job: iconStudio.startJob({ targets: req.body?.targets, variants: req.body?.variants }) })));
+
+app.get('/api/admin/icons/targets/:key', requireAdmin, iconRoute('GET /api/admin/icons/targets/:key',
+  req => ({ target: iconStudio.getTarget(String(req.params.key)) })));
+
+app.put('/api/admin/icons/targets/:key/brief', requireAdmin, limit.icons, iconRoute('PUT /api/admin/icons/targets/:key/brief',
+  req => ({ brief: iconStudio.setBrief(String(req.params.key), req.body ?? {}) })));
+
+app.post('/api/admin/icons/targets/:key/upload', requireAdmin, limit.icons, express.json({ limit: '6mb' }), iconRoute('POST /api/admin/icons/targets/:key/upload',
+  req => iconStudio.upload(String(req.params.key), req.body?.data)));
+
+app.post('/api/admin/icons/targets/:key/mark', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/targets/:key/mark',
+  req => ({ target: iconStudio.mark(String(req.params.key), String(req.body?.sha ?? ''), String(req.body?.status ?? '')) })));
+
+app.post('/api/admin/icons/targets/:key/apply', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/targets/:key/apply',
+  req => iconStudio.apply(String(req.params.key), { sha: req.body?.sha ? String(req.body.sha) : null, override: req.body?.override === true })));
+
 app.get('/api/admin/blocks/audit', requireAdmin, catalogRoute('GET /api/admin/blocks/audit',
   req => ({ audit: blockCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
 
@@ -1486,6 +1538,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 initDb();
 blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
+iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)

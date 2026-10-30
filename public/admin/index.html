@@ -36,6 +36,7 @@
     <button class="tab-btn" data-tab="shop">🛍 Boutique</button>
     <button class="tab-btn" data-tab="blocks">🧱 Blocs</button>
     <button class="tab-btn" data-tab="collections">📿 Collections</button>
+    <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -938,6 +939,59 @@
     </div>
   </section>
 
+
+  <section id="tab-icons" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🎨 Atelier d'icônes</h2>
+      <button class="btn" id="btn-refresh-icons">↻ Rafraîchir</button>
+    </div>
+    <p class="muted" style="font-size:0.78rem">Toutes les icônes du jeu au même endroit : blocs (minerais, pierres, coffres, gemmes), objets de collection et reliques, pictogrammes d'interface.
+      Style commun : celui des icônes v1 validées (la pierre validée est jointe à chaque génération). Générez 1 à 3 variantes (une icône ou un lot), ou téléversez une image ;
+      chaque image passe les contrôles (fond transparent réel, marges 12 %, recadrage, lisibilité sur fond sombre).
+      « Appliquer » place l'icône dans le <strong>brouillon</strong> du catalogue concerné : <strong>rien ne change pour les joueurs avant la publication</strong> dans l'onglet 🧱 Blocs ou 📿 Collections.
+      Une icône <strong>validée</strong> n'est jamais remplacée sans votre accord explicite.</p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">API, budget et lot en cours</h3>
+      <p id="ic-status" class="muted" style="font-size:0.8rem"></p>
+      <div class="form-actions">
+        <label>Plafond de l'atelier (USD, vide = plafond global seul) <input type="number" id="ic-budget" min="0" max="1000" step="0.5" style="width:7rem"></label>
+        <button class="btn" id="btn-ic-budget">Enregistrer le plafond</button>
+      </div>
+      <p id="ic-job" class="form-msg"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Icônes du jeu</h3>
+      <div class="form-actions">
+        <label>Famille <select id="ic-kind"><option value="">Toutes</option><option value="block">Blocs</option><option value="item">Objets / reliques</option><option value="ui">Interface</option></select></label>
+        <label>État <select id="ic-state"><option value="">Tous</option><option value="emoji provisoire">Emoji provisoire</option><option value="v1 pilote">v1 pilote</option><option value="v1 validée">v1 validée</option><option value="image">Image appliquée</option><option value="validée">Validée (atelier)</option></select></label>
+        <label>Recherche <input type="text" id="ic-search" placeholder="nom ou identifiant"></label>
+      </div>
+      <div class="form-actions">
+        <label>Variantes par icône <select id="ic-variants"><option>1</option><option>2</option><option>3</option></select></label>
+        <button class="btn btn-primary" id="btn-ic-batch">✨ Générer la sélection</button>
+        <span id="ic-estimate" class="muted" style="font-size:0.78rem"></span>
+      </div>
+      <p id="ic-msg" class="form-msg"></p>
+      <table>
+        <thead><tr><th><input type="checkbox" id="ic-all" aria-label="Tout sélectionner"></th><th>Icône</th><th>Nom</th><th>Famille</th><th>État</th><th>Propositions</th><th></th></tr></thead>
+        <tbody id="ic-body"></tbody>
+      </table>
+    </div>
+
+    <div class="overview-card hidden" id="ic-detail"></div>
+
+    <div class="overview-card">
+      <details>
+        <summary class="muted">Journal des générations (coûts estimés)</summary>
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Icône</th><th>Modèle</th><th>Résultat</th><th>Coût estimé</th><th>Durée</th></tr></thead>
+          <tbody id="ic-calls-body"></tbody>
+        </table>
+      </details>
+    </div>
+  </section>
 
 </div>
 
