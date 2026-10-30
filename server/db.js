@@ -395,6 +395,62 @@ function initDb() {
       console.log('[db] Migration : player_depth_tracking.dmg_gap ajouté');
     }
   }
+  // Classement saisonnier figé (#29). Ajouts seuls, idempotents.
+  // max_depth_reached_at : instant (UTC, ms) où la profondeur max retenue a été atteinte —
+  // départage « premier arrivé ». Lignes existantes : NULL, classées après à égalité.
+  const rankCols29 = _db.prepare("PRAGMA table_info(season_rankings)").all().map(r => r.name);
+  if (!rankCols29.includes('max_depth_reached_at')) {
+    _db.prepare('ALTER TABLE season_rankings ADD COLUMN max_depth_reached_at TEXT').run();
+    console.log('[db] Migration : season_rankings.max_depth_reached_at ajouté (#29)');
+  }
+  // Instantané immuable du classement à la clôture : une ligne par saison (empreintes chaînées)
+  // et une ligne par participant. Aucune clé étrangère : l'instantané survit à un compte supprimé.
+  // Les déclencheurs refusent toute modification ou suppression (preuve d'audit).
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS season_snapshots (
+      seq           INTEGER PRIMARY KEY AUTOINCREMENT,
+      season_id     INTEGER NOT NULL UNIQUE,
+      created_at    TEXT    NOT NULL,
+      source        TEXT    NOT NULL,
+      algorithm     TEXT    NOT NULL,
+      season_start  TEXT    NOT NULL,
+      season_end    TEXT    NOT NULL,
+      participants  INTEGER NOT NULL,
+      eligible      INTEGER NOT NULL,
+      leader_user_id INTEGER,
+      prize_mode    TEXT    NOT NULL DEFAULT 'simulation',
+      rows_hash     TEXT    NOT NULL,
+      prev_hash     TEXT,
+      snapshot_hash TEXT    NOT NULL,
+      details       TEXT
+    );
+    CREATE TABLE IF NOT EXISTS season_standings (
+      season_id               INTEGER NOT NULL,
+      position                INTEGER NOT NULL,
+      rank                    INTEGER,
+      rank_in_league          INTEGER,
+      user_id                 INTEGER NOT NULL,
+      league_id               INTEGER,
+      max_depth               INTEGER NOT NULL,
+      effective_manual_blocks INTEGER NOT NULL,
+      manual_blocks           INTEGER NOT NULL,
+      max_depth_reached_at    TEXT,
+      eligible                INTEGER NOT NULL,
+      exclusion_reason        TEXT,
+      risk_level              INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (season_id, position)
+    );
+    CREATE INDEX IF NOT EXISTS idx_standings_user ON season_standings (user_id, season_id);
+    CREATE TRIGGER IF NOT EXISTS trg_standings_no_update BEFORE UPDATE ON season_standings
+      BEGIN SELECT RAISE(ABORT, 'season_standings est immuable (classement figé #29)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_standings_no_delete BEFORE DELETE ON season_standings
+      BEGIN SELECT RAISE(ABORT, 'season_standings est immuable (classement figé #29)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_snapshots_no_update BEFORE UPDATE ON season_snapshots
+      BEGIN SELECT RAISE(ABORT, 'season_snapshots est immuable (classement figé #29)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_snapshots_no_delete BEFORE DELETE ON season_snapshots
+      BEGIN SELECT RAISE(ABORT, 'season_snapshots est immuable (classement figé #29)'); END;
+  `);
+
   // Journal de sécurité (lot A) : aucune IP en clair (HMAC tronqué), purge à 90 jours.
   // Score de risque par compte et par saison (composantes par catégorie, décroissantes).
   _db.exec(`
@@ -908,6 +964,17 @@ function getLeagueForRank(rank) {
 
 // ── Helpers classement saisonnier ─────────────────────────────────────────────
 
+/** Horodatage UTC à la milliseconde (départage « premier arrivé », #29). */
+const NOW_MS = "strftime('%Y-%m-%d %H:%M:%f', 'now')";
+
+/**
+ * Ordre unique de tous les classements (vivant, ligue, promotions, instantané figé #29) :
+ * profondeur ↓, blocs manuels validés ↓, premier à avoir atteint la profondeur ↑ (sans date :
+ * après), identifiant ↑. Entièrement déterministe, aucun hasard.
+ */
+const RANK_ORDER = 'max_depth DESC, effective_manual_blocks DESC, (max_depth_reached_at IS NULL) ASC, max_depth_reached_at ASC, user_id ASC';
+const RANK_ORDER_R = RANK_ORDER.replace(/\b(max_depth|effective_manual_blocks|max_depth_reached_at|user_id)\b/g, 'r.$1');
+
 /**
  * Upsert les statistiques MANUELLES du joueur.
  * NE touche pas auto_blocks (géré séparément par updateAutoBlocksOnly).
@@ -916,18 +983,21 @@ function getLeagueForRank(rank) {
 function upsertSeasonRanking(seasonId, userId, maxDepth, manualBlocks, _unused, manualClicks, suspiciousScore, leagueId, reportedMaxDepth) {
   getDb().prepare(`
     INSERT INTO season_rankings
-      (season_id, user_id, league_id, max_depth, reported_max_depth, manual_blocks, manual_clicks, suspicious_score, is_active, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
+      (season_id, user_id, league_id, max_depth, reported_max_depth, manual_blocks, manual_clicks, suspicious_score, is_active, updated_at,
+       max_depth_reached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), CASE WHEN ? > 0 THEN ${NOW_MS} END)
     ON CONFLICT(season_id, user_id) DO UPDATE SET
       league_id          = COALESCE(excluded.league_id, league_id),
       max_depth          = MAX(max_depth, excluded.max_depth),
+      max_depth_reached_at = CASE WHEN excluded.max_depth > max_depth THEN ${NOW_MS}
+                                  ELSE max_depth_reached_at END,
       reported_max_depth = MAX(reported_max_depth, excluded.reported_max_depth),
       manual_blocks      = MAX(manual_blocks, excluded.manual_blocks),
       manual_clicks      = MAX(manual_clicks, excluded.manual_clicks),
       suspicious_score   = MAX(suspicious_score, excluded.suspicious_score),
       is_active          = 1,
       updated_at         = excluded.updated_at
-  `).run(seasonId, userId, leagueId ?? null, maxDepth, reportedMaxDepth ?? maxDepth, manualBlocks, manualClicks ?? 0, suspiciousScore ?? 0);
+  `).run(seasonId, userId, leagueId ?? null, maxDepth, reportedMaxDepth ?? maxDepth, manualBlocks, manualClicks ?? 0, suspiciousScore ?? 0, maxDepth);
 }
 
 function getLowestLeague() {
@@ -954,8 +1024,7 @@ function setUserLeague(userId, leagueId) {
 
 /**
  * Classement global d'une saison (paginé).
- * Tri : max_depth DESC, effective_manual_blocks DESC (blocs validés anti-cheat), puis user_id ASC
- * (départage provisoire, déterministe — #19).
+ * Tri : RANK_ORDER — profondeur, blocs validés anti-cheat, premier arrivé (#29), puis user_id.
  * auto_blocks jamais utilisé pour le tri.
  */
 function getSeasonLeaderboard(seasonId, limit = 50, offset = 0) {
@@ -969,13 +1038,13 @@ function getSeasonLeaderboard(seasonId, limit = 50, offset = 0) {
            r.manual_clicks,
            r.effective_manual_blocks,
            r.auto_blocks,
-           ROW_NUMBER() OVER (ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC) AS rank
+           ROW_NUMBER() OVER (ORDER BY ${RANK_ORDER_R}) AS rank
     FROM season_rankings r
     JOIN users u ON u.id = r.user_id
     WHERE r.season_id   = ?
       AND r.is_active    = 1
       AND r.manual_blocks > 0
-    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC
+    ORDER BY ${RANK_ORDER_R}
     LIMIT ? OFFSET ?
   `).all(seasonId, limit, offset);
 }
@@ -994,7 +1063,7 @@ function getPlayerSeasonRank(seasonId, userId) {
   return getDb().prepare(`
     SELECT rank_global FROM (
       SELECT user_id,
-             ROW_NUMBER() OVER (ORDER BY max_depth DESC, effective_manual_blocks DESC, user_id ASC) AS rank_global
+             ROW_NUMBER() OVER (ORDER BY ${RANK_ORDER}) AS rank_global
       FROM season_rankings
       WHERE season_id = ? AND is_active = 1 AND manual_blocks > 0
     ) WHERE user_id = ?
@@ -1003,7 +1072,7 @@ function getPlayerSeasonRank(seasonId, userId) {
 
 /**
  * Classement intraligue d'une saison (paginé).
- * Tri : max_depth DESC, effective_manual_blocks DESC, user_id ASC — auto_blocks ignoré.
+ * Tri : RANK_ORDER (voir plus haut) — auto_blocks ignoré.
  */
 function getLeagueLeaderboard(seasonId, leagueId, limit = 50, offset = 0) {
   return getDb().prepare(`
@@ -1014,14 +1083,14 @@ function getLeagueLeaderboard(seasonId, leagueId, limit = 50, offset = 0) {
            r.manual_blocks,
            r.effective_manual_blocks,
            r.auto_blocks,
-           ROW_NUMBER() OVER (ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC) AS rank_in_league
+           ROW_NUMBER() OVER (ORDER BY ${RANK_ORDER_R}) AS rank_in_league
     FROM season_rankings r
     JOIN users u ON u.id = r.user_id
     WHERE r.season_id   = ?
       AND r.league_id   = ?
       AND r.is_active   = 1
       AND r.manual_blocks > 0
-    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC
+    ORDER BY ${RANK_ORDER_R}
     LIMIT ? OFFSET ?
   `).all(seasonId, leagueId, limit, offset);
 }
@@ -1048,8 +1117,23 @@ function getAllActivePlayersInLeague(seasonId, leagueId) {
       AND r.league_id   = ?
       AND r.is_active   = 1
       AND r.manual_blocks > 0
-    ORDER BY r.max_depth DESC, r.effective_manual_blocks DESC, r.user_id ASC
+    ORDER BY ${RANK_ORDER_R}
   `).all(seasonId, leagueId);
+}
+
+/**
+ * Participants d'une saison dans l'ordre du classement (instantané figé #29) : mêmes critères
+ * d'entrée que le classement affiché (actif, au moins un bloc manuel), aucune pagination.
+ */
+function getSeasonParticipantsRanked(seasonId) {
+  return getDb().prepare(`
+    SELECT r.user_id, r.league_id, r.max_depth, r.effective_manual_blocks, r.manual_blocks,
+           r.max_depth_reached_at, (u.id IS NOT NULL) AS user_exists
+    FROM season_rankings r
+    LEFT JOIN users u ON u.id = r.user_id
+    WHERE r.season_id = ? AND r.is_active = 1 AND r.manual_blocks > 0
+    ORDER BY ${RANK_ORDER_R}
+  `).all(seasonId);
 }
 
 /** Retourne la ligue du niveau donné (pour l'auto-création). */
@@ -1067,7 +1151,7 @@ function getPlayerLeagueRank(seasonId, userId, leagueId) {
   const row = getDb().prepare(`
     SELECT rank_in_league FROM (
       SELECT user_id,
-             ROW_NUMBER() OVER (ORDER BY max_depth DESC, effective_manual_blocks DESC, user_id ASC) AS rank_in_league
+             ROW_NUMBER() OVER (ORDER BY ${RANK_ORDER}) AS rank_in_league
       FROM season_rankings
       WHERE season_id   = ?
         AND league_id   = ?
@@ -1270,6 +1354,7 @@ function setAdminConfig(key, value) {
 }
 
 module.exports = {
+  getSeasonParticipantsRanked,
   getUserAuth,
   getUserAuthVersion,
   createAuthToken,

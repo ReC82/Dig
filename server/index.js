@@ -75,6 +75,7 @@ const {
   startSeasonScheduler,
 } = require('./seasons');
 const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
+const standings = require('./standings');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const { validateEconomyValue } = require('./economy');
@@ -515,6 +516,25 @@ app.get('/api/seasons/:id/leaderboard', (req, res) => {
   }
 });
 
+/**
+ * GET /api/seasons/:id/standings?page=1   (:id = identifiant de saison ou « last »)
+ * Classement figé à la clôture (#29) : rang au mérite, éligibilité, empreinte de l'instantané.
+ * `me` : la ligne du joueur connecté s'il a participé. 404 tant que la saison n'est pas figée.
+ */
+app.get('/api/seasons/:id/standings', (req, res) => {
+  try {
+    const ref  = req.params.id === 'last' ? 'last' : intParam(req.params.id, { def: NaN, min: 1 });
+    if (ref !== 'last' && !Number.isInteger(ref)) return res.status(400).json({ error: 'ID saison invalide.' });
+    const page = intParam(req.query.page, { def: 1, min: 1 });
+    const result = standings.buildStandings(ref, { page, userId: req.session.userId ?? null });
+    if (!result) return res.status(404).json({ error: 'Classement figé indisponible pour cette saison.' });
+    res.json(result);
+  } catch (err) {
+    console.error('[GET /api/seasons/:id/standings]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
 // ── Middleware admin ──────────────────────────────────────────────────────────
 
 function requireAdmin(req, res, next) {
@@ -626,6 +646,12 @@ app.put('/api/admin/seasons/:id', requireAdmin, (req, res) => {
     const active = getActiveSeason();
     if (status === 'active' && active && active.id !== id) return res.status(409).json({ error: 'Une autre saison est déjà active.' });
     const season = updateSeason(id, fields);
+    // Clôture manuelle : le classement est figé tout de suite (#29) ; en cas d'échec, le
+    // planificateur retente chaque minute.
+    if (status === 'closed' && before.status === 'active') {
+      try { standings.freezeSeasonStandings(id, { source: 'admin_close' }); }
+      catch (err) { console.error('[PUT /api/admin/seasons/:id] classement figé', err.message); }
+    }
     res.json({ season });
   } catch (err) {
     if (isOneActiveViolation(err)) return res.status(409).json({ error: 'Une autre saison est déjà active.' });
@@ -657,6 +683,18 @@ app.post('/api/admin/seasons/:id/close', requireAdmin, (req, res) => {
     console.error('[POST /api/admin/seasons/:id/close]', err.message);
     res.status(status).json({ error: err.message });
   }
+});
+
+// Classement figé complet d'une saison (#29) : audit (niveau de risque, blocs bruts) et
+// vérification des empreintes (lignes, instantané, chaîne).
+app.get('/api/admin/seasons/:id/standings', requireAdmin, (req, res) => {
+  try {
+    const seasonId = intParam(req.params.id, { def: NaN, min: 1 });
+    if (!Number.isInteger(seasonId)) return res.status(400).json({ error: 'ID saison invalide.' });
+    const result = standings.buildStandings(seasonId, { admin: true });
+    if (!result) return res.status(404).json({ error: 'Classement figé indisponible pour cette saison.' });
+    res.json(result);
+  } catch (err) { console.error('[GET /api/admin/seasons/:id/standings]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 // Classement global admin d'une saison

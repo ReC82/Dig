@@ -21,6 +21,7 @@ const { getEconomy } = require('./economy');
 
 const cal = require('./seasonCalendar');
 const antibot = require('./antibot');
+const standings = require('./standings');
 const { fmtUtc } = cal;
 
 /** Limite de rattrapage : nombre maximal de saisons enchaînées en une passe (serveur arrêté longtemps). */
@@ -151,7 +152,8 @@ function _applyPromotions(season, config) {
  *  1. Validation : la saison doit être `active` (protection contre double-clôture).
  *  2. Calcul et application des promotions par ligue.
  *  3. Marquage de la saison comme `closed` + stockage du rapport dans `config`.
- *  4. Création automatique de la saison suivante.
+ *  4. Classement figé immuable (#29, server/standings.js).
+ *  5. Création automatique de la saison suivante.
  *
  * @param {number} seasonId  ID de la saison à clôturer
  * @returns {{ closedSeason, newSeason, report }}
@@ -197,7 +199,17 @@ function closeActiveSeason(seasonId, now = new Date()) {
       config:    JSON.stringify(closePayload),
     });
 
-    // 3. Ouvrir la saison suivante, qui commence à la seconde suivant la fin (#16)
+    // 3. Figer le classement (#29), dans la même transaction (savepoint). Une panne ici ne
+    // bloque pas la rotation : la saison se clôt quand même et le planificateur retentera
+    // (freezeMissingSnapshots) — aucun score n'est plus accepté pour une saison close.
+    try { standings.freezeSeasonStandings(season.id, { source: 'close', now }); }
+    catch (err) {
+      console.error(`[seasons][close] Classement figé en échec pour ${season.id} : ${err.message}`);
+      try { antibot.logSecurityEvent('standings_freeze_failed', { seasonId: season.id, details: { error: err.message.slice(0, 200) } }); }
+      catch (_) { /* déjà tracé dans la console */ }
+    }
+
+    // 4. Ouvrir la saison suivante, qui commence à la seconde suivant la fin (#16)
     return _openNextSeason(end, now);
   });
 
@@ -205,10 +217,12 @@ function closeActiveSeason(seasonId, now = new Date()) {
 
   console.log(`[seasons][close] Clôture terminée. Promotions : ${report.filter(r => !r.skipped).reduce((s, r) => s + r.promoted, 0)} joueur(s) promu(s).`);
 
+  const snap = standings.getSnapshot(season.id);
   return {
     closedSeason: getSeasonById(season.id),
     newSeason,
     report,
+    standings: snap ? { participants: snap.participants, eligible: snap.eligible, hash: snap.snapshot_hash } : null,
   };
 }
 
@@ -274,6 +288,8 @@ function startSeasonScheduler(intervalMs = SCHEDULER_INTERVAL_MS) {
   const tick = () => {
     try { checkAndRotateSeason(new Date()); }
     catch (err) { console.error('[seasons][scheduler]', err.message); }
+    try { standings.freezeMissingSnapshots(new Date()); }
+    catch (err) { console.error('[seasons][scheduler] classement figé', err.message); }
   };
   tick();
   _schedulerTimer = setInterval(tick, intervalMs);
