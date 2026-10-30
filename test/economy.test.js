@@ -99,6 +99,52 @@ test('serveur et client partagent les mêmes valeurs (Shard Magnet, coûts des c
 
 // ── Client ───────────────────────────────────────────────────────────────────
 
+test('client : décomposition de la récompense = montant réellement crédité (base × sac × … = total)', () => {
+  const { Balance, Upgrades, GameState } = loadBrowser(
+    ['gameState.js', 'balance.js', 'upgrades.js'], ['Balance', 'Upgrades', 'GameState']);
+  // Même expression que la destruction d'un bloc normal (public/js/main.js)
+  const credited = (r, boost) => Math.ceil(r * Upgrades.getRewardMultiplier() * boost);
+  const keys     = bd => bd.factors.map(f => f.key).join(',');
+
+  // Sans sac ni bonus : aucun facteur, total = base
+  let bd = Upgrades.getRewardBreakdown(150, 1);
+  assert.deepStrictEqual({ base: bd.base, n: bd.factors.length, total: bd.total }, { base: 150, n: 0, total: 150 });
+
+  // Bonus seul
+  bd = Upgrades.getRewardBreakdown(150, 2);
+  assert.strictEqual(keys(bd), 'boost');
+  assert.strictEqual(bd.total, 300);
+
+  // Exemple de la recette : sac niveau 8 (×3,4) et bonus ×2 → 150 × 3,4 × 2 = 1 020 (sac compté une seule fois)
+  GameState.upgrades.bag = 8;
+  bd = Upgrades.getRewardBreakdown(150, 2);
+  assert.strictEqual(keys(bd), 'bag,boost');
+  assert.strictEqual(Number(bd.factors[0].mult.toFixed(2)), 3.4);
+  assert.strictEqual(bd.base, 150);
+  assert.strictEqual(bd.total, 1020);
+
+  // Tous niveaux de sac, avec et sans bonus, bases variées : total affiché = montant crédité
+  for (let bag = 0; bag <= 12; bag++) {
+    GameState.upgrades.bag = bag;
+    for (const boost of [1, 2, 3]) {
+      for (const r of [1, 2, 7, 23, 151, 3360]) {
+        bd = Upgrades.getRewardBreakdown(r, boost);
+        assert.strictEqual(bd.total, credited(r, boost), `sac ${bag}, ×${boost}, base ${r}`);
+        assert.strictEqual(bd.factors.some(f => f.key === 'bag'), bag > 0);
+        assert.strictEqual(bd.factors.some(f => f.key === 'boost'), boost > 1);
+      }
+    }
+  }
+
+  // Relique de pièces et réglage admin apparaissent comme facteurs distincts
+  GameState.upgrades.bag = 2;
+  GameState.relicBonuses = { coinsPct: 0.1 };
+  Balance.applyEconomy({ coinGainMultiplier: 1.5 });
+  bd = Upgrades.getRewardBreakdown(40, 2);
+  assert.strictEqual(keys(bd), 'bag,relic,event,boost');
+  assert.strictEqual(bd.total, credited(40, 2));
+});
+
 test('client : applyEconomy modifie coûts des améliorations, gains et coûts des coffres', () => {
   const { Balance, Upgrades, GameState } = loadBrowser(
     ['gameState.js', 'balance.js', 'upgrades.js'], ['Balance', 'Upgrades', 'GameState']);
