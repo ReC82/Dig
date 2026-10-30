@@ -6,6 +6,8 @@
 
 ## 1. État réel
 
+> **Mise à jour du 30/10, 11:07 (voir §12) :** pilote **charbon, minerai de fer et diamant** **déployé en production** (SHA `4988e19`). Les icônes sont visibles seulement avec `?icons=v1` : l'adresse normale garde les emoji pour tous les joueurs. **En attente de ta recette visuelle.**
+
 > **Mise à jour du 30/10 (voir §11) :** la pierre C est **en production depuis le 30/10 à 00:48** (SHA déployé `18e3881`, aujourd'hui `e32398d`). On la voit seulement avec `https://dig.lodylands.com/?icons=v1`. L'adresse normale garde les emoji pour tous les joueurs. **En attente de ton retour visuel sur téléphone.** Aucune autre image générée.
 >
 > *Historique (29/10) :* **Partiel — bloqué.** L'infrastructure est livrée et testée : bibliothèques `legacy` et `v1`, repli, rollback, chaîne de génération, contrôles et comparaison visuelle. En revanche, **aucune icône n'a été générée** : la seule clé OpenAI présente sur le serveur, celle de Jury Central, est **refusée par OpenAI** (401 `invalid_api_key`). Coût API engagé : **0 USD**. Rien n'est déployé, et `legacy` reste la valeur par défaut.
@@ -170,3 +172,121 @@ Trois retours possibles, tous immédiats, sans redémarrage ni migration, et san
 - Les autres matériaux, seulement sur ta demande : aucune image générée dans cette session.
 - La bascule par défaut.
 - Le nettoyage de `art/icons/v1/candidates/`, non committé.
+
+## 12. Pilote charbon / fer / diamant (30/10)
+
+**Ce qui a déclenché cette étape :** ton commentaire du 30/10 à 09:45 — « Oui c'est très bien », la pierre C devient la référence, et tu demandes de commencer par un petit lot charbon/fer/diamant.
+
+### État réel
+**Déployé en production (SHA `4988e19`) — en attente de recette.** Visible seulement avec `?icons=v1`. `defaultLibrary` reste `legacy` : aucun joueur ne voit de changement sans ce paramètre.
+
+### Ce qui a été fait
+- **Fiches matériaux** ajoutées dans `tools/icons/materials.json` : `charbon`, `minerai_fer`, `diamant`. Chaque clé correspond exactement à l'identifiant du bloc dans le jeu.
+- **Génération :** 3 propositions par matériau, soit 9 images. Elles passent par l'endpoint d'édition, avec la **pierre C jointe comme référence** et le gabarit maître `v1.0` complété par la clause « même rendu, seul le matériau change ».
+- **Coût :**
+  - 9 × ~0,082 USD = **0,74 USD** ;
+  - cumul du ticket : **0,95 USD** sur un plafond local de 3 USD (le plafond n'a pas été modifié).
+  - Une première tentative a échoué sans être facturée (0 USD) : HTTP 400, le modèle d'édition refuse `input_fidelity`.
+- **Correctif outil** (`tools/icons/openai-images.js`, `generate.js`) :
+  - `input_fidelity` n'est envoyé que si `DIG_IMAGE_INPUT_FIDELITY` est configuré ;
+  - une erreur 4xx annule les propositions suivantes de la commande, pour ne pas répéter un appel voué à l'échec.
+- **Contrôles `process.js`** : 8 propositions sur 9 sont conformes (alpha réel, marge 12 %, exports WebP 128/256). **Diamant A est refusé** : ses coins ne sont pas transparents.
+- **Intégré en aperçu v1** (choix technique, modifiable, voir §12 Choix) : **charbon C, fer C, diamant C**. Fichiers `public/assets/icons/v1/<matériau>-{128,256}.webp`, entrée `"status": "pilote"` dans le manifeste, provenance complète dans `art/icons/v1/pilot/<matériau>.json` (modèle, prompt, coût, empreintes, alternatives).
+- **Tests :**
+  - un test vérifie chaque pilote : bloc existant, référence pierre C, empreintes des exports égales à la provenance ;
+  - un autre vérifie que chaque fiche matériau correspond à un bloc réel ;
+  - `docs/ICONS.md` explique comment changer de proposition ou retirer un pilote.
+
+### Aperçus
+Les 3 propositions par matériau, sur fond sombre (de gauche à droite : A, B, C ; ligne 1 charbon, 2 fer, 3 diamant) :
+
+![propositions](../../art/icons/v1/pilot/propositions-20261030.webp)
+
+Dans le vrai bloc du jeu (en haut : emoji actuels ; en bas : v1). De gauche à droite : pierre, charbon, fer, diamant.
+
+![en jeu](../../art/icons/v1/pilot/en-jeu-avant-apres-20261030.webp)
+
+**Mon avis :**
+- **Charbon :** convaincant, noir anthracite brillant, lisible sur le fond brun foncé de son bloc.
+- **Fer :** bien identifiable, avec ses nodules métalliques et sa rouille sur la roche de la pierre C.
+- **Diamant :** cohérent avec le style, mais il ressemble davantage à un bloc de glace ou de quartz qu'à un diamant. La clause « même forme que la référence » l'empêche d'avoir une silhouette de gemme. C'est le point faible du lot.
+
+### SHA et procédure de test
+- **Branche :** `feature/22-icones-v1`, commit `f857b09`.
+- **`develop` :** `4988e19` (fusion `--no-ff`).
+- **Test technique local :**
+  ```bash
+  npm test                                         # 149/149
+  node tools/icons/compare.js --before https://dig.lodylands.com --after http://127.0.0.1:3101 --out /tmp/cmp
+  ```
+  Dans le vrai composant `#block`, sur les 14 matériaux :
+  - `legacy` est identique au pixel près à la production précédente, 14/14 ;
+  - en `v1`, seuls pierre, charbon, fer et diamant changent ;
+  - différences inattendues : 0.
+
+### Vérifications effectuées
+- **Tests :**
+  - `npm test` 149/149 sur la branche, sur `develop` (`4988e19`) et sur le worktree de release `4988e19` ;
+  - un premier passage sur `develop` a échoué (`security.test.js`, HTTP 409) à cause d'un serveur de test orphelin resté sur le port 3111. Ce serveur venait d'un passage de test précédent et utilisait une base temporaire dans `/tmp`. Je l'ai arrêté, puis le passage complet a réussi (149/149). Le push de `develop` a eu lieu juste avant ce passage réussi, mais sur le même SHA, qui a ensuite été testé deux fois sans échec.
+- **Copie de la base de production :**
+  - démarrage de la release dessus, en `NODE_ENV=production` sur le port 3122 ;
+  - `/health` 200 et version `1.0.0+4988e19` ;
+  - empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` identiques avant et après ;
+  - copie supprimée ensuite.
+- **Après déploiement :**
+  - les 2 domaines répondent 200 avec la version `1.0.0+4988e19` ;
+  - `library.json` et `diamant-256.webp` servis sont identiques au dépôt ;
+  - `journalctl` sans erreur ;
+  - `quick_check` ok ;
+  - empreintes joueurs de la production identiques à la sauvegarde pré-déploiement.
+- **Navigateur en production** (Chromium, 390×844 et 1280×900, chargement de la configuration des icônes sans lancer de partie) :
+  - avec `?icons=v1` : `pierre`, `charbon`, `minerai_fer` et `diamant` affichent leur image (chargée) ; l'or reste en emoji ;
+  - avec `?icons=default` : tous les blocs sont en emoji ;
+  - 0 erreur JS, 0 requête d'écriture.
+- **Non vérifié :** le minage réel jusqu'aux blocs charbon, fer et diamant. Ils sont trop profonds pour un essai automatique sans créer de progression en production.
+- **Données joueurs :** aucun impact. Seuls des fichiers statiques et l'outil hors ligne ont changé.
+
+### Déploiement
+- **SHA déployé :** `4988e19` (précédent : `cab983d`), le 30/10 à 11:06, via `scripts/deploy.sh` de la release.
+- **Sauvegarde vérifiée :** `~/backups/dig/dig-20261030-110645-pre-deploy-4988e19.sqlite`.
+- **Retour arrière**, du plus léger au plus complet :
+  1. retirer l'entrée d'un pilote dans `library.json` : le matériau repasse en emoji ;
+  2. `?icons=default` dans le navigateur ;
+  3. retour au SHA `cab983d` par la procédure standard.
+
+### Test fonctionnel à faire par le propriétaire
+1. Sur ton téléphone, ouvrir **https://dig.lodylands.com/?icons=v1** et jouer normalement.
+2. **Résultat attendu :** en atteignant les blocs **Charbon**, **Minerai de fer** et **Diamant**, une icône 3D dans le style de la pierre C remplace l'emoji. Les autres blocs gardent leur emoji, sauf la pierre.
+3. Pour comparer sans miner : regarder les deux planches ci-dessus.
+4. Revenir à l'affichage normal : **https://dig.lodylands.com/?icons=default**.
+
+### Classement
+**Après lancement** (cosmétique, sans effet sur le MVP public ; les joueurs ne voient rien sans `?icons=v1`).
+
+### Choix techniques faits seul
+- **Proposition C pour chaque matériau :**
+  - charbon C : le plus de reflets, donc le plus lisible sur fond sombre ;
+  - fer C : le meilleur contraste (1,91 sur le bloc foncé) ;
+  - diamant C : le bleu le plus profond, le plus distinct de la glace.
+
+  Un échange se fait en deux minutes : copier deux fichiers WebP et mettre à jour la provenance.
+- **Propositions non retenues :** elles restent sur le serveur (`art/icons/v1/candidates/`), hors Git, selon la même convention que pour la pierre. Seuls les exports retenus, la provenance et deux planches compressées sont versionnés.
+- **Worktree du ticket conservé**, alors que tout est intégré : il contient ces propositions non versionnées, qui sont nécessaires si tu choisis A ou B.
+- **Aucune 4e proposition :** la limite de 3 par matériau est respectée, y compris pour le diamant.
+
+### Décisions demandées au propriétaire
+1. **Charbon / fer / diamant en jeu : conviennent-ils ?**
+   - Options : valider tel quel, ou échanger une proposition (A/B, voir la planche).
+   - Recommandation : valider charbon C et fer C.
+2. **Diamant :** il fait un peu « glaçon ».
+   - Options :
+     - a) l'accepter ;
+     - b) prendre A (rejeté par le contrôle de transparence, donc non conseillé) ou B ;
+     - c) m'autoriser une nouvelle série de 3 propositions, avec une consigne de **silhouette de gemme taillée brute** (le style reste celui de la référence, la forme peut différer), pour ~0,25 USD.
+   - Recommandation : **c**.
+3. **Lot suivant :** ma recommandation est **granite, grès, minerai d'or**, puis **rubis, émeraude**, au maximum 3 propositions chacun, pour ~0,25 USD par matériau. Les coffres et la terre/argile viendraient en dernier, car leur forme s'éloigne de la roche.
+
+### Reste à faire
+- Validation visuelle du pilote ; nouvelle série pour le diamant si tu choisis 2c.
+- 10 matériaux restants : terre meuble, argile, grès, granite, minerai d’or, rubis, émeraude, et les 3 coffres (vieille caisse, coffre en bois, coffre en fer).
+- Bascule de `defaultLibrary` vers `v1` seulement après validation visuelle **du lot complet**.
