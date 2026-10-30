@@ -22,6 +22,8 @@
  *   v15 — + shopChestsBought { simple, rare, antique }
  *   v16 — + blockSeed, blockSeq, block { name, hp, maxHp, reward, depth, seq } (bloc courant
  *         repris à l'identique, #35 ; absents des anciennes saves : bloc suivant tiré au chargement)
+ *         + collectionMeta { id: { at, n, season } } facultatif (#39 : date/quantité trouvées ;
+ *         absent des anciennes saves, aucune date inventée — sans changement de version)
  */
 const Save = {
 
@@ -53,6 +55,7 @@ const Save = {
       damage:       GameState.damage,
       upgrades:     { ...GameState.upgrades },
       collection:   [...GameState.collection],
+      collectionMeta: { ...GameState.collectionMeta },
       quests:       { ...GameState.quests },
       stats:        { ...GameState.stats },
       daily:        { ...GameState.daily },
@@ -135,6 +138,8 @@ const Save = {
     GameState.upgrades.block_reroll  = u.block_reroll  ?? 0;
 
     GameState.collection = Array.isArray(data.collection) ? data.collection : [];
+    GameState.collectionMeta = (data.collectionMeta && typeof data.collectionMeta === 'object' && !Array.isArray(data.collectionMeta))
+      ? data.collectionMeta : {};
     GameState.quests     = (data.quests && typeof data.quests === 'object') ? data.quests : {};
 
     const s = data.stats ?? {};

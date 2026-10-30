@@ -35,6 +35,7 @@
     <button class="tab-btn" data-tab="points">🏅 Points</button>
     <button class="tab-btn" data-tab="shop">🛍 Boutique</button>
     <button class="tab-btn" data-tab="blocks">🧱 Blocs</button>
+    <button class="tab-btn" data-tab="collections">📿 Collections</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -770,6 +771,145 @@
       <table>
         <thead><tr><th>Date (UTC)</th><th>Action</th><th>Version</th><th>Détails</th></tr></thead>
         <tbody id="bk-audit-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Tab Collections saisonnières (#39) -->
+  <section id="tab-collections" class="tab-content hidden">
+    <div class="section-header">
+      <h2>📿 Collections saisonnières</h2>
+      <button class="btn" id="btn-refresh-collections">↻ Rafraîchir</button>
+    </div>
+    <p id="co-banner" class="contest-banner"></p>
+    <p class="muted" style="font-size:0.78rem">Séries d'objets à collectionner (permanentes ou rattachées à une saison) et leurs fiches (nom, rareté, image, histoire FR/EN/NL/ES).
+      Tout va dans un <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier ». Une série ou un objet publié ne se supprime pas, il se désactive ; les objets déjà trouvés restent dans les collections des joueurs.
+      Les objets d'une série de saison ne tombent que pendant cette saison, puis restent visibles dans les <strong>archives</strong>.
+      <strong>Nouveau drop ou barème modifié : publication seulement après confirmation explicite « barème validé ».</strong></p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Séries <span id="co-source" class="muted"></span></h3>
+      <table>
+        <thead><tr><th></th><th>Identifiant</th><th>Nom FR</th><th>Saison</th><th>Objets</th><th>Statut</th><th></th></tr></thead>
+        <tbody id="co-series-body"></tbody>
+      </table>
+      <h4 id="co-series-form-title" style="margin:12px 0 6px">Nouvelle série</h4>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
+        <label>Identifiant stable<input id="co-s-id" type="text" maxlength="40" placeholder="saison_hiver"></label>
+        <label>Nom FR<input id="co-s-name-fr" type="text" maxlength="60"></label>
+        <label>Nom EN<input id="co-s-name-en" type="text" maxlength="60"></label>
+        <label>Nom NL<input id="co-s-name-nl" type="text" maxlength="60"></label>
+        <label>Nom ES<input id="co-s-name-es" type="text" maxlength="60"></label>
+        <label>Saison<select id="co-s-season"></select></label>
+        <label>Icône (emoji)<input id="co-s-icon" type="text" maxlength="8" value="📦"></label>
+        <label><input type="checkbox" id="co-s-active" checked> Active</label>
+      </div>
+      <div class="form-actions">
+        <button class="btn" id="btn-co-s-save">Enregistrer la série dans le brouillon</button>
+        <button class="btn btn-ghost" id="btn-co-s-new">Nouvelle (vider)</button>
+        <button class="btn btn-ghost" id="btn-co-s-remove">Retirer du brouillon (jamais publiée)</button>
+      </div>
+      <p id="co-s-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Objets</h3>
+      <div class="form-actions">
+        <input id="co-filter-text" type="search" placeholder="Filtrer (identifiant, nom)" style="flex:1">
+        <select id="co-filter-series"><option value="">Toutes séries</option></select>
+      </div>
+      <table>
+        <thead><tr><th></th><th>Identifiant</th><th>Nom FR</th><th>Série</th><th>Rareté</th><th>Drop</th><th>Langues</th><th>Statut</th><th></th></tr></thead>
+        <tbody id="co-items-body"></tbody>
+      </table>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title" id="co-i-form-title">Nouvel objet</h3>
+      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:2;min-width:300px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
+          <label>Identifiant stable<input id="co-i-id" type="text" maxlength="40" placeholder="flocon_eternel"></label>
+          <label>Série<select id="co-i-series"></select></label>
+          <label>Rareté<select id="co-i-rarity"></select></label>
+          <label>Icône (emoji)<input id="co-i-icon" type="text" maxlength="8"></label>
+          <label>Nom FR<input id="co-i-name-fr" type="text" maxlength="60"></label>
+          <label>Nom EN<input id="co-i-name-en" type="text" maxlength="60"></label>
+          <label>Nom NL<input id="co-i-name-nl" type="text" maxlength="60"></label>
+          <label>Nom ES<input id="co-i-name-es" type="text" maxlength="60"></label>
+          <label style="grid-column:1/-1">Histoire FR<textarea id="co-i-story-fr" rows="3" maxlength="1200"></textarea></label>
+          <label style="grid-column:1/-1">Histoire EN<textarea id="co-i-story-en" rows="3" maxlength="1200"></textarea></label>
+          <label style="grid-column:1/-1">Histoire NL<textarea id="co-i-story-nl" rows="3" maxlength="1200"></textarea></label>
+          <label style="grid-column:1/-1">Histoire ES<textarea id="co-i-story-es" rows="3" maxlength="1200"></textarea></label>
+          <label style="grid-column:1/-1">Image (téléversée ou /assets/…, facultatif)<input id="co-i-image" type="text" maxlength="200"></label>
+          <label>Téléverser (PNG/JPEG/WebP ≤ 350 Ko)<input id="co-i-upload" type="file" accept="image/png,image/jpeg,image/webp"></label>
+          <fieldset style="grid-column:1/-1"><legend>Drop — blocs sources</legend><span id="co-i-from"></span></fieldset>
+          <label>Dès (m)<input id="co-i-min" type="number" min="1"></label>
+          <label>Chance par bloc (%)<input id="co-i-chance" type="number" min="0.001" max="50" step="any"></label>
+          <label><input type="checkbox" id="co-i-drop"> Drop activé</label>
+          <label><input type="checkbox" id="co-i-active" checked> Actif</label>
+        </div>
+        <div style="flex:1;min-width:240px">
+          <div class="form-actions"><label>Aperçu en <select id="co-preview-lang"><option>fr</option><option>en</option><option>nl</option><option>es</option></select></label></div>
+          <div id="co-preview" style="border:1px solid #374151;border-radius:16px;padding:16px;text-align:center">
+            <div id="co-preview-art" style="font-size:4rem;min-height:96px;display:flex;align-items:center;justify-content:center"></div>
+            <div id="co-preview-rarity" class="muted"></div>
+            <strong id="co-preview-name"></strong>
+            <div id="co-preview-series" class="muted" style="font-size:0.75rem"></div>
+            <p id="co-preview-story" style="text-align:left;font-size:0.85rem;line-height:1.5"></p>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:0.78rem">Chance : probabilité testée à chaque bloc de la catégorie source détruit à partir de la profondeur indiquée, tant que le joueur ne possède pas l'objet (ex. 3 % ≈ 1 bloc sur 33). Génération d'images par IA : prévue dans l'atelier d'icônes (#40) ; ici, téléversement d'un fichier.</p>
+      <div class="form-actions">
+        <button class="btn" id="btn-co-i-save">Enregistrer l'objet dans le brouillon</button>
+        <button class="btn btn-ghost" id="btn-co-i-new">Nouveau (vider)</button>
+        <button class="btn btn-ghost" id="btn-co-i-remove">Retirer du brouillon (jamais publié)</button>
+      </div>
+      <p id="co-i-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Brouillon et publication</h3>
+      <p id="co-draft-state" class="muted"></p>
+      <ul id="co-draft-errors" class="error"></ul>
+      <ul id="co-draft-warnings" class="muted"></ul>
+      <table>
+        <thead><tr><th>Élément</th><th>Changement</th></tr></thead>
+        <tbody id="co-changes-body"></tbody>
+      </table>
+      <div id="co-drops-box" class="hidden" style="margin-top:8px">
+        <p class="error">Drops nouveaux ou modifiés (visibles en jeu dès la publication) :</p>
+        <ul id="co-drops-list"></ul>
+        <label><input type="checkbox" id="co-confirm-drops"> Barème validé : j'active ces drops</label>
+      </div>
+      <div class="form-actions" style="margin-top:8px">
+        <input id="co-publish-note" type="text" maxlength="300" placeholder="Note de publication (facultatif)" style="flex:1">
+        <button class="btn" id="btn-co-publish">Publier</button>
+        <button class="btn btn-danger" id="btn-co-discard">Abandonner le brouillon</button>
+      </div>
+      <p id="co-publish-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Versions publiées (retour arrière)</h3>
+      <table>
+        <thead><tr><th>Version</th><th>Date (UTC)</th><th>Origine</th><th>Séries</th><th>Objets (drops actifs)</th><th>Note</th><th></th></tr></thead>
+        <tbody id="co-versions-body"></tbody>
+      </table>
+      <p id="co-rollback-msg" class="hidden"></p>
+      <p class="muted" style="font-size:0.78rem">Un retour arrière publie une nouvelle version au contenu de l'ancienne ; séries et objets ajoutés depuis restent présents mais désactivés (les objets déjà trouvés restent visibles).</p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Images téléversées</h3>
+      <div id="co-images" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Journal</h3>
+      <table>
+        <thead><tr><th>Date (UTC)</th><th>Action</th><th>Version</th><th>Détails</th></tr></thead>
+        <tbody id="co-audit-body"></tbody>
       </table>
     </div>
   </section>

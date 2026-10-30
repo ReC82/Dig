@@ -80,6 +80,7 @@ const standings = require('./standings');
 const contest   = require('./contest');
 const shop      = require('./shop');
 const blockCatalog = require('./blockCatalog');
+const collectionCatalog = require('./collectionCatalog');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
@@ -670,6 +671,31 @@ function catalogRoute(label, fn) {
   };
 }
 
+// Collections saisonnières publiées (#39) : séries, objets, fiches, saisons référencées.
+app.get('/api/collections/catalog', (_req, res) => {
+  try { res.set('Cache-Control', 'no-cache'); res.json(collectionCatalog.publicCatalog()); }
+  catch (err) { console.error('[GET /api/collections/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+// Images téléversées depuis le panel (#39) : contenu adressé par empreinte, donc immuable.
+app.get('/api/collections/images/:file', (req, res) => {
+  const m = /^([0-9a-f]{64})\.(png|jpg|webp)$/.exec(String(req.params.file));
+  const img = m && collectionCatalog.getImage(m[1], m[2]);
+  if (!img) return res.status(404).end();
+  res.set({ 'Content-Type': img.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+  res.send(img.data);
+});
+
+function collectionRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof collectionCatalog.CatalogError) return res.status(err.status).json({ error: err.message, details: err.details });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
 // ── Middleware admin ──────────────────────────────────────────────────────────
 
 function requireAdmin(req, res, next) {
@@ -998,6 +1024,31 @@ app.get('/api/admin/blocks/audit', requireAdmin, catalogRoute('GET /api/admin/bl
   req => ({ audit: blockCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
 
 // Classement global admin d'une saison
+// ── Collections saisonnières (#39) ────────────────────────────────────────────
+app.get('/api/admin/collections', requireAdmin, collectionRoute('GET /api/admin/collections', () => collectionCatalog.buildAdminView()));
+app.put('/api/admin/collections/draft/series/:id', requireAdmin, collectionRoute('PUT /api/admin/collections/draft/series/:id', req => {
+  const series = req.body?.series;
+  if (!series || series.id !== req.params.id) throw new collectionCatalog.CatalogError(400, 'Identifiant incohérent.');
+  return { series: collectionCatalog.upsertDraftSeries(series) };
+}));
+app.put('/api/admin/collections/draft/items/:id', requireAdmin, collectionRoute('PUT /api/admin/collections/draft/items/:id', req => {
+  const item = req.body?.item;
+  if (!item || item.id !== req.params.id) throw new collectionCatalog.CatalogError(400, 'Identifiant incohérent.');
+  return { item: collectionCatalog.upsertDraftItem(item) };
+}));
+app.delete('/api/admin/collections/draft/:kind/:id', requireAdmin, collectionRoute('DELETE /api/admin/collections/draft/:kind/:id',
+  req => { collectionCatalog.removeDraftEntry(String(req.params.kind), String(req.params.id)); return { ok: true }; }));
+app.delete('/api/admin/collections/draft', requireAdmin, collectionRoute('DELETE /api/admin/collections/draft',
+  () => ({ discarded: collectionCatalog.discardDraft() })));
+app.post('/api/admin/collections/publish', requireAdmin, collectionRoute('POST /api/admin/collections/publish',
+  req => collectionCatalog.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.expectedBasedOn, confirmDrops: req.body?.confirmDrops === true })));
+app.post('/api/admin/collections/rollback', requireAdmin, collectionRoute('POST /api/admin/collections/rollback',
+  req => collectionCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+app.post('/api/admin/collections/images', requireAdmin, collectionRoute('POST /api/admin/collections/images',
+  req => collectionCatalog.storeImage(req.body?.data, req.body?.label)));
+app.get('/api/admin/collections/audit', requireAdmin, collectionRoute('GET /api/admin/collections/audit',
+  req => ({ audit: collectionCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
+
 app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {
   try {
     const seasonId = parseInt(req.params.id, 10);
@@ -1400,6 +1451,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
 blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
+collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 

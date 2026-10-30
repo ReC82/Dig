@@ -2,6 +2,14 @@
  * collection.js
  * Catalogue des trouvailles et logique de drop.
  * Dépend de : GameState
+ *
+ * Collections saisonnières (#39) : le catalogue publié par le serveur (GET /api/collections/catalog)
+ * remplace FINDS dès qu'il est reçu (puis est mémorisé localement). Sa version 1 reprend à
+ * l'identique les 8 trouvailles ci-dessous (mêmes blocs, profondeurs, chances et ordre) dans la
+ * série permanente « origines ». Une série rattachée à une saison ne donne ses objets que pendant
+ * cette saison ; ensuite elle reste consultable dans les archives.
+ * Date et quantité trouvées : GameState.collectionMeta { id: { at, n, season } } (absent pour les
+ * objets trouvés avant #39 : la date n'est pas inventée).
  */
 const Collection = {
 
@@ -89,6 +97,7 @@ const Collection = {
    */
   tryDrop(blockType, depth, random = Math.random) {
     const eligible = this.FINDS.filter(f =>
+      this.canDrop(f) &&
       !GameState.collection.includes(f.id) &&
       depth >= f.minDepth &&
       f.dropFrom.includes(blockType.category)
@@ -96,7 +105,7 @@ const Collection = {
 
     for (const find of eligible) {
       if (random() < find.chance) {
-        GameState.collection.push(find.id);
+        this.add(find.id);
         return find;
       }
     }
@@ -109,5 +118,120 @@ const Collection = {
 
   countFound() {
     return GameState.collection.length;
+  },
+
+  // ── Catalogue publié (#39) ────────────────────────────────────────────────
+
+  /** Identifiants d'origine (ceux que les coffres de la boutique peuvent donner, cf. chestShop.js). */
+  ORIGIN_IDS: ['fossil', 'crystal', 'ancient_coin', 'relic', 'broken_crown', 'monster_tooth', 'map_fragment', 'mystic_orb'],
+  catalogVersion: 0,
+  CATALOG_URL: '/api/collections/catalog',
+  CATALOG_STORAGE_KEY: 'dig.collectionCatalog',
+  SERIES: [{ id: 'origines', names: null, seasonId: null, icon: '📦', active: true }],
+  SEASONS: {},
+
+  /** Objet du catalogue → trouvaille du jeu. Null si invalide. */
+  _fromCatalog(c) {
+    if (!c || typeof c.id !== 'string' || !/^[a-z][a-z0-9_]{1,39}$/.test(c.id)) return null;
+    const d = c.drop || {};
+    if (!Array.isArray(d.from) || !Number.isFinite(d.minDepth) || !Number.isFinite(d.chance)) return null;
+    const legacy = this.FINDS.find(f => f.id === c.id && f.name);
+    return {
+      id: c.id, name: legacy ? legacy.name : null, desc: legacy ? legacy.desc : null,
+      names: c.names && typeof c.names === 'object' ? c.names : null,
+      stories: c.stories && typeof c.stories === 'object' ? c.stories : null,
+      icon: String(c.icon || '❔'), image: typeof c.image === 'string' ? c.image : null,
+      rarity: String(c.rarity || 'commun'), seriesId: String(c.seriesId || 'origines'),
+      dropFrom: d.from.map(String), minDepth: d.minDepth, chance: d.chance,
+      dropEnabled: c.dropEnabled === true, active: c.active !== false,
+    };
+  },
+
+  applyCatalog(catalog) {
+    if (!catalog || !Number.isInteger(catalog.version) || !Array.isArray(catalog.items) || !Array.isArray(catalog.series)) return false;
+    // Les noms intégrés (i18n) des 8 trouvailles d'origine servent de repli : ne lire FINDS qu'une fois
+    if (!this._builtin) this._builtin = this.FINDS.map(f => ({ ...f }));
+    const saved = this.FINDS;
+    this.FINDS = this._builtin;
+    const items = catalog.items.map(c => this._fromCatalog(c));
+    this.FINDS = saved;
+    if (items.some(x => !x)) return false;
+    this.FINDS = items;
+    this.SERIES = catalog.series.filter(s => s && typeof s.id === 'string');
+    this.SEASONS = catalog.seasons && typeof catalog.seasons === 'object' ? catalog.seasons : {};
+    this.catalogVersion = catalog.version;
+    return true;
+  },
+
+  loadCached(storage = typeof localStorage !== 'undefined' ? localStorage : null) {
+    try {
+      const raw = storage && storage.getItem(this.CATALOG_STORAGE_KEY);
+      return raw ? this.applyCatalog(JSON.parse(raw)) : false;
+    } catch (_) { return false; }
+  },
+
+  fetchCatalog(onChange) {
+    if (typeof fetch === 'undefined') return Promise.resolve(false);
+    return fetch(this.CATALOG_URL, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(catalog => {
+        if (!catalog || !this.applyCatalog(catalog)) return false;
+        try { localStorage.setItem(this.CATALOG_STORAGE_KEY, JSON.stringify(catalog)); } catch (_) { /* quota */ }
+        if (onChange) onChange();
+        return true;
+      })
+      .catch(() => false);
+  },
+
+  seriesOf(find) {
+    return this.SERIES.find(s => s.id === find.seriesId) || null;
+  },
+
+  /** Saison du joueur (0 ou null : hors saison). */
+  currentSeasonId() {
+    return (GameState.seasonStats && GameState.seasonStats.seasonId) || null;
+  },
+
+  /** L'objet peut-il tomber maintenant ? Actif, drop activé, série active et de la saison en cours. */
+  canDrop(find) {
+    if (find.dropEnabled === false || find.active === false) return false;
+    const s = this.seriesOf(find);
+    if (!s) return find.dropEnabled === undefined; // FINDS intégrés (avant réception du catalogue)
+    if (s.active === false) return false;
+    return s.seasonId == null || s.seasonId === this.currentSeasonId();
+  },
+
+  /** Série archivée : rattachée à une saison qui n'est plus celle du joueur. */
+  isArchived(series) {
+    return !!series && series.seasonId != null && series.seasonId !== this.currentSeasonId();
+  },
+
+  /** Ajoute un objet à la collection et note date, quantité et saison (#39). */
+  add(id, now = Date.now()) {
+    if (!GameState.collection.includes(id)) GameState.collection.push(id);
+    if (!GameState.collectionMeta || typeof GameState.collectionMeta !== 'object') GameState.collectionMeta = {};
+    const prev = GameState.collectionMeta[id];
+    GameState.collectionMeta[id] = prev
+      ? { ...prev, n: (prev.n || 1) + 1 }
+      : { at: now, n: 1, season: this.currentSeasonId() };
+  },
+
+  _lang() {
+    return typeof I18n !== 'undefined' ? I18n.getCurrent() : 'fr';
+  },
+
+  displayName(find, lang = this._lang()) {
+    const n = find.names || {};
+    return n[lang] || (find.name && typeof t === 'function' ? t(find.name) : null) || n.fr || find.id;
+  },
+
+  story(find, lang = this._lang()) {
+    const s = find.stories || {};
+    return s[lang] || s.fr || (find.desc && typeof t === 'function' ? t(find.desc) : '');
+  },
+
+  seriesName(series, lang = this._lang()) {
+    const n = (series && series.names) || {};
+    return n[lang] || n.fr || (typeof t === 'function' ? t('collection.series_origins') : 'Collection');
   },
 };

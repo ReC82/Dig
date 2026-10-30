@@ -94,6 +94,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'points')          loadPoints();
     if (btn.dataset.tab === 'shop')            loadShop();
     if (btn.dataset.tab === 'blocks')          loadBlocks();
+    if (btn.dataset.tab === 'collections')     loadCollections();
   });
 });
 
@@ -1714,4 +1715,326 @@ document.getElementById('btn-bk-simulate').addEventListener('click', async () =>
       tb.appendChild(tr);
     });
   }
+});
+
+// ── Collections saisonnières (#39) ────────────────────────────────────────────
+
+const CO_LANGS = ['fr', 'en', 'nl', 'es'];
+const CO_IMAGE_RE = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp))$/;
+let _co = null;   // vue admin (GET /api/admin/collections)
+
+function coWorking() {
+  if (!_co) return { series: [], items: [] };
+  return _co.draft ? { series: _co.draft.series, items: _co.draft.items } : { series: _co.published.series, items: _co.published.items };
+}
+
+function coSeasonLabel(id) {
+  if (id == null) return 'Permanente';
+  const s = _co.seasons.find(x => x.id === id);
+  return s ? `#${s.id} ${s.name} (${s.status})` : `#${id}`;
+}
+
+function coSelect(id, entries, keepFirst = 0) {
+  const sel = document.getElementById(id);
+  const value = sel.value;
+  while (sel.options.length > keepFirst) sel.remove(keepFirst);
+  for (const [v, label] of entries) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = label;
+    sel.appendChild(o);
+  }
+  if ([...sel.options].some(o => o.value === value)) sel.value = value;
+}
+
+function coTexts(prefix) {
+  const out = {};
+  for (const l of CO_LANGS) { const v = document.getElementById(`${prefix}-${l}`).value.trim(); if (v) out[l] = v; }
+  return Object.keys(out).length ? out : null;
+}
+
+// Séries
+function coFillSeriesForm(s) {
+  document.getElementById('co-series-form-title').textContent = s ? `Modifier la série « ${s.id} »` : 'Nouvelle série';
+  const idEl = document.getElementById('co-s-id');
+  idEl.value = s ? s.id : '';
+  idEl.readOnly = !!s;
+  for (const l of CO_LANGS) document.getElementById(`co-s-name-${l}`).value = s?.names?.[l] ?? '';
+  document.getElementById('co-s-season').value = s?.seasonId == null ? '' : String(s.seasonId);
+  document.getElementById('co-s-icon').value = s ? s.icon : '📦';
+  document.getElementById('co-s-active').checked = s ? s.active : true;
+  document.getElementById('btn-co-s-remove').disabled = !s || _co.publishedIds.series.includes(s.id);
+}
+
+// Objets
+function coFillItemForm(i) {
+  document.getElementById('co-i-form-title').textContent = i ? `Modifier « ${i.id} »` : 'Nouvel objet';
+  const idEl = document.getElementById('co-i-id');
+  idEl.value = i ? i.id : '';
+  idEl.readOnly = !!i;
+  document.getElementById('co-i-series').value = i ? i.seriesId : (document.getElementById('co-filter-series').value || coWorking().series[0]?.id || '');
+  document.getElementById('co-i-rarity').value = i ? i.rarity : 'commun';
+  document.getElementById('co-i-icon').value = i ? i.icon : '';
+  for (const l of CO_LANGS) {
+    document.getElementById(`co-i-name-${l}`).value = i?.names?.[l] ?? '';
+    document.getElementById(`co-i-story-${l}`).value = i?.stories?.[l] ?? '';
+  }
+  document.getElementById('co-i-image').value = i?.image ?? '';
+  document.getElementById('co-i-upload').value = '';
+  for (const c of _co.categories) document.getElementById(`co-i-from-${c}`).checked = !!i?.drop.from.includes(c);
+  document.getElementById('co-i-min').value = i ? i.drop.minDepth : '';
+  document.getElementById('co-i-chance').value = i ? +(i.drop.chance * 100).toFixed(4) : '';
+  document.getElementById('co-i-drop').checked = i ? i.dropEnabled : false;
+  document.getElementById('co-i-active').checked = i ? i.active : true;
+  document.getElementById('btn-co-i-remove').disabled = !i || _co.publishedIds.items.includes(i.id);
+  coPreview();
+}
+
+function coReadItem() {
+  const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : Number(v); };
+  const chance = num('co-i-chance');
+  return {
+    id: document.getElementById('co-i-id').value.trim(),
+    seriesId: document.getElementById('co-i-series').value,
+    names: coTexts('co-i-name'),
+    stories: coTexts('co-i-story'),
+    rarity: document.getElementById('co-i-rarity').value,
+    icon: document.getElementById('co-i-icon').value.trim(),
+    image: document.getElementById('co-i-image').value.trim() || null,
+    drop: { from: _co.categories.filter(c => document.getElementById(`co-i-from-${c}`).checked),
+      minDepth: num('co-i-min'), chance: chance === null ? null : chance / 100 },
+    dropEnabled: document.getElementById('co-i-drop').checked,
+    active: document.getElementById('co-i-active').checked,
+  };
+}
+
+/** Aperçu de la fiche joueur dans la langue choisie (repli FR, comme en jeu). */
+function coPreview() {
+  if (!_co) return;
+  const lang = document.getElementById('co-preview-lang').value;
+  const pick = prefix => document.getElementById(`${prefix}-${lang}`).value.trim() || document.getElementById(`${prefix}-fr`).value.trim();
+  const art = document.getElementById('co-preview-art');
+  art.textContent = '';
+  const image = document.getElementById('co-i-image').value.trim();
+  if (CO_IMAGE_RE.test(image) && !image.includes('..')) {
+    const img = document.createElement('img');
+    img.src = image; img.alt = ''; img.width = 140; img.height = 140; img.style.objectFit = 'contain';
+    img.onerror = () => { art.textContent = document.getElementById('co-i-icon').value; };
+    art.appendChild(img);
+  } else {
+    art.textContent = document.getElementById('co-i-icon').value || '❔';
+  }
+  document.getElementById('co-preview-rarity').textContent = BK_RARITY[document.getElementById('co-i-rarity').value] ?? '';
+  document.getElementById('co-preview-name').textContent = pick('co-i-name') || '(nom FR obligatoire)';
+  const s = coWorking().series.find(x => x.id === document.getElementById('co-i-series').value);
+  document.getElementById('co-preview-series').textContent = s ? `${s.icon} ${s.names?.[lang] || s.names?.fr || s.id} · ${coSeasonLabel(s.seasonId)}` : '';
+  document.getElementById('co-preview-story').textContent = pick('co-i-story') || '(pas encore d\'histoire)';
+}
+
+function coRenderItems() {
+  const { items, series } = coWorking();
+  const text = document.getElementById('co-filter-text').value.trim().toLowerCase();
+  const sf = document.getElementById('co-filter-series').value;
+  const changed = new Set((_co.draft?.changes ?? []).filter(c => c.kind === 'items').map(c => c.id));
+  const tb = document.getElementById('co-items-body');
+  tb.textContent = '';
+  for (const i of items) {
+    if (sf && i.seriesId !== sf) continue;
+    if (text && !`${i.id} ${Object.values(i.names ?? {}).join(' ')}`.toLowerCase().includes(text)) continue;
+    const tr = document.createElement('tr');
+    const s = series.find(x => x.id === i.seriesId);
+    const drop = `${i.drop.from.join('/')} dès ${i.drop.minDepth} m · ${+(i.drop.chance * 100).toFixed(3)} %${i.dropEnabled ? '' : ' (inactif)'}`;
+    const langs = CO_LANGS.map(l => (i.names?.[l] && i.stories?.[l] ? l : (i.names?.[l] ? `${l}*` : '—'))).join(' ');
+    const state = `${i.active ? 'actif' : 'désactivé'}${changed.has(i.id) ? ' · modifié' : ''}${_co.publishedIds.items.includes(i.id) ? '' : ' · nouveau'}`;
+    [i.icon, i.id, i.names?.fr ?? '', s ? s.names.fr : i.seriesId, BK_RARITY[i.rarity] ?? i.rarity, drop, langs, state].forEach(x => addCell(tr, x));
+    addButtonCell(tr, 'Modifier', () => { coFillItemForm(i); document.getElementById('co-i-form-title').scrollIntoView({ behavior: 'smooth' }); });
+    tb.appendChild(tr);
+  }
+}
+
+async function loadCollections() {
+  const { ok, data } = await api('GET', '/api/admin/collections');
+  if (!ok) { ptMessage('co-i-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  _co = data;
+  const w = coWorking();
+  const p = data.published;
+
+  // Sélecteurs
+  coSelect('co-s-season', [['', 'Permanente (hors saison)'], ...data.seasons.map(s => [String(s.id), `#${s.id} ${s.name} (${s.status})`])]);
+  coSelect('co-i-series', w.series.map(s => [s.id, `${s.icon} ${s.names.fr}`]));
+  coSelect('co-filter-series', w.series.map(s => [s.id, `${s.icon} ${s.names.fr}`]), 1);
+  coSelect('co-i-rarity', data.rarities.map(r => [r, BK_RARITY[r] ?? r]));
+  const from = document.getElementById('co-i-from');
+  if (!from.childElementCount) {
+    for (const c of data.categories) {
+      const label = document.createElement('label');
+      label.style.marginRight = '12px';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.id = `co-i-from-${c}`;
+      label.append(cb, ` ${c}`);
+      from.appendChild(label);
+    }
+  }
+
+  const banner = document.getElementById('co-banner');
+  banner.className = `contest-banner contest-banner--${data.draft ? 'open' : 'locked'}`;
+  banner.textContent = `Version en vigueur : v${p.version} (${p.createdAt} UTC) — ${p.series.length} série(s), ${p.items.length} objet(s), `
+    + `${p.items.filter(i => i.active && i.dropEnabled).length} drop(s) actif(s). `
+    + (data.draft ? `Brouillon en cours (${data.draft.changes.length} changement(s), non visible des joueurs).` : 'Aucun brouillon.');
+  document.getElementById('co-source').textContent = data.draft ? '— brouillon' : `— version v${p.version}`;
+
+  const sb = document.getElementById('co-series-body');
+  sb.textContent = '';
+  for (const s of w.series) {
+    const tr = document.createElement('tr');
+    [s.icon, s.id, s.names.fr, coSeasonLabel(s.seasonId), w.items.filter(i => i.seriesId === s.id).length,
+     `${s.active ? 'active' : 'désactivée'}${data.publishedIds.series.includes(s.id) ? '' : ' · nouvelle'}`].forEach(x => addCell(tr, x));
+    addButtonCell(tr, 'Modifier', () => coFillSeriesForm(s));
+    sb.appendChild(tr);
+  }
+  coRenderItems();
+
+  const d = data.draft;
+  document.getElementById('co-draft-state').textContent = d
+    ? `Brouillon basé sur v${d.basedOn}, modifié le ${d.updatedAt} UTC.` : 'Aucun brouillon : modifiez une série ou un objet pour en créer un.';
+  bkFillList(document.getElementById('co-draft-errors'), d ? d.errors : []);
+  bkFillList(document.getElementById('co-draft-warnings'), d ? d.warnings : []);
+  const cb = document.getElementById('co-changes-body');
+  cb.textContent = '';
+  for (const c of d ? d.changes : []) {
+    const tr = document.createElement('tr');
+    addCell(tr, `${c.kind === 'series' ? 'Série' : 'Objet'} ${c.id}`);
+    addCell(tr, c.change === 'added' ? 'ajouté' : c.fields.map(f => `${f.field} : ${JSON.stringify(f.before)} → ${JSON.stringify(f.after)}`).join(' ; '));
+    cb.appendChild(tr);
+  }
+  const drops = d ? d.drops : [];
+  document.getElementById('co-drops-box').classList.toggle('hidden', !drops.length);
+  bkFillList(document.getElementById('co-drops-list'), drops.map(x =>
+    `${x.id} : ${x.drop.from.join('/')} dès ${x.drop.minDepth} m, ${+(x.drop.chance * 100).toFixed(3)} % par bloc — ${coSeasonLabel(x.seasonId)}`));
+  document.getElementById('co-confirm-drops').checked = false;
+  document.getElementById('btn-co-publish').disabled = !d || d.errors.length > 0 || !d.changes.length;
+  document.getElementById('btn-co-discard').disabled = !d;
+
+  const vb = document.getElementById('co-versions-body');
+  vb.textContent = '';
+  for (const v of data.versions) {
+    const tr = document.createElement('tr');
+    const src = { origin: 'origine', publish: 'publication', rollback: `retour à v${v.fromVersion}` }[v.source] ?? v.source;
+    [`v${v.version}`, v.createdAt, src, v.series, `${v.items} (${v.dropping})`, v.note ?? ''].forEach(x => addCell(tr, x));
+    if (v.version === p.version) addCell(tr, 'en vigueur');
+    else addButtonCell(tr, `Revenir à v${v.version}`, () => coRollback(v.version));
+    vb.appendChild(tr);
+  }
+
+  const ib = document.getElementById('co-images');
+  ib.textContent = '';
+  for (const img of data.images) {
+    const fig = document.createElement('figure');
+    fig.style.cssText = 'margin:0;text-align:center;font-size:0.7rem';
+    const el = document.createElement('img');
+    el.src = img.url; el.alt = img.label ?? ''; el.width = 64; el.height = 64; el.style.objectFit = 'contain';
+    const cap = document.createElement('figcaption');
+    cap.textContent = `${img.label ?? img.sha256.slice(0, 8)} · ${Math.round(img.bytes / 1024)} Ko`;
+    const use = document.createElement('button');
+    use.className = 'btn-ghost'; use.textContent = 'Utiliser';
+    use.addEventListener('click', () => { document.getElementById('co-i-image').value = img.url; coPreview(); });
+    fig.append(el, cap, use);
+    ib.appendChild(fig);
+  }
+  loadCollectionsAudit();
+}
+
+async function loadCollectionsAudit() {
+  const { ok, data } = await api('GET', '/api/admin/collections/audit?limit=100');
+  const tb = document.getElementById('co-audit-body');
+  tb.textContent = '';
+  if (!ok) return;
+  for (const a of data.audit) {
+    const tr = document.createElement('tr');
+    [a.created_at, a.action, a.version ?? '', a.details ? JSON.stringify(a.details).slice(0, 300) : ''].forEach(x => addCell(tr, x));
+    tb.appendChild(tr);
+  }
+}
+
+async function coRollback(version) {
+  if (!confirm(`Revenir au contenu de la version v${version} ? Une nouvelle version sera publiée immédiatement pour tous les joueurs.`)) return;
+  const { ok, data } = await api('POST', '/api/admin/collections/rollback', { version });
+  ptMessage('co-rollback-msg', ok ? `Version v${data.version} publiée (contenu de v${data.restored}).` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  if (ok) loadCollections();
+}
+
+document.getElementById('btn-refresh-collections').addEventListener('click', loadCollections);
+document.getElementById('co-filter-text').addEventListener('input', () => { if (_co) coRenderItems(); });
+document.getElementById('co-filter-series').addEventListener('change', () => { if (_co) coRenderItems(); });
+for (const id of ['co-i-icon', 'co-i-image', 'co-i-rarity', 'co-i-series', 'co-preview-lang', ...CO_LANGS.flatMap(l => [`co-i-name-${l}`, `co-i-story-${l}`])]) {
+  document.getElementById(id).addEventListener('input', coPreview);
+}
+document.getElementById('btn-co-s-new').addEventListener('click', () => coFillSeriesForm(null));
+document.getElementById('btn-co-i-new').addEventListener('click', () => coFillItemForm(null));
+
+document.getElementById('btn-co-s-save').addEventListener('click', async () => {
+  const seasonVal = document.getElementById('co-s-season').value;
+  const series = { id: document.getElementById('co-s-id').value.trim(), names: coTexts('co-s-name'),
+    seasonId: seasonVal === '' ? null : Number(seasonVal), icon: document.getElementById('co-s-icon').value.trim(),
+    active: document.getElementById('co-s-active').checked };
+  if (!series.id) { ptMessage('co-s-msg', 'Identifiant requis.', false); return; }
+  const { ok, data } = await api('PUT', `/api/admin/collections/draft/series/${encodeURIComponent(series.id)}`, { series });
+  ptMessage('co-s-msg', ok ? `Série « ${data.series.id} » enregistrée dans le brouillon.` : (data.error || 'Erreur.'), ok);
+  if (ok) { await loadCollections(); coFillSeriesForm(coWorking().series.find(s => s.id === data.series.id)); }
+});
+
+document.getElementById('btn-co-s-remove').addEventListener('click', async () => {
+  const id = document.getElementById('co-s-id').value.trim();
+  if (!id || !confirm(`Retirer la série « ${id} » du brouillon ?`)) return;
+  const { ok, data } = await api('DELETE', `/api/admin/collections/draft/series/${encodeURIComponent(id)}`);
+  ptMessage('co-s-msg', ok ? `Série « ${id} » retirée du brouillon.` : (data.error || 'Erreur.'), ok);
+  if (ok) { coFillSeriesForm(null); loadCollections(); }
+});
+
+document.getElementById('btn-co-i-save').addEventListener('click', async () => {
+  const item = coReadItem();
+  if (!item.id) { ptMessage('co-i-msg', 'Identifiant requis.', false); return; }
+  const { ok, data } = await api('PUT', `/api/admin/collections/draft/items/${encodeURIComponent(item.id)}`, { item });
+  ptMessage('co-i-msg', ok ? `« ${data.item.id} » enregistré dans le brouillon (pas encore visible des joueurs).` : (data.error || 'Erreur.'), ok);
+  if (ok) { await loadCollections(); coFillItemForm(coWorking().items.find(i => i.id === data.item.id)); }
+});
+
+document.getElementById('btn-co-i-remove').addEventListener('click', async () => {
+  const id = document.getElementById('co-i-id').value.trim();
+  if (!id || !confirm(`Retirer « ${id} » du brouillon ?`)) return;
+  const { ok, data } = await api('DELETE', `/api/admin/collections/draft/items/${encodeURIComponent(id)}`);
+  ptMessage('co-i-msg', ok ? `« ${id} » retiré du brouillon.` : (data.error || 'Erreur.'), ok);
+  if (ok) { coFillItemForm(null); loadCollections(); }
+});
+
+document.getElementById('co-i-upload').addEventListener('change', e => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  if (file.size > 350 * 1024) { ptMessage('co-i-msg', 'Image trop lourde (maximum 350 Ko).', false); return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const label = document.getElementById('co-i-id').value.trim() || file.name;
+    const { ok, data } = await api('POST', '/api/admin/collections/images', { data: reader.result, label });
+    ptMessage('co-i-msg', ok ? `Image téléversée (${Math.round(data.bytes / 1024)} Ko)${data.duplicate ? ', déjà présente' : ''}. Enregistrez l'objet pour l'utiliser.` : (data.error || 'Erreur.'), ok);
+    if (ok) { document.getElementById('co-i-image').value = data.url; coPreview(); }
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('btn-co-publish').addEventListener('click', async () => {
+  if (!_co?.draft) return;
+  const confirmDrops = document.getElementById('co-confirm-drops').checked;
+  if (_co.draft.drops.length && !confirmDrops) { ptMessage('co-publish-msg', 'Cochez « barème validé » pour publier de nouveaux drops.', false); return; }
+  if (!confirm(`Publier le brouillon (${_co.draft.changes.length} changement(s)) ? Il sera visible de tous les joueurs au prochain chargement.`)) return;
+  const note = document.getElementById('co-publish-note').value;
+  const { ok, data } = await api('POST', '/api/admin/collections/publish', { note, expectedBasedOn: _co.draft.basedOn, confirmDrops });
+  ptMessage('co-publish-msg', ok ? `Version v${data.version} publiée.` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  if (ok) { document.getElementById('co-publish-note').value = ''; loadCollections(); }
+});
+
+document.getElementById('btn-co-discard').addEventListener('click', async () => {
+  if (!confirm('Abandonner le brouillon ? Les modifications non publiées seront perdues.')) return;
+  const { ok, data } = await api('DELETE', '/api/admin/collections/draft');
+  ptMessage('co-publish-msg', ok ? 'Brouillon abandonné.' : (data.error || 'Erreur.'), ok);
+  if (ok) { coFillItemForm(null); coFillSeriesForm(null); loadCollections(); }
 });

@@ -35,6 +35,7 @@ const GameState = {
 
   // ── Collection & Objectifs ───────────────────
   collection: [],
+  collectionMeta: {},   // { id: { at, n, season } } — date/quantité trouvées (#39)
   quests:     {},
 
   // ── Statistiques ────────────────────────────
@@ -133,6 +134,7 @@ const GameState = {
     this.upgrades          = { luck: 0, bag: 0, autodig: 0, fragment_shop: 0, block_reroll: 0 };
     this.shopChestsBought  = { simple: 0, rare: 0, antique: 0 };
     this.collection        = [];
+    this.collectionMeta    = {};
     this.quests       = {};
     this.stats        = {
       blocksDestroyed: 0, totalCoinsEarned: 0,

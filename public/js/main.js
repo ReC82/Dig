@@ -685,7 +685,8 @@ function _rollShopChestClient(chestId, def) {
   } else if (entry.type === 'boost') {
     reward.mult = entry.mult; reward.minutes = entry.minutes;
   } else if (entry.type === 'collection') {
-    const missing = Collection.FINDS.map(f => f.id).filter(id => !GameState.collection.includes(id));
+    // Mêmes objets que le serveur (chestShop.js) : les 8 trouvailles d'origine (#39)
+    const missing = Collection.ORIGIN_IDS.filter(id => !GameState.collection.includes(id));
     if (missing.length > 0) {
       reward.itemId = missing[Math.floor(Math.random() * missing.length)];
     } else {
@@ -716,8 +717,8 @@ function _applyShopChestReward(reward) {
     GameState.setCoinBoost(reward.mult, reward.minutes * 60_000);
   } else if (reward.type === 'collection' && reward.itemId) {
     if (!GameState.collection.includes(reward.itemId)) {
-      GameState.collection.push(reward.itemId);
-      const find = Collection.FINDS.find(f => f.id === reward.itemId);
+      Collection.add(reward.itemId);
+      const find = Collection.getById(reward.itemId);
       if (find) handleFindDrop(find);
     }
   }
@@ -755,8 +756,8 @@ function _shopChestRewardLabel(reward) {
   if (reward.type === 'boost')
     return t('ui.chest_reward_boost', { mult: reward.mult, minutes: reward.minutes });
   if (reward.type === 'collection' && reward.itemId) {
-    const find = Collection.FINDS.find(f => f.id === reward.itemId);
-    return find ? `${find.icon} ${t(find.name)}` : '';
+    const find = Collection.getById(reward.itemId);
+    return find ? `${find.icon} ${Collection.displayName(find)}` : '';
   }
   return '';
 }
@@ -768,21 +769,114 @@ function renderCollection() {
   const header = document.getElementById('collection-header');
   if (!grid) return;
 
-  const found = Collection.countFound();
-  const total = Collection.FINDS.length;
+  // Séries : en cours (permanentes ou de la saison du joueur) puis archives (#39).
+  // Objet inactif non possédé : masqué. Série archivée : visible si le joueur en possède un objet.
+  const owned = id => GameState.collection.includes(id);
+  const groups = Collection.SERIES.map(series => ({
+    series,
+    archived: Collection.isArchived(series),
+    items: Collection.FINDS.filter(f => (f.seriesId || 'origines') === series.id && (f.active !== false || owned(f.id))),
+  })).filter(g => g.items.length && (!g.archived || g.items.some(f => owned(f.id)))
+    && (g.series.active !== false || g.items.some(f => owned(f.id))));
+  const current = groups.filter(g => !g.archived);
+
+  const found = current.reduce((n, g) => n + g.items.filter(f => owned(f.id)).length, 0);
+  const total = current.reduce((n, g) => n + g.items.length, 0);
   if (header) header.textContent = t('ui.collection_header', { found, total, s: found !== 1 ? 's' : '' });
 
   grid.innerHTML = '';
-  for (const find of Collection.FINDS) {
-    const isFound = GameState.collection.includes(find.id);
-    const card = document.createElement('div');
-    card.className = `find-card${isFound ? ' found' : ''}`;
-    if (isFound) card.title = t(find.desc);
-    card.innerHTML = `
-      <div class="find-icon">${isFound ? find.icon : '?'}</div>
-      <div class="find-name">${isFound ? t(find.name) : '???'}</div>`;
-    grid.appendChild(card);
+  let archivesTitle = false;
+  for (const g of [...current, ...groups.filter(x => x.archived)]) {
+    if (g.archived && !archivesTitle) {
+      archivesTitle = true;
+      const h = document.createElement('h3');
+      h.className = 'collection-archives-title';
+      h.textContent = t('collection.archives');
+      grid.appendChild(h);
+    }
+    const section = document.createElement('section');
+    section.className = 'collection-series';
+    const title = document.createElement('h3');
+    title.className = 'collection-series-title';
+    const n = g.items.filter(f => owned(f.id)).length;
+    const seasonInfo = g.series.seasonId != null ? Collection.SEASONS[g.series.seasonId] : null;
+    title.textContent = `${g.series.icon || '📦'} ${Collection.seriesName(g.series)} · ${n}/${g.items.length}`
+      + (seasonInfo ? ' · ' + seasonInfo.name : '');
+    section.appendChild(title);
+    const list = document.createElement('div');
+    list.className = 'collection-series-grid';
+    for (const find of g.items) {
+      const isFound = owned(find.id);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = `find-card${isFound ? ' found' : ''} find-rarity-${isFound ? find.rarity || 'commun' : 'unknown'}`;
+      const icon = document.createElement('div');
+      icon.className = 'find-icon';
+      if (isFound && find.image) {
+        const img = document.createElement('img');
+        img.src = find.image; img.alt = ''; img.loading = 'lazy';
+        icon.appendChild(img);
+      } else {
+        icon.textContent = isFound ? find.icon : '?';
+      }
+      const name = document.createElement('div');
+      name.className = 'find-name';
+      name.textContent = isFound ? Collection.displayName(find) : '???';
+      card.append(icon, name);
+      card.setAttribute('aria-label', isFound ? Collection.displayName(find) : t('collection.unknown_title'));
+      card.addEventListener('click', () => showFindSheet(find, g.series));
+      list.appendChild(card);
+    }
+    section.appendChild(list);
+    grid.appendChild(section);
   }
+}
+
+/** Fiche détaillée d'un objet (#39) : grande image, nom, rareté, série/saison, date, quantité, histoire. */
+function showFindSheet(find, series) {
+  const modal = document.getElementById('find-modal');
+  if (!modal) return;
+  const isFound = GameState.collection.includes(find.id);
+  const meta = (GameState.collectionMeta || {})[find.id] || null;
+  const $ = id => document.getElementById(id);
+  const art = $('find-modal-art');
+  art.textContent = '';
+  if (isFound && find.image) {
+    const img = document.createElement('img');
+    img.src = find.image; img.alt = Collection.displayName(find);
+    art.appendChild(img);
+  } else {
+    art.textContent = isFound ? find.icon : '❔';
+  }
+  $('find-modal-title').textContent = isFound ? Collection.displayName(find) : t('collection.unknown_title');
+  const rarity = $('find-modal-rarity');
+  rarity.innerHTML = '';
+  if (isFound) {
+    const badge = document.createElement('span');
+    badge.className = `rarity-badge rarity-${find.rarity || 'commun'}`;
+    badge.textContent = t('rarity.' + (find.rarity || 'commun').replace('-', '_'));
+    rarity.appendChild(badge);
+  }
+  const season = series && series.seasonId != null ? Collection.SEASONS[series.seasonId] : null;
+  $('find-modal-series').textContent = series
+    ? `${series.icon || '📦'} ${Collection.seriesName(series)}${season ? ' · ' + season.name : ''}` : '';
+  const lang = I18n.getCurrent();
+  let found = '';
+  if (isFound && meta && Number.isFinite(meta.at)) {
+    found = t('collection.found_on', { date: new Date(meta.at).toLocaleDateString(lang, { day: 'numeric', month: 'long', year: 'numeric' }) });
+  } else if (isFound) {
+    found = t('collection.found_before');
+  }
+  const qty = isFound ? Math.max(1, (meta && meta.n) || 1) : 0;
+  $('find-modal-found').textContent = isFound ? `${found} · ${t('collection.quantity', { n: qty })}` : '';
+  $('find-modal-story').textContent = isFound ? Collection.story(find)
+    : t(Collection.isArchived(series) ? 'collection.unknown_archived' : 'collection.unknown_story');
+  modal.hidden = false;
+  const close = $('btn-find-modal-close');
+  close.onclick = () => { modal.hidden = true; };
+  modal.onclick = e => { if (e.target === modal) modal.hidden = true; };
+  modal.onkeydown = e => { if (e.key === 'Escape') modal.hidden = true; };
+  close.focus();
 }
 
 // ── Rendu quotidien ───────────────────────────────────────────────────────────
@@ -2377,7 +2471,7 @@ function handleQuestsCompleted(completed) {
 }
 
 function handleFindDrop(find) {
-  showAchievement('🔍', t('notif.find_drop', { name: t(find.name) }));
+  showAchievement('🔍', t('notif.find_drop', { name: Collection.displayName(find) }));
   if (isViewActive('collection')) renderCollection();
   else setNavBadge('collection');
 }
@@ -2822,6 +2916,7 @@ function init() {
   });
   window.addEventListener('pagehide', _flushCloudOnExit);
   Blocks.loadCached();     // catalogue de blocs publié (#37) mémorisé, avant la reprise du bloc
+  Collection.loadCached(); // collections publiées (#39) mémorisées
   Save.load();
 
   Relics.applyBonuses();   // recalcule les bonus depuis GameState.relics chargé
@@ -2848,6 +2943,8 @@ function init() {
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
   // Catalogue de blocs publié (#37) : s'applique aux prochains blocs, le bloc courant est conservé.
   Blocks.fetchCatalog(() => { if (Blocks.current && isViewActive('dig')) renderBlock(); });
+  // Collections publiées (#39) : séries, objets, fiches.
+  Collection.fetchCatalog(() => { if (isViewActive('collection')) renderCollection(); });
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
   setInterval(_playHeartbeat, PLAY_HEARTBEAT_MS);
