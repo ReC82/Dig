@@ -120,7 +120,7 @@ test('i18n : plus de chaîne FR codée en dur connue (classement vide, navigatio
   assert.match(html, /<nav id="bottom-nav"[^>]*data-i18n-aria="nav\.main_aria"/);
   assert.match(html, /id="update-banner-text" data-i18n="ui\.update_available"/);
   assert.match(html, /id="update-banner-btn"[^>]*data-i18n="ui\.update_reload"/);
-  assert.match(html, /id="ad-mock-sub" data-i18n="ui\.ad_mock_sub"/);
+  assert.match(html, /id="bonus-card-sub" data-i18n="ui\.ad_mock_sub"/);
 });
 
 // ── Serveur ──────────────────────────────────────────────────────────────────

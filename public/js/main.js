@@ -324,10 +324,10 @@ function renderBoostBanner() {
  *   cooldown — cooldown actif → icône ⏳, texte + countdown sous le bouton
  */
 function updateAdButtonState() {
-  const btn    = document.getElementById('btn-watch-ad');
-  const textEl = btn ? btn.querySelector('.ad-btn-text') : null;
-  const iconEl = btn ? btn.querySelector('.ad-btn-icon') : null;
-  const timer  = document.getElementById('ad-timer');
+  const btn    = document.getElementById('btn-bonus-boost');
+  const textEl = btn ? btn.querySelector('.bonus-btn-text') : null;
+  const iconEl = btn ? btn.querySelector('.bonus-btn-icon') : null;
+  const timer  = document.getElementById('bonus-timer');
   if (!btn) return;
 
   // Garantit la présence dans le flux — annule tout display:none hérité ou inline
@@ -339,7 +339,7 @@ function updateAdButtonState() {
   if (available) {
     // ── Pub disponible ────────────────────────────────────────────────────────
     btn.disabled        = false;
-    btn.dataset.adState = 'ready';
+    btn.dataset.bonusState = 'ready';
     if (iconEl) iconEl.textContent = '📺';
     if (textEl) textEl.textContent = t('ui.btn_watch_ad');
     if (timer)  timer.textContent  = '';
@@ -347,7 +347,7 @@ function updateAdButtonState() {
   } else if (remainMs > Monetization.AD_COOLDOWN_MS - 30_000) {
     // ── Vient d'être regardée (< 30 s) ───────────────────────────────────────
     btn.disabled        = true;
-    btn.dataset.adState = 'used';
+    btn.dataset.bonusState = 'used';
     if (iconEl) iconEl.textContent = '✅';
     if (textEl) textEl.textContent = t('ui.ad_used');
     if (timer)  timer.textContent  = '';
@@ -355,7 +355,7 @@ function updateAdButtonState() {
   } else {
     // ── Cooldown actif ────────────────────────────────────────────────────────
     btn.disabled        = true;
-    btn.dataset.adState = 'cooldown';
+    btn.dataset.bonusState = 'cooldown';
     const totalSec = Math.ceil(remainMs / 1000);
     const min      = Math.floor(totalSec / 60);
     const sec      = totalSec % 60;
@@ -3148,7 +3148,7 @@ elBlock.addEventListener('keydown', (e) => {
 
 // Bouton pub récompensée — accorde un boost ×2 pendant 2 min (visible sur le bloc)
 // Si un boost plus fort est déjà actif, le pub prolonge simplement sa durée.
-document.getElementById('btn-watch-ad').addEventListener('click', () => {
+document.getElementById('btn-bonus-boost').addEventListener('click', () => {
   if (!Monetization.canWatchAd()) return;
   if (!Blocks.current) return;
 
