@@ -161,3 +161,79 @@ le registre en ajout seul de #33.
 - #31 : intégration dans la refonte de l'onglet Saison.
 - Signalé hors périmètre : l'ajustement admin des points (#33) n'a toujours pas de clé d'idempotence
   côté panel.
+
+---
+
+## Mise à jour du 30/10/2026, 17 h (Bruxelles) — recette mobile et contrôle d'`ADMIN_SECRET`
+
+**Ticket** : #34 — [P1] Boutique de cadeaux — https://github.com/ReC82/Dig/issues/34
+
+**État réel** : déployé en production (SHA `36b9e70`, inchangé) — affichage validé par le
+propriétaire, recette de l'échange à faire. Aucun code modifié, aucun déploiement, aucun
+redémarrage dans cette session.
+
+### Retour du propriétaire pris en compte
+
+- Carte « 🎁 Boutique de cadeaux » sur mobile **validée** (solde 0 pts, catalogue vide, « Mes
+  échanges (0) ») : ne sera plus redemandée.
+- `ADMIN_SECRET` ajouté par le propriétaire dans la configuration du service.
+
+### Contrôle d'`ADMIN_SECRET` (sans lire ni afficher le secret)
+
+Contrôle fait uniquement de l'extérieur, par des requêtes GET sans effet :
+
+| Contrôle | dig.lodygames.com | dig.lodylands.com |
+|---|---|---|
+| Page `/admin/` | 200 | 200 |
+| `GET /api/admin/seasons` sans authentification | 401 « Accès refusé. » | 401 |
+| idem avec un faux jeton | 401 | 401 |
+| `GET /api/admin/shop` sans authentification | 401 | 401 |
+
+- **Le service a bien chargé le secret** : sans lui, l'API admin répond 503 « Panel admin non
+  configuré » ; elle répond maintenant 401. Le service tourne depuis 16:30:25 (redémarrage
+  déjà fait après l'ajout) : **aucun redémarrage nécessaire**.
+- **Secret jugé assez robuste par le serveur** : le journal du service ne contient aucun
+  avertissement « ADMIN_SECRET trop faible » depuis ce démarrage (un secret trop court ou
+  connu désactiverait le panel → 503).
+- **Authentification** : jeton `Authorization: Bearer …` comparé en temps constant (empreintes
+  SHA-256), mêmes réponses 401 avec ou sans jeton ; HTTPS avec HSTS ; page admin protégée contre
+  l'intégration dans un cadre (`X-Frame-Options`, `frame-ancestors`). Chaque action admin
+  authentifiée qui modifie quelque chose est tracée dans le journal de sécurité.
+- Fichier de configuration non lu (accès refusé à l'utilisateur de la session, comme prévu) ;
+  environnement du processus non consulté.
+
+### Test fonctionnel à faire par le propriétaire (en jeu, ~5 min)
+
+Aucun article n'a été créé et aucun point attribué (consigne du propriétaire). Pour tester :
+
+1. Ouvrir `https://dig.lodygames.com/admin/`, saisir le secret admin, onglet **🛍 Boutique**.
+2. Créer un article **virtuel** de test (ex. « Titre honorifique de la saison », 1 pt pour le
+   test ou 20 pts selon la recommandation, stock 1, 1 par joueur) et le rendre visible.
+3. Avec un compte de joueur qui a des points (sinon, les attribuer soi-même via l'ajustement admin
+   des points #33 — décision du propriétaire), onglet **Saison** → carte Boutique → **Échanger**
+   → confirmer. Attendu : solde diminué du prix, commande « En attente » dans « Mes échanges »,
+   stock décrémenté ; un double clic ne crée qu'une commande.
+4. **Annuler** la commande côté joueur. Attendu : statut « Annulée », points remboursés.
+5. Refaire un échange, puis côté admin (Commandes) le marquer **remis**. Attendu : statut
+   « Remis » côté joueur, annulation plus possible. Journal admin : action tracée.
+6. Masquer ou supprimer l'article de test si on ne veut pas le garder.
+
+### Classement MVP
+
+Boutique phase 1 : **Après lancement** pour le contenu (catalogue), mais ce qui est en ligne ne
+bloque pas le MVP (carte propre même vide).
+
+### Décisions demandées au propriétaire
+
+1. **Premiers articles virtuels et prix** (inchangé) — recommandation : 1 « Titre honorifique de
+   la saison » à 20 pts, 1 par joueur, remise manuelle ; ou attendre #38 (badges/titres). Le
+   propriétaire peut désormais les créer lui-même depuis l'admin.
+
+(La question `ADMIN_SECRET` est réglée.)
+
+### Reste à réaliser / signalé
+
+- Après lancement : aucune limitation de débit sur les échecs d'authentification admin
+  (`/api/admin/*`). Le risque est faible avec un secret long et aléatoire, mais une limite
+  (type `login`, échecs seuls comptés) serait une défense en profondeur ; hors périmètre de #34.
+- Le reste est inchangé (voir § 9).
