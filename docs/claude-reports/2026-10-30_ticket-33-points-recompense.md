@@ -190,3 +190,108 @@ Une décision groupée ; répondre « OK » = recommandations acceptées.
   automatique dépend de #25 lot C.
 - Signalé hors périmètre : l'ajustement admin n'a pas de clé d'idempotence côté panel (un double
   clic confirmé deux fois créerait deux mouvements, tous deux tracés).
+
+---
+
+# Mise à jour du 30/10/2026, 15:55 — crédit réel activé (décision du propriétaire)
+
+## 1. Ticket
+
+#33 — [P1] Points de récompense saisonniers — attribution au mérite et portefeuille persistant —
+https://github.com/ReC82/Dig/issues/33
+
+## 2. État réel
+
+**Déployé en production (SHA `6fb036c`) — en attente de recette.** Crédit réel des points actif
+depuis le **30/10/2026 14:49:05 UTC** (15:49:05 heure de Bruxelles).
+
+## 3. Résultat et changements
+
+Décision du propriétaire (commentaire du 30/10, 14:26 UTC) appliquée telle quelle :
+(1) barème v1 accepté tel quel ; (2) crédit réel dès maintenant, sans rétroactivité sur les saisons
+déjà closes ; (3) portefeuille unique ; (4) bonus de ligue 0 % jusqu'à #19. Échanges contre
+cadeaux réels toujours verrouillés (#27), aucun lot réel activé.
+
+- `server/rewardPoints.js` : `applyOwnerDecision()` — appliquée **une seule fois** au démarrage du
+  serveur (trace dans la nouvelle table `reward_points_decisions`) : nouvelle version du barème
+  « Barème v1 (validé le 30/10/2026) » (catégories et points identiques à la v1), mode `live`,
+  `live_since` = instant du démarrage. Un retour en simulation depuis le panel reste respecté aux
+  redémarrages suivants.
+- `server/db.js` : table `reward_points_decisions` (ajout seul, `CREATE TABLE IF NOT EXISTS`).
+- `server/index.js` : appel au démarrage, après `ensureDefaults()`.
+- Carte « 🏅 Points de récompense » (onglet Saison) : le bandeau jaune « Aperçu… » est remplacé par
+  un bandeau vert « Crédit réel actif : tes points seront ajoutés au solde à la fin de la saison. »
+  (FR/EN/NL). En mode réel, l'historique n'affiche plus les anciennes attributions simulées, seulement
+  les vrais mouvements du portefeuille.
+- `docs/POINTS.md` : modes, décision, barème marqué validé.
+- `test/reward-points.test.js` : nouveau test (décision unique, aucune saison close avant
+  l'activation créditée, crédit 100/12/5 à la clôture suivante, une seule fois, registre cohérent) ;
+  test HTTP passé en mode réel (crédit +5 à la clôture, pas de double crédit sur une seconde clôture).
+
+## 4. SHA et procédure de test
+
+- Branche `feature/33-points-recompense` : `bcd0f9d` ; **develop : `6fb036c`** (fusion).
+- `npm test` → 240/240 ; `node --test test/reward-points.test.js` → 12/12.
+
+## 5. Vérifications et impact sur les données
+
+- `npm test` 240/240 sur le worktree du ticket, sur develop et sur la release au SHA exact `6fb036c`
+  (test HTTP du ticket relancé 3 fois, stable).
+- Copie de la base de production en `NODE_ENV=production` : santé et version ok, empreintes des
+  6 tables joueurs identiques avant/après, `quick_check` ok, décision appliquée (barème v2, mode
+  `live`), **aucune exécution `live` sur les 5 saisons déjà closes, registre vide** ; 2ᵉ démarrage :
+  décision non rejouée, empreintes identiques. Copie supprimée.
+- Navigateur (Chromium, serveur local de test) : 390×844 FR et 1280×900 EN, nouveau compte →
+  bandeau « Crédit réel actif » affiché, aucune erreur JS.
+- Aucune donnée joueur modifiée : seuls une table et des lignes de réglage/barème ont été ajoutées.
+- Limite connue : une clôture **anticipée** par l'admin fixe la fin à l'instant − 1 s ; une saison
+  close dans la même seconde que l'activation ne serait pas créditée (sans objet en production).
+
+## 6. Déploiement
+
+- SHA déployé : **`6fb036c`** (avance rapide de `main` depuis `0d8cb41`), le 30/10 à 15:49.
+- Sauvegarde pré-déploiement vérifiée : `~/backups/dig/dig-20261030-154904-pre-deploy-6fb036c.sqlite`.
+- Après déploiement : 2 domaines → 200, `/api/version` = `1.0.0+6fb036c`, `/api/points/scale` →
+  `mode: live`, `liveSince: 2026-10-30 14:49:05`, barème v2 ; journal sans erreur ;
+  `quick_check` ok ; empreintes des 6 tables identiques à la sauvegarde pré-déploiement ;
+  registre vide, aucune exécution `live` (pas de rétroactivité).
+- Retour arrière : `git reset --keep 0d8cb41` + redémarrage (le code antérieur ignore la table
+  ajoutée) ; ou, sans redéployer, panel admin → 🏅 Points → repasser en simulation (arrête les
+  crédits futurs ; les points déjà crédités restent, correction par ajustement motivé).
+
+**Recette courte (onglet Saison), à faire par le propriétaire :**
+1. Maintenant : se connecter, onglet **Saison** → carte « 🏅 Points de récompense » : bandeau vert
+   « Crédit réel actif… », **Solde : 0 pts**, ligne « Si la saison finissait maintenant : rang #1
+   sur 1 → Autres participants : +5 pts » (avec 1 seul participant éligible ; le 1er ne vaut 100 qu'à
+   partir de 3 éligibles). Le barème affiche les 7 lignes validées. L'historique est vide.
+2. **Après la clôture de la saison 44-2026 (dimanche 01/11, 23:59:59 UTC = lundi 02/11, 00:59
+   à Bruxelles)** : recharger, onglet Saison → **Solde = points annoncés à l'étape 1** (+5 si tu
+   restes seul éligible), historique « Fin de saison — Saison 44-2026 +5 pts ». Recharger encore :
+   le solde ne change pas (pas de double crédit).
+3. Optionnel (si `ADMIN_SECRET` configuré) : panel → 🏅 Points → « Contrôle du registre : OK »,
+   attributions de la saison 44-2026 en `live` et en `simulation`, mêmes valeurs.
+
+Classement : **Après lancement** (le MVP public peut partir sans ; les points s'accumulent pour la
+boutique #34).
+
+## 7. Choix techniques faits seul
+
+- **Activation par décision enregistrée appliquée au démarrage** plutôt que via le panel : le panel
+  admin n'est pas utilisable en production (pas d'`ADMIN_SECRET`) et la décision est écrite ; la
+  table `reward_points_decisions` garantit une seule application et laisse le dernier mot au panel.
+- **Nouvelle version du barème** (au lieu de réutiliser la v1 « non validée ») : l'audit montre
+  quelle version a été validée et quand ; les attributions simulées passées gardent la v1.
+- **`live_since` = instant du déploiement** : la saison en cours (ouverte le 26/10, close le 01/11)
+  est créditée à sa clôture, conformément à « crédit lors de la prochaine clôture » ; les saisons
+  déjà closes ne le sont pas.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire.
+
+## 9. Reste à réaliser
+
+- Recette du crédit réel à la clôture du 01/11 (ci-dessus).
+- #34 boutique (dépense `virtual` ; `real` verrouillé jusqu'à #27) ; #31 intégration dans la
+  refonte de l'onglet Saison.
+- Signalé hors périmètre (inchangé) : l'ajustement admin n'a pas de clé d'idempotence côté panel.
