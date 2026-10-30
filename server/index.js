@@ -80,6 +80,7 @@ const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const { validateEconomyValue } = require('./economy');
 const security = require('./security');
 const { createRateLimiters } = require('./rateLimits');
+const antibot = require('./antibot');
 const { isValidEmail, intParam } = require('./validation');
 const { createMailer } = require('./mailer');
 const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
@@ -98,8 +99,11 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 
-// Limitation de débit : connexion, inscription, sauvegarde cloud (#14)
+// Limitation de débit : connexion, inscription, sauvegarde cloud (#14), coffres (#25)
 const limit = createRateLimiters();
+
+// Journal de sécurité (#25) : IP hachées avec une clé dérivée du secret de session
+antibot.configure({ ipSecret: SESSION_SECRET });
 
 // E-mails de compte (#28) : désactivés tant que le SMTP n'est pas configuré
 const mailer = createMailer();
@@ -401,7 +405,7 @@ function savePayload(row) {
 app.post('/api/me/save', limit.save, (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
-    const { data, baseRevision } = req.body ?? {};
+    const { data, baseRevision, telemetry } = req.body ?? {};
     if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
     if (baseRevision !== undefined && baseRevision !== null && !Number.isSafeInteger(baseRevision)) {
       return res.status(400).json({ error: 'Champ "baseRevision" invalide.' });
@@ -413,7 +417,7 @@ app.post('/api/me/save', limit.save, (req, res) => {
     const { version } = result;
     // Sync saisonnier piggybacked
     if (data.seasonStats) {
-      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats); }
+      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats, { telemetry, ip: req.ip }); }
       catch (err) { console.error('[POST /api/me/save] sync saisonnier', err.message); }
     }
     res.json({ ok: true, revision: version, version });
@@ -506,6 +510,24 @@ function requireAdmin(req, res, next) {
   if (!security.isValidBearer(req.headers['authorization'], ADMIN_SECRET)) return res.status(401).json({ error: 'Accès refusé.' });
   next();
 }
+
+// Journal d'audit admin (#25, lot A) : toute action admin qui modifie quelque chose
+// (POST/PUT/DELETE authentifié) est tracée dans security_events — route, statut, champs
+// envoyés (noms seulement ; les valeurs de config sont tracées par PUT /api/admin/config).
+app.use('/api/admin', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  res.on('finish', () => {
+    if (!ADMIN_SECRET || !security.isValidBearer(req.headers['authorization'], ADMIN_SECRET)) return;
+    try {
+      const fields = req.body && typeof req.body === 'object' ? Object.keys(req.body).slice(0, 20) : [];
+      antibot.logSecurityEvent('admin_action', {
+        details: { method: req.method, path: req.originalUrl.slice(0, 200), status: res.statusCode, fields },
+        ip: req.ip,
+      });
+    } catch (err) { console.error('[antibot] audit admin', err.message); }
+  });
+  next();
+});
 
 // ── Routes admin ──────────────────────────────────────────────────────────────
 
@@ -763,12 +785,47 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
   try {
     const { key, value } = req.body ?? {};
     if (!key || value == null) return res.status(400).json({ error: 'Champs key et value requis.' });
-    // Paramètres économiques bornés (#20) : appliqués en jeu sans redéploiement.
-    const checked = validateEconomyValue(key, value);
+    // Paramètres économiques bornés (#20) et interrupteurs anti-bot (#25) : appliqués sans redéploiement.
+    const checked = antibot.validateConfigValue(key, value) ?? validateEconomyValue(key, value);
     if (checked.error) return res.status(400).json({ error: checked.error });
+    const previous = getAdminConfig()[key];
     setAdminConfig(key, checked.value);
+    // Audit (#25) : ancienne et nouvelle valeur, seulement si la valeur change
+    if (previous !== checked.value) {
+      antibot.logSecurityEvent('admin_config', {
+        details: { key: String(key).slice(0, 60), old: previous ?? null, new: checked.value.slice(0, 200) }, ip: req.ip,
+      });
+    }
     res.json({ ok: true });
   } catch (err) { console.error('[PUT /api/admin/config]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+// ── Admin — Anti-bot (#25, lot A) ────────────────────────────────────────────
+
+/**
+ * GET /api/admin/security/summary
+ * Modes, comptes de la saison active par niveau de risque (non appliqués en shadow),
+ * comptes au score le plus élevé, événements des 7 derniers jours, temps de calcul.
+ */
+app.get('/api/admin/security/summary', requireAdmin, (req, res) => {
+  try {
+    const season = getActiveSeason();
+    res.json(antibot.buildSummary(season?.id ?? null, getAdminConfig()));
+  } catch (err) { console.error('[GET /api/admin/security/summary]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * GET /api/admin/security/events?limit=100&offset=0&type=&userId=
+ * Journal de sécurité (signaux, changements de niveau, audit admin), du plus récent au plus ancien.
+ */
+app.get('/api/admin/security/events', requireAdmin, (req, res) => {
+  try {
+    const limit  = intParam(req.query.limit,  { def: 100, min: 1, max: 500 });
+    const offset = intParam(req.query.offset, { def: 0, min: 0 });
+    const type   = typeof req.query.type === 'string' && /^[a-z_]{1,40}$/.test(req.query.type) ? req.query.type : null;
+    const userId = /^\d{1,10}$/.test(String(req.query.userId ?? '')) ? parseInt(req.query.userId, 10) : null;
+    res.json(antibot.listEvents({ limit, offset, type, userId }));
+  } catch (err) { console.error('[GET /api/admin/security/events]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 // ── Coffres achetables ────────────────────────────────────────────────────────
@@ -781,7 +838,7 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
  * Le client ne peut pas influencer le tirage ni falsifier le coût.
  * Retourne : { ok, reward, boughtThisSeason, cost, newCoins, newRelicFragments }
  */
-app.post('/api/me/shop/chest/open', (req, res) => {
+app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
 
@@ -991,6 +1048,9 @@ initDb();
 
 // Rotation planifiée des saisons : une passe au démarrage puis chaque minute (#16)
 startSeasonScheduler();
+
+// Purge du journal de sécurité de plus de 90 jours (#25) : au démarrage puis toutes les 12 h
+antibot.startPurgeScheduler();
 
 app.listen(PORT, HOST, () => {
   console.log(`\n⛏  DIG! server — http://${HOST}:${PORT}\n`);

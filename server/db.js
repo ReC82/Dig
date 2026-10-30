@@ -351,6 +351,60 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens (user_id, purpose, created_at DESC);
   `);
 
+  // ── Anti-bot (#25) : ajouts seuls, idempotents ──────────────────────────────
+  // Budget de dégâts (lot B) sur la ligne de validation de profondeur existante (#9) :
+  //   dmg_depth  : profondeur couverte par le budget (NULL = ligne antérieure à #25 → reprise
+  //                à la profondeur retenue, sans crédit ni pénalité)
+  //   dmg_credit : PV de dégâts possibles non encore dépensés
+  //   dmg_ref_clicks : clics déjà crédités au budget (le reste est en attente)
+  //   dmg_gap    : écart déclaré − budget à la dernière sauvegarde (limite les journaux)
+  {
+    const dtCols = _db.prepare('PRAGMA table_info(player_depth_tracking)').all().map(r => r.name);
+    if (!dtCols.includes('dmg_depth')) {
+      _db.prepare('ALTER TABLE player_depth_tracking ADD COLUMN dmg_depth INTEGER').run();
+      console.log('[db] Migration : player_depth_tracking.dmg_depth ajouté');
+    }
+    if (!dtCols.includes('dmg_credit')) {
+      _db.prepare('ALTER TABLE player_depth_tracking ADD COLUMN dmg_credit REAL').run();
+      console.log('[db] Migration : player_depth_tracking.dmg_credit ajouté');
+    }
+    if (!dtCols.includes('dmg_ref_clicks')) {
+      _db.prepare('ALTER TABLE player_depth_tracking ADD COLUMN dmg_ref_clicks INTEGER').run();
+      console.log('[db] Migration : player_depth_tracking.dmg_ref_clicks ajouté');
+    }
+    if (!dtCols.includes('dmg_gap')) {
+      _db.prepare('ALTER TABLE player_depth_tracking ADD COLUMN dmg_gap INTEGER NOT NULL DEFAULT 0').run();
+      console.log('[db] Migration : player_depth_tracking.dmg_gap ajouté');
+    }
+  }
+  // Journal de sécurité (lot A) : aucune IP en clair (HMAC tronqué), purge à 90 jours.
+  // Score de risque par compte et par saison (composantes par catégorie, décroissantes).
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS security_events (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+      type         TEXT    NOT NULL,
+      user_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      season_id    INTEGER,
+      score_before REAL,
+      score_after  REAL,
+      details      TEXT,
+      ip_hash      TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_security_events_time ON security_events (created_at);
+    CREATE INDEX IF NOT EXISTS idx_security_events_user ON security_events (user_id, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events (type, id DESC);
+    CREATE TABLE IF NOT EXISTS risk_scores (
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      season_id  INTEGER NOT NULL,
+      components TEXT    NOT NULL DEFAULT '{}',
+      score      REAL    NOT NULL DEFAULT 0,
+      level      INTEGER NOT NULL DEFAULT 0,
+      updated_ms INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (user_id, season_id)
+    );
+  `);
+
   // ── Seeds config ──────────────────────────────────────────────────────────
   const cfgStmt = _db.prepare(
     `INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`
@@ -368,6 +422,9 @@ function initDb() {
   // Validation serveur de la profondeur (ticket #9)
   cfgStmt.run('depth_validation_enabled',     'true');
   cfgStmt.run('depth_max_cps',                '20');    // clics/s max retenus pour la progression
+  // Anti-bot (#25) : observation sans sanction (lot A), budget de dégâts appliqué (lot B)
+  cfgStmt.run('antibot_mode',                 'shadow');
+  cfgStmt.run('damage_budget_mode',           'enforce');
   // Économie — multiplicateurs globaux (informations + appliqués par chestShop)
   cfgStmt.run('upgrade_cost_multiplier',  '1.0');   // ×coût des upgrades saisonniers
   cfgStmt.run('coin_gain_multiplier',     '1.0');   // ×gains de pièces (blocs)
@@ -1042,8 +1099,9 @@ function getDepthTracking(userId) {
 function upsertDepthTracking(userId, t) {
   getDb().prepare(`
     INSERT INTO player_depth_tracking
-      (user_id, season_id, ref_clicks, ref_auto, hand_tokens, auto_tokens, accepted_depth, last_gap, updated_ms)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (user_id, season_id, ref_clicks, ref_auto, hand_tokens, auto_tokens, accepted_depth, last_gap, updated_ms,
+       dmg_depth, dmg_credit, dmg_ref_clicks, dmg_gap)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
       season_id      = excluded.season_id,
       ref_clicks     = excluded.ref_clicks,
@@ -1052,8 +1110,13 @@ function upsertDepthTracking(userId, t) {
       auto_tokens    = excluded.auto_tokens,
       accepted_depth = excluded.accepted_depth,
       last_gap       = excluded.last_gap,
-      updated_ms     = excluded.updated_ms
-  `).run(userId, t.season_id ?? null, t.ref_clicks, t.ref_auto, t.hand_tokens, t.auto_tokens, t.accepted_depth, t.last_gap, t.updated_ms);
+      updated_ms     = excluded.updated_ms,
+      dmg_depth      = excluded.dmg_depth,
+      dmg_credit     = excluded.dmg_credit,
+      dmg_ref_clicks = excluded.dmg_ref_clicks,
+      dmg_gap        = excluded.dmg_gap
+  `).run(userId, t.season_id ?? null, t.ref_clicks, t.ref_auto, t.hand_tokens, t.auto_tokens, t.accepted_depth, t.last_gap, t.updated_ms,
+         t.dmg_depth ?? null, t.dmg_credit ?? null, t.dmg_ref_clicks ?? null, t.dmg_gap ?? 0);
 }
 
 /**
@@ -1071,8 +1134,8 @@ function correctSeasonRanking(seasonId, userId, fields) {
     if (fields.maxDepth != null) {
       db.prepare('UPDATE season_rankings SET max_depth = ?, updated_at = datetime(\'now\') WHERE season_id = ? AND user_id = ?')
         .run(fields.maxDepth, seasonId, userId);
-      db.prepare('UPDATE player_depth_tracking SET accepted_depth = ?, last_gap = 0 WHERE user_id = ? AND season_id = ?')
-        .run(fields.maxDepth, userId, seasonId);
+      db.prepare('UPDATE player_depth_tracking SET accepted_depth = ?, last_gap = 0, dmg_depth = ?, dmg_gap = 0 WHERE user_id = ? AND season_id = ?')
+        .run(fields.maxDepth, fields.maxDepth, userId, seasonId);
     }
     if (fields.effectiveManualBlocks != null) {
       db.prepare('UPDATE season_rankings SET effective_manual_blocks = ?, updated_at = datetime(\'now\') WHERE season_id = ? AND user_id = ?')

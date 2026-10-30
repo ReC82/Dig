@@ -25,7 +25,10 @@ process.env.DB_FILE = path.join(dir, 'unit.sqlite');
 const db      = require('../server/db');
 const seasons = require('../server/seasons');
 
-const CONFIG = { depth_validation_enabled: 'true', depth_max_cps: '20' };
+// Ces scénarios testent les seaux de comptage de #9 isolément (un bloc pour N clics, quelle que
+// soit la profondeur) : le budget de dégâts de #25, qui modélise les PV réels, est testé à part
+// avec la physique du jeu (test/antibot.test.js).
+const CONFIG = { depth_validation_enabled: 'true', depth_max_cps: '20', damage_budget_mode: 'off' };
 const T0     = Date.UTC(2026, 9, 29, 12, 0, 0);
 let seasonId;
 let userSeq = 0;
@@ -61,6 +64,9 @@ const logs = userId => db.getDb().prepare('SELECT * FROM anticheat_logs WHERE us
 
 test.before(() => {
   db.initDb();
+  // Même raison que CONFIG ci-dessus pour les scénarios qui passent par syncPlayerRanking
+  // (config lue en base) et simulent le temps en remplissant directement les seaux de #9.
+  db.setAdminConfig('damage_budget_mode', 'off');
   seasonId = db.createSeason('Test', '2026-10-26 00:00:00', '2026-11-01 23:59:59', 'closed').id; // la saison active est celle du seed (#16)
 });
 

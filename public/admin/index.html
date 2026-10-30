@@ -30,6 +30,7 @@
     <button class="tab-btn" data-tab="config">⚙ Config</button>
     <button class="tab-btn" data-tab="season-overview">📊 Ligues &amp; Saisons</button>
     <button class="tab-btn" data-tab="economy">💰 Économie &amp; Joueurs</button>
+    <button class="tab-btn" data-tab="security">🛡 Anti-bot</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -185,6 +186,7 @@
             <option value="rejected">✖ Rejected seulement</option>
             <option value="depth_capped">↓ Profondeur plafonnée</option>
             <option value="depth_rejected">✖ Profondeur rejetée</option>
+            <option value="damage_capped">↓ Budget de dégâts</option>
             <option value="admin_fix">✎ Corrections admin</option>
           </select>
           <button class="btn" id="btn-refresh-ac">↻ Rafraîchir</button>
@@ -306,6 +308,53 @@
       </div>
     </div>
 
+  </section>
+
+  <!-- Tab Anti-bot (#25) -->
+  <section id="tab-security" class="tab-content hidden">
+    <div class="section-header">
+      <h2>Anti-bot</h2>
+      <button class="btn" id="btn-refresh-sec">↻ Rafraîchir</button>
+    </div>
+    <div class="overview-card">
+      <h3 class="overview-card-title">État</h3>
+      <p class="muted" style="font-size:0.8rem">Observation (shadow) : les scores et niveaux sont calculés et journalisés, <strong>aucune sanction n'est appliquée</strong>. Le budget de dégâts borne la profondeur classée (preuve physique). Modifier les modes dans l'onglet Config (<code>antibot_mode</code>, <code>damage_budget_mode</code>).</p>
+      <div id="sec-status"></div>
+    </div>
+    <div class="overview-card">
+      <h3 class="overview-card-title">Comptes de la saison par score de risque</h3>
+      <table>
+        <thead><tr><th>Joueur</th><th>Score</th><th>Niveau (non appliqué)</th><th>Détail</th></tr></thead>
+        <tbody id="sec-accounts-body"><tr><td colspan="4" class="muted">Aucun compte à risque.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="overview-card">
+      <div class="section-header" style="margin-bottom:12px">
+        <h3 class="overview-card-title" style="margin:0">Journal de sécurité</h3>
+        <select id="sec-filter-type" class="league-select">
+          <option value="">Tous les événements</option>
+          <option value="damage_budget">Budget de dégâts dépassé</option>
+          <option value="depth_rejected">Profondeur rejetée</option>
+          <option value="forged_counters">Compteurs falsifiés</option>
+          <option value="blocks_gt_clicks">Blocs &gt; clics</option>
+          <option value="cps_flagged">CPS très élevé</option>
+          <option value="cps_reduced">CPS au-dessus du seuil</option>
+          <option value="untrusted_clicks">Clics par script</option>
+          <option value="burst_clicks">Rafales</option>
+          <option value="regular_clicks">Rythme régulier</option>
+          <option value="risk_level">Changement de niveau</option>
+          <option value="admin_config">Config admin</option>
+          <option value="admin_action">Actions admin</option>
+        </select>
+      </div>
+      <p id="sec-events-total" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Type</th><th>Joueur</th><th>Score</th><th>Détails</th></tr></thead>
+          <tbody id="sec-events-body"><tr><td colspan="5" class="muted">Aucun événement.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 
 </div>

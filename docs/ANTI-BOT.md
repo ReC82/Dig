@@ -1,8 +1,8 @@
-# DIG! — Protection anti-bot : audit et conception (ticket #25, phase 1)
+# DIG! — Protection anti-bot : audit et conception (ticket #25)
 
-> Document de conception. **Rien n'est encore implémenté au titre de #25** : la phase 2
-> (réalisation) commence après accord du propriétaire sur ce document (voir § 9).
-> État du code analysé : `develop` = production `cf1f605` (30/10/2026), qui contient déjà
+> Phase 1 (conception) : § 0 à § 9. **Phase 2 (réalisation des lots A et B, autorisée par le
+> propriétaire le 30/10/2026) : § 10** — c'est la référence pour ce qui est réellement en place.
+> État du code analysé en phase 1 : `develop` = production `cf1f605` (30/10/2026), qui contient déjà
 > #9 (classement serveur), #10 (anti-autoclic cumulé), #14 (limitation de débit), #16 (rotation
 > des saisons) et #18 (révisions de sauvegarde).
 
@@ -229,3 +229,104 @@ Mesures : temps de calcul par sauvegarde, faux positifs sur les scénarios humai
 ## 9. Décisions demandées au propriétaire
 
 Voir le rapport `docs/claude-reports/2026-10-30_ticket-25-anti-bot-conception.md`, § 8.
+
+## 10. Réalisation — lots A et B (phase 2, 30/10/2026)
+
+Autorisation du propriétaire : commentaire du 30/10 sur #25 (lots A + B, exécution autonome,
+aucun bannissement, CAPTCHA ni sanction hors A/B). Code : `server/antibot.js`, branché dans
+`server/seasons.js` (`validateDepth`, `syncPlayerRanking`), `server/index.js`, `server/db.js`,
+`public/js/main.js` (télémétrie), `public/admin/` (onglet « Anti-bot »). Tests :
+`test/antibot.test.js`.
+
+### 10.1 Lot B — budget de dégâts (appliqué, `damage_budget_mode = enforce`)
+
+- Profondeur retenue = max(retenue précédente, min(déclarée, plafond #9, **profondeur couverte
+  par le budget**)). Elle ne diminue jamais ; rien n'est réécrit dans la sauvegarde.
+- Coût d'un mètre = PV **minimum** du bloc à cette profondeur, calculé sans arrondi (borne
+  inférieure) : plus petit `hpBase` tirable 3 (1–12 m), **6 (13–22 m, argile)** — la phase 1
+  indiquait 8 —, 8 au-delà ; réduction de PV maximale 50 %.
+- Crédit de dégâts : clics × 25 PV (pioche 15 + Œil du mineur 10) + temps × 20 PV/s × 1,25
+  (Auto-Dig 6 + Moteur ancien 14). Les clics sont crédités selon le **temps réel écoulé**
+  (≤ 20 × 1,25 clics/s) avec leur propre référence, et non selon les seaux de #9 : des clics restés
+  en attente après des sauvegardes perdues sont crédités dès que le temps les couvre. Le crédit
+  non dépensé est conservé jusqu'à 10 min au rythme maximal (390 000 PV).
+- Garde-fous testés : les constantes (dégâts max, PV minimum par profondeur de 1 à 12 000 m, une
+  frappe Auto-Dig par seconde, deux seules sources de dégâts) sont relues dans le code du client
+  par les tests ; un changement d'équilibrage qui les dépasse fait échouer `npm test`.
+- Propriété de non-régression testée : pour un joueur honnête, la même partie validée avec et
+  sans budget donne **la même profondeur retenue à chaque sauvegarde** — maximum théorique
+  (20 clics/s, tout au maximum, blocs les plus faibles, 30 min), joueur typique, Auto-Dig seul 8 h,
+  pauses, sauvegardes toutes les 3 s à 5 min, coupures réseau de 5 à 15 min, et 50 profils
+  aléatoires (clics 0–20/s, équipement, blocs réels, sauvegardes 3–90 s, coupures).
+- Données réelles (copie de production du 30/10) : le seul joueur classé de la saison (214 m)
+  a besoin de 11 610 PV pour un maximum possible de 1,67 million : aucune retenue.
+- Temps minimum pour atteindre une profondeur (tout au maximum, valeurs recalculées) :
+
+| Profondeur | #9 seul | Budget de dégâts |
+|---:|---:|---:|
+| 500 m | 23 s | 1 min 35 |
+| 1 000 m | 47 s | 6 min 14 |
+| 2 000 m | 1 min 34 | 24 min 47 |
+| 5 000 m | 3 min 55 | 2 h 34 |
+| 10 000 m | 7 min 51 | 10 h 16 |
+
+- Écart journalisé (`anticheat_logs.action_taken = damage_capped`, signal `damage_budget`) une
+  seule fois par épisode, et seulement s'il reste ≥ 5 m d'écart **même en créditant tous les clics
+  déclarés encore en attente** (une coupure réseau n'est donc pas un signal).
+- Interrupteur `damage_budget_mode` : `enforce` (défaut) | `shadow` (calculé à part, seul l'écart
+  est journalisé, la profondeur retenue reste celle de #9) | `off`.
+
+### 10.2 Lot A — observation (`antibot_mode = shadow`)
+
+- Table `security_events` (type, compte, saison, score avant/après, détails JSON, IP hachée par
+  HMAC tronqué avec une clé dérivée du secret de session — jamais d'IP en clair), purge des
+  événements de plus de 90 jours au démarrage puis toutes les 12 h (journal uniquement).
+- Table `risk_scores` : score 0–100 par compte et par saison, composantes par catégorie,
+  demi-vie 24 h. Signaux et poids :
+
+| Signal | Catégorie (plafond) | Points | Source |
+|---|---|---:|---|
+| `forged_counters` (compteurs négatifs, non entiers, > 1e9, mauvais type) | preuve (100) | 40 | serveur |
+| `depth_rejected` (#9) | preuve | 35 | serveur |
+| `damage_budget` (lot B) | preuve | 30 | serveur |
+| `blocks_gt_clicks` (#10) | preuve | 15 | serveur |
+| `cps_flagged` / `cps_reduced` (#10) | cps (25) | 6 / 2 | serveur |
+| `untrusted_clicks` (≥ 50 % de clics `isTrusted = false`, ≥ 20 clics) | untrusted (25) | 10 | client |
+| `burst_clicks` (≥ 50 intervalles < 40 ms et ≥ 30 %) | burst (15) | 4 | client |
+| `regular_clicks` (CV < 0,03 sur ≥ 200 clics) | regularity (10) | 2 | client |
+
+  Un seul type d'indice ne peut pas atteindre le niveau 1 (30). Les niveaux 1–4 sont calculés et
+  journalisés (`risk_level`, `applied: false`) mais **aucune réponse n'est appliquée** : le
+  mode `enforce` d'`antibot_mode` est refusé tant que le lot C n'est pas décidé.
+- Télémétrie client : jointe à `POST /api/me/save` (`telemetry`) — nombre de clics, histogramme
+  des intervalles en 8 classes, clics non `isTrusted`, type de pointeur (souris, tactile, clavier,
+  autre), CV ; aucun horodatage brut. Retirée du cumul seulement après réception par le serveur.
+  Données illisibles ignorées ; la sauvegarde n'est jamais refusée à cause d'elle.
+- Audit admin : toute requête admin authentifiée qui modifie quelque chose (POST/PUT/DELETE) →
+  `admin_action` (route, statut, noms des champs) ; `PUT /api/admin/config` → `admin_config`
+  (clé, ancienne et nouvelle valeur, seulement si la valeur change).
+- Vue admin : onglet « 🛡 Anti-bot » (modes, comptes par niveau, comptes à risque, journal filtrable,
+  temps de calcul moyen/max par sauvegarde) ; API `GET /api/admin/security/summary` et
+  `GET /api/admin/security/events?type=&userId=&limit=&offset=`.
+- Coffres : limite propre de 30 ouvertures / min / compte (`RATE_CHEST_MAX`).
+
+### 10.3 Désactivation et retour arrière
+
+- Sans redéploiement : onglet Config de l'admin, `damage_budget_mode = shadow` (ou `off`) et/ou
+  `antibot_mode = off` ; effet à la sauvegarde suivante de chaque joueur, changement journalisé.
+- Variable d'environnement `ANTIBOT=off` (fichier d'environnement du service, par le
+  propriétaire) : désactive tout #25, prioritaire sur l'admin.
+- Retour au code précédent : procédure ordinaire (`docs/OPERATIONS.md`). Le schéma ajouté
+  (colonnes `dmg_*` de `player_depth_tracking`, tables `security_events` et `risk_scores`, clés de
+  config) est ignoré par l'ancien code : aucune restauration de base n'est nécessaire.
+
+### 10.4 Limites connues (à revoir avant le lot C)
+
+- Les seaux de #9 (capacité 20 s) rejettent (`depth_rejected`) les blocs Auto-Dig d'un joueur
+  honnête dont les sauvegardes échouent plus de ≈ 13 min avec un Auto-Dig à 1 bloc/s (vérifié) ; ce signal compte
+  comme preuve dans le score. Sans effet tant que le mode est `shadow`, mais à corriger dans #9
+  avant toute sanction automatique.
+- La télémétrie vient du client et peut être falsifiée ou omise : elle ne fournit que des indices.
+- Un bot qui respecte toutes les bornes physiques (20 clics/s, dégâts réels) reste possible : il
+  progresse au plus au rythme du meilleur joueur théorique ; le lot C/E et la revue des scores
+  traitent ce cas.

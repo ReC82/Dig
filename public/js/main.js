@@ -114,6 +114,65 @@ function _computeRegularityScore() {
   return Math.max(0, Math.min(1, 1 - cv / 0.25));
 }
 
+// ── Télémétrie anti-bot (#25) ─────────────────────────────────────────────────
+// Résumé des clics depuis le dernier envoi cloud, joint à la sauvegarde : nombre de clics,
+// histogramme des intervalles (8 classes), clics générés par script (isTrusted = false),
+// type de pointeur, régularité (CV). Aucun horodatage brut ni donnée personnelle ; le serveur
+// n'en tire que des indices journalisés, jamais une sanction.
+const _TELE_BOUNDS = [40, 60, 80, 100, 150, 250, 500]; // ms : <40, <60, … , ≥500
+const _tele = { n: 0, h: [0, 0, 0, 0, 0, 0, 0, 0], u: 0, p: { m: 0, t: 0, k: 0, o: 0 }, s1: 0, s2: 0, c: 0, last: 0 };
+
+/** Enregistre un coup de pioche manuel (ev : événement d'origine, absent = appel par script). */
+function _teleRecord(ev) {
+  const now = performance.now();
+  _tele.n++;
+  if (!ev || ev.isTrusted === false) _tele.u++;
+  const kind = !ev ? 'o'
+    : (ev.type === 'touchstart' || ev.pointerType === 'touch') ? 't'
+    : ev.type === 'keydown' ? 'k'
+    : ev.type === 'click' ? 'm' : 'o';
+  _tele.p[kind]++;
+  if (_tele.last) {
+    const gap = now - _tele.last;
+    let i = 0;
+    while (i < _TELE_BOUNDS.length && gap >= _TELE_BOUNDS[i]) i++;
+    _tele.h[i]++;
+    if (gap < 2000) { _tele.s1 += gap; _tele.s2 += gap * gap; _tele.c++; }
+  }
+  _tele.last = now;
+}
+
+/** Résumé à envoyer (null si aucun clic depuis le dernier envoi réussi). */
+function _teleSnapshot() {
+  if (_tele.n === 0) return null;
+  const mean = _tele.c ? _tele.s1 / _tele.c : 0;
+  const cv   = _tele.c >= 5 && mean > 0 ? Math.sqrt(Math.max(0, _tele.s2 / _tele.c - mean * mean)) / mean : null;
+  return {
+    v: 1, n: _tele.n, h: [..._tele.h], u: _tele.u, p: { ..._tele.p },
+    ...(cv === null ? {} : { cv: Math.round(cv * 1000) / 1000 }),
+    _s: { s1: _tele.s1, s2: _tele.s2, c: _tele.c },
+  };
+}
+
+/** Retire du cumul ce qui a été reçu par le serveur. */
+function _teleConsume(snap) {
+  if (!snap) return;
+  _tele.n = Math.max(0, _tele.n - snap.n);
+  _tele.u = Math.max(0, _tele.u - snap.u);
+  snap.h.forEach((v, i) => { _tele.h[i] = Math.max(0, _tele.h[i] - v); });
+  for (const k of Object.keys(_tele.p)) _tele.p[k] = Math.max(0, _tele.p[k] - snap.p[k]);
+  _tele.s1 = Math.max(0, _tele.s1 - snap._s.s1);
+  _tele.s2 = Math.max(0, _tele.s2 - snap._s.s2);
+  _tele.c  = Math.max(0, _tele.c  - snap._s.c);
+}
+
+/** Corps JSON de la télémétrie (sans les cumuls internes). */
+function _telePayload(snap) {
+  if (!snap) return undefined;
+  const { _s, ...payload } = snap;
+  return payload;
+}
+
 function _isSuspiciousCPS() {
   const now      = Date.now();
   const windowMs = 3000;
@@ -1132,11 +1191,13 @@ async function _pushSave(retry) {
   if (!raw) return 'skipped';
   const data = JSON.parse(raw);
   _lastSentSaveTime = data.lastSaveTime ?? null;
+  const tele = _teleSnapshot();
   let res;
   try {
-    res = await _apiFetch('POST', '/api/me/save', { data, baseRevision: _baseRevision() });
+    res = await _apiFetch('POST', '/api/me/save', { data, baseRevision: _baseRevision(), telemetry: _telePayload(tele) });
   } catch (_) { return 'error'; }
   if (res.ok) {
+    _teleConsume(tele);
     _setCloudMeta(res.data.revision);
     _refreshSeasonView();   // onglet Saison ouvert : chiffres serveur à jour après la sauvegarde
     return 'ok';
@@ -1198,13 +1259,14 @@ function _flushCloudOnExit() {
     if (!raw) return;
     const data = JSON.parse(raw);
     _lastSentSaveTime = data.lastSaveTime ?? null;
-    const body = JSON.stringify({ data, baseRevision: _baseRevision() });
+    const tele = _teleSnapshot();
+    const body = JSON.stringify({ data, baseRevision: _baseRevision(), telemetry: _telePayload(tele) });
     // keepalive survit à la fermeture de la page ; si l'onglet reste ouvert, la réponse
     // met à jour la révision connue.
     fetch('/api/me/save', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true,
     }).then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.revision) _setCloudMeta(d.revision); })
+      .then(d => { if (d?.revision) { _teleConsume(tele); _setCloudMeta(d.revision); } })
       .catch(() => {});
   } catch (_) { /* silencieux */ }
 }
@@ -2144,7 +2206,7 @@ function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {})
   }
 }
 
-function onBlockHit(cx, cy) {
+function onBlockHit(cx, cy, ev) {
   if (blockAnimating) return;
 
   // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
@@ -2152,6 +2214,7 @@ function onBlockHit(cx, cy) {
 
   // Chaque clic compte comme manuel, qu'il détruise ou non le bloc
   GameState.seasonStats.manualClicks++;
+  _teleRecord(ev);
   _recordClickTs();
   GameState.seasonStats.regularityScore = _computeRegularityScore();
 
@@ -2199,13 +2262,13 @@ function coordsFrom(e) {
 
 elBlock.addEventListener('click', (e) => {
   const { x, y } = coordsFrom(e);
-  onBlockHit(x, y);
+  onBlockHit(x, y, e);
 });
 
 elBlock.addEventListener('touchstart', (e) => {
   e.preventDefault();
   const { x, y } = coordsFrom(e);
-  onBlockHit(x, y);
+  onBlockHit(x, y, e);
 }, { passive: false });
 
 // Clavier (#21) : Entrée ou Espace sur le bloc sélectionné = un coup de pioche.
@@ -2215,7 +2278,7 @@ elBlock.addEventListener('keydown', (e) => {
   e.preventDefault();
   if (e.repeat) return;
   const rect = elBlock.getBoundingClientRect();
-  onBlockHit(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  onBlockHit(rect.left + rect.width / 2, rect.top + rect.height / 2, e);
 });
 
 // Bouton pub récompensée — accorde un boost ×2 pendant 2 min (visible sur le bloc)
