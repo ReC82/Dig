@@ -241,6 +241,7 @@ function switchView(viewId) {
   if (viewId === 'collection') {
     renderCollection();
     renderRelics();
+    renderBadges();
     // Badge : effacer seulement si aucune relique n'est désormais abordable/améliorable
     if (!Relics.DEFS.some(r => Relics.canUnlock(r.id) || Relics.canUpgrade(r.id))) clearNavBadge('collection');
   }
@@ -854,6 +855,65 @@ function _shopChestRewardLabel(reward) {
   return '';
 }
 
+// ── Badges et succès honorifiques (#38) ───────────────────────────────────────
+
+function _badgeText(map) {
+  if (!map || typeof map !== 'object') return '';
+  return map[I18n.getCurrent()] || map.fr || '';
+}
+
+/** Toast discret (sans interrompre le minage), historisé dans Paramètres (#26). */
+function _onBadgesEarned(list) {
+  list.forEach((b, i) => {
+    setTimeout(() => showAchievement(b.icon || '🏅', t('badges.toast', { name: _badgeText(b.names) }), 'success'), i * 600);
+  });
+  if (isViewActive('collection')) renderBadges();
+}
+
+let _badgesReq = 0;
+async function renderBadges() {
+  const el = document.getElementById('badges-panel');
+  if (!el) return;
+  if (!_account) { el.innerHTML = `<p class="badges-note">${escapeHtml(t('badges.login'))}</p>`; return; }
+  const req = ++_badgesReq;
+  if (!el.dataset.loaded) el.innerHTML = `<p class="badges-note">${escapeHtml(t('badges.loading'))}</p>`;
+  let res;
+  try { res = await _apiFetch('GET', '/api/me/badges'); } catch (_) { res = null; }
+  if (req !== _badgesReq) return;
+  if (!res || !res.ok) { el.innerHTML = `<p class="badges-note">${escapeHtml(t('badges.error'))}</p>`; return; }
+  el.dataset.loaded = '1';
+  const { badges = [], activatedAt } = res.data;
+  const lang = I18n.getCurrent();
+  const fmtDate = iso => new Date(iso).toLocaleDateString(lang);
+  const fmtNum  = n => Number(n).toLocaleString(lang);
+  const earned  = badges.filter(b => b.earned).length;
+  // Obtenus d'abord (plus récents en tête), puis à obtenir (les plus avancés en tête)
+  const sorted = [...badges].sort((a, b) => (b.earned - a.earned)
+    || (a.earned ? String(b.earnedAt).localeCompare(String(a.earnedAt))
+      : (b.progress.value / b.progress.target) - (a.progress.value / a.progress.target)));
+  const cards = sorted.map(b => {
+    const name = b.hidden ? t('badges.hidden') : _badgeText(b.names);
+    const desc = b.hidden ? t('badges.hidden_desc') : _badgeText(b.descriptions);
+    const icon = b.image ? `<img src="${escapeHtml(b.image)}" alt="" width="40" height="40" loading="lazy">` : escapeHtml(b.icon);
+    let foot = '';
+    if (b.earned) foot = `<div class="badge-date">${escapeHtml(t('badges.earned_on', { date: fmtDate(b.earnedAt) }))}</div>`;
+    else if (b.progress) {
+      const pct = Math.round((b.progress.value / b.progress.target) * 100);
+      foot = `<div class="badge-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${b.progress.target}" aria-valuenow="${b.progress.value}"><span style="width:${pct}%"></span></div>`
+        + `<div class="badge-progress">${escapeHtml(t('badges.progress', { value: fmtNum(b.progress.value), target: fmtNum(b.progress.target) }))}</div>`;
+    }
+    const tags = (b.event && !b.earned && b.event.endsAt ? `<span class="badge-tag">${escapeHtml(t('badges.event_until', { date: fmtDate(b.event.endsAt) }))}</span>` : '')
+      + (b.archived ? `<span class="badge-tag">${escapeHtml(t('badges.archived'))}</span>` : '');
+    return `<div class="badge-card${b.earned ? ' earned' : ''}">
+      <div class="badge-icon" aria-hidden="true">${icon}</div>
+      <div class="badge-body"><div class="badge-name">${escapeHtml(name)}</div>
+        <div class="badge-desc">${escapeHtml(desc)}</div>${tags}${foot}</div></div>`;
+  }).join('');
+  el.innerHTML = `<p class="badges-note">${escapeHtml(t('badges.count', { n: earned, total: badges.length }))}`
+    + (activatedAt ? ` · ${escapeHtml(t('badges.intro', { date: fmtDate(activatedAt) }))}` : '') + '</p>'
+    + (badges.length ? `<div class="badges-grid">${cards}</div>` : `<p class="badges-note">${escapeHtml(t('badges.empty'))}</p>`);
+}
+
 // ── Rendu collection ──────────────────────────────────────────────────────────
 
 function renderCollection() {
@@ -1421,6 +1481,7 @@ async function _pushSave(retry) {
   if (res.ok) {
     _teleConsume(tele);
     _setCloudMeta(res.data.revision);
+    if (Array.isArray(res.data.badgesEarned) && res.data.badgesEarned.length) _onBadgesEarned(res.data.badgesEarned);
     _refreshSeasonView();   // onglet Saison ouvert : chiffres serveur à jour après la sauvegarde
     return 'ok';
   }
@@ -2910,6 +2971,9 @@ function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {})
 
   const { reward: baseReward, type } = Blocks.current;
   const depth = GameState.depth;
+  // Compteur cumulé par type pour les badges (#38) : le serveur ne crédite que l'écart, borné
+  const minedId = Blocks.idOf(type);
+  if (minedId) GameState.stats.minedByType[minedId] = (GameState.stats.minedByType[minedId] || 0) + 1;
 
   GameState.nextDepth();
   spawnParticles(type.accent);
@@ -3151,7 +3215,7 @@ function init() {
     if (isViewActive('dig'))        { renderBlock(); renderStats(); }
     if (isViewActive('settings'))   renderSettings();
     if (isViewActive('upgrades'))   { renderUpgrades(); renderShopChests(); renderQuests(); }
-    if (isViewActive('collection')) { renderCollection(); renderRelics(); }
+    if (isViewActive('collection')) { renderCollection(); renderRelics(); renderBadges(); }
     if (isViewActive('daily'))      renderDaily();
     if (isViewActive('shop'))       renderShop();
   });

@@ -45,6 +45,7 @@ const GameState = {
     gemsFound:           0,
     chestsFound:         0,
     totalUpgradesBought: 0,
+    minedByType:         {},   // { idBloc: n } cumulé — badges #38 (crédité par le serveur, borné)
   },
 
   // ── Récompense quotidienne ────────────────────
@@ -138,7 +139,7 @@ const GameState = {
     this.quests       = {};
     this.stats        = {
       blocksDestroyed: 0, totalCoinsEarned: 0,
-      gemsFound: 0, chestsFound: 0, totalUpgradesBought: 0,
+      gemsFound: 0, chestsFound: 0, totalUpgradesBought: 0, minedByType: {},
     };
     this.daily        = { lastClaimDate: null, streakDay: 0 };
     this.relics        = {};

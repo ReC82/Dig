@@ -2875,3 +2875,58 @@ header {
   margin-left: 8px; min-height: 36px; padding: 4px 12px; border-radius: 8px; cursor: pointer;
   background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: var(--text); font: inherit;
 }
+
+/* ── Badges et succès honorifiques (#38) ───────────────────────────────────── */
+.badges-note {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+  margin: 0 0 12px;
+}
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  padding-bottom: 8px;
+}
+.badge-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  opacity: 0.78;
+}
+.badge-card.earned {
+  opacity: 1;
+  border-color: rgba(245, 197, 24, 0.38);
+  box-shadow: 0 0 14px rgba(245, 197, 24, 0.12);
+}
+.badge-icon {
+  font-size: 2rem;
+  line-height: 1;
+  flex: 0 0 44px;
+  text-align: center;
+  filter: grayscale(0.8);
+}
+.badge-card.earned .badge-icon { filter: none; }
+.badge-icon img { width: 40px; height: 40px; object-fit: contain; }
+.badge-body { min-width: 0; flex: 1; }
+.badge-name { font-weight: 700; font-size: 0.86rem; }
+.badge-card.earned .badge-name { color: var(--gold); }
+.badge-desc { font-size: 0.74rem; color: var(--text); opacity: 0.8; margin-top: 2px; overflow-wrap: anywhere; }
+.badge-date, .badge-progress { font-size: 0.68rem; color: var(--muted); margin-top: 6px; }
+.badge-progress { margin-top: 3px; }
+.badge-bar { height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; margin-top: 8px; }
+.badge-bar span { display: block; height: 100%; background: var(--gold-dim); }
+.badge-tag {
+  display: inline-block;
+  font-size: 0.64rem;
+  color: var(--purple);
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin: 6px 6px 0 0;
+}

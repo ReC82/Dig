@@ -34,6 +34,22 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     fr: {
+      badges: {
+        section: '🏅 Badges et succès',
+        intro: 'Badges honorifiques : ils ne donnent ni pièces, ni gemmes, ni points. Suivi depuis le {date}.',
+        login: 'Connecte-toi pour suivre tes badges.',
+        loading: 'Chargement des badges…',
+        error: 'Badges indisponibles pour le moment.',
+        empty: 'Aucun badge pour l\u2019instant.',
+        count: '{n} / {total} obtenus',
+        earned_on: 'Obtenu le {date}',
+        hidden: 'Badge secret',
+        hidden_desc: 'Continue à creuser pour le découvrir.',
+        event_until: 'Événement jusqu\u2019au {date}',
+        archived: 'Retiré',
+        progress: '{value} / {target}',
+        toast: 'Badge obtenu : {name}',
+      },
       nav: {
         dig: 'Dig', upgrades: 'Amélios', collection: 'Collection',
         daily: 'Quotidien', shop: 'Boutique',
@@ -472,6 +488,22 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     en: {
+      badges: {
+        section: '🏅 Badges & achievements',
+        intro: 'Honorary badges: they give no coins, gems or points. Tracked since {date}.',
+        login: 'Log in to track your badges.',
+        loading: 'Loading badges…',
+        error: 'Badges are unavailable right now.',
+        empty: 'No badges yet.',
+        count: '{n} / {total} earned',
+        earned_on: 'Earned on {date}',
+        hidden: 'Secret badge',
+        hidden_desc: 'Keep digging to reveal it.',
+        event_until: 'Event until {date}',
+        archived: 'Retired',
+        progress: '{value} / {target}',
+        toast: 'Badge earned: {name}',
+      },
       nav: {
         dig: 'Dig', upgrades: 'Upgrades', collection: 'Collection',
         daily: 'Daily', shop: 'Shop',
@@ -910,6 +942,22 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     nl: {
+      badges: {
+        section: '🏅 Badges en prestaties',
+        intro: 'Erebadges: ze geven geen munten, edelstenen of punten. Bijgehouden sinds {date}.',
+        login: 'Log in om je badges te volgen.',
+        loading: 'Badges laden…',
+        error: 'Badges zijn momenteel niet beschikbaar.',
+        empty: 'Nog geen badges.',
+        count: '{n} / {total} behaald',
+        earned_on: 'Behaald op {date}',
+        hidden: 'Geheime badge',
+        hidden_desc: 'Blijf graven om hem te ontdekken.',
+        event_until: 'Evenement tot {date}',
+        archived: 'Ingetrokken',
+        progress: '{value} / {target}',
+        toast: 'Badge behaald: {name}',
+      },
       nav: {
         dig: 'Graven', upgrades: 'Verbeter.', collection: 'Collectie',
         daily: 'Dagelijks', shop: 'Winkel',

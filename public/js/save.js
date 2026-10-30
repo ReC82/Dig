@@ -57,7 +57,7 @@ const Save = {
       collection:   [...GameState.collection],
       collectionMeta: { ...GameState.collectionMeta },
       quests:       { ...GameState.quests },
-      stats:        { ...GameState.stats },
+      stats:        { ...GameState.stats, minedByType: { ...GameState.stats.minedByType } },
       daily:        { ...GameState.daily },
       coinBoost:    { ...GameState.coinBoost },
       monetization:   { ...GameState.monetization },
@@ -148,6 +148,7 @@ const Save = {
     GameState.stats.gemsFound           = s.gemsFound           ?? 0;
     GameState.stats.chestsFound         = s.chestsFound         ?? 0;
     GameState.stats.totalUpgradesBought = s.totalUpgradesBought ?? 0;
+    GameState.stats.minedByType         = s.minedByType && typeof s.minedByType === 'object' && !Array.isArray(s.minedByType) ? { ...s.minedByType } : {};
 
     const dd = data.daily ?? {};
     GameState.daily.lastClaimDate = dd.lastClaimDate ?? null;
