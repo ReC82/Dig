@@ -48,7 +48,14 @@ function loadGame() {
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8'), ctx, { filename: f });
   }
   const g = vm.runInContext('({ Balance, Blocks, Chests, Relics })', ctx);
-  return { ...g, GameState, setRandom: fn => { state.random = fn; } };
+  // Blocks.spawn tire avec la graine de la sauvegarde (#35) : chaque simulation repart d'une
+  // graine dérivée de son générateur, donc reproductible et indépendante des précédentes.
+  const setRandom = fn => {
+    state.random = fn;
+    GameState.blockSeed = 1 + Math.floor(fn() * 0xfffffffe);
+    GameState.blockSeq  = 0;
+  };
+  return { ...g, GameState, setRandom };
 }
 
 const G = loadGame();

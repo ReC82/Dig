@@ -37,13 +37,13 @@ const Chests = {
 
   // ── Utilitaires ───────────────────────────────────────────────────────────
 
-  _rand(min, max) {
-    return min + Math.floor(Math.random() * (max - min + 1));
+  _rand(min, max, random = Math.random) {
+    return min + Math.floor(random() * (max - min + 1));
   },
 
-  _pick(table) {
+  _pick(table, random = Math.random) {
     const total = table.reduce((s, r) => s + r.weight, 0);
-    let rand = Math.random() * total;
+    let rand = random() * total;
     for (const row of table) {
       rand -= row.weight;
       if (rand <= 0) return row;
@@ -56,15 +56,16 @@ const Chests = {
   /**
    * Tire une récompense, l'applique à GameState et la retourne.
    * @param {string} rarityKey  'commun' | 'rare' | 'epique'
+   * @param {Function} [random]  générateur (reproductible pour un coffre-bloc, #35)
    * @returns {{ type: string, amount?: number, mult?: number, minutes?: number }}
    */
-  open(rarityKey) {
+  open(rarityKey, random = Math.random) {
     const table  = this.TABLES[rarityKey] ?? this.TABLES.commun;
-    const entry  = this._pick(table);
+    const entry  = this._pick(table, random);
     const result = { type: entry.type };
 
     if (entry.type === 'coins') {
-      result.amount = this._rand(entry.min, entry.max);
+      result.amount = this._rand(entry.min, entry.max, random);
       GameState.addCoins(result.amount);
       GameState.stats.totalCoinsEarned += result.amount;
 

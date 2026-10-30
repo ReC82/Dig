@@ -24,6 +24,12 @@ const GameState = {
     block_reroll:  0,   // rerolls utilisés cette saison
   },
 
+  // ── Bloc courant reproductible (#35) ─────────
+  // blockSeed : graine propre à la sauvegarde ; blockSeq : numéro du dernier bloc tiré.
+  // Le bloc courant lui-même (type, PV restants…) est sauvegardé via Blocks.snapshot().
+  blockSeed: 0,
+  blockSeq:  0,
+
   // ── Coffres achetés cette saison ─────────────
   shopChestsBought: { simple: 0, rare: 0, antique: 0 },
 
@@ -137,6 +143,7 @@ const GameState = {
     this.relicBonuses  = { damageFlat: 0, coinsPct: 0, relicFragmentBonus: 0, luckPct: 0, hpReduction: 0, autodigBonus: 0 };
     this.dailyMissions = { date: null, missions: [], baselineStats: null };
     this.coinBoost    = { multiplier: 1, expiresAt: 0 };
+    // blockSeed/blockSeq préservés : la suite des blocs continue (aucune relance, #35)
     // monetization intentionnellement préservé (achats et cooldown persistants)
   },
 };

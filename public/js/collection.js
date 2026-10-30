@@ -87,7 +87,7 @@ const Collection = {
    * @param {number} depth
    * @returns {object|null} la trouvaille obtenue, ou null
    */
-  tryDrop(blockType, depth) {
+  tryDrop(blockType, depth, random = Math.random) {
     const eligible = this.FINDS.filter(f =>
       !GameState.collection.includes(f.id) &&
       depth >= f.minDepth &&
@@ -95,7 +95,7 @@ const Collection = {
     );
 
     for (const find of eligible) {
-      if (Math.random() < find.chance) {
+      if (random() < find.chance) {
         GameState.collection.push(find.id);
         return find;
       }

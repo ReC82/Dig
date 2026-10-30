@@ -604,10 +604,11 @@ async function openShopChest(chestId) {
     Save.save();
     if (await _syncToCloud() === 'adopted') { renderShopChests(); return; }
 
-    const { ok, data } = await _apiFetch('POST', '/api/me/shop/chest/open', { chestId });
+    const { ok, status, data } = await _apiFetch('POST', '/api/me/shop/chest/open', { chestId, controllerId: _tabId });
 
     if (!ok) {
       if (btn) btn.disabled = false;
+      if (status === 409 && data?.notController) { _lockPlay('device'); return; }
       showAchievement('❌', data?.error ?? t('ui.shop_chest_error'));
       return;
     }
@@ -1138,7 +1139,7 @@ async function _doLogout() {
   // d'une sauvegarde vierge (#18).
   Save.save();
   await _syncToCloud();
-  await _apiFetch('POST', '/api/logout');
+  await _apiFetch('POST', '/api/logout', { controllerId: _tabId });
   _account    = null;
   _cloudReady = false;
   _clearCloudMeta();
@@ -1214,7 +1215,7 @@ async function _pushSave(retry) {
   const tele = _teleSnapshot();
   let res;
   try {
-    res = await _apiFetch('POST', '/api/me/save', { data, baseRevision: _baseRevision(), telemetry: _telePayload(tele) });
+    res = await _apiFetch('POST', '/api/me/save', { data, baseRevision: _baseRevision(), telemetry: _telePayload(tele), controllerId: _tabId });
   } catch (_) { return 'error'; }
   if (res.ok) {
     _teleConsume(tele);
@@ -1222,6 +1223,8 @@ async function _pushSave(retry) {
     _refreshSeasonView();   // onglet Saison ouvert : chiffres serveur à jour après la sauvegarde
     return 'ok';
   }
+  // Un autre appareil a la main : reprise automatique s'il ne joue plus (bail expiré), sinon verrou
+  if (res.status === 409 && res.data?.notController) { _playHeartbeat(true); return 'locked'; }
   if (res.status === 409 && res.data?.conflict) return _handleSaveConflict(res.data.save, retry);
   if (res.status === 401) { _account = null; _cloudReady = false; }
   return 'error';
@@ -1248,19 +1251,19 @@ async function _handleSaveConflict(serverSave, retry) {
 function _applyCloudSave(cloudSave) {
   const cloudData = cloudSave.data;
   Save.loadFromData(cloudData);
-  // Même sérialisation que Save.save() (seasonStats et shopChestsBought compris)
+  Relics.applyBonuses();
+  // Bloc sauvegardé repris à l'identique (#35), sans animation (évite le double-spawn)
+  blockAnimating = false;
+  Blocks.resume(Save.loadedBlock, GameState.depth);
+  // Même sérialisation que Save.save() (seasonStats, shopChestsBought et bloc compris)
   Save.writeLocal(cloudData.lastSaveTime ?? Date.now());
   _setCloudMeta(cloudSave.revision ?? cloudSave.version);
 
-  Relics.applyBonuses();
   renderUpgrades();
   renderShopChests();
   renderQuests();
   renderBoostBanner();
   renderStats();
-  // Respawn sans animation pour éviter le double-spawn et le bug de bloc vide
-  blockAnimating = false;
-  Blocks.spawn(GameState.depth);
   renderBlock();
 }
 
@@ -1280,7 +1283,7 @@ function _flushCloudOnExit() {
     const data = JSON.parse(raw);
     _lastSentSaveTime = data.lastSaveTime ?? null;
     const tele = _teleSnapshot();
-    const body = JSON.stringify({ data, baseRevision: _baseRevision(), telemetry: _telePayload(tele) });
+    const body = JSON.stringify({ data, baseRevision: _baseRevision(), telemetry: _telePayload(tele), controllerId: _tabId });
     // keepalive survit à la fermeture de la page ; si l'onglet reste ouvert, la réponse
     // met à jour la révision connue.
     fetch('/api/me/save', {
@@ -1299,8 +1302,12 @@ function _flushCloudOnExit() {
 async function _syncAfterLogin(forceCloud = false) {
   _cloudReady = false;
   try {
-    const { ok, data } = await _apiFetch('GET', '/api/me/save');
-    if (!ok || !_account) return;
+    // Cette page prend la main sur le compte (#35) : les autres onglets et appareils
+    // cessent de miner. La réponse contient la sauvegarde serveur à reprendre.
+    let claimed = null;
+    try { claimed = await _apiFetch('POST', '/api/me/play/claim', { controllerId: _tabId }); } catch (_) {}
+    const { ok, data } = claimed?.ok ? claimed : await _apiFetch('GET', '/api/me/save');
+    if (!ok || !_account || Save.disabled) return;
 
     const cloud = data.save;
     const meta  = _getCloudMeta();
@@ -1351,12 +1358,51 @@ function _claimActiveTab() {
 function _onStorageEvent(e) {
   if (e.key !== ACTIVE_TAB_KEY || !e.newValue || Save.disabled) return;
   if (e.newValue.split(':')[0] === _tabId) return;
-  // Un autre onglet a pris la main : on n'écrit plus rien (ni local, ni cloud)
+  _lockPlay('tab');
+}
+
+/**
+ * Cette page perd la main (autre onglet de ce navigateur, ou autre appareil — #35) : plus de
+ * clics, plus d'Auto-Dig, plus aucune écriture (ni locale, ni cloud). Le compte reste connecté ;
+ * « Jouer ici » recharge la page, qui reprend la main et la progression du serveur.
+ */
+function _lockPlay(reason) {
   clearTimeout(_cloudTimer);
   _cloudTimer = null;
   Save.disabled = true;
+  const device = reason === 'device';
   const modal = document.getElementById('tab-inactive-modal');
-  if (modal) modal.hidden = false;
+  if (!modal) return;
+  document.getElementById('tab-inactive-icon').textContent = device ? '📱' : '🗂️';
+  document.getElementById('tab-inactive-title').textContent = t(device ? 'ui.device_inactive_title' : 'ui.tab_inactive_title');
+  document.getElementById('tab-inactive-text').textContent  = t(device ? 'ui.device_inactive_text' : 'ui.tab_inactive_text');
+  modal.hidden = false;
+}
+
+// ── Session de jeu unique entre appareils (#35) ──────────────────────────────
+// Le serveur ne connaît qu'un contrôleur par compte (la dernière page qui a pris la main).
+// Le contrôleur actif signale sa présence ; une page qui a perdu la main l'apprend au plus
+// tard au signal suivant (ou dès sa sauvegarde refusée) et se verrouille. Si plus personne ne
+// joue (bail expiré : onglet fermé, appareil éteint), elle reprend la main d'elle-même et relit
+// la sauvegarde serveur avant de continuer.
+
+const PLAY_HEARTBEAT_MS = 15_000;
+let _heartbeatBusy = false;
+
+async function _playHeartbeat(force = false) {
+  if (_heartbeatBusy || !_account || !_cloudReady || Save.disabled) return;
+  if (!force && document.visibilityState !== 'visible') return;
+  _heartbeatBusy = true;
+  try {
+    const { ok, data } = await _apiFetch('POST', '/api/me/play/heartbeat', { controllerId: _tabId });
+    if (!ok || data.active || Save.disabled) return;
+    if (data.canResume) {
+      const claim = await _apiFetch('POST', '/api/me/play/claim', { controllerId: _tabId, onlyIfFree: true });
+      if (claim.ok) { await _syncAfterLogin(false); return; }
+    }
+    _lockPlay('device');
+  } catch (_) { /* réseau indisponible : le serveur refusera de toute façon les écritures */ }
+  finally { _heartbeatBusy = false; }
 }
 
 // ── Saisons ───────────────────────────────────────────────────────────────────
@@ -2467,7 +2513,7 @@ function showChestPopup(chestType, reward) {
   collectBtn.onclick = () => {
     modal.hidden = true;
     blockAnimating = false;
-    spawnBlock();
+    nextBlock();
     renderStats();
     if (reward.type === 'boost') renderBoostBanner();
     // Si des fragments ont été gagnés, signaler si une relique devient abordable/améliorable
@@ -2479,6 +2525,12 @@ function showChestPopup(chestType, reward) {
 }
 
 // ── Logique de jeu ────────────────────────────────────────────────────────────
+
+/** Après une destruction : bloc suivant, sauf si un bloc intact a été repris entre-temps (#35). */
+function nextBlock() {
+  if (Blocks.current && Blocks.current.hp > 0) { renderBlock(); return; }
+  spawnBlock();
+}
 
 function spawnBlock() {
   Blocks.spawn(GameState.depth);
@@ -2518,7 +2570,8 @@ function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {})
   spawnParticles(type.accent);
   screenFlash(type.accent);
 
-  const find = Collection.tryDrop(type, depth);
+  // Gains tirés avec le générateur du bloc (#35) : rejouer ce bloc donne les mêmes gains
+  const find = Collection.tryDrop(type, depth, Blocks.rewardRng('find'));
   if (find) handleFindDrop(find);
 
   if (type.isChest) {
@@ -2526,7 +2579,7 @@ function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {})
     GameState.stats.blocksDestroyed += 1;
     GameState.stats.chestsFound     += 1;
 
-    const chestReward = Chests.open(type.rarityKey);
+    const chestReward = Chests.open(type.rarityKey, Blocks.rewardRng('chest'));
 
     spawnFloatText(t('notif.chest_float'), 'chest', cx, cy - 55);
     handleQuestsCompleted(Quests.checkAll());
@@ -2558,13 +2611,13 @@ function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {})
     elBlock.classList.add('anim-break');
     elBlock.addEventListener('animationend', () => {
       blockAnimating = false;
-      spawnBlock();
+      nextBlock();
     }, { once: true });
   }
 }
 
 function onBlockHit(cx, cy, ev) {
-  if (blockAnimating) return;
+  if (blockAnimating || Save.disabled) return;   // page sans la main (#18, #35) : aucun coup
 
   // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
   if (!Blocks.current) { spawnBlock(); return; }
@@ -2596,12 +2649,13 @@ function onBlockHit(cx, cy, ev) {
 
 function autoDigTick() {
   const dmg = Upgrades.getAutoDigDamage();
-  if (dmg === 0 || blockAnimating) return;
+  if (dmg === 0 || blockAnimating || Save.disabled) return;   // Auto-Dig arrêté sans la main (#35)
 
   const destroyed = Blocks.hit(dmg);
   if (destroyed) {
     const rect = elBlock.getBoundingClientRect();
     handleBlockDestroyed(rect.left + rect.width / 2, rect.top + rect.height / 2, { isAuto: true });
+    Save.save();   // bloc suivant et gains enregistrés aussitôt (reprise exacte, #35)
   }
 
   renderBlock();
@@ -2764,6 +2818,7 @@ function init() {
   Save.onSave = _scheduleCloudSync;
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') _flushCloudOnExit();
+    else _playHeartbeat();   // retour sur la page : vérifie qu'elle a toujours la main (#35)
   });
   window.addEventListener('pagehide', _flushCloudOnExit);
   Save.load();
@@ -2779,7 +2834,8 @@ function init() {
   renderQuests();
   renderBoostBanner();
   updateAdButtonState();
-  spawnBlock();
+  Blocks.resume(Save.loadedBlock, GameState.depth);   // bloc sauvegardé repris à l'identique (#35)
+  renderBlock();
   renderStats();
 
   updateDailyBadge();
@@ -2791,6 +2847,7 @@ function init() {
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
+  setInterval(_playHeartbeat, PLAY_HEARTBEAT_MS);
   setInterval(() => { renderBoostBanner(); updateAdButtonState(); }, 1_000);
   setInterval(_pollSeason,      5 * 60_000); // vérifie la saison toutes les 5 min
   setInterval(_refreshSeasonView, SEASON_REFRESH_IDLE_MS); // onglet Saison affiché uniquement
