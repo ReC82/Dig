@@ -2383,7 +2383,7 @@ async function icOpen(key, notice = '') {
   head.appendChild(close);
   box.appendChild(head);
   box.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.78rem' },
-    `${t.extra ?? ''} — actuel : ${t.image ? 'image appliquée' : t.v1 ? `bibliothèque v1 (${t.v1.status}, aperçu ?icons=v1)` : `emoji ${t.emoji}`}`
+    `${t.extra ?? ''} — actuel : ${t.image ? 'image appliquée' : t.v1 ? `bibliothèque v1 (${t.v1.status}, affichée par défaut)` : `emoji ${t.emoji}`}`
     + `${t.validated ? ` — 🔒 VALIDÉE (${t.validated.by === 'v1' ? 'bibliothèque v1' : 'atelier'}, ${t.validated.at}) : remplacement seulement avec accord explicite` : ''}`
     + ` — dépensé pour cette icône : ${t.costUsd} USD (${t.calls} appel(s)).${t.applicable ? '' : ' Pictogramme d\'interface : stocké ici, application en jeu avec le ticket #41.'}`));
   if (t.story) box.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.75rem' }, `Histoire : ${t.story}`));

@@ -40,7 +40,7 @@ function boardEntries() {
     const file = entry && path.join(ROOT, 'public', lib.libraries.v1.base, entry.webp['256']);
     return {
       id, name: I18n.t('block.' + id), rarity: I18n.t('rarity.' + String(t.rarityKey).replace('-', '_')),
-      depth: t.maxDepth >= 9999 ? `dès ${t.minDepth} m` : `${t.minDepth}–${t.maxDepth} m`,
+      depth: t.maxDepth == null || t.maxDepth >= 9999 ? `dès ${t.minDepth} m` : `${t.minDepth}–${t.maxDepth} m`,
       color: t.color, legacy: t.icon,
       status: !entry ? 'absent (emoji)' : entry.validated ? `validé ${entry.validated}` : 'à valider',
       validated: Boolean(entry && entry.validated),
@@ -73,7 +73,7 @@ function html(entries) {
     .legacy{font-size:15px} .id{font-size:11px;color:#6b7280;margin-top:2px;font-family:monospace}
   </style></head><body><div class="wrap">
     <h1>DIG! — icônes v1 : planche complète</h1>
-    <p>${covered}/${entries.length} blocs du jeu (tous, y compris les plus rares), dans l'ordre du jeu, sur le fond réel de leur bloc · ${date} · aperçu en jeu : <span style="white-space:nowrap">?icons=v1</span></p>
+    <p>${covered}/${entries.length} blocs du catalogue d'origine, dans l'ordre du jeu, sur le fond réel de leur bloc · ${date} · affichées par défaut dans le jeu (retour aux emoji : <span style="white-space:nowrap">?icons=legacy</span>)</p>
     <div class="grid">${tiles}</div></div></body></html>`;
 }
 

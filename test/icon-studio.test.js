@@ -62,7 +62,7 @@ test('inventaire : blocs, objets, pictogrammes ; v1 validées verrouillées', ()
   assert.ok(keys.includes('ui:profil') && keys.includes('ui:parametres'));
   const pierre = list.find(t => t.key === 'block:pierre');
   assert.strictEqual(pierre.validated.by, 'v1', 'pierre validée (#22) : verrouillée');
-  assert.strictEqual(list.find(t => t.key === 'block:diamant').validated, null, 'pilote : pas verrouillé');
+  assert.strictEqual(list.find(t => t.key === 'block:diamant').validated.by, 'v1', 'lot v1 validé (30/10) : diamant verrouillé');
   assert.strictEqual(list.find(t => t.key === 'item:relic').state, 'emoji provisoire');
   const ui = studio.UI_TARGETS;
   const profil = ui.find(u => u.id === 'profil'), param = ui.find(u => u.id === 'parametres');
@@ -153,7 +153,8 @@ test('application au brouillon seulement, verrou des validées, retour à l\'emo
   assert.strictEqual(coll.getDraft().items.find(i => i.id === 'relic').icon, '⚱️');
   // Bloc : brouillon du catalogue, publié inchangé
   const dsha = studio.getTarget('block:diamant').assets[0].sha;
-  studio.apply('block:diamant', { sha: dsha });
+  assert.throws(() => studio.apply('block:diamant', { sha: dsha }), e => e.status === 409, 'v1 validée : accord explicite requis');
+  studio.apply('block:diamant', { sha: dsha, override: true });
   assert.strictEqual(blocks.getDraft().types.find(t => t.id === 'diamant').image, `/media/icons/${dsha}.webp`);
   assert.deepStrictEqual(blocks.getPublished(), pubBlocks);
   // Icône validée (v1) : refus sans accord explicite ; image d'une autre cible refusée

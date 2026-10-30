@@ -1,7 +1,7 @@
 {
   "material": "coffre_bois",
-  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
-  "status": "pilote",
+  "role": "v1 validé par le propriétaire (recette globale des 14 blocs, 30/10/2026, #22) — affiché par défaut",
+  "status": "validé",
   "choice": "génération unique (consigne du propriétaire du 30/10/2026 : une image par bloc)",
   "candidate": "coffre_bois-20261030-121500-a",
   "model": "gpt-image-2.5-sunburst",
