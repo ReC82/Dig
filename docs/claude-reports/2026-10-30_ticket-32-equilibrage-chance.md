@@ -1,10 +1,150 @@
 # Ticket #32 — [P1] Équilibrage Chance — éviter de pénaliser la progression en profondeur
 
 - Ticket : https://github.com/ReC82/Dig/issues/32
-- Branche : `feature/32-equilibrage-chance` (commit `1d1dc0a`) — intégrée dans `develop` en `f42ae68`
-- Liés : #20 (aperçu avant/après des améliorations), #19 (ligues), #25 (progression serveur)
+- Branche : `feature/32-equilibrage-chance` — audit `1d1dc0a` (develop `f42ae68`), rééquilibrage `959d70e` (develop **`0d8cb41`**)
+- Liés : #20 (aperçu avant/après des améliorations), #19 (ligues), #25 (progression serveur), #35 (bloc courant), #37 (catalogue)
 
-## Session du 30/10/2026 (DIGORCH)
+## 2e session du 30/10/2026 — rééquilibrage option A (DIGORCH)
+
+### 1. État réel
+
+**Déployé en production (SHA `0d8cb41`) — en attente de recette.** Le propriétaire a validé l'option A
+(commentaire du 30/10 14:03 UTC) : PV tirés sans Chance, nature et récompense avec Chance, +10 % par
+niveau, apparence normale (pas de ✨), libellé remplacé par la probabilité réelle.
+
+Classement MVP : **Bloquant MVP public — traité** (une amélioration qui faisait reculer au classement
+ceux qui l'achetaient).
+
+### 2. Ce qui change en jeu
+
+- **Un bloc = deux tirages** (`public/js/blocks.js`, `spawn`) :
+  - la **nature** du bloc (apparence, nom, rareté, récompense, coffre, gemme) est tirée **avec** la
+    Chance, comme avant ;
+  - sa **résistance** (PV) est tirée **sans Chance** (ni niveau ni relique) sur le même pool de la
+    même profondeur. Un diamant peut donc avoir les PV d'un bloc de pierre ; son apparence reste
+    normale. Les PV moyens sont **identiques à toute Chance** : la Chance ne ralentit plus la descente.
+- **Bonus de poids : +10 % par niveau** au lieu de +20 % (`Blocks.LUCK_PER_LEVEL = 0.10`).
+- **Carte Chance** : « +140 % chance de blocs rares » (c'était un poids) est remplacé par
+  « **Plus de rares, sans ralentir** » ; la ligne dorée déjà livrée donne la **probabilité réelle** à
+  la profondeur actuelle, au niveau actuel → suivant (ex. Nv.7 à 150 m : « À 150m : 19,4% de blocs
+  rares → 20,3% »). FR / EN (« More rares, no slowdown ») / NL (« Meer zeldzame, niet trager ») ;
+  l'espagnol n'existe pas encore dans le jeu (#42) : à ajouter avec lui.
+- **Aucune donnée touchée** : les niveaux de Chance achetés restent ; le classement de la saison en
+  cours n'est pas recalculé ; aucun changement serveur ni de schéma.
+
+À noter pour le joueur de la recette (Chance 7) : la part de blocs rares affichée passe de ~25 % à
+~19 % (bonus réduit de moitié), mais il descend **~16 % plus vite** qu'avant et gagne autant de
+pièces par heure.
+
+### 3. Métriques avant → après (simulation, vrai code du jeu, 200 tirages d'une heure)
+
+Outil : `node tools/balance/luck-sim.js` (~15 s) — compare désormais « avant #32 » (un tirage, +20 %)
+et les règles actuelles. Écarts = moyennes par rapport à Chance 0 **avec les mêmes règles**.
+
+| Profil (1 h) | Chance | Mètres/h : avant → **après** | Pièces/h : avant → **après** |
+|---|---|---|---|
+| Début (pioche 3, 5 clics/s, 30 m) | 7 | −11 % → **−1 %** | +43 % → **+41 %** |
+| | 12 | −15 % → **−0 %** | +58 % → **+85 %** |
+| Milieu (pioche 9, Auto-Dig 4, Sac 8, 100 m) | 1 | −3 % → **+0 %** | +12 % → **+9 %** |
+| | 4 | −9 % → **−0 %** | +40 % → **+33 %** |
+| | 7 | −14 % → **−0 %** | +61 % → **+53 %** |
+| | 12 | −20 % → **−0 %** | +84 % → **+93 %** |
+| Fin (pioche 15, Auto-Dig 6, Sac 12, 200 m) | 7 | −16 % → **−0 %** | +60 % → **+55 %** |
+| | 12 | −22 % → **−1 %** | +86 % → **+93 %** |
+| Inactif (Auto-Dig 6 seul, 200 m) | 7 | −21 % → **−0 %** | +41 % → **+39 %** |
+| | 12 | −29 % → **−1 %** | +56 % → **+64 %** |
+| Milieu + Lentille fêlée Nv.5 | 7 | −21 % → **−0 %** | +89 % → **+153 %** |
+
+Valeurs absolues après (médiane, p10 · p90) : milieu ~**235 m/h** (220 · 248) à toute Chance ;
+fin ~**286 m/h** (270 · 300). À 100 m, PV moyens d'un bloc : Chance 7 avant 478 → **391** (= Chance 0).
+
+**Saison complète** depuis zéro (6 clics/s, réinvestissement automatique, 30 tirages, profondeur
+médiane, écart avec « ne jamais acheter de Chance » des mêmes règles) :
+
+| Chance visée | 3 h | 10 h | 20 h |
+|---|---|---|---|
+| 4 | −3 % → **+6 %** | −4 % → **+3 %** | −4 % → **+3 %** |
+| 7 | −6 % → **+7 %** | −7 % → **+5 %** | −6 % → **+5 %** |
+| 12 | −10 % → **+5 %** | −10 % → **+6 %** | −9 % → **+7 %** |
+
+**Conclusion : acheter la Chance est maintenant rationnel pour le classement** (gain modéré, +3 à
++7 % de profondeur sur une saison grâce aux pièces/gemmes réinvesties), sans jamais ralentir la
+descente à équipement égal.
+
+### 4. SHA et procédure de test
+
+- Branche `feature/32-equilibrage-chance` : `959d70e` · `develop` : **`0d8cb41`** · production : **`0d8cb41`**.
+- `npm test` : **239/239** sur la branche, sur `develop` fusionné et sur la release exacte `0d8cb41` ;
+  `npm run check` ok. `test/luck.test.js` (6 tests) : somme des probabilités, part rare à +10 %,
+  fréquences tirées, **PV moyens identiques à Chance 0, 12 et 12 + relique (40 000 tirages)**,
+  récompense = celle du bloc affiché, PV minimal inchangé (compatibilité `server/antibot.js`),
+  libellé sans pourcentage et aperçu FR/EN/NL, simulation avant (ralentit) / après (neutre).
+- Navigateur (serveur de test port 3101, base de test) : Chromium 1280×900 FR, 390×844 FR/EN/NL,
+  aucune erreur JS ; libellé entier sur téléphone (une première version plus longue était tronquée,
+  raccourcie).
+
+### 5. Vérifications, limites, compatibilité
+
+- **Anti-bot #25** (`server/antibot.js`) : il borne la vitesse avec le plus petit `hpBase` tirable par
+  profondeur ; le pool des PV est le même, ce minimum est inchangé (testé).
+- **Bloc courant #35** : `Blocks.current` garde la forme `{ type, hp, maxHp, reward }` ; une
+  persistance future enregistrera `maxHp` avec le bloc (il ne se déduit plus de `type.hpBase`).
+- **Catalogue #37** : aucun champ ajouté aux blocs ; le tirage lit toujours `TYPES` (poids, rareté,
+  profondeurs), un catalogue éditable s'y branche sans changement.
+- Gains hors ligne : inchangés (ils n'utilisaient pas la Chance).
+- Limites : simulation à CPS constant ; coffres de la boutique de saison hors modèle.
+
+### 6. Déploiement
+
+- SHA déployé **`0d8cb41`** (avant : `2397123`), `scripts/deploy.sh` de la release, sans `npm ci`.
+- Sauvegarde pré-déploiement vérifiée : `~/backups/dig/dig-20261030-153507-pre-deploy-0d8cb41.sqlite`.
+- Copie de la base de production démarrée en mode production (port 3122) : `/health` ok, version
+  `1.0.0+0d8cb41`, empreintes des 6 tables joueurs **identiques** ; copie supprimée.
+- Après déploiement : 2 domaines → 200 en `1.0.0+0d8cb41`, `blocks.js` servi avec +10 %/niveau,
+  journal sans erreur, `quick_check` ok, empreintes joueurs **identiques** à la sauvegarde
+  pré-déploiement ; carte Chance vérifiée en production (FR 1280×900, EN 390×844), aucune erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 2397123` puis `sudo systemctl restart dig`
+  (lock npm inchangé, aucune donnée à restaurer).
+
+**Test fonctionnel à faire en jeu (3 min, sans achat) :**
+1. Onglet **Améliorations**, carte **Chance** (Nv.7) : sous le nom, « **Plus de rares, sans ralentir** »
+   (plus de « +140 % ») ; la ligne dorée indique « À ___m : ~19% de blocs rares → ~20% ».
+2. Revenir à la mine et casser une vingtaine de blocs : les blocs rares (or, rubis, coffres…) gardent
+   leur apparence et leur récompense, mais leurs PV varient comme ceux des blocs ordinaires (un rubis
+   peut tomber en quelques coups) ; la descente doit paraître plus rapide qu'avant.
+3. Passer en EN puis NL : libellé et ligne traduits ; sur téléphone, rien n'est coupé.
+
+### 7. Choix techniques faits seul
+
+- **Relique Lentille fêlée inchangée** (pas divisée par deux) : la décision écrite ne vise que le bonus
+  par niveau ; diminuer une relique déjà achetée avec des fragments aurait été une perte pour le
+  joueur. Elle ne ralentit plus la descente non plus (PV tirés sans relique). Son libellé
+  « +n % blocs rares » reste un poids : voir question 1.
+- Description sans chiffre (« Plus de rares, sans ralentir ») + aperçu chiffré : un seul pourcentage
+  affiché, celui qui est vrai ; texte assez court pour une ligne sur téléphone.
+- Tirage des PV : second tirage sur le pool **sans aucune Chance** (multiplicateur 1), plutôt qu'une
+  table de PV séparée : même distribution que Chance 0 par construction, rien à maintenir.
+- `luck-sim.js` : variantes A'/B retirées, remplacées par « avant » (règles d'avant #32) pour mesurer
+  l'effet réel du changement.
+
+### 8. Décisions demandées au propriétaire
+
+Aucune décision bloquante. Une question facultative :
+1. La relique **Lentille fêlée** affiche « +130 % blocs rares » (un poids, comme l'ancien libellé de
+   la Chance). La laisser telle quelle (recommandé pour le MVP — elle ne ralentit plus) ou afficher
+   aussi la part réelle ? **Après lancement.**
+
+### 9. Reste à faire
+
+- Recette du propriétaire, puis clôture.
+- ES : traduire « Plus de rares, sans ralentir » et la ligne d'aperçu avec #42.
+- Hors périmètre (déjà signalés plus bas) : popup de coffre qui arrête l'Auto-Dig d'un joueur absent ;
+  coffres de la mine indépendants de la profondeur.
+
+## 1re session du 30/10/2026 — audit (DIGORCH)
+
+Les sections suivantes décrivent l'audit et les règles **d'avant** le rééquilibrage ; les tableaux
+ont été produits par la version de `luck-sim.js` du commit `1d1dc0a`.
 
 ### 1. État réel
 
