@@ -1204,6 +1204,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
+rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 
 // Rotation planifiée des saisons : une passe au démarrage puis chaque minute (#16)
 startSeasonScheduler();

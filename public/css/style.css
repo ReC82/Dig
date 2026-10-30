@@ -2356,6 +2356,10 @@ h1 {
   margin: 0; padding: 6px 9px; border-radius: 8px; font-size: 0.78rem;
   background: rgba(251,191,36,0.10); border: 1px dashed rgba(251,191,36,0.4); color: var(--gold);
 }
+.points-live-banner {
+  margin: 0; padding: 6px 9px; border-radius: 8px; font-size: 0.78rem;
+  background: rgba(74,222,128,0.10); border: 1px solid rgba(74,222,128,0.35); color: #86efac;
+}
 .points-potential { margin: 0; color: var(--text); }
 .points-details summary { cursor: pointer; color: var(--muted); padding: 4px 0; min-height: 32px; display: flex; align-items: center; }
 .points-details[open] summary { color: var(--text); }
