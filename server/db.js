@@ -319,6 +319,38 @@ function initDb() {
     }
   }
 
+  // users : e-mail vérifié et version d'authentification (#28). Ajouts seuls, idempotents :
+  // les comptes existants gardent leurs identifiants, leur e-mail (non vérifié) et leurs sessions
+  // (auth_version 0 = valeur implicite des sessions ouvertes avant #28).
+  {
+    const userCols = _db.prepare('PRAGMA table_info(users)').all().map(r => r.name);
+    if (!userCols.includes('email_verified_at')) {
+      _db.prepare('ALTER TABLE users ADD COLUMN email_verified_at TEXT').run();
+      console.log('[db] Migration : users.email_verified_at ajouté');
+    }
+    if (!userCols.includes('auth_version')) {
+      _db.prepare('ALTER TABLE users ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0').run();
+      console.log('[db] Migration : users.auth_version ajouté');
+    }
+  }
+
+  // Jetons à usage unique envoyés par e-mail (#28) : seul leur hachage SHA-256 est stocké.
+  //   verify_email   : confirme `email` (adresse actuelle ou nouvelle adresse demandée)
+  //   reset_password : autorise un nouveau mot de passe
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_tokens (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      purpose    TEXT    NOT NULL CHECK (purpose IN ('verify_email', 'reset_password')),
+      token_hash TEXT    NOT NULL UNIQUE,
+      email      TEXT    NOT NULL,
+      expires_at TEXT    NOT NULL,
+      used_at    TEXT,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens (user_id, purpose, created_at DESC);
+  `);
+
   // ── Seeds config ──────────────────────────────────────────────────────────
   const cfgStmt = _db.prepare(
     `INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`
@@ -544,6 +576,91 @@ function getUserByEmail(email) {
   return getDb()
     .prepare('SELECT id, username, email, created_at FROM users WHERE email = ?')
     .get(email);
+}
+
+// ── Helpers e-mail vérifié et récupération de compte (#28) ────────────────────
+
+/**
+ * Données d'authentification d'un compte (avec password_hash) — usage serveur uniquement.
+ * @returns {{ id, username, email, email_verified_at, auth_version, password_hash } | undefined}
+ */
+function getUserAuth(id) {
+  return getDb()
+    .prepare('SELECT id, username, email, email_verified_at, auth_version, password_hash FROM users WHERE id = ?')
+    .get(id);
+}
+
+/** Version d'authentification courante (undefined si le compte n'existe pas). */
+function getUserAuthVersion(id) {
+  return getDb().prepare('SELECT auth_version FROM users WHERE id = ?').get(id)?.auth_version;
+}
+
+/**
+ * Enregistre un nouveau jeton (hachage) et annule les jetons non utilisés du même usage :
+ * seul le dernier lien envoyé reste valable.
+ */
+function createAuthToken(userId, purpose, tokenHash, email, ttlMinutes) {
+  const db = getDb();
+  runTransaction(() => {
+    db.prepare(
+      `UPDATE auth_tokens SET used_at = datetime('now')
+        WHERE user_id = ? AND purpose = ? AND used_at IS NULL`
+    ).run(userId, purpose);
+    db.prepare(
+      `INSERT INTO auth_tokens (user_id, purpose, token_hash, email, expires_at)
+       VALUES (?, ?, ?, ?, datetime('now', ?))`
+    ).run(userId, purpose, tokenHash, email, `+${Math.round(ttlMinutes)} minutes`);
+  });
+}
+
+/** Secondes écoulées depuis le dernier jeton émis pour cet usage (null si aucun). */
+function secondsSinceLastAuthToken(userId, purpose) {
+  const row = getDb().prepare(
+    `SELECT CAST((julianday('now') - julianday(MAX(created_at))) * 86400 AS INTEGER) AS s
+       FROM auth_tokens WHERE user_id = ? AND purpose = ?`
+  ).get(userId, purpose);
+  return row?.s ?? null;
+}
+
+/**
+ * Consomme un jeton valide (non utilisé, non expiré) : le marque utilisé et le retourne.
+ * Retourne null si le jeton est inconnu, expiré ou déjà utilisé.
+ */
+function consumeAuthToken(tokenHash, purpose) {
+  const db = getDb();
+  return runTransaction(() => {
+    const row = db.prepare(
+      `SELECT id, user_id, email FROM auth_tokens
+        WHERE token_hash = ? AND purpose = ? AND used_at IS NULL AND expires_at > datetime('now')`
+    ).get(tokenHash, purpose);
+    if (!row) return null;
+    db.prepare(`UPDATE auth_tokens SET used_at = datetime('now') WHERE id = ?`).run(row.id);
+    return row;
+  });
+}
+
+/**
+ * Remplace le mot de passe, incrémente auth_version (les autres sessions du compte sont
+ * fermées à leur prochaine requête) et annule les liens de réinitialisation en attente.
+ * @returns {number} nouvelle auth_version
+ */
+function setUserPassword(userId, passwordHash) {
+  const db = getDb();
+  return runTransaction(() => {
+    db.prepare('UPDATE users SET password_hash = ?, auth_version = auth_version + 1 WHERE id = ?')
+      .run(passwordHash, userId);
+    db.prepare(
+      `UPDATE auth_tokens SET used_at = datetime('now')
+        WHERE user_id = ? AND purpose = 'reset_password' AND used_at IS NULL`
+    ).run(userId);
+    return db.prepare('SELECT auth_version FROM users WHERE id = ?').get(userId).auth_version;
+  });
+}
+
+/** Marque `email` comme adresse vérifiée du compte (remplace l'adresse si elle diffère). */
+function setUserEmailVerified(userId, email) {
+  getDb().prepare(`UPDATE users SET email = ?, email_verified_at = datetime('now') WHERE id = ?`)
+    .run(email, userId);
 }
 
 // ── Helpers sauvegardes cloud (liées au compte) ───────────────────────────────
@@ -1033,6 +1150,13 @@ function setAdminConfig(key, value) {
 }
 
 module.exports = {
+  getUserAuth,
+  getUserAuthVersion,
+  createAuthToken,
+  secondsSinceLastAuthToken,
+  consumeAuthToken,
+  setUserPassword,
+  setUserEmailVerified,
   initDb, getDb,
   upsertPlayer, getSave, upsertSave, deleteSave, logEvent, logUserEvent, runTransaction,
   createUser, getUserByUsername, getUserById, getUserByEmail,
