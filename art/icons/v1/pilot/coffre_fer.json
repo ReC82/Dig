@@ -1,0 +1,54 @@
+{
+  "material": "coffre_fer",
+  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
+  "status": "pilote",
+  "choice": "génération unique (consigne du propriétaire du 30/10/2026 : une image par bloc)",
+  "candidate": "coffre_fer-20261030-121544-a",
+  "model": "gpt-image-2.5-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/edits",
+  "params": {
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "A single closed iron-bound treasure chest, premium stylized 3D low-poly game resource icon. Heavy chest with a flat-topped bevelled lid, dark wooden panels almost entirely covered by riveted steel plates and thick iron bands, reinforced corners and a large ornate steel padlock, rendered in the same faceted low-poly style, three-quarter view and silhouette scale as the reference stone; it looks valuable and epic. Cool steel-gray and gunmetal plates with bright silver edge highlights, small hints of dark walnut wood between the plates, a faint cool blue sheen, near-black lower faces; it must stay readable against a dark slate-blue background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png",
+    "reference": "pierre.png"
+  },
+  "prompt": "A single closed iron-bound treasure chest, premium stylized 3D low-poly game resource icon. Heavy chest with a flat-topped bevelled lid, dark wooden panels almost entirely covered by riveted steel plates and thick iron bands, reinforced corners and a large ornate steel padlock, rendered in the same faceted low-poly style, three-quarter view and silhouette scale as the reference stone; it looks valuable and epic. Cool steel-gray and gunmetal plates with bright silver edge highlights, small hints of dark walnut wood between the plates, a faint cool blue sheen, near-black lower faces; it must stay readable against a dark slate-blue background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+  "prompt_source": "prompt-master.md",
+  "prompt_master_version": "v1.0",
+  "reference": "art/icons/v1/reference/pierre.png",
+  "raw_sha256": "88fd678c542784e9c230d038f448c76f8e57cbbfa1358b1956368169cba506e5",
+  "cost_usd": 0.082,
+  "generatedAt": "2026-10-30T12:16:23.059Z",
+  "legibility": {
+    "objectMeanRgb": [
+      89,
+      87,
+      88
+    ],
+    "highlightRatio": 0.171,
+    "contrast": {
+      "bloc pierre (#4b5563)": 1.06,
+      "bloc pierre (#374151)": 1.44,
+      "page (#111827)": 2.48
+    }
+  },
+  "master": {
+    "file": "art/icons/v1/pilot/coffre_fer.webp",
+    "format": "WebP sans perte 1024×1024 RGBA (PNG normalisé)",
+    "sha256": "c3fd131c25b1a1014e0c43a5ae59e2c7efd12465343130f4a21e93b82a0e3343"
+  },
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/coffre_fer-c006db91-128.webp",
+      "sha256": "6d103b613b2e88307a42945f345dc1bfcdb3f37b074915d6621e82cc93aca281"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/coffre_fer-c006db91-256.webp",
+      "sha256": "c006db9107b0f177285369bf7269c88b6d2169bc2e8460fc8435469031bb677c"
+    }
+  }
+}

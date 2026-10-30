@@ -143,8 +143,13 @@ test('pilotes v1 : chaque matériau hors pierre a une provenance cohérente (emp
   for (const [id, entry] of Object.entries(lib.libraries.v1.materials)) {
     assert.ok(blocks.includes(id), `${id} : bloc existant`);
     if (id === 'pierre') continue;
-    assert.strictEqual(entry.status, 'pilote', `${id} : non validé, donc pilote`);
     const prov = JSON.parse(fs.readFileSync(path.join(ROOT, entry.provenance), 'utf8'));
+    if (entry.validated) {
+      assert.strictEqual(entry.status, undefined, `${id} : validé, plus de statut pilote`);
+      assert.strictEqual(prov.status, 'validé');
+    } else {
+      assert.strictEqual(entry.status, 'pilote', `${id} : non validé, donc pilote`);
+    }
     assert.strictEqual(prov.material, id);
     assert.strictEqual(prov.reference, 'art/icons/v1/reference/pierre.png', `${id} : généré depuis la pierre C`);
     assert.ok(prov.cost_usd > 0 && prov.raw_sha256 && prov.candidate.startsWith(id + '-'));
@@ -154,6 +159,52 @@ test('pilotes v1 : chaque matériau hors pierre a une provenance cohérente (emp
       assert.strictEqual(sha(file), prov.exports[size].sha256, `${id} ${size} : export conforme à la provenance`);
     }
   }
+});
+
+test('validations du propriétaire conservées : pierre (29/10), charbon et minerai de fer (30/10)', () => {
+  const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
+  const m = lib.libraries.v1.materials;
+  assert.strictEqual(m.pierre.validated, '2026-10-29');
+  assert.strictEqual(m.charbon.validated, '2026-10-30');
+  assert.strictEqual(m.minerai_fer.validated, '2026-10-30');
+  assert.notStrictEqual(m.diamant && m.diamant.validated, '2026-10-30', 'diamant refusé (glaçon) : non validé');
+});
+
+test('lot complet v1 : les 14 blocs ont une image, fichiers présents, aucun export orphelin', () => {
+  const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
+  const ids = loadBlockTypes().map((t) => IconLibrary.materialId(t));
+  assert.deepStrictEqual(Object.keys(lib.libraries.v1.materials), ids, 'un asset par bloc, dans l\'ordre du jeu');
+  const used = new Set();
+  for (const id of ids) {
+    for (const f of Object.values(lib.libraries.v1.materials[id].webp)) {
+      assert.ok(fs.existsSync(path.join(ROOT, 'public/assets/icons/v1', f)), `${id} : ${f} présent`);
+      used.add(f);
+    }
+  }
+  const files = fs.readdirSync(path.join(ROOT, 'public/assets/icons/v1'));
+  assert.deepStrictEqual(files.filter((f) => !used.has(f)), [], 'aucun export orphelin');
+  withLibrary({ config: { ...lib, defaultLibrary: 'v1' } }, () => {
+    for (const type of loadBlockTypes()) {
+      const el = new FakeEl('span');
+      IconLibrary.render(el, type);
+      assert.strictEqual(el.attrs['data-icon-lib'], 'v1', IconLibrary.materialId(type));
+    }
+  });
+});
+
+test('promote.js : nom d\'export avec empreinte (cache « immutable ») pour tout nouveau pilote', () => {
+  const lib = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/assets/icons/library.json'), 'utf8'));
+  for (const [id, entry] of Object.entries(lib.libraries.v1.materials)) {
+    if (entry.status !== 'pilote') continue;
+    for (const size of ['128', '256']) assert.match(entry.webp[size], new RegExp(`^${id}-[0-9a-f]{8}-${size}\\.webp$`));
+  }
+});
+
+test('planche de prévisualisation : 14 blocs, statuts du manifeste', () => {
+  const entries = require('../tools/icons/board').boardEntries();
+  assert.strictEqual(entries.length, 14);
+  assert.ok(entries.every((e) => e.image), 'chaque bloc a son image');
+  assert.deepStrictEqual(entries.filter((e) => e.validated).map((e) => e.id), ['pierre', 'charbon', 'minerai_fer']);
 });
 
 test('surcharge par navigateur : ?icons=v1 / legacy mémorisé, ?icons=default efface', () => {

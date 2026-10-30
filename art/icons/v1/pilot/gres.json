@@ -1,0 +1,54 @@
+{
+  "material": "gres",
+  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
+  "status": "pilote",
+  "choice": "génération unique (consigne du propriétaire du 30/10/2026 : une image par bloc)",
+  "candidate": "gres-20261030-121207-a",
+  "model": "gpt-image-2.5-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/edits",
+  "params": {
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "A single irregular chunk of sandstone, premium stylized 3D low-poly game resource icon. The same faceted rock as the reference stone, but with clearly visible horizontal sedimentary layers running across the facets and a fine sandy granular surface texture. Warm beige, sand-yellow and pale ochre strata alternating with light rose-tan bands, muted brown lower faces; it must stay readable against a warm gray background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png",
+    "reference": "pierre.png"
+  },
+  "prompt": "A single irregular chunk of sandstone, premium stylized 3D low-poly game resource icon. The same faceted rock as the reference stone, but with clearly visible horizontal sedimentary layers running across the facets and a fine sandy granular surface texture. Warm beige, sand-yellow and pale ochre strata alternating with light rose-tan bands, muted brown lower faces; it must stay readable against a warm gray background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+  "prompt_source": "prompt-master.md",
+  "prompt_master_version": "v1.0",
+  "reference": "art/icons/v1/reference/pierre.png",
+  "raw_sha256": "1ff1582f15559078cf0365a563d8252fab2a279b691882c5b3aa7c0b10d0b75a",
+  "cost_usd": 0.0818,
+  "generatedAt": "2026-10-30T12:12:44.676Z",
+  "legibility": {
+    "objectMeanRgb": [
+      169,
+      130,
+      94
+    ],
+    "highlightRatio": 0.534,
+    "contrast": {
+      "bloc pierre (#4b5563)": 2.18,
+      "bloc pierre (#374151)": 2.98,
+      "page (#111827)": 5.12
+    }
+  },
+  "master": {
+    "file": "art/icons/v1/pilot/gres.webp",
+    "format": "WebP sans perte 1024×1024 RGBA (PNG normalisé)",
+    "sha256": "ed329f76e82fe16438fc122382e7d5f1377bea43602615eef5151ce72cb61c9d"
+  },
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/gres-e0e8c746-128.webp",
+      "sha256": "c555bfd1a1cd72a356acde9e5e1d6d42060d7ac1722f28156e53aea4730d458e"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/gres-e0e8c746-256.webp",
+      "sha256": "e0e8c74637ea2f2d8220c3b5774e9f9d273b7ad5897549ca57f92a67120c8fff"
+    }
+  }
+}

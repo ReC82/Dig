@@ -5,6 +5,22 @@
       "version": "v1",
       "base": "assets/icons/v1/",
       "materials": {
+        "terre_meuble": {
+          "webp": {
+            "128": "terre_meuble-dc5d5a38-128.webp",
+            "256": "terre_meuble-dc5d5a38-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/terre_meuble.json",
+          "status": "pilote"
+        },
+        "argile": {
+          "webp": {
+            "128": "argile-0f9084ba-128.webp",
+            "256": "argile-0f9084ba-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/argile.json",
+          "status": "pilote"
+        },
         "pierre": {
           "webp": {
             "128": "pierre-128.webp",
@@ -13,13 +29,29 @@
           "reference": "art/icons/v1/reference/pierre.png",
           "validated": "2026-10-29"
         },
+        "gres": {
+          "webp": {
+            "128": "gres-e0e8c746-128.webp",
+            "256": "gres-e0e8c746-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/gres.json",
+          "status": "pilote"
+        },
+        "granite": {
+          "webp": {
+            "128": "granite-4100a75b-128.webp",
+            "256": "granite-4100a75b-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/granite.json",
+          "status": "pilote"
+        },
         "charbon": {
           "webp": {
             "128": "charbon-128.webp",
             "256": "charbon-256.webp"
           },
           "provenance": "art/icons/v1/pilot/charbon.json",
-          "status": "pilote"
+          "validated": "2026-10-30"
         },
         "minerai_fer": {
           "webp": {
@@ -27,12 +59,60 @@
             "256": "minerai_fer-256.webp"
           },
           "provenance": "art/icons/v1/pilot/minerai_fer.json",
+          "validated": "2026-10-30"
+        },
+        "minerai_or": {
+          "webp": {
+            "128": "minerai_or-a5a8df35-128.webp",
+            "256": "minerai_or-a5a8df35-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/minerai_or.json",
+          "status": "pilote"
+        },
+        "vieille_caisse": {
+          "webp": {
+            "128": "vieille_caisse-52fd3c10-128.webp",
+            "256": "vieille_caisse-52fd3c10-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/vieille_caisse.json",
+          "status": "pilote"
+        },
+        "coffre_bois": {
+          "webp": {
+            "128": "coffre_bois-902d0c2a-128.webp",
+            "256": "coffre_bois-902d0c2a-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/coffre_bois.json",
+          "status": "pilote"
+        },
+        "coffre_fer": {
+          "webp": {
+            "128": "coffre_fer-c006db91-128.webp",
+            "256": "coffre_fer-c006db91-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/coffre_fer.json",
+          "status": "pilote"
+        },
+        "rubis": {
+          "webp": {
+            "128": "rubis-6c4e7673-128.webp",
+            "256": "rubis-6c4e7673-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/rubis.json",
+          "status": "pilote"
+        },
+        "emeraude": {
+          "webp": {
+            "128": "emeraude-01a3f759-128.webp",
+            "256": "emeraude-01a3f759-256.webp"
+          },
+          "provenance": "art/icons/v1/pilot/emeraude.json",
           "status": "pilote"
         },
         "diamant": {
           "webp": {
-            "128": "diamant-128.webp",
-            "256": "diamant-256.webp"
+            "128": "diamant-24816390-128.webp",
+            "256": "diamant-24816390-256.webp"
           },
           "provenance": "art/icons/v1/pilot/diamant.json",
           "status": "pilote"

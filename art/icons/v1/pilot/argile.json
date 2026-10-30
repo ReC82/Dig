@@ -1,0 +1,54 @@
+{
+  "material": "argile",
+  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
+  "status": "pilote",
+  "choice": "génération unique (consigne du propriétaire du 30/10/2026 : une image par bloc)",
+  "candidate": "argile-20261030-121127-a",
+  "model": "gpt-image-2.5-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/edits",
+  "params": {
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "A single dense lump of raw clay, premium stylized 3D low-poly game resource icon. Compact rounded chunk with the same silhouette scale as the reference stone, smoother and softer than rock: broad gently bevelled polygonal faces, a slightly moist satin sheen and a few shallow finger-pressed dents and fine cracks. Terracotta reddish-orange and warm ochre surfaces with soft peach highlights, deep rust-brown lower faces; it must stay readable against a brown-orange background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png",
+    "reference": "pierre.png"
+  },
+  "prompt": "A single dense lump of raw clay, premium stylized 3D low-poly game resource icon. Compact rounded chunk with the same silhouette scale as the reference stone, smoother and softer than rock: broad gently bevelled polygonal faces, a slightly moist satin sheen and a few shallow finger-pressed dents and fine cracks. Terracotta reddish-orange and warm ochre surfaces with soft peach highlights, deep rust-brown lower faces; it must stay readable against a brown-orange background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+  "prompt_source": "prompt-master.md",
+  "prompt_master_version": "v1.0",
+  "reference": "art/icons/v1/reference/pierre.png",
+  "raw_sha256": "e6bcc89e2912b848800a95a8d2089154dcf23d8a01bb7df1eb9e504e63670600",
+  "cost_usd": 0.0819,
+  "generatedAt": "2026-10-30T12:12:03.534Z",
+  "legibility": {
+    "objectMeanRgb": [
+      167,
+      86,
+      52
+    ],
+    "highlightRatio": 0.272,
+    "contrast": {
+      "bloc pierre (#4b5563)": 1.45,
+      "bloc pierre (#374151)": 1.98,
+      "page (#111827)": 3.4
+    }
+  },
+  "master": {
+    "file": "art/icons/v1/pilot/argile.webp",
+    "format": "WebP sans perte 1024×1024 RGBA (PNG normalisé)",
+    "sha256": "e83e7358d85505266d7d9670bcd73d939682b251f546cbd13cb4e446a9fdab2b"
+  },
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/argile-0f9084ba-128.webp",
+      "sha256": "adcbb099221d94642cb9ee8a1a1289f04666a2562fef9fbe69e9e1b5ea2d01c7"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/argile-0f9084ba-256.webp",
+      "sha256": "0f9084bab993f310fdf7fba49f29cf42a77261988b11db0b71ad7a94bc31e995"
+    }
+  }
+}

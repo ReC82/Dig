@@ -1,7 +1,7 @@
 {
   "material": "minerai_fer",
-  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
-  "status": "pilote",
+  "role": "v1 validé par le propriétaire (recette en jeu sur PC, 30/10/2026, #22)",
+  "status": "validé",
   "choice": "proposition C (choix technique de la session, modifiable)",
   "candidate": "minerai_fer-20261030-095139-c",
   "alternatives": [
@@ -50,5 +50,6 @@
       "file": "public/assets/icons/v1/minerai_fer-256.webp",
       "sha256": "0bda2b571291f786048442f9331b414eeafc8a9b9f940a7a700ed4af294cdcc0"
     }
-  }
+  },
+  "validated": "2026-10-30 — proposition C retenue par le propriétaire (commentaire #22 du 30/10 10:15)"
 }

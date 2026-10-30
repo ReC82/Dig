@@ -1,0 +1,54 @@
+{
+  "material": "emeraude",
+  "role": "pilote v1 (aperçu ?icons=v1), NON validé par le propriétaire",
+  "status": "pilote",
+  "choice": "génération unique (consigne du propriétaire du 30/10/2026 : une image par bloc)",
+  "candidate": "emeraude-20261030-121711-a",
+  "model": "gpt-image-2.5-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/edits",
+  "params": {
+    "model": "gpt-image-2.5-sunburst",
+    "prompt": "A small cluster of raw emerald crystals, premium stylized 3D low-poly game resource icon. Rough natural emerald specimen: two or three elongated hexagonal prism crystals with flat terminations growing from a small fragment of pale gray host rock, natural inclusions and growth lines, same overall silhouette scale as the reference stone; a mineral specimen, not a cut jewel, not glass. Vivid emerald-green and deep forest-green translucent crystals with bright mint highlights and white sparkles on the lit edges, dark bottle-green lower faces, pale gray host rock; it must stay readable against a green background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+    "size": "1024x1024",
+    "quality": "high",
+    "n": 1,
+    "background": "transparent",
+    "output_format": "png",
+    "reference": "pierre.png"
+  },
+  "prompt": "A small cluster of raw emerald crystals, premium stylized 3D low-poly game resource icon. Rough natural emerald specimen: two or three elongated hexagonal prism crystals with flat terminations growing from a small fragment of pale gray host rock, natural inclusions and growth lines, same overall silhouette scale as the reference stone; a mineral specimen, not a cut jewel, not glass. Vivid emerald-green and deep forest-green translucent crystals with bright mint highlights and white sparkles on the lit edges, dark bottle-green lower faces, pale gray host rock; it must stay readable against a green background. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins. Match exactly the rendering style, lighting direction, facet density, camera angle, scale, margins and material finish of the provided reference icon; only the material changes.",
+  "prompt_source": "prompt-master.md",
+  "prompt_master_version": "v1.0",
+  "reference": "art/icons/v1/reference/pierre.png",
+  "raw_sha256": "0df520f44309583e22404d7b43b509f780ce2ffbeb9cb6bfa4f4be4beca73e3d",
+  "cost_usd": 0.082,
+  "generatedAt": "2026-10-30T12:17:56.132Z",
+  "legibility": {
+    "objectMeanRgb": [
+      69,
+      114,
+      87
+    ],
+    "highlightRatio": 0.271,
+    "contrast": {
+      "bloc pierre (#4b5563)": 1.36,
+      "bloc pierre (#374151)": 1.86,
+      "page (#111827)": 3.2
+    }
+  },
+  "master": {
+    "file": "art/icons/v1/pilot/emeraude.webp",
+    "format": "WebP sans perte 1024×1024 RGBA (PNG normalisé)",
+    "sha256": "9fcac0e6e01c0b6134a2e990ec4db9e728d6a7518e99deb2738dc40f4e54faa0"
+  },
+  "exports": {
+    "128": {
+      "file": "public/assets/icons/v1/emeraude-01a3f759-128.webp",
+      "sha256": "bc36190e3fe608494f5c89c28d87d2223ac15fbe3585f06efe979b8e6ba83f8d"
+    },
+    "256": {
+      "file": "public/assets/icons/v1/emeraude-01a3f759-256.webp",
+      "sha256": "01a3f759511b989cbdaa36432472319012f73706daf97a4a34a91d0ff85fd0ee"
+    }
+  }
+}
