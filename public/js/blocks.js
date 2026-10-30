@@ -8,6 +8,8 @@
  * (GET /api/blocks/catalog) le remplace dès qu'il est reçu, puis est mémorisé localement pour le
  * démarrage suivant. Aucune profondeur maximale par défaut (`maxDepth` absent = illimité) ; un
  * type n'est jamais retiré du catalogue (désactivé : `active: false`, sauvegardes compatibles).
+ * Étape B : un type peut être atténué au-delà de `fadeFrom` m (poids `fadeWeight` > 0) et une
+ * gemme peut ne pas rapporter de gemme (`gemReward: false`) — catalogue au format 2.
  */
 const Blocks = {
 
@@ -145,8 +147,8 @@ const Blocks = {
 
   /** Version du catalogue publié en usage (0 : catalogue d'origine intégré). */
   catalogVersion: 0,
-  CATALOG_URL: '/api/blocks/catalog',
-  CATALOG_STORAGE_KEY: 'dig.blockCatalog',
+  CATALOG_URL: '/api/blocks/catalog?format=2',
+  CATALOG_STORAGE_KEY: 'dig.blockCatalog.v2',
 
   /** Identifiant stable d'un type : « block.pierre » → « pierre ». */
   idOf(type) {
@@ -169,13 +171,15 @@ const Blocks = {
     const num = (v, min) => (Number.isFinite(v) && v >= min ? v : null);
     const hpBase = num(c.hpBase, 1), reward = num(c.reward, 0), minDepth = num(c.minDepth, 1), weight = num(c.weight, 0);
     if (hpBase === null || reward === null || minDepth === null || weight === null) return null;
+    const fadeFrom = num(c.fadeFrom, minDepth), fadeWeight = num(c.fadeWeight, 0);
     return {
       id: c.id, name: `block.${c.id}`, names: c.names && typeof c.names === 'object' ? c.names : null,
       category: String(c.category || 'pierre'), icon: String(c.icon || '⬜'), image: c.image || null,
       rarityKey: String(c.rarity || 'commun'),
       color: String(c.color || '#4b5563'), accent: String(c.accent || '#6b7280'),
       hpBase, reward, minDepth, maxDepth: num(c.maxDepth, minDepth), weight,
-      active: c.active !== false, isChest: c.category === 'coffre', isGem: c.category === 'gemme',
+      fadeFrom: fadeFrom !== null && fadeWeight > 0 ? fadeFrom : null, fadeWeight,
+      active: c.active !== false, isChest: c.category === 'coffre', isGem: c.category === 'gemme' && c.gemReward !== false,
     };
   },
 
@@ -236,13 +240,18 @@ const Blocks = {
     return t.active !== false && depth >= t.minDepth && (t.maxDepth == null || depth <= t.maxDepth);
   },
 
+  /** Poids à cette profondeur : atténué au-delà de `fadeFrom` (toujours > 0). */
+  weightAt(t, depth) {
+    return t.fadeFrom != null && depth > t.fadeFrom ? t.fadeWeight : t.weight;
+  },
+
   /** Pool pondéré des blocs possibles à cette profondeur (source unique du tirage et de l'affichage). */
   _pool(depth, luckMult) {
     return this.TYPES
       .filter(t => this.available(t, depth))
       .map(t => ({
         type: t,
-        w: t.weight * (this._BOOSTED_RARITIES.has(t.rarityKey) ? luckMult : 1),
+        w: this.weightAt(t, depth) * (this._BOOSTED_RARITIES.has(t.rarityKey) ? luckMult : 1),
       }));
   },
 
