@@ -104,9 +104,9 @@ Exemples de tirages simulés (option A) :
 - 10 coffres rares : objet · 7 🔮 · 6 761 · boost · 4 🔮 · 8 527 · 7 577 · 6 544 · 8 868 · 5 012.
 - 5 coffres antiques : 30 🔮 · 30 🔮 · 25 442 · objet · 26 652.
 
-Impact attendu : la pire ouverture d'un coffre simple passe de 80 à 500 pièces ; la première relique
-(5 à 25 fragments) devient accessible avec ~17 coffres simples, ~3 rares ou 1–2 antiques, au lieu de
-25 / 6 / 2. Les pièces restent une dépense nette (69 à 86 % du prix « brûlés » en moyenne) : aucune
+Impact attendu : la pire ouverture d'un coffre simple passe de 80 à 500 pièces ; la relique la moins
+chère (5 fragments) s'obtient en moyenne avec ~17 coffres simples ou ~3 rares, au lieu de 25 / 6
+(1 antique dans les deux cas). Les pièces restent une dépense nette (69 à 86 % du prix « brûlés » en moyenne) : aucune
 boucle de profit, même avec le Sac, les reliques ou un bonus (non appliqués aux coffres).
 Réversible : les tables sont du code, les sauvegardes des joueurs ne changent pas.
 
