@@ -656,8 +656,8 @@ app.post('/api/shop/orders/:id/cancel', limit.shop, requireUser, shopRoute('POST
   shop.cancelByPlayer(req.session.userId, Number(req.params.id))));
 
 // Catalogue de blocs publié (#37) : lu par le jeu au démarrage (types désactivés compris).
-app.get('/api/blocks/catalog', (_req, res) => {
-  try { res.set('Cache-Control', 'no-cache'); res.json(blockCatalog.publicCatalog()); }
+app.get('/api/blocks/catalog', (req, res) => {
+  try { res.set('Cache-Control', 'no-cache'); res.json(blockCatalog.publicCatalog({ format: req.query.format === '2' ? 2 : 1 })); }
   catch (err) { console.error('[GET /api/blocks/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 

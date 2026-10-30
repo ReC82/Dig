@@ -15,6 +15,18 @@
  *     « borne héritée » jusqu'à décision du propriétaire ;
  *   - le budget de dégâts anti-bot (#25) suit le catalogue : PV minimum par profondeur calculés
  *     sur TOUTES les versions publiées (jamais plus strict que l'origine, cf. antibot.js).
+ *
+ * Étape B (décision du propriétaire du 30/10/2026) :
+ *   - aucune borne maximale : un type actif reste tirable à toute profondeur ≥ `minDepth`. Pour ne
+ *     pas inonder la profondeur de blocs de surface, un type peut être atténué : au-delà de
+ *     `fadeFrom` m son poids devient `fadeWeight` (> 0, donc probabilité strictement positive).
+ *     Terre meuble et argile passent de « jusqu'à 12 / 22 m » à « atténuées au-delà de 12 / 22 m » ;
+ *   - `gemReward: false` : bloc de catégorie gemme qui ne rapporte PAS de gemme (monnaie premium,
+ *     étape D / #20 : aucune nouvelle distribution sans validation du propriétaire) ;
+ *   - migrations de contenu (`CONTENT_MIGRATIONS`) : publiées une seule fois, par-dessus la
+ *     version en vigueur, tracées dans le journal ; annulables par « Revenir à vN » ;
+ *   - le catalogue public garde une projection compatible pour les clients non rechargés
+ *     (`format` absent : atténuation → ancienne borne, gemme sans gemme → minerai).
  */
 
 'use strict';
@@ -79,8 +91,11 @@ function originTypes() {
 
 // ── Schéma et migration ───────────────────────────────────────────────────────
 
-/** Tables (ajout seul) et version 1 = catalogue d'origine. Idempotent. */
-function init() {
+/**
+ * Tables (ajout seul), version 1 = catalogue d'origine, puis migrations de contenu. Idempotent.
+ * `contentMigrations: false` : s'arrêter à la version 1 (tests de l'étape A).
+ */
+function init({ contentMigrations = true } = {}) {
   conn().exec(`
     CREATE TABLE IF NOT EXISTS block_catalog_versions (
       version     INTEGER PRIMARY KEY,
@@ -119,7 +134,84 @@ function init() {
     _audit('migrate', 1, { types: originTypes().length });
   })();
   _invalidate();
+  if (contentMigrations) _runContentMigrations();
+  _invalidate();
   refreshAntibot();
+}
+
+// ── Migrations de contenu (étape B) ──────────────────────────────────────────
+
+const _ore = (id, names, category, rarity, icon, color, accent, hpBase, reward, minDepth, weight, extra = {}) => ({
+  id, names, category, icon, image: null, rarity, color, accent, hpBase, reward, minDepth, maxDepth: null, weight,
+  active: true, ...extra,
+});
+
+/** Huit minerais de l'étape B (tableau du rapport #37, validé par le propriétaire le 30/10/2026). */
+const STEP_B_TYPES = [
+  _ore('quartz', { fr: 'Quartz', en: 'Quartz', nl: 'Kwarts' }, 'minerai', 'peu-commun', '🔹',
+    'linear-gradient(145deg,#e2e8f0,#94a3b8)', '#f8fafc', 45, 70, 150, 14),
+  _ore('obsidienne', { fr: 'Obsidienne', en: 'Obsidian', nl: 'Obsidiaan' }, 'pierre', 'peu-commun', '🌑',
+    'linear-gradient(145deg,#312e81,#0f0a1e)', '#818cf8', 60, 40, 200, 16),
+  _ore('minerai_argent', { fr: "Minerai d'argent", en: 'Silver ore', nl: 'Zilvererts' }, 'minerai', 'rare', '⚪',
+    'linear-gradient(145deg,#cbd5e1,#64748b)', '#e2e8f0', 95, 260, 260, 7),
+  _ore('saphir', { fr: 'Saphir', en: 'Sapphire', nl: 'Saffier' }, 'gemme', 'epique', '🔷',
+    'linear-gradient(145deg,#2563eb,#1e3a8a)', '#93c5fd', 150, 1900, 330, 2.5, { gemReward: false }),
+  _ore('minerai_platine', { fr: 'Minerai de platine', en: 'Platinum ore', nl: 'Platinaerts' }, 'minerai', 'rare', '⬜',
+    'linear-gradient(145deg,#d6d3d1,#78716c)', '#f5f5f4', 120, 520, 420, 5),
+  _ore('amethyste', { fr: 'Améthyste', en: 'Amethyst', nl: 'Amethist' }, 'gemme', 'epique', '🟣',
+    'linear-gradient(145deg,#9333ea,#4c1d95)', '#d8b4fe', 170, 2600, 520, 2, { gemReward: false }),
+  _ore('fer_meteorique', { fr: 'Fer météorique', en: 'Meteoric iron', nl: 'Meteorietijzer' }, 'minerai', 'legendaire', '☄',
+    'linear-gradient(145deg,#57534e,#1c1917)', '#fb923c', 220, 5200, 650, 1),
+  _ore('cristal_ancien', { fr: 'Cristal ancien', en: 'Ancient crystal', nl: 'Oeroud kristal' }, 'gemme', 'legendaire', '🔮',
+    'linear-gradient(145deg,#06b6d4,#164e63)', '#a5f3fc', 300, 9000, 800, 0.6, { gemReward: false }),
+];
+
+/** Poids résiduel des deux blocs de surface au-delà de leur ancienne borne (≈ 2 % à eux deux en profondeur). */
+const SURFACE_FADE = { terre_meuble: { fadeFrom: 12, fadeWeight: 2.1 }, argile: { fadeFrom: 22, fadeWeight: 1.35 } };
+
+/**
+ * Migrations de contenu, appliquées une seule fois dans l'ordre (marqueur : action `content:<key>`
+ * du journal). Chacune transforme la version en vigueur ; sans changement, rien n'est publié.
+ */
+const CONTENT_MIGRATIONS = [
+  {
+    key: 'step-b-ores',
+    note: "Étape B (#37) : 8 nouveaux minerais de 150 à 800 m (décision du propriétaire du 30/10/2026)",
+    apply: types => {
+      const ids = new Set(types.map(t => t.id));
+      return [...types, ...STEP_B_TYPES.filter(t => !ids.has(t.id)).map(t => ({ ...t, names: { ...t.names } }))];
+    },
+  },
+  {
+    key: 'surface-fade',
+    note: 'Terre meuble et argile sans borne maximale, atténuées au-delà de 12 / 22 m (décision du propriétaire du 30/10/2026)',
+    apply: types => types.map(t => {
+      const f = SURFACE_FADE[t.id];
+      // Uniquement si la borne d'origine est intacte (une modification de l'admin n'est pas écrasée)
+      if (!f || t.maxDepth !== f.fadeFrom || t.fadeFrom != null) return t;
+      return { ...t, maxDepth: null, ...f };
+    }),
+  },
+];
+
+function _runContentMigrations() {
+  for (const m of CONTENT_MIGRATIONS) {
+    conn().transaction(() => {
+      if (conn().prepare('SELECT 1 FROM block_catalog_audit WHERE action = ?').get(`content:${m.key}`)) return;
+      const current = getPublished();
+      const v = validateCatalog(m.apply(current.types.map(t => ({ ...t }))));
+      if (v.errors.length) throw new Error(`Migration de contenu ${m.key} invalide : ${v.errors.join(' ; ')}`);
+      const changes = diff(current.types, v.types);
+      let version = null;
+      if (changes.length) {
+        version = current.version + 1;
+        conn().prepare("INSERT INTO block_catalog_versions (version, types, source, note, from_version) VALUES (?, ?, 'publish', ?, ?)")
+          .run(version, JSON.stringify(v.types), m.note, current.version);
+        _invalidate();
+      }
+      _audit(`content:${m.key}`, version, { changes });
+    })();
+  }
 }
 
 function _audit(action, version, details) {
@@ -163,10 +255,21 @@ function getDraft() {
   return r ? { types: JSON.parse(r.types), basedOn: r.based_on, updatedAt: r.updated_at } : null;
 }
 
-/** Catalogue public (jeu) : version en vigueur, types inactifs compris (reprise du bloc #35). */
-function publicCatalog() {
+/**
+ * Catalogue public (jeu) : version en vigueur, types inactifs compris (reprise du bloc #35).
+ * `format` 2 : champs de l'étape B (atténuation, gemReward). Sans format (client pas encore
+ * rechargé, qui ignorerait ces champs) : projection équivalente pour lui — l'atténuation redevient
+ * l'ancienne borne et une gemme sans gemme est présentée comme minerai (aucune gemme distribuée).
+ */
+function publicCatalog({ format = 1 } = {}) {
   const p = getPublished();
-  return { version: p.version, types: p.types };
+  if (format >= 2) return { version: p.version, format: 2, types: p.types };
+  return { version: p.version, types: p.types.map(t => {
+    const { fadeFrom, fadeWeight, gemReward, ...rest } = t;
+    if (fadeFrom != null) rest.maxDepth = fadeFrom;
+    if (t.category === 'gemme' && gemReward === false) rest.category = 'minerai';
+    return rest;
+  }) };
 }
 
 /** Identifiants présents dans au moins une version publiée (jamais supprimables). */
@@ -219,23 +322,46 @@ function normalizeType(input, { legacyIds = new Set(originTypes().map(t => t.id)
   if (!_int(reward, 0, 1e9)) throw new CatalogError(400, `${where} : récompense entière de 0 à 1 000 000 000.`);
   if (!_int(minDepth, 1, 1e6)) throw new CatalogError(400, `${where} : profondeur minimale (dès X m) entière ≥ 1.`);
   if (!(Number.isFinite(weight) && weight > 0 && weight <= 1e6)) throw new CatalogError(400, `${where} : poids d'apparition > 0 requis (pour retirer un bloc, le désactiver).`);
-  let maxDepth = input.maxDepth === null || input.maxDepth === undefined || input.maxDepth === '' ? null : Number(input.maxDepth);
+  const _opt = v => (v === null || v === undefined || v === '' ? null : Number(v));
+  const maxDepth = _opt(input.maxDepth);
   if (maxDepth !== null) {
     if (!legacyIds.has(id)) throw new CatalogError(400, `${where} : pas de profondeur maximale pour un nouveau bloc (#37).`);
     if (!_int(maxDepth, minDepth, 1e6)) throw new CatalogError(400, `${where} : borne héritée ≥ profondeur minimale.`);
   }
-  return { id, names, category, icon, image, rarity, color, accent, hpBase, reward, minDepth, maxDepth,
+  const fadeFrom = _opt(input.fadeFrom);
+  let fadeWeight = null;
+  if (fadeFrom !== null) {
+    if (maxDepth !== null) throw new CatalogError(400, `${where} : atténuation et borne héritée sont exclusives (retirez la borne).`);
+    if (!_int(fadeFrom, minDepth, 1e6)) throw new CatalogError(400, `${where} : « atténué au-delà de » entier ≥ profondeur minimale.`);
+    fadeWeight = _opt(input.fadeWeight);
+    if (!(Number.isFinite(fadeWeight) && fadeWeight > 0 && fadeWeight < weight)) {
+      throw new CatalogError(400, `${where} : poids atténué > 0 et inférieur au poids (un bloc débloqué reste toujours possible).`);
+    }
+    fadeWeight = Math.round(fadeWeight * 1000) / 1000;
+    if (!(fadeWeight > 0)) throw new CatalogError(400, `${where} : poids atténué trop petit (minimum 0,001).`);
+  }
+  const t = { id, names, category, icon, image, rarity, color, accent, hpBase, reward, minDepth, maxDepth,
     weight: Math.round(weight * 1000) / 1000, active: input.active !== false };
+  // Champs de l'étape B présents seulement s'ils servent (écarts lisibles avec les versions précédentes)
+  if (fadeFrom !== null) Object.assign(t, { fadeFrom, fadeWeight });
+  if (category === 'gemme' && input.gemReward === false) t.gemReward = false;
+  return t;
 }
 
 /** Points de rupture : profondeurs où le pool change. */
 function _breakpoints(types) {
   const cuts = new Set([1]);
-  for (const t of types) { cuts.add(t.minDepth); if (t.maxDepth != null) cuts.add(t.maxDepth + 1); }
+  for (const t of types) {
+    cuts.add(t.minDepth);
+    if (t.maxDepth != null) cuts.add(t.maxDepth + 1);
+    if (t.fadeFrom != null) cuts.add(t.fadeFrom + 1);
+  }
   return [...cuts].sort((a, b) => a - b);
 }
 
 const _available = (t, d) => t.active && d >= t.minDepth && (t.maxDepth == null || d <= t.maxDepth);
+/** Poids à la profondeur d (atténuation éventuelle au-delà de `fadeFrom`). */
+const weightAt = (t, d) => (t.fadeFrom != null && d > t.fadeFrom ? t.fadeWeight : t.weight);
 
 /**
  * Valide un catalogue complet (brouillon avant publication).
@@ -266,6 +392,8 @@ function validateCatalog(rawTypes, { requiredIds = publishedIds() } = {}) {
   }
   for (const t of types) {
     if (t.maxDepth != null) warnings.push(`« ${t.id} » garde une borne héritée (jusqu'à ${t.maxDepth} m) : à valider par le propriétaire.`);
+    if (t.fadeFrom != null) warnings.push(`« ${t.id} » est atténué au-delà de ${t.fadeFrom} m (poids ${t.weight} → ${t.fadeWeight}).`);
+    if (t.category === 'gemme' && t.gemReward === false) warnings.push(`« ${t.id} » : catégorie gemme sans gain de gemme (étape D / #20).`);
     if (!t.active) warnings.push(`« ${t.id} » est désactivé : il n'apparaît plus (les blocs en cours restent valides).`);
   }
   return { errors, warnings, types };
@@ -275,7 +403,7 @@ function validateCatalog(rawTypes, { requiredIds = publishedIds() } = {}) {
 
 function _pool(types, depth, luckLevel) {
   const mult = 1 + Math.max(0, luckLevel) * LUCK_PER_LEVEL;
-  return types.filter(t => _available(t, depth)).map(t => ({ t, w: t.weight * (BOOSTED.has(t.rarity) ? mult : 1) }));
+  return types.filter(t => _available(t, depth)).map(t => ({ t, w: weightAt(t, depth) * (BOOSTED.has(t.rarity) ? mult : 1) }));
 }
 
 /** Probabilités normalisées à une profondeur (Chance du joueur `luckLevel`). */
@@ -347,7 +475,13 @@ function diff(fromTypes, toTypes) {
 
 // ── Anti-bot (#25) ────────────────────────────────────────────────────────────
 
-/** Segments de PV minimum sur toutes les versions publiées → budget de dégâts. */
+/**
+ * Segments de PV minimum sur toutes les versions publiées → budget de dégâts.
+ * La part atténuée d'un type (au-delà de `fadeFrom`, ≈ 1 % des blocs) n'abaisse pas le minimum :
+ * le budget suppose déjà que CHAQUE mètre est le bloc le plus faible, ce qu'un joueur honnête ne
+ * peut pas approcher avec des blocs aussi rares ; sans cela, la terre meuble (3 PV) relâcherait
+ * le budget de 8 à 3 PV à toutes les profondeurs.
+ */
 function minHpSegments() {
   const all = [];
   for (const r of conn().prepare('SELECT types FROM block_catalog_versions').all()) all.push(...JSON.parse(r.types).filter(t => t.active));
@@ -356,7 +490,7 @@ function minHpSegments() {
   for (let i = 0; i < cuts.length; i++) {
     const from = cuts[i];
     const to = i + 1 < cuts.length ? cuts[i + 1] - 1 : Infinity;
-    const avail = all.filter(t => _available(t, from));
+    const avail = all.filter(t => _available(t, from) && !(t.fadeFrom != null && from > t.fadeFrom));
     if (!avail.length) continue;
     const hpBase = Math.min(...avail.map(t => t.hpBase));
     const last = segs[segs.length - 1];
@@ -484,6 +618,7 @@ function buildAdminView() {
 module.exports = {
   CatalogError, CATEGORIES, RARITIES,
   init, originTypes, getPublished, getVersion, getDraft, listVersions, publicCatalog, publishedIds,
-  normalizeType, validateCatalog, odds, simulate, diff, minHpSegments, refreshAntibot,
+  STEP_B_TYPES, SURFACE_FADE, CONTENT_MIGRATIONS,
+  normalizeType, validateCatalog, odds, weightAt, simulate, diff, minHpSegments, refreshAntibot,
   upsertDraftType, removeDraftType, discardDraft, publishDraft, rollbackTo, listAudit, buildAdminView,
 };

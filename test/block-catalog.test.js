@@ -37,7 +37,7 @@ const antibot = require('../server/antibot');
 const catalog = require('../server/blockCatalog');
 
 db.initDb();
-catalog.init();
+catalog.init({ contentMigrations: false });
 const conn = () => db.getDb();
 
 function loadClient() {
@@ -50,11 +50,11 @@ function loadClient() {
 }
 
 const code = fn => { try { fn(); } catch (e) { return e.status ?? e.message; } return 'ok'; };
-const NEW = { id: 'obsidienne', names: { fr: 'Obsidienne', en: 'Obsidian' }, category: 'minerai', icon: '🟣', rarity: 'rare',
+const NEW = { id: 'basalte', names: { fr: 'Basalte', en: 'Basalt' }, category: 'minerai', icon: '🟣', rarity: 'rare',
   color: 'linear-gradient(145deg,#4c1d95,#1e1b4b)', accent: '#a78bfa', hpBase: 400, reward: 900, minDepth: 260, weight: 3 };
 
 test('migration : version 1 = les 14 blocs du client, probabilités identiques, idempotente', () => {
-  catalog.init();
+  catalog.init({ contentMigrations: false });
   assert.strictEqual(conn().prepare('SELECT COUNT(*) n FROM block_catalog_versions').get().n, 1);
   const v1 = catalog.getPublished();
   assert.strictEqual(v1.version, 1);
@@ -95,7 +95,7 @@ test('validation : nouveaux blocs, profondeur maximale, poids, suppression, couv
     { image: '/assets/../server/data/dig.sqlite.png' }, { names: { fr: '<img src=x>' } }]) {
     assert.strictEqual(code(() => catalog.normalizeType({ ...NEW, ...bad })), 400, JSON.stringify(bad));
   }
-  assert.strictEqual(catalog.normalizeType({ ...NEW, image: '/assets/icons/v1/obsidienne.webp' }).image, '/assets/icons/v1/obsidienne.webp');
+  assert.strictEqual(catalog.normalizeType({ ...NEW, image: '/assets/icons/v1/basalte.webp' }).image, '/assets/icons/v1/basalte.webp');
   // Bloc d'origine : noms intégrés facultatifs, borne héritée modifiable
   assert.strictEqual(catalog.normalizeType({ ...v1[0], maxDepth: 15 }).maxDepth, 15);
   // Aucun bloc publié supprimé ; chaque profondeur couverte
@@ -112,15 +112,15 @@ test('brouillon → publication atomique, version périmée, retour arrière, jo
   catalog.upsertDraftType(NEW);
   assert.strictEqual(catalog.getPublished().types.length, 14, 'le brouillon ne touche pas la version publiée');
   const view = catalog.buildAdminView();
-  assert.deepStrictEqual(view.draft.changes, [{ id: 'obsidienne', kind: 'added' }]);
+  assert.deepStrictEqual(view.draft.changes, [{ id: 'basalte', kind: 'added' }]);
   assert.strictEqual(code(() => catalog.publishDraft({ expectedBasedOn: 7 })), 409, 'version attendue périmée');
-  const pub = catalog.publishDraft({ note: 'Ajout obsidienne' });
+  const pub = catalog.publishDraft({ note: 'Ajout basalte' });
   assert.strictEqual(pub.version, 2);
   assert.strictEqual(catalog.getDraft(), null);
   assert.strictEqual(catalog.getPublished().types.length, 15);
   // Un bloc publié ne se retire pas du brouillon : il se désactive
   catalog.upsertDraftType({ ...NEW, active: false });
-  assert.strictEqual(code(() => catalog.removeDraftType('obsidienne')), 409);
+  assert.strictEqual(code(() => catalog.removeDraftType('basalte')), 409);
   catalog.discardDraft();
   // Brouillon basé sur une version remplacée entre-temps : refusé
   catalog.upsertDraftType({ ...NEW, weight: 4 });
@@ -130,7 +130,7 @@ test('brouillon → publication atomique, version périmée, retour arrière, jo
   assert.deepStrictEqual(rb, { version: 3, restored: 1 });
   const after = catalog.getPublished();
   assert.strictEqual(after.types.length, 15, 'le bloc ajouté reste présent');
-  assert.strictEqual(after.types.find(t => t.id === 'obsidienne').active, false, '… mais désactivé');
+  assert.strictEqual(after.types.find(t => t.id === 'basalte').active, false, '… mais désactivé');
   assert.strictEqual(code(() => catalog.publishDraft()), 409, 'brouillon basé sur v2, version en vigueur v3');
   catalog.discardDraft();
   assert.throws(() => conn().prepare('UPDATE block_catalog_audit SET action = ?').run('x'), /ajout seul/);
@@ -167,14 +167,14 @@ test('client : catalogue publié appliqué, nouveau bloc dès sa profondeur, blo
   assert.strictEqual(B.byId('poussiere').minDepth, 100);
   assert.ok(!B.blockOdds(99, 0).some(e => e.type.id === 'poussiere'));
   assert.ok(B.blockOdds(5000, 0).some(e => e.type.id === 'poussiere' && e.p > 0), 'aucune profondeur maximale');
-  assert.ok(!B.blockOdds(500, 0).some(e => e.type.id === 'obsidienne'), 'désactivé : plus tiré');
+  assert.ok(!B.blockOdds(500, 0).some(e => e.type.id === 'basalte'), 'désactivé : plus tiré');
   assert.strictEqual(B.displayName(B.byId('poussiere'), 'nl'), 'Poussière', 'repli sur le nom FR');
   assert.strictEqual(B.displayName(B.byId('pierre'), 'fr'), 'block.pierre', 'bloc d\'origine : traduction intégrée');
   // Bloc désactivé sauvegardé : repris à l'identique (#35)
   client.GameState.blockSeq = 10;
-  const saved = { name: 'block.obsidienne', hp: 50, maxHp: 900, reward: 1200, depth: 300, seq: 10 };
+  const saved = { name: 'block.basalte', hp: 50, maxHp: 900, reward: 1200, depth: 300, seq: 10 };
   assert.strictEqual(B.resume(saved, 300), true);
-  assert.strictEqual(B.current.type.id, 'obsidienne');
+  assert.strictEqual(B.current.type.id, 'basalte');
   // Catalogue invalide ignoré
   assert.strictEqual(B.applyCatalog({ version: 99, types: [{ id: 'x' }] }), false);
   assert.strictEqual(B.applyCatalog({ version: 99, types: pub.types.map(t => ({ ...t, active: false })) }), false);
@@ -218,28 +218,29 @@ test('routes : catalogue public, administration protégée', async (t) => {
 
   const pub = await call('GET', '/api/blocks/catalog', undefined, { auth: false });
   assert.strictEqual(pub.status, 200);
-  assert.deepStrictEqual([pub.body.version, pub.body.types.length], [1, 14]);
+  // Serveur complet : v1 (origine) + v2 (8 minerais de l'étape B) + v3 (atténuation de surface)
+  assert.deepStrictEqual([pub.body.version, pub.body.types.length], [3, 22]);
 
-  for (const [m, u] of [['GET', '/api/admin/blocks'], ['PUT', '/api/admin/blocks/draft/types/obsidienne'], ['POST', '/api/admin/blocks/publish'],
+  for (const [m, u] of [['GET', '/api/admin/blocks'], ['PUT', '/api/admin/blocks/draft/types/basalte'], ['POST', '/api/admin/blocks/publish'],
     ['POST', '/api/admin/blocks/rollback'], ['POST', '/api/admin/blocks/simulate'], ['DELETE', '/api/admin/blocks/draft'], ['GET', '/api/admin/blocks/audit']]) {
     assert.strictEqual((await call(m, u, m === 'GET' ? undefined : {}, { auth: false })).status, 401, `${m} ${u}`);
   }
   assert.strictEqual((await call('PUT', '/api/admin/blocks/draft/types/autre', { type: NEW })).status, 400, 'identifiant incohérent');
-  assert.strictEqual((await call('PUT', '/api/admin/blocks/draft/types/obsidienne', { type: NEW })).status, 200);
+  assert.strictEqual((await call('PUT', '/api/admin/blocks/draft/types/basalte', { type: NEW })).status, 200);
   const sim = await call('POST', '/api/admin/blocks/simulate', { source: 'draft', n: 10000, depths: [300], luckLevel: 0 });
   assert.strictEqual(sim.status, 200);
-  assert.ok(sim.body.results[0].types.some(x => x.id === 'obsidienne'));
-  const p = await call('POST', '/api/admin/blocks/publish', { note: 'test', basedOn: 1 });
-  assert.deepStrictEqual([p.status, p.body.version], [200, 2]);
+  assert.ok(sim.body.results[0].types.some(x => x.id === 'basalte'));
+  const p = await call('POST', '/api/admin/blocks/publish', { note: 'test', basedOn: 3 });
+  assert.deepStrictEqual([p.status, p.body.version], [200, 4]);
   const pub2 = await call('GET', '/api/blocks/catalog', undefined, { auth: false });
-  assert.deepStrictEqual([pub2.body.version, pub2.body.types.length], [2, 15]);
-  const rb = await call('POST', '/api/admin/blocks/rollback', { version: 1 });
-  assert.deepStrictEqual([rb.status, rb.body.version], [200, 3]);
+  assert.deepStrictEqual([pub2.body.version, pub2.body.types.length], [4, 23]);
+  const rb = await call('POST', '/api/admin/blocks/rollback', { version: 3 });
+  assert.deepStrictEqual([rb.status, rb.body.version], [200, 5]);
   const admin = await call('GET', '/api/admin/blocks');
-  assert.strictEqual(admin.body.published.types.find(x => x.id === 'obsidienne').active, false);
+  assert.strictEqual(admin.body.published.types.find(x => x.id === 'basalte').active, false);
   assert.ok(admin.body.antibotSegments.length >= 3);
   const audit = await call('GET', '/api/admin/blocks/audit');
-  assert.deepStrictEqual(audit.body.audit.map(a => a.action), ['rollback', 'publish', 'draft_add', 'migrate']);
+  assert.deepStrictEqual(audit.body.audit.map(a => a.action), ['rollback', 'publish', 'draft_add', 'content:surface-fade', 'content:step-b-ores', 'migrate']);
 });
 
 test.after(() => {

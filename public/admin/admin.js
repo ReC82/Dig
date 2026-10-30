@@ -1471,11 +1471,14 @@ let _bk = null;   // vue admin (GET /api/admin/blocks)
 
 function bkWorking() { return _bk ? (_bk.draft ? _bk.draft.types : _bk.published.types) : []; }
 
+/** Poids à une profondeur : atténué au-delà de `fadeFrom` (étape B, même règle que le jeu). */
+const bkWeightAt = (t, depth) => (t.fadeFrom != null && depth > t.fadeFrom ? t.fadeWeight : t.weight);
+
 /** Probabilités sans Chance à une profondeur (même règle que le jeu). */
 function bkOdds(types, depth) {
   const pool = types.filter(t => t.active && depth >= t.minDepth && (t.maxDepth == null || depth <= t.maxDepth));
-  const total = pool.reduce((s, t) => s + t.weight, 0);
-  return new Map(pool.map(t => [t.id, total > 0 ? t.weight / total : 0]));
+  const total = pool.reduce((s, t) => s + bkWeightAt(t, depth), 0);
+  return new Map(pool.map(t => [t.id, total > 0 ? bkWeightAt(t, depth) / total : 0]));
 }
 
 function bkPct(p) {
@@ -1535,6 +1538,9 @@ function bkFillForm(t) {
   maxEl.value = t?.maxDepth ?? '';
   maxEl.disabled = !(t && _bk.legacyIds.includes(t.id));
   document.getElementById('bk-weight').value = t ? t.weight : '';
+  document.getElementById('bk-fade-from').value = t?.fadeFrom ?? '';
+  document.getElementById('bk-fade-weight').value = t?.fadeWeight ?? '';
+  document.getElementById('bk-gem-reward').checked = t ? t.gemReward !== false : true;
   document.getElementById('bk-active').checked = t ? t.active : true;
   document.getElementById('btn-bk-remove').disabled = !t || _bk.publishedIds.includes(t.id);
   bkPreview();
@@ -1554,6 +1560,8 @@ function bkReadForm() {
     color: document.getElementById('bk-color').value.trim(),
     accent: document.getElementById('bk-accent').value.trim(),
     hpBase: num('bk-hp'), reward: num('bk-reward'), minDepth: num('bk-min'), maxDepth: num('bk-max'), weight: num('bk-weight'),
+    fadeFrom: num('bk-fade-from'), fadeWeight: num('bk-fade-weight'),
+    gemReward: document.getElementById('bk-gem-reward').checked,
     active: document.getElementById('bk-active').checked,
   };
 }
@@ -1580,7 +1588,8 @@ function bkRenderTable() {
     if (status === 'inactive' && t.active) continue;
     if (status === 'changed' && !changed.has(t.id)) continue;
     const tr = document.createElement('tr');
-    const range = t.maxDepth != null ? `${t.minDepth}–${t.maxDepth} m (hérité)` : `${t.minDepth} m`;
+    const range = t.maxDepth != null ? `${t.minDepth}–${t.maxDepth} m (hérité)`
+      : t.fadeFrom != null ? `${t.minDepth} m (atténué > ${t.fadeFrom} m : ${t.fadeWeight})` : `${t.minDepth} m`;
     const state = `${t.active ? 'actif' : 'désactivé'}${changed.has(t.id) ? ' · modifié' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau'}`;
     [t.icon, t.id, t.names?.fr ?? '(intégré)', t.category, BK_RARITY[t.rarity] ?? t.rarity, t.hpBase, t.reward, range,
      t.weight, bkPct(odds.get(t.id)) + (BK_BOOSTED.has(t.rarity) ? ' ★' : ''), state].forEach(x => addCell(tr, x));
