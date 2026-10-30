@@ -37,6 +37,8 @@ systemctl list-timers dig-backup.timer
 1. **Ressources AWS** (propriétaire, avec des droits d'administration, par exemple dans AWS CloudShell, jamais sur le serveur) :
    `bash deploy/aws/setup-s3.sh dig-backups-<id-compte> <id-instance> us-east-1`.
    Ce script crée un bucket privé (accès public bloqué, SSE-S3, versionnement, expiration à 30 jours, HTTPS obligatoire), puis le rôle d'instance `dig-backup-ec2`. Ce rôle est limité à `PutObject`/`GetObject` sur `backups/*` et à `ListBucket` sur ce préfixe. Aucune clé d'accès n'est créée.
+   Bucket déjà créé à la main dans la console : le contrôler d'abord, **en lecture seule**, avec
+   `bash deploy/aws/check-s3.sh <bucket> us-east-1` (région, accès public bloqué, SSE-S3, versionnement, expiration 30 jours sur `backups/`). `setup-s3.sh` ne recrée pas un bucket existant : il en corrige seulement les réglages.
 2. **Serveur** : installer l'AWS CLI v2, puis vérifier `aws sts get-caller-identity` (doit afficher le rôle `dig-backup-ec2`).
 3. **Brancher la copie** (outil installé dans `/opt/dig-backup`) :
 
@@ -53,14 +55,17 @@ sudo systemctl daemon-reload && sudo systemctl start dig-backup.service
 journalctl -u dig-backup -n 10      # « [offsite-s3] ok s3://… » puis « hors machine : ok »
 ```
 
-4. **Restauration depuis S3, sur une copie :**
+4. **Test de restauration depuis S3, sur une copie isolée** (ticket #36) :
 
 ```bash
-aws s3 ls s3://dig-backups-<id-compte>/backups/ | tail
-mkdir -p /tmp/dig-s3 && aws s3 cp s3://dig-backups-<id-compte>/backups/dig-….sqlite /tmp/dig-s3/ \
-  && aws s3 cp s3://dig-backups-<id-compte>/backups/dig-….json /tmp/dig-s3/
-node scripts/restore-db.js /tmp/dig-s3/dig-….sqlite --target /tmp/dig-restore-check.sqlite
+DIG_S3_BUCKET=dig-backups-<id-compte> AWS_REGION=us-east-1 bash scripts/restore-from-s3.sh latest
+# ou une sauvegarde précise : … restore-from-s3.sh dig-AAAAMMJJ-HHMMSS-daily.sqlite
+# « [restore] OK … N tables / M lignes » puis « [restore-s3] ok s3://… → copie isolée vérifiée »
 ```
+
+   Le script télécharge la sauvegarde et son manifeste dans un dossier temporaire neuf (`mktemp`, droits 700), contrôle le sha256 (checksum S3 au téléchargement, métadonnée enregistrée à l'envoi, manifeste), puis la restaure avec `restore-db.js` sur une base neuve de ce dossier (`integrity_check` + compteurs par table). La base du jeu n'est ni lue ni écrite. Le dossier est supprimé à la fin, sauf avec `DIG_S3_KEEP=1` (pour comparer les compteurs ; à supprimer ensuite). Le rôle `dig-backup-ec2` suffit (`GetObject` + `ListBucket` sur `backups/`).
+
+5. **Journal des envois** : chaque tentative est ajoutée à `~/backups/dig/offsite.log`, une ligne JSON par sauvegarde (`at`, `file`, `result` = `ok` ou `échec (code N)`, `duration_ms`). Dernières tentatives : `tail -n 5 ~/backups/dig/offsite.log`. Un échec fait aussi échouer `dig-backup.service` (`systemctl --failed`) ; le détail est dans `journalctl -u dig-backup`.
 
 **Retour arrière :** supprimer `offsite.conf`, puis `daemon-reload`. Les sauvegardes locales ne changent pas.
 

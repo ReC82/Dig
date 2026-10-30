@@ -16,7 +16,8 @@
  *   DIG_BACKUP_RETENTION_DAYS  rétention en jours (défaut : 14)
  *   DIG_BACKUP_KEEP_MIN  nombre minimal de sauvegardes toujours conservées (défaut : 3)
  *   DIG_BACKUP_OFFSITE_CMD  commande optionnelle de copie hors machine, appelée avec le chemin
- *                        de la sauvegarde puis celui du manifeste en arguments (désactivée si vide)
+ *                        de la sauvegarde puis celui du manifeste en arguments (désactivée si vide) ;
+ *                        chaque tentative est journalisée dans $DIG_BACKUP_DIR/offsite.log
  *
  * Code de sortie : 0 si la sauvegarde est vérifiée, 1 sinon (la copie invalide est supprimée).
  */
@@ -32,6 +33,7 @@ const { spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const PREFIX = 'dig-';
+const OFFSITE_LOG = 'offsite.log';
 const BACKUP_RE = /^dig-(\d{8}-\d{6})(?:-[a-z0-9_-]+)?\.sqlite$/;
 
 function config(env = process.env) {
@@ -101,6 +103,19 @@ function applyRetention(cfg, now = Date.now()) {
   return removed;
 }
 
+/**
+ * Journal des copies hors machine (une ligne JSON par tentative, dans le dossier des sauvegardes) :
+ * garde une trace des échecs distants au-delà de la rétention de journalctl.
+ */
+function logOffsite(cfg, file, result, durationMs) {
+  const line = JSON.stringify({ at: new Date().toISOString(), file, result, duration_ms: durationMs });
+  try {
+    fs.appendFileSync(path.join(cfg.backupDir, OFFSITE_LOG), line + '\n', { mode: 0o600 });
+  } catch (err) {
+    console.error(`[backup] journal hors machine non écrit : ${err.message}`);
+  }
+}
+
 async function backup(cfg, label = '') {
   if (!fs.existsSync(cfg.dbPath)) throw new Error(`base introuvable : ${cfg.dbPath}`);
   fs.mkdirSync(cfg.backupDir, { recursive: true, mode: 0o700 });
@@ -145,9 +160,11 @@ async function backup(cfg, label = '') {
   manifest.removed = applyRetention(cfg);
 
   if (cfg.offsiteCmd) {
+    const offsiteStart = Date.now();
     const r = spawnSync('/bin/sh', ['-c', `${cfg.offsiteCmd} "$1" "$2"`, 'offsite', dest, manifestPath],
       { stdio: 'inherit', timeout: 10 * 60 * 1000 });
     manifest.offsite = r.status === 0 ? 'ok' : `échec (code ${r.status})`;
+    logOffsite(cfg, name, manifest.offsite, Date.now() - offsiteStart);
   } else {
     manifest.offsite = 'désactivée';
   }
@@ -155,7 +172,7 @@ async function backup(cfg, label = '') {
   return manifest;
 }
 
-module.exports = { config, backup, verifyDb, finalizeCopy, applyRetention, BACKUP_RE };
+module.exports = { config, backup, verifyDb, finalizeCopy, applyRetention, BACKUP_RE, OFFSITE_LOG };
 
 if (require.main === module) {
   const args = process.argv.slice(2);
