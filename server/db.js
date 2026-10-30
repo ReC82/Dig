@@ -351,6 +351,24 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens (user_id, purpose, created_at DESC);
   `);
 
+  // Identités sociales liées à un compte (#28, connexion Google via Auth0). Ajout seul : la table
+  // reste vide tant que SOCIAL_LOGIN=off. Une identité appartient à un seul compte, un compte a au
+  // plus une identité par fournisseur ; `subject` = « sub » Auth0 (contient l'identifiant Google).
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS user_identities (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider       TEXT    NOT NULL,
+      subject        TEXT    NOT NULL,
+      email          TEXT,
+      email_verified INTEGER NOT NULL DEFAULT 0,
+      created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+      last_login_at  TEXT,
+      UNIQUE (provider, subject),
+      UNIQUE (user_id, provider)
+    );
+  `);
+
   // ── Anti-bot (#25) : ajouts seuls, idempotents ──────────────────────────────
   // Budget de dégâts (lot B) sur la ligne de validation de profondeur existante (#9) :
   //   dmg_depth  : profondeur couverte par le budget (NULL = ligne antérieure à #25 → reprise
@@ -718,6 +736,45 @@ function setUserPassword(userId, passwordHash) {
 function setUserEmailVerified(userId, email) {
   getDb().prepare(`UPDATE users SET email = ?, email_verified_at = datetime('now') WHERE id = ?`)
     .run(email, userId);
+}
+
+// ── Helpers identités sociales (#28) ─────────────────────────────────────────
+
+/** Identité sociale (provider, subject), ou undefined. */
+function getIdentity(provider, subject) {
+  return getDb().prepare('SELECT id, user_id, provider, subject, email FROM user_identities WHERE provider = ? AND subject = ?')
+    .get(provider, subject);
+}
+
+/** Identités sociales liées à un compte. */
+function getUserIdentities(userId) {
+  return getDb().prepare('SELECT id, provider, subject, email, created_at, last_login_at FROM user_identities WHERE user_id = ? ORDER BY id')
+    .all(userId);
+}
+
+/** Lie une identité sociale à un compte (contraintes UNIQUE : jamais deux comptes pour une identité). */
+function addUserIdentity(userId, { provider, subject, email, emailVerified }) {
+  getDb().prepare(
+    `INSERT INTO user_identities (user_id, provider, subject, email, email_verified, last_login_at)
+     VALUES (?, ?, ?, ?, ?, datetime('now'))`
+  ).run(userId, provider, subject, email ?? null, emailVerified ? 1 : 0);
+}
+
+function touchUserIdentity(identityId) {
+  getDb().prepare(`UPDATE user_identities SET last_login_at = datetime('now') WHERE id = ?`).run(identityId);
+}
+
+/**
+ * Retire une identité sociale et incrémente auth_version (les autres sessions du compte sont
+ * fermées). @returns {number} nouvelle auth_version
+ */
+function removeUserIdentity(userId, identityId) {
+  const db = getDb();
+  return runTransaction(() => {
+    db.prepare('DELETE FROM user_identities WHERE id = ? AND user_id = ?').run(identityId, userId);
+    db.prepare('UPDATE users SET auth_version = auth_version + 1 WHERE id = ?').run(userId);
+    return db.prepare('SELECT auth_version FROM users WHERE id = ?').get(userId).auth_version;
+  });
 }
 
 // ── Helpers sauvegardes cloud (liées au compte) ───────────────────────────────
@@ -1220,6 +1277,11 @@ module.exports = {
   consumeAuthToken,
   setUserPassword,
   setUserEmailVerified,
+  getIdentity,
+  getUserIdentities,
+  addUserIdentity,
+  touchUserIdentity,
+  removeUserIdentity,
   initDb, getDb,
   upsertPlayer, getSave, upsertSave, deleteSave, logEvent, logUserEvent, runTransaction,
   createUser, getUserByUsername, getUserById, getUserByEmail,
