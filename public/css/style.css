@@ -1047,6 +1047,14 @@ h1 {
   text-overflow: ellipsis;
 }
 
+/* Effet du prochain niveau à la profondeur actuelle (carte Chance, #32) : peut passer à la ligne */
+.upgrade-preview {
+  font-size: 0.68rem;
+  color: var(--gold);
+  margin-top: 2px;
+  line-height: 1.25;
+}
+
 .upgrade-btn {
   flex-shrink: 0;
   min-width: 82px;

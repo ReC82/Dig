@@ -1,7 +1,7 @@
 /**
  * upgrades.js
  * Catalogue des améliorations et logique d'achat.
- * Dépend de : GameState, Balance
+ * Dépend de : GameState, Balance, Blocks (aperçu Chance)
  */
 const Upgrades = {
 
@@ -29,6 +29,14 @@ const Upgrades = {
       describe(level) {
         if (level === 0) return t('upgrade.luck.desc_none');
         return t('upgrade.luck.desc', { pct: level * 20 });
+      },
+      /** Effet concret à la profondeur actuelle : part de blocs rares maintenant → au niveau suivant (#32). */
+      preview(level) {
+        const p = Upgrades.getLuckPreview(GameState.depth, level);
+        if (p.now === 0 && (p.next ?? 0) === 0) return t('upgrade.luck.preview_none');
+        const fmt = x => (x * 100).toLocaleString(I18n.getCurrent(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        if (p.next === null) return t('upgrade.luck.preview_max', { depth: p.depth, now: fmt(p.now) });
+        return t('upgrade.luck.preview', { depth: p.depth, now: fmt(p.now), next: fmt(p.next) });
       },
       getCost(level) {
         if (level >= 12) return null;
@@ -161,6 +169,20 @@ const Upgrades = {
     ].filter(f => Math.abs(f.mult - 1) > 1e-9);
     const total = Math.ceil(blockReward * this.getRewardMultiplier() * boostMult);
     return { base: blockReward, factors, total };
+  },
+
+  /**
+   * Part des blocs rares, épiques et légendaires à cette profondeur, au niveau de Chance donné et
+   * au suivant (relique Lentille fêlée incluse) ; next = null au niveau maximal (#32).
+   * @returns {{ depth: number, now: number, next: number|null }}
+   */
+  getLuckPreview(depth, level = this.getLevel('luck')) {
+    const def = this.DEFS.find(d => d.id === 'luck');
+    return {
+      depth,
+      now:  Blocks.rareShare(depth, level),
+      next: level < def.maxLevel ? Blocks.rareShare(depth, level + 1) : null,
+    };
   },
 
   getAutoDigDamage() {
