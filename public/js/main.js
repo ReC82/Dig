@@ -55,14 +55,28 @@ async function _checkForUpdate() {
   } catch (_) {}
 }
 
-// Vérifie une fois que la page regagne le focus, au maximum toutes les 5 min
-window.addEventListener('focus', () => {
+/** Vérifie la version au plus toutes les 5 min (force = au chargement). */
+function _maybeCheckForUpdate(force = false) {
   const now = Date.now();
-  if (now - _updateCheckLast > 5 * 60 * 1000) {
+  if (force || now - _updateCheckLast > 5 * 60 * 1000) {
     _updateCheckLast = now;
     _checkForUpdate();
   }
+}
+
+// Au retour sur la page (focus ordinateur, application ramenée au premier plan sur mobile)
+window.addEventListener('focus', () => _maybeCheckForUpdate());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') _maybeCheckForUpdate();
 });
+
+// ── PWA : service worker (#21) ────────────────────────────────────────────────
+// Met en cache les fichiers statiques versionnés (?v=) et la page d'accueil pour
+// un lancement hors ligne ; l'API n'est jamais interceptée (voir public/sw.js).
+function _registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+}
 
 // ── Anti-autoclicker ──────────────────────────────────────────────────────────
 const _clickLog        = [];           // Timestamps récents (fenêtre glissante 3 s) pour le CPS
@@ -1919,6 +1933,16 @@ elBlock.addEventListener('touchstart', (e) => {
   onBlockHit(x, y);
 }, { passive: false });
 
+// Clavier (#21) : Entrée ou Espace sur le bloc sélectionné = un coup de pioche.
+// La répétition automatique d'une touche maintenue est ignorée (un appui = un coup).
+elBlock.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  e.preventDefault();
+  if (e.repeat) return;
+  const rect = elBlock.getBoundingClientRect();
+  onBlockHit(rect.left + rect.width / 2, rect.top + rect.height / 2);
+});
+
 // Bouton pub récompensée — accorde un boost ×2 pendant 2 min (visible sur le bloc)
 // Si un boost plus fort est déjà actif, le pub prolonge simplement sa durée.
 document.getElementById('btn-watch-ad').addEventListener('click', () => {
@@ -2077,6 +2101,11 @@ function init() {
 
   // Récupère l'état de session (non bloquant — la page est déjà jouable)
   _fetchMe();
+
+  // Contrôle de version au chargement : utile si la page vient du cache hors ligne
+  // ou d'un onglet restauré, et enregistrement du service worker (#21).
+  _maybeCheckForUpdate(true);
+  _registerServiceWorker();
 }
 
 document.addEventListener('DOMContentLoaded', init);
