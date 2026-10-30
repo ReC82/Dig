@@ -3,12 +3,137 @@
 - Ticket : https://github.com/ReC82/Dig/issues/9 (source : audit général #6, bug B2)
 - Branche : `fix/9-classement-serveur`
 - Dépendance : #10 (T-03, anti-autoclic cumulé), déjà intégré dans `develop` (`18476a0`)
-- Session du 29/10/2026
+- Sessions du 29/10/2026 et du 30/10/2026
+
+## Session du 30/10/2026 — recette échouée, correction déployée
+
+### 1. État réel
+
+**Déployé en production (SHA `f5019c0`) — en attente de recette.** Version servie
+`1.0.0+f5019c0` sur https://dig.lodygames.com et https://dig.lodylands.com. Classement :
+**Bloquant MVP public** (le classement est le cœur de la saison).
+
+### 2. Retour du propriétaire (recette en production, 30/10, sur téléphone)
+
+- Compteur du haut **PROF. 131 m** ; carte « Rang #1 / Mimosa » : **Prof. max 128 m, Blocs
+  manuels 114** ; ligne du classement « lody » : **128 m, 127 blocs manuels**.
+- Le classement ouvert ne s'actualise pas pendant le minage.
+
+### 3. Analyse (données de production lues en copie, en lecture seule)
+
+**Écart 114 / 127 — une vraie anomalie, deux définitions différentes :**
+- la carte du joueur (`GET /api/seasons/current`) affichait `manual_blocks`, le total **brut**
+  déclaré par le client ;
+- la ligne du classement affichait `effective_manual_blocks`, les blocs **validés** par
+  l'anti-autoclic, eux-mêmes plafonnés à « profondeur − 1 » ;
+- or le compteur interne de l'anti-autoclic (`player_click_tracking.accepted_blocks`) était
+  **gonflé** : 403 blocs acceptés pour 88 déclarés dès la sauvegarde pré-déploiement de 00:46,
+  c'est-à-dire **avant** le correctif #10 (ancienne version de l'anti-autoclic). Ce matin :
+  456 acceptés pour 124 déclarés. Le plafond « profondeur − 1 » s'appliquait donc toujours :
+  128 m → 127 blocs. La valeur du classement ne mesurait plus les blocs manuels.
+- Depuis le déploiement de #10 (00:48), le compteur progresse exactement comme le total
+  déclaré (+29 / +29) : le gonflement est **hérité**, pas produit par le code actuel.
+- Seul compte concerné : le seul joueur classé de la saison en cours.
+
+**Écart 131 m / 128 m — légitime, ce n'est pas un calcul faux :**
+- « PROF. » en haut = profondeur **actuelle** du jeu, mise à jour à chaque bloc ;
+- « Prof. max » de la saison = profondeur **validée par le serveur** à la dernière sauvegarde
+  cloud reçue (au plus une toutes les 12 s depuis #10). Pendant le minage, l'écart correspond aux
+  blocs cassés depuis la dernière sauvegarde, et l'onglet ne se rechargeait pas : l'écart
+  grandissait tant que l'onglet restait ouvert.
+
+### 4. Changements réalisés (commit `b4a8796`, intégré dans `develop` par `f5019c0`)
+
+- `server/seasons.js` — `processAntiCheat` : **invariant « blocs validés ≤ blocs déclarés »**
+  (plus grand total connu : sauvegarde reçue, référence, ligne de classement). Effets : le
+  compteur gonflé hérité est ramené au total déclaré à la sauvegarde suivante ; plus de double
+  comptage possible si les compteurs du client reculent puis remontent (deux sources de
+  sauvegarde).
+- `server/seasons.js` — **une seule définition de « Blocs manuels »** (`_validatedBlocks` :
+  blocs validés, jamais plus que les blocs déclarés) pour la carte du joueur, le classement
+  global et le classement de ligue. La carte ajoute `manualBlocksBroken` (brut, informatif).
+  L'ordre du classement est inchangé (profondeur, puis blocs validés).
+- `public/js/main.js` — **onglet Saison** :
+  - à l'ouverture, la sauvegarde cloud en attente est envoyée d'abord : les chiffres reflètent le
+    minage récent ;
+  - pendant qu'il est affiché : actualisation après chaque sauvegarde cloud réussie (au plus une
+    toutes les 10 s ; en pratique ≈ 12 s pendant le minage) et toutes les 30 s sinon ;
+  - rien n'est demandé si l'onglet Saison est masqué ou la page en arrière-plan ;
+  - l'actualisation se fait sans écran « Chargement », en gardant le bloc « Comment fonctionne la
+    saison ? » ouvert et la position de défilement.
+- `test/ranking-depth.test.js` : 3 tests de non-régression (compteur hérité 456/124 → carte =
+  classement = 124 puis 129 après une sauvegarde ; compteurs qui oscillent → jamais plus que
+  déclaré ; classement de ligue = carte).
+
+### 5. SHA, tests et vérifications
+
+- Branche `fix/9-classement-serveur` (`b4a8796`) ; **`develop` = `f5019c0`** ; `main` = `f5019c0`.
+- `npm test` **133/133** (worktree du ticket, `develop`, et release au SHA exact) ;
+  `node server/test-season.js` **62/62**.
+- Navigateur (serveur de test port 3101, base de test, Chromium headless, 390×844 et 1280×900) :
+  carte et ligne du classement identiques (ex. 9 m / 8 blocs des deux côtés) ; après 90 clics en
+  restant sur l'onglet Saison, chiffres actualisés seuls (2 actualisations en ~30 s) ; aucune
+  erreur JavaScript.
+- Interactions #10 / #18 : sauvegardes refusées en 409 (révision obsolète) toujours exclues du
+  classement ; suite anti-autoclic (#10) et révisions (#18) vertes.
+
+### 6. Déploiement
+
+- Copie de la base de production démarrée avec la release en mode production (port 3122) :
+  `/health` et `/api/version` ok ; **empreintes identiques** avant/après démarrage (`users`,
+  `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`) ; copie
+  supprimée.
+- `main` avancé en avance rapide `232c0b9 → f5019c0`, puis `scripts/deploy.sh` de la release.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261030-100807-pre-deploy-f5019c0.sqlite`.
+- Après : 200 et `1.0.0+f5019c0` sur les 2 domaines ; journaux sans erreur ; `quick_check` ok ;
+  données joueurs identiques à la copie pré-déploiement ; page Saison publique en production :
+  « lody 151 m 👆129 » (= blocs déclarés ; auparavant 150 = profondeur − 1), sans erreur.
+- **Aucune donnée réécrite par le déploiement.** Le compteur interne gonflé de l'anti-autoclic
+  sera ramené au total déclaré lors de ta prochaine sauvegarde en jeu (correction d'un compteur
+  technique, aucune progression ni monnaie touchée ; ta profondeur reste 151 m).
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 232c0b9` puis `sudo systemctl restart dig`
+  (pas de changement de dépendances). La base n'est jamais restaurée.
+
+### 7. Test fonctionnel à faire par le propriétaire (≈ 2 min, téléphone)
+
+1. Ouvrir le jeu (recharger la page une fois pour prendre la nouvelle version).
+2. Ouvrir **Saison** : sur la carte « Rang #1 » et sur ta ligne du classement, **la profondeur et
+   les blocs manuels sont identiques**, et la profondeur est celle du compteur « PROF. » du haut.
+3. Rester sur **Saison** et miner en tapant sur le bloc visible en haut pendant ~30 s : les deux
+   chiffres augmentent seuls en même temps (toutes les ~12 s), sans recharger la page.
+4. Attendu : jamais deux valeurs différentes entre la carte et la ligne. Un écart de quelques
+   mètres avec « PROF. » pendant le minage est normal (dernière sauvegarde, ≤ 12 s) et se
+   résorbe à l'actualisation suivante.
+
+### 8. Choix techniques faits seul
+
+- **Plafond « validé ≤ déclaré »** plutôt qu'une migration qui réécrirait les compteurs : la
+  correction se fait d'elle-même à la sauvegarde suivante, sans toucher à la base au déploiement.
+- **Blocs validés affichés partout** (et non le brut) : c'est la valeur qui sert au départage et
+  aux promotions ; pour un joueur légitime, elle est égale au brut.
+- **Actualisation liée aux sauvegardes** plutôt qu'un rafraîchissement rapide en boucle : au plus
+  deux requêtes légères toutes les ~12 s, seulement quand l'onglet Saison est affiché.
+- Envoi de la sauvegarde en attente à l'ouverture de l'onglet : réduit l'écart avec « PROF. ».
+
+### 9. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire.
+
+### 10. Éléments restant à réaliser
+
+- Recette en jeu ci-dessus (clôture par le propriétaire).
+- Après lancement : le champ d'API `effectiveBlocks` (non affiché dans le jeu) garde la valeur
+  stockée jusqu'à la prochaine sauvegarde du joueur ; sans impact visible.
+- Limites anti-bot résiduelles : suivies par #25.
+
+---
+
+## Session du 29/10/2026
 
 ## 1. État réel
 
-**Intégré dans `develop` — en attente de validation et de déploiement.** Rien n'est déployé :
-`main` et la production ne sont pas modifiés.
+**Intégré dans `develop` — en attente de validation et de déploiement.** (État du 29/10 ; déployé
+ensuite le 30/10 à 00:48 en `18e3881`, voir la session du 30/10 ci-dessus.)
 
 ## 2. Problème de départ (audit B2)
 
