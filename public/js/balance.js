@@ -67,9 +67,9 @@ const Balance = {
   },
 
   // ── Coffres achetables (coin sinks, récompenses aléatoires côté serveur) ───
-  // Les probabilités réelles vivent dans server/chestShop.js.
-  // Ce tableau n'est utilisé que pour l'affichage UI (coût, icône, limite) ;
-  // `cost` est remplacé par le coût réglé dans l'admin (applyEconomy).
+  // Les probabilités réelles vivent dans server/chestShop.js et arrivent par GET /api/shop/chests
+  // (applyChestCatalog) : `table` et `chestRules` restent vides tant que le serveur n'a pas répondu.
+  // `cost` est remplacé par le coût réglé dans l'admin (applyEconomy / applyChestCatalog).
   SHOP_CHESTS: [
     {
       id:           'simple',
@@ -129,6 +129,44 @@ const Balance = {
       }
     }
     return changed;
+  },
+
+  /** Règles de quantité reçues du serveur (fragments, objets de collection) ; null = pas encore chargées. */
+  chestRules: null,
+
+  /**
+   * Applique la description publique des coffres (GET /api/shop/chests) : coût, limite et table
+   * exacte de chaque coffre, règles de fragments et d'objets. Réponse invalide → rien n'est modifié.
+   * @returns {boolean} true si le catalogue a été appliqué
+   */
+  applyChestCatalog(catalog) {
+    if (!catalog || !Array.isArray(catalog.chests) || !catalog.fragments || !catalog.collection) return false;
+    for (const chest of this.SHOP_CHESTS) {
+      const src = catalog.chests.find(c => c && c.id === chest.id);
+      if (!src || !Array.isArray(src.table) || src.table.length === 0) return false;
+    }
+    for (const chest of this.SHOP_CHESTS) {
+      const src = catalog.chests.find(c => c.id === chest.id);
+      if (Number.isInteger(src.cost) && src.cost > 0) chest.cost = src.cost;
+      chest.maxPerSeason = Number.isInteger(src.maxPerSeason) ? src.maxPerSeason : null;
+      chest.table = src.table;
+    }
+    this.chestRules = { fragments: catalog.fragments, collection: catalog.collection };
+    return true;
+  },
+
+  /**
+   * Fragments réellement reçus pour une ligne « fragments » d'un coffre, avec la même formule que
+   * le serveur (chestShop.rollChest) : max(minimum, arrondi((quantité + bonus Aimant) × multiplicateur)).
+   * @param {number} amount           quantité de la ligne
+   * @param {number} shardMagnetLevel niveau de la relique Aimant à éclats (0 = absente)
+   */
+  chestFragmentAmount(amount, shardMagnetLevel) {
+    const f = this.chestRules?.fragments;
+    if (!f) return amount;
+    const level = Math.min(Math.max(0, Math.floor(shardMagnetLevel || 0)), f.shardMagnetBonus.length);
+    const bonus = level > 0 ? f.shardMagnetBonus[level - 1] : 0;
+    return Math.max(f.minimum, Math.round((amount + bonus) * f.multiplier));
   },
 
   /** Coût en pièces d'une amélioration après le multiplicateur admin (arrondi supérieur). */
