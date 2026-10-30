@@ -98,15 +98,15 @@
         <div id="hp-text"></div>
         <div id="block-reward"></div>
 
-        <!-- Zone pub récompensée -->
-        <div id="ad-zone">
-          <button id="btn-watch-ad" class="ad-btn"
+        <!-- Bonus ×2 (publicité simulée). Noms neutres : les bloqueurs masquent .ad-btn, #ad-… (#46) -->
+        <div id="bonus-zone">
+          <button id="btn-bonus-boost" class="bonus-btn"
             data-i18n-aria="ui.btn_watch_ad"
             aria-label="Doubler la récompense">
-            <span class="ad-btn-icon">📺</span>
-            <span class="ad-btn-text" data-i18n="ui.btn_watch_ad">Doubler la récompense</span>
+            <span class="bonus-btn-icon">📺</span>
+            <span class="bonus-btn-text" data-i18n="ui.btn_watch_ad">Doubler la récompense</span>
           </button>
-          <div id="ad-timer" aria-live="polite"></div>
+          <div id="bonus-timer" aria-live="polite"></div>
         </div>
 
       </div>
@@ -206,22 +206,22 @@
   </div><!-- /#app -->
 
   <!-- ── Modale publicité simulée ─────────────────────────────────────────── -->
-  <div id="ad-modal" hidden role="dialog" aria-modal="true" aria-labelledby="ad-modal-title">
-    <div id="ad-modal-inner">
+  <div id="bonus-modal" hidden role="dialog" aria-modal="true" aria-labelledby="bonus-card-title">
+    <div id="bonus-modal-inner">
 
-      <div id="ad-mock-content">
-        <div id="ad-mock-logo">⛏</div>
-        <div id="ad-mock-title">DIG! — Edition Pro</div>
-        <div id="ad-mock-sub" data-i18n="ui.ad_mock_sub">Doublez tous vos gains !</div>
-        <div id="ad-bar-wrap">
-          <div id="ad-bar-fill"></div>
+      <div id="bonus-card-content">
+        <div id="bonus-card-logo">⛏</div>
+        <div id="bonus-card-title">DIG! — Edition Pro</div>
+        <div id="bonus-card-sub" data-i18n="ui.ad_mock_sub">Doublez tous vos gains !</div>
+        <div id="bonus-bar-wrap">
+          <div id="bonus-bar-fill"></div>
         </div>
       </div>
 
-      <div id="ad-modal-footer">
-        <div id="ad-countdown" aria-live="polite">5</div>
-        <button id="btn-close-ad" hidden data-i18n="ui.btn_close_ad">Récupérer le bonus →</button>
-        <button id="btn-skip-ad" data-i18n="ui.btn_skip_ad">Passer ✕</button>
+      <div id="bonus-modal-footer">
+        <div id="bonus-countdown" aria-live="polite">5</div>
+        <button id="btn-close-bonus" hidden data-i18n="ui.btn_close_ad">Récupérer le bonus →</button>
+        <button id="btn-skip-bonus" data-i18n="ui.btn_skip_ad">Passer ✕</button>
       </div>
 
     </div>

@@ -627,7 +627,7 @@ h1 {
 #block-reward .reward-chest     { color: var(--text); font-style: italic; }
 
 /* ── Bouton pub récompensée ─────────────────── */
-#ad-zone {
+#bonus-zone {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -635,7 +635,7 @@ h1 {
   margin-top: 4px;
 }
 
-.ad-btn {
+.bonus-btn {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -653,20 +653,20 @@ h1 {
   white-space: nowrap;
 }
 
-.ad-btn:not(:disabled):hover  {
+.bonus-btn:not(:disabled):hover  {
   background: rgba(74, 222, 128, 0.13);
   border-color: rgba(74, 222, 128, 0.4);
   transform: scale(1.03);
 }
-.ad-btn:not(:disabled):active { transform: scale(0.97); }
+.bonus-btn:not(:disabled):active { transform: scale(0.97); }
 
-/* Base disabled — remplacé par les règles data-ad-state ci-dessous */
-.ad-btn:disabled { cursor: not-allowed; }
+/* Base disabled — remplacé par les règles data-bonus-state ci-dessous */
+.bonus-btn:disabled { cursor: not-allowed; }
 
 /* ── États pub (appliqués par updateAdButtonState()) ── */
 /* display: flex est toujours garanti via btn.style.display = '' en JS */
 
-.ad-btn[data-ad-state="ready"] {
+.bonus-btn[data-bonus-state="ready"] {
   display: flex;                           /* sécurité CSS */
   background: rgba(74, 222, 128, 0.07);
   border-color: rgba(74, 222, 128, 0.22);
@@ -674,7 +674,7 @@ h1 {
   opacity: 1;
 }
 
-.ad-btn[data-ad-state="cooldown"] {
+.bonus-btn[data-bonus-state="cooldown"] {
   display: flex;
   background: rgba(107, 114, 128, 0.06);
   border-color: rgba(107, 114, 128, 0.18);
@@ -682,7 +682,7 @@ h1 {
   opacity: 0.75;
 }
 
-.ad-btn[data-ad-state="used"] {
+.bonus-btn[data-bonus-state="used"] {
   display: flex;
   background: rgba(74, 222, 128, 0.04);
   border-color: rgba(74, 222, 128, 0.14);
@@ -690,14 +690,14 @@ h1 {
   opacity: 0.55;
 }
 
-.ad-btn-icon {
+.bonus-btn-icon {
   font-size: 1rem;
   flex-shrink: 0;
   transition: none;        /* évite le flash à chaque tick de la seconde */
 }
-.ad-btn-text { }
+.bonus-btn-text { }
 
-#ad-timer {
+#bonus-timer {
   font-size: 0.63rem;
   color: var(--muted);
   min-height: 1em;
@@ -705,7 +705,7 @@ h1 {
 }
 
 /* ── Modale pub ─────────────────────────────── */
-#ad-modal {
+#bonus-modal {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.88);
@@ -715,9 +715,9 @@ h1 {
   z-index: 500;
   padding: 24px;
 }
-#ad-modal[hidden] { display: none; }
+#bonus-modal[hidden] { display: none; }
 
-#ad-modal-inner {
+#bonus-modal-inner {
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 20px;
@@ -726,7 +726,7 @@ h1 {
   overflow: hidden;
 }
 
-#ad-mock-content {
+#bonus-card-content {
   padding: 36px 24px 28px;
   text-align: center;
   background: linear-gradient(145deg, #1a1a2e, #2d1b69);
@@ -736,24 +736,24 @@ h1 {
   gap: 10px;
 }
 
-#ad-mock-logo {
+#bonus-card-logo {
   font-size: 3.5rem;
   filter: drop-shadow(0 2px 10px rgba(0,0,0,0.5));
 }
 
-#ad-mock-title {
+#bonus-card-title {
   font-size: 1.2rem;
   font-weight: 900;
   color: var(--gold);
   letter-spacing: 3px;
 }
 
-#ad-mock-sub {
+#bonus-card-sub {
   font-size: 0.78rem;
   color: rgba(255,255,255,0.55);
 }
 
-#ad-bar-wrap {
+#bonus-bar-wrap {
   width: 100%;
   height: 4px;
   background: rgba(255,255,255,0.1);
@@ -762,14 +762,14 @@ h1 {
   margin-top: 10px;
 }
 
-#ad-bar-fill {
+#bonus-bar-fill {
   height: 100%;
   background: var(--gold);
   width: 0%;
   border-radius: 2px;
 }
 
-#ad-modal-footer {
+#bonus-modal-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -778,7 +778,7 @@ h1 {
   border-top: 1px solid var(--border);
 }
 
-#ad-countdown {
+#bonus-countdown {
   min-width: 28px;
   font-size: 1.2rem;
   font-weight: 800;
@@ -786,7 +786,7 @@ h1 {
   text-align: center;
 }
 
-#btn-close-ad {
+#btn-close-bonus {
   flex: 1;
   padding: 10px;
   background: linear-gradient(135deg, var(--gold), var(--gold-dim));
@@ -799,9 +799,9 @@ h1 {
   transition: filter 0.1s;
   touch-action: manipulation;
 }
-#btn-close-ad:hover { filter: brightness(1.1); }
+#btn-close-bonus:hover { filter: brightness(1.1); }
 
-#btn-skip-ad {
+#btn-skip-bonus {
   padding: 10px 12px;
   background: none;
   border: 1px solid var(--border);
@@ -812,7 +812,7 @@ h1 {
   transition: color 0.15s;
   touch-action: manipulation;
 }
-#btn-skip-ad:hover { color: var(--text); }
+#btn-skip-bonus:hover { color: var(--text); }
 
 /* ── Jeu ouvert dans un autre onglet (#18) ─── */
 #tab-inactive-modal {
@@ -2821,7 +2821,7 @@ header {
   padding-top: calc(14px + env(safe-area-inset-top, 0px));
 }
 #lang-pick-screen,
-#ad-modal, #offline-modal, #chest-modal, #tab-inactive-modal {
+#bonus-modal, #offline-modal, #chest-modal, #tab-inactive-modal {
   padding-top:    max(24px, env(safe-area-inset-top, 0px));
   padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
 }

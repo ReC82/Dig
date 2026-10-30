@@ -122,11 +122,11 @@ const Monetization = {
 
   /** Modale de simulation : compte à rebours de AD_DURATION_S secondes. */
   _showFakeAd(onComplete, onSkip) {
-    const modal    = document.getElementById('ad-modal');
-    const countEl  = document.getElementById('ad-countdown');
-    const closeBtn = document.getElementById('btn-close-ad');
-    const skipBtn  = document.getElementById('btn-skip-ad');
-    const barFill  = document.getElementById('ad-bar-fill');
+    const modal    = document.getElementById('bonus-modal');
+    const countEl  = document.getElementById('bonus-countdown');
+    const closeBtn = document.getElementById('btn-close-bonus');
+    const skipBtn  = document.getElementById('btn-skip-bonus');
+    const barFill  = document.getElementById('bonus-bar-fill');
     if (!modal) { onSkip(); return; }
 
     let remaining = this.AD_DURATION_S;
