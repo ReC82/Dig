@@ -1551,14 +1551,14 @@ function _accountSectionHtml() {
   // Lien « mot de passe oublié » ouvert : prioritaire, connecté ou non (#28)
   if (_resetToken) {
     return `<div class="settings-section">${head}
-      <div class="account-form">
+      <form class="account-form" id="form-account-reset" novalidate>
         <p class="account-hint">${t('account.reset_intro')}</p>
         ${_accInput('acc-new-password', 'password', t('account.label_new_password'), 'new-password', 'maxlength="200"')}
         <p class="account-hint">${t('account.hint_password')}</p>
-        <button class="account-submit-btn" id="btn-account-reset">${t('account.btn_reset')}</button>
-        <button class="account-link-btn" id="btn-account-reset-cancel">${t('account.btn_cancel')}</button>
+        <button type="submit" class="account-submit-btn" id="btn-account-reset">${t('account.btn_reset')}</button>
+        <button type="button" class="account-link-btn" id="btn-account-reset-cancel">${t('account.btn_cancel')}</button>
         <p class="account-error" id="acc-error" role="alert"></p>
-      </div></div>`;
+      </form></div>`;
   }
 
   if (_account) {
@@ -1575,13 +1575,13 @@ function _accountSectionHtml() {
     const changeEmail = _mailEnabled
       ? `<details class="account-details">
           <summary>${t('account.change_email')}</summary>
-          <div class="account-form">
+          <form class="account-form" id="form-account-change-email" novalidate>
             ${_accInput('acc-new-email', 'email', t('account.label_new_email'), 'email', 'maxlength="254"')}
             ${_accInput('acc-email-password', 'password', t('account.label_password'), 'current-password')}
             <p class="account-hint">${t('account.hint_change_email')}</p>
-            <button class="account-submit-btn" id="btn-account-change-email">${t('account.btn_change_email')}</button>
+            <button type="submit" class="account-submit-btn" id="btn-account-change-email">${t('account.btn_change_email')}</button>
             <p class="account-msg" id="acc-email-msg" role="status"></p>
-          </div>
+          </form>
         </details>`
       : '';
     return `<div class="settings-section">${head}
@@ -1592,13 +1592,13 @@ function _accountSectionHtml() {
       ${email}
       <details class="account-details">
         <summary>${t('account.change_password')}</summary>
-        <div class="account-form">
+        <form class="account-form" id="form-account-change-password" novalidate>
           ${_accInput('acc-cur-password', 'password', t('account.label_current_password'), 'current-password')}
           ${_accInput('acc-new-password', 'password', t('account.label_new_password'), 'new-password', 'maxlength="200"')}
           <p class="account-hint">${t('account.hint_password_others')}</p>
-          <button class="account-submit-btn" id="btn-account-change-password">${t('account.btn_change_password')}</button>
+          <button type="submit" class="account-submit-btn" id="btn-account-change-password">${t('account.btn_change_password')}</button>
           <p class="account-msg" id="acc-password-msg" role="status"></p>
-        </div>
+        </form>
       </details>
       ${changeEmail}
     </div>`;
@@ -1606,13 +1606,13 @@ function _accountSectionHtml() {
 
   if (_accountTab === 'forgot') {
     return `<div class="settings-section">${head}
-      <div class="account-form">
+      <form class="account-form" id="form-account-forgot" novalidate>
         <p class="account-hint">${t('account.forgot_intro')}</p>
         ${_accInput('acc-identifier', 'text', t('account.label_identifier'), 'username', 'maxlength="254"')}
-        <button class="account-submit-btn" id="btn-account-forgot">${t('account.btn_forgot_send')}</button>
-        <button class="account-link-btn" data-tab="login">${t('account.btn_back_login')}</button>
+        <button type="submit" class="account-submit-btn" id="btn-account-forgot">${t('account.btn_forgot_send')}</button>
+        <button type="button" class="account-link-btn" data-tab="login">${t('account.btn_back_login')}</button>
         <p class="account-msg" id="acc-forgot-msg" role="status"></p>
-      </div></div>`;
+      </form></div>`;
   }
 
   const tab = _accountTab === 'register' ? 'register' : 'login';
@@ -1621,25 +1621,25 @@ function _accountSectionHtml() {
       <button class="account-tab${tab === 'login'    ? ' is-active' : ''}" data-tab="login">${t('account.tab_login')}</button>
       <button class="account-tab${tab === 'register' ? ' is-active' : ''}" data-tab="register">${t('account.tab_register')}</button>
     </div>
-    <div class="account-form">
+    <form class="account-form" id="form-account-login" novalidate>
       <input class="account-input" id="acc-username" type="text"
-        placeholder="${t('account.label_username')}" autocomplete="username" maxlength="20">
+        placeholder="${t('account.label_username')}" aria-label="${t('account.label_username')}" autocomplete="username" maxlength="20">
       ${tab === 'register'
         ? `<input class="account-input" id="acc-email" type="email"
-            placeholder="${t('account.label_email')}" autocomplete="email">`
+            placeholder="${t('account.label_email')}" aria-label="${t('account.label_email')}" autocomplete="email">`
         : ''}
       <input class="account-input" id="acc-password" type="password"
-        placeholder="${t('account.label_password')}" autocomplete="${tab === 'register' ? 'new-password' : 'current-password'}">
+        placeholder="${t('account.label_password')}" aria-label="${t('account.label_password')}" autocomplete="${tab === 'register' ? 'new-password' : 'current-password'}">
       ${tab === 'register'
         ? `<p class="account-hint">${t('account.hint_username')}<br>${t('account.hint_email')}<br>${t('account.hint_password')}</p>`
         : ''}
-      <button class="account-submit-btn" id="btn-account-submit">
+      <button type="submit" class="account-submit-btn" id="btn-account-submit">
         ${tab === 'login' ? t('account.btn_login') : t('account.btn_register')}
       </button>
       ${(tab === 'login' && _mailEnabled)
-        ? `<button class="account-link-btn" data-tab="forgot">${t('account.btn_forgot')}</button>` : ''}
+        ? `<button type="button" class="account-link-btn" data-tab="forgot">${t('account.btn_forgot')}</button>` : ''}
       <p class="account-error" id="acc-error" role="alert"></p>
-    </div>
+    </form>
   </div>`;
 }
 
@@ -1650,6 +1650,46 @@ function _accMsg(id, text, ok) {
   el.textContent = text;
   el.classList.toggle('is-ok', !!ok);
   el.classList.toggle('is-error', !ok);
+}
+
+/**
+ * Erreur d'un formulaire du compte : le message est relié aux champs (lecteurs d'écran) et le
+ * focus revient au premier champ vide, sinon au premier champ, pour corriger au clavier (#28).
+ */
+function _accFocusError(form, msgId) {
+  if (!form || !form.isConnected) return;
+  const inputs = [...form.querySelectorAll('.account-input')];
+  inputs.forEach(el => el.setAttribute('aria-describedby', msgId));
+  const target = inputs.find(el => !el.value) || inputs[0];
+  if (target) target.focus();
+}
+
+/**
+ * Formulaire du compte (#28) : soumission par Entrée comme par clic (événement « submit »),
+ * un seul envoi à la fois, bouton désactivé pendant l'appel. Le gestionnaire renvoie
+ * { ok, text } ; le message s'affiche dans msgId et, en cas d'erreur, le focus revient au champ.
+ */
+function _onAccountSubmit(formId, msgId, handler) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const btn = form.querySelector('button[type="submit"]');
+  let busy = false;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    busy = true;
+    if (btn) btn.disabled = true;
+    form.setAttribute('aria-busy', 'true');
+    let res;
+    try { res = await handler(); } catch (_) { res = { ok: false, text: t('account.err_generic') }; }
+    busy = false;
+    if (!form.isConnected) return; // vue re-rendue par le gestionnaire
+    if (btn) btn.disabled = false;
+    form.removeAttribute('aria-busy');
+    if (!res) return;
+    _accMsg(msgId, res.text, res.ok);
+    if (!res.ok) _accFocusError(form, msgId);
+  });
 }
 
 /** Bouton désactivé pendant l'appel, réactivé ensuite. */
@@ -1685,7 +1725,7 @@ function _bindAccountSection(container) {
   }
 
   // Nouveau mot de passe depuis le lien reçu par e-mail
-  _onAccountClick('btn-account-reset', async () => {
+  _onAccountSubmit('form-account-reset', 'acc-error', async () => {
     const password = document.getElementById('acc-new-password').value;
     // Compte déjà connecté : dernier envoi de sa progression, puis aucun envoi cloud pendant
     // le changement de session (le serveur connecte ce navigateur au compte du lien).
@@ -1695,8 +1735,7 @@ function _bindAccountSection(container) {
     const { ok, data } = await _apiFetch('POST', '/api/auth/password/reset', { token: _resetToken, password });
     if (!ok) {
       if (prev) _cloudReady = true;
-      _accMsg('acc-error', data.error || t('account.err_generic'), false);
-      return;
+      return { ok: false, text: data.error || t('account.err_generic') };
     }
     _resetToken = null;
     _accountTab = 'login';
@@ -1721,10 +1760,10 @@ function _bindAccountSection(container) {
   });
 
   // Mot de passe oublié
-  _onAccountClick('btn-account-forgot', async () => {
+  _onAccountSubmit('form-account-forgot', 'acc-forgot-msg', async () => {
     const identifier = document.getElementById('acc-identifier').value.trim();
     const { ok, data } = await _apiFetch('POST', '/api/auth/password/forgot', { identifier, lang });
-    _accMsg('acc-forgot-msg', ok ? t('account.forgot_sent') : (data.error || t('account.err_generic')), ok);
+    return { ok, text: ok ? t('account.forgot_sent') : (data.error || t('account.err_generic')) };
   });
 
   // Renvoi du lien de vérification
@@ -1734,7 +1773,7 @@ function _bindAccountSection(container) {
   });
 
   // Changement de mot de passe
-  _onAccountClick('btn-account-change-password', async () => {
+  _onAccountSubmit('form-account-change-password', 'acc-password-msg', async () => {
     const currentPassword = document.getElementById('acc-cur-password').value;
     const newPassword     = document.getElementById('acc-new-password').value;
     const { ok, data } = await _apiFetch('POST', '/api/me/password', { currentPassword, newPassword });
@@ -1742,54 +1781,37 @@ function _bindAccountSection(container) {
       document.getElementById('acc-cur-password').value = '';
       document.getElementById('acc-new-password').value = '';
     }
-    _accMsg('acc-password-msg', ok ? t('account.password_changed') : (data.error || t('account.err_generic')), ok);
+    return { ok, text: ok ? t('account.password_changed') : (data.error || t('account.err_generic')) };
   });
 
   // Changement d'adresse e-mail (effectif après confirmation par lien)
-  _onAccountClick('btn-account-change-email', async () => {
+  _onAccountSubmit('form-account-change-email', 'acc-email-msg', async () => {
     const email    = document.getElementById('acc-new-email').value.trim();
     const password = document.getElementById('acc-email-password').value;
     const { ok, data } = await _apiFetch('POST', '/api/me/email', { email, password, lang });
     if (ok) document.getElementById('acc-email-password').value = '';
-    _accMsg('acc-email-msg', ok
+    return { ok, text: ok
       ? (data.alreadyVerified ? t('account.email_verified') : t('account.email_change_sent', { email: data.pending }))
-      : (data.error || t('account.err_generic')), ok);
+      : (data.error || t('account.err_generic')) };
   });
 
   // Connexion / inscription
-  const submitBtn = document.getElementById('btn-account-submit');
-  if (submitBtn) {
-    const doSubmit = async () => {
-      const username = document.getElementById('acc-username').value.trim();
-      const email    = (document.getElementById('acc-email')?.value ?? '').trim();
-      const password = document.getElementById('acc-password').value;
-      const errEl    = document.getElementById('acc-error');
-      errEl.textContent = '';
-      submitBtn.disabled = true;
+  _onAccountSubmit('form-account-login', 'acc-error', async () => {
+    const username = document.getElementById('acc-username').value.trim();
+    const email    = (document.getElementById('acc-email')?.value ?? '').trim();
+    const password = document.getElementById('acc-password').value;
+    document.getElementById('acc-error').textContent = '';
 
-      const error = _accountTab === 'register'
-        ? await _doRegister(username, email, password)
-        : await _doLogin(username, password);
+    const error = _accountTab === 'register'
+      ? await _doRegister(username, email, password)
+      : await _doLogin(username, password);
+    if (error) return { ok: false, text: error };
 
-      if (error) {
-        errEl.textContent = error;
-        submitBtn.disabled = false;
-      } else {
-        await _syncAfterLogin(true); // connexion explicite → toujours appliquer le cloud
-        await _pollSeason();
-        try { await _loadAccount(); } catch (_) { /* l'adresse s'affichera au prochain chargement */ }
-        renderSettings();
-      }
-    };
-
-    submitBtn.addEventListener('click', doSubmit);
-
-    // Submit on Enter key in any input
-    ['acc-username', 'acc-email', 'acc-password'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doSubmit(); });
-    });
-  }
+    await _syncAfterLogin(true); // connexion explicite → toujours appliquer le cloud
+    await _pollSeason();
+    try { await _loadAccount(); } catch (_) { /* l'adresse s'affichera au prochain chargement */ }
+    renderSettings();
+  });
 }
 
 // ── Rendu boutique ────────────────────────────────────────────────────────────
