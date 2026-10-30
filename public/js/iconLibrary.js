@@ -26,7 +26,7 @@ const IconLibrary = {
 
   /** Identifiant stable d'un type de bloc : « block.pierre » → « pierre ». */
   materialId(type) {
-    return String(type.name || '').replace(/^block\./, '');
+    return type.id || String(type.name || '').replace(/^block\./, '');
   },
 
   /** Lit et mémorise un éventuel ?icons=… ; rend la surcharge du navigateur ou null. */
@@ -72,8 +72,34 @@ const IconLibrary = {
     el.textContent = type.icon;
   },
 
+  /** Image choisie dans le catalogue de blocs administrable (#37), prioritaire ; null sinon. */
+  catalogImage(type) {
+    const src = type && type.image;
+    return typeof src === 'string' && /^\/assets\/[A-Za-z0-9_\-\/.]+\.(webp|png|svg)$/.test(src) && !src.includes('..')
+      && !IconLibrary.failed.has(`image:${src}`) ? src : null;
+  },
+
   /** Affiche l'icône d'un type de bloc dans l'élément #block-icon. */
   render(el, type) {
+    const own = IconLibrary.catalogImage(type);
+    if (own) {
+      const img = document.createElement('img');
+      img.className = 'block-icon-img';
+      img.alt = '';
+      img.draggable = false;
+      img.decoding = 'async';
+      img.width = 128;
+      img.height = 128;
+      img.src = own;
+      img.onerror = () => {
+        IconLibrary.failed.add(`image:${own}`);
+        if (el.contains(img)) IconLibrary.renderLegacy(el, type);
+      };
+      el.textContent = '';
+      el.setAttribute('data-icon-lib', 'catalog');
+      el.appendChild(img);
+      return;
+    }
     const a = IconLibrary.active() === 'v1' ? IconLibrary.asset(type) : null;
     if (!a) return IconLibrary.renderLegacy(el, type);
 

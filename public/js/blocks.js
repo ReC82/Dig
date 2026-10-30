@@ -2,6 +2,12 @@
  * blocks.js
  * Catalogue des blocs et logique de spawn / frappe.
  * Dépend de : GameState (pour lire le niveau luck au moment du spawn)
+ *
+ * Catalogue administrable (#37) : TYPES ci-dessous est le catalogue d'origine (version 1 côté
+ * serveur, server/blockCatalog.js le relit tel quel). Le catalogue publié depuis le panel admin
+ * (GET /api/blocks/catalog) le remplace dès qu'il est reçu, puis est mémorisé localement pour le
+ * démarrage suivant. Aucune profondeur maximale par défaut (`maxDepth` absent = illimité) ; un
+ * type n'est jamais retiré du catalogue (désactivé : `active: false`, sauvegardes compatibles).
  */
 const Blocks = {
 
@@ -31,7 +37,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#4b5563,#374151)',
       accent: '#6b7280',
       hpBase: 12, reward: 5,
-      minDepth: 5, maxDepth: 9999, weight: 60,
+      minDepth: 5, weight: 60,
     },
     {
       category: 'pierre', name: 'block.gres', icon: '🏔',
@@ -39,7 +45,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#78716c,#57534e)',
       accent: '#a8a29e',
       hpBase: 20, reward: 8,
-      minDepth: 12, maxDepth: 9999, weight: 40,
+      minDepth: 12, weight: 40,
     },
     {
       category: 'pierre', name: 'block.granite', icon: '⬛',
@@ -47,7 +53,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#3f3f46,#27272a)',
       accent: '#71717a',
       hpBase: 38, reward: 16,
-      minDepth: 25, maxDepth: 9999, weight: 28,
+      minDepth: 25, weight: 28,
     },
 
     // ── Minerai ──────────────────────────────────────────────────────────────
@@ -57,7 +63,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#292524,#1c1917)',
       accent: '#78716c',
       hpBase: 28, reward: 22,
-      minDepth: 8, maxDepth: 9999, weight: 22,
+      minDepth: 8, weight: 22,
     },
     {
       category: 'minerai', name: 'block.minerai_fer', icon: '⚙',
@@ -65,7 +71,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#52637a,#334155)',
       accent: '#94a3b8',
       hpBase: 55, reward: 50,
-      minDepth: 20, maxDepth: 9999, weight: 15,
+      minDepth: 20, weight: 15,
     },
     {
       category: 'minerai', name: 'block.minerai_or', icon: '🟡',
@@ -73,7 +79,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#d97706,#92400e)',
       accent: '#fbbf24',
       hpBase: 90, reward: 110,
-      minDepth: 40, maxDepth: 9999, weight: 8,
+      minDepth: 40, weight: 8,
     },
 
     // ── Coffre ───────────────────────────────────────────────────────────────
@@ -83,7 +89,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#713f12,#3b1a06)',
       accent: '#b45309',
       hpBase: 8,  reward: 0,
-      minDepth: 1, maxDepth: 9999, weight: 5,
+      minDepth: 1, weight: 5,
       isChest: true,
     },
     {
@@ -92,7 +98,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#92400e,#78350f)',
       accent: '#d97706',
       hpBase: 18, reward: 160,
-      minDepth: 5, maxDepth: 9999, weight: 6,
+      minDepth: 5, weight: 6,
       isChest: true,
     },
     {
@@ -101,7 +107,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#475569,#1e293b)',
       accent: '#94a3b8',
       hpBase: 40, reward: 420,
-      minDepth: 30, maxDepth: 9999, weight: 3,
+      minDepth: 30, weight: 3,
       isChest: true,
     },
 
@@ -112,7 +118,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#dc2626,#7f1d1d)',
       accent: '#f87171',
       hpBase: 110, reward: 650,
-      minDepth: 35, maxDepth: 9999, weight: 4,
+      minDepth: 35, weight: 4,
       isGem: true,
     },
     {
@@ -121,7 +127,7 @@ const Blocks = {
       color:  'linear-gradient(145deg,#16a34a,#14532d)',
       accent: '#4ade80',
       hpBase: 200, reward: 1400,
-      minDepth: 70, maxDepth: 9999, weight: 2,
+      minDepth: 70, weight: 2,
       isGem: true,
     },
     {
@@ -130,12 +136,89 @@ const Blocks = {
       color:  'linear-gradient(145deg,#0ea5e9,#1e3a5f)',
       accent: '#7dd3fc',
       hpBase: 350, reward: 3200,
-      minDepth: 120, maxDepth: 9999, weight: 1,
+      minDepth: 120, weight: 1,
       isGem: true,
     },
   ],
 
   current: null,
+
+  /** Version du catalogue publié en usage (0 : catalogue d'origine intégré). */
+  catalogVersion: 0,
+  CATALOG_URL: '/api/blocks/catalog',
+  CATALOG_STORAGE_KEY: 'dig.blockCatalog',
+
+  /** Identifiant stable d'un type : « block.pierre » → « pierre ». */
+  idOf(type) {
+    return type.id || String(type.name || '').replace(/^block\./, '');
+  },
+
+  byId(id) {
+    return this.TYPES.find(t => this.idOf(t) === id) || null;
+  },
+
+  /** Nom affiché : nom du catalogue dans la langue du joueur, sinon la traduction intégrée. */
+  displayName(type, lang = typeof I18n !== 'undefined' ? I18n.getCurrent() : 'fr') {
+    const names = type.names || {};
+    return names[lang] || names.fr || t(type.name);
+  },
+
+  /** Type du catalogue publié → type du jeu (mêmes champs que TYPES). Null si invalide. */
+  _fromCatalog(c) {
+    if (!c || typeof c.id !== 'string' || !/^[a-z][a-z0-9_]{1,39}$/.test(c.id)) return null;
+    const num = (v, min) => (Number.isFinite(v) && v >= min ? v : null);
+    const hpBase = num(c.hpBase, 1), reward = num(c.reward, 0), minDepth = num(c.minDepth, 1), weight = num(c.weight, 0);
+    if (hpBase === null || reward === null || minDepth === null || weight === null) return null;
+    return {
+      id: c.id, name: `block.${c.id}`, names: c.names && typeof c.names === 'object' ? c.names : null,
+      category: String(c.category || 'pierre'), icon: String(c.icon || '⬜'), image: c.image || null,
+      rarityKey: String(c.rarity || 'commun'),
+      color: String(c.color || '#4b5563'), accent: String(c.accent || '#6b7280'),
+      hpBase, reward, minDepth, maxDepth: num(c.maxDepth, minDepth), weight,
+      active: c.active !== false, isChest: c.category === 'coffre', isGem: c.category === 'gemme',
+    };
+  },
+
+  /**
+   * Remplace le catalogue par celui publié par le serveur. Le bloc courant garde ses PV et sa
+   * récompense ; seul son type est relié à la nouvelle définition (même identifiant).
+   * @returns {boolean} true si le catalogue a été appliqué
+   */
+  applyCatalog(catalog) {
+    if (!catalog || !Number.isInteger(catalog.version) || !Array.isArray(catalog.types)) return false;
+    const types = catalog.types.map(c => this._fromCatalog(c));
+    if (!types.length || types.some(x => !x) || !types.some(x => x.active)) return false;
+    this.TYPES = types;
+    this.catalogVersion = catalog.version;
+    if (this.current) {
+      const same = this.byId(this.idOf(this.current.type));
+      if (same) this.current.type = same;
+    }
+    return true;
+  },
+
+  /** Catalogue mémorisé lors d'une visite précédente (appelé avant la reprise du bloc). */
+  loadCached(storage = typeof localStorage !== 'undefined' ? localStorage : null) {
+    try {
+      const raw = storage && storage.getItem(this.CATALOG_STORAGE_KEY);
+      return raw ? this.applyCatalog(JSON.parse(raw)) : false;
+    } catch (_) { return false; }
+  },
+
+  /** Lit le catalogue publié ; `onChange` est rappelé s'il diffère de celui en usage. */
+  fetchCatalog(onChange) {
+    if (typeof fetch === 'undefined') return Promise.resolve(false);
+    return fetch(this.CATALOG_URL, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(catalog => {
+        if (!catalog || catalog.version === this.catalogVersion) return false;
+        if (!this.applyCatalog(catalog)) return false;
+        try { localStorage.setItem(this.CATALOG_STORAGE_KEY, JSON.stringify(catalog)); } catch (_) { /* quota */ }
+        if (onChange) onChange();
+        return true;
+      })
+      .catch(() => false);
+  },
 
   // Raretés boostées par l'upgrade Chance
   _BOOSTED_RARITIES: new Set(['rare', 'epique', 'legendaire']),
@@ -148,10 +231,15 @@ const Blocks = {
     return 1 + luckLevel * this.LUCK_PER_LEVEL + (GameState.relicBonuses?.luckPct ?? 0);
   },
 
+  /** Type tirable à cette profondeur : actif, `dès minDepth`, borne maximale héritée éventuelle. */
+  available(t, depth) {
+    return t.active !== false && depth >= t.minDepth && (t.maxDepth == null || depth <= t.maxDepth);
+  },
+
   /** Pool pondéré des blocs possibles à cette profondeur (source unique du tirage et de l'affichage). */
   _pool(depth, luckMult) {
     return this.TYPES
-      .filter(t => depth >= t.minDepth && depth <= t.maxDepth)
+      .filter(t => this.available(t, depth))
       .map(t => ({
         type: t,
         w: t.weight * (this._BOOSTED_RARITIES.has(t.rarityKey) ? luckMult : 1),
@@ -179,7 +267,7 @@ const Blocks = {
   _pickType(depth, luckMult = this.luckMultiplier(), random = Math.random) {
     const pool = this._pool(depth, luckMult);
 
-    if (pool.length === 0) return this.TYPES[2]; // fallback : Pierre
+    if (pool.length === 0) return this.byId('pierre') || this.TYPES[0]; // fallback : Pierre
 
     const total = pool.reduce((s, e) => s + e.w, 0);
     let rand = random() * total;

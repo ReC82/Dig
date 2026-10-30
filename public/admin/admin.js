@@ -93,6 +93,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'contest')         loadContest();
     if (btn.dataset.tab === 'points')          loadPoints();
     if (btn.dataset.tab === 'shop')            loadShop();
+    if (btn.dataset.tab === 'blocks')          loadBlocks();
   });
 });
 
@@ -1459,4 +1460,258 @@ document.getElementById('btn-sh-save').addEventListener('click', async () => {
     : await api('POST', '/api/admin/shop/items', { item });
   shMessage('sh-item-msg', ok ? `Article #${data.item.id} enregistré.` : (data.error || 'Erreur.'), ok);
   if (ok) { shFillForm(data.item); loadShop(); }
+});
+
+// ── Catalogue de blocs (#37) ──────────────────────────────────────────────────
+
+const BK_RARITY = { commun: 'Commun', 'peu-commun': 'Peu commun', rare: 'Rare', epique: 'Épique', legendaire: 'Légendaire' };
+const BK_BOOSTED = new Set(['rare', 'epique', 'legendaire']);
+let _bk = null;   // vue admin (GET /api/admin/blocks)
+
+function bkWorking() { return _bk ? (_bk.draft ? _bk.draft.types : _bk.published.types) : []; }
+
+/** Probabilités sans Chance à une profondeur (même règle que le jeu). */
+function bkOdds(types, depth) {
+  const pool = types.filter(t => t.active && depth >= t.minDepth && (t.maxDepth == null || depth <= t.maxDepth));
+  const total = pool.reduce((s, t) => s + t.weight, 0);
+  return new Map(pool.map(t => [t.id, total > 0 ? t.weight / total : 0]));
+}
+
+function bkPct(p) {
+  if (!p) return '—';
+  return p >= 0.001 ? `${(p * 100).toFixed(2)} %` : `${(p * 100).toFixed(4)} %`;
+}
+
+function bkFillSelect(id, values, labels) {
+  const sel = document.getElementById(id);
+  if (sel.options.length > (id === 'bk-filter-cat' ? 1 : 0)) return;
+  for (const v of values) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = labels ? labels[v] ?? v : v;
+    sel.appendChild(o);
+  }
+}
+
+function bkPreview() {
+  const box = document.getElementById('bk-preview');
+  const color = document.getElementById('bk-color').value.trim();
+  const accent = document.getElementById('bk-accent').value.trim();
+  box.style.background = color;
+  box.style.borderColor = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#6b7280';
+  box.textContent = '';
+  const image = document.getElementById('bk-image').value.trim();
+  if (/^\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)$/.test(image) && !image.includes('..')) {
+    const img = document.createElement('img');
+    img.src = image;
+    img.alt = '';
+    img.width = 88;
+    img.height = 88;
+    img.onerror = () => { box.textContent = document.getElementById('bk-icon').value; };
+    box.appendChild(img);
+  } else {
+    box.textContent = document.getElementById('bk-icon').value;
+  }
+}
+
+function bkFillForm(t) {
+  document.getElementById('bk-form-title').textContent = t ? `Modifier « ${t.id} »` : 'Nouveau bloc';
+  const idEl = document.getElementById('bk-id');
+  idEl.value = t ? t.id : '';
+  idEl.readOnly = !!t;
+  for (const l of ['fr', 'en', 'nl']) document.getElementById(`bk-name-${l}`).value = t?.names?.[l] ?? '';
+  document.getElementById('bk-name-fr').placeholder = t && _bk.legacyIds.includes(t.id) ? '(traduction intégrée)' : '';
+  document.getElementById('bk-category').value = t ? t.category : 'minerai';
+  document.getElementById('bk-rarity').value = t ? t.rarity : 'commun';
+  document.getElementById('bk-icon').value = t ? t.icon : '';
+  document.getElementById('bk-image').value = t?.image ?? '';
+  document.getElementById('bk-color').value = t ? t.color : '#4b5563';
+  document.getElementById('bk-accent').value = t ? t.accent : '#6b7280';
+  document.getElementById('bk-hp').value = t ? t.hpBase : '';
+  document.getElementById('bk-reward').value = t ? t.reward : '';
+  document.getElementById('bk-min').value = t ? t.minDepth : '';
+  const maxEl = document.getElementById('bk-max');
+  maxEl.value = t?.maxDepth ?? '';
+  maxEl.disabled = !(t && _bk.legacyIds.includes(t.id));
+  document.getElementById('bk-weight').value = t ? t.weight : '';
+  document.getElementById('bk-active').checked = t ? t.active : true;
+  document.getElementById('btn-bk-remove').disabled = !t || _bk.publishedIds.includes(t.id);
+  bkPreview();
+}
+
+function bkReadForm() {
+  const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : Number(v); };
+  const names = {};
+  for (const l of ['fr', 'en', 'nl']) { const v = document.getElementById(`bk-name-${l}`).value.trim(); if (v) names[l] = v; }
+  return {
+    id: document.getElementById('bk-id').value.trim(),
+    names: Object.keys(names).length ? names : null,
+    category: document.getElementById('bk-category').value,
+    rarity: document.getElementById('bk-rarity').value,
+    icon: document.getElementById('bk-icon').value.trim(),
+    image: document.getElementById('bk-image').value.trim() || null,
+    color: document.getElementById('bk-color').value.trim(),
+    accent: document.getElementById('bk-accent').value.trim(),
+    hpBase: num('bk-hp'), reward: num('bk-reward'), minDepth: num('bk-min'), maxDepth: num('bk-max'), weight: num('bk-weight'),
+    active: document.getElementById('bk-active').checked,
+  };
+}
+
+function bkFillList(el, items) {
+  el.textContent = '';
+  for (const x of items) { const li = document.createElement('li'); li.textContent = x; el.appendChild(li); }
+}
+
+function bkRenderTable() {
+  const types = bkWorking();
+  const text = document.getElementById('bk-filter-text').value.trim().toLowerCase();
+  const cat = document.getElementById('bk-filter-cat').value;
+  const status = document.getElementById('bk-filter-status').value;
+  const depth = Math.max(1, Number(document.getElementById('bk-odds-depth').value) || 1);
+  const odds = bkOdds(types, depth);
+  const changed = new Set((_bk.draft?.changes ?? []).map(c => c.id));
+  const tb = document.getElementById('bk-body');
+  tb.textContent = '';
+  for (const t of types) {
+    if (text && !`${t.id} ${t.names?.fr ?? ''} ${t.names?.en ?? ''} ${t.names?.nl ?? ''}`.toLowerCase().includes(text)) continue;
+    if (cat && t.category !== cat) continue;
+    if (status === 'active' && !t.active) continue;
+    if (status === 'inactive' && t.active) continue;
+    if (status === 'changed' && !changed.has(t.id)) continue;
+    const tr = document.createElement('tr');
+    const range = t.maxDepth != null ? `${t.minDepth}–${t.maxDepth} m (hérité)` : `${t.minDepth} m`;
+    const state = `${t.active ? 'actif' : 'désactivé'}${changed.has(t.id) ? ' · modifié' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau'}`;
+    [t.icon, t.id, t.names?.fr ?? '(intégré)', t.category, BK_RARITY[t.rarity] ?? t.rarity, t.hpBase, t.reward, range,
+     t.weight, bkPct(odds.get(t.id)) + (BK_BOOSTED.has(t.rarity) ? ' ★' : ''), state].forEach(x => addCell(tr, x));
+    addButtonCell(tr, 'Modifier', () => { bkFillForm(t); document.getElementById('bk-form-title').scrollIntoView({ behavior: 'smooth' }); });
+    tb.appendChild(tr);
+  }
+}
+
+function bkChangeLabel(c) {
+  if (c.kind === 'added') return 'ajouté';
+  return c.fields.map(f => `${f.field} : ${JSON.stringify(f.before)} → ${JSON.stringify(f.after)}`).join(' ; ');
+}
+
+async function loadBlocks() {
+  const { ok, data } = await api('GET', '/api/admin/blocks');
+  if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  _bk = data;
+  bkFillSelect('bk-filter-cat', data.categories);
+  bkFillSelect('bk-category', data.categories);
+  bkFillSelect('bk-rarity', data.rarities, BK_RARITY);
+  const p = data.published;
+  const banner = document.getElementById('bk-banner');
+  banner.className = `contest-banner contest-banner--${data.draft ? 'open' : 'locked'}`;
+  banner.textContent = `Version en vigueur : v${p.version} (${p.createdAt} UTC, ${p.types.filter(t => t.active).length} blocs actifs / ${p.types.length}). `
+    + (data.draft ? `Brouillon en cours (${data.draft.changes.length} changement(s), non visible des joueurs).` : 'Aucun brouillon.');
+  document.getElementById('bk-list-source').textContent = data.draft ? '— brouillon' : `— version v${p.version}`;
+  bkRenderTable();
+
+  const d = data.draft;
+  document.getElementById('bk-draft-state').textContent = d
+    ? `Brouillon basé sur v${d.basedOn}, modifié le ${d.updatedAt} UTC.` : 'Aucun brouillon : modifiez un bloc pour en créer un.';
+  bkFillList(document.getElementById('bk-draft-errors'), d ? d.errors : []);
+  bkFillList(document.getElementById('bk-draft-warnings'), d ? d.warnings : []);
+  const cb = document.getElementById('bk-changes-body');
+  cb.textContent = '';
+  for (const c of d ? d.changes : []) {
+    const tr = document.createElement('tr');
+    addCell(tr, c.id);
+    addCell(tr, bkChangeLabel(c));
+    cb.appendChild(tr);
+  }
+  document.getElementById('btn-bk-publish').disabled = !d || d.errors.length > 0 || !d.changes.length;
+  document.getElementById('btn-bk-discard').disabled = !d;
+
+  const vb = document.getElementById('bk-versions-body');
+  vb.textContent = '';
+  for (const v of data.versions) {
+    const tr = document.createElement('tr');
+    const src = { origin: 'origine', publish: 'publication', rollback: `retour à v${v.fromVersion}` }[v.source] ?? v.source;
+    [`v${v.version}`, v.createdAt, src, `${v.types} (${v.active})`, v.note ?? ''].forEach(x => addCell(tr, x));
+    if (v.version === p.version) addCell(tr, 'en vigueur');
+    else addButtonCell(tr, `Revenir à v${v.version}`, () => bkRollback(v.version));
+    vb.appendChild(tr);
+  }
+  document.getElementById('bk-antibot').textContent = data.antibotSegments
+    .map(s => `${s.from}–${s.to ?? '∞'} m : ${s.hpBase}`).join(' · ');
+  loadBlocksAudit();
+}
+
+async function loadBlocksAudit() {
+  const { ok, data } = await api('GET', '/api/admin/blocks/audit?limit=100');
+  const tb = document.getElementById('bk-audit-body');
+  tb.textContent = '';
+  if (!ok) return;
+  for (const a of data.audit) {
+    const tr = document.createElement('tr');
+    [a.created_at, a.action, a.version ?? '', a.details ? JSON.stringify(a.details).slice(0, 300) : ''].forEach(x => addCell(tr, x));
+    tb.appendChild(tr);
+  }
+}
+
+async function bkRollback(version) {
+  if (!confirm(`Revenir au contenu de la version v${version} ? Une nouvelle version sera publiée immédiatement pour tous les joueurs.`)) return;
+  const { ok, data } = await api('POST', '/api/admin/blocks/rollback', { version });
+  ptMessage('bk-rollback-msg', ok ? `Version v${data.version} publiée (contenu de v${data.restored}).` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  if (ok) loadBlocks();
+}
+
+document.getElementById('btn-refresh-blocks').addEventListener('click', loadBlocks);
+for (const id of ['bk-filter-text', 'bk-filter-cat', 'bk-filter-status', 'bk-odds-depth']) {
+  document.getElementById(id).addEventListener('input', () => { if (_bk) bkRenderTable(); });
+}
+for (const id of ['bk-icon', 'bk-image', 'bk-color', 'bk-accent']) document.getElementById(id).addEventListener('input', bkPreview);
+document.getElementById('btn-bk-new').addEventListener('click', () => bkFillForm(null));
+
+document.getElementById('btn-bk-save').addEventListener('click', async () => {
+  const type = bkReadForm();
+  if (!type.id) { ptMessage('bk-form-msg', 'Identifiant requis.', false); return; }
+  const { ok, data } = await api('PUT', `/api/admin/blocks/draft/types/${encodeURIComponent(type.id)}`, { type });
+  ptMessage('bk-form-msg', ok ? `« ${data.type.id} » enregistré dans le brouillon (pas encore visible des joueurs).` : (data.error || 'Erreur.'), ok);
+  if (ok) { await loadBlocks(); bkFillForm(bkWorking().find(t => t.id === data.type.id)); }
+});
+
+document.getElementById('btn-bk-remove').addEventListener('click', async () => {
+  const id = document.getElementById('bk-id').value.trim();
+  if (!id || !confirm(`Retirer « ${id} » du brouillon ?`)) return;
+  const { ok, data } = await api('DELETE', `/api/admin/blocks/draft/types/${encodeURIComponent(id)}`);
+  ptMessage('bk-form-msg', ok ? `« ${id} » retiré du brouillon.` : (data.error || 'Erreur.'), ok);
+  if (ok) { bkFillForm(null); loadBlocks(); }
+});
+
+document.getElementById('btn-bk-publish').addEventListener('click', async () => {
+  if (!_bk?.draft) return;
+  if (!confirm(`Publier le brouillon (${_bk.draft.changes.length} changement(s)) ? Il s'appliquera aux prochains blocs de tous les joueurs.`)) return;
+  const note = document.getElementById('bk-publish-note').value;
+  const { ok, data } = await api('POST', '/api/admin/blocks/publish', { note, basedOn: _bk.draft.basedOn });
+  ptMessage('bk-publish-msg', ok ? `Version v${data.version} publiée.` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  if (ok) { document.getElementById('bk-publish-note').value = ''; loadBlocks(); }
+});
+
+document.getElementById('btn-bk-discard').addEventListener('click', async () => {
+  if (!confirm('Abandonner le brouillon ? Les modifications non publiées seront perdues.')) return;
+  const { ok, data } = await api('DELETE', '/api/admin/blocks/draft');
+  ptMessage('bk-publish-msg', ok ? 'Brouillon abandonné.' : (data.error || 'Erreur.'), ok);
+  if (ok) { bkFillForm(null); loadBlocks(); }
+});
+
+document.getElementById('btn-bk-simulate').addEventListener('click', async () => {
+  const depths = document.getElementById('bk-sim-depths').value.split(/[\s,;]+/).filter(Boolean).map(Number);
+  const body = { source: document.getElementById('bk-sim-source').value, n: Number(document.getElementById('bk-sim-n').value),
+    luckLevel: Number(document.getElementById('bk-sim-luck').value) || 0, depths };
+  const { ok, data } = await api('POST', '/api/admin/blocks/simulate', body);
+  const tb = document.getElementById('bk-sim-body');
+  tb.textContent = '';
+  if (!ok) { ptMessage('bk-sim-msg', [data.error, ...(data.details ?? [])].join(' '), false); return; }
+  ptMessage('bk-sim-msg', `${body.n.toLocaleString('fr-BE')} tirages par profondeur, Chance ${body.luckLevel}.`, true);
+  for (const r of data.results) {
+    r.types.forEach((x, i) => {
+      const tr = document.createElement('tr');
+      [i === 0 ? `${r.depth} m` : '', i === 0 ? Math.round(r.avgHp) : '', i === 0 ? Math.round(r.avgReward) : '',
+       x.id, BK_RARITY[x.rarity] ?? x.rarity, bkPct(x.p), bkPct(x.observed)].forEach(v => addCell(tr, v));
+      tb.appendChild(tr);
+    });
+  }
 });
