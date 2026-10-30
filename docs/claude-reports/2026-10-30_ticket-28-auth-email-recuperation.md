@@ -3,6 +3,140 @@
 - Ticket : https://github.com/ReC82/Dig/issues/28
 - Session du 30/10/2026 (DIGORCH)
 
+## Session 3 (30/10/2026) — touche Entrée dans les formulaires du compte
+
+### 1. État réel
+
+**Déployé en production (SHA `c23f521`) — en attente de recette.**
+- `develop` : `c23f521` (fusion de `a4310d4`, branche `feature/28-auth-email-recuperation`).
+- Production : `994705e` → `c23f521`, https://dig.lodygames.com et https://dig.lodylands.com.
+
+### 2. Retours du propriétaire pris en compte
+
+- **Recette étape 2 validée** (11:00) : Paramètres → Compte → « Changer le mot de passe »
+  fonctionne, message de succès, session maintenue.
+- **Anomalie signalée** : sur PC, **Entrée** dans les champs du changement de mot de passe ne
+  validait pas ; il fallait cliquer. **Corrigée dans ce ticket** (ci-dessous).
+- **Décision (10:57)** : la connexion classique (identifiant/e-mail + mot de passe) est
+  **conservée** ; les connexions sociales s'y **ajoutent**, liaison explicite au compte existant,
+  rien ne change en production sans nouvelle décision. Inscrite en tête de
+  `docs/AUTH-COMPARATIF.md`. Les deux architectures et le plan respectaient déjà cette règle.
+
+### 3. Changements
+
+`public/js/main.js` — section Compte des Paramètres :
+- Les six formulaires deviennent de **vrais `<form novalidate>`** : connexion, inscription,
+  mot de passe oublié, nouveau mot de passe (lien e-mail), changement de mot de passe,
+  changement d'adresse.
+  - Un seul bouton `type="submit"` par formulaire ; les liens (« Mot de passe oublié ? »,
+    « Retour », « Annuler ») sont `type="button"` et n'envoient rien.
+  - **Entrée et clic passent par le même événement `submit`** (`_onAccountSubmit`).
+- **Un seul envoi à la fois** : garde `busy`, bouton désactivé, `aria-busy` sur le formulaire.
+  - Avant, la connexion par Entrée pouvait partir plusieurs fois (le gestionnaire clavier
+    ignorait le bouton désactivé).
+- **Erreurs accessibles** : le message (zone `role="status"` ou `role="alert"`) est relié aux
+  champs par `aria-describedby`. Le focus revient au premier champ vide, sinon au premier champ.
+- **Erreur réseau** : message « Une erreur est survenue. » et bouton réactivé. Avant, le bouton
+  de connexion pouvait rester bloqué.
+- Libellés accessibles (`aria-label`) ajoutés aux champs de connexion/inscription, comme les autres.
+- **Validation inchangée** : `novalidate` laisse au serveur les mêmes règles et messages.
+  Aucune route serveur modifiée.
+
+`test/account-forms.test.js` (nouveau, 3 tests) : chaque formulaire est un `<form>` avec un seul
+bouton submit et des types explicites ; chacun passe par `_onAccountSubmit` ; plus de branchement
+clic ou Entrée manuel ; `preventDefault`, garde de double envoi, message générique et focus.
+
+`docs/AUTH-COMPARATIF.md` : décision du propriétaire en tête.
+
+### 4. Procédure de test
+
+- `npm test` : **158/158** sur la branche, sur `develop` `c23f521` et sur la release `c23f521`.
+  - Sur `develop`, deux passages précédents avaient échoué pour des causes d'environnement :
+    un serveur de test orphelin occupait le port 3110 (`ranking-depth`, arrêté), puis un échec
+    isolé de `account-recovery` « mot de passe oublié… », réussi seul et au passage complet
+    suivant (158/158). Non lié au changement (aucun code serveur touché).
+- **Navigateur (Chromium headless, serveur de test port 3101, base temporaire, e-mails en
+  fichier)**, ordinateur 1280×900 :
+  1. Inscription validée par Entrée.
+  2. Changement de mot de passe, mot de passe actuel faux, **Entrée ×3 rapides** (réponse
+     retardée de 400 ms) → **1 seule requête**, « Mot de passe actuel incorrect. », focus sur
+     « Mot de passe actuel », message relié au champ, pas de rechargement de page.
+  3. Mot de passe correct + Entrée → « Mot de passe modifié. ».
+  4. Le clic fonctionne toujours (champs vides → message du serveur, focus rendu).
+  5. Changement d'adresse validé par Entrée → « Lien envoyé… ».
+  6. Déconnexion ; ancien mot de passe + Entrée → refusé, focus rendu ; **nouveau mot de passe
+     + Entrée → connecté**.
+  7. « Mot de passe oublié » validé par Entrée ; « Retour à la connexion » n'envoie rien.
+  8. Lien « nouveau mot de passe » reçu : mot de passe trop court + Entrée → erreur et focus ;
+     mot de passe valide + Entrée → connecté.
+  - Aucune erreur JavaScript. Smartphone 390×844 : rendu identique à avant.
+- **Production** (après déploiement), ordinateur et smartphone : formulaire de connexion, compte
+  inexistant + Entrée → « Nom d'utilisateur ou mot de passe incorrect. », focus rendu, aucune
+  erreur JavaScript. Aucun compte créé en production.
+
+### 5. Impact sur les données des joueurs
+
+Aucun : seul le client change. Aucune migration, aucune route serveur modifiée.
+
+### 6. Déploiement
+
+- Release `c23f521` : `npm ci`, `npm test` 158/158.
+- Copie de la base de production : démarrage `NODE_ENV=production` port 3122, `/health` ok,
+  `/api/version` = `1.0.0+c23f521`, **empreintes identiques** (`users`, `user_saves`,
+  `season_rankings`, `seasons`, `leagues`, `player_click_tracking`) ; copie supprimée.
+- `main` avancé `994705e` → `c23f521` (avance rapide), `scripts/deploy.sh` de la release :
+  sauvegarde vérifiée `~/backups/dig/dig-20261030-121755-pre-deploy-c23f521.sqlite`, santé et
+  version OK.
+- Après : les deux domaines → 200 et `1.0.0+c23f521` ; journal sans erreur ; `quick_check` ok ;
+  empreintes identiques à la sauvegarde ; le service worker change de cache (nouvelle version).
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 994705e` + `sudo systemctl restart dig`
+  (pas de `npm ci` : verrou inchangé). Aucune donnée à restaurer.
+
+### 7. Test fonctionnel à faire par le propriétaire (sur PC)
+
+1. Recharger le jeu (Ctrl+F5 si l'ancienne version reste affichée).
+2. Paramètres → Compte → « Changer le mot de passe » : saisir le mot de passe actuel et un
+   nouveau, puis **appuyer sur Entrée** (sans cliquer).
+   **Attendu** : « Mot de passe modifié. », session maintenue.
+3. Refaire avec un mot de passe actuel faux + Entrée.
+   **Attendu** : « Mot de passe actuel incorrect. », curseur replacé dans le premier champ.
+4. **Recette suivante demandée** : se déconnecter, se reconnecter avec le nouveau mot de passe en
+   appuyant sur **Entrée** dans le champ mot de passe.
+   **Attendu** : connecté, progression intacte (profondeur, pièces, inventaire, classement).
+
+**Classement : Bloquant MVP public** (ergonomie de base de la connexion sur PC) — fait.
+
+### 8. Choix techniques faits seul
+
+- `novalidate` : pas de bulles de validation du navigateur, pour garder exactement les règles
+  et messages du serveur (demande « validation identique »).
+- Focus sur erreur : premier champ vide, sinon premier champ. Simple et prévisible ; le serveur
+  ne dit pas quel champ est en cause.
+- Tests automatisés sur le source (la CI n'a pas de DOM) ; le comportement est vérifié au
+  navigateur (§4).
+
+### 9. Décisions demandées au propriétaire
+
+Inchangées depuis la session 2 (aucune nouvelle question) :
+1. **Architecture sociale** : A (Auth0 Free, DIG! source de vérité) ou B (OAuth direct).
+   **Recommandé : A**, Google d'abord — en complément du mot de passe, conformément à ta décision.
+2. **Apple** (99 $/an) : **recommandé plus tard**.
+3. **Tenant Auth0** à créer par toi : région UE, MFA administrateur, client Google « Web »,
+   secrets dans `/etc/dig/dig.env`, domaine par défaut pour les essais. **Recommandé : oui.**
+4. **Comptes « Google seul »** après activation du SMTP ; d'abord la liaison des comptes
+   existants. **Recommandé : oui.**
+5. **SMTP du jeu** dans `/etc/dig/dig.env` ; adresse vérifiée exigée pour le concours (#30/#31).
+   **Recommandé : oui.**
+
+### 10. Reste à faire
+
+- Recette : changement par Entrée, puis déconnexion/reconnexion (§7).
+- Après le SMTP : recette « vérifier l'adresse » et « mot de passe oublié ». **Bloquant MVP** :
+  l'activation du SMTP.
+- Connexion sociale après décision (§9). **Après lancement**, sauf si tu en fais une condition.
+
+---
+
 ## Session 2 (30/10/2026) — connexions sociales : comparatif Auth0 rectifié
 
 ### 1. État réel
