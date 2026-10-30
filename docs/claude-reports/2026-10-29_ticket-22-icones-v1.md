@@ -462,3 +462,81 @@ Ce point n'est pas traité dans cette livraison, comme demandé : il ne devait p
 Aucune décision n'est nécessaire pour les icônes. Pour la règle de profondeur, la décision est déjà prise par le propriétaire : elle est appliquée à la prochaine session.
 
 **Classement :** icônes : Après lancement (cosmétique, livré). Règle de profondeur : déjà effective en jeu. Les bornes résiduelles relèvent de l'**Après lancement** : elles ne jouent qu'avant le chargement du catalogue.
+
+## 15. Règle « aucune profondeur maximale » — bornes résiduelles supprimées (30/10, 20:35)
+
+**Demande :** commentaire du propriétaire du 30/10 à 12:48 (#issuecomment-6523212731). Les 14 blocs, coffres compris, n'ont qu'un seuil « dès X m ». Une fois débloqué, un bloc doit rester possible à toute profondeur (P > 0). Le commentaire de 12:42 (#issuecomment-6523112117 : 6 blocs validés, ne pas activer v1 par défaut) est antérieur à l'autorisation de 14:31, déjà appliquée au §14. Il ne demande rien de plus.
+
+### 15.1 État réel
+
+**Déployé en production (SHA `d04a6ad`) — en attente de recette.**
+
+- **SHA sur `develop` :** `d04a6ad`, fusion de `6168c65` (branche `feature/22-icones-v1`).
+- **Sauvegarde pré-déploiement vérifiée :** `dig-20261030-203509-pre-deploy-d04a6ad.sqlite`.
+- **SHA précédent (retour arrière) :** `d0ff020`.
+
+### 15.2 Ce qui change
+
+Depuis #37 étape B, le jeu publié (catalogue v3) n'avait déjà plus de borne : terre meuble et argile étaient seulement atténuées. Trois bornes subsistaient ailleurs. Elles sont supprimées.
+
+| Fichier | Changement |
+|---|---|
+| `public/js/blocks.js` | Catalogue d'origine du client, utilisé avant la réception du catalogue publié ou sans réseau : terre meuble et argile passent de « jusqu'à 12 / 22 m » à « atténuées au-delà de 12 / 22 m » (poids 2,1 et 1,35). Ce sont exactement les valeurs du catalogue v3 en production. Le tirage ne tient plus compte d'un `maxDepth`, même s'il vient d'un ancien catalogue mémorisé. |
+| `server/blockCatalog.js` | **Saisie admin :** toute profondeur maximale est refusée (400 « aucune profondeur maximale… utilisez « atténué au-delà de » »), y compris pour un bloc d'origine. **Anciennes versions à borne (v1 et v2 de la production) :** à la validation, la borne est convertie en atténuation, retour arrière compris. Terre et argile reprennent alors 2,1 et 1,35 ; une borne inconnue garde 3 % du poids, jamais 0. **Ancien format d'API (format 1) :** plus de borne. **Budget anti-bot :** inchangé (3 / 6 / 8 PV), car les anciennes bornes sont traitées comme des atténuations. |
+| `public/admin/admin.js`, `index.html` | Champ « Borne héritée » retiré. La colonne profondeur affiche « dès X m », avec « (atténué > Y m : poids) » si besoin. Le calcul des chances de l'admin suit la même règle. |
+| `tools/icons/board.js`, `public/assets/icons/planche-v1.webp` | La planche affiche « dès X m » pour les 14 blocs. Avant : « 1–12 m » pour la terre et « 4–22 m » pour l'argile. |
+| `test/depth-rule.test.js` (nouveau) et tests adaptés | Pour chaque bloc, on vérifie : absent à X−1 m ; possible à X m, X+1 m, 500, 5 000 et 100 000 m ; somme des chances = 1. Les vérifications portent sur le serveur, le client (origine, format 2, format 1, ancien catalogue mémorisé), Chance 0 et 10, et l'historique de production (v1 à bornes → retour arrière sans borne, budget inchangé). Les tests Chance, anti-bot et catalogue sont mis à jour. |
+
+**Inchangé :**
+- Catalogue publié en production : toujours v3, aucune nouvelle version.
+- Seuils « dès X m », poids, récompenses, PV, sauvegardes, classement.
+- Icônes : 14/14 v1 par défaut, validations conservées, images inchangées, 0 USD.
+
+**Conséquence économique :** aucune pour les joueurs à jour, qui reçoivent déjà le catalogue v3. Le catalogue d'origine du client, utilisé pendant le chargement ou hors ligne, donne maintenant les mêmes chances que v3. Exemple à 100 m : 11,7 % de blocs rares au lieu de 11,9 %, ce qui correspond déjà à la production. La carte Chance affiche ces valeurs après chargement du catalogue.
+
+### 15.3 Vérifications
+
+- `npm test` : **320/320** sur la branche, sur `develop` et sur la release `d04a6ad` (SHA exact).
+- **Copie de la base de production** démarrée en `NODE_ENV=production` sur `d04a6ad` :
+  - `/health` ok, version `1.0.0+d04a6ad` ;
+  - catalogue v3 (22 types), 0 borne en format 2 comme en format 1 ;
+  - empreintes des 6 tables identiques avant et après ; aucune nouvelle version de catalogue publiée.
+- **Déploiement :** `scripts/deploy.sh` de la release ; sauvegarde vérifiée ; santé et version OK.
+- **Après déploiement :**
+  - 2 domaines → 200, `/api/version` = `1.0.0+d04a6ad` ;
+  - `/api/blocks/catalog` : 0 borne ;
+  - `journalctl` sans erreur ; `quick_check` = ok ;
+  - empreintes (hachage complet) des 6 tables identiques à la sauvegarde pré-déploiement.
+- **Chromium sur la production** (2 domaines, 1280×900 et 390×844), 0 erreur JS, 0 écriture :
+  - catalogue d'origine (14 blocs) : 0 borne, aucun bloc manquant à 500, 5 000 et 100 000 m ;
+  - catalogue publié v3 (22 blocs) : idem ; terre meuble à 100 000 m : 0,86 %.
+
+### 15.4 Test à faire dans le jeu (propriétaire, 2 min)
+
+1. **Planche :** https://dig.lodylands.com/assets/icons/planche-v1.webp?v=d04a6ad → les 14 blocs portent « dès X m ». Terre meuble : « dès 1 m » ; argile : « dès 4 m ».
+2. **Admin** → 🧱 Blocs :
+   - colonne profondeur en « dès X m » ; plus de champ « Borne héritée » dans le formulaire ;
+   - régler « profondeur » des chances sur 5000 : tous les blocs actifs ont une probabilité > 0 (terre et argile faibles, mais présentes).
+3. **En jeu :** rien ne change visiblement, puisque le catalogue publié était déjà sans borne. Aux grandes profondeurs, une terre meuble ou une argile apparaît encore de temps en temps (≈ 1,5 % à eux deux).
+
+### 15.5 Retour arrière
+
+`git -C /home/ubuntu/Dig reset --keep d0ff020` puis redémarrage. La base n'est pas concernée : aucune écriture, aucune nouvelle version de catalogue.
+
+### 15.6 Choix techniques faits seul
+
+- **Conversion plutôt que refus pour les anciennes versions :** un retour arrière vers v1 ou v2 (versions à borne) reste possible, mais sans jamais republier de borne. L'historique, en ajout seul, n'est pas réécrit.
+- **3 % du poids pour une borne inconnue :** même ordre de grandeur que terre et argile (2,1 / 70 et 1,35 / 45). Aucune autre borne n'existe aujourd'hui.
+- **Base neuve (tests, installation) :** la v1 est directement sans borne. La migration « surface-fade » n'y publie donc rien (v2 = 22 types). La production n'est pas concernée : elle est déjà en v3.
+- **Anti-bot :** les blocs atténués restent exclus du minimum de PV, comme décidé dans #37. Sinon le budget tomberait à 3 PV partout. Les simulations de joueurs honnêtes passent.
+
+### 15.7 Décisions demandées
+
+Aucune décision utilisateur nécessaire.
+
+### 15.8 Reste à faire
+
+- Recette du propriétaire (icônes par défaut §14.4, règle de profondeur §15.4), puis clôture.
+- Hors périmètre, à signaler : les 8 minerais de #37 (quartz → cristal ancien) n'ont pas d'icône v1. Ils gardent leur emoji. Ils peuvent passer par l'atelier #40.
+
+**Classement :** Après lancement (règle déjà effective pour les joueurs à jour ; ici cohérence du catalogue d'origine, de l'admin et de l'ancien format).
