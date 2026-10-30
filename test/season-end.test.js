@@ -244,6 +244,32 @@ test('routes admin : droits, aperçu, confirmation, annulation, route génériqu
   }
 });
 
+test('outil en ligne de commande : état, aperçu sans écriture, confirmation obligatoire, annulation', () => {
+  const { execFileSync } = require('child_process');
+  const env = { ...process.env, DB_FILE: path.join(dir, 'cli.sqlite') };
+  const run = (...a) => {
+    try { return { code: 0, out: execFileSync(process.execPath, ['scripts/season-end.js', ...a], { cwd: ROOT, env, encoding: 'utf8', stdio: 'pipe' }) }; }
+    catch (err) { return { code: err.status, out: String(err.stdout) + String(err.stderr) }; }
+  };
+  const st = JSON.parse(run().out);
+  assert.ok(st.season?.name);
+  const target = new Date(Math.max(Date.now() + 30 * MIN, cal.parseUtc(st.season.startAt.utc).getTime() + 2 * 60 * MIN));
+  if (target.getTime() >= cal.parseUtc(st.season.endAt.utc).getTime() - MIN) return;
+  const local = cal.fmtLocal(target).slice(0, 16).replace(' ', 'T');
+  let r = run('--at', local);
+  assert.strictEqual(r.code, 0, r.out);
+  assert.strictEqual(JSON.parse(run().out).expectedEndAt, st.expectedEndAt, 'aperçu sans écriture');
+  r = run('--at', local, '--apply', '--confirm', 'mauvais');
+  assert.strictEqual(r.code, 1);
+  assert.match(r.out, /Confirmation requise/);
+  r = run('--at', local, '--apply', '--confirm', st.season.name, '--reason', 'test CLI');
+  assert.strictEqual(r.code, 0, r.out);
+  assert.strictEqual(JSON.parse(r.out).exceptional, true);
+  r = run('--cancel', '--apply');
+  assert.strictEqual(r.code, 0, r.out);
+  assert.strictEqual(JSON.parse(r.out).season.endAt.utc, st.season.endAt.utc);
+});
+
 test.after(() => {
   seasons.stopSeasonScheduler();
   try { db.getDb().close(); } catch (_) {}
