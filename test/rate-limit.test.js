@@ -18,6 +18,10 @@ const PORT = process.env.DIG_TEST_PORT_RATE || '3112';
 const BASE = `http://127.0.0.1:${PORT}`;
 const TOKEN = '3f2b8c1e-6d4a-4b7e-9a1c-2e5f7d8b9c0a';
 
+// Chaque requête a un délai maximal : un blocage devient un échec lisible au lieu de figer
+// `npm test` et la CI (#17).
+const fetch = (url, opts = {}) => globalThis.fetch(url, { signal: AbortSignal.timeout(10000), ...opts });
+
 let dir;
 test.before(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dig-rate-')); });
 test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -41,7 +45,12 @@ async function startUp(env = {}) {
   throw new Error(`serveur non démarré :\n${child.log}`);
 }
 
-async function stop(child) { child.kill(); await child.exited; }
+async function stop(child) {
+  child.kill();
+  const t = setTimeout(() => child.kill('SIGKILL'), 5000);
+  await child.exited;
+  clearTimeout(t);
+}
 
 const post = (url, body, headers = {}) => fetch(`${BASE}${url}`, {
   method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body),
