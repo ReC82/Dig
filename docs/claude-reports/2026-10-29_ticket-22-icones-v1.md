@@ -433,18 +433,21 @@ Classement : **Après lancement** (cosmétique, rien ne bloque le MVP).
 
 ### 14.6 Reste à faire — règle « aucune profondeur maximale » (commentaire du 30/10, 12:48)
 
-Ce point n'est pas traité dans cette livraison, comme demandé : il ne devait pas retarder le passage des icônes. **Constat en production (catalogue publié, version 3, 22 types) :**
+Ce point n'est pas traité dans cette livraison, comme demandé : il ne devait pas retarder le passage des icônes. **Constat en production :** l'essentiel est déjà en place depuis #37 étape B (déployé le 30/10 à 18:33). Le catalogue lu par le jeu (`/api/blocks/catalog?format=2`, version 3, 22 types) n'a **aucune borne maximale** :
 
-- seules **terre meuble (1–12 m)** et **argile (4–22 m)** ont encore une profondeur maximale ;
-- les 20 autres types (coffres compris) sont déjà « dès X m », sans maximum ;
-- `public/js/blocks.js` (catalogue d'origine) porte aussi `maxDepth: 12/22` sur ces deux types ;
-- le code de l'étape B de #37 sait atténuer un type (`fadeFrom` / `fadeWeight`) au lieu de le couper, mais le catalogue publié ne l'utilise pas.
+- les 20 autres types, coffres compris, sont « dès X m » avec un poids constant ;
+- **terre meuble** et **argile** sont seulement **atténuées** au-delà de 12 et 22 m, avec un poids de 2,1 et 1,35, donc une probabilité strictement positive.
 
-**Prochaine session :**
-1. Retirer les bornes. Remplacer `maxDepth` par une atténuation à poids strictement positif, sans perte des sauvegardes. Le catalogue publié est une donnée en base, modifiable par une nouvelle version (ajout seul, réversible).
-2. Afficher « dès X m » partout (FR/EN/NL).
-3. Ajouter des tests par bloc : au seuil, juste avant, puis à 500, 5 000 et 100 000 m, avec P > 0.
-4. Déployer.
+**Bornes résiduelles à supprimer (prochaine session) :**
+1. `public/js/blocks.js` (catalogue d'origine du client) garde `maxDepth: 12/22` pour terre et argile. Ce catalogue s'applique avant la réception du catalogue publié, ou si ce catalogue n'a jamais été reçu.
+2. La projection `format` 1 de `server/blockCatalog.js` réécrit l'atténuation en borne pour les anciens clients.
+3. L'admin accepte encore une « borne héritée » `maxDepth`, avec un simple avertissement.
+
+**À faire ensuite :**
+- convertir ces bornes en atténuation ;
+- afficher « dès X m » partout (FR/EN/NL) ;
+- ajouter des tests par bloc : au seuil, juste avant, puis à 500, 5 000 et 100 000 m, avec P > 0 ;
+- déployer.
 
 **Les 8 nouveaux minerais de #37** (quartz → cristal ancien, 150–800 m) n'ont pas d'icône v1 : ils gardent leur emoji. Ce point est hors du lot des 14 blocs validés.
 
@@ -458,4 +461,4 @@ Ce point n'est pas traité dans cette livraison, comme demandé : il ne devait p
 
 Aucune décision n'est nécessaire pour les icônes. Pour la règle de profondeur, la décision est déjà prise par le propriétaire : elle est appliquée à la prochaine session.
 
-**Classement :** icônes : Après lancement (cosmétique, livré). Règle de profondeur : **Bloquant MVP public** (anomalie de gameplay signalée comme prioritaire).
+**Classement :** icônes : Après lancement (cosmétique, livré). Règle de profondeur : déjà effective en jeu. Les bornes résiduelles relèvent de l'**Après lancement** : elles ne jouent qu'avant le chargement du catalogue.
