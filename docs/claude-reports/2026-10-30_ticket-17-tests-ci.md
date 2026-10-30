@@ -55,7 +55,7 @@ Après ce ticket :
 
 ## 3. SHA, branche et procédure de test
 
-- **Fusion dans `develop` : `3276106`** (`Merge feature/17-tests-ci dans develop (#17)`). Le rapport est ajouté ensuite par une seconde fusion.
+- **SHA sur `develop` : `36d1e59`**, code complet et rapport, avec une CI verte : https://github.com/ReC82/Dig/actions/runs/40980342952. La première fusion, `3276106`, n'avait pas encore les délais maximaux, et sa CI s'était figée. Une dernière fusion n'ajoute que la mise à jour de cette ligne.
 - Branche : `feature/17-tests-ci`.
 - CI GitHub Actions verte : https://github.com/ReC82/Dig/actions/workflows/ci.yml
 
@@ -86,7 +86,7 @@ Effectuées :
 - `npm test` sur la branche : 95/95, deux fois. Sur `develop` fusionné en local : 95/95, **trois fois de suite**.
 - `node --test test/rate-limit.test.js` six fois de suite après la stabilisation : 0 échec. Avant, la suite complète avait échoué 2 fois sur 5 sur ce test.
 - `npm run check` : tous les `.js` suivis sont valides.
-- CI GitHub Actions sur la branche (Node 22) : 95 tests, 95 réussis, 0 ignoré. La CI est verte sur les trois dernières exécutions de la branche (push et deux relances manuelles) ; deux exécutions antérieures, sans les délais maximaux, s'étaient figées dans `rate-limit.test.js`. CI sur `develop` après la fusion finale : voir le commentaire du ticket.
+- CI GitHub Actions sur la branche (Node 22) : 95 tests, 95 réussis, 0 ignoré. La CI est verte sur les trois dernières exécutions de la branche (push et deux relances manuelles) ; deux exécutions antérieures, sans les délais maximaux, s'étaient figées dans `rate-limit.test.js`. CI sur `develop` (`36d1e59`) : verte.
 - Après `npm test`, `server/data/` de la copie de travail reste vide : ni base, ni session.
 - Aucune commande n'a visé `/home/ubuntu/Dig`, sa base, le port 3000 ou `dig.service`. Tous les serveurs de test tournaient sur les ports 3105 à 3117 et ont été arrêtés par les tests.
 
