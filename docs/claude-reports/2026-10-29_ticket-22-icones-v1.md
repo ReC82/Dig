@@ -6,6 +6,8 @@
 
 ## 1. État réel
 
+> **Mise à jour du 30/10, 20:12 (voir §14) :** **les 14 icônes v1 sont affichées PAR DÉFAUT** pour tous les joueurs, sur les deux domaines (PC, mobile, PWA), sans paramètre d'URL. **Déployé en production (SHA `d0ff020`) — en attente de recette.** Retour arrière : `?icons=legacy` pour un navigateur, ou `"defaultLibrary": "legacy"` dans `library.json` pour tous. La règle « pas de profondeur maximale » (commentaire du 30/10, 12:48) **n'est pas encore traitée** : voir §14.6.
+
 > **Mise à jour du 30/10, 13:29 (voir §13) :** **lot complet — les 14 blocs du jeu** ont leur icône v1, **déployé en production** (SHA `0f58670`). Visible seulement avec `?icons=v1` ; l'adresse normale garde les emoji. **Planche complète : https://dig.lodylands.com/assets/icons/planche-v1.webp**. En attente de **ta recette visuelle globale**.
 
 > **Mise à jour du 30/10, 11:07 (voir §12) :** pilote **charbon, minerai de fer et diamant** **déployé en production** (SHA `4988e19`). Les icônes sont visibles seulement avec `?icons=v1` : l'adresse normale garde les emoji pour tous les joueurs. **En attente de ta recette visuelle.**
@@ -370,3 +372,90 @@ Classement : **Après lancement** (cosmétique, rien ne bloque le MVP).
 - Corrections éventuelles demandées après ta recette.
 - Bascule par défaut, sur ton accord.
 - Les propositions non retenues restent hors dépôt (`art/icons/v1/candidates/`, dans le worktree du ticket, conservé).
+
+## 14. Les 14 icônes v1 par défaut (30/10, 20:12)
+
+**Demande :** commentaire du propriétaire du 30/10 à 14:31 (#issuecomment-6525262282). Les 14 images sont validées. Il faut les afficher par défaut, à la place des emoji, sans paramètre d'URL.
+
+### 14.1 État réel
+
+**Déployé en production (SHA `d0ff020`) — en attente de recette.**
+
+- **SHA sur `develop` :** `d0ff020` (fusion de `a9a39aa`, branche `feature/22-icones-v1`).
+- **Sauvegarde pré-déploiement vérifiée :** `dig-20261030-201229-pre-deploy-d0ff020.sqlite`.
+- **SHA précédent (retour arrière) :** `9fd23e4`.
+
+### 14.2 Changements
+
+| Fichier | Changement |
+|---|---|
+| `public/assets/icons/library.json` | `defaultLibrary: "v1"`. Les 14 matériaux sont marqués `validated` : pierre le 29/10, les 13 autres le 30/10. Le statut `pilote` est retiré. **Images inchangées** (mêmes fichiers, mêmes empreintes). |
+| `public/js/iconLibrary.js` | **Choix mémorisés :** nouvelle clé `dig.iconLibrary.2`. L'ancienne clé `dig.iconLibrary` est effacée à la lecture. Un navigateur qui avait gardé `?icons=legacy` pendant la recette voit donc aussi les images. **Pas de clignotement :** tant que `library.json` est en lecture (au plus 3 s), le bloc reste sans icône au lieu d'afficher l'emoji puis l'image. Hors ligne ou en cas d'erreur, le jeu revient aux emoji. |
+| `public/js/main.js`, `public/css/style.css` | La fenêtre « coffre ouvert » (vieille caisse, coffre en bois, coffre en fer) affiche aussi l'image v1 (64 px). L'emoji reste en mode legacy. |
+| `public/admin/admin.js` | Le libellé du catalogue indique « affichée par défaut ». Il ne mentionne plus « aperçu ?icons=v1 ». |
+| `art/icons/v1/pilot/*.json` | Provenances : `status: validé`. |
+| `tools/icons/board.js`, planche | Profondeurs affichées en « dès X m » quand il n'y a pas de maximum (avant : « 5–undefined m »). Planche régénérée avec les 14 statuts validés. |
+| `test/icons.test.js`, `test/icon-studio.test.js` | Nouveaux tests : v1 par défaut, 14 blocs validés, diamant validé = diamant brut refait, ancien choix « legacy » ignoré et effacé. Pendant le chargement, ni emoji ni image ; puis rendu v1, ou repli emoji en cas d'erreur réseau ou de 404. Dans l'atelier (#40), les blocs v1 validés sont verrouillés : un remplacement demande un accord explicite. |
+
+**Inchangé :** gameplay, taux d'apparition, récompenses, sauvegardes, base de données. Aucun appel OpenAI, coût 0 USD (cumul du ticket inchangé : 1,93 / 3 USD).
+
+### 14.3 Vérifications
+
+- `npm test` : **315/315** sur la branche et sur la release `d0ff020` (SHA exact).
+- **Copie de la base de production** démarrée en `NODE_ENV=production` sur `d0ff020` : `/health` ok, version `1.0.0+d0ff020`. Empreintes des 6 tables (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`) **identiques** avant et après. Copie supprimée.
+- **Déploiement :** `scripts/deploy.sh` de la release : sauvegarde vérifiée, santé et version OK.
+- **Après déploiement :**
+  - 2 domaines → 200, `/api/version` = `1.0.0+d0ff020` ;
+  - `library.json` servi avec `defaultLibrary: "v1"` et `Cache-Control: no-cache` ;
+  - `journalctl` sans erreur ;
+  - `quick_check` = ok ;
+  - empreintes de la base de production = sauvegarde pré-déploiement.
+- **Chromium sur la production, sans paramètre d'URL,** sur les deux domaines, PC 1280×900 et mobile 390×844 :
+  1. Première visite (sans cache) : image v1 (`data-icon-lib="v1"`, image chargée).
+  2. Après une actualisation, service worker actif, avec un ancien choix `legacy` mémorisé (ancienne clé) : **toujours l'image v1**. L'ancienne clé est effacée.
+  3. `?icons=legacy` → emoji ; `?icons=default` → retour aux images.
+  4. 0 erreur JS, aucune écriture API.
+- **Non vérifié :**
+  - ouverture réelle d'un coffre en production (couverte par le même composant de rendu, testé) ;
+  - application PWA installée sur un vrai téléphone. Le service worker est versionné à chaque déploiement et sert la page en « réseau d'abord » : l'actualisation suffit.
+
+### 14.4 Test à faire dans le jeu (propriétaire)
+
+1. Ouvre https://dig.lodylands.com (ou .com), **sans** paramètre, sur PC puis sur téléphone (aussi depuis l'icône PWA si elle est installée). Actualise une fois si l'onglet était déjà ouvert.
+2. **Attendu :** le bloc affiche l'image v1 (pierre, terre, caisse…), plus aucun emoji. En ouvrant une caisse ou un coffre, la fenêtre de récompense montre aussi l'image.
+3. Retour aux emoji pour un seul navigateur : `?icons=legacy`. Pour revenir au réglage par défaut : `?icons=default`.
+4. Planche à jour (statuts validés) : https://dig.lodylands.com/assets/icons/planche-v1.webp?v=d0ff020. Ajoute `?v=…`, car l'ancienne planche peut rester en cache.
+
+### 14.5 Retour arrière
+
+- **Pour tous les joueurs, sans redéploiement :** remettre `"defaultLibrary": "legacy"` dans `public/assets/icons/library.json` (lu sans cache).
+- **Retour du code :** `git -C /home/ubuntu/Dig reset --keep 9fd23e4` puis redémarrage. La base n'est pas concernée.
+
+### 14.6 Reste à faire — règle « aucune profondeur maximale » (commentaire du 30/10, 12:48)
+
+Ce point n'est pas traité dans cette livraison, comme demandé : il ne devait pas retarder le passage des icônes. **Constat en production (catalogue publié, version 3, 22 types) :**
+
+- seules **terre meuble (1–12 m)** et **argile (4–22 m)** ont encore une profondeur maximale ;
+- les 20 autres types (coffres compris) sont déjà « dès X m », sans maximum ;
+- `public/js/blocks.js` (catalogue d'origine) porte aussi `maxDepth: 12/22` sur ces deux types ;
+- le code de l'étape B de #37 sait atténuer un type (`fadeFrom` / `fadeWeight`) au lieu de le couper, mais le catalogue publié ne l'utilise pas.
+
+**Prochaine session :**
+1. Retirer les bornes. Remplacer `maxDepth` par une atténuation à poids strictement positif, sans perte des sauvegardes. Le catalogue publié est une donnée en base, modifiable par une nouvelle version (ajout seul, réversible).
+2. Afficher « dès X m » partout (FR/EN/NL).
+3. Ajouter des tests par bloc : au seuil, juste avant, puis à 500, 5 000 et 100 000 m, avec P > 0.
+4. Déployer.
+
+**Les 8 nouveaux minerais de #37** (quartz → cristal ancien, 150–800 m) n'ont pas d'icône v1 : ils gardent leur emoji. Ce point est hors du lot des 14 blocs validés.
+
+### 14.7 Choix techniques faits seul
+
+- **Nouvelle clé de stockage** plutôt qu'une migration de la valeur : simple et sans risque. Le choix `?icons=legacy` reste possible après coup.
+- **Bloc vide pendant au plus 3 s** au lieu de l'emoji : c'est ce qui permet d'éviter les emoji par défaut. Au-delà, ou hors ligne, le jeu repasse aux emoji, comme avant.
+- **Fenêtre de coffre en image :** elle est cohérente avec « plus d'emoji par défaut » et utilise le même composant (repli emoji intact).
+
+### 14.8 Décisions demandées
+
+Aucune décision n'est nécessaire pour les icônes. Pour la règle de profondeur, la décision est déjà prise par le propriétaire : elle est appliquée à la prochaine session.
+
+**Classement :** icônes : Après lancement (cosmétique, livré). Règle de profondeur : **Bloquant MVP public** (anomalie de gameplay signalée comme prioritaire).
