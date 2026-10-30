@@ -80,6 +80,7 @@ const standings = require('./standings');
 const contest   = require('./contest');
 const shop      = require('./shop');
 const blockCatalog = require('./blockCatalog');
+const blockAi      = require('./blockAi');
 const collectionCatalog = require('./collectionCatalog');
 const rewardPoints = require('./rewardPoints');
 
@@ -662,14 +663,25 @@ app.get('/api/blocks/catalog', (req, res) => {
 });
 
 function catalogRoute(label, fn) {
-  return (req, res) => {
-    try { res.json(fn(req)); }
+  return async (req, res) => {
+    try { res.json(await fn(req)); }
     catch (err) {
-      if (err instanceof blockCatalog.CatalogError) return res.status(err.status).json({ error: err.message, details: err.details });
+      if (err instanceof blockCatalog.CatalogError || err instanceof blockAi.AiError) {
+        return res.status(err.status).json({ error: err.message, details: err.details });
+      }
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
     }
   };
 }
+
+// Images de blocs créées dans le panel (#37) : stockées dans la base, URL persistante et immuable.
+app.get('/media/blocks/:file', (req, res) => {
+  const m = /^([a-f0-9]{16})\.webp$/.exec(String(req.params.file));
+  const img = m && blockAi.getImage(m[1]);
+  if (!img) return res.status(404).end();
+  res.set({ 'Content-Type': img.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+  res.send(img.bytes);
+});
 
 // Collections saisonnières publiées (#39) : séries, objets, fiches, saisons référencées.
 app.get('/api/collections/catalog', (_req, res) => {
@@ -1019,6 +1031,28 @@ app.post('/api/admin/blocks/publish', requireAdmin, catalogRoute('POST /api/admi
 
 app.post('/api/admin/blocks/rollback', requireAdmin, catalogRoute('POST /api/admin/blocks/rollback',
   req => blockCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+// Création assistée par IA (#37) : propositions → corrections → brouillon ; jamais publiée ici.
+app.get('/api/admin/blocks/ai', requireAdmin, catalogRoute('GET /api/admin/blocks/ai',
+  () => ({ status: blockAi.status(), proposals: blockAi.listProposals(), calls: blockAi.listCalls() })));
+
+app.post('/api/admin/blocks/ai/proposals', requireAdmin, catalogRoute('POST /api/admin/blocks/ai/proposals',
+  async req => ({ proposal: await blockAi.createProposal({ concept: req.body?.concept, withImage: req.body?.withImage !== false }) })));
+
+app.put('/api/admin/blocks/ai/proposals/:id', requireAdmin, catalogRoute('PUT /api/admin/blocks/ai/proposals/:id',
+  req => ({ proposal: blockAi.updateProposal(Number(req.params.id), req.body ?? {}) })));
+
+app.post('/api/admin/blocks/ai/proposals/:id/regenerate', requireAdmin, catalogRoute('POST /api/admin/blocks/ai/proposals/:id/regenerate',
+  async req => ({ proposal: await blockAi.regenerate(Number(req.params.id), String(req.body?.what ?? '')) })));
+
+app.get('/api/admin/blocks/ai/proposals/:id/impact', requireAdmin, catalogRoute('GET /api/admin/blocks/ai/proposals/:id/impact',
+  req => ({ impact: blockAi.impact(Number(req.params.id)) })));
+
+app.post('/api/admin/blocks/ai/proposals/:id/draft', requireAdmin, catalogRoute('POST /api/admin/blocks/ai/proposals/:id/draft',
+  req => blockAi.addToDraft(Number(req.params.id), { blockId: req.body?.blockId })));
+
+app.delete('/api/admin/blocks/ai/proposals/:id', requireAdmin, catalogRoute('DELETE /api/admin/blocks/ai/proposals/:id',
+  req => { blockAi.discardProposal(Number(req.params.id)); return { ok: true }; }));
 
 app.get('/api/admin/blocks/audit', requireAdmin, catalogRoute('GET /api/admin/blocks/audit',
   req => ({ audit: blockCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
@@ -1451,6 +1485,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
 blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
+blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)

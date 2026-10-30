@@ -93,7 +93,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'contest')         loadContest();
     if (btn.dataset.tab === 'points')          loadPoints();
     if (btn.dataset.tab === 'shop')            loadShop();
-    if (btn.dataset.tab === 'blocks')          loadBlocks();
+    if (btn.dataset.tab === 'blocks')          { loadBlocks(); loadAi(); }
     if (btn.dataset.tab === 'collections')     loadCollections();
   });
 });
@@ -1505,7 +1505,7 @@ function bkPreview() {
   box.style.borderColor = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#6b7280';
   box.textContent = '';
   const image = document.getElementById('bk-image').value.trim();
-  if (/^\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)$/.test(image) && !image.includes('..')) {
+  if (/^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/media\/blocks\/[a-f0-9]{16}\.webp)$/.test(image) && !image.includes('..')) {
     const img = document.createElement('img');
     img.src = image;
     img.alt = '';
@@ -1669,6 +1669,176 @@ async function bkRollback(version) {
 }
 
 document.getElementById('btn-refresh-blocks').addEventListener('click', loadBlocks);
+
+// ── Création de blocs assistée par IA (#37) ─────────────────────────────────
+
+const AI_LANGS = [['fr', 'Français'], ['en', 'English'], ['nl', 'Nederlands']];
+
+function aiEl(tag, attrs = {}, text) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function aiInput(label, value, attrs = {}) {
+  const l = aiEl('label', {}, label);
+  const i = aiEl('input', { type: 'text', ...attrs });
+  i.value = value ?? '';
+  l.appendChild(i);
+  return [l, i];
+}
+
+async function loadAi() {
+  const { ok, data } = await api('GET', '/api/admin/blocks/ai');
+  const st = document.getElementById('ai-status');
+  if (!ok) { st.textContent = data.error || 'Erreur.'; return; }
+  const s = data.status;
+  st.textContent = s.configured
+    ? `API IA : texte ${s.textModel}, image ${s.imageModel}${s.fake ? ' (MODE TEST, aucun appel réel)' : ''} — dépense ${s.spentUsd} / ${s.budgetUsd} USD (≈ ${s.estImageUsd} USD par image)`
+      + ` — ${s.callsToday}/${s.maxCallsPerDay} appels sur 24 h${s.imageProcessing ? '' : ' — traitement d\'image indisponible'}.`
+    : `API IA non configurée : ${s.reason}. La génération est désactivée (la clé reste côté serveur, jamais dans le navigateur).`;
+  document.getElementById('btn-ai-generate').disabled = !s.configured;
+  const box = document.getElementById('ai-proposals');
+  box.textContent = '';
+  for (const p of data.proposals) box.appendChild(aiRenderProposal(p, s.configured));
+  const cb = document.getElementById('ai-calls-body');
+  cb.textContent = '';
+  for (const c of data.calls) {
+    const tr = document.createElement('tr');
+    [c.created_at, c.proposal_id ? `#${c.proposal_id}` : '', c.kind, c.model, c.ok ? 'OK' : `Échec : ${c.error ?? ''}`,
+     `${c.cost_usd} USD`, c.duration_ms != null ? `${(c.duration_ms / 1000).toFixed(1)} s` : ''].forEach(v => addCell(tr, v));
+    cb.appendChild(tr);
+  }
+}
+
+function aiRenderProposal(p, configured) {
+  const card = aiEl('div', { class: 'overview-card', style: 'margin:0.6rem 0' });
+  card.appendChild(aiEl('h4', {}, `Proposition #${p.id} — ${p.status === 'in_draft' ? `dans le brouillon (« ${p.blockId} »)` : 'à valider'}`));
+  card.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.78rem' }, `Concept : ${p.concept}`));
+  const row = aiEl('div', { style: 'display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start' });
+  const prev = aiEl('div', { style: `width:128px;height:128px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:56px;border:3px solid ${/^#[0-9a-f]{6}$/i.test(p.accent) ? p.accent : '#6b7280'}` });
+  prev.style.background = /^linear-gradient\(145deg,#[0-9a-f]{6},#[0-9a-f]{6}\)$/i.test(p.color) ? p.color : '#374151';
+  if (p.image) { const img = aiEl('img', { src: p.image, alt: '', width: '112', height: '112' }); prev.appendChild(img); }
+  else prev.textContent = p.icon || '⬜';
+  row.appendChild(prev);
+  const names = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(3,minmax(140px,1fr));gap:0.5rem;flex:1' });
+  const nameInputs = {};
+  for (const [l, label] of AI_LANGS) {
+    const [lab, inp] = aiInput(`${label} (${l.toUpperCase()})`, p.names?.[l], { maxlength: '40' });
+    nameInputs[l] = inp;
+    names.appendChild(lab);
+  }
+  row.appendChild(names);
+  card.appendChild(row);
+
+  const params = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0.5rem;margin-top:0.5rem' });
+  const fields = {};
+  for (const [k, label] of [['idSuggestion', 'Identifiant technique'], ['category', 'Catégorie'], ['rarity', 'Rareté'], ['icon', 'Emoji'],
+    ['hpBase', 'PV de base'], ['reward', 'Récompense'], ['minDepth', 'Dès (m)'], ['weight', 'Poids']]) {
+    const [lab, inp] = aiInput(label, p[k]);
+    fields[k] = inp;
+    params.appendChild(lab);
+  }
+  card.appendChild(params);
+  if (p.rationale) card.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.78rem' }, `Justification IA : ${p.rationale}`));
+  if (p.category === 'gemme') card.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.78rem' }, 'Gemme : ne rapporte pas de gemme premium par défaut (étape D / #20).'));
+  const warn = aiEl('ul', { class: 'form-msg' });
+  for (const w of p.warnings ?? []) warn.appendChild(aiEl('li', {}, w));
+  card.appendChild(warn);
+  const impact = aiEl('div');
+  card.appendChild(impact);
+  const msg = aiEl('p', { class: 'form-msg' });
+
+  const open = p.status === 'open';
+  const actions = aiEl('div', { class: 'form-actions' });
+  const button = (label, fn, { primary = false, disabled = false } = {}) => {
+    const b = aiEl('button', { class: primary ? 'btn btn-primary' : 'btn' }, label);
+    b.disabled = disabled;
+    b.addEventListener('click', async () => {
+      const all = actions.querySelectorAll('button');
+      all.forEach(x => { x.disabled = true; });
+      msg.textContent = '…';
+      try { await fn(); } finally { all.forEach(x => { x.disabled = false; }); }
+    });
+    actions.appendChild(b);
+  };
+  const edits = () => {
+    const body = { names: {} };
+    for (const [l] of AI_LANGS) body.names[l] = nameInputs[l].value.trim();
+    for (const [k, inp] of Object.entries(fields)) body[k] = ['hpBase', 'reward', 'minDepth', 'weight'].includes(k) ? Number(inp.value) : inp.value.trim();
+    return body;
+  };
+  const save = async () => {
+    const { ok, data } = await api('PUT', `/api/admin/blocks/ai/proposals/${p.id}`, edits());
+    msg.textContent = ok ? 'Corrections enregistrées.' : (data.error || 'Erreur.');
+    return ok;
+  };
+  const regen = what => async () => {
+    msg.textContent = 'Génération en cours (jusqu\'à 1–2 min pour une image)…';
+    const { ok, data } = await api('POST', `/api/admin/blocks/ai/proposals/${p.id}/regenerate`, { what });
+    if (!ok) { msg.textContent = data.error || 'Erreur.'; return; }
+    loadAi();
+  };
+  if (open) {
+    button('Enregistrer les corrections', save);
+    button('↻ Noms / traductions', regen('names'), { disabled: !configured });
+    button('↻ Image seule', regen('image'), { disabled: !configured });
+    button('↻ Tout le texte', regen('text'), { disabled: !configured });
+    button('Impact', async () => {
+      if (!(await save())) return;
+      const { ok, data } = await api('GET', `/api/admin/blocks/ai/proposals/${p.id}/impact`);
+      if (!ok) { msg.textContent = data.error || 'Erreur.'; return; }
+      impact.textContent = '';
+      const tbl = aiEl('table');
+      const head = aiEl('tr');
+      ['Profondeur', 'Part du nouveau bloc', 'PV moyens (avant → après)', 'Récompense moyenne (avant → après)'].forEach(h => head.appendChild(aiEl('th', {}, h)));
+      tbl.appendChild(head);
+      for (const r of data.impact) {
+        const tr = document.createElement('tr');
+        const pct = (a, b) => `${a.toFixed(1)} → ${b.toFixed(1)} (${b >= a ? '+' : ''}${((b / a - 1) * 100).toFixed(1)} %)`;
+        [`${r.depth} m`, bkPct(r.share), pct(...r.avgHp), pct(...r.avgReward)].forEach(v => addCell(tr, v));
+        tbl.appendChild(tr);
+      }
+      impact.appendChild(tbl);
+      msg.textContent = 'Impact calculé sur le catalogue en vigueur (sans Chance).';
+    });
+    button('Ajouter au brouillon', async () => {
+      if (!(await save())) return;
+      const { ok, data } = await api('POST', `/api/admin/blocks/ai/proposals/${p.id}/draft`, { blockId: fields.idSuggestion.value.trim() });
+      if (!ok) { msg.textContent = data.error || 'Erreur.'; return; }
+      await loadBlocks();
+      loadAi();
+    }, { primary: true });
+    button('Abandonner', async () => {
+      if (!confirm(`Abandonner la proposition #${p.id} ?`)) return;
+      const { ok, data } = await api('DELETE', `/api/admin/blocks/ai/proposals/${p.id}`);
+      if (!ok) { msg.textContent = data.error || 'Erreur.'; return; }
+      loadAi();
+    });
+  } else {
+    actions.appendChild(aiEl('span', { class: 'muted' }, 'Dans le brouillon du catalogue : relisez, simulez puis publiez plus bas. Modifications ultérieures : bouton « Modifier » de la liste.'));
+  }
+  card.appendChild(actions);
+  card.appendChild(msg);
+  return card;
+}
+
+document.getElementById('btn-ai-generate').addEventListener('click', async () => {
+  const concept = document.getElementById('ai-concept').value.trim();
+  const msg = document.getElementById('ai-msg');
+  const btn = document.getElementById('btn-ai-generate');
+  btn.disabled = true;
+  msg.textContent = 'Génération en cours (texte puis image : jusqu\'à 2 min)…';
+  try {
+    const { ok, data } = await api('POST', '/api/admin/blocks/ai/proposals', { concept, withImage: document.getElementById('ai-with-image').checked });
+    msg.textContent = ok ? (data.proposal.imageError ? `Texte proposé ; image en échec : ${data.proposal.imageError}` : 'Proposition prête : vérifiez-la ci-dessous.') : (data.error || 'Erreur.');
+    if (ok) document.getElementById('ai-concept').value = '';
+  } finally {
+    btn.disabled = false;
+    loadAi();
+  }
+});
 for (const id of ['bk-filter-text', 'bk-filter-cat', 'bk-filter-status', 'bk-odds-depth']) {
   document.getElementById(id).addEventListener('input', () => { if (_bk) bkRenderTable(); });
 }
