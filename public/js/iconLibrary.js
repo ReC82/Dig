@@ -75,7 +75,7 @@ const IconLibrary = {
   /** Image choisie dans le catalogue de blocs administrable (#37), prioritaire ; null sinon. */
   catalogImage(type) {
     const src = type && type.image;
-    return typeof src === 'string' && /^\/assets\/[A-Za-z0-9_\-\/.]+\.(webp|png|svg)$/.test(src) && !src.includes('..')
+    return typeof src === 'string' && /^(\/assets\/[A-Za-z0-9_\-\/.]+\.(webp|png|svg)|\/media\/blocks\/[a-f0-9]{16}\.webp)$/.test(src) && !src.includes('..')
       && !IconLibrary.failed.has(`image:${src}`) ? src : null;
   },
 

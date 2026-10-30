@@ -51,7 +51,7 @@ const REWARD_SCALE_PER_M = 0.05;
 const ID_RE     = /^[a-z][a-z0-9_]{1,39}$/;
 const HEX_RE    = /^#[0-9a-fA-F]{3,8}$/;
 const COLOR_RE  = /^(#[0-9a-fA-F]{3,8}|linear-gradient\(\d{1,3}deg,\s?#[0-9a-fA-F]{3,8},\s?#[0-9a-fA-F]{3,8}\))$/;
-const IMAGE_RE  = /^\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)$/;
+const IMAGE_RE  = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/media\/blocks\/[a-f0-9]{16}\.webp)$/;
 
 class CatalogError extends Error {
   constructor(status, message, details) { super(message); this.status = status; this.details = details; }
@@ -311,7 +311,7 @@ function normalizeType(input, { legacyIds = new Set(originTypes().map(t => t.id)
   const icon = String(input.icon ?? '').trim();
   if (!icon || [...icon].length > 4 || /[<>&"'\s]/.test(icon)) throw new CatalogError(400, `${where} : icône (emoji, 1 à 4 caractères) invalide.`);
   const image = input.image ? String(input.image).trim() : null;
-  if (image && (!IMAGE_RE.test(image) || image.includes('..'))) throw new CatalogError(400, `${where} : image attendue sous /assets/… (.webp, .png ou .svg).`);
+  if (image && (!IMAGE_RE.test(image) || image.includes('..'))) throw new CatalogError(400, `${where} : image attendue sous /assets/… (.webp, .png ou .svg) ou /media/blocks/… (création IA).`);
   const color = String(input.color ?? '').trim();
   if (!COLOR_RE.test(color)) throw new CatalogError(400, `${where} : couleur invalide (#rrggbb ou linear-gradient(145deg,#…,#…)).`);
   const accent = String(input.accent ?? '').trim();
@@ -616,7 +616,7 @@ function buildAdminView() {
 }
 
 module.exports = {
-  CatalogError, CATEGORIES, RARITIES,
+  CatalogError, CATEGORIES, RARITIES, LANGS,
   init, originTypes, getPublished, getVersion, getDraft, listVersions, publicCatalog, publishedIds,
   STEP_B_TYPES, SURFACE_FADE, CONTENT_MIGRATIONS,
   normalizeType, validateCatalog, odds, weightAt, simulate, diff, minHpSegments, refreshAntibot,

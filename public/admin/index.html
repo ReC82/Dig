@@ -676,6 +676,27 @@
       Les modifications vont dans un <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier ». Un bloc déjà publié ne se supprime pas, il se désactive.
       Aucune profondeur maximale : un bloc apparaît <strong>dès X m</strong> puis à toutes les profondeurs suivantes.</p>
 
+    <div class="overview-card" id="ai-card">
+      <h3 class="overview-card-title">✨ Création assistée par IA</h3>
+      <p id="ai-status" class="muted" style="font-size:0.8rem"></p>
+      <p class="muted" style="font-size:0.78rem">Décrivez un bloc, un minerai ou un coffre : l'IA propose les noms FR/EN/NL, la catégorie, les paramètres et une icône dans le style validé.
+        Corrigez chaque langue, régénérez une partie, vérifiez l'impact, puis « Ajouter au brouillon ». <strong>Rien n'est publié automatiquement.</strong></p>
+      <textarea id="ai-concept" rows="2" maxlength="500" placeholder="Ex. : un minerai de cuivre oxydé, vert-de-gris, vers 300 m, peu commun" style="width:100%"></textarea>
+      <div class="form-actions">
+        <label><input type="checkbox" id="ai-with-image" checked> Générer aussi l'icône</label>
+        <button class="btn btn-primary" id="btn-ai-generate">✨ Proposer un bloc</button>
+      </div>
+      <p id="ai-msg" class="form-msg"></p>
+      <div id="ai-proposals"></div>
+      <details>
+        <summary class="muted">Journal des appels IA (coûts estimés)</summary>
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Prop.</th><th>Type</th><th>Modèle</th><th>Résultat</th><th>Coût estimé</th><th>Durée</th></tr></thead>
+          <tbody id="ai-calls-body"></tbody>
+        </table>
+      </details>
+    </div>
+
     <div class="overview-card">
       <h3 class="overview-card-title">Blocs <span id="bk-list-source" class="muted"></span></h3>
       <div class="form-actions">
