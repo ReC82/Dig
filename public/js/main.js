@@ -1240,6 +1240,7 @@ function _applySeasonReset(newSeasonId, gemsCap) {
   GameState.coins           = 0;
   GameState.gems            = Math.min(GameState.gems, gemsCap);
   GameState.coinBoost       = { multiplier: 1, expiresAt: 0 };
+  DailyMissions.rebase('depth', 1);   // garde la progression du jour (B11)
   GameState.depth           = 1;
   GameState.pickaxeLevel    = 1;
   GameState.damage          = 1;
@@ -1284,7 +1285,7 @@ async function _pollSeason() {
       GameState.seasonStats.seasonId = data.season.id;
     }
     if (isViewActive('season')) renderSeasonView(data);
-  } catch (_) { /* silencieux */ }
+  } catch (err) { console.warn('[saison] synchronisation impossible', err); }
 }
 
 // ── Rendu vue Saison ─────────────────────────────────────────────────────────
@@ -1379,7 +1380,7 @@ async function _loadLeaderboard(seasonId, containerId) {
     const el = document.getElementById(containerId);
     if (!el) return;
     if (!ok || !data.leaderboard?.length) {
-      el.innerHTML = '<p class="season-empty">Aucun joueur actif pour l\'instant.</p>';
+      el.innerHTML = `<p class="season-empty">${escapeHtml(t('season.empty'))}</p>`;
       return;
     }
     el.innerHTML = data.leaderboard.map(row => {
@@ -1393,7 +1394,7 @@ async function _loadLeaderboard(seasonId, containerId) {
         <span class="lb-blocks">👆${escapeHtml(row.manualBlocks)}</span>
       </div>`;
     }).join('');
-  } catch (_) {}
+  } catch (err) { console.warn('[saison] classement indisponible', err); }
 }
 
 async function _openSeasonView() {

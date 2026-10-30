@@ -152,7 +152,20 @@ const DailyMissions = {
       ? GameState.depth
       : (GameState.stats[def.statKey] ?? 0);
 
-    return Math.min(current - (base[def.statKey] ?? 0), m.target);
+    // Jamais négative : la profondeur peut baisser (reset de saison ou admin, save cloud) (B11)
+    return Math.max(0, Math.min(current - (base[def.statKey] ?? 0), m.target));
+  },
+
+  /**
+   * À appeler juste avant qu'une stat suivie ne baisse (reset de saison : profondeur → 1).
+   * La progression du jour déjà acquise est conservée au lieu de devenir négative (B11).
+   */
+  rebase(statKey, newValue) {
+    const base = GameState.dailyMissions.baselineStats;
+    if (!base || !(statKey in base)) return;
+    const current = (statKey === 'depth') ? GameState.depth : (GameState.stats[statKey] ?? 0);
+    const gained  = Math.max(0, current - (base[statKey] ?? 0));
+    base[statKey] = newValue - gained;
   },
 
   isDone(idx) {

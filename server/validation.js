@@ -21,4 +21,13 @@ function isValidEmail(e) {
   return EMAIL_RE.test(v);
 }
 
-module.exports = { isValidEmail };
+/**
+ * Entier de requête borné (?page=, ?limit=, ?offset=) : une valeur absente, non numérique
+ * (`?page=abc`) ou hors bornes donne la valeur par défaut ou la borne, jamais NaN (B11).
+ */
+function intParam(value, { def, min, max = 1e9 }) {
+  const n = /^\s*-?\d+\s*$/.test(String(value ?? '')) ? parseInt(value, 10) : def;
+  return Math.min(max, Math.max(min, n));
+}
+
+module.exports = { isValidEmail, intParam };
