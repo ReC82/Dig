@@ -32,6 +32,7 @@
     <button class="tab-btn" data-tab="economy">💰 Économie &amp; Joueurs</button>
     <button class="tab-btn" data-tab="security">🛡 Anti-bot</button>
     <button class="tab-btn" data-tab="contest">🎁 Concours</button>
+    <button class="tab-btn" data-tab="points">🏅 Points</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -459,6 +460,67 @@
           <tbody id="ct-audit-body"><tr><td colspan="6" class="muted">Aucun événement.</td></tr></tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+  <!-- Tab Points de récompense (#33) -->
+  <section id="tab-points" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🏅 Points de récompense saisonniers</h2>
+      <button class="btn" id="btn-refresh-points">↻ Rafraîchir</button>
+    </div>
+    <p id="pt-mode-banner" class="contest-banner"></p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Mode d'attribution</h3>
+      <p class="muted" style="font-size:0.8rem">Simulation : les points de fin de saison sont calculés et montrés aux joueurs, jamais crédités. Réel : les saisons terminées <strong>après</strong> l'activation sont créditées au portefeuille (aucun crédit rétroactif). Activer = valider le barème en vigueur.</p>
+      <div class="form-actions">
+        <button class="btn" id="btn-pt-live">Activer le crédit réel des points</button>
+        <button class="btn btn-ghost" id="btn-pt-sim">Revenir en simulation</button>
+      </div>
+      <p id="pt-mode-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Barème (JSON, versionné)</h3>
+      <p id="pt-scale-info" class="muted" style="font-size:0.8rem"></p>
+      <p class="muted" style="font-size:0.78rem">Catégories exclusives, évaluées dans l'ordre : <code>rankMax</code> (rang ≤ N) ou <code>percentMax</code> (top p %, arrondi au-dessus), <code>minEligible</code> (catégorie ignorée sous ce nombre d'éligibles), sans condition = autres participants. Options : <code>tiesShareTier</code>, <code>leagueBonusPctPerLevel</code>, <code>maxRiskLevel</code> (null = aucune exclusion anti-bot).</p>
+      <textarea id="pt-scale" rows="14" style="width:100%;font-family:monospace;font-size:0.78rem"></textarea>
+      <div class="form-actions" style="margin-top:8px">
+        <input id="pt-scale-note" type="text" maxlength="200" placeholder="Note de version">
+        <select id="pt-preview-season" class="league-select"></select>
+        <button class="btn btn-sm" id="btn-pt-preview">Aperçu sur la saison</button>
+        <button class="btn" id="btn-pt-save-scale">Enregistrer une nouvelle version</button>
+      </div>
+      <p id="pt-scale-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Attributions par saison</h3>
+      <p id="pt-totals" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Saison</th><th>Mode</th><th>Date (UTC)</th><th>Barème</th><th>Éligibles</th><th>Bénéficiaires</th><th>Points</th><th></th></tr></thead>
+          <tbody id="pt-runs-body"><tr><td colspan="8" class="muted">Aucune attribution.</td></tr></tbody>
+        </table>
+      </div>
+      <div style="overflow-x:auto;margin-top:8px">
+        <table>
+          <thead><tr><th>Mode</th><th>Rang</th><th>Joueur</th><th>Catégorie</th><th>Points</th><th>Registre</th></tr></thead>
+          <tbody id="pt-awards-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Ajustement manuel (motivé, tracé)</h3>
+      <div class="form-actions">
+        <input id="pt-adj-user" type="number" min="1" placeholder="ID joueur">
+        <input id="pt-adj-amount" type="number" placeholder="± points">
+        <input id="pt-adj-reason" type="text" maxlength="200" placeholder="Motif (obligatoire)">
+        <button class="btn" id="btn-pt-adjust">Appliquer</button>
+      </div>
+      <p id="pt-adj-msg" class="hidden"></p>
     </div>
   </section>
 

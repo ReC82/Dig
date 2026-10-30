@@ -91,6 +91,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'economy')         loadEconomy();
     if (btn.dataset.tab === 'security')        loadSecurity();
     if (btn.dataset.tab === 'contest')         loadContest();
+    if (btn.dataset.tab === 'points')          loadPoints();
   });
 });
 
@@ -1117,3 +1118,122 @@ document.getElementById('ct-season').addEventListener('change', loadContestPrevi
 document.getElementById('ct-mode').addEventListener('change', loadContestPreview);
 document.getElementById('btn-ct-attribute').addEventListener('click', contestAttribute);
 document.getElementById('ct-winners-mode').addEventListener('change', loadContestWinners);
+
+// ── Points de récompense (#33) ────────────────────────────────────────────────
+
+function ptMessage(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = ok ? 'success' : 'error';
+}
+
+async function loadPoints() {
+  const { ok, data } = await api('GET', '/api/admin/points');
+  if (!ok) { ptMessage('pt-scale-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  const s = data.settings;
+  const banner = document.getElementById('pt-mode-banner');
+  banner.className = `contest-banner contest-banner--${s.mode === 'live' ? 'open' : 'locked'}`;
+  banner.textContent = s.mode === 'live'
+    ? `✅ Crédit réel des points actif depuis ${s.liveSince} UTC (barème v${s.scaleVersion}).`
+    : `🧪 Simulation : barème v${s.scaleVersion} affiché aux joueurs, aucun point crédité.`;
+  document.getElementById('pt-scale-info').textContent =
+    `Version en vigueur : v${s.scaleVersion}${s.scaleNote ? ` — ${s.scaleNote}` : ''} (${data.scales.length} version(s) conservée(s)).`;
+  const ta = document.getElementById('pt-scale');
+  if (!ta.dataset.dirty) ta.value = JSON.stringify(s.scale, null, 2);
+
+  const v = data.verification;
+  document.getElementById('pt-totals').textContent =
+    `Portefeuilles : ${data.totals.wallets} — solde total ${data.totals.balance} pts (gagnés ${data.totals.earned}, dépensés ${data.totals.spent}). `
+    + `Contrôle du registre : ${v.ok ? 'OK' : `ÉCART (${v.mismatches.length} portefeuille(s), ${v.orphanUsers} orphelin(s))`}.`;
+
+  const sel = document.getElementById('pt-preview-season');
+  const keep = sel.value;
+  sel.textContent = '';
+  const seen = new Set();
+  for (const r of data.runs) {
+    if (seen.has(r.seasonId)) continue;
+    seen.add(r.seasonId);
+    const opt = document.createElement('option');
+    opt.value = r.seasonId;
+    opt.textContent = r.seasonName || `Saison ${r.seasonId}`;
+    sel.appendChild(opt);
+  }
+  if (keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+
+  const tbody = document.getElementById('pt-runs-body');
+  tbody.textContent = '';
+  if (!data.runs.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted">Aucune attribution.</td></tr>'; return; }
+  for (const r of data.runs) {
+    const tr = document.createElement('tr');
+    [r.seasonName || r.seasonId, r.mode, r.createdAt, `v${r.scaleVersion}`, r.eligible, r.recipients, r.totalPoints].forEach(x => addCell(tr, x));
+    addButtonCell(tr, 'Détail', () => loadPointAwards(r.seasonId));
+    tbody.appendChild(tr);
+  }
+}
+
+async function loadPointAwards(seasonId) {
+  const { ok, data } = await api('GET', `/api/admin/points/seasons/${encodeURIComponent(seasonId)}`);
+  const tbody = document.getElementById('pt-awards-body');
+  tbody.textContent = '';
+  if (!ok) return;
+  if (!data.awards.length) { tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucun éligible.</td></tr>'; return; }
+  for (const a of data.awards) {
+    const tr = document.createElement('tr');
+    [a.mode, a.rank, a.username ?? `#${a.user_id}`, a.tier ?? '—', a.points, a.ledger_id ?? '—'].forEach(x => addCell(tr, x));
+    tbody.appendChild(tr);
+  }
+}
+
+function ptScaleFromEditor() {
+  try { return JSON.parse(document.getElementById('pt-scale').value); }
+  catch (e) { ptMessage('pt-scale-msg', `JSON invalide : ${e.message}`, false); return null; }
+}
+
+document.getElementById('btn-refresh-points').addEventListener('click', () => {
+  delete document.getElementById('pt-scale').dataset.dirty;
+  loadPoints();
+});
+document.getElementById('pt-scale').addEventListener('input', e => { e.target.dataset.dirty = '1'; });
+
+document.getElementById('btn-pt-preview').addEventListener('click', async () => {
+  const scale = ptScaleFromEditor();
+  const seasonId = Number(document.getElementById('pt-preview-season').value);
+  if (!scale) return;
+  if (!seasonId) { ptMessage('pt-scale-msg', 'Aucune saison figée à prévisualiser.', false); return; }
+  const { ok, data } = await api('POST', '/api/admin/points/scale/preview', { scale, seasonId });
+  if (!ok) { ptMessage('pt-scale-msg', data.error || 'Erreur.', false); return; }
+  const top = data.awards.slice(0, 10).map(a => `#${a.rank} ${a.tier ?? '—'} ${a.points}`).join(' · ');
+  ptMessage('pt-scale-msg', `Aperçu : ${data.eligible} éligible(s), ${data.total} point(s) au total. ${top}`, true);
+});
+
+document.getElementById('btn-pt-save-scale').addEventListener('click', async () => {
+  const scale = ptScaleFromEditor();
+  if (!scale) return;
+  if (!confirm('Enregistrer cette version du barème ? Elle s\'appliquera aux prochaines clôtures.')) return;
+  const note = document.getElementById('pt-scale-note').value;
+  const { ok, data } = await api('PUT', '/api/admin/points/scale', { scale, note });
+  ptMessage('pt-scale-msg', ok ? `Barème v${data.scaleVersion} enregistré.` : (data.error || 'Erreur.'), ok);
+  if (ok) { delete document.getElementById('pt-scale').dataset.dirty; loadPoints(); }
+});
+
+async function setPointsMode(mode) {
+  const msg = mode === 'live'
+    ? 'Activer le crédit réel des points ? Le barème en vigueur sera appliqué aux saisons qui se terminent à partir de maintenant.'
+    : 'Revenir en simulation ? Les points déjà crédités restent acquis.';
+  if (!confirm(msg)) return;
+  const { ok, data } = await api('PUT', '/api/admin/points/mode', { mode });
+  ptMessage('pt-mode-msg', ok ? `Mode : ${data.mode}.` : (data.error || 'Erreur.'), ok);
+  loadPoints();
+}
+document.getElementById('btn-pt-live').addEventListener('click', () => setPointsMode('live'));
+document.getElementById('btn-pt-sim').addEventListener('click', () => setPointsMode('simulation'));
+
+document.getElementById('btn-pt-adjust').addEventListener('click', async () => {
+  const userId = Number(document.getElementById('pt-adj-user').value);
+  const amount = Number(document.getElementById('pt-adj-amount').value);
+  const reason = document.getElementById('pt-adj-reason').value;
+  if (!confirm(`Ajuster de ${amount} point(s) le joueur #${userId} ?`)) return;
+  const { ok, data } = await api('POST', '/api/admin/points/adjust', { userId, amount, reason });
+  ptMessage('pt-adj-msg', ok ? `Nouveau solde : ${data.wallet.balance} pts.` : (data.error || 'Erreur.'), ok);
+  if (ok) loadPoints();
+});

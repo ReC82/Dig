@@ -77,6 +77,7 @@ const {
 const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
 const standings = require('./standings');
 const contest   = require('./contest');
+const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const { validateEconomyValue } = require('./economy');
@@ -536,6 +537,27 @@ app.get('/api/seasons/:id/standings', (req, res) => {
   }
 });
 
+// ── Points de récompense saisonniers (#33) ───────────────────────────────────
+
+function pointsRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof rewardPoints.PointsError || err instanceof contest.ContestError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+// Barème public et mode (simulation : points calculés, jamais crédités).
+app.get('/api/points/scale', pointsRoute('GET /api/points/scale', () => rewardPoints.publicScale()));
+
+// Portefeuille du joueur connecté : solde, historique, attributions, récompense potentielle.
+app.get('/api/points/me', (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+  pointsRoute('GET /api/points/me', r => rewardPoints.buildPlayerSummary(r.session.userId))(req, res);
+});
+
 // ── Middleware admin ──────────────────────────────────────────────────────────
 
 function requireAdmin(req, res, next) {
@@ -759,6 +781,29 @@ app.get('/api/admin/contest/audit', requireAdmin, contestRoute('GET /api/admin/c
   offset:   intParam(req.query.offset, { def: 0,   min: 0 }),
   winnerId: req.query.winnerId ? intParam(req.query.winnerId, { def: 0, min: 0 }) || null : null,
 })));
+
+// Points de récompense (#33) : réglages, barème versionné, mode, attributions, ajustements.
+app.get('/api/admin/points', requireAdmin, pointsRoute('GET /api/admin/points', () => rewardPoints.buildAdminSummary()));
+
+app.put('/api/admin/points/scale', requireAdmin, pointsRoute('PUT /api/admin/points/scale',
+  req => rewardPoints.setScale(req.body?.scale, req.body?.note)));
+
+app.post('/api/admin/points/scale/preview', requireAdmin, pointsRoute('POST /api/admin/points/scale/preview',
+  req => rewardPoints.previewScale(req.body?.scale, idParam(req.body?.seasonId, 'saison'))));
+
+app.put('/api/admin/points/mode', requireAdmin, pointsRoute('PUT /api/admin/points/mode',
+  req => rewardPoints.setMode(req.body?.mode)));
+
+app.get('/api/admin/points/seasons/:id', requireAdmin, pointsRoute('GET /api/admin/points/seasons/:id',
+  req => ({ awards: rewardPoints.seasonAwards(idParam(req.params.id, 'saison')) })));
+
+app.post('/api/admin/points/adjust', requireAdmin, pointsRoute('POST /api/admin/points/adjust', req => {
+  const amount = req.body?.amount;
+  if (!Number.isInteger(amount) || amount === 0) throw new rewardPoints.PointsError(400, 'Montant entier non nul requis.');
+  const r = rewardPoints.adminAdjust(idParam(req.body?.userId, 'joueur'), amount,
+    { reason: req.body?.reason, idemKey: req.body?.idemKey });
+  return { entry: r.entry, duplicate: r.duplicate, wallet: rewardPoints.getWallet(r.entry.user_id) };
+}));
 
 // Classement global admin d'une saison
 app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {
@@ -1158,6 +1203,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
+rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 
 // Rotation planifiée des saisons : une passe au démarrage puis chaque minute (#16)
 startSeasonScheduler();
