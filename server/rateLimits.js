@@ -34,12 +34,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass };
   }
 
   const common = {
@@ -72,6 +72,15 @@ function createRateLimiters(env = process.env) {
       ...common,
       windowMs:     MINUTE,
       limit:        intFromEnv(env, 'RATE_SAVE_MAX', 30),
+      keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
+    }),
+
+    // Coffres de la boutique (#25) : ≤ 30 ouvertures / min / compte (un joueur ouvre un coffre
+    // à la fois, avec une animation) ; à défaut de session, par IP.
+    chest: rateLimit({
+      ...common,
+      windowMs:     MINUTE,
+      limit:        intFromEnv(env, 'RATE_CHEST_MAX', 30),
       keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
     }),
 

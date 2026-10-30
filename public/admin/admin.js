@@ -89,6 +89,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'leaderboard')     loadLeaderboard();
     if (btn.dataset.tab === 'season-overview') { loadSeasonOverview(); loadAntiCheatLogs(); }
     if (btn.dataset.tab === 'economy')         loadEconomy();
+    if (btn.dataset.tab === 'security')        loadSecurity();
   });
 });
 
@@ -263,6 +264,8 @@ const CONFIG_LABELS = {
   anti_autoclick_enabled:       'Anti-autoclicker activé (true/false)',
   depth_validation_enabled:     'Validation serveur de la profondeur (true/false)',
   depth_max_cps:                'Clics/s max retenus pour la profondeur',
+  antibot_mode:                 'Anti-bot : off ou shadow (observation, aucune sanction) — #25',
+  damage_budget_mode:           'Budget de dégâts (profondeur) : off, shadow ou enforce — #25',
 };
 
 async function loadConfig() {
@@ -563,6 +566,7 @@ async function loadAntiCheatLogs() {
       reduced:        ['badge-reduced', '↓ reduced'],
       depth_capped:   ['badge-reduced', '↓ profondeur plafonnée'],
       depth_rejected: ['badge-flagged', '✖ profondeur rejetée'],
+      damage_capped:  ['badge-reduced', '↓ budget de dégâts'],
       admin_fix:      ['muted',         '✎ correction admin'],
     };
     const [cls, label] = BADGES[log.action_taken] ?? ['muted', log.action_taken];
@@ -592,7 +596,8 @@ function formatLogDetails(raw) {
   }
   if (d.reportedDepth != null) {
     const rej = (d.discardedClicks || d.discardedAutoBlocks) ? ` — rejetés : ${d.discardedClicks} clics, ${d.discardedAutoBlocks} blocs auto` : '';
-    return `déclarée ${d.reportedDepth}m, retenue ${d.acceptedDepth}m${rej}`;
+    const budget = d.budgetDepth != null ? ` (budget ${d.budgetDepth}m)` : '';
+    return `déclarée ${d.reportedDepth}m, retenue ${d.acceptedDepth}m${budget}${rej}`;
   }
   return '';
 }
@@ -759,3 +764,67 @@ document.getElementById('btn-confirm-player-reset').addEventListener('click', as
     viewPlayerSave(_currentPlayerId, _currentPlayerName);
   }
 });
+
+// ── Anti-bot (#25) ───────────────────────────────────────────────────────────
+
+const SEC_LEVELS = ['0 — rien', '1 — journaliser', '2 — limiter', '3 — défi', '4 — suspension'];
+
+async function loadSecurity() {
+  const type = document.getElementById('sec-filter-type').value;
+  const [sum, ev] = await Promise.all([
+    api('GET', '/api/admin/security/summary'),
+    api('GET', '/api/admin/security/events?limit=100' + (type ? `&type=${encodeURIComponent(type)}` : '')),
+  ]);
+
+  const status = document.getElementById('sec-status');
+  status.innerHTML = '';
+  if (sum.ok) {
+    const s = sum.data;
+    const lines = [
+      `Mode observation : ${s.antibotMode}${s.envOverride ? ' (forcé par ANTIBOT=off)' : ''}`,
+      `Budget de dégâts : ${s.damageBudgetMode}`,
+      `Saison : ${s.seasonId ?? '—'} — comptes par niveau : ${s.levels.map((n, i) => `N${i} ${n}`).join(' · ')}`,
+      `Événements (7 j) : ${s.eventsLast7Days.map(e => `${e.type} ${e.n}`).join(' · ') || 'aucun'}`,
+      `Calcul par sauvegarde : ${s.timings.avgMs.toFixed(2)} ms en moyenne, ${s.timings.maxMs.toFixed(2)} ms max (${s.timings.saves} sauvegardes depuis ${s.timings.since.slice(0, 16).replace('T', ' ')})`,
+    ];
+    for (const l of lines) {
+      const p = document.createElement('p');
+      p.textContent = l;
+      status.appendChild(p);
+    }
+    const body = document.getElementById('sec-accounts-body');
+    body.innerHTML = '';
+    if (!s.accounts.length) body.innerHTML = '<tr><td colspan="4" class="muted">Aucun compte à risque.</td></tr>';
+    for (const a of s.accounts) {
+      const tr = document.createElement('tr');
+      addCell(tr, a.username);
+      addCell(tr, a.score);
+      addCell(tr, SEC_LEVELS[a.level]);
+      addCell(tr, Object.entries(a.components).map(([k, v]) => `${k} ${v}`).join(', '));
+      body.appendChild(tr);
+    }
+  } else {
+    const p = document.createElement('p');
+    p.className = 'error';
+    p.textContent = 'Erreur lors du chargement.';
+    status.appendChild(p);
+  }
+
+  const tbody = document.getElementById('sec-events-body');
+  tbody.innerHTML = '';
+  if (!ev.ok) { tbody.innerHTML = '<tr><td colspan="5" class="error">Erreur lors du chargement.</td></tr>'; return; }
+  document.getElementById('sec-events-total').textContent = `${ev.data.total} événements au total — ${ev.data.events.length} affichés`;
+  if (!ev.data.events.length) tbody.innerHTML = '<tr><td colspan="5" class="muted">Aucun événement.</td></tr>';
+  for (const e of ev.data.events) {
+    const tr = document.createElement('tr');
+    addCell(tr, (e.created_at ?? '').substring(0, 19)).className = 'muted';
+    addCell(tr, e.type);
+    addCell(tr, e.username ?? (e.user_id ? `user_${e.user_id}` : 'admin'));
+    addCell(tr, e.score_after == null ? '' : `${e.score_before ?? 0} → ${e.score_after}`);
+    addCell(tr, e.details ?? '').style.fontSize = '0.75rem';
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById('btn-refresh-sec').addEventListener('click', loadSecurity);
+document.getElementById('sec-filter-type').addEventListener('change', loadSecurity);

@@ -20,6 +20,7 @@ const {
 const { getEconomy } = require('./economy');
 
 const cal = require('./seasonCalendar');
+const antibot = require('./antibot');
 const { fmtUtc } = cal;
 
 /** Limite de rattrapage : nombre maximal de saisons enchaînées en une passe (serveur arrêté longtemps). */
@@ -493,8 +494,9 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
   if (!enabled) {
     const accepted = Math.max(t.accepted_depth, claimedDepth);
     upsertDepthTracking(userId, { ...t, ref_clicks: claimedClicks, ref_auto: claimedAuto,
-      hand_tokens: 0, auto_tokens: 0, accepted_depth: accepted, last_gap: 0, updated_ms: nowMs });
-    return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: 'disabled' };
+      hand_tokens: 0, auto_tokens: 0, accepted_depth: accepted, last_gap: 0, updated_ms: nowMs,
+      dmg_depth: null, dmg_credit: null, dmg_gap: 0 });
+    return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: 'disabled', signals: [] };
   }
 
   // Recharge des seaux selon le temps réel écoulé (plafonnée : l'inactivité ne s'accumule pas)
@@ -507,17 +509,59 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
   const auto = _drainCounter(claimedAuto,   t.ref_auto,   autoTokens, AUTODIG_MAX_BPS);
 
   const ceiling  = Math.max(t.accepted_depth, 1) + hand.ok + auto.ok;
-  const accepted = Math.max(t.accepted_depth, Math.min(claimedDepth, ceiling));
-  const gap      = Math.max(0, claimedDepth - accepted);
+  const target   = Math.min(claimedDepth, ceiling);
+
+  // ── Budget de dégâts (#25, lot B) : chaque mètre exige les PV minimum de son bloc ──
+  // enforce : la profondeur retenue est aussi bornée par le budget ; shadow : le budget est
+  // calculé à part (dmg_depth) et seul l'écart est journalisé ; off : rien.
+  // Ligne antérieure à #25 (dmg_* NULL) : reprise à la profondeur retenue, sans crédit.
+  const budgetMode = antibot.getDamageBudgetMode(config);
+  let budget = null;
+  let budgetGap = 0;
+  if (budgetMode !== 'off') {
+    const fresh   = t.dmg_depth == null;
+    const inputs  = {
+      fromDepth:  budgetMode === 'enforce' || fresh ? t.accepted_depth : t.dmg_depth,
+      credit:     fresh ? 0 : t.dmg_credit ?? 0,
+      refClicks:  fresh ? t.ref_clicks : t.dmg_ref_clicks ?? t.ref_clicks,
+      claimedClicks, dtSecs, target, handRate,
+    };
+    budget = antibot.applyDamageBudget(inputs);
+    // Écart « inexpliqué » : même en créditant tous les clics déclarés encore en attente
+    // (sauvegardes perdues, gigue réseau), le budget ne couvre pas la profondeur visée.
+    if (budget.depth < target) {
+      const explained = budget.pendingClicks > 0 ? antibot.applyDamageBudget({ ...inputs, uncapped: true }).depth : budget.depth;
+      budgetGap = Math.max(0, target - explained);
+    }
+  }
+  const bounded   = budgetMode === 'enforce' ? Math.min(target, budget.depth) : target;
+  const accepted  = Math.max(t.accepted_depth, bounded);
+  const gap       = Math.max(0, claimedDepth - accepted);
+  const budgetNew = budgetGap >= antibot.DAMAGE_LOG_GAP && (t.dmg_gap ?? 0) < antibot.DAMAGE_LOG_GAP;
 
   upsertDepthTracking(userId, {
     season_id: seasonId, ref_clicks: hand.ref, ref_auto: auto.ref,
     hand_tokens: hand.tokens, auto_tokens: auto.tokens,
     accepted_depth: accepted, last_gap: gap, updated_ms: nowMs,
+    dmg_depth:  budget ? (budgetMode === 'enforce' ? accepted : budget.depth) : null,
+    dmg_credit: budget ? budget.credit : null,
+    dmg_ref_clicks: budget ? budget.refClicks : null,
+    dmg_gap:    budgetGap,
   });
+
+  const signals = [];
+  if (hand.discarded > 0 || auto.discarded > 0) {
+    signals.push({ type: 'depth_rejected', details: { reportedDepth: claimedDepth, acceptedDepth: accepted,
+      discardedClicks: hand.discarded, discardedAutoBlocks: auto.discarded } });
+  }
+  if (budgetNew) {
+    signals.push({ type: 'damage_budget', details: { mode: budgetMode, reportedDepth: claimedDepth,
+      acceptedDepth: accepted, budgetDepth: budget.depth, gap: target - budget.depth, unexplainedGap: budgetGap } });
+  }
 
   let logAction = null;
   if (hand.discarded > 0 || auto.discarded > 0) logAction = 'depth_rejected';
+  else if (budgetNew && budgetMode === 'enforce') logAction = 'damage_capped';
   else if (gap >= DEPTH_LOG_GAP && t.last_gap < DEPTH_LOG_GAP) logAction = 'depth_capped';
 
   if (logAction) {
@@ -531,13 +575,14 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
       parseFloat((claimedDepth > 0 ? accepted / claimedDepth : 1).toFixed(3)),
       logAction,
       { reportedDepth: claimedDepth, acceptedDepth: accepted,
-        discardedClicks: hand.discarded, discardedAutoBlocks: auto.discarded },
+        discardedClicks: hand.discarded, discardedAutoBlocks: auto.discarded,
+        ...(budget ? { budgetDepth: budget.depth } : {}) },
     );
     console.log(`[anticheat] ${username ?? userId} : profondeur déclarée ${claimedDepth} → retenue ${accepted} — ${logAction}`);
-    return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: logAction };
+    return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: logAction, signals };
   }
 
-  return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: gap > 0 ? 'capped' : action };
+  return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: gap > 0 ? 'capped' : action, signals };
 }
 
 // ── Utilitaires de stats saisonnières ────────────────────────────────────────
@@ -600,8 +645,14 @@ function recordAutoBreaks(userId, seasonId, autoBlocks) {
  * Dispatch vers recordManualBreaks ou recordAutoBreaks selon la source du bloc.
  * Appelle processAntiCheat pour calculer les blocs effectivement acceptés.
  */
-function syncPlayerRanking(userId, seasonStats) {
+function syncPlayerRanking(userId, seasonStats, { telemetry = null, ip = null } = {}) {
   if (!seasonStats || typeof seasonStats !== 'object') return;
+  const started = process.hrtime.bigint();
+  try { _syncPlayerRanking(userId, seasonStats, telemetry, ip); }
+  finally { antibot.recordTiming(Number(process.hrtime.bigint() - started) / 1e6); }
+}
+
+function _syncPlayerRanking(userId, seasonStats, telemetry, ip) {
   const { seasonId, maxDepth, manualBlocks, autoBlocks, manualClicks, suspiciousScore } = seasonStats;
 
   // Validation minimale
@@ -628,8 +679,13 @@ function syncPlayerRanking(userId, seasonStats) {
   const leagueId   = userLeague ? userLeague.id : null;
   const config     = getAdminConfig();
 
-  // ── Profondeur : validée côté serveur à chaque sauvegarde (ticket #9) ─────
-  const { acceptedDepth, reportedDepth } = validateDepth(userId, season.id, seasonStats, config, user?.username);
+  // ── Profondeur : validée côté serveur à chaque sauvegarde (ticket #9, budget #25) ─
+  const { acceptedDepth, reportedDepth, signals } = validateDepth(userId, season.id, seasonStats, config, user?.username);
+
+  // ── Observation anti-bot (#25, lot A) : indices et preuves, aucune réponse appliquée ──
+  const forged = antibot.forgedCounters(seasonStats);
+  if (forged.length) signals.push({ type: 'forged_counters', details: { fields: forged } });
+  signals.push(...antibot.telemetrySignals(antibot.normalizeTelemetry(telemetry)));
 
   // ── Blocs auto (jamais comptés dans le classement) ────────────────────────
   if ((autoBlocks ?? 0) > 0) {
@@ -649,13 +705,21 @@ function syncPlayerRanking(userId, seasonStats) {
     });
 
     // Calcule les blocs effectifs validés côté serveur
-    const { effectiveManualBlocks } = processAntiCheat(
+    const { effectiveManualBlocks, action: acAction } = processAntiCheat(
       userId, season.id, seasonStats, config, user?.username
     );
+    if (acAction === 'rejected') signals.push({ type: 'blocks_gt_clicks' });
+    else if (acAction === 'flagged') signals.push({ type: 'cps_flagged' });
+    else if (acAction === 'reduced') signals.push({ type: 'cps_reduced' });
 
     // Met à jour le compteur effectif (utilisé pour le classement et les promotions).
     // Chaque bloc manuel fait descendre d'un mètre : blocs manuels ≤ profondeur retenue − 1.
     updateEffectiveBlocks(season.id, userId, Math.min(effectiveManualBlocks, Math.max(0, acceptedDepth - 1)));
+  }
+
+  if (signals.length) {
+    try { antibot.recordSignals(userId, season.id, signals, { config, ip }); }
+    catch (err) { console.error('[antibot] score de risque', err.message); }
   }
 }
 
