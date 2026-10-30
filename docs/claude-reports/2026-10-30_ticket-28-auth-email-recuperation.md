@@ -1,0 +1,207 @@
+# Ticket #28 — [P1] Authentification — e-mail vérifié et récupération de compte
+
+- Ticket : https://github.com/ReC82/Dig/issues/28
+- Session du 30/10/2026 (DIGORCH)
+
+## 1. État réel
+
+**Déployé en production (SHA `994705e`) — en attente de recette.**
+Les fonctions qui envoient un e-mail restent **désactivées** jusqu'à ce que le propriétaire
+configure un serveur SMTP pour le jeu (§ 7, question 1). Le changement de mot de passe et
+l'affichage de l'adresse du compte sont déjà actifs.
+
+## 2. Résultat
+
+Le propriétaire demandait d'abord un comparatif Auth0 / amélioration de l'existant, sans achat
+ni migration automatique. Livré :
+
+1. **Comparatif** `docs/AUTH-COMPARATIF.md` : Auth0, Firebase/Supabase et l'existant amélioré.
+   Coûts, MAU, e-mails, migration, RGPD et PWA.
+   - **Recommandation : améliorer l'existant.** Coût nul, aucune migration d'identité, aucune
+     reconnexion forcée.
+   - L'offre gratuite d'Auth0 n'inclut pas l'envoi d'e-mails personnalisés. L'offre utile
+     (Essentials) coûte de 35 $/mois pour 500 MAU à 700 $/mois pour 10 000 MAU.
+2. **Amélioration de l'existant**, sans service tiers à part le SMTP :
+   - **Vérification de l'adresse** : badge « Adresse vérifiée / non vérifiée » dans
+     Paramètres → Compte, et bouton « Envoyer le lien de confirmation ». Le lien est valable
+     48 h et ne sert qu'une fois ; il s'ouvre sur n'importe quel appareil.
+   - **Mot de passe oublié** : lien sous « Se connecter », par nom d'utilisateur ou adresse.
+     - La réponse est la même que le compte existe ou non.
+     - Le lien est valable 1 h et ne sert qu'une fois.
+     - Le nouveau mot de passe **déconnecte les autres appareils** et connecte celui utilisé.
+       Ouvrir ce lien prouve aussi l'adresse.
+   - **Changement de mot de passe** : le mot de passe actuel est exigé, et les autres appareils
+     sont déconnectés.
+   - **Changement d'adresse** : le mot de passe est exigé. La nouvelle adresse ne remplace
+     l'ancienne qu'après confirmation, et l'ancienne adresse est prévenue.
+   - Textes FR/EN/NL (écrans et e-mails).
+
+### Fichiers
+
+| Fichier | Rôle |
+|---|---|
+| `server/accountRoutes.js` (nouveau) | Routes `/api/auth/email/send-verification`, `/api/auth/email/verify`, `/api/auth/password/forgot`, `/api/auth/password/reset`, `/api/me/password`, `/api/me/email`. Contrôle `auth_version` des sessions |
+| `server/mailer.js` (nouveau) | Envoi SMTP (nodemailer 10.3.1). Mode `file` réservé aux tests. Désactivé sans configuration |
+| `server/db.js` | Colonnes `users.email_verified_at`, `users.auth_version`, table `auth_tokens` (ajouts idempotents), fonctions associées |
+| `server/index.js` | Branchement. `/api/me` renvoie aussi `email`, `emailVerified` et `mail` (envoi disponible ou non) |
+| `server/rateLimits.js` | Limiteurs `mail` (5 envois / IP / 15 min) et `token` (20 liens refusés / IP / 15 min) |
+| `public/js/main.js`, `public/js/i18n.js`, `public/css/style.css` | Section Compte, liens `?verify=` / `?reset=` (retirés aussitôt de l'adresse), traductions |
+| `test/account-recovery.test.js` (nouveau) | 6 tests |
+| `docs/AUTH-COMPARATIF.md`, `docs/OPERATIONS.md` | Comparatif, configuration SMTP |
+
+## 3. SHA et procédure de test
+
+- Branche `feature/28-auth-email-recuperation`, commit `9dba10a`.
+- Fusion dans `develop` : **`994705e`**, déployée.
+- Tests automatisés : `npm ci && npm test` (155/155). Ce ticket ajoute
+  `node --test test/account-recovery.test.js` (6/6), qui couvre :
+  - **Sans SMTP** : routes e-mail en 503, changement de mot de passe possible.
+  - **Vérification** : lien unique, seul le hachage est stocké, 429 si renvoi dans la minute.
+  - **Mot de passe oublié** :
+    - réponse identique pour un compte connu ou inconnu ;
+    - un seul e-mail envoyé ;
+    - lien unique ;
+    - autre session fermée ;
+    - ancien mot de passe refusé ;
+    - lien expiré refusé.
+  - **Changement de mot de passe et d'adresse** :
+    - mot de passe exigé ;
+    - adresse d'un autre compte refusée ;
+    - adresse inchangée avant confirmation ;
+    - ancienne adresse prévenue ;
+    - l'ancienne adresse ne sert plus à récupérer le compte.
+  - **Migration** d'une base d'avant #28 : connexion avec l'ancien identifiant, session sans
+    `authVersion` toujours valable, 2ᵉ démarrage sans effet.
+  - **Mailer** : mode `file` refusé en production, `MAIL_FROM` obligatoire, lien jamais tiré de
+    l'en-tête `Host`.
+- Essai manuel : `MAIL_TRANSPORT=file MAIL_OUTBOX_DIR=/tmp/out DB_FILE=/tmp/t.sqlite PORT=3128 node server/index.js`.
+  Les e-mails sont alors écrits en JSON dans `/tmp/out` et leurs liens s'ouvrent sur
+  `http://127.0.0.1:3128`.
+
+## 4. Vérifications effectuées
+
+- Suite complète : 155/155 sur la branche, sur la fusion `develop` et sur le SHA exact de la release.
+  - Lors d'une première exécution, `security.test.js` a échoué : un serveur orphelin d'un essai
+    précédent occupait le port 3111.
+  - Après son arrêt : 7/7 seul, puis 155/155 deux fois.
+- Chromium headless, ordinateur 1280×900 et smartphone 390×844, serveur de test avec boîte
+  d'envoi locale. Parcours complet sans erreur JS :
+  1. inscription ;
+  2. envoi du lien ;
+  3. confirmation (badge « Adresse vérifiée ») ;
+  4. déconnexion ;
+  5. mot de passe oublié ;
+  6. lien de réinitialisation (l'adresse est nettoyée) ;
+  7. nouveau mot de passe, puis connexion automatique.
+- `npm audit` (production) : 0 vulnérabilité. nodemailer 7.x avait des failles connues, d'où le
+  choix de la 10.3.1.
+- **Non vérifié** : un envoi SMTP réel, faute de configuration SMTP pour le jeu (§ 7).
+- **Impact sur les données des joueurs** :
+  - 2 colonnes et 1 table ajoutées ; aucune donnée réécrite.
+  - Les comptes existants gardent leurs identifiants et leurs sessions.
+  - Leur adresse est marquée « non vérifiée ».
+
+## 5. Déploiement
+
+- **SHA déployé : `994705e`**, le 30/10 à 11:43. L'avance rapide de `main` est passée de
+  `4988e19` à `994705e` ; elle inclut aussi la documentation de #27.
+- **Avant le déploiement** :
+  - 155/155 sur le SHA exact.
+  - Copie de la base de production démarrée en mode production :
+    - empreintes identiques de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`
+      et `player_click_tracking` ;
+    - seuls ajouts : `email_verified_at`, `auth_version` et `auth_tokens`.
+  - Copie supprimée ensuite.
+- **Sauvegarde vérifiée** : `~/backups/dig/dig-20261030-114120-pre-deploy-994705e.sqlite`.
+- **Après le déploiement** :
+  - Les 2 domaines répondent 200, avec `/api/version` = `1.0.0+994705e` et `/api/me` → `"mail":false`.
+  - Journal sans erreur (2 lignes de migration).
+  - `quick_check` ok.
+  - Ligne `users` identique à la sauvegarde.
+  - Sauvegarde de la partie en cours passée de la révision 7244 à 7250 : une progression, pas une perte.
+  - Essai Chromium sur la production (ordinateur et smartphone) : sans erreur JS, lien
+    « Mot de passe oublié » masqué (pas de SMTP), lien `?reset=` nettoyé.
+- **Retour arrière** :
+  - Commandes : `git -C /home/ubuntu/Dig reset --keep 4988e19`, puis `npm ci --omit=dev` (le
+    lock a changé), puis `sudo systemctl restart dig`.
+  - Les colonnes et la table ajoutées sont ignorées par l'ancien code.
+  - La base n'est pas à restaurer.
+
+### Test fonctionnel à faire par le propriétaire
+
+**Maintenant (sans SMTP, 2 min)**
+
+1. Ouvrir Paramètres → Compte.
+   - Attendu : ton adresse e-mail et le badge « Adresse non vérifiée ».
+2. Ouvrir « Changer le mot de passe ». Saisir le mot de passe actuel et un nouveau, puis valider.
+   - Attendu : « Mot de passe modifié ».
+   - Attendu : tu restes connecté.
+   - Attendu : un autre appareil connecté (téléphone) est déconnecté à sa prochaine action.
+3. Te déconnecter, puis te reconnecter avec le nouveau mot de passe.
+   - Attendu : la progression revient.
+
+**Après la configuration SMTP (§ 7), 5 min**
+
+1. Paramètres → Compte → « Envoyer le lien de confirmation ».
+2. Ouvrir l'e-mail reçu, puis cliquer sur le lien.
+   - Attendu : « Adresse e-mail confirmée ! ».
+   - Attendu : le badge devient « Adresse vérifiée ».
+3. Se déconnecter → « Mot de passe oublié ? ».
+4. Saisir ton nom d'utilisateur.
+5. Ouvrir le lien de l'e-mail et choisir un nouveau mot de passe.
+   - Attendu : connecté automatiquement, progression intacte.
+
+**Classement MVP : Bloquant MVP public**, pour la récupération du mot de passe. Il ne reste que
+l'activation SMTP, qui revient au propriétaire. Le changement d'adresse et le comparatif sont
+classés **Après lancement**.
+
+## 6. Choix techniques faits seul
+
+- **Pas d'Auth0 ni de migration d'identité.** Le ticket l'interdisait sans décision du
+  propriétaire, et le comparatif la déconseille pour le MVP.
+- **Jetons opaques de 256 bits** : seul le SHA-256 est stocké, à usage unique, et un seul lien
+  reste valable par usage. Un jeton aléatoire de 256 bits ne se devine pas : un hachage rapide
+  suffit, pas besoin de bcrypt.
+- **`auth_version`** sur le compte, recopié dans la session. Les sessions sont des fichiers, et
+  ce numéro est le moyen simple de fermer les autres appareils. Une session sans numéro vaut 0,
+  donc **aucune session existante n'est rompue**.
+- **Fonctions e-mail désactivées sans SMTP** : `/api/me` renvoie `mail:false` et l'interface
+  masque les boutons. Le déploiement est ainsi sans effet tant que la configuration manque.
+- **Liens construits depuis `PUBLIC_BASE_URL`** (par défaut `https://dig.lodygames.com` en
+  production), jamais depuis l'en-tête `Host`, que le client peut falsifier.
+- **Mot de passe oublié** : la réponse part avant l'e-mail et reste identique dans tous les cas,
+  pour ne révéler ni l'existence d'un compte ni un temps de réponse différent.
+- **Délai minimal de 60 s** entre deux envois à un même compte, en plus de la limite par IP.
+- **Recevoir un lien de réinitialisation vaut vérification de l'adresse.**
+- **nodemailer 10.3.1**, version exacte : 0 vulnérabilité connue. Il demande Node ≥ 20 ; la
+  production et la CI sont en Node 22.
+
+## 7. Décisions demandées au propriétaire
+
+1. **SMTP du jeu (nécessaire pour activer la vérification et le mot de passe oublié).** Ajouter
+   les variables dans `/etc/dig/dig.env` (liste au § 6 de `docs/AUTH-COMPARATIF.md`, ou
+   `docs/OPERATIONS.md`), puis `sudo systemctl restart dig`.
+   - Options :
+     - (a) réutiliser le compte SMTP déjà utilisé par DIGORCH ;
+     - (b) un service d'envoi gratuit (Brevo, Mailjet ≈ 200 à 300 e-mails/jour) avec SPF/DKIM
+       sur le domaine ;
+     - (c) la boîte mail du domaine `lodygames.com`.
+   - **Recommandation :** (b) ou (c), avec une adresse d'expédition sur un domaine du jeu.
+   - Les sessions Claude n'ont pas le droit de lire ni d'écrire ces secrets.
+2. **Choix d'architecture.** Valider l'option A (existant amélioré, pas d'Auth0).
+   **Recommandation : oui.** À rouvrir seulement pour une connexion Google/Apple, la double
+   authentification ou les passkeys.
+3. **Concours (#30/#31).** Exiger une adresse vérifiée pour participer au concours et contacter
+   le gagnant uniquement à cette adresse ? **Recommandation : oui.**
+
+## 8. Reste à faire
+
+- **Activation SMTP** (propriétaire), puis test du § 5. *Bloquant MVP public.*
+- **Anti-multicompte renforcé** : normalisation Gmail, refus des domaines jetables, contrôle
+  admin avant remise d'un lot. À décider avec le règlement du concours. *Après lancement.*
+- **Exigence d'adresse vérifiée pour le concours** : à appliquer dans #30/#31. *Après lancement*
+  (aucun prix réel avant #27).
+- **Régénération de l'identifiant de session à la connexion** (protection contre la fixation de
+  session). Elle est déjà faite pour la réinitialisation, pas pour `/api/login`. Amélioration
+  repérée, hors périmètre. *Après lancement.*
+- **Connexion par adresse e-mail** (aujourd'hui par nom d'utilisateur seulement). *Après lancement.*
