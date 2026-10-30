@@ -12,6 +12,7 @@
  *   RATE_TOKEN_MAX       liens e-mail refusés par IP / 15 minutes       (défaut 20, #28)
  *   RATE_SOCIAL_MAX      départs/retours de connexion Google par IP / 15 min (défaut 30, #28)
  *   RATE_SHOP_MAX        échanges/annulations boutique par compte / minute (défaut 10, #34)
+ *   RATE_PLAY_MAX        prises de contrôle + signaux de présence par compte / minute (défaut 30, #35)
  *   RATE_LIMIT           « off » désactive toutes les limites (diagnostic uniquement)
  */
 
@@ -36,12 +37,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass };
   }
 
   const common = {
@@ -92,6 +93,15 @@ function createRateLimiters(env = process.env) {
       ...common,
       windowMs:     MINUTE,
       limit:        intFromEnv(env, 'RATE_SHOP_MAX', 10),
+      keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
+    }),
+
+    // Session de jeu unique (#35) : une prise de contrôle au chargement + un signal de présence
+    // toutes les 15 s (onglet visible) ; ≤ 30 / min / compte laisse une large marge.
+    play: rateLimit({
+      ...common,
+      windowMs:     MINUTE,
+      limit:        intFromEnv(env, 'RATE_PLAY_MAX', 30),
       keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
     }),
 

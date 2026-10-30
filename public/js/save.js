@@ -20,16 +20,21 @@
  *   v13 — + upgrades { fragment_shop, block_reroll }
  *   v14 — relics[] → relics{} (multi-niveaux : { id: level })
  *   v15 — + shopChestsBought { simple, rare, antique }
+ *   v16 — + blockSeed, blockSeq, block { name, hp, maxHp, reward, depth, seq } (bloc courant
+ *         repris à l'identique, #35 ; absents des anciennes saves : bloc suivant tiré au chargement)
  */
 const Save = {
 
   KEY:          'dig_save_v1',
-  SAVE_VERSION: 15,
+  SAVE_VERSION: 16,
 
   onSave: null,
 
   /** Timestamp de la dernière sauvegarde, lu au chargement pour les gains offline. */
   loadedSaveTime: null,
+
+  /** Bloc courant de la dernière sauvegarde chargée (repris par Blocks.resume(), #35). */
+  loadedBlock: null,
 
   // ── Sauvegarde ────────────────────────────────────────────────────────────
 
@@ -68,6 +73,9 @@ const Save = {
           ? { ...GameState.dailyMissions.baselineStats } : null,
       },
       seasonStats: { ...GameState.seasonStats },
+      blockSeed:   GameState.blockSeed,
+      blockSeq:    GameState.blockSeq,
+      block:       typeof Blocks !== 'undefined' && Blocks.current ? Blocks.snapshot() : this.loadedBlock,
     };
   },
 
@@ -189,6 +197,10 @@ const Save = {
     GameState.seasonStats.suspiciousScore  = ss.suspiciousScore  ?? 0;
     GameState.seasonStats.regularityScore  = ss.regularityScore  ?? 0;
     GameState.seasonStats.isActive         = ss.isActive         ?? false;
+
+    GameState.blockSeed = Number.isSafeInteger(data.blockSeed) && data.blockSeed > 0 ? data.blockSeed : 0;
+    GameState.blockSeq  = Number.isSafeInteger(data.blockSeq)  && data.blockSeq  > 0 ? data.blockSeq  : 0;
+    this.loadedBlock    = (data.block && typeof data.block === 'object') ? { ...data.block } : null;
   },
 
   /**
@@ -217,7 +229,10 @@ const Save = {
     GameState.reset();
     GameState.monetization = { adLastWatched: 0, pickaxeSkin: null };
     GameState.seasonStats  = { seasonId: 0, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, regularityScore: 0, isActive: false };
+    GameState.blockSeed    = 0;
+    GameState.blockSeq     = 0;
     this.loadedSaveTime = null;
+    this.loadedBlock    = null;
   },
 
   reset() {
@@ -312,6 +327,11 @@ const Save = {
     if (v < 15) {
       data.shopChestsBought = { simple: 0, rare: 0, antique: 0 };
       data.saveVersion = 15;
+    }
+    if (v < 16) {
+      // Pas de bloc sauvegardé : _applyParsed() laisse graine et numéro à 0 et le premier
+      // bloc tiré crée la graine (aucune donnée existante modifiée).
+      data.saveVersion = 16;
     }
 
     return data;

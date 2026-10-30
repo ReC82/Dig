@@ -727,6 +727,18 @@ function initDb() {
     );
   `);
 
+  // Session de jeu unique par compte (#35) : un seul contrôleur (onglet, appareil, PWA) peut
+  // miner et écrire la sauvegarde. Table ajoutée, aucune donnée existante modifiée.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS play_controllers (
+      user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      controller_id TEXT    NOT NULL,
+      epoch         INTEGER NOT NULL DEFAULT 1,
+      claimed_ms    INTEGER NOT NULL,
+      heartbeat_ms  INTEGER NOT NULL
+    );
+  `);
+
   // ── Seeds config ──────────────────────────────────────────────────────────
   const cfgStmt = _db.prepare(
     `INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`

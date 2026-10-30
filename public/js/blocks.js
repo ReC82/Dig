@@ -176,13 +176,13 @@ const Blocks = {
   },
 
   /** Tirage pondéré ; par défaut avec la Chance du joueur, `luckMult = 1` pour un tirage neutre. */
-  _pickType(depth, luckMult = this.luckMultiplier()) {
+  _pickType(depth, luckMult = this.luckMultiplier(), random = Math.random) {
     const pool = this._pool(depth, luckMult);
 
     if (pool.length === 0) return this.TYPES[2]; // fallback : Pierre
 
     const total = pool.reduce((s, e) => s + e.w, 0);
-    let rand = Math.random() * total;
+    let rand = random() * total;
     for (const e of pool) {
       rand -= e.w;
       if (rand <= 0) return e.type;
@@ -190,21 +190,86 @@ const Blocks = {
     return pool[pool.length - 1].type;
   },
 
+  // ── Tirage reproductible (#35) ───────────────────────────────────────────
+  // Chaque bloc porte un numéro (GameState.blockSeq) ; sa nature, ses PV et les gains tirés à
+  // sa destruction (coffre, trouvaille) dépendent uniquement de la graine de la sauvegarde
+  // (GameState.blockSeed) et de ce numéro. Recharger, changer d'onglet ou d'appareil ou reprendre
+  // une sauvegarde plus ancienne redonne donc exactement le même bloc et les mêmes gains :
+  // impossible de « relancer » le tirage pour obtenir un matériau rare.
+
+  /** Graine de la sauvegarde (créée au premier bloc d'une sauvegarde qui n'en a pas). */
+  _seed() {
+    let seed = GameState.blockSeed;
+    if (!Number.isSafeInteger(seed) || seed <= 0) {
+      seed = 1 + Math.floor(Math.random() * 0xfffffffe);
+      GameState.blockSeed = seed;
+    }
+    return seed;
+  },
+
+  /** Générateur pseudo-aléatoire (mulberry32) propre au bloc `seq` et à l'usage `salt`. */
+  rng(seq, salt) {
+    let h = 2166136261 ^ this._seed();
+    for (const ch of `${seq}:${salt}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    let a = h >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  },
+
+  /** Générateur des gains tirés à la destruction du bloc courant (coffre, trouvaille). */
+  rewardRng(salt) {
+    return this.rng(this.current?.seq ?? GameState.blockSeq, `reward:${salt}`);
+  },
+
   /**
-   * Crée un nouveau bloc adapté à la profondeur, en deux tirages (#32, option A) :
+   * Crée le bloc suivant adapté à la profondeur, en deux tirages (#32, option A) :
    *   - la nature du bloc (apparence, récompense, coffre, gemme) est tirée AVEC la Chance ;
    *   - sa résistance (PV) est tirée SANS Chance, sur le même pool : la Chance ne ralentit
    *     jamais la descente (PV moyens identiques à Chance 0).
+   * Les deux tirages sont reproductibles (graine + numéro du bloc, #35).
    */
   spawn(depth) {
-    const type       = this._pickType(depth);
-    const hpType     = this._pickType(depth, 1);
+    const seq        = (Number.isSafeInteger(GameState.blockSeq) && GameState.blockSeq >= 0 ? GameState.blockSeq : 0) + 1;
+    GameState.blockSeq = seq;
+    const type       = this._pickType(depth, this.luckMultiplier(), this.rng(seq, 'type'));
+    const hpType     = this._pickType(depth, 1, this.rng(seq, 'hp'));
     const scale      = 1 + (depth - 1) * 0.12;
     const hpReduct   = GameState.relicBonuses?.hpReduction ?? 0;
     const hp         = Math.ceil(hpType.hpBase * scale * (1 - hpReduct));
     const reward = Math.ceil(type.reward  * (1 + (depth - 1) * 0.05));
-    this.current = { type, hp, maxHp: hp, reward };
+    this.current = { type, hp, maxHp: hp, reward, depth, seq };
     return this.current;
+  },
+
+  /** État du bloc courant pour la sauvegarde (null : aucun bloc). */
+  snapshot() {
+    const c = this.current;
+    if (!c) return null;
+    return { name: c.type.name, hp: c.hp, maxHp: c.maxHp, reward: c.reward, depth: c.depth, seq: c.seq };
+  },
+
+  /**
+   * Reprend le bloc sauvegardé s'il est valide pour cette profondeur (même type, mêmes PV
+   * restants, même récompense) ; sinon (ancienne sauvegarde sans bloc, bloc détruit, saison
+   * ou profondeur changée) tire le bloc suivant. Ne relance jamais un bloc encore intact.
+   * @returns {boolean} true si le bloc sauvegardé a été repris
+   */
+  resume(saved, depth) {
+    const type = saved && this.TYPES.find(t => t.name === saved.name);
+    const ok = type
+      && saved.depth === depth
+      && Number.isSafeInteger(saved.seq) && saved.seq > 0 && saved.seq <= GameState.blockSeq
+      && Number.isFinite(saved.maxHp) && saved.maxHp > 0
+      && Number.isFinite(saved.hp) && saved.hp > 0 && saved.hp <= saved.maxHp
+      && Number.isFinite(saved.reward) && saved.reward >= 0;
+    if (!ok) { this.spawn(depth); return false; }
+    this.current = { type, hp: saved.hp, maxHp: saved.maxHp, reward: saved.reward, depth, seq: saved.seq };
+    return true;
   },
 
   /** Applique des dégâts. Retourne true si le bloc est détruit. */

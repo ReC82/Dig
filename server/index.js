@@ -86,6 +86,7 @@ const { validateEconomyValue } = require('./economy');
 const security = require('./security');
 const { createRateLimiters } = require('./rateLimits');
 const antibot = require('./antibot');
+const playSession = require('./playSession');
 const { isValidEmail, intParam } = require('./validation');
 const { createMailer } = require('./mailer');
 const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
@@ -376,6 +377,10 @@ app.get('/api/me', (req, res) => {
  * Détruit la session courante.
  */
 app.post('/api/logout', (req, res) => {
+  const { controllerId } = req.body ?? {};
+  if (req.session.userId && playSession.isValidControllerId(controllerId)) {
+    try { playSession.release(req.session.userId, controllerId); } catch (err) { console.error('[POST /api/logout] session de jeu', err.message); }
+  }
   req.session.destroy(() => res.json({ ok: true }));
 });
 
@@ -422,12 +427,21 @@ function savePayload(row) {
 app.post('/api/me/save', limit.save, (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
-    const { data, baseRevision, telemetry } = req.body ?? {};
+    const { data, baseRevision, telemetry, controllerId } = req.body ?? {};
     if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ error: 'Champ "data" manquant ou invalide.' });
     if (baseRevision !== undefined && baseRevision !== null && !Number.isSafeInteger(baseRevision)) {
       return res.status(400).json({ error: 'Champ "baseRevision" invalide.' });
     }
-    const result = upsertUserSave(req.session.userId, JSON.stringify(data), { expectedVersion: baseRevision });
+    if (controllerId !== undefined && !playSession.isValidControllerId(controllerId)) {
+      return res.status(400).json({ error: 'Champ "controllerId" invalide.' });
+    }
+    // Contrôle de la session de jeu (#35) et écriture dans la même transaction : une prise de
+    // contrôle par un autre appareil ne peut pas s'intercaler entre les deux.
+    const result = runTransaction(() => {
+      if (!playSession.mayWrite(req.session.userId, controllerId)) return { notController: true };
+      return upsertUserSave(req.session.userId, JSON.stringify(data), { expectedVersion: baseRevision });
+    });
+    if (result.notController) return res.status(409).json(NOT_CONTROLLER);
     if (result.conflict) {
       return res.status(409).json({ error: 'Sauvegarde obsolète.', conflict: true, save: savePayload(result.current) });
     }
@@ -440,6 +454,54 @@ app.post('/api/me/save', limit.save, (req, res) => {
     res.json({ ok: true, revision: version, version });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// ── Session de jeu unique (#35) ───────────────────────────────────────────────
+
+const NOT_CONTROLLER = { error: 'Partie ouverte sur un autre appareil.', notController: true };
+
+/** Valide la session et le controllerId ; renvoie l'id ou null (réponse déjà envoyée). */
+function playRequest(req, res) {
+  if (!req.session.userId) { res.status(401).json({ error: 'Non connecté.' }); return null; }
+  const { controllerId } = req.body ?? {};
+  if (!playSession.isValidControllerId(controllerId)) { res.status(400).json({ error: 'Champ "controllerId" invalide.' }); return null; }
+  return controllerId;
+}
+
+/**
+ * POST /api/me/play/claim
+ * Body : { controllerId, onlyIfFree?: boolean }
+ * Cette page devient le seul contrôleur du compte (les autres onglets et appareils ne peuvent
+ * plus miner ni sauvegarder). `onlyIfFree` : uniquement si personne ne joue (bail expiré).
+ * Retourne { ok, epoch, previousActive, save } — `save` = sauvegarde serveur à reprendre.
+ */
+app.post('/api/me/play/claim', limit.play, (req, res) => {
+  try {
+    const controllerId = playRequest(req, res);
+    if (!controllerId) return;
+    const result = playSession.claim(req.session.userId, controllerId, { onlyIfFree: req.body.onlyIfFree === true });
+    if (!result.ok) return res.status(409).json({ ...NOT_CONTROLLER, epoch: result.epoch });
+    res.json({ ...result, save: savePayload(getUserSave(req.session.userId)) });
+  } catch (err) {
+    console.error('[POST /api/me/play/claim]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * POST /api/me/play/heartbeat
+ * Body : { controllerId } → { active, canResume?, epoch }
+ * Signal de présence du contrôleur actif ; une autre page apprend ainsi qu'elle a perdu la main.
+ */
+app.post('/api/me/play/heartbeat', limit.play, (req, res) => {
+  try {
+    const controllerId = playRequest(req, res);
+    if (!controllerId) return;
+    res.json(playSession.heartbeat(req.session.userId, controllerId));
+  } catch (err) {
+    console.error('[POST /api/me/play/heartbeat]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
@@ -1080,8 +1142,11 @@ app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
 
-    const { chestId } = req.body ?? {};
+    const { chestId, controllerId } = req.body ?? {};
     if (!SHOP_CHESTS[chestId]) return res.status(400).json({ error: 'Coffre inconnu.' });
+    if (controllerId !== undefined && !playSession.isValidControllerId(controllerId)) {
+      return res.status(400).json({ error: 'Champ "controllerId" invalide.' });
+    }
 
     const userId = req.session.userId;
     const config = getAdminConfig();
@@ -1089,6 +1154,7 @@ app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
     // Lecture, débit/crédit et journalisation dans une seule transaction :
     // si une étape échoue, la sauvegarde n'est pas modifiée.
     const outcome = runTransaction(() => {
+      if (!playSession.mayWrite(userId, controllerId)) return { status: 409, error: NOT_CONTROLLER.error, notController: true };
       const row = getUserSave(userId);
       if (!row) return { status: 404, error: 'Sauvegarde introuvable. Jouez d\'abord quelques blocs !' };
 
@@ -1105,7 +1171,7 @@ app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
       return { data, result, revision: version };
     });
 
-    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error });
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, ...(outcome.notController ? { notController: true } : {}) });
 
     const { data, result, revision } = outcome;
     res.json({
