@@ -6,7 +6,9 @@
 
 ## 1. État réel
 
-**Partiel — bloqué.** L'infrastructure est livrée et testée : bibliothèques `legacy` et `v1`, repli, rollback, chaîne de génération, contrôles et comparaison visuelle. En revanche, **aucune icône n'a été générée** : la seule clé OpenAI présente sur le serveur, celle de Jury Central, est **refusée par OpenAI** (401 `invalid_api_key`). Coût API engagé : **0 USD**. Rien n'est déployé, et `legacy` reste la valeur par défaut.
+> **Mise à jour du 30/10 (voir §11) :** la pierre C est **en production depuis le 30/10 à 00:48** (SHA déployé `18e3881`, aujourd'hui `e32398d`). On la voit seulement avec `https://dig.lodylands.com/?icons=v1`. L'adresse normale garde les emoji pour tous les joueurs. **En attente de ton retour visuel sur téléphone.** Aucune autre image générée.
+>
+> *Historique (29/10) :* **Partiel — bloqué.** L'infrastructure est livrée et testée : bibliothèques `legacy` et `v1`, repli, rollback, chaîne de génération, contrôles et comparaison visuelle. En revanche, **aucune icône n'a été générée** : la seule clé OpenAI présente sur le serveur, celle de Jury Central, est **refusée par OpenAI** (401 `invalid_api_key`). Coût API engagé : **0 USD**. Rien n'est déployé, et `legacy` reste la valeur par défaut.
 
 ## 2. Ce qui est livré
 
@@ -100,3 +102,71 @@
   - vrai bloc du jeu : `legacy` identique au pixel près (14/14). En `v1`, seule la pierre change, avec un rendu identique à l'aperçu C validé.
 - **Rien n'est déployé.** Aucun autre matériau n'a été généré. Les propositions A et B restent sur le serveur, hors Git.
 - **Reste :** décider de l'activation de `v1` (au moment d'un déploiement validé), puis des matériaux suivants, sur ta demande.
+
+## 11. Pierre C visible dans le vrai jeu (30/10)
+
+**Réponse à la demande du 29/10, 22:48 :** voir la pierre C dans Dig, sur téléphone, avant toute autre image.
+
+### État réel
+**Déployé en production, en attente de ton retour visuel.** Aucun nouveau code ni nouveau déploiement n'a été nécessaire pour cette étape.
+
+- **URL à ouvrir :** **https://dig.lodylands.com/?icons=v1** (ou `https://dig.lodygames.com/?icons=v1`).
+- **Commit de la pierre C :** `0f37780`, sur `feature/22-icones-v1`, fusionné dans `develop` en `b7635b3`.
+- **Mise en ligne :** avec le lot 1, le 30/10 à 00:48 (SHA `18e3881`).
+- **Version servie aujourd'hui :** `1.0.0+e32398d`.
+
+### Écart avec ta demande, en toute transparence
+Tu demandais un déploiement ciblé, sans mettre `develop` en ligne d'un bloc. Ta directive du 30/10 a remplacé celle du 29 : elle autorise le déploiement ordinaire des tickets intégrés. Cette nuit, `develop` a donc été déployé en lots, avec #8 à #21. La pierre C est arrivée avec le premier lot, en tant qu'aperçu.
+
+Aucun déploiement ciblé spécial n'a donc été fait, et il n'est plus utile : le code de #22 en production est exactement celui de `develop`. Chaque lot a été déployé avec :
+- une sauvegarde vérifiée ;
+- des empreintes des données joueurs identiques ;
+- `quick_check` ok.
+
+Le détail se trouve dans le rapport de nuit.
+
+### Preuves d'isolation, vérifiées le 30/10 sur la vraie production
+Essais navigateur Chromium (sans écran) sur `https://dig.lodylands.com`, en invité :
+- **Téléphone :** 390×844, densité 3.
+- **Ordinateur :** 1280×900.
+
+| Adresse | Bloc « Pierre » obtenu en minant | Rendu |
+|---|---|---|
+| `/?icons=v1` | oui (téléphone : 63 coups ; ordinateur : 31 coups) | image v1 : `pierre-256.webp` sur téléphone, `pierre-128.webp` sur ordinateur, chargée |
+| `/?icons=default` | oui | emoji 🪨 (legacy) |
+| `/` (adresse normale) | oui | emoji 🪨 (legacy) |
+
+Autres contrôles :
+- **Aucune erreur JavaScript.**
+- **Aucune requête d'écriture** vers le serveur pendant l'essai : l'invité ne sauvegarde rien, donc aucune donnée joueur n'a été touchée.
+- Les fichiers servis sur les deux domaines (`library.json`, `pierre-128.webp`, `pierre-256.webp`) ont des empreintes identiques à ceux du dépôt.
+- `defaultLibrary` vaut `legacy`, et seule l'entrée `pierre` existe dans `v1`. Les 13 autres matériaux restent donc en emoji, même avec `?icons=v1`.
+
+### Rollback
+Trois retours possibles, tous immédiats, sans redémarrage ni migration, et sans aucun effet sur la base :
+- **Global :** `defaultLibrary` est déjà `legacy`, donc rien n'est à faire pour les joueurs ordinaires.
+- **Retirer la pierre C même en aperçu :** supprimer l'entrée `pierre` de `public/assets/icons/library.json`, ou supprimer `pierre-*.webp`. Dans le second cas, le repli automatique remet l'emoji.
+- **Pour ton navigateur :** `?icons=v1` est mémorisé dans le navigateur. Ouvre `/?icons=default` pour revenir au rendu normal.
+
+### Test à faire sur ton téléphone
+1. Ouvre **https://dig.lodylands.com/?icons=v1**, choisis la langue, puis joue en invité ou connecté.
+2. Mine jusqu'à **5 m de profondeur** : la pierre n'apparaît qu'à partir de 5 m. Avant, ce sont la terre meuble et l'argile, toujours en emoji.
+3. **Résultat attendu :**
+   - un bloc « Pierre » montre la pierre C dessinée à la place de l'emoji 🪨 ;
+   - grès, granite, charbon et les autres matériaux restent en emoji.
+4. Ouvre ensuite **https://dig.lodylands.com/?icons=default** : la pierre redevient 🪨.
+
+### Classement
+**Après lancement**, car cosmétique : ce ticket ne bloque pas le MVP public.
+
+### Décisions demandées
+1. **La pierre C te convient-elle en jeu sur téléphone ?**
+   - Si oui, je recommande de lancer ensuite le pilote charbon, fer et diamant : au plus 3 propositions par matériau, budget autour de 0,65 USD.
+   - Si non, dis-moi ce qu'il faut ajuster : taille, contraste ou style.
+2. **Activer `v1` par défaut pour tous ?** Je recommande d'attendre plusieurs matériaux : un seul matériau dessiné parmi 14 emoji donne un rendu hétérogène.
+
+### Reste à faire
+- Ton retour visuel.
+- Les autres matériaux, seulement sur ta demande : aucune image générée dans cette session.
+- La bascule par défaut.
+- Le nettoyage de `art/icons/v1/candidates/`, non committé.
