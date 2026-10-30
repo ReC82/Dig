@@ -609,6 +609,76 @@ function initDb() {
       BEGIN SELECT RAISE(ABORT, 'reward_point_runs est en ajout seul (#33)'); END;
   `);
 
+  // Boutique de cadeaux (#34) : réglages (une ligne), catalogue administrable, commandes payées en
+  // points (débit via reward_point_ledger, clé d'idempotence par commande) et journal en ajout
+  // seul. Ajouts seuls ; aucune clé étrangère vers users ; articles et commandes jamais supprimés.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS shop_settings (
+      id              INTEGER PRIMARY KEY CHECK (id = 1),
+      exchanges_open  INTEGER NOT NULL DEFAULT 1 CHECK (exchanges_open IN (0, 1)),
+      notice          TEXT,
+      updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT OR IGNORE INTO shop_settings (id) VALUES (1);
+    CREATE TABLE IF NOT EXISTS shop_items (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind              TEXT    NOT NULL DEFAULT 'virtual' CHECK (kind IN ('virtual', 'real')),
+      texts             TEXT    NOT NULL,
+      icon              TEXT,
+      image_url         TEXT,
+      cost              INTEGER NOT NULL CHECK (cost >= 1),
+      stock_remaining   INTEGER CHECK (stock_remaining IS NULL OR stock_remaining >= 0),
+      max_per_user      INTEGER CHECK (max_per_user IS NULL OR max_per_user >= 1),
+      face_value_cents  INTEGER CHECK (face_value_cents IS NULL OR face_value_cents >= 0),
+      currency          TEXT,
+      territories       TEXT,
+      min_age           INTEGER,
+      valid_from        TEXT,
+      valid_until       TEXT,
+      visible           INTEGER NOT NULL DEFAULT 0 CHECK (visible IN (0, 1)),
+      unavailable       INTEGER NOT NULL DEFAULT 0 CHECK (unavailable IN (0, 1)),
+      sort              INTEGER NOT NULL DEFAULT 0,
+      created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at        TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS shop_orders (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+      user_id          INTEGER NOT NULL,
+      item_id          INTEGER NOT NULL,
+      kind             TEXT    NOT NULL CHECK (kind IN ('virtual', 'real')),
+      cost             INTEGER NOT NULL CHECK (cost >= 1),
+      status           TEXT    NOT NULL DEFAULT 'pending'
+                       CHECK (status IN ('pending', 'processing', 'delivered', 'cancelled')),
+      request_key      TEXT    NOT NULL UNIQUE,
+      spend_ledger_id  INTEGER NOT NULL,
+      refund_ledger_id INTEGER,
+      item_snapshot    TEXT    NOT NULL,
+      note             TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_shop_orders_user ON shop_orders (user_id, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_shop_orders_status ON shop_orders (status, id);
+    CREATE TABLE IF NOT EXISTS shop_audit (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      actor       TEXT    NOT NULL CHECK (actor IN ('player', 'admin', 'system')),
+      action      TEXT    NOT NULL,
+      item_id     INTEGER,
+      order_id    INTEGER,
+      user_id     INTEGER,
+      details     TEXT
+    );
+    CREATE TRIGGER IF NOT EXISTS trg_shop_audit_no_update BEFORE UPDATE ON shop_audit
+      BEGIN SELECT RAISE(ABORT, 'shop_audit est en ajout seul (#34)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_shop_audit_no_delete BEFORE DELETE ON shop_audit
+      BEGIN SELECT RAISE(ABORT, 'shop_audit est en ajout seul (#34)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_shop_orders_no_delete BEFORE DELETE ON shop_orders
+      BEGIN SELECT RAISE(ABORT, 'shop_orders : suppression interdite (#34)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_shop_items_no_delete BEFORE DELETE ON shop_items
+      BEGIN SELECT RAISE(ABORT, 'shop_items : suppression interdite, masquer l''article (#34)'); END;
+  `);
+
   // Fin de saison configurable (#44) : journal en ajout seul des changements de date de fin
   // de la saison active (programmation, annulation), avec l'ancienne et la nouvelle valeur.
   _db.exec(`

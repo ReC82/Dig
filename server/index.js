@@ -78,6 +78,7 @@ const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
 const seasonEnd = require('./seasonEnd');
 const standings = require('./standings');
 const contest   = require('./contest');
+const shop      = require('./shop');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
@@ -559,6 +560,37 @@ app.get('/api/points/me', (req, res) => {
   pointsRoute('GET /api/points/me', r => rewardPoints.buildPlayerSummary(r.session.userId))(req, res);
 });
 
+// ── Boutique de cadeaux (#34) ────────────────────────────────────────────────
+
+function shopRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof shop.ShopError || err instanceof rewardPoints.PointsError || err instanceof contest.ContestError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+function requireUser(req, res, next) {
+  if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+  next();
+}
+
+// Catalogue public : articles visibles, coût, stock, disponibilité (« bientôt » pour le réel).
+app.get('/api/shop', shopRoute('GET /api/shop', () => shop.publicCatalog()));
+
+// Solde et commandes du joueur connecté.
+app.get('/api/shop/me', requireUser, shopRoute('GET /api/shop/me', req => shop.buildPlayerView(req.session.userId)));
+
+// Échange : { itemId, requestId } — requestId généré par le client, réutilisé en cas de renvoi.
+app.post('/api/shop/orders', limit.shop, requireUser, shopRoute('POST /api/shop/orders', req =>
+  shop.placeOrder(req.session.userId, Number(req.body?.itemId), req.body?.requestId)));
+
+// Annulation par le joueur d'une commande encore en attente (points remboursés).
+app.post('/api/shop/orders/:id/cancel', limit.shop, requireUser, shopRoute('POST /api/shop/orders/:id/cancel', req =>
+  shop.cancelByPlayer(req.session.userId, Number(req.params.id))));
+
 // ── Middleware admin ──────────────────────────────────────────────────────────
 
 function requireAdmin(req, res, next) {
@@ -833,6 +865,25 @@ app.post('/api/admin/points/adjust', requireAdmin, pointsRoute('POST /api/admin/
     { reason: req.body?.reason, idemKey: req.body?.idemKey });
   return { entry: r.entry, duplicate: r.duplicate, wallet: rewardPoints.getWallet(r.entry.user_id) };
 }));
+
+// Boutique (#34) : réglages, catalogue (jamais supprimé : masquer), commandes et journal.
+app.get('/api/admin/shop', requireAdmin, shopRoute('GET /api/admin/shop', req =>
+  shop.buildAdminSummary({ status: shop.STATUSES.includes(req.query.status) ? req.query.status : null })));
+
+app.put('/api/admin/shop/settings', requireAdmin, shopRoute('PUT /api/admin/shop/settings',
+  req => ({ settings: shop.updateSettings(req.body ?? {}) })));
+
+app.post('/api/admin/shop/items', requireAdmin, shopRoute('POST /api/admin/shop/items',
+  req => ({ item: shop.createItem(req.body?.item) })));
+
+app.put('/api/admin/shop/items/:id', requireAdmin, shopRoute('PUT /api/admin/shop/items/:id',
+  req => ({ item: shop.updateItem(idParam(req.params.id, 'article'), req.body?.item) })));
+
+app.post('/api/admin/shop/orders/:id/status', requireAdmin, shopRoute('POST /api/admin/shop/orders/:id/status',
+  req => ({ order: shop.transition(idParam(req.params.id, 'commande'), req.body?.status, req.body?.note) })));
+
+app.get('/api/admin/shop/audit', requireAdmin, shopRoute('GET /api/admin/shop/audit',
+  req => ({ audit: shop.listAudit({ limit: intParam(req.query.limit, { def: 100, min: 1, max: 500 }) }) })));
 
 // Classement global admin d'une saison
 app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {

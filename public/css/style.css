@@ -2575,3 +2575,42 @@ header {
   0%, 30% { opacity: 1; }
   100%    { opacity: 0; }
 }
+
+/* ── Boutique de cadeaux (#34) ───────────────────────────────────────────── */
+.shop-card { border-color: rgba(251, 191, 36, 0.35); }
+.shop-card .points-title { color: #fcd34d; }
+.shop-list { text-align: left; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.shop-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px;
+  border: 1px solid var(--border); border-radius: 10px; background: rgba(255, 255, 255, 0.03);
+}
+.shop-item-off { opacity: 0.75; }
+.shop-item-icon { font-size: 1.8rem; width: 44px; text-align: center; flex-shrink: 0; }
+.shop-item-img { width: 44px; height: 44px; object-fit: contain; flex-shrink: 0; border-radius: 6px; }
+.shop-item-body { flex: 1; min-width: 0; text-align: left; }
+.shop-item-title { font-weight: 700; color: var(--text); }
+.shop-item-desc { color: var(--muted); font-size: 0.82rem; }
+.shop-item-facts { color: var(--muted); font-size: 0.74rem; margin-top: 2px; }
+.shop-item-cond summary { cursor: pointer; color: var(--muted); font-size: 0.74rem; min-height: 28px; display: flex; align-items: center; }
+.shop-item-cond p { margin: 0; font-size: 0.74rem; color: var(--muted); white-space: pre-line; }
+.shop-item-buy { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.shop-item-cost { font-weight: 700; color: #fcd34d; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.shop-buy-btn {
+  min-height: 36px; padding: 6px 12px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 8px; background: #f59e0b; color: #1c1917;
+}
+.shop-buy-btn:focus-visible, .shop-cancel-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.shop-buy-btn:disabled { cursor: not-allowed; background: var(--border); color: var(--muted); }
+.shop-order-meta { display: block; color: var(--muted); font-size: 0.72rem; }
+.shop-order-status { white-space: nowrap; text-align: right; font-size: 0.8rem; }
+.shop-status-delivered { color: #4ade80; }
+.shop-status-cancelled { color: var(--muted); }
+.shop-status-processing { color: #60a5fa; }
+.shop-cancel-btn {
+  min-height: 32px; margin-left: 4px; font-size: 0.74rem; cursor: pointer;
+  background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px;
+}
+@media (max-width: 420px) {
+  .shop-item { flex-wrap: wrap; }
+  .shop-item-buy { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
+}

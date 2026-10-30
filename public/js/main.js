@@ -1514,6 +1514,7 @@ function renderSeasonView(apiData, lbData) {
     <p class="season-ends-in">${endsIn}</p>
     ${playerHtml}
     <div id="season-points">${_pointsHtml()}</div>
+    <div id="season-shop">${_shopHtml()}</div>
     ${infoHtml}
     <h3 class="season-section-title">${t('season.leaderboard')}</h3>
     <div class="season-leaderboard" id="${lbId}">
@@ -1530,12 +1531,17 @@ function renderSeasonView(apiData, lbData) {
 let _pointsData = null;   // dernière réponse de GET /api/points/me (joueur connecté)
 
 async function _loadPoints() {
-  if (!_account) { _pointsData = null; return; }
+  if (!_account) { _pointsData = null; _shopData = null; return; }
   try {
-    const { ok, data } = await _apiFetch('GET', '/api/points/me');
-    _pointsData = ok ? data : null;
+    const [pts, cat, mine] = await Promise.all([
+      _apiFetch('GET', '/api/points/me'), _apiFetch('GET', '/api/shop'), _apiFetch('GET', '/api/shop/me'),
+    ]);
+    _pointsData = pts.ok ? pts.data : null;
+    _shopData   = cat.ok && mine.ok ? { ...cat.data, ...mine.data } : null;
     const el = document.getElementById('season-points');
     if (el) el.innerHTML = _pointsHtml();
+    const sh = document.getElementById('season-shop');
+    if (sh) sh.innerHTML = _shopHtml();
   } catch (_) {}
 }
 
@@ -1603,6 +1609,134 @@ function _pointsHtml() {
     </div>`;
 }
 
+// ── Boutique de cadeaux (#34) ────────────────────────────────────────────────
+
+let _shopData = null;   // catalogue (GET /api/shop) + solde et commandes (GET /api/shop/me)
+let _shopMsg  = null;   // { ok, text } : résultat du dernier échange / annulation
+let _shopBusy = false;
+
+/** Texte d'un article dans la langue courante, à défaut en français. */
+function _shopText(texts, field) {
+  return texts?.[I18n.getCurrent()]?.[field] || texts?.fr?.[field] || '';
+}
+
+function _shopHtml() {
+  const d = _shopData;
+  if (!_account || !d) return '';
+  const lang = I18n.getCurrent();
+  const n = v => Number(v).toLocaleString(lang);
+  const open = sel => document.querySelector(`#season-shop ${sel}`)?.open ? ' open' : '';
+  const fmtDate = v => { const x = new Date(String(v).replace(' ', 'T') + 'Z'); return isNaN(x) ? v : x.toLocaleDateString(lang); };
+
+  const items = d.items.map(it => {
+    const title = _shopText(it.texts, 'title');
+    const desc  = _shopText(it.texts, 'description');
+    const cond  = _shopText(it.texts, 'conditions');
+    const short = it.blocked ? null : Math.max(0, it.cost - d.balance);
+    const label = it.blocked ? t(`giftshop.b_${it.blocked}`) : short > 0 ? t('giftshop.b_short', { n: n(short) }) : t('giftshop.btn');
+    const facts = [
+      it.stock !== null ? t('giftshop.stock', { n: n(it.stock) }) : '',
+      it.maxPerUser ? t('giftshop.per_user', { n: n(it.maxPerUser) }) : '',
+      it.validUntil ? t('giftshop.until', { d: escapeHtml(fmtDate(it.validUntil)) }) : '',
+      it.kind === 'real' && it.faceValueCents != null && it.currency
+        ? t('giftshop.face_value', { v: escapeHtml((it.faceValueCents / 100).toLocaleString(lang, { style: 'currency', currency: it.currency })) }) : '',
+      it.kind === 'real' && it.territories.length ? t('giftshop.territories', { list: escapeHtml(it.territories.join(', ')) }) : '',
+      it.kind === 'real' && it.minAge ? t('giftshop.min_age', { n: n(it.minAge) }) : '',
+    ].filter(Boolean).join(' · ');
+    const visual = it.imageUrl
+      ? `<img class="shop-item-img" src="${escapeHtml(it.imageUrl)}" alt="" loading="lazy">`
+      : `<span class="shop-item-icon" aria-hidden="true">${escapeHtml(it.icon || '🎁')}</span>`;
+    return `<li class="shop-item${it.blocked || short > 0 ? ' shop-item-off' : ''}">
+      ${visual}
+      <div class="shop-item-body">
+        <div class="shop-item-title">${escapeHtml(title)}</div>
+        ${desc ? `<div class="shop-item-desc">${escapeHtml(desc)}</div>` : ''}
+        ${facts ? `<div class="shop-item-facts">${facts}</div>` : ''}
+        ${cond ? `<details class="shop-item-cond"><summary>${t('giftshop.conditions')}</summary><p>${escapeHtml(cond)}</p></details>` : ''}
+      </div>
+      <div class="shop-item-buy">
+        <span class="shop-item-cost">${t('giftshop.cost', { n: n(it.cost) })}</span>
+        <button class="shop-buy-btn" data-shop-item="${escapeHtml(it.id)}"${it.blocked || short > 0 || _shopBusy ? ' disabled' : ''}
+          aria-label="${escapeHtml(`${label} — ${title} (${t('giftshop.cost', { n: n(it.cost) })})`)}">${escapeHtml(label)}</button>
+      </div>
+    </li>`;
+  }).join('');
+
+  const orders = d.orders.length
+    ? d.orders.map(o => `<li>
+        <span>#${escapeHtml(o.id)} ${escapeHtml(o.icon || '🎁')} ${escapeHtml(_shopText(o.texts, 'title'))}
+          <span class="shop-order-meta">${escapeHtml(fmtDate(o.createdAt))} · ${t('giftshop.cost', { n: n(o.cost) })}</span></span>
+        <span class="shop-order-status shop-status-${escapeHtml(o.status)}">${t(`giftshop.s_${o.status}`)}${o.status === 'pending'
+          ? ` <button class="shop-cancel-btn" data-shop-cancel="${escapeHtml(o.id)}"${_shopBusy ? ' disabled' : ''}>${t('giftshop.cancel')}</button>` : ''}</span>
+      </li>`).join('')
+    : `<li class="points-empty">${t('giftshop.orders_empty')}</li>`;
+
+  return `
+    <div class="points-card shop-card">
+      <div class="points-head">
+        <span class="points-title">${t('giftshop.title')}</span>
+        <span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
+      </div>
+      <p class="points-note">${t('giftshop.intro')}</p>
+      ${d.notice ? `<p class="points-sim-banner">${escapeHtml(d.notice)}</p>` : ''}
+      ${_shopMsg ? `<p class="${_shopMsg.ok ? 'points-live-banner' : 'points-sim-banner'}" role="status">${escapeHtml(_shopMsg.text)}</p>` : ''}
+      ${d.items.length ? `<ul class="shop-list">${items}</ul>` : `<p class="points-empty">${t('giftshop.empty')}</p>`}
+      ${d.items.some(i => i.kind === 'real') && !d.realEnabled ? `<p class="points-note">${t('giftshop.real_note')}</p>` : ''}
+      <details class="points-details shop-orders"${open('.shop-orders')}>
+        <summary>${t('giftshop.orders_toggle')} (${n(d.orders.length)})</summary>
+        <ul class="points-list">${orders}</ul>
+      </details>
+      <p class="points-rules">${t('giftshop.help')}</p>
+    </div>`;
+}
+
+function _shopRequestId() {
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  return `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+}
+
+async function _shopAction(fn) {
+  if (_shopBusy) return;
+  _shopBusy = true;
+  try { await fn(); }
+  catch (_) { _shopMsg = { ok: false, text: t('giftshop.network') }; }
+  finally {
+    _shopBusy = false;
+    await _loadPoints();
+  }
+}
+
+async function _shopExchange(itemId) {
+  const it = _shopData?.items.find(i => i.id === itemId);
+  if (!it) return;
+  const title = _shopText(it.texts, 'title');
+  const n = v => Number(v).toLocaleString(I18n.getCurrent());
+  if (!confirm(t('giftshop.confirm', { cost: t('giftshop.cost', { n: n(it.cost) }), title, after: t('points.pts', { n: n(_shopData.balance - it.cost) }) }))) return;
+  const requestId = _shopRequestId();
+  await _shopAction(async () => {
+    // Même requestId en cas de nouvel essai réseau : le serveur ne débite qu'une fois.
+    let res;
+    try { res = await _apiFetch('POST', '/api/shop/orders', { itemId, requestId }); }
+    catch (_) { res = await _apiFetch('POST', '/api/shop/orders', { itemId, requestId }); }
+    _shopMsg = res.ok ? { ok: true, text: t('giftshop.done', { title }) } : { ok: false, text: t('giftshop.error', { msg: res.data?.error ?? res.status }) };
+  });
+}
+
+async function _shopCancel(orderId) {
+  if (!confirm(t('giftshop.cancel_confirm'))) return;
+  await _shopAction(async () => {
+    const res = await _apiFetch('POST', `/api/shop/orders/${orderId}/cancel`, {});
+    _shopMsg = res.ok ? null : { ok: false, text: t('giftshop.error', { msg: res.data?.error ?? res.status }) };
+  });
+}
+
+document.addEventListener('click', (e) => {
+  const buy = e.target.closest?.('[data-shop-item]');
+  if (buy) { _shopExchange(Number(buy.dataset.shopItem)); return; }
+  const cancel = e.target.closest?.('[data-shop-cancel]');
+  if (cancel) _shopCancel(Number(cancel.dataset.shopCancel));
+});
+
 async function _loadLeaderboard(seasonId, containerId) {
   try {
     const { ok, data } = await _apiFetch('GET', `/api/seasons/${seasonId}/leaderboard`);
@@ -1663,6 +1797,8 @@ async function _openSeasonView() {
       _applyServerEconomy(data.config?.economy);
       _seasonRefreshAt = Date.now();
       _pointsData = null;   // rechargé par renderSeasonView (compte courant)
+      _shopData   = null;
+      _shopMsg    = null;
       renderSeasonView(data);
     }
   } catch (_) {}
