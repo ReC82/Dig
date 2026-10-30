@@ -142,3 +142,56 @@ le retirer : `sudo rm /etc/systemd/system/dig.service.d/secrets.conf && sudo sys
 - Hors périmètre, signalé : énumération des comptes (409 distincts à l'inscription),
   `uncaughtException` avalé, CSP complète (nécessite de sortir les scripts en ligne), pare-feu
   `ufw` inactif (infrastructure, décision propriétaire), rate limiting (T-07, #14).
+
+---
+
+## Session du 30/10/2026 (≈ 11:25Z) — bilan de sécurité restant, proposition de clôture
+
+Demande du propriétaire (commentaire du 30/10 11:19Z) : ne plus demander la recette (déjà validée),
+fournir un bilan de sécurité restant avec preuves automatisées et proposer la clôture si les
+critères sont remplis. **Aucun changement de code** dans cette session ; production inchangée
+(`1.0.0+c23f521`), `develop` = `0bcbe46` (contient T-05 depuis le 29/10).
+
+**État réel : Déployé en production — recette validée par le propriétaire — clôture proposée.**
+
+### Preuves relevées en production (sondes en lecture seule, 30/10 ≈ 11:25Z)
+
+| Critère du ticket | Preuve | Résultat |
+|---|---|---|
+| `SESSION_SECRET` fort via EnvironmentFile mode 600 | `systemctl cat dig` → `EnvironmentFile=/etc/dig/dig.env` ; `stat` → `600 root:root` (contenu jamais lu) | OK |
+| Secret absent / publié / court refusé | tests `resolveSessionSecret…` et « production sans SESSION_SECRET… démarrage refusé » | OK |
+| Aucun secret dans le dépôt | `git ls-files` : seuls `.env.example` et le drop-in systemd (sans valeur) ; `.env` ignoré, absent du dossier de production | OK |
+| Node en localhost uniquement | `ss -ltnp` → `127.0.0.1:3000` ; port 3000 injoignable depuis l'IP publique | OK |
+| `trust proxy` | `loopback` (seul nginx local cru) ; test `parseTrustProxy / cookieSecure` | OK |
+| Cookie de session | `HttpOnly`, `SameSite=Lax`, `Secure` en production (test « cookie Secure via nginx »), 7 jours, `saveUninitialized: false` | OK |
+| En-têtes HTTP (2 domaines) | `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, CSP `frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'`, HSTS 180 j ; aucun `X-Powered-By` | OK sur dig.lodygames.com et dig.lodylands.com |
+| Panel admin | `/api/admin/stats` → 404/503 hors configuration (`ADMIN_SECRET` absent) ; comparaison stricte du Bearer testée | OK (désactivé) |
+| Vulnérabilités npm | `npm audit` et `npm audit --omit=dev` → 0 vulnérabilité | OK |
+| Déconnexion des sessions existantes | faite au déploiement T-05 (changement de secret) ; depuis #28, changement/réinitialisation de mot de passe révoque les autres sessions (`auth_version`, test `account-recovery`) | OK |
+| Non-régression | `npm test` sur `develop` `0bcbe46` : **158/158 OK** (dont 7 tests sécurité) | OK |
+| Vérification fonctionnelle | recette du propriétaire 30/10 : connexion persistante après fermeture/réouverture, progression conservée | Validée |
+
+### Risques restants (aucun bloquant MVP public)
+
+1. **Pas de rotation de l'identifiant de session à la connexion** (`req.session.regenerate`) —
+   risque de fixation de session **faible** (cookie HttpOnly, host-only, HTTPS, aucune session
+   créée avant connexion). *Après lancement* — petit correctif possible en ticket dédié.
+2. **CSP partielle** (pas de `script-src`, scripts en ligne dans le client). *Après lancement.*
+3. **Pare-feu `ufw` inactif** : seuls nginx (80/443) exposent Dig, Node écoute en local ; décision
+   infrastructure du propriétaire, hors périmètre. *Après lancement.*
+4. **Inscription : 409 si nom ou e-mail déjà pris** (message unique pour les deux) — énumération
+   limitée par le rate limiting (#14). *Après lancement.*
+5. Points signalés le 29/10 désormais traités ailleurs : XSS admin (#15), rate limiting (#14),
+   `uncaughtException` (arrêt propre du processus, redémarrage par systemd).
+
+### Questions ouvertes (non bloquantes, inchangées)
+
+1. Activer le panel admin en production (`ADMIN_SECRET`) ? La XSS du panel (#15) est corrigée ;
+   **recommandation : seulement quand le besoin admin (#30) le justifie**, avec un secret ≥ 32
+   caractères dans `/etc/dig/dig.env`.
+2. Intégration du jeu en iframe sur un autre site ? Par défaut bloquée (`frame-ancestors 'self'`).
+
+### Conclusion
+
+Tous les critères techniques de T-05 sont prouvés et la vérification fonctionnelle a été validée :
+**clôture proposée au propriétaire.** Classement : **Bloquant MVP public — fait.**
