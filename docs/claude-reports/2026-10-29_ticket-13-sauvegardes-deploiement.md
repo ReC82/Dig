@@ -397,3 +397,79 @@ Il n'est **pas** nécessaire de restaurer la base : `49faf2d` fonctionne sur la 
 - Ticket #13 lui-même : la copie hors machine S3 (reportée au 31/10, voir la section précédente).
 - Après déploiement, faire pointer `dig-backup.service` vers `/home/ubuntu/Dig/scripts/backup-db.js` et retirer `/opt/dig-backup` (optionnel).
 - CI (#17) inexistante.
+
+## Réévaluation de l'état actuel et proposition de clôture — 2026-10-30 12:25–12:35
+
+Cette section répond au commentaire du propriétaire du 30/10 (11:19 UTC) : « réévaluer l'état ACTUEL de production, vérifier la sauvegarde automatique et une restauration isolée, puis proposer la clôture de la partie sauvegardes/déploiement réversible ; S3 reste différé ». Les questions des sections précédentes (feu vert du lot 18e3881, bug des coffres, `SESSION_SECRET`) sont **retirées** : les tickets suivants les ont traitées et la production tourne aujourd'hui sur une version bien plus récente.
+
+### État réel
+
+**Partie « sauvegardes + déploiement réversible » : livrée, en service et vérifiée — clôture proposée.** Aucun code modifié dans cette session, aucun déploiement (rien de nouveau à déployer). **Sous-travail différé : copie hors machine S3**, classé « Après lancement ».
+
+### Production actuelle (constat en lecture seule)
+
+| Contrôle | Résultat |
+|---|---|
+| Version servie (`/api/version`) sur dig.lodygames.com et dig.lodylands.com | `1.0.0+c23f521`, HTTP 200 sur les deux domaines |
+| `main` / `origin/main` / copie de production | tous à `c23f521`, copie de travail propre |
+| `dig.service` | actif depuis le 30/10 12:17:55, 0 redémarrage intempestif ; il démarre en `NODE_ENV=production`, ce qui prouve que `SESSION_SECRET` est désormais fourni (la version refuse de démarrer sans) |
+| Intégrité de la base (`pragma quick_check`, lecture seule) | `ok` |
+| Déploiements faits par `scripts/deploy.sh` | 13 sauvegardes `pre-deploy-<sha>` dans `~/backups/dig/` (du 30/10 00:46 au 30/10 12:17), chacune avec son manifeste ; la dernière (`pre-deploy-c23f521`) a un sha256 identique à son manifeste |
+| Disque | 20 Go libres sur 96 Go ; `~/backups/dig` pèse 48 Mo (dont le `node_modules` de secours de la préparation du 30/10) |
+
+### Sauvegarde automatique
+
+- `dig-backup.timer` : activé, `OnCalendar=*-*-* 03:30:00`, `Persistent=true` (rattrapage si la machine était éteinte). Prochain passage : 31/10 03:30.
+- Dernier passage : **30/10 03:30, code de sortie 0** — `[backup] OK … dig-20261030-033000-daily.sqlite — 143360 octets, 13 tables / 46 lignes, intégrité ok, hors machine : désactivée, supprimées (rétention) : 0`.
+- Le service lance `/opt/dig-backup/backup-db.js`, copie identique à `scripts/backup-db.js` de `main` (vérifié par `diff`). Rétention 14 jours, au moins 3 sauvegardes gardées (`DIG_BACKUP_RETENTION_DAYS=14`, `DIG_BACKUP_KEEP_MIN=3`). Rien n'a encore été purgé : la plus ancienne sauvegarde date du 29/10.
+- Tests automatisés de la sauvegarde, de la restauration, de la rétention et de `deploy.sh` sur `develop` (`0ca600d`) : `node --test test/backup-restore.test.js test/deploy.test.js` → **8/8**.
+
+### Restauration isolée (sur une copie, dans le worktree du ticket)
+
+1. Sauvegarde du 30/10 03:30 : sha256 recalculé = celui du manifeste (`43fe5cd0…`).
+2. `node scripts/restore-db.js <sauvegarde> --target server/data/restore-13.sqlite` (worktree, `DIG_BACKUP_DIR` et `DIG_DB_PATH` pointés vers `/tmp`) → `[restore] OK — 13 tables / 46 lignes` ; `integrity_check` = `ok`.
+3. Comparaison du contenu, table par table, entre la sauvegarde et la base restaurée (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`, `admin_config`, `anticheat_logs`) : **identique**.
+4. Démarrage du jeu (`develop` `0ca600d`, `NODE_ENV=production`, secret aléatoire, port 3113) sur la base restaurée : `/health` ok, `/api/version` = `1.0.0+0ca600d`, page d'accueil 200. Après démarrage, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` sont identiques ; `users` a seulement reçu les deux colonnes additives de #28 (`email_verified_at`, `auth_version`) et la table `auth_tokens` a été créée, ce qui est normal puisque la sauvegarde est antérieure au déploiement de #28. Les colonnes d'origine de `users` sont identiques.
+5. Garde-fous vérifiés : une restauration visant la base du jeu sans `--live` est refusée, et `--live` est refusé tant que `dig.service` est actif. Aucun fichier n'est écrit dans ces deux cas.
+6. Serveur arrêté, base restaurée et dossier temporaire supprimés.
+
+**Incident sans conséquence pendant la session :** un `git worktree add` lancé avec un chemin relatif a créé pendant quelques secondes un dossier `dig-worktrees/ticket-13` non suivi *dans* `/home/ubuntu/Dig`. Il a été retiré aussitôt (`git worktree remove`). La copie de production est restée propre (`git status` vide), sans aucun effet sur le service ni sur la base. À l'avenir : toujours des chemins absolus avec `git -C`.
+
+### Couverture des critères du ticket
+
+| Exigence | État |
+|---|---|
+| Sauvegarde SQLite cohérente via l'API backup | ✅ en service (timer quotidien + avant chaque déploiement) |
+| Rétention 14 jours | ✅ configurée et testée (purge réelle pas encore déclenchée : sauvegardes de moins de 14 jours) |
+| Restauration testée sur copie | ✅ refaite ce jour sur la sauvegarde automatique la plus récente |
+| Déploiement en avance rapide (ff-only), contrôles de santé, retour arrière | ✅ `deploy.sh` utilisé pour les 13 déploiements du 30/10 ; retour arrière démontré précédemment (voir sections ci-dessus) |
+| Aucun test destructif sur la production | ✅ lecture seule uniquement |
+| Sauvegarde hors machine « si possible » | ⏸ **sous-travail différé (S3)** : crochet `DIG_BACKUP_OFFSITE_CMD` prêt, pas de droits AWS sur la machine. « Après lancement » |
+
+### Test fonctionnel à faire par le propriétaire
+
+Aucun test en jeu nécessaire (la recette a déjà eu lieu). Contrôle facultatif d'une minute sur le serveur : `journalctl -u dig-backup --since today` doit afficher `[backup] OK … intégrité ok` après 03:30, et `ls ~/backups/dig/*daily*` doit lister un fichier par jour.
+
+### Classement MVP
+
+- Sauvegardes + déploiement réversible : **livré** (était « Bloquant MVP public »).
+- Copie hors machine S3 : **« Après lancement »**. Tant qu'elle manque, une perte du disque de l'instance emporterait la base et ses sauvegardes locales. Pour limiter ce risque sans AWS, le propriétaire peut récupérer de temps en temps une sauvegarde par `scp`.
+
+### Choix faits seul
+
+- Restauration testée sur la sauvegarde **automatique** (et non sur une nouvelle sauvegarde manuelle) : c'est elle qui servirait en cas d'incident.
+- Démarrage testé avec la version de `develop` (`0ca600d`), qui ne diffère de la production (`c23f521`) que par deux rapports Markdown : même code, même migrations.
+- Aucun nouveau commit de code ni déploiement : rien à corriger.
+
+### Points relevés (non implémentés, hors périmètre)
+
+1. `restore-db.js --target` dans un dossier inexistant échoue avec un message peu clair (`Cannot save backup because the directory does not exist`). Il suffirait de créer le dossier ou de le signaler clairement. Cosmétique, « Après lancement ».
+2. Le timer exécute une copie dans `/opt/dig-backup/` (root), identique aujourd'hui à `scripts/backup-db.js`. Si ce script change un jour dans le dépôt, la copie devra être réinstallée par root (procédure dans `docs/OPERATIONS.md`). « Après lancement ».
+
+### Décisions demandées au propriétaire
+
+1. **Clôture du #13** pour la partie sauvegardes + déploiement réversible ? Recommandé : **oui**. La copie hors machine S3 peut rester un sous-travail explicitement différé, soit dans ce ticket (alors laissé ouvert avec le label adéquat), soit, mieux, dans un ticket dédié « Après lancement » que le propriétaire créerait. Cela ne bloque aucun autre ticket.
+
+### Reste à faire
+
+- S3 / copie hors machine (différé, nécessite des droits AWS donnés par le propriétaire).
