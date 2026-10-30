@@ -45,7 +45,7 @@ Commentaire du 30/10, 10:54 :
 ### 4. SHA et vérification
 
 - Branche `feature/28-auth-email-recuperation`.
-- SHA sur `develop` : voir le commentaire GitHub de cette session.
+- SHA sur `develop` : `72219ff` (fusion de `7334c35`). `npm test` : 155/155 sur la fusion.
 - Lecture : `docs/AUTH-COMPARATIF.md` sur `develop`.
 - `npm test` complet sur la fusion `develop`.
 
