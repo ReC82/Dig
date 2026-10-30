@@ -175,7 +175,21 @@ for i in $(seq 1 11); do curl -s -o /dev/null -w '%{http_code} ' -H 'Content-Typ
 ## Tests
 
 ```bash
-npm test     # test/*.test.js : sauvegarde, rétention, restauration, déploiement + retour arrière
+npm ci          # une fois (installe aussi les dépendances de développement)
+npm run check   # syntaxe de tous les fichiers .js suivis par git
+npm test        # test/*.test.js, y compris les 62 contrôles historiques de server/test-season.js
 ```
 
-Les tests n'utilisent que des bases temporaires et des ports ≥ 3105 (dont 3111 pour `test/security.test.js`, serveur en `NODE_ENV=production`, et 3112 pour `test/rate-limit.test.js`). Ils ne touchent jamais au service `dig`, au port 3000 ni à `server/data/dig.sqlite`.
+Les tests n'utilisent que des bases et des dossiers de sessions temporaires (`DB_FILE` et `SESSIONS_DIR` pointent dans `os.tmpdir()`) et des ports 3105 à 3117 (dont 3111 pour `test/security.test.js`, serveur en `NODE_ENV=production`, et 3112 pour `test/rate-limit.test.js`). Ils ne touchent jamais au service `dig`, au port 3000, à `server/data/dig.sqlite` ni à `server/data/sessions/`. Ils ne laissent ni base ni fichier `-wal` / `-shm`. Durée : environ 1 min.
+
+Ports surchargeables si l'un est occupé : variables `DIG_TEST_PORT_*` en tête de chaque fichier de `test/`.
+
+**Intégration continue** : `.github/workflows/ci.yml` (GitHub Actions, Node 22) lance `npm ci`, `npm run check` et `npm test` à chaque push et à chaque Pull Request vers `main` ou `develop`. Résultats : onglet *Actions* du dépôt. Aucun secret n'est nécessaire.
+
+**Jeu de données de test** (`server/seed-test.js`) : `DB_FILE` est obligatoire et ne peut pas désigner `dig.sqlite` ; un `DB_FILE` présent seulement dans `.env` est ignoré. Le script refuse donc de tourner sur la base des joueurs.
+
+```bash
+DB_FILE=/tmp/dig-seed.sqlite node server/seed-test.js            # 8 joueurs fictifs
+DB_FILE=/tmp/dig-seed.sqlite node server/seed-test.js --check    # classement
+DB_FILE=/tmp/dig-seed.sqlite PORT=3101 node server/index.js      # serveur de test sur cette base
+```
