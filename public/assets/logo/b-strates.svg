@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -3 92 36" width="92" height="36" role="img" aria-label="DIG!">
+  <title>DIG! — proposition B « Strates »</title>
+  <defs>
+    <!-- couches du sous-sol : terre, pierre, filon d'or -->
+    <linearGradient id="b-strata" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c08a52"/><stop offset=".3" stop-color="#9a6a3a"/>
+      <stop offset=".3" stop-color="#a7adba"/><stop offset=".64" stop-color="#7c8494"/>
+      <stop offset=".64" stop-color="#ffe066"/><stop offset="1" stop-color="#d49b00"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#b-strata)" stroke="#1d1a14" stroke-width="2.4" stroke-linejoin="round" fill-rule="evenodd">
+    <path d="M0 0H19L26 7V23L19 30H0Z M8 8V22H16L18 20V10L16 8Z"/>
+    <path transform="translate(30 0)" d="M0 0H8V30H0Z"/>
+    <path transform="translate(42 0)" d="M7 0H26V8H10L8 10V20L10 22H18V19H14V12H26V23L19 30H7L0 23V7Z"/>
+    <path transform="translate(72 0)" d="M0 0H8V20H0Z M0 23H8V30H0Z"/>
+  </g>
+</svg>

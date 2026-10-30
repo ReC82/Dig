@@ -2499,6 +2499,8 @@ async function icOpen(key, notice = '') {
       await mark('validated')();
     });
     if (t.applicable) button(acts, 'Appliquer au brouillon', () => icApply(t, a.sha, msg), 'btn btn-primary');
+    // #41 : emblème de logo simulé dans le véritable en-tête du jeu (aperçu non mémorisé, rien n'est activé).
+    if (key === 'ui:logo') acts.appendChild(aiEl('a', { class: 'btn', href: `/?logo=media:${a.sha}`, target: '_blank', rel: 'noopener' }, 'Voir dans le vrai en-tête ↗'));
     info.appendChild(acts);
     card.appendChild(info);
     gallery.appendChild(card);

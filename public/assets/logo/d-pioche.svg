@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -6 96 39" width="96" height="39" role="img" aria-label="DIG!">
+  <title>DIG! — proposition D « Pioche »</title>
+  <defs>
+    <linearGradient id="d-gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1a8"/><stop offset=".45" stop-color="#f5c518"/><stop offset="1" stop-color="#b87a00"/>
+    </linearGradient>
+    <linearGradient id="d-steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e5e9f0"/><stop offset="1" stop-color="#7d8594"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#d-gold)" stroke="#3b2700" stroke-width="2.4" stroke-linejoin="round" fill-rule="evenodd">
+    <path d="M0 0H19L26 7V23L19 30H0Z M8 8V22H16L18 20V10L16 8Z"/>
+    <path transform="translate(48 0)" d="M7 0H26V8H10L8 10V20L10 22H18V19H14V12H26V23L19 30H7L0 23V7Z"/>
+    <path transform="translate(78 0)" d="M0 0H8V20H0Z M0 23H8V30H0Z"/>
+  </g>
+  <!-- manche en bois (le « I ») et fer de pioche -->
+  <path d="M34.5 4V29" stroke="#3b2200" stroke-width="7" stroke-linecap="round"/>
+  <path d="M34.5 4V29" stroke="#a8692e" stroke-width="4" stroke-linecap="round"/>
+  <path d="M22 4Q34.5 -6 47 4L45 6.5Q34.5 0 24 6.5Z" fill="url(#d-steel)" stroke="#23262e" stroke-width="1.6" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3 -3 130 36" width="130" height="36" role="img" aria-label="DIG!">
+  <title>DIG! — proposition C « Écusson »</title>
+  <defs>
+    <linearGradient id="c-stone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9bfca"/><stop offset=".55" stop-color="#7d8594"/><stop offset="1" stop-color="#4b5160"/>
+    </linearGradient>
+    <linearGradient id="c-gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1a8"/><stop offset=".45" stop-color="#f5c518"/><stop offset="1" stop-color="#b87a00"/>
+    </linearGradient>
+  </defs>
+  <!-- bloc de pierre taillé -->
+  <path d="M6 0H24L30 6V24L24 30H6L0 24V6Z" fill="url(#c-stone)" stroke="#23262e" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M6 3H23" stroke="#e4e7ee" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>
+  <!-- pioche -->
+  <path d="M10 23L21 12" stroke="#7a4a1f" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M8 9Q16 3 25 9L23 11Q16 7 10 11Z" fill="url(#c-gold)" stroke="#3b2700" stroke-width="1.4" stroke-linejoin="round"/>
+  <g transform="translate(36 3) scale(.8)" fill="url(#c-gold)" stroke="#3b2700" stroke-width="3" stroke-linejoin="round" fill-rule="evenodd">
+    <path d="M0 0H19L26 7V23L19 30H0Z M8 8V22H16L18 20V10L16 8Z"/>
+    <path transform="translate(30 0)" d="M0 0H8V30H0Z"/>
+    <path transform="translate(42 0)" d="M7 0H26V8H10L8 10V20L10 22H18V19H14V12H26V23L19 30H7L0 23V7Z"/>
+    <path transform="translate(72 0)" d="M0 0H8V20H0Z M0 23H8V30H0Z"/>
+  </g>
+</svg>

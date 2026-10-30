@@ -12,7 +12,7 @@
  *
  * HTML :
  *   <span data-i18n="nav.dig"></span>
- *   <button data-i18n-aria="nav.dig_aria">
+ *   <button data-i18n-aria="nav.dig_aria">   (data-i18n-title : infobulle)
  */
 
 const I18n = (() => {
@@ -295,6 +295,7 @@ const I18n = (() => {
       },
       account: {
         title:           'Compte',
+        header_aria:     'Profil et compte',
         tab_login:       'Connexion',
         tab_register:    'Créer un compte',
         label_username:  'Nom d\'utilisateur',
@@ -749,6 +750,7 @@ const I18n = (() => {
       },
       account: {
         title:           'Account',
+        header_aria:     'Profile and account',
         tab_login:       'Sign in',
         tab_register:    'Register',
         label_username:  'Username',
@@ -1203,6 +1205,7 @@ const I18n = (() => {
       },
       account: {
         title:           'Account',
+        header_aria:     'Profiel en account',
         tab_login:       'Inloggen',
         tab_register:    'Registreren',
         label_username:  'Gebruikersnaam',
@@ -1437,6 +1440,9 @@ const I18n = (() => {
     });
     document.querySelectorAll('[data-i18n-aria]').forEach(el => {
       el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      el.title = t(el.dataset.i18nTitle);
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
       el.placeholder = t(el.dataset.i18nPlaceholder);
