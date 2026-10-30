@@ -40,7 +40,7 @@ function boardEntries() {
     const file = entry && path.join(ROOT, 'public', lib.libraries.v1.base, entry.webp['256']);
     return {
       id, name: I18n.t('block.' + id), rarity: I18n.t('rarity.' + String(t.rarityKey).replace('-', '_')),
-      depth: t.maxDepth == null || t.maxDepth >= 9999 ? `dès ${t.minDepth} m` : `${t.minDepth}–${t.maxDepth} m`,
+      depth: `dès ${t.minDepth} m`, // aucune profondeur maximale (#22)
       color: t.color, legacy: t.icon,
       status: !entry ? 'absent (emoji)' : entry.validated ? `validé ${entry.validated}` : 'à valider',
       validated: Boolean(entry && entry.validated),

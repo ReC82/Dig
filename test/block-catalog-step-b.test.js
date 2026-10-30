@@ -4,7 +4,7 @@
  *   argile sans borne maximale mais atténuées ; une seule fois (idempotent), v1 intacte ;
  * - probabilités : tout type actif débloqué garde une probabilité > 0 à toute profondeur ;
  *   surface ≈ 2 % en profondeur ; client et serveur identiques (format 2) ;
- * - clients non rechargés (format 1) : projection identique à l'ancien comportement ;
+ * - clients non rechargés (format 1) : aucune borne maximale non plus (#22) ;
  * - aucune gemme pour saphir / améthyste / cristal ancien (gemReward: false) ;
  * - budget anti-bot (#25) inchangé par l'atténuation.
  * Lancer : npm test
@@ -44,11 +44,12 @@ const EXPECTED = [
   ['fer_meteorique', 650, 220, 5200, 1], ['cristal_ancien', 800, 300, 9000, 0.6],
 ];
 
-test('migrations de contenu : v2 = 8 minerais, v3 = atténuation de surface, une seule fois', () => {
+test('migrations de contenu : v2 = 8 minerais, atténuation de surface déjà dans l\'origine, une seule fois', () => {
   catalog.init();
   catalog.init();
   const versions = conn().prepare('SELECT version, source FROM block_catalog_versions ORDER BY version').all();
-  assert.deepStrictEqual(versions.map(v => v.version), [1, 2, 3]);
+  // Base neuve : l'origine (blocks.js) est déjà sans borne (#22), la migration « surface-fade » n'a rien à publier
+  assert.deepStrictEqual(versions.map(v => v.version), [1, 2]);
   assert.strictEqual(catalog.getVersion(1).types.length, 14, 'v1 intacte');
   const v2 = catalog.getVersion(2).types;
   assert.strictEqual(v2.length, 22);
@@ -61,15 +62,13 @@ test('migrations de contenu : v2 = 8 minerais, v3 = atténuation de surface, une
   // v2 : les 14 blocs d'origine inchangés
   assert.deepStrictEqual(catalog.diff(catalog.getVersion(1).types, v2).map(c => c.kind), Array(8).fill('added'));
   const v3 = catalog.getPublished();
-  assert.strictEqual(v3.version, 3);
-  const changes = catalog.diff(v2, v3.types);
-  assert.deepStrictEqual(changes.map(c => c.id), ['terre_meuble', 'argile']);
+  assert.strictEqual(v3.version, 2);
   const terre = v3.types.find(t => t.id === 'terre_meuble'), argile = v3.types.find(t => t.id === 'argile');
   assert.deepStrictEqual([terre.maxDepth, terre.fadeFrom, terre.fadeWeight], [null, 12, 2.1]);
   assert.deepStrictEqual([argile.maxDepth, argile.fadeFrom, argile.fadeWeight], [null, 22, 1.35]);
   assert.strictEqual(catalog.validateCatalog(v3.types).errors.length, 0);
   assert.deepStrictEqual(catalog.listAudit().filter(a => a.action.startsWith('content:')).map(a => [a.action, a.version]),
-    [['content:surface-fade', 3], ['content:step-b-ores', 2]]);
+    [['content:surface-fade', null], ['content:step-b-ores', 2]]);
 });
 
 test('probabilités : bloc débloqué toujours possible, surface ≈ 2 % en profondeur, client = serveur', () => {
@@ -102,17 +101,16 @@ test('probabilités : bloc débloqué toujours possible, surface ≈ 2 % en prof
     'saphir, améthyste et cristal ancien ne rapportent pas de gemme');
 });
 
-test('clients non rechargés (format 1) : ancienne borne, aucune gemme nouvelle', () => {
+test('clients non rechargés (format 1) : aucune borne maximale (#22), aucune gemme nouvelle', () => {
   const legacy = catalog.publicCatalog();
-  assert.strictEqual(legacy.types.find(t => t.id === 'terre_meuble').maxDepth, 12);
-  assert.strictEqual(legacy.types.find(t => t.id === 'argile').maxDepth, 22);
+  assert.ok(legacy.types.every(t => t.maxDepth === null), 'aucune profondeur maximale, même pour un ancien client');
   assert.ok(legacy.types.every(t => t.fadeFrom === undefined && t.gemReward === undefined));
   assert.deepStrictEqual(legacy.types.filter(t => t.category === 'gemme').map(t => t.id), ['rubis', 'emeraude', 'diamant']);
-  // Ancien client : _fromCatalog sans fadeFrom → mêmes probabilités qu'avant au-dessus de 249 m pour les 14 blocs
-  const v2 = catalog.getVersion(2).types;
-  for (const d of [13, 30, 249, 700]) {
-    const projected = legacy.types.map(t => ({ ...t, active: t.active !== false }));
-    assert.deepStrictEqual(catalog.odds(projected, d), catalog.odds(v2, d), `${d} m`);
+  // Ancien client : terre et argile restent possibles en profondeur (poids normal, faute d'atténuation)
+  const projected = legacy.types.map(t => ({ ...t, active: t.active !== false }));
+  for (const d of [13, 30, 249, 700, 100000]) {
+    const o = catalog.odds(projected, d);
+    for (const id of ['terre_meuble', 'argile']) assert.ok(o.find(e => e.id === id)?.p > 0, `${id} à ${d} m`);
   }
 });
 
@@ -121,7 +119,7 @@ test('validation de l\'atténuation et anti-bot inchangé', () => {
   const code = fn => { try { fn(); } catch (e) { return e.status; } return 'ok'; };
   assert.strictEqual(code(() => catalog.normalizeType({ ...terre, fadeWeight: 0 })), 400, 'poids atténué > 0');
   assert.strictEqual(code(() => catalog.normalizeType({ ...terre, fadeWeight: 70 })), 400, 'poids atténué < poids');
-  assert.strictEqual(code(() => catalog.normalizeType({ ...terre, maxDepth: 12 })), 400, 'borne et atténuation exclusives');
+  assert.strictEqual(code(() => catalog.normalizeType({ ...terre, maxDepth: 12 })), 400, 'aucune profondeur maximale');
   assert.strictEqual(code(() => catalog.normalizeType({ ...terre, fadeFrom: 0 })), 400);
   assert.strictEqual(code(() => catalog.normalizeType({ ...terre, fadeFrom: '' })), 'ok', 'atténuation retirable');
   // Budget : identique aux valeurs d'origine (3 / 6 / 8) — l'atténuation ne le relâche pas

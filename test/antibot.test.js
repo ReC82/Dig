@@ -57,6 +57,12 @@ function loadClient() {
   return ctx;
 }
 const client = loadClient();
+/**
+ * Blocs pris en compte par le budget à la profondeur d : tirables, sauf un bloc atténué au-delà de
+ * son seuil (terre meuble > 12 m, argile > 22 m, ≈ 2 % des tirages) que le serveur ignore
+ * volontairement (blockCatalog.minHpSegments) — sans quoi le budget tomberait à 3 PV partout.
+ */
+const budgetAvailable = (t, d) => client.Blocks.available(t, d) && !(t.fadeFrom != null && d > t.fadeFrom);
 
 /** Générateur pseudo-aléatoire déterministe (mulberry32). */
 function rng(seed) {
@@ -88,7 +94,7 @@ function simulate(userId, o, config = CONFIG) {
   client.GameState.relicBonuses.hpReduction = o.hpReduction ?? 0;
   const B = client.Blocks;
   const pick = o.weakest
-    ? depth => B.TYPES.filter(t => B.available(t, depth)).sort((a, b) => a.hpBase - b.hpBase)[0]
+    ? depth => B.TYPES.filter(t => budgetAvailable(t, depth)).sort((a, b) => a.hpBase - b.hpBase)[0]
     : depth => B._pickType(depth);
   const spawn = depth => {
     const type = pick(depth);
@@ -157,7 +163,7 @@ test('budget : dégâts max par clic et par seconde = valeurs max du client', ()
 
 test('budget : PV minimum serveur ≤ PV réels minimum du client à chaque profondeur (1–12 000 m)', () => {
   for (let d = 1; d <= 12_000; d++) {
-    const types = client.Blocks.TYPES.filter(t => client.Blocks.available(t, d));
+    const types = client.Blocks.TYPES.filter(t => budgetAvailable(t, d));
     assert.ok(types.length, `profondeur ${d} : aucun bloc tirable`);
     const minBase = Math.min(...types.map(t => t.hpBase));
     const realMin = Math.ceil(minBase * (1 + (d - 1) * 0.12) * (1 - antibot.MAX_HP_REDUCTION));
@@ -246,7 +252,7 @@ test('honnête, clics + pauses : alternance 2 min de jeu / 3 min de pause, 1 h',
   const cpsAt = s => (Math.floor(s / 300) % 1 === 0 && s % 300 < 120 ? 9 : 0);
   // Simulation inline (cps variable)
   let depth = 1, maxDepth = 0, clicks = 0, mb = 0, ab = 0;
-  const spawn = d => Math.ceil(Math.min(...client.Blocks.TYPES.filter(t => client.Blocks.available(t, d)).map(t => t.hpBase)) * (1 + (d - 1) * 0.12) * (1 - o.hpReduction));
+  const spawn = d => Math.ceil(Math.min(...client.Blocks.TYPES.filter(t => budgetAvailable(t, d)).map(t => t.hpBase)) * (1 + (d - 1) * 0.12) * (1 - o.hpReduction));
   let hp = spawn(1);
   const hit = (dmg, manual) => { hp = Math.max(0, hp - dmg); if (hp === 0) { manual ? mb++ : ab++; depth++; maxDepth = Math.max(maxDepth, depth); hp = spawn(depth); } };
   const save = t => {

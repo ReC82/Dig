@@ -64,13 +64,15 @@ test('migration : version 1 = les 14 blocs du client, probabilités identiques, 
   assert.deepStrictEqual(v1.types.map(t => `block.${t.id}`), [...B.TYPES.map(t => t.name)]);
   for (const [i, t] of v1.types.entries()) {
     const c = B.TYPES[i];
-    assert.strictEqual(JSON.stringify([t.hpBase, t.reward, t.minDepth, t.maxDepth, t.weight, t.rarity, t.category, t.icon, t.color, t.accent]),
-      JSON.stringify([c.hpBase, c.reward, c.minDepth, c.maxDepth ?? null, c.weight, c.rarityKey, c.category, c.icon, c.color, c.accent]), t.id);
+    assert.strictEqual(JSON.stringify([t.hpBase, t.reward, t.minDepth, t.weight, t.fadeFrom, t.fadeWeight, t.rarity, t.category, t.icon, t.color, t.accent]),
+      JSON.stringify([c.hpBase, c.reward, c.minDepth, c.weight, c.fadeFrom, c.fadeWeight, c.rarityKey, c.category, c.icon, c.color, c.accent]), t.id);
   }
-  // Seules bornes conservées : terre meuble ≤ 12 m et argile ≤ 22 m (aucune autre profondeur maximale)
-  assert.deepStrictEqual(v1.types.filter(t => t.maxDepth != null).map(t => [t.id, t.maxDepth]), [['terre_meuble', 12], ['argile', 22]]);
+  // Aucune profondeur maximale (#22) : terre meuble et argile seulement atténuées au-delà de 12 / 22 m
+  assert.ok(v1.types.every(t => t.maxDepth === null));
+  assert.deepStrictEqual(v1.types.filter(t => t.fadeFrom != null).map(t => [t.id, t.fadeFrom, t.fadeWeight]),
+    [['terre_meuble', 12, 2.1], ['argile', 22, 1.35]]);
   // Même tirage que le client, après application du catalogue publié, à toutes les profondeurs
-  assert.ok(B.applyCatalog(catalog.publicCatalog()));
+  assert.ok(B.applyCatalog(catalog.publicCatalog({ format: 2 })));
   for (const luck of [0, 5]) {
     for (let d = 1; d <= 600; d += 1) {
       const server = catalog.odds(v1.types, d, luck);
@@ -96,8 +98,8 @@ test('validation : nouveaux blocs, profondeur maximale, poids, suppression, couv
     assert.strictEqual(code(() => catalog.normalizeType({ ...NEW, ...bad })), 400, JSON.stringify(bad));
   }
   assert.strictEqual(catalog.normalizeType({ ...NEW, image: '/assets/icons/v1/basalte.webp' }).image, '/assets/icons/v1/basalte.webp');
-  // Bloc d'origine : noms intégrés facultatifs, borne héritée modifiable
-  assert.strictEqual(catalog.normalizeType({ ...v1[0], maxDepth: 15 }).maxDepth, 15);
+  // Aucune profondeur maximale, même pour un bloc d'origine (#22)
+  assert.strictEqual(code(() => catalog.normalizeType({ ...v1[0], fadeFrom: null, maxDepth: 15 })), 400, 'pas de borne sur un bloc d\'origine');
   // Aucun bloc publié supprimé ; chaque profondeur couverte
   const removed = catalog.validateCatalog(v1.filter(t => t.id !== 'rubis'));
   assert.ok(removed.errors.some(e => e.includes('rubis')));
@@ -218,8 +220,9 @@ test('routes : catalogue public, administration protégée', async (t) => {
 
   const pub = await call('GET', '/api/blocks/catalog', undefined, { auth: false });
   assert.strictEqual(pub.status, 200);
-  // Serveur complet : v1 (origine) + v2 (8 minerais de l'étape B) + v3 (atténuation de surface)
-  assert.deepStrictEqual([pub.body.version, pub.body.types.length], [3, 22]);
+  // Serveur complet (base neuve) : v1 (origine, déjà sans borne, #22) + v2 (8 minerais de l'étape B)
+  assert.deepStrictEqual([pub.body.version, pub.body.types.length], [2, 22]);
+  assert.ok(pub.body.types.every(t => t.maxDepth === null), 'aucune profondeur maximale (format 1 compris)');
 
   for (const [m, u] of [['GET', '/api/admin/blocks'], ['PUT', '/api/admin/blocks/draft/types/basalte'], ['POST', '/api/admin/blocks/publish'],
     ['POST', '/api/admin/blocks/rollback'], ['POST', '/api/admin/blocks/simulate'], ['DELETE', '/api/admin/blocks/draft'], ['GET', '/api/admin/blocks/audit']]) {
@@ -230,12 +233,12 @@ test('routes : catalogue public, administration protégée', async (t) => {
   const sim = await call('POST', '/api/admin/blocks/simulate', { source: 'draft', n: 10000, depths: [300], luckLevel: 0 });
   assert.strictEqual(sim.status, 200);
   assert.ok(sim.body.results[0].types.some(x => x.id === 'basalte'));
-  const p = await call('POST', '/api/admin/blocks/publish', { note: 'test', basedOn: 3 });
-  assert.deepStrictEqual([p.status, p.body.version], [200, 4]);
+  const p = await call('POST', '/api/admin/blocks/publish', { note: 'test', basedOn: 2 });
+  assert.deepStrictEqual([p.status, p.body.version], [200, 3]);
   const pub2 = await call('GET', '/api/blocks/catalog', undefined, { auth: false });
-  assert.deepStrictEqual([pub2.body.version, pub2.body.types.length], [4, 23]);
-  const rb = await call('POST', '/api/admin/blocks/rollback', { version: 3 });
-  assert.deepStrictEqual([rb.status, rb.body.version], [200, 5]);
+  assert.deepStrictEqual([pub2.body.version, pub2.body.types.length], [3, 23]);
+  const rb = await call('POST', '/api/admin/blocks/rollback', { version: 2 });
+  assert.deepStrictEqual([rb.status, rb.body.version], [200, 4]);
   const admin = await call('GET', '/api/admin/blocks');
   assert.strictEqual(admin.body.published.types.find(x => x.id === 'basalte').active, false);
   assert.ok(admin.body.antibotSegments.length >= 3);
