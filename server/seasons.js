@@ -308,7 +308,8 @@ function _toCount(v) {
  *     et évalués à la sauvegarde suivante (plus de contournement par sauvegardes rapprochées).
  *  3. Δblocs > Δclics est impossible (un bloc manuel exige un clic) : l'excédent est refusé,
  *     en particulier Δclics = 0 avec Δblocs > 0 (manualClicks inchangé).
- *  4. CPS = Δclics / min(Δt, 120 s) ; au-delà de max_effective_cps → réduction proportionnelle.
+ *  4. CPS = Δclics / min(Δt, 120 s) ; au-delà de max_effective_cps → réduction proportionnelle,
+ *     sans jamais accepter plus de max_effective_cps × fenêtre blocs.
  *  5. Journalise l'événement si réduit ou refusé.
  *
  * @param {number} userId
@@ -377,9 +378,11 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs
   const validBlocks    = Math.min(deltaBlocks, deltaClicks);
   const windowSecs     = Math.min(deltaSecs, AC_MAX_WINDOW_SECS);
   const inferredCps    = deltaClicks / windowSecs;
-  // Minimum 10 % pour ne jamais bloquer totalement un joueur
+  // Minimum 10 % pour ne jamais bloquer totalement un joueur, mais jamais plus que
+  // max_effective_cps × durée de la fenêtre : au-delà de 10 × le seuil, le plancher de 10 %
+  // laissait passer davantage de blocs qu'un joueur au seuil (recette #10 du 30/10).
   const cpsRatio       = inferredCps <= maxCps ? 1 : Math.max(0.10, maxCps / inferredCps);
-  const effectiveDelta = Math.floor(validBlocks * cpsRatio);
+  const effectiveDelta = Math.min(Math.floor(validBlocks * cpsRatio), Math.floor(maxCps * windowSecs));
   const newAccepted    = cap(accepted + effectiveDelta);
 
   upsertClickTracking(userId, seasonId, newClicks, newBlocks, nowIso, newAccepted);

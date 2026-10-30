@@ -199,3 +199,64 @@ test('reset saisonnier admin : ne renvoie plus 500 et est journalisé', async ()
   assert.deepStrictEqual(data.shopChestsBought, { simple: 0, rare: 0, antique: 0 });
   assert.deepStrictEqual(events(id).map(e => e.event_type), ['admin_season_reset']);
 });
+
+// ── Compatibilité #8 × #10 : sauvegardes cloud regroupées et solde récent ─────────────────
+
+/** Sauvegarde comme le client depuis #10 : révision de base + statistiques de saison. */
+function cloudSave(call, baseRevision, coins, seasonStats, bought = { simple: 0, rare: 0, antique: 0 }) {
+  return call('POST', '/api/me/save', {
+    data: { lastSaveTime: Date.now(), coins, relicFragments: 0, collection: [], shopChestsBought: bought, seasonStats },
+    baseRevision,
+  });
+}
+
+test('#8 × #10 : solde gagné depuis le dernier envoi groupé, puis achat — débit unique, sauvegarde tardive refusée', async () => {
+  const { call, id } = await newPlayer('chestrecent');
+  const season = (await call('GET', '/api/seasons/current')).body.season;
+  assert.ok(season?.id, 'saison active attendue');
+  const stats = (clicks, blocks) => ({ seasonId: season.id, maxDepth: blocks + 1, manualBlocks: blocks, autoBlocks: 0, manualClicks: clicks });
+
+  // Dernier envoi groupé (toutes les 12 s) : le serveur ne connaît encore que 500 pièces.
+  const r1 = await cloudSave(call, null, 500, stats(30, 10));
+  assert.strictEqual(r1.status, 200);
+
+  // Les pièces gagnées depuis ne sont que locales : sans synchro préalable, l'achat est refusé
+  // sans rien modifier (d'où la synchro forcée par openShopChest avant l'achat).
+  const before = saveRow(id);
+  const refused = await call('POST', '/api/me/shop/chest/open', { chestId: 'simple' });
+  assert.strictEqual(refused.status, 400);
+  assert.strictEqual(refused.body.error, 'Coins insuffisants.');
+  assert.deepStrictEqual(saveRow(id), before);
+
+  // openShopChest : Save.save() + _syncToCloud() envoient le solde récent, puis l'achat.
+  const r2 = await cloudSave(call, r1.body.revision, COSTS.simple + 300, stats(60, 20));
+  assert.strictEqual(r2.status, 200);
+  const buy = await call('POST', '/api/me/shop/chest/open', { chestId: 'simple' });
+  assert.strictEqual(buy.status, 200, JSON.stringify(buy.body));
+  assert.strictEqual(buy.body.revision, r2.body.revision + 1);
+  const gain = buy.body.reward.type === 'coins' ? buy.body.reward.amount : 0;
+  assert.strictEqual(buy.body.newCoins, 300 + gain);
+
+  // Un envoi tardif portant l'état d'avant l'achat (sendBeacon d'un autre onglet, réponse
+  // perdue) ne peut pas annuler le débit : conflit 409, sauvegarde serveur inchangée.
+  const afterBuy = saveRow(id);
+  const stale = await cloudSave(call, r2.body.revision, COSTS.simple + 300, stats(60, 20));
+  assert.strictEqual(stale.status, 409);
+  assert.strictEqual(stale.body.conflict, true);
+  assert.strictEqual(stale.body.save.revision, buy.body.revision);
+  assert.deepStrictEqual(saveRow(id), afterBuy);
+
+  // Le client continue depuis la révision renvoyée par l'achat : sauvegarde acceptée.
+  const r3 = await cloudSave(call, buy.body.revision, 300 + gain + 40, stats(90, 30), { simple: 1, rare: 0, antique: 0 });
+  assert.strictEqual(r3.status, 200);
+  const data = JSON.parse(saveRow(id).data);
+  assert.strictEqual(data.coins, 300 + gain + 40);
+  assert.strictEqual(data.shopChestsBought.simple, 1);
+  assert.deepStrictEqual(events(id).map(e => e.event_type), ['chest_shop_open']);
+
+  // L'achat ne perturbe pas le classement : statistiques de saison suivies, aucun log
+  // anti-autoclic (envois < 3 s cumulés ; cadences testées à horloge fixe dans anticheat.test.js).
+  const rank = db.prepare('SELECT manual_blocks, manual_clicks FROM season_rankings WHERE user_id = ? AND season_id = ?').get(id, season.id);
+  assert.deepStrictEqual({ ...rank }, { manual_blocks: 30, manual_clicks: 90 });
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM anticheat_logs WHERE user_id = ?').get(id).n, 0);
+});
