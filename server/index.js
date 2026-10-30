@@ -179,12 +179,35 @@ app.use((req, res, next) => {
   res.send(html);
 });
 
+/**
+ * PWA (#21) : service worker servi avec la version injectée et sans cache HTTP,
+ * pour que chaque déploiement installe un nouveau worker et purge l'ancien cache.
+ */
+let _swSource = null;
+app.get('/sw.js', (_req, res, next) => {
+  if (_swSource === null) {
+    try {
+      _swSource = fs.readFileSync(path.join(_publicDir, 'sw.js'), 'utf8')
+        .replace(/__APP_VERSION__/g, APP_VERSION);
+    } catch {
+      return next();
+    }
+  }
+  res.setHeader('Content-Type',  'text/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.send(_swSource);
+});
+
+// Fichiers non versionnés (pas de ?v=) : toujours revalidés.
+const _NO_CACHE_FILES = new Set(['manifest.webmanifest', 'library.json']);
+
 // Sert tout le dossier public/ avec headers de cache longs pour les assets versionnés
 app.use(express.static(_publicDir, {
   etag:         true,
   lastModified: true,
   setHeaders(res, filePath) {
-    if (filePath.endsWith('.html')) {
+    if (filePath.endsWith('.html') || _NO_CACHE_FILES.has(path.basename(filePath))) {
       // Sécurité : ne devrait pas passer ici (intercepté avant), mais au cas où
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     } else {
