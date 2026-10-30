@@ -37,6 +37,7 @@
     <button class="tab-btn" data-tab="blocks">🧱 Blocs</button>
     <button class="tab-btn" data-tab="collections">📿 Collections</button>
     <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
+    <button class="tab-btn" data-tab="badges">🏅 Badges</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -989,6 +990,89 @@
           <tbody id="ic-calls-body"></tbody>
         </table>
       </details>
+    </div>
+  </section>
+
+  <section id="tab-badges" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🏅 Badges et succès</h2>
+      <button class="btn" id="btn-refresh-badges">↻ Rafraîchir</button>
+    </div>
+    <p class="muted" style="font-size:0.78rem">Badges <strong>purement honorifiques</strong> : aucun gain (pièces, gemmes, fragments, reliques, points, classement).
+      Attribués <strong>une seule fois</strong> par le serveur, à partir de statistiques bornées par la profondeur validée (#9/#25) — jamais des compteurs déclarés par le jeu tels quels.
+      Le suivi a démarré à l'activation (<span id="bg-activated"></span>) : aucun badge rétroactif.
+      Un badge n'est jamais supprimé : <strong>désactiver</strong> le retire du jeu, <strong>archiver</strong> le retire définitivement de la liste « à obtenir » ; les joueurs qui l'ont obtenu le gardent.</p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title" id="bg-form-title">Nouveau badge</h3>
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+        <label>Identifiant stable<input id="bg-id" type="text" maxlength="40" placeholder="profondeur_100"></label>
+        <label>Catégorie<select id="bg-category"></select></label>
+        <label>Condition<select id="bg-condition">
+          <option value="max_depth">Profondeur maximale (m)</option>
+          <option value="blocks_of_type">Blocs d'un type minés</option>
+          <option value="blocks_total">Blocs minés (total)</option>
+          <option value="distinct_types">Types de blocs différents minés</option>
+          <option value="chests_opened">Coffres ouverts en minant</option>
+          <option value="play_days">Jours de jeu distincts</option>
+        </select></label>
+        <label>Type de bloc<select id="bg-block"></select></label>
+        <label>Seuil<input id="bg-threshold" type="number" min="1" value="100"></label>
+        <label>Icône (emoji)<input id="bg-icon" type="text" maxlength="16" placeholder="🏅"></label>
+        <label>Image (facultative : /media/blocks/…, /media/icons/…, /assets/…)<input id="bg-image" type="text" maxlength="200"></label>
+        <label>Visibilité<select id="bg-visibility"><option value="visible">Visible</option><option value="hidden">Secret (révélé une fois obtenu)</option></select></label>
+        <label>Statut<select id="bg-status"><option value="inactive">Désactivé</option><option value="active">Actif</option><option value="archived">Archivé</option></select></label>
+        <label>Début d'événement (UTC, facultatif)<input id="bg-starts" type="text" placeholder="2026-10-31T00:00:00Z"></label>
+        <label>Fin d'événement (UTC, facultatif)<input id="bg-ends" type="text" placeholder="2026-11-02T00:00:00Z"></label>
+        <label>Ordre d'affichage<input id="bg-sort" type="number" value="0"></label>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px">
+        <fieldset><legend>FR (obligatoire)</legend>
+          <input id="bg-fr-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
+          <textarea id="bg-fr-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
+        </fieldset>
+        <fieldset><legend>EN</legend>
+          <input id="bg-en-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
+          <textarea id="bg-en-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
+        </fieldset>
+        <fieldset><legend>NL</legend>
+          <input id="bg-nl-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
+          <textarea id="bg-nl-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
+        </fieldset>
+        <fieldset><legend>ES</legend>
+          <input id="bg-es-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
+          <textarea id="bg-es-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
+        </fieldset>
+      </div>
+      <div class="form-actions" style="margin-top:8px">
+        <button class="btn" id="btn-bg-preview">Prévisualiser</button>
+        <button class="btn" id="btn-bg-save">Enregistrer</button>
+        <button class="btn btn-ghost" id="btn-bg-new">Nouveau (vider le formulaire)</button>
+      </div>
+      <p class="muted" style="font-size:0.78rem">Événement : le badge ne s'obtient qu'entre le début et la fin, avec la progression faite pendant la période ; une fois obtenu, il reste dans la collection.</p>
+      <div id="bg-preview" class="muted" style="font-size:0.8rem"></div>
+      <p id="bg-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Badges</h3>
+      <p id="bg-summary" class="muted" style="font-size:0.78rem"></p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Ordre</th><th>ID</th><th>Badge</th><th>Condition</th><th>Statut</th><th>Visibilité</th><th>Période</th><th>Obtenu par</th><th></th><th></th></tr></thead>
+          <tbody id="bg-body"><tr><td colspan="10" class="muted">Aucun badge.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Journal</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Action</th><th>Badge</th><th>Détails</th></tr></thead>
+          <tbody id="bg-audit-body"></tbody>
+        </table>
+      </div>
     </div>
   </section>
 

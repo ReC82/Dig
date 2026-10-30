@@ -83,6 +83,7 @@ const blockCatalog = require('./blockCatalog');
 const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
+const badges = require('./badges');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
@@ -468,7 +469,11 @@ app.post('/api/me/save', limit.save, (req, res) => {
       try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats, { telemetry, ip: req.ip }); }
       catch (err) { console.error('[POST /api/me/save] sync saisonnier', err.message); }
     }
-    res.json({ ok: true, revision: version, version });
+    // Badges honorifiques (#38) : statistiques bornées par la profondeur retenue, attribution unique
+    let badgesEarned = [];
+    try { badgesEarned = badges.processSave(req.session.userId, data); }
+    catch (err) { console.error('[POST /api/me/save] badges', err.message); }
+    res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}) });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -717,6 +722,25 @@ function collectionRoute(label, fn) {
     try { res.json(fn(req)); }
     catch (err) {
       if (err instanceof collectionCatalog.CatalogError) return res.status(err.status).json({ error: err.message, details: err.details });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+// Badges et succès du joueur connecté (#38) : obtenus, à obtenir, progression.
+app.get('/api/me/badges', (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    res.set('Cache-Control', 'no-store');
+    res.json(badges.playerView(req.session.userId));
+  } catch (err) { console.error('[GET /api/me/badges]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+function badgeRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof badges.BadgeError) return res.status(err.status).json({ error: err.message, details: err.details });
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
     }
   };
@@ -975,6 +999,14 @@ app.get('/api/admin/contest/audit', requireAdmin, contestRoute('GET /api/admin/c
 })));
 
 // Points de récompense (#33) : réglages, barème versionné, mode, attributions, ajustements.
+// ── Badges honorifiques (#38) : création, modification, statut, aperçu, journal ──
+app.get('/api/admin/badges', requireAdmin, badgeRoute('GET /api/admin/badges', () => badges.adminSummary()));
+app.post('/api/admin/badges', requireAdmin, badgeRoute('POST /api/admin/badges', req => ({ badge: badges.createBadge(req.body) })));
+app.post('/api/admin/badges/preview', requireAdmin, badgeRoute('POST /api/admin/badges/preview', req => badges.previewBadge(req.body)));
+app.get('/api/admin/badges/audit', requireAdmin, badgeRoute('GET /api/admin/badges/audit', req => ({ entries: badges.listAudit({ limit: req.query.limit }) })));
+app.put('/api/admin/badges/:id', requireAdmin, badgeRoute('PUT /api/admin/badges/:id', req => ({ badge: badges.updateBadge(String(req.params.id), req.body) })));
+app.post('/api/admin/badges/:id/status', requireAdmin, badgeRoute('POST /api/admin/badges/:id/status', req => ({ badge: badges.setStatus(String(req.params.id), req.body?.status) })));
+
 app.get('/api/admin/points', requireAdmin, pointsRoute('GET /api/admin/points', () => rewardPoints.buildAdminSummary()));
 
 app.put('/api/admin/points/scale', requireAdmin, pointsRoute('PUT /api/admin/points/scale',
@@ -1564,6 +1596,7 @@ blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, 
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
+badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 

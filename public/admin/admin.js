@@ -96,6 +96,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'blocks')          { loadBlocks(); loadAi(); }
     if (btn.dataset.tab === 'collections')     loadCollections();
     if (btn.dataset.tab === 'icons')           loadIcons();
+    if (btn.dataset.tab === 'badges')          loadBadges();
   });
 });
 
@@ -2569,4 +2570,151 @@ document.getElementById('btn-ic-budget').addEventListener('click', async () => {
   const { ok, data } = await api('PUT', '/api/admin/icons/budget', { studioBudgetUsd: v === '' ? null : Number(v) });
   document.getElementById('ic-msg').textContent = ok ? 'Plafond de l\'atelier enregistré.' : (data.error || 'Erreur.');
   if (ok) loadIcons();
+});
+
+// ── Badges et succès honorifiques (#38) ───────────────────────────────────────
+
+const BG_LANGS = ['fr', 'en', 'nl', 'es'];
+const BG_COND = {
+  max_depth: 'Profondeur ≥ {n} m', blocks_of_type: '{block} ≥ {n}', blocks_total: 'Blocs minés ≥ {n}',
+  distinct_types: 'Types différents ≥ {n}', chests_opened: 'Coffres ouverts ≥ {n}', play_days: 'Jours de jeu ≥ {n}',
+};
+const BG_STATUS = { active: 'actif', inactive: 'désactivé', archived: 'archivé' };
+let _bgData = null;
+let _bgEditing = null;
+
+function bgCondLabel(b) {
+  const bt = (_bgData?.blockTypes || []).find(t => t.id === b.blockId);
+  return (BG_COND[b.condition] || b.condition).replace('{n}', Number(b.threshold).toLocaleString('fr'))
+    .replace('{block}', bt ? `${bt.icon} ${bt.name}` : (b.blockId || '?'));
+}
+
+function bgReadForm() {
+  const v = id => document.getElementById(id).value.trim();
+  const names = {}, descriptions = {};
+  for (const l of BG_LANGS) {
+    if (v(`bg-${l}-name`)) names[l] = v(`bg-${l}-name`);
+    if (v(`bg-${l}-desc`)) descriptions[l] = v(`bg-${l}-desc`);
+  }
+  return {
+    id: v('bg-id'), category: v('bg-category'), condition: v('bg-condition'),
+    blockId: v('bg-condition') === 'blocks_of_type' ? v('bg-block') : null,
+    threshold: Number(v('bg-threshold')), icon: v('bg-icon'), image: v('bg-image') || null,
+    visibility: v('bg-visibility'), status: v('bg-status'),
+    startsAt: v('bg-starts') || null, endsAt: v('bg-ends') || null, sort: Number(v('bg-sort')) || 0,
+    names, descriptions,
+  };
+}
+
+function bgFillForm(b) {
+  _bgEditing = b ? b.id : null;
+  document.getElementById('bg-form-title').textContent = b ? `Modifier le badge « ${b.id} »` : 'Nouveau badge';
+  const set = (id, val) => { document.getElementById(id).value = val ?? ''; };
+  set('bg-id', b?.id); document.getElementById('bg-id').disabled = !!b;
+  set('bg-category', b?.category ?? _bgData?.categories?.[0]);
+  set('bg-condition', b?.condition ?? 'max_depth');
+  set('bg-block', b?.blockId ?? 'pierre');
+  set('bg-threshold', b?.threshold ?? 100); set('bg-icon', b?.icon ?? '🏅'); set('bg-image', b?.image);
+  set('bg-visibility', b?.visibility ?? 'visible'); set('bg-status', b?.status ?? 'inactive');
+  set('bg-starts', b?.startsAt); set('bg-ends', b?.endsAt); set('bg-sort', b?.sort ?? 0);
+  for (const l of BG_LANGS) { set(`bg-${l}-name`, b?.names?.[l]); set(`bg-${l}-desc`, b?.descriptions?.[l]); }
+  document.getElementById('bg-preview').textContent = '';
+  bgToggleBlock();
+}
+
+function bgToggleBlock() {
+  document.getElementById('bg-block').disabled = document.getElementById('bg-condition').value !== 'blocks_of_type';
+}
+
+function bgError(data) {
+  return [data.error || 'Erreur.', ...(Array.isArray(data.details) ? data.details : [])].join(' ');
+}
+
+async function loadBadges() {
+  const { ok, data } = await api('GET', '/api/admin/badges');
+  if (!ok) { ptMessage('bg-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  _bgData = data;
+  document.getElementById('bg-activated').textContent = data.activatedAt ? new Date(data.activatedAt).toLocaleString('fr') : '—';
+  const cat = document.getElementById('bg-category');
+  if (!cat.options.length) {
+    for (const c of data.categories) { const o = document.createElement('option'); o.value = c; o.textContent = c; cat.appendChild(o); }
+  }
+  const blk = document.getElementById('bg-block');
+  const keep = blk.value;
+  blk.textContent = '';
+  for (const t of data.blockTypes) { const o = document.createElement('option'); o.value = t.id; o.textContent = `${t.icon} ${t.name} (${t.id})`; blk.appendChild(o); }
+  if (keep) blk.value = keep;
+  if (!_bgEditing && !document.getElementById('bg-id').value) bgFillForm(null);
+
+  const active = data.badges.filter(b => b.status === 'active').length;
+  document.getElementById('bg-summary').textContent =
+    `${data.badges.length} badge(s), dont ${active} actif(s) — ${data.playersTracked} joueur(s) suivi(s) depuis l'activation.`;
+  const tb = document.getElementById('bg-body');
+  tb.textContent = '';
+  if (!data.badges.length) tb.innerHTML = '<tr><td colspan="10" class="muted">Aucun badge.</td></tr>';
+  for (const b of data.badges) {
+    const tr = document.createElement('tr');
+    [b.sort, b.id, `${b.icon} ${b.names.fr}`, bgCondLabel(b)].forEach(x => addCell(tr, x));
+    const td = document.createElement('td'); td.appendChild(statusBadge(BG_STATUS[b.status] || b.status)); tr.appendChild(td);
+    addCell(tr, b.visibility === 'hidden' ? 'secret' : 'visible');
+    addCell(tr, b.startsAt || b.endsAt ? `${b.startsAt || '…'} → ${b.endsAt || '…'}` : 'permanent');
+    addCell(tr, b.earnedCount);
+    addButtonCell(tr, 'Modifier', () => { bgFillForm(b); document.getElementById('bg-form-title').scrollIntoView({ behavior: 'smooth' }); });
+    const next = b.status === 'active' ? 'inactive' : 'active';
+    const act = document.createElement('td');
+    const mk = (label, status, warn) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn-ghost';
+      btn.textContent = label;
+      btn.addEventListener('click', async () => {
+        if (warn && !confirm(warn)) return;
+        const r = await api('POST', `/api/admin/badges/${encodeURIComponent(b.id)}/status`, { status });
+        ptMessage('bg-msg', r.ok ? `Badge « ${b.id} » : ${BG_STATUS[status]}.` : bgError(r.data), r.ok);
+        loadBadges();
+      });
+      act.appendChild(btn);
+    };
+    mk(next === 'active' ? 'Activer' : 'Désactiver', next,
+      next === 'active' ? `Activer « ${b.id} » ? Les joueurs qui remplissent déjà la condition le recevront à leur prochaine sauvegarde.` : null);
+    if (b.status !== 'archived') mk('Archiver', 'archived', `Archiver « ${b.id} » ? Il ne pourra plus être obtenu ; ceux qui l'ont le gardent.`);
+    tr.appendChild(act);
+    tb.appendChild(tr);
+  }
+  loadBadgeAudit();
+}
+
+async function loadBadgeAudit() {
+  const { ok, data } = await api('GET', '/api/admin/badges/audit?limit=100');
+  const tb = document.getElementById('bg-audit-body');
+  tb.textContent = '';
+  if (!ok) return;
+  for (const a of data.entries) {
+    const tr = document.createElement('tr');
+    [a.createdAt, a.action, a.badgeId ?? '', a.details ? JSON.stringify(a.details).slice(0, 300) : ''].forEach(x => addCell(tr, x));
+    tb.appendChild(tr);
+  }
+}
+
+document.getElementById('bg-condition').addEventListener('change', bgToggleBlock);
+document.getElementById('btn-refresh-badges').addEventListener('click', loadBadges);
+document.getElementById('btn-bg-new').addEventListener('click', () => bgFillForm(null));
+document.getElementById('btn-bg-preview').addEventListener('click', async () => {
+  const { ok, data } = await api('POST', '/api/admin/badges/preview', bgReadForm());
+  const el = document.getElementById('bg-preview');
+  if (!ok) { el.textContent = ''; ptMessage('bg-msg', bgError(data), false); return; }
+  const b = data.badge;
+  el.textContent = `Aperçu : ${b.icon} « ${b.names.fr} » — ${b.descriptions.fr} — ${bgCondLabel(b)}. `
+    + `Joueurs suivis : ${data.playersTracked} ; rempliraient déjà la condition : ${data.wouldEarnNow} ; à mi-chemin : ${data.halfway}. ${data.note}`;
+  ptMessage('bg-msg', 'Badge valide.', true);
+});
+document.getElementById('btn-bg-save').addEventListener('click', async () => {
+  const body = bgReadForm();
+  if (body.status === 'active' && !confirm('Enregistrer ce badge comme ACTIF ? Il pourra être attribué dès la prochaine sauvegarde des joueurs.')) return;
+  const r = _bgEditing
+    ? await api('PUT', `/api/admin/badges/${encodeURIComponent(_bgEditing)}`, body)
+    : await api('POST', '/api/admin/badges', body);
+  if (!r.ok) { ptMessage('bg-msg', bgError(r.data), false); return; }
+  ptMessage('bg-msg', `Badge « ${r.data.badge.id} » enregistré.`, true);
+  bgFillForm(r.data.badge);
+  loadBadges();
 });
