@@ -54,7 +54,7 @@ la profondeur classée ne peut plus monter plus vite que ce que permettent les d
 | `server/rateLimits.js` | Limiteur `chest` (30/min/compte, `RATE_CHEST_MAX`) |
 | `public/js/main.js` | Télémétrie résumée jointe aux sauvegardes cloud (et à la sauvegarde de sortie), retirée du cumul après réception |
 | `public/admin/index.html`, `admin.js` | Onglet « Anti-bot », libellés de config, badge « budget de dégâts » |
-| `test/antibot.test.js` (nouveau) | 27 tests (voir § 5) |
+| `test/antibot.test.js` (nouveau) | 26 tests (voir § 5) |
 | `test/ranking-depth.test.js` | Scénarios de comptage #9 (un bloc par clic à toute profondeur, physiquement impossibles) lancés budget coupé ; le budget est testé à part avec la physique réelle |
 | `docs/ANTI-BOT.md` | § 10 : réalisation, chiffres recalculés, désactivation, limites |
 
