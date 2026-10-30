@@ -131,7 +131,7 @@
     <div id="view-season" class="view hidden"></div>
 
     <!-- ── Navigation bas ─────────────────────────────────────────────── -->
-    <nav id="bottom-nav" role="navigation" aria-label="Navigation principale">
+    <nav id="bottom-nav" role="navigation" aria-label="Navigation principale" data-i18n-aria="nav.main_aria">
 
       <button class="nav-btn active" data-view="dig"
         data-i18n-aria="nav.dig_aria" aria-label="Creuser">
@@ -195,7 +195,7 @@
       <div id="ad-mock-content">
         <div id="ad-mock-logo">⛏</div>
         <div id="ad-mock-title">DIG! — Edition Pro</div>
-        <div id="ad-mock-sub">Doublez tous vos gains !</div>
+        <div id="ad-mock-sub" data-i18n="ui.ad_mock_sub">Doublez tous vos gains !</div>
         <div id="ad-bar-wrap">
           <div id="ad-bar-fill"></div>
         </div>
@@ -259,8 +259,8 @@
 
   <!-- Bannière mise à jour (affichée par main.js si nouvelle version détectée) -->
   <div id="update-banner" hidden role="alert" aria-live="polite">
-    <span id="update-banner-text">Nouvelle version disponible</span>
-    <button id="update-banner-btn" onclick="location.reload()">↻ Recharger</button>
+    <span id="update-banner-text" data-i18n="ui.update_available">Mise à jour disponible</span>
+    <button id="update-banner-btn" onclick="location.reload()" data-i18n="ui.update_reload">↻ Recharger</button>
   </div>
 
   <script src="js/escapeHtml.js"></script>

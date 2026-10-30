@@ -78,7 +78,7 @@ const { SHOP_CHESTS, rollChest } = require('./chestShop');
 const { validateEconomyValue } = require('./economy');
 const security = require('./security');
 const { createRateLimiters } = require('./rateLimits');
-const { isValidEmail } = require('./validation');
+const { isValidEmail, intParam } = require('./validation');
 
 // Secrets : refus de démarrer en production sans SESSION_SECRET solide (#12)
 let SESSION_SECRET, ADMIN_SECRET;
@@ -430,7 +430,7 @@ app.get('/api/seasons/current', (req, res) => {
  */
 app.get('/api/seasons/active/leaderboard', (req, res) => {
   try {
-    const page     = Math.max(1, parseInt(req.query.page    ?? '1', 10));
+    const page     = intParam(req.query.page, { def: 1, min: 1 });
     const leagueId = req.query.league ? parseInt(req.query.league, 10) : null;
     if (req.query.league && isNaN(leagueId)) {
       return res.status(400).json({ error: 'Paramètre league invalide.' });
@@ -454,7 +454,7 @@ app.get('/api/seasons/:seasonId/leagues/:leagueId/leaderboard', (req, res) => {
   try {
     const seasonId = parseInt(req.params.seasonId, 10);
     const leagueId = parseInt(req.params.leagueId, 10);
-    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    const page     = intParam(req.query.page, { def: 1, min: 1 });
     if (isNaN(seasonId) || isNaN(leagueId)) {
       return res.status(400).json({ error: 'IDs invalides.' });
     }
@@ -472,7 +472,7 @@ app.get('/api/seasons/:seasonId/leagues/:leagueId/leaderboard', (req, res) => {
 app.get('/api/seasons/:id/leaderboard', (req, res) => {
   try {
     const seasonId = parseInt(req.params.id, 10);
-    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    const page     = intParam(req.query.page, { def: 1, min: 1 });
     if (isNaN(seasonId)) return res.status(400).json({ error: 'ID saison invalide.' });
     // rétrocompat : enveloppe { leaderboard: [...] } conservée
     const result = buildGlobalLeaderboard(seasonId, page);
@@ -613,10 +613,11 @@ app.post('/api/admin/seasons/:id/close', requireAdmin, (req, res) => {
 app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {
   try {
     const seasonId = parseInt(req.params.id, 10);
-    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    const page     = intParam(req.query.page, { def: 1, min: 1 });
+    if (isNaN(seasonId)) return res.status(400).json({ error: 'ID saison invalide.' });
     const result   = buildGlobalLeaderboard(seasonId, page, { admin: true });
     res.json({ leaderboard: result.leaderboard, page: result.page, total: result.total, totalPages: result.totalPages });
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) { console.error('[GET /api/admin/seasons/:id/leaderboard]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 /**
@@ -675,15 +676,15 @@ app.get('/api/admin/seasons/:seasonId/leagues/:leagueId/leaderboard', requireAdm
   try {
     const seasonId = parseInt(req.params.seasonId, 10);
     const leagueId = parseInt(req.params.leagueId, 10);
-    const page     = Math.max(1, parseInt(req.query.page ?? '1', 10));
+    const page     = intParam(req.query.page, { def: 1, min: 1 });
     if (isNaN(seasonId) || isNaN(leagueId)) return res.status(400).json({ error: 'IDs invalides.' });
     res.json(buildLeagueLeaderboard(seasonId, leagueId, page));
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) { console.error('[GET /api/admin/seasons/:seasonId/leagues/:leagueId/leaderboard]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 app.get('/api/admin/leagues', requireAdmin, (req, res) => {
   try { res.json({ leagues: getAllLeagues() }); }
-  catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  catch (err) { console.error('[GET /api/admin/leagues]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 app.post('/api/admin/leagues', requireAdmin, (req, res) => {
@@ -692,7 +693,7 @@ app.post('/api/admin/leagues', requireAdmin, (req, res) => {
     if (!name || rank_min == null) return res.status(400).json({ error: 'Champs name et rank_min requis.' });
     const league = createLeague(name, icon, level, rank_min, rank_max ?? null, sort_order);
     res.json({ league });
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) { console.error('[POST /api/admin/leagues]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 app.put('/api/admin/leagues/:id', requireAdmin, (req, res) => {
@@ -709,19 +710,19 @@ app.put('/api/admin/leagues/:id', requireAdmin, (req, res) => {
     if (!Object.keys(fields).length) return res.status(400).json({ error: 'Aucun champ à modifier.' });
     const league = updateLeague(id, fields);
     res.json({ league });
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) { console.error('[PUT /api/admin/leagues/:id]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 app.delete('/api/admin/leagues/:id', requireAdmin, (req, res) => {
   try {
     deleteLeague(parseInt(req.params.id, 10));
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) { console.error('[DELETE /api/admin/leagues/:id]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 app.get('/api/admin/config', requireAdmin, (req, res) => {
   try { res.json({ config: getAdminConfig() }); }
-  catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  catch (err) { console.error('[GET /api/admin/config]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 /**
@@ -731,8 +732,8 @@ app.get('/api/admin/config', requireAdmin, (req, res) => {
  */
 app.get('/api/admin/anticheat/logs', requireAdmin, (req, res) => {
   try {
-    const limit  = Math.min(500, Math.max(1, parseInt(req.query.limit  ?? '100', 10)));
-    const offset = Math.max(0, parseInt(req.query.offset ?? '0', 10));
+    const limit  = intParam(req.query.limit,  { def: 100, min: 1, max: 500 });
+    const offset = intParam(req.query.offset, { def: 0, min: 0 });
     const logs   = getAntiCheatLogs(limit, offset);
     const total  = countAntiCheatLogs();
     res.json({ logs, total, limit, offset });
@@ -751,7 +752,7 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
     if (checked.error) return res.status(400).json({ error: checked.error });
     setAdminConfig(key, checked.value);
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
+  } catch (err) { console.error('[PUT /api/admin/config]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 // ── Coffres achetables ────────────────────────────────────────────────────────
@@ -940,11 +941,34 @@ app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Route inconnue.' });
 });
 
+// Gestionnaire d'erreurs Express : un corps illisible (JSON invalide, encodage « br »
+// non pris en charge, corps trop gros…) donne une réponse 4xx JSON et UNE ligne de
+// journal, au lieu d'une pile complète dans journald (audit B11).
+app.use((err, req, res, next) => {
+  const code   = err.status ?? err.statusCode;
+  const status = Number.isInteger(code) && code >= 400 && code < 600 ? code : 500;
+  if (status < 500) {
+    console.warn(`[http] ${status} ${req.method} ${req.path} — ${err.type ?? err.name}: ${err.message}`);
+  } else {
+    console.error(`[http] ${status} ${req.method} ${req.path}`, err);
+  }
+  if (res.headersSent) return next(err);
+  const error = status === 413 ? 'Requête trop volumineuse.'
+              : status < 500   ? 'Requête invalide.'
+              : 'Erreur serveur.';
+  res.status(status).json({ error });
+});
+
 // ── Démarrage ─────────────────────────────────────────────────────────────────
 
-// Empêche le processus de mourir sur une exception non gérée
-process.on('uncaughtException',   (err) => console.error('[uncaughtException]', err));
-process.on('unhandledRejection',  (r)   => console.error('[unhandledRejection]', r));
+// Exception non gérée : l'état du processus n'est plus fiable. On journalise et on
+// quitte ; systemd (Restart=always) relance un processus sain (audit, risques P3).
+// Une promesse rejetée non gérée est seulement journalisée.
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException] arrêt du processus', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r));
 
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();

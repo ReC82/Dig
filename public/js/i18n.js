@@ -40,6 +40,7 @@ const I18n = (() => {
         dig_aria: 'Creuser', upgrades_aria: 'Améliorations',
         collection_aria: 'Collection', daily_aria: 'Récompense quotidienne',
         shop_aria: 'Boutique', season_aria: 'Saison',
+        main_aria: 'Navigation principale',
       },
       stats: {
         coins: 'Coins', gems: 'Gemmes', depth: 'Prof.',
@@ -156,6 +157,7 @@ const I18n = (() => {
         mission_progress:     '{done}\u202f/\u202f{target}',
         saved:                'Sauvegardé ✓',
         update_available: 'Mise à jour disponible',
+        ad_mock_sub:      'Doublez tous vos gains !',
         update_reload:    '↻ Recharger',
         block_aria:       'Creuser le bloc (Entrée ou Espace)',
         daily_title:          'Connexion quotidienne',
@@ -255,6 +257,7 @@ const I18n = (() => {
         leaderboard:    'Classement',
         your_stats:     'Vos stats',
         loading:        'Chargement…',
+        empty:          "Aucun joueur actif pour l'instant.",
         info: {
           toggle:      'ℹ️ Comment fonctionne la saison ?',
           intro:       'À la fin de chaque saison, coins, profondeur et améliorations sont remis à zéro. Gems, fragments, reliques et bonus permanents sont toujours conservés.',
@@ -281,6 +284,7 @@ const I18n = (() => {
         dig_aria: 'Dig', upgrades_aria: 'Upgrades',
         collection_aria: 'Collection', daily_aria: 'Daily reward',
         shop_aria: 'Shop', season_aria: 'Season',
+        main_aria: 'Main navigation',
       },
       stats: {
         coins: 'Coins', gems: 'Gems', depth: 'Depth',
@@ -397,6 +401,7 @@ const I18n = (() => {
         mission_progress:     '{done}\u202f/\u202f{target}',
         saved:                'Saved ✓',
         update_available: 'Update available',
+        ad_mock_sub:      'Double all your earnings!',
         update_reload:    '↻ Reload',
         block_aria:       'Dig the block (Enter or Space)',
         daily_title:          'Daily login',
@@ -436,6 +441,11 @@ const I18n = (() => {
         shop_chest_limit_reached:  'Limit reached',
         shop_chest_opened:         '{name} opened!',
         shop_chest_error:          'Error opening chest.',
+      },
+      shop_chest: {
+        simple:  { name: 'Simple chest',  desc: 'Coins, fragments or a boost — small guaranteed rewards.' },
+        rare:    { name: 'Rare chest',    desc: 'Better odds of fragments and a collectible item.' },
+        antique: { name: 'Antique chest', desc: 'Possible fragment jackpot. Limited to 5 openings per season.' },
       },
       notif: {
         ad_bonus:        '+{amount} 💰 ad bonus!',
@@ -491,6 +501,7 @@ const I18n = (() => {
         leaderboard:    'Leaderboard',
         your_stats:     'Your stats',
         loading:        'Loading…',
+        empty:          'No active players yet.',
         info: {
           toggle:      'ℹ️ How does the season work?',
           intro:       'At the end of each season, coins, depth and upgrades are reset. Gems, fragments, relics and permanent bonuses are always kept.',
@@ -517,6 +528,7 @@ const I18n = (() => {
         dig_aria: 'Graven', upgrades_aria: 'Verbeteringen',
         collection_aria: 'Collectie', daily_aria: 'Dagelijkse beloning',
         shop_aria: 'Winkel', season_aria: 'Seizoen',
+        main_aria: 'Hoofdnavigatie',
       },
       stats: {
         coins: 'Munten', gems: 'Edelst.', depth: 'Diepte',
@@ -633,6 +645,7 @@ const I18n = (() => {
         mission_progress:     '{done}\u202f/\u202f{target}',
         saved:                'Opgeslagen ✓',
         update_available: 'Update beschikbaar',
+        ad_mock_sub:      'Verdubbel al je winst!',
         update_reload:    '↻ Herladen',
         block_aria:       'Blok uitgraven (Enter of Spatie)',
         daily_title:          'Dagelijkse aanmelding',
@@ -672,6 +685,11 @@ const I18n = (() => {
         shop_chest_limit_reached:  'Limiet bereikt',
         shop_chest_opened:         '{name} geopend!',
         shop_chest_error:          'Fout bij openen van kist.',
+      },
+      shop_chest: {
+        simple:  { name: 'Eenvoudige kist', desc: 'Coins, fragmenten of een boost — kleine gegarandeerde beloningen.' },
+        rare:    { name: 'Zeldzame kist',   desc: 'Grotere kans op fragmenten en een verzamelobject.' },
+        antique: { name: 'Antieke kist',    desc: 'Mogelijke fragmentenjackpot. Beperkt tot 5 keer openen per seizoen.' },
       },
       notif: {
         ad_bonus:        '+{amount} 💰 advertentiebonus!',
@@ -727,6 +745,7 @@ const I18n = (() => {
         leaderboard:    'Klassement',
         your_stats:     'Jouw stats',
         loading:        'Laden…',
+        empty:          'Nog geen actieve spelers.',
         info: {
           toggle:      'ℹ️ Hoe werkt het seizoen?',
           intro:       'Aan het einde van elk seizoen worden munten, diepte en verbeteringen gereset. Edelstenen, fragmenten, relikwieën en permanente bonussen blijven altijd bewaard.',
