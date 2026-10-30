@@ -346,3 +346,17 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   header h1 { font-size: 0.95rem; }
   .btn { padding: 6px 12px; font-size: 0.8rem; }
 }
+
+/* ── Concours (#30) ── */
+.contest-banner { padding: 10px 14px; border-radius: var(--radius); margin-bottom: 16px; font-size: 0.85rem; border: 1px solid var(--border); }
+.contest-banner--locked { background: rgba(251,191,36,0.08); border-color: var(--gold); color: var(--gold); }
+.contest-banner--open   { background: rgba(239,68,68,0.10);  border-color: var(--red);  color: var(--red); }
+.contest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
+.contest-wide { grid-column: 1 / -1; }
+.contest-check { flex-direction: row; align-items: center; gap: 8px; }
+.contest-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.badge-designated, .badge-contacted, .badge-identity_verified { color: var(--gold); font-weight: 600; font-size: 0.78rem; }
+.badge-sent, .badge-confirmed { color: var(--green); font-weight: 600; font-size: 0.78rem; }
+.badge-expired { color: var(--muted); font-size: 0.78rem; }
+.contest-overdue { color: var(--red); font-weight: 600; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }

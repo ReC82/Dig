@@ -90,6 +90,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'season-overview') { loadSeasonOverview(); loadAntiCheatLogs(); }
     if (btn.dataset.tab === 'economy')         loadEconomy();
     if (btn.dataset.tab === 'security')        loadSecurity();
+    if (btn.dataset.tab === 'contest')         loadContest();
   });
 });
 
@@ -828,3 +829,291 @@ async function loadSecurity() {
 
 document.getElementById('btn-refresh-sec').addEventListener('click', loadSecurity);
 document.getElementById('sec-filter-type').addEventListener('change', loadSecurity);
+
+// ── Concours au mérite (#30) ──────────────────────────────────────────────────
+
+const CT_STATUS = {
+  designated: 'Désigné', contacted: 'Contacté', identity_verified: 'Identité vérifiée',
+  sent: 'Lot envoyé', confirmed: 'Confirmé', expired: 'Expiré',
+};
+const CT_REASON = {
+  depth_zero: 'profondeur nulle', account_deleted: 'compte supprimé', not_eligible: 'non éligible',
+  below_min_depth: 'sous la profondeur minimale', risk_level: 'risque anti-bot trop élevé',
+  admin_excluded: 'exclu par l\'admin', cooldown: 'a gagné récemment',
+};
+const CT_BLOCKER = {
+  season_not_frozen: 'saison pas encore close et figée (aperçu indicatif sur le classement vivant)',
+  snapshot_verification_failed: 'vérification des empreintes du classement figé en échec',
+  outside_calendar: 'saison hors du calendrier du concours',
+  already_attributed: 'lots déjà attribués pour cette saison et ce mode',
+  real_prizes_locked: 'cadeaux réels verrouillés (CONTEST_REAL_PRIZES)',
+  contest_disabled: 'concours désactivé',
+  insufficient_stock: 'stock de lots insuffisant',
+};
+
+let _ctPreview = null;
+
+/** Message de résultat sous un formulaire (texte brut). */
+function ctMessage(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = ok ? 'success' : 'error';
+}
+
+const ctDateInput = v => (v ? v.replace(' ', 'T').slice(0, 16) : '');
+const ctDateValue = v => (v ? `${v.replace('T', ' ')}:00` : null);
+const ctPrize = p => (p && p.label ? `${p.label} ${(p.valueCents / 100).toFixed(2)} ${p.currency}` : '');
+
+async function loadContest() {
+  const { ok, data } = await api('GET', '/api/admin/contest');
+  if (!ok) { ctMessage('ct-settings-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  const s = data.settings;
+
+  const lock = document.getElementById('ct-lock');
+  lock.className = `contest-banner contest-banner--${s.realPrizesUnlocked ? 'open' : 'locked'}`;
+  lock.textContent = s.realPrizesUnlocked
+    ? '⚠ Cadeaux réels DÉVERROUILLÉS sur ce serveur (CONTEST_REAL_PRIZES=on).'
+    : `🔒 Simulation uniquement : cadeaux réels verrouillés. Concours ${s.enabled ? 'actif' : 'inactif'}.`;
+
+  document.getElementById('ct-enabled').checked = s.enabled;
+  document.getElementById('ct-title').value = s.title;
+  document.getElementById('ct-description').value = s.description;
+  document.getElementById('ct-prize-label').value = s.prize.label;
+  document.getElementById('ct-prize-provider').value = s.prize.provider;
+  document.getElementById('ct-prize-value').value = (s.prize.valueCents / 100).toFixed(2);
+  document.getElementById('ct-prize-currency').value = s.prize.currency;
+  document.getElementById('ct-prize-stock').value = s.prize.stock;
+  document.getElementById('ct-lots').value = s.lotsPerSeason;
+  document.getElementById('ct-starts').value = ctDateInput(s.startsAt);
+  document.getElementById('ct-ends').value = ctDateInput(s.endsAt);
+  document.getElementById('ct-min-depth').value = s.minDepth;
+  document.getElementById('ct-max-risk').value = s.maxRiskLevel === null ? '' : String(s.maxRiskLevel);
+  document.getElementById('ct-cooldown').value = s.cooldownSeasons;
+  document.getElementById('ct-claim-days').value = s.claimDays;
+  const re = s.realEligibility || {};
+  document.getElementById('ct-re-countries').value = (re.countries || []).join(', ');
+  document.getElementById('ct-re-min-age').value = re.minAge ?? '';
+  document.getElementById('ct-re-parental').checked = !!re.parentalConsent;
+  document.getElementById('ct-re-provider').value = re.provider || '';
+  document.getElementById('ct-re-notes').value = re.notes || '';
+
+  const sel = document.getElementById('ct-season');
+  const keep = sel.value;
+  sel.textContent = '';
+  for (const se of data.seasons) {
+    const opt = document.createElement('option');
+    opt.value = se.id;
+    const tags = [se.status, se.frozen ? 'figée' : 'non figée'];
+    if (se.simulationWinners) tags.push(`${se.simulationWinners} lot(s) simulé(s)`);
+    if (se.realWinners) tags.push(`${se.realWinners} lot(s) réel(s)`);
+    opt.textContent = `${se.name} (${tags.join(', ')})`;
+    sel.appendChild(opt);
+  }
+  if (keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+
+  await Promise.all([loadContestPreview(), loadContestWinners(), loadContestAudit()]);
+}
+
+async function saveContestSettings() {
+  const num = id => {
+    const v = document.getElementById(id).value.trim();
+    return v === '' ? null : Number(v);
+  };
+  const body = {
+    enabled:         document.getElementById('ct-enabled').checked,
+    title:           document.getElementById('ct-title').value,
+    description:     document.getElementById('ct-description').value,
+    prizeLabel:      document.getElementById('ct-prize-label').value,
+    prizeProvider:   document.getElementById('ct-prize-provider').value,
+    prizeValueCents: Math.round((num('ct-prize-value') ?? 0) * 100),
+    prizeCurrency:   document.getElementById('ct-prize-currency').value.trim().toUpperCase(),
+    prizeStock:      num('ct-prize-stock'),
+    lotsPerSeason:   num('ct-lots'),
+    startsAt:        ctDateValue(document.getElementById('ct-starts').value),
+    endsAt:          ctDateValue(document.getElementById('ct-ends').value),
+    minDepth:        num('ct-min-depth'),
+    maxRiskLevel:    num('ct-max-risk'),
+    cooldownSeasons: num('ct-cooldown'),
+    claimDays:       num('ct-claim-days'),
+    realEligibility: {
+      countries:       document.getElementById('ct-re-countries').value.split(',').map(c => c.trim().toUpperCase()).filter(Boolean),
+      minAge:          num('ct-re-min-age'),
+      parentalConsent: document.getElementById('ct-re-parental').checked,
+      provider:        document.getElementById('ct-re-provider').value,
+      notes:           document.getElementById('ct-re-notes').value,
+    },
+  };
+  const { ok, data } = await api('PUT', '/api/admin/contest/settings', body);
+  ctMessage('ct-settings-msg', ok ? 'Réglages enregistrés.' : (data.error || 'Erreur.'), ok);
+  if (ok) loadContest();
+}
+
+async function loadContestPreview() {
+  const seasonId = document.getElementById('ct-season').value;
+  const mode = document.getElementById('ct-mode').value;
+  const info = document.getElementById('ct-preview-info');
+  const tbody = document.getElementById('ct-preview-body');
+  const btn = document.getElementById('btn-ct-attribute');
+  btn.disabled = true;
+  _ctPreview = null;
+  info.textContent = '';
+  if (!seasonId) { tbody.innerHTML = '<tr><td colspan="9" class="muted">Aucune saison.</td></tr>'; return; }
+  const { ok, data } = await api('GET', `/api/admin/contest/seasons/${encodeURIComponent(seasonId)}/preview?mode=${encodeURIComponent(mode)}`);
+  tbody.innerHTML = '';
+  if (!ok) { tbody.innerHTML = '<tr><td colspan="9" class="error">Erreur lors du chargement.</td></tr>'; return; }
+  _ctPreview = data;
+
+  const lines = [
+    `${data.season.name} — ${data.season.startAt} → ${data.season.endAt} (UTC) — source : ${data.source === 'snapshot' ? 'classement figé' : 'classement vivant'}`,
+    data.snapshot ? `Empreinte du classement figé : ${data.snapshot.hash}` : 'Pas encore de classement figé.',
+    `${data.counts.participants} participant(s), ${data.counts.eligible} éligible(s) au concours, ${data.counts.lots} lot(s) à attribuer (${data.criteria.lotsPerSeason} prévu(s)).`,
+  ];
+  for (const b of data.blockers) lines.push(`⛔ ${CT_BLOCKER[b] || b}`);
+  if (!data.blockers.length && data.attributable) lines.push(`✅ Attribution possible en mode ${data.mode === 'real' ? 'RÉEL' : 'simulation'}.`);
+  for (const l of lines) {
+    const p = document.createElement('p');
+    p.className = l.startsWith('⛔') ? 'error' : 'muted';
+    p.style.fontSize = '0.8rem';
+    p.textContent = l;
+    info.appendChild(p);
+  }
+
+  if (!data.participants.length) tbody.innerHTML = '<tr><td colspan="9" class="muted">Aucun participant.</td></tr>';
+  for (const x of data.participants) {
+    const tr = document.createElement('tr');
+    addCell(tr, x.position);
+    addCell(tr, x.rank ?? '—');
+    addCell(tr, x.username ?? `#${x.userId}`);
+    addCell(tr, `${x.maxDepth} m`);
+    addCell(tr, x.manualBlocks);
+    addCell(tr, `N${x.riskLevel}`);
+    const why = x.reason ? (CT_REASON[x.reason] || x.reason) : 'éligible';
+    addCell(tr, x.exclusion ? `${why} : ${x.exclusion}` : why).className = x.reason ? 'muted' : '';
+    addCell(tr, x.lotNo ? `🎁 lot ${x.lotNo}` : '');
+    if (data.source !== 'snapshot') addCell(tr, '');
+    else if (x.reason === 'admin_excluded') addButtonCell(tr, 'Réintégrer', () => contestUnexclude(x));
+    else addButtonCell(tr, 'Exclure', () => contestExclude(x));
+    tbody.appendChild(tr);
+  }
+  btn.disabled = !data.attributable;
+  btn.textContent = data.mode === 'real' ? 'Attribuer les lots RÉELS' : 'Attribuer les lots (simulation)';
+}
+
+async function contestExclude(x) {
+  const reason = prompt(`Motif de l'exclusion de ${x.username ?? '#' + x.userId} pour cette saison (journalisé) :`);
+  if (!reason) return;
+  const { ok, data } = await api('POST', `/api/admin/contest/seasons/${_ctPreview.season.id}/exclusions`, { userId: x.userId, reason });
+  if (!ok) { alert(data.error || 'Erreur.'); return; }
+  loadContestPreview();
+  loadContestAudit();
+}
+
+async function contestUnexclude(x) {
+  if (!confirm(`Réintégrer ${x.username ?? '#' + x.userId} ?`)) return;
+  const { ok, data } = await api('DELETE', `/api/admin/contest/seasons/${_ctPreview.season.id}/exclusions/${x.userId}`);
+  if (!ok) { alert(data.error || 'Erreur.'); return; }
+  loadContestPreview();
+  loadContestAudit();
+}
+
+async function contestAttribute() {
+  if (!_ctPreview || !_ctPreview.attributable) return;
+  const p = _ctPreview;
+  const names = p.participants.filter(x => x.lotNo).map(x => x.username ?? `#${x.userId}`).join(', ');
+  if (!confirm(`Attribuer ${p.counts.lots} lot(s) (${p.mode}) pour ${p.season.name} à : ${names} ?\nDéfinitif : une saison ne peut pas être attribuée deux fois.`)) return;
+  const { ok, data } = await api('POST', `/api/admin/contest/seasons/${p.season.id}/attribute`, { mode: p.mode });
+  ctMessage('ct-attr-msg', ok ? `${data.winners.length} lot(s) attribué(s).` : (data.error || 'Erreur.'), ok);
+  loadContest();
+}
+
+async function loadContestWinners() {
+  const mode = document.getElementById('ct-winners-mode').value;
+  const { ok, data } = await api('GET', '/api/admin/contest/winners' + (mode ? `?mode=${encodeURIComponent(mode)}` : ''));
+  const tbody = document.getElementById('ct-winners-body');
+  tbody.innerHTML = '';
+  if (!ok) { tbody.innerHTML = '<tr><td colspan="8" class="error">Erreur lors du chargement.</td></tr>'; return; }
+  if (!data.winners.length) tbody.innerHTML = '<tr><td colspan="8" class="muted">Aucun gagnant.</td></tr>';
+  for (const w of data.winners) {
+    const tr = document.createElement('tr');
+    addCell(tr, w.seasonName ?? `#${w.seasonId}`);
+    addCell(tr, w.mode === 'real' ? 'Réel' : 'Simulation');
+    addCell(tr, `${w.lotNo} — ${ctPrize(w.prize)}`);
+    addCell(tr, w.username ?? `#${w.userId}`);
+    addCell(tr, `${w.rank} / ${w.maxDepth} m`);
+    const st = addCell(tr, '');
+    const badge = statusBadge(w.status);
+    badge.textContent = CT_STATUS[w.status] || w.status;
+    st.appendChild(badge);
+    const due = addCell(tr, w.overdue ? `⚠ ${w.expiresAt}` : w.expiresAt);
+    if (w.overdue) due.className = 'contest-overdue';
+    const td = document.createElement('td');
+    const box = document.createElement('div');
+    box.className = 'contest-actions';
+    for (const to of w.next) {
+      const b = document.createElement('button');
+      b.className = to === 'expired' ? 'btn-ghost contest-overdue' : 'btn-ghost';
+      b.textContent = `→ ${CT_STATUS[to] || to}`;
+      b.addEventListener('click', () => contestTransition(w, to));
+      box.appendChild(b);
+    }
+    for (const [label, fn] of [['Coordonnées', () => contestContact(w)], ['Journal', () => loadContestAudit(w.id)]]) {
+      const b = document.createElement('button');
+      b.className = 'btn-ghost';
+      b.textContent = label;
+      b.addEventListener('click', fn);
+      box.appendChild(b);
+    }
+    td.appendChild(box);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+async function contestTransition(w, to) {
+  const note = prompt(`${w.username ?? '#' + w.userId} : ${CT_STATUS[w.status]} → ${CT_STATUS[to]}\nNote facultative (jamais d'e-mail ni de code cadeau) :`, '');
+  if (note === null) return;
+  const { ok, data } = await api('POST', `/api/admin/contest/winners/${w.id}/status`, { status: to, note });
+  if (!ok) { alert(data.error || 'Erreur.'); return; }
+  loadContestWinners();
+  loadContestAudit();
+}
+
+async function contestContact(w) {
+  if (!confirm(`Afficher l'adresse e-mail de ${w.username ?? '#' + w.userId} ? La consultation est journalisée.`)) return;
+  const { ok, data } = await api('POST', `/api/admin/contest/winners/${w.id}/contact`, {});
+  const el = document.getElementById('ct-contact');
+  el.className = ok ? 'muted' : 'error';
+  el.textContent = !ok ? (data.error || 'Erreur.')
+    : !data.accountExists ? `${w.username ?? '#' + w.userId} : compte supprimé, aucun contact possible.`
+    : `${data.username} : ${data.email || 'aucune adresse e-mail'}${data.email ? (data.emailVerified ? ' (vérifiée)' : ' (NON vérifiée)') : ''}`;
+  loadContestAudit();
+}
+
+async function loadContestAudit(winnerId) {
+  const q = winnerId ? `?winnerId=${encodeURIComponent(winnerId)}` : '';
+  const { ok, data } = await api('GET', `/api/admin/contest/audit${q}`);
+  const tbody = document.getElementById('ct-audit-body');
+  tbody.innerHTML = '';
+  if (!ok) { tbody.innerHTML = '<tr><td colspan="6" class="error">Erreur lors du chargement.</td></tr>'; return; }
+  document.getElementById('ct-audit-total').textContent =
+    `${data.total} événement(s)${winnerId ? ` pour le gagnant #${winnerId}` : ''} — ${data.events.length} affiché(s)`;
+  if (!data.events.length) tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucun événement.</td></tr>';
+  for (const e of data.events) {
+    const tr = document.createElement('tr');
+    addCell(tr, e.createdAt).className = 'muted';
+    addCell(tr, e.action);
+    addCell(tr, e.seasonId ?? '');
+    addCell(tr, e.winnerId ?? '');
+    addCell(tr, e.to ? `${e.from ? (CT_STATUS[e.from] || e.from) + ' → ' : ''}${CT_STATUS[e.to] || e.to}` : '');
+    addCell(tr, e.details ? JSON.stringify(e.details) : '').style.fontSize = '0.75rem';
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById('btn-refresh-contest').addEventListener('click', loadContest);
+document.getElementById('btn-save-contest').addEventListener('click', saveContestSettings);
+document.getElementById('btn-ct-preview').addEventListener('click', loadContestPreview);
+document.getElementById('ct-season').addEventListener('change', loadContestPreview);
+document.getElementById('ct-mode').addEventListener('change', loadContestPreview);
+document.getElementById('btn-ct-attribute').addEventListener('click', contestAttribute);
+document.getElementById('ct-winners-mode').addEventListener('change', loadContestWinners);
