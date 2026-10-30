@@ -2844,3 +2844,34 @@ header {
   .shop-item { flex-wrap: wrap; }
   .shop-item-buy { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
 }
+
+/* ── Saison : résultat figé, règles du mérite, accès boutique, erreurs (#31) ── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.last-card {
+  background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(56,189,248,0.04));
+  border-color: rgba(56,189,248,0.3);
+}
+.last-card .points-title { color: #7dd3fc; font-size: inherit; margin: 0; }
+.last-podium { counter-reset: none; }
+.last-podium li.last-me { font-weight: 700; color: var(--gold); }
+.last-mine { font-weight: 600; }
+.last-hash { word-break: break-all; font-size: 0.72rem; color: var(--text); }
+.last-proof a { color: #7dd3fc; }
+.points-shop-link {
+  align-self: flex-start; min-height: 36px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  background: rgba(252,211,77,0.12); border: 1px solid rgba(252,211,77,0.4); color: #fcd34d; font: inherit;
+}
+.points-shop-link:focus-visible, .season-retry-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.season-merit-list { margin-top: 4px; }
+.season-merit-list li { margin-bottom: 4px; }
+.season-error {
+  text-align: center; color: #fca5a5; font-size: 0.85rem; padding: 12px 14px; margin: 0 0 12px;
+  background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.3); border-radius: 10px;
+}
+.season-retry-btn {
+  margin-left: 8px; min-height: 36px; padding: 4px 12px; border-radius: 8px; cursor: pointer;
+  background: rgba(255,255,255,0.08); border: 1px solid var(--border); color: var(--text); font: inherit;
+}
