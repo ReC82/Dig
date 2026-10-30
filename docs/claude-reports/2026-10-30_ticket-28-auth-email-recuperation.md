@@ -3,6 +3,57 @@
 - Ticket : https://github.com/ReC82/Dig/issues/28
 - Session du 30/10/2026 (DIGORCH)
 
+## Session 4 (30/10/2026) — recettes validées, Google/Auth0 reporté après #22
+
+### État réel
+
+**Déployé en production (`c23f521`, aujourd'hui inclus dans `ea23431`) — recettes validées par
+le propriétaire.** Aucune modification de code dans cette session : seul ce rapport change.
+
+### Retours du propriétaire pris en compte
+
+- **Validé en jeu :** étape 1 (adresse et statut « Adresse non vérifiée »), étape 2 (changement de
+  mot de passe), étape 3 (déconnexion, reconnexion avec le nouveau mot de passe, progression
+  intacte) et **la correction de la touche Entrée sur PC** (`c23f521`). Ces tests ne seront plus
+  redemandés.
+- **Décision : architecture A autorisée** — Auth0 Free (tenant UE), Google d'abord, en complément
+  de la connexion classique qui reste intégralement fonctionnelle. Exigences notées : base DIG!
+  source de vérité ; liaison Google ↔ compte DIG! explicite, avec preuve de possession des deux
+  identités (jamais sur la seule égalité d'adresse) ; une identité sociale liée à un seul compte ;
+  aucune fusion de progressions ; sessions classiques conservées ; tests OIDC locaux ; feature
+  flag `SOCIAL_LOGIN=off` (désactivé en production jusqu'à la recette de liaison) ; pas d'achat,
+  pas de création de tenant ni de saisie de secrets à la place du propriétaire ; Apple plus tard.
+- **Priorité :** terminer et présenter la planche d'images des blocs du **#22** avant de reprendre
+  les travaux non critiques du #28.
+
+### Décision de cette session
+
+Le développement Google/Auth0 n'est **pas commencé** maintenant, conformément à la priorité donnée.
+Le ticket est rendu au superviseur avec la dépendance **#22** : il reprendra dès que la planche du
+#22 aura été présentée. Prochaine session #28 : implémentation de l'architecture A derrière
+`SOCIAL_LOGIN=off` (code dormant déployable), tests OIDC avec un fournisseur simulé local, et
+procédure courte de création du tenant Auth0 Free (UE) + client Google OAuth pour le propriétaire.
+
+### Test fonctionnel à faire par le propriétaire
+
+Aucun nouveau test sur ce qui est déployé. Restent, après configuration du SMTP du jeu dans
+`/etc/dig/dig.env` : « Vérifier mon adresse » (lien reçu → « Adresse vérifiée ») et « Mot de passe
+oublié » (lien reçu → nouveau mot de passe → connexion).
+
+### Classement MVP
+
+- SMTP du jeu (configuration par le propriétaire) : **Bloquant MVP public.**
+- Connexion Google via Auth0 Free : **Après lancement** (autorisée, après #22).
+
+### Décisions demandées au propriétaire
+
+1. **SMTP du jeu** : configurer les variables dans `/etc/dig/dig.env` (voir § 6 de
+   `docs/AUTH-COMPARATIF.md`). Recommandé : un service d'envoi (Brevo/Mailjet) ou la boîte du
+   domaine, avec SPF/DKIM.
+2. **Concours (#30/#31)** : exiger une adresse vérifiée pour participer. Recommandé : oui.
+
+Les questions d'architecture (A/B), d'Apple et de tenant sont **tranchées** par le propriétaire.
+
 ## Session 3 (30/10/2026) — touche Entrée dans les formulaires du compte
 
 ### 1. État réel
