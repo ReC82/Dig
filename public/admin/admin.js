@@ -249,7 +249,13 @@ document.getElementById('btn-refresh-lb').addEventListener('click', loadLeaderbo
 const CONFIG_LABELS = {
   gems_cap:                     'Plafond de gems en fin de saison',
   cps_limit:                    'CPS max (alias, voir max_effective_cps)',
-  season_duration:              'Durée par défaut d\'une saison (jours)',
+  season_duration:              'Inutilisé — saisons hebdomadaires lundi → dimanche UTC (#16)',
+  upgrade_cost_multiplier:      '× coût en pièces des améliorations (0.1–10)',
+  coin_gain_multiplier:         '× pièces gagnées par bloc et hors ligne (0.1–10)',
+  fragment_drop_multiplier:     '× fragments des coffres de la boutique (0.1–10)',
+  chest_cost_simple:            'Coût du coffre simple (pièces)',
+  chest_cost_rare:              'Coût du coffre rare (pièces)',
+  chest_cost_antique:           'Coût du coffre antique (pièces)',
   max_effective_cps:            'Clics/s max avant exclusion du classement',
   promotion_rate:               'Taux de promotion entre ligues (0–1)',
   difficulty_coefficient:       'Coefficient de difficulté par ligue',
@@ -288,9 +294,12 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
   const inputs = document.querySelectorAll('.config-value[data-key]');
   const msgEl  = document.getElementById('config-msg');
   msgEl.classList.add('hidden');
+  const errors = [];
   for (const input of inputs) {
-    await api('PUT', '/api/admin/config', { key: input.dataset.key, value: input.value });
+    const { ok, data } = await api('PUT', '/api/admin/config', { key: input.dataset.key, value: input.value });
+    if (!ok) errors.push(data.error ?? `Erreur pour "${input.dataset.key}".`);
   }
+  if (errors.length) { alert(errors.join('\n')); return; }
   msgEl.classList.remove('hidden');
   setTimeout(() => msgEl.classList.add('hidden'), 3000);
 });
@@ -301,7 +310,6 @@ let _overviewSeasonId = null;
 
 // Paramètres affichés dans la section (sous-ensemble de la config)
 const SEASON_PARAMS = [
-  { key: 'season_duration',               label: 'Durée d\'une saison (jours)',           type: 'number', min: 1 },
   { key: 'promotion_rate',                label: 'Taux de promotion entre ligues (0–1)',   type: 'number', min: 0, max: 1, step: 0.01 },
   { key: 'difficulty_coefficient',        label: 'Coefficient de difficulté par ligue',    type: 'number', min: 0, step: 0.01 },
   { key: 'min_active_players_per_league', label: 'Joueurs actifs min par ligue',           type: 'number', min: 1 },

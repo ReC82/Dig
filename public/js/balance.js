@@ -68,7 +68,8 @@ const Balance = {
 
   // ── Coffres achetables (coin sinks, récompenses aléatoires côté serveur) ───
   // Les probabilités réelles vivent dans server/chestShop.js.
-  // Ce tableau n'est utilisé que pour l'affichage UI (coût, icône, limite).
+  // Ce tableau n'est utilisé que pour l'affichage UI (coût, icône, limite) ;
+  // `cost` est remplacé par le coût réglé dans l'admin (applyEconomy).
   SHOP_CHESTS: [
     {
       id:           'simple',
@@ -95,4 +96,43 @@ const Balance = {
       maxPerSeason:  5,
     },
   ],
+
+  // ── Paramètres réglables dans l'admin (ticket #20) ────────────────────────
+  // Reçus de GET /api/seasons/current (config.economy) au chargement puis toutes les 5 min.
+  // Valeurs neutres tant que le serveur n'a pas répondu (hors ligne : jeu inchangé).
+  economy: {
+    upgradeCostMultiplier:  1,
+    coinGainMultiplier:     1,
+    fragmentDropMultiplier: 1,
+  },
+
+  /**
+   * Applique les paramètres économiques envoyés par le serveur.
+   * Les valeurs absentes ou invalides sont ignorées (la valeur courante est conservée).
+   * @returns {boolean} true si un paramètre a changé (l'interface doit être redessinée)
+   */
+  applyEconomy(eco) {
+    if (!eco || typeof eco !== 'object') return false;
+    let changed = false;
+    const valid = v => typeof v === 'number' && Number.isFinite(v) && v > 0;
+    for (const key of ['upgradeCostMultiplier', 'coinGainMultiplier', 'fragmentDropMultiplier']) {
+      if (valid(eco[key]) && eco[key] !== this.economy[key]) {
+        this.economy[key] = eco[key];
+        changed = true;
+      }
+    }
+    for (const chest of this.SHOP_CHESTS) {
+      const cost = eco.chestCosts?.[chest.id];
+      if (valid(cost) && Number.isInteger(cost) && cost !== chest.cost) {
+        chest.cost = cost;
+        changed = true;
+      }
+    }
+    return changed;
+  },
+
+  /** Coût en pièces d'une amélioration après le multiplicateur admin (arrondi supérieur). */
+  scaleUpgradeCoins(coins) {
+    return coins > 0 ? Math.ceil(coins * this.economy.upgradeCostMultiplier) : coins;
+  },
 };

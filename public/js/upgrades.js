@@ -101,9 +101,11 @@ const Upgrades = {
     return GameState.upgrades[id] ?? 0;
   },
 
+  /** Coût du prochain niveau, multiplicateur admin upgrade_cost_multiplier inclus (#20). */
   getCost(id) {
     const def = this.DEFS.find(d => d.id === id);
-    return def ? def.getCost(this.getLevel(id)) : null;
+    const cost = def ? def.getCost(this.getLevel(id)) : null;
+    return cost ? { ...cost, coins: Balance.scaleUpgradeCoins(cost.coins) } : null;
   },
 
   canAfford(id) {
@@ -138,8 +140,10 @@ const Upgrades = {
     return true;
   },
 
+  /** Multiplicateur des pièces des blocs : sac × relique × coin_gain_multiplier (admin, #20). */
   getRewardMultiplier() {
-    return (1 + GameState.upgrades.bag * 0.3) * (1 + (GameState.relicBonuses?.coinsPct ?? 0));
+    return (1 + GameState.upgrades.bag * 0.3) * (1 + (GameState.relicBonuses?.coinsPct ?? 0))
+      * Balance.economy.coinGainMultiplier;
   },
 
   getAutoDigDamage() {

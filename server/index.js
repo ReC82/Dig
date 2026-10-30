@@ -75,6 +75,7 @@ const {
 const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
 
 const { SHOP_CHESTS, rollChest } = require('./chestShop');
+const { validateEconomyValue } = require('./economy');
 const security = require('./security');
 const { createRateLimiters } = require('./rateLimits');
 const { isValidEmail } = require('./validation');
@@ -722,7 +723,10 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
   try {
     const { key, value } = req.body ?? {};
     if (!key || value == null) return res.status(400).json({ error: 'Champs key et value requis.' });
-    setAdminConfig(key, value);
+    // Paramètres économiques bornés (#20) : appliqués en jeu sans redéploiement.
+    const checked = validateEconomyValue(key, value);
+    if (checked.error) return res.status(400).json({ error: checked.error });
+    setAdminConfig(key, checked.value);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: 'Erreur serveur.' }); }
 });
@@ -735,7 +739,7 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
  *
  * Valide le coût côté serveur, tire la récompense et met à jour la sauvegarde.
  * Le client ne peut pas influencer le tirage ni falsifier le coût.
- * Retourne : { ok, reward, boughtThisSeason, newCoins, newRelicFragments }
+ * Retourne : { ok, reward, boughtThisSeason, cost, newCoins, newRelicFragments }
  */
 app.post('/api/me/shop/chest/open', (req, res) => {
   try {
@@ -774,6 +778,7 @@ app.post('/api/me/shop/chest/open', (req, res) => {
       revision,
       reward:            result.reward,
       boughtThisSeason:  result.boughtThisSeason,
+      cost:              result.cost,
       newCoins:          data.coins,
       newRelicFragments: data.relicFragments ?? 0,
     });
