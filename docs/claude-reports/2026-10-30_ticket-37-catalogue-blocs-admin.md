@@ -4,6 +4,105 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 31/10/2026, 18 h (Bruxelles) — tri sur toutes les colonnes, aperçu agrandi, fiche par clic sur la ligne
+
+Suite à la recette du propriétaire du 31/10 (commentaire 16:25 UTC) : tri par profondeur **validé**, icônes v1 validées ; 4 demandes UX dans Admin → 🧱 Blocs.
+
+## A. État réel
+
+**Déployé en production (SHA `3abf761`) — en attente de recette.** Fait dans #37. Classement : **Après lancement** (panel admin, sans effet sur les joueurs).
+
+## B. Changements (`public/admin/admin.js`, `admin.css`, `index.html`, nouveau test `test/admin-blocks-ux.test.js`)
+
+1. **Tri sur toutes les colonnes.** Visuel, identifiant, nom FR, catégorie, rareté, PV, récompense, apparition, poids, probabilité et statut.
+   - Chaque en-tête est un bouton. 1er clic : croissant ▲. 2e clic : décroissant ▼. La colonne triée est en doré, les autres affichent ↕. `aria-sort` est tenu à jour.
+   - Nombres triés numériquement. Textes en ordre français (accents, majuscules ignorés).
+   - **Rareté en ordre métier** : commun → peu commun → rare → épique → légendaire.
+   - **Visuel trié par source** : image personnalisée → v1 → emoji → image absente. Utile pour retrouver les blocs à illustrer.
+   - Statut : actif inchangé → actif modifié → nouveau → désactivé. Probabilité : à la profondeur choisie dans le filtre.
+   - Égalités départagées par nom FR puis identifiant (même ordre dans les deux sens). Valeur absente toujours en fin de liste. Filtres conservés. Défaut inchangé : apparition ▲.
+   - Les 14 blocs d'origine affichent désormais leur vrai nom FR (traduction intégrée du jeu, `public/js/i18n.js`) au lieu de « (intégré) ».
+2. **Visuels plus lisibles.** Miniatures 56 px (au lieu de 40).
+   - **Souris** : survoler une miniature affiche un aperçu de 256 px de l'illustration exacte (fichier v1 256 px, `object-fit: contain`, jamais recadré ni étiré), avec le nom et la source. Il disparaît en quittant la miniature ou en faisant défiler.
+   - **Clavier** : l'aperçu s'affiche aussi quand une ligne reçoit le focus au clavier.
+   - **Tactile** : pas d'aperçu flottant ; un tap ouvre la fiche, qui montre l'illustration en 160 px.
+   - Emoji de secours ou image absente : même repli qu'avant (pointillés, « ⚠ absente »).
+3. **Fiche par clic sur la ligne.** Les boutons « Modifier » sont retirés.
+   - Toute la ligne est cliquable : curseur main, survol surligné, chevron ›, infobulle « Cliquez pour consulter ou modifier ce bloc ».
+   - Accessible au clavier : Tab jusqu'à la ligne, puis Entrée ou Espace.
+   - La fiche est un dialogue modal natif : focus piégé, fermeture par **✕ Fermer**, Échap ou clic sur le fond, et **retour du focus sur la ligne d'origine**.
+   - Contenu : rareté, catégorie, profondeur, probabilité, statut et noms FR/EN/NL/ES ; état de l'illustration ; grande illustration ; formulaire de modification (inchangé).
+   - Un bouton **« ＋ Nouveau bloc »** au-dessus de la liste ouvre une fiche vide.
+   - **L'ouverture ne modifie rien.** « Enregistrer dans le brouillon » reste nécessaire, et la publication reste explicite (« Publier »), avec les validations et le journal habituels.
+4. **Les 8 nouveaux minerais sans illustration** (quartz, obsidienne, minerai d'argent, saphir, platine, améthyste, fer météorique, cristal ancien) sont distingués des 14 icônes v1 validées.
+   - Dans la liste : légende « emoji · à illustrer » et nouveau filtre de statut **« Sans illustration (emoji) »**.
+   - Dans leur fiche : encadré orange expliquant le parcours (atelier d'icônes #40 → validation → appliquer au brouillon → publier) et bouton **« 🎨 Ouvrir dans l'atelier d'icônes »**, qui ouvre directement la cible `block:<id>`.
+   - Pour un bloc v1 : « 🔒 Icône v1 validée… l'atelier ne la remplace qu'avec votre accord explicite » (garde-fou existant de #40).
+   - Rien n'est généré, appliqué ni publié automatiquement.
+
+**« ↻ Image seule » (proposition IA n° 1, « Minerai de cuivre oxydé »)** : fonctionnement réel constaté, sans nouvelle dépense de ma part.
+- Le journal des appels IA (copie de la base de production) montre l'appel déclenché par le propriétaire à **16:25:33 UTC**. Il s'est terminé à 16:26:13 (**40 s, 0,08 USD**). L'image est stockée (`/media/blocks/a9dc972c7c2a6a99.webp`) et la carte affiche « ✓ Image IA générée ».
+- La proposition est restée **« à valider »** : rien n'a été ajouté au brouillon ni publié.
+- La progression (« ⏳ Image en cours de génération… », rafraîchie toutes les 4 s) a été revérifiée sur le serveur de test en **mode IA factice** (aucun appel payant) : clic → nouvelle image, proposition toujours ouverte, catalogue publié inchangé (v3).
+- Dépense IA totale : **≈ 2,11 / 3 USD**.
+
+## C. SHA, tests, déploiement
+
+- Branche `feature/37-catalogue-blocs-admin`, commit `1d18972` ; **`develop` = `3abf761`** (fusion) ; **déployé `3abf761`**.
+- `npm test` : **378/378** sur la branche, sur la release `3abf761` et sur `develop`. Ce total inclut 8 nouveaux tests (`test/admin-blocks-ux.test.js`) : ils exécutent le tri réel d'`admin.js` (rareté métier, nombres, valeurs absentes, égalités, statut, source du visuel, liste d'origine intacte) et contrôlent le balisage (11 colonnes `aria-sort`, `<dialog>`, aperçu, filtre emoji, plus de bouton « Modifier »).
+  - Un premier passage sur `develop` a donné 377/378. L'échec venait de `icon-studio` « routes : protégées… », pendant un `npm ci` lancé en parallèle (machine chargée). Ce test passe seul (8/8), et la suite complète passe sur la release puis sur `develop`, sans changement de code : il s'agit d'une instabilité de charge, pas d'une régression.
+- Chromium, serveur de test (port 3101) sur une copie de la base de production, IA en mode factice :
+  - 1280×900 : 22 lignes. Chaque colonne a été triée ▲ puis ▼ avec le bon `aria-sort`. Filtre « Sans illustration » + tri : exactement les 8 nouveaux minerais.
+  - Aperçu au survol : 256 px natif, `contain`, masqué en quittant. Miniature 56 px.
+  - Clavier : Tab → ligne (aperçu affiché) → Entrée → fiche (focus sur « Fermer ») → Échap → focus revenu sur la ligne ; Espace ouvre aussi la fiche.
+  - Fiches obsidienne (encadré « à illustrer ») et charbon (🔒 v1). Bouton atelier → onglet 🎨 sur `block:quartz`.
+  - Enregistrer depuis la fiche : brouillon créé, fiche ouverte, tri conservé, focus revenu.
+  - **Aucune requête d'écriture** pendant la consultation et le tri.
+  - 390×844 tactile : tap → fiche de 356 px, aucun débordement.
+  - 0 erreur JS. Seule une 404 sur `/admin/favicon.ico` (préexistante).
+  - Corrigé pendant les essais : un libellé masqué de la nouvelle colonne débordait du tableau défilant sur mobile, et les listes déroulantes de la fiche n'étaient pas stylées.
+- Avant le déploiement : aucune génération IA en cours (dernier appel à 16:26:13 UTC, image « ok » ; atelier sans appel récent).
+- Copie de la base de production sur la release : empreintes identiques après démarrage, `quick_check` ok, copie supprimée.
+- Déploiement `4168978 → 3abf761` (sans `npm ci` ni migration). Sauvegarde vérifiée : `~/backups/dig/dig-20261031-175229-pre-deploy-3abf761.sqlite`.
+- Après le déploiement :
+  - Les 2 domaines répondent 200 avec `1.0.0+3abf761`. Le nouvel `admin.js` et `/js/i18n.js` sont servis.
+  - Journal sans erreur, `quick_check` ok.
+  - Empreintes des joueurs identiques avant, pendant (sauvegarde) et après.
+  - Chromium 1280 et 390 sur `/` et `/admin/` : 0 erreur JS, 11 colonnes triables et la fiche présentes.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 4168978` puis redémarrage. Aucune migration, aucune donnée touchée.
+
+## D. Test fonctionnel à faire par le propriétaire (Admin → 🧱 Blocs)
+
+1. Cliquer successivement sur chaque en-tête (Rareté, PV, Récompense, Poids, Prob., Statut, Nom FR…). La flèche ▲/▼ s'affiche sur la colonne active, et la rareté va de Commun à Légendaire puis l'inverse.
+2. Choisir le filtre de statut « Sans illustration (emoji) ». Exactement les 8 nouveaux minerais restent, et le tri s'applique toujours.
+3. Survoler une miniature à la souris : un grand aperçu (256 px) s'affiche à côté, non déformé.
+4. Cliquer n'importe où sur la ligne « Obsidienne ». La fiche s'ouvre avec l'encadré orange « Pas encore d'illustration » et le bouton « 🎨 Ouvrir dans l'atelier d'icônes ». Fermer par Échap : la bannière indique toujours « Aucun brouillon ».
+5. Ouvrir « Charbon » : la fiche affiche « 🔒 Icône v1 validée ».
+6. Sur smartphone : taper une ligne ouvre la fiche, qui est lisible et sans débordement.
+7. Carte IA « Minerai de cuivre oxydé » : l'image générée à 16:26 est affichée. Vous pouvez la juger, puis « Ajouter au brouillon » si elle vous convient (aucune publication automatique).
+
+## E. Choix techniques faits seul
+
+- **Colonne Visuel triable par source** (option suggérée), car c'est le seul critère utile. Elle sert à isoler les blocs sans illustration.
+- **Égalités toujours en ordre alphabétique**, même en tri décroissant, pour un ordre stable et lisible.
+- **Dialogue `<dialog>` natif** plutôt qu'un tiroir maison : piège à focus, Échap et fond fournis par le navigateur. La modification reste dans la fiche, qui reste ouverte après l'enregistrement pour afficher le message.
+- Le panel charge `public/js/i18n.js` (sans effet de bord) pour afficher les noms FR intégrés. Les noms EN/NL intégrés des 14 blocs d'origine ne sont pas repris dans le résumé (« — ») : ils restent ceux du jeu.
+- Le tri n'est pas mémorisé entre deux visites (retour à Apparition ▲).
+
+## F. Décisions demandées au propriétaire
+
+1. Plafond de dépense IA : ≈ 2,11 / 3 USD utilisés (≈ 10 images restantes). Le relever dans `~/.config/dig/openai.env` (`DIG_IMAGE_BUDGET_USD`) ? Recommandation : 10 USD avant d'illustrer les 8 minerais (jusqu'à 3 propositions chacun, ≈ 24 images).
+2. Étape D : saphir, améthyste et cristal ancien doivent-ils un jour rapporter des gemmes ? Recommandation : non pour l'instant.
+3. Feu vert pour générer les illustrations des 8 minerais dans l'atelier #40 (payant) ? Recommandation : oui, après le point 1. Je ne lance rien sans votre accord.
+
+## G. Restant à réaliser
+
+- Illustrations des 8 nouveaux minerais (atelier #40, sur votre accord, puis validation et publication).
+- Recette de l'image IA du « cuivre oxydé », puis découvertes, événements et tables de drops (périmètre restant de #37).
+- Constat hors périmètre : `/admin/favicon.ico` répond 404 (sans effet).
+
+---
+
 # Mise à jour du 31/10/2026, 14 h 55 (Bruxelles) — tri de la liste des blocs par profondeur d'apparition
 
 Suite à la demande du propriétaire du 31/10 (commentaire 13:26 UTC) : dans Admin → 🧱 Blocs, trier la liste par profondeur minimale d'apparition, en ordre croissant et décroissant.
