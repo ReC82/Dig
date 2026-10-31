@@ -4,6 +4,67 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 31/10/2026, 14 h 55 (Bruxelles) — tri de la liste des blocs par profondeur d'apparition
+
+Suite à la demande du propriétaire du 31/10 (commentaire 13:26 UTC) : dans Admin → 🧱 Blocs, trier la liste par profondeur minimale d'apparition, en ordre croissant et décroissant.
+
+## A. État réel
+
+**Déployé en production (SHA `4168978`) — en attente de recette.** Fait dans #37. Classement : **Après lancement** (panel admin, sans effet sur les joueurs).
+
+## B. Changements (`public/admin/admin.js`, `admin.css`, `index.html`)
+
+- L'en-tête **« Apparition »** est maintenant un bouton. Chaque clic alterne **croissant ▲ / décroissant ▼**. L'en-tête affiche le sens (flèche et `aria-sort` pour les lecteurs d'écran).
+- **Ordre par défaut : croissant** (1 m en haut, 800 m en bas). C'est l'ordre naturel d'une descente dans le jeu.
+- Le **tri est numérique** sur `minDepth` (1, 4, 5, 150, 200, 260…). Un bloc sans profondeur valide irait en fin de liste.
+- **En cas d'égalité, la liste est départagée par le nom FR, puis par l'identifiant.** L'ordre reste donc stable. Exemples : à 1 m, terre meuble passe avant vieille caisse ; à 5 m, coffre en bois passe avant pierre.
+- Les **filtres actifs sont conservés** : texte, catégorie, statut et profondeur des probabilités. Le sens de tri est aussi conservé quand on change un filtre.
+- Le tri s'applique à la liste de travail (brouillon s'il existe, sinon version publiée). Il couvre donc aussi les blocs ajoutés plus tard, y compris ceux créés par IA.
+- **Le tri est purement visuel.** Il trie une copie de la liste et ne touche ni au catalogue, ni au brouillon, ni aux poids, ni aux probabilités.
+
+## C. SHA, tests, déploiement
+
+- Branche `feature/37-catalogue-blocs-admin`, commit `b586d9c` ; **`develop` = `4168978`** (fusion) ; **déployé `4168978`**.
+- `npm test` : **370/370** sur la branche, sur `develop` et sur la release. Pas de nouveau test automatisé : le changement est uniquement côté navigateur. Il a été contrôlé dans Chromium.
+- Chromium, serveur de test sur une copie de la base de production, en 1280×900 et 390×844 :
+  - Par défaut : ▲ croissant, 22 lignes, de `terre_meuble@1` à `cristal_ancien@800`.
+  - 1er clic : ▼ décroissant, 22 lignes.
+  - Filtre « terre » : 2 lignes, toujours triées.
+  - 2e clic avec le filtre actif : ▲, filtre conservé.
+  - Poids et probabilités identiques avant et après le tri. Aucun brouillon créé (v3 inchangée). Aucun débordement horizontal. 0 erreur JS.
+- Avant le déploiement : aucune génération IA en cours (dernier appel à 09:50 UTC).
+- Copie de la base de production sur la release : empreintes identiques après démarrage, `quick_check` ok.
+- Déploiement `580b9a8 → 4168978`. Sauvegarde vérifiée : `~/backups/dig/dig-20261031-144725-pre-deploy-4168978.sqlite`.
+- Après le déploiement :
+  - Les 2 domaines répondent 200 avec `1.0.0+4168978`, et le nouveau `admin.js` est servi.
+  - Journal sans erreur, `quick_check` ok.
+  - Empreintes des joueurs identiques à la sauvegarde.
+  - Chromium 1280 et 390 sur `/` et `/admin/` : 0 erreur JS, bouton de tri présent.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 580b9a8` puis redémarrage. Aucune migration.
+
+## D. Test fonctionnel à faire par le propriétaire
+
+1. Admin → 🧱 Blocs. La liste s'ouvre triée **▲ par profondeur croissante** : terre meuble / vieille caisse (1 m) en haut, cristal ancien (800 m) en bas.
+2. Cliquer sur **« Apparition ▲ »**. La flèche passe à ▼ et cristal ancien (800 m) monte en tête. Cliquer à nouveau pour revenir à ▲.
+3. Choisir la catégorie « minerai » (ou taper un nom), puis cliquer sur « Apparition ». Le filtre reste actif et seules les lignes filtrées sont retriées.
+4. Vérifier que la bannière indique toujours « Aucun brouillon » et que les colonnes Poids et Prob. n'ont pas changé.
+
+## E. Choix techniques faits seul
+
+- Croissant par défaut plutôt que l'ordre du catalogue : la demande le suggère, et cet ordre correspond à la progression du joueur. L'ordre interne du catalogue n'avait pas de sens visuel.
+- Tri limité à la colonne « Apparition », comme demandé. Les autres colonnes ne sont pas triables (non demandé).
+- Le sens de tri n'est pas mémorisé entre deux visites (retour à ▲ au rechargement de la page).
+
+## F. Décisions demandées au propriétaire
+
+Inchangées : 1. plafond de dépense IA (2,03 / 3 USD utilisés ; recommandation : 10 USD) ; 2. gemmes pour saphir, améthyste et cristal ancien (recommandation : non pour l'instant).
+
+## G. Restant à réaliser
+
+Inchangé (voir la section du 31/10, 14 h 31, point H).
+
+---
+
 # Mise à jour du 31/10/2026, 14 h 31 (Bruxelles) — vrais visuels dans Admin → Blocs, état de l'image IA
 
 Suite à la recette visuelle du propriétaire du 31/10 (commentaire 13:11 UTC) : v3, 22 blocs et probabilités à 250 m validés ; deux défauts signalés : (1) la liste et le formulaire montraient des emoji au lieu des illustrations du jeu ; (2) la proposition IA « cuivre oxydé » montrait un carré vert à la place d'une image.
