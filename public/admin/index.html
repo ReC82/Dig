@@ -710,22 +710,33 @@
       <div class="form-actions bk-filters">
         <input id="bk-filter-text" type="search" placeholder="Filtrer (identifiant, nom)">
         <select id="bk-filter-cat"><option value="">Toutes catégories</option></select>
-        <select id="bk-filter-status"><option value="">Tous</option><option value="active">Actifs</option><option value="inactive">Désactivés</option><option value="changed">Modifiés dans le brouillon</option></select>
+        <select id="bk-filter-status"><option value="">Tous</option><option value="active">Actifs</option><option value="inactive">Désactivés</option><option value="changed">Modifiés dans le brouillon</option><option value="emoji">Sans illustration (emoji)</option></select>
         <label class="bk-odds">Probabilités à <input id="bk-odds-depth" type="number" min="1" value="250"> m</label>
+        <button class="btn" id="btn-bk-add" type="button">＋ Nouveau bloc</button>
       </div>
       <div class="bk-table-wrap">
       <table class="bk-table">
-        <thead><tr><th>Visuel</th><th>Identifiant</th><th>Nom FR</th><th>Catégorie</th><th>Rareté</th><th class="num">PV</th><th class="num">Récompense</th><th id="bk-sort-depth" aria-sort="ascending"><button type="button" class="bk-sort-btn" title="Trier par profondeur d'apparition (croissant / décroissant)">Apparition <span class="bk-sort-ind" aria-hidden="true">▲</span></button></th><th class="num">Poids</th><th class="num" title="Probabilité d'apparition à la profondeur choisie">Prob.</th><th>Statut</th><th></th></tr></thead>
+        <thead><tr><th data-sort="visual" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par source du visuel (image personnalisée, v1, emoji) (croissant / décroissant)">Visuel <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th data-sort="id" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par identifiant (croissant / décroissant)">Identifiant <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th data-sort="name" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par nom français (croissant / décroissant)">Nom FR <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th data-sort="category" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par catégorie (croissant / décroissant)">Catégorie <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th data-sort="rarity" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par rareté (commun → légendaire) (croissant / décroissant)">Rareté <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th class="num" data-sort="hpBase" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par PV (croissant / décroissant)">PV <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th class="num" data-sort="reward" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par récompense (croissant / décroissant)">Récompense <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th data-sort="minDepth" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par profondeur d'apparition (croissant / décroissant)">Apparition <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th class="num" data-sort="weight" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par poids (croissant / décroissant)">Poids <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th class="num" data-sort="prob" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par probabilité d'apparition à la profondeur choisie (croissant / décroissant)">Prob. <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th data-sort="status" aria-sort="none"><button type="button" class="bk-sort-btn" title="Trier par statut (croissant / décroissant)">Statut <span class="bk-sort-ind" aria-hidden="true"></span></button></th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
         <tbody id="bk-body"></tbody>
       </table>
       </div>
+      <p class="muted" style="font-size:0.75rem">Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche du bloc : consultation, puis modification dans le brouillon. Survolez un visuel pour l'agrandir.</p>
+      <div id="bk-zoom" class="bk-zoom hidden" aria-hidden="true"></div>
     </div>
 
-    <div class="overview-card">
-      <h3 class="overview-card-title" id="bk-form-title">Nouveau bloc</h3>
+    <dialog id="bk-dialog" class="bk-dialog" aria-labelledby="bk-form-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="bk-form-title">Nouveau bloc</h3>
+        <button type="button" class="btn" id="btn-bk-close" aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
+      <p id="bk-sheet-summary" class="bk-sheet-summary"></p>
+      <div id="bk-sheet-art" class="bk-sheet-art">
+        <p id="bk-sheet-art-text"></p>
+        <button type="button" class="btn" id="btn-bk-studio">🎨 Ouvrir dans l'atelier d'icônes</button>
+      </div>
       <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
         <div class="bk-preview-col">
-          <div id="bk-preview" class="bk-thumb" style="width:110px;height:110px;border-radius:14px;font-size:3rem;border-width:3px"></div>
+          <div id="bk-preview" class="bk-thumb"></div>
           <small id="bk-preview-src" class="bk-src"></small>
         </div>
         <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
@@ -757,7 +768,8 @@
         <button class="btn btn-ghost" id="btn-bk-remove">Retirer du brouillon (jamais publié)</button>
       </div>
       <p id="bk-form-msg" class="hidden"></p>
-    </div>
+      <p class="muted" style="font-size:0.75rem">L'ouverture de la fiche ne modifie rien. « Enregistrer dans le brouillon » ne change rien pour les joueurs : la mise en jeu se fait par « Publier » (section Brouillon et publication).</p>
+    </dialog>
 
     <div class="overview-card">
       <h3 class="overview-card-title">Brouillon et publication</h3>
@@ -1142,6 +1154,7 @@
 
 </div>
 
+<script src="/js/i18n.js"></script>
 <script src="/js/iconLibrary.js"></script>
 <script src="admin.js"></script>
 </body>
