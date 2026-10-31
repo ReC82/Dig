@@ -183,18 +183,18 @@ function _precheck(estUsd) {
   return cfg;
 }
 
-async function _guarded(kind, proposalId, estUsd, fn) {
+async function _guarded(kind, proposalId, estUsd, fn, source = 'admin-blocks') {
   const cfg = _precheck(estUsd);
   _busy = true;
   const started = Date.now();
   try {
     const out = await fn(cfg);
-    _logCall({ proposalId, kind, model: out.model, ok: true, cost: out.cost, durationMs: Date.now() - started, usage: out.usage });
+    _logCall({ proposalId, kind, model: out.model, ok: true, cost: out.cost, durationMs: Date.now() - started, usage: out.usage, source });
     return out;
   } catch (err) {
     const msg = oa().redact(String(err.message || err)).slice(0, 300);
     _logCall({ proposalId, kind, model: kind === 'image' ? (cfg.editModel || cfg.model) : cfg.textModel, ok: false, error: msg,
-      cost: { cost_usd: 0, basis: 'échec' }, durationMs: Date.now() - started });
+      cost: { cost_usd: 0, basis: 'échec' }, durationMs: Date.now() - started, source });
     if (err instanceof AiError) throw err;
     throw new AiError(502, `Échec de l'appel IA (${kind}) : ${msg}`);
   } finally {
@@ -202,13 +202,13 @@ async function _guarded(kind, proposalId, estUsd, fn) {
   }
 }
 
-function _logCall({ proposalId, kind, model, ok, error = null, cost, durationMs, usage = null }) {
+function _logCall({ proposalId, kind, model, ok, error = null, cost, durationMs, usage = null, source = 'admin-blocks' }) {
   conn().prepare(`INSERT INTO block_ai_calls (proposal_id, kind, model, ok, error, cost_usd, cost_basis, duration_ms, usage)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(proposalId ?? null, kind, model ?? null, ok ? 1 : 0, error, cost.cost_usd, cost.basis, durationMs,
     usage ? JSON.stringify(usage) : null);
   // Journal partagé avec l'outil d'icônes (#22) : le plafond couvre aussi les appels du panel
   if (!_fake) {
-    oa().appendLedger({ at: new Date().toISOString(), source: 'admin-blocks', kind, proposal: proposalId ?? null, model, ok,
+    oa().appendLedger({ at: new Date().toISOString(), source, kind, proposal: proposalId ?? null, model, ok,
       error: error ?? undefined, cost_usd: cost.cost_usd, cost_basis: cost.basis, duration_ms: durationMs, usage: usage ?? undefined });
   }
 }
@@ -264,11 +264,12 @@ async function _callText(cfg, kind, concept, current) {
     const r = await _fake.text({ kind, concept, current });
     return { data: r.data, usage: r.usage, model: 'fake-text', cost: { cost_usd: 0.001, basis: 'test' } };
   }
-  const body = {
-    model: cfg.textModel,
-    messages: _textMessages(kind, concept, current),
-    response_format: { type: 'json_schema', json_schema: { name: `dig_block_${kind}`, strict: true, schema: _textSchema(kind) } },
-  };
+  return _chatJson(cfg, { name: `dig_block_${kind}`, schema: _textSchema(kind), messages: _textMessages(kind, concept, current) });
+}
+
+/** Appel Chat Completions à sortie JSON stricte (schéma), coût estimé d'après l'usage. */
+async function _chatJson(cfg, { name, schema, messages }) {
+  const body = { model: cfg.textModel, messages, response_format: { type: 'json_schema', json_schema: { name, strict: true, schema } } };
   const key = oa().loadKey(cfg);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 90000);
@@ -292,6 +293,27 @@ async function _callText(cfg, kind, concept, current) {
     ? { cost_usd: Number(((u.prompt_tokens * cfg.textPrices.input + (u.completion_tokens ?? 0) * cfg.textPrices.output) / 1e6).toFixed(5)), basis: 'usage API × tarifs configurés (estimation)' }
     : { cost_usd: cfg.textEstCostUsd, basis: 'forfait (usage absent)' };
   return { data, usage: { prompt_tokens: u.prompt_tokens, completion_tokens: u.completion_tokens }, model: json.model || cfg.textModel, cost };
+}
+
+/**
+ * Appel texte JSON réutilisable par les autres créations assistées (collections #39, badges #38) :
+ * mêmes garde-fous (un appel à la fois, quota journalier, plafond partagé, journal en ajout seul).
+ * `fake(kind)` fournit la réponse du transport de test. Aucune image ici : une image = une action explicite.
+ */
+const _textEst = () => { try { return config(); } catch (_) { return { textEstCostUsd: 0.01 }; } };
+
+/** Garde-fous vérifiés tout de suite (erreur immédiate) avant de lancer un appel texte en arrière-plan. */
+function precheckText() { _precheck(_textEst().textEstCostUsd); }
+
+async function guardedJson({ kind, source, name, schema, messages, fake }) {
+  const cfgEst = _textEst();
+  return _guarded(kind, null, cfgEst.textEstCostUsd, async cfg => {
+    if (_fake) {
+      const r = _fake.json ? await _fake.json({ kind, name, messages }) : { data: fake(kind), usage: { prompt_tokens: 1200, completion_tokens: 900 } };
+      return { data: r.data, usage: r.usage, model: 'fake-text', cost: { cost_usd: 0.001, basis: 'test' } };
+    }
+    return _chatJson(cfg, { name, schema, messages });
+  }, source);
 }
 
 const _clean = (v, max) => String(v ?? '').replace(/[<>\u0000-\u001f]/g, '').trim().slice(0, max);
@@ -596,5 +618,5 @@ function listCalls(limit = 50) {
 
 module.exports = {
   AiError, IMAGE_URL_RE, init, status, setFakeTransport, createProposal, regenerate, updateProposal, addToDraft,
-  discardProposal, getProposal, listProposals, listCalls, impact, getImage, nameWarnings, waitImage,
+  discardProposal, getProposal, listProposals, listCalls, impact, getImage, nameWarnings, waitImage, guardedJson, precheckText,
 };

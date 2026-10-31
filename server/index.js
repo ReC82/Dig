@@ -83,6 +83,7 @@ const blockCatalog = require('./blockCatalog');
 const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
+const collectionAi = require('./collectionAi');
 const badges = require('./badges');
 const rewardPoints = require('./rewardPoints');
 
@@ -778,7 +779,9 @@ function collectionRoute(label, fn) {
   return (req, res) => {
     try { res.json(fn(req)); }
     catch (err) {
-      if (err instanceof collectionCatalog.CatalogError) return res.status(err.status).json({ error: err.message, details: err.details });
+      if (err instanceof collectionCatalog.CatalogError || err instanceof collectionAi.CollectionAiError) {
+        return res.status(err.status).json({ error: err.message, details: err.details });
+      }
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
     }
   };
@@ -1235,6 +1238,25 @@ app.post('/api/admin/collections/images', requireAdmin, collectionRoute('POST /a
 app.get('/api/admin/collections/audit', requireAdmin, collectionRoute('GET /api/admin/collections/audit',
   req => ({ audit: collectionCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
 
+// Création de collections assistée par IA (#39, 31/10) : proposition texte en arrière-plan → corrections →
+// brouillon (drops inactifs) ; jamais publiée ici ; images une par une dans l'atelier (#40).
+app.get('/api/admin/collections/ai', requireAdmin, collectionRoute('GET /api/admin/collections/ai',
+  () => ({ status: blockAi.status(), proposals: collectionAi.listProposals(), defaultDrops: collectionAi.DEFAULT_DROPS,
+    itemsMin: collectionAi.ITEMS_MIN, itemsMax: collectionAi.ITEMS_MAX })));
+app.post('/api/admin/collections/ai/proposals', requireAdmin, collectionRoute('POST /api/admin/collections/ai/proposals',
+  req => ({ proposal: collectionAi.startProposal({ concept: req.body?.concept, itemCount: req.body?.itemCount ?? 6, seasonId: req.body?.seasonId ?? null }).proposal })));
+app.get('/api/admin/collections/ai/proposals/:id', requireAdmin, collectionRoute('GET /api/admin/collections/ai/proposals/:id', req => {
+  const proposal = collectionAi.getProposal(Number(req.params.id));
+  if (!proposal) throw new collectionAi.CollectionAiError(404, 'Proposition introuvable.');
+  return { proposal };
+}));
+app.put('/api/admin/collections/ai/proposals/:id', requireAdmin, collectionRoute('PUT /api/admin/collections/ai/proposals/:id',
+  req => ({ proposal: collectionAi.updateProposal(Number(req.params.id), req.body ?? {}) })));
+app.post('/api/admin/collections/ai/proposals/:id/draft', requireAdmin, collectionRoute('POST /api/admin/collections/ai/proposals/:id/draft',
+  req => collectionAi.addToDraft(Number(req.params.id))));
+app.delete('/api/admin/collections/ai/proposals/:id', requireAdmin, collectionRoute('DELETE /api/admin/collections/ai/proposals/:id',
+  req => { collectionAi.discardProposal(Number(req.params.id)); return { ok: true }; }));
+
 app.get('/api/admin/seasons/:id/leaderboard', requireAdmin, (req, res) => {
   try {
     const seasonId = parseInt(req.params.id, 10);
@@ -1665,6 +1687,7 @@ blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, 
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
+collectionAi.init();             // propositions de collections assistées par IA (#39)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)

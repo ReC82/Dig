@@ -2318,10 +2318,15 @@ document.getElementById('btn-bk-simulate').addEventListener('click', async () =>
 });
 
 // ── Collections saisonnières (#39) ────────────────────────────────────────────
+// UX commune du panel (31/10) : la page montre d'abord séries et objets ; « ＋ Ajouter » ouvre un choix
+// (✨ collection avec l'IA, série ou objet manuel) ; un clic sur une ligne ouvre sa fiche.
 
 const CO_LANGS = ['fr', 'en', 'nl', 'es'];
 const CO_IMAGE_RE = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp)|\/media\/icons\/[a-f0-9]{16}\.webp)$/;
 let _co = null;   // vue admin (GET /api/admin/collections)
+let _coAi = null; // propositions IA (GET /api/admin/collections/ai)
+let _coAiTimer = null;
+let _coProp = null; // proposition ouverte dans la fiche de relecture
 
 function coWorking() {
   if (!_co) return { series: [], items: [] };
@@ -2353,9 +2358,25 @@ function coTexts(prefix) {
   return Object.keys(out).length ? out : null;
 }
 
+/** Visuel d'un objet : image si elle est valide (repli emoji si elle ne charge pas), sinon emoji. */
+function coArt(el, image, icon, size) {
+  el.textContent = '';
+  if (image && CO_IMAGE_RE.test(image) && !image.includes('..')) {
+    const img = document.createElement('img');
+    img.src = image; img.alt = ''; img.width = size; img.height = size; img.style.objectFit = 'contain';
+    img.onerror = () => { el.textContent = icon || '❔'; };
+    el.appendChild(img);
+  } else {
+    el.textContent = icon || '❔';
+  }
+}
+
+function coNotice(text, ok = true) { ptMessage('co-notice', text, ok); }
+
 // Séries
+admDialogSetup('co-series-dialog');
 function coFillSeriesForm(s) {
-  document.getElementById('co-series-form-title').textContent = s ? `Modifier la série « ${s.id} »` : 'Nouvelle série';
+  document.getElementById('co-series-form-title').textContent = s ? `Série « ${s.names?.fr ?? s.id} »` : 'Nouvelle série';
   const idEl = document.getElementById('co-s-id');
   idEl.value = s ? s.id : '';
   idEl.readOnly = !!s;
@@ -2363,12 +2384,19 @@ function coFillSeriesForm(s) {
   document.getElementById('co-s-season').value = s?.seasonId == null ? '' : String(s.seasonId);
   document.getElementById('co-s-icon').value = s ? s.icon : '📦';
   document.getElementById('co-s-active').checked = s ? s.active : true;
-  document.getElementById('btn-co-s-remove').disabled = !s || _co.publishedIds.series.includes(s.id);
+  const rm = document.getElementById('btn-co-s-remove');
+  rm.classList.toggle('hidden', !s || _co.publishedIds.series.includes(s.id));
+  admShowError(document.getElementById('co-s-msg'), '');
+}
+function coOpenSeries(s, opener) {
+  coFillSeriesForm(s);
+  admDialogOpen('co-series-dialog', opener, s ? 'co-s-name-fr' : 'co-s-id');
 }
 
 // Objets
+admDialogSetup('co-item-dialog');
 function coFillItemForm(i) {
-  document.getElementById('co-i-form-title').textContent = i ? `Modifier « ${i.id} »` : 'Nouvel objet';
+  document.getElementById('co-i-form-title').textContent = i ? `Objet « ${i.names?.fr ?? i.id} »` : 'Nouvel objet';
   const idEl = document.getElementById('co-i-id');
   idEl.value = i ? i.id : '';
   idEl.readOnly = !!i;
@@ -2386,8 +2414,16 @@ function coFillItemForm(i) {
   document.getElementById('co-i-chance').value = i ? +(i.drop.chance * 100).toFixed(4) : '';
   document.getElementById('co-i-drop').checked = i ? i.dropEnabled : false;
   document.getElementById('co-i-active').checked = i ? i.active : true;
-  document.getElementById('btn-co-i-remove').disabled = !i || _co.publishedIds.items.includes(i.id);
+  document.getElementById('btn-co-i-remove').classList.toggle('hidden', !i || _co.publishedIds.items.includes(i.id));
+  document.getElementById('btn-co-i-studio').disabled = !i;
+  document.getElementById('btn-co-i-studio').title = i ? 'Ouvre l\'atelier d\'icônes sur cet objet : une image par action, jamais automatique'
+    : 'Enregistrez d\'abord l\'objet dans le brouillon';
+  admShowError(document.getElementById('co-i-msg'), '');
   coPreview();
+}
+function coOpenItem(i, opener) {
+  coFillItemForm(i);
+  admDialogOpen('co-item-dialog', opener, i ? 'co-i-name-fr' : 'co-i-id');
 }
 
 function coReadItem() {
@@ -2413,17 +2449,7 @@ function coPreview() {
   if (!_co) return;
   const lang = document.getElementById('co-preview-lang').value;
   const pick = prefix => document.getElementById(`${prefix}-${lang}`).value.trim() || document.getElementById(`${prefix}-fr`).value.trim();
-  const art = document.getElementById('co-preview-art');
-  art.textContent = '';
-  const image = document.getElementById('co-i-image').value.trim();
-  if (CO_IMAGE_RE.test(image) && !image.includes('..')) {
-    const img = document.createElement('img');
-    img.src = image; img.alt = ''; img.width = 140; img.height = 140; img.style.objectFit = 'contain';
-    img.onerror = () => { art.textContent = document.getElementById('co-i-icon').value; };
-    art.appendChild(img);
-  } else {
-    art.textContent = document.getElementById('co-i-icon').value || '❔';
-  }
+  coArt(document.getElementById('co-preview-art'), document.getElementById('co-i-image').value.trim(), document.getElementById('co-i-icon').value, 140);
   document.getElementById('co-preview-rarity').textContent = BK_RARITY[document.getElementById('co-i-rarity').value] ?? '';
   document.getElementById('co-preview-name').textContent = pick('co-i-name') || '(nom FR obligatoire)';
   const s = coWorking().series.find(x => x.id === document.getElementById('co-i-series').value);
@@ -2435,32 +2461,46 @@ function coRenderItems() {
   const { items, series } = coWorking();
   const text = document.getElementById('co-filter-text').value.trim().toLowerCase();
   const sf = document.getElementById('co-filter-series').value;
+  const st = document.getElementById('co-filter-state').value;
   const changed = new Set((_co.draft?.changes ?? []).filter(c => c.kind === 'items').map(c => c.id));
   const tb = document.getElementById('co-items-body');
   tb.textContent = '';
+  let shown = 0;
   for (const i of items) {
     if (sf && i.seriesId !== sf) continue;
     if (text && !`${i.id} ${Object.values(i.names ?? {}).join(' ')}`.toLowerCase().includes(text)) continue;
+    if (st === 'noimage' && i.image) continue;
+    if (st === 'nostory' && CO_LANGS.every(l => i.stories?.[l])) continue;
+    if (st === 'changed' && !changed.has(i.id) && _co.publishedIds.items.includes(i.id)) continue;
+    if (st === 'drop' && !(i.active && i.dropEnabled)) continue;
+    shown++;
     const tr = document.createElement('tr');
     const s = series.find(x => x.id === i.seriesId);
     const drop = `${i.drop.from.join('/')} dès ${i.drop.minDepth} m · ${+(i.drop.chance * 100).toFixed(3)} %${i.dropEnabled ? '' : ' (inactif)'}`;
     const langs = CO_LANGS.map(l => (i.names?.[l] && i.stories?.[l] ? l : (i.names?.[l] ? `${l}*` : '—'))).join(' ');
     const state = `${i.active ? 'actif' : 'désactivé'}${changed.has(i.id) ? ' · modifié' : ''}${_co.publishedIds.items.includes(i.id) ? '' : ' · nouveau'}`;
-    [i.icon, i.id, i.names?.fr ?? '', s ? s.names.fr : i.seriesId, BK_RARITY[i.rarity] ?? i.rarity, drop, langs, state].forEach(x => addCell(tr, x));
-    addButtonCell(tr, 'Modifier', () => { coFillItemForm(i); document.getElementById('co-i-form-title').scrollIntoView({ behavior: 'smooth' }); });
+    const art = addCell(tr, '');
+    art.className = 'co-thumb';
+    art.title = i.image ? 'Image' : 'Pas encore d\'image (emoji affiché)';
+    coArt(art, i.image, i.icon, 40);
+    [i.id, i.names?.fr ?? '', s ? s.names.fr : i.seriesId, BK_RARITY[i.rarity] ?? i.rarity, drop, langs, state].forEach(x => addCell(tr, x));
+    admRowOpen(tr, `co-item:${i.id}`, i.names?.fr ?? i.id, row => coOpenItem(coWorking().items.find(x => x.id === i.id) ?? i, row));
     tb.appendChild(tr);
   }
+  document.getElementById('co-items-count').textContent = `— ${shown} / ${items.length}`;
 }
 
 async function loadCollections() {
   const { ok, data } = await api('GET', '/api/admin/collections');
-  if (!ok) { ptMessage('co-i-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  if (!ok) { coNotice(data.error || 'Erreur lors du chargement.', false); return; }
   _co = data;
   const w = coWorking();
   const p = data.published;
 
   // Sélecteurs
-  coSelect('co-s-season', [['', 'Permanente (hors saison)'], ...data.seasons.map(s => [String(s.id), `#${s.id} ${s.name} (${s.status})`])]);
+  const seasonOpts = [['', 'Permanente (hors saison)'], ...data.seasons.map(s => [String(s.id), `#${s.id} ${s.name} (${s.status})`])];
+  coSelect('co-s-season', seasonOpts);
+  coSelect('co-ai-season', seasonOpts);
   coSelect('co-i-series', w.series.map(s => [s.id, `${s.icon} ${s.names.fr}`]));
   coSelect('co-filter-series', w.series.map(s => [s.id, `${s.icon} ${s.names.fr}`]), 1);
   coSelect('co-i-rarity', data.rarities.map(r => [r, BK_RARITY[r] ?? r]));
@@ -2468,7 +2508,7 @@ async function loadCollections() {
   if (!from.childElementCount) {
     for (const c of data.categories) {
       const label = document.createElement('label');
-      label.style.marginRight = '12px';
+      label.className = 'co-inline-check';
       const cb = document.createElement('input');
       cb.type = 'checkbox'; cb.id = `co-i-from-${c}`;
       label.append(cb, ` ${c}`);
@@ -2489,14 +2529,15 @@ async function loadCollections() {
     const tr = document.createElement('tr');
     [s.icon, s.id, s.names.fr, coSeasonLabel(s.seasonId), w.items.filter(i => i.seriesId === s.id).length,
      `${s.active ? 'active' : 'désactivée'}${data.publishedIds.series.includes(s.id) ? '' : ' · nouvelle'}`].forEach(x => addCell(tr, x));
-    addButtonCell(tr, 'Modifier', () => coFillSeriesForm(s));
+    tr.children[4].className = 'num';
+    admRowOpen(tr, `co-series:${s.id}`, s.names.fr, row => coOpenSeries(coWorking().series.find(x => x.id === s.id) ?? s, row));
     sb.appendChild(tr);
   }
   coRenderItems();
 
   const d = data.draft;
   document.getElementById('co-draft-state').textContent = d
-    ? `Brouillon basé sur v${d.basedOn}, modifié le ${d.updatedAt} UTC.` : 'Aucun brouillon : modifiez une série ou un objet pour en créer un.';
+    ? `Brouillon basé sur v${d.basedOn}, modifié le ${d.updatedAt} UTC.` : 'Aucun brouillon : ajoutez ou modifiez une série ou un objet pour en créer un.';
   bkFillList(document.getElementById('co-draft-errors'), d ? d.errors : []);
   bkFillList(document.getElementById('co-draft-warnings'), d ? d.warnings : []);
   const cb = document.getElementById('co-changes-body');
@@ -2535,13 +2576,12 @@ async function loadCollections() {
     el.src = img.url; el.alt = img.label ?? ''; el.width = 64; el.height = 64; el.style.objectFit = 'contain';
     const cap = document.createElement('figcaption');
     cap.textContent = `${img.label ?? img.sha256.slice(0, 8)} · ${Math.round(img.bytes / 1024)} Ko`;
-    const use = document.createElement('button');
-    use.className = 'btn-ghost'; use.textContent = 'Utiliser';
-    use.addEventListener('click', () => { document.getElementById('co-i-image').value = img.url; coPreview(); });
-    fig.append(el, cap, use);
+    fig.append(el, cap);
     ib.appendChild(fig);
   }
+  if (!data.images.length) ib.textContent = 'Aucune image téléversée.';
   loadCollectionsAudit();
+  coAiLoad();
 }
 
 async function loadCollectionsAudit() {
@@ -2566,11 +2606,32 @@ async function coRollback(version) {
 document.getElementById('btn-refresh-collections').addEventListener('click', loadCollections);
 document.getElementById('co-filter-text').addEventListener('input', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-series').addEventListener('change', () => { if (_co) coRenderItems(); });
+document.getElementById('co-filter-state').addEventListener('change', () => { if (_co) coRenderItems(); });
 for (const id of ['co-i-icon', 'co-i-image', 'co-i-rarity', 'co-i-series', 'co-preview-lang', ...CO_LANGS.flatMap(l => [`co-i-name-${l}`, `co-i-story-${l}`])]) {
   document.getElementById(id).addEventListener('input', coPreview);
 }
-document.getElementById('btn-co-s-new').addEventListener('click', () => coFillSeriesForm(null));
-document.getElementById('btn-co-i-new').addEventListener('click', () => coFillItemForm(null));
+
+// « ＋ Ajouter » : choix IA / manuel (aucune écriture à l'ouverture ni à l'annulation)
+admDialogSetup('co-add-dialog');
+admDialogSetup('co-ai-dialog');
+document.getElementById('btn-co-add').addEventListener('click', e => {
+  const ai = document.getElementById('btn-co-add-ai');
+  admDialogOpen('co-add-dialog', e.currentTarget, ai.disabled ? 'btn-co-add-series' : ai);
+  coAiLoad();
+});
+document.getElementById('btn-co-add-series').addEventListener('click', () => {
+  document.getElementById('co-add-dialog').close();
+  coOpenSeries(null, document.getElementById('btn-co-add'));
+});
+document.getElementById('btn-co-add-item').addEventListener('click', () => {
+  document.getElementById('co-add-dialog').close();
+  coOpenItem(null, document.getElementById('btn-co-add'));
+});
+document.getElementById('btn-co-add-ai').addEventListener('click', () => {
+  document.getElementById('co-add-dialog').close();
+  ptMessage('co-ai-msg', '', true);
+  admDialogOpen('co-ai-dialog', document.getElementById('btn-co-add'), 'co-ai-concept');
+});
 
 document.getElementById('btn-co-s-save').addEventListener('click', async () => {
   const seasonVal = document.getElementById('co-s-season').value;
@@ -2579,32 +2640,47 @@ document.getElementById('btn-co-s-save').addEventListener('click', async () => {
     active: document.getElementById('co-s-active').checked };
   if (!series.id) { ptMessage('co-s-msg', 'Identifiant requis.', false); return; }
   const { ok, data } = await api('PUT', `/api/admin/collections/draft/series/${encodeURIComponent(series.id)}`, { series });
-  ptMessage('co-s-msg', ok ? `Série « ${data.series.id} » enregistrée dans le brouillon.` : (data.error || 'Erreur.'), ok);
-  if (ok) { await loadCollections(); coFillSeriesForm(coWorking().series.find(s => s.id === data.series.id)); }
+  if (!ok) { ptMessage('co-s-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('co-series-dialog').close();
+  coNotice(`Série « ${data.series.id} » enregistrée dans le brouillon (pas encore visible des joueurs).`);
+  loadCollections();
 });
 
 document.getElementById('btn-co-s-remove').addEventListener('click', async () => {
   const id = document.getElementById('co-s-id').value.trim();
   if (!id || !confirm(`Retirer la série « ${id} » du brouillon ?`)) return;
   const { ok, data } = await api('DELETE', `/api/admin/collections/draft/series/${encodeURIComponent(id)}`);
-  ptMessage('co-s-msg', ok ? `Série « ${id} » retirée du brouillon.` : (data.error || 'Erreur.'), ok);
-  if (ok) { coFillSeriesForm(null); loadCollections(); }
+  if (!ok) { ptMessage('co-s-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('co-series-dialog').close();
+  coNotice(`Série « ${id} » retirée du brouillon.`);
+  loadCollections();
 });
 
 document.getElementById('btn-co-i-save').addEventListener('click', async () => {
   const item = coReadItem();
   if (!item.id) { ptMessage('co-i-msg', 'Identifiant requis.', false); return; }
   const { ok, data } = await api('PUT', `/api/admin/collections/draft/items/${encodeURIComponent(item.id)}`, { item });
-  ptMessage('co-i-msg', ok ? `« ${data.item.id} » enregistré dans le brouillon (pas encore visible des joueurs).` : (data.error || 'Erreur.'), ok);
-  if (ok) { await loadCollections(); coFillItemForm(coWorking().items.find(i => i.id === data.item.id)); }
+  if (!ok) { ptMessage('co-i-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('co-item-dialog').close();
+  coNotice(`« ${data.item.id} » enregistré dans le brouillon (pas encore visible des joueurs).`);
+  loadCollections();
 });
 
 document.getElementById('btn-co-i-remove').addEventListener('click', async () => {
   const id = document.getElementById('co-i-id').value.trim();
   if (!id || !confirm(`Retirer « ${id} » du brouillon ?`)) return;
   const { ok, data } = await api('DELETE', `/api/admin/collections/draft/items/${encodeURIComponent(id)}`);
-  ptMessage('co-i-msg', ok ? `« ${id} » retiré du brouillon.` : (data.error || 'Erreur.'), ok);
-  if (ok) { coFillItemForm(null); loadCollections(); }
+  if (!ok) { ptMessage('co-i-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('co-item-dialog').close();
+  coNotice(`« ${id} » retiré du brouillon.`);
+  loadCollections();
+});
+
+document.getElementById('btn-co-i-studio').addEventListener('click', () => {
+  const id = document.getElementById('co-i-id').value.trim();
+  document.getElementById('co-item-dialog').close();
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  if (id) icOpen(`item:${id}`);
 });
 
 document.getElementById('co-i-upload').addEventListener('change', e => {
@@ -2636,7 +2712,302 @@ document.getElementById('btn-co-discard').addEventListener('click', async () => 
   if (!confirm('Abandonner le brouillon ? Les modifications non publiées seront perdues.')) return;
   const { ok, data } = await api('DELETE', '/api/admin/collections/draft');
   ptMessage('co-publish-msg', ok ? 'Brouillon abandonné.' : (data.error || 'Erreur.'), ok);
-  if (ok) { coFillItemForm(null); coFillSeriesForm(null); loadCollections(); }
+  if (ok) loadCollections();
+});
+
+// ── Collections : création assistée par IA (#39, 31/10) ───────────────────────
+// Une proposition texte (série + objets) en arrière-plan → relecture et corrections → brouillon.
+// Jamais publiée automatiquement ; drops inactifs ; images une par une dans l'atelier (#40).
+
+const CO_AI_STATE = { pending: '⏳ génération en cours', open: 'à relire', error: 'échec', in_draft: 'dans le brouillon' };
+
+async function coAiLoad() {
+  const { ok, data } = await api('GET', '/api/admin/collections/ai');
+  if (!ok) return;
+  _coAi = data;
+  const st = data.status;
+  const aiBtn = document.getElementById('btn-co-add-ai');
+  aiBtn.disabled = !st.configured;
+  const txt = st.configured
+    ? `IA : ${st.textModel}${st.fake ? ' (mode test)' : ''} — budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
+    : `IA non configurée : ${st.reason}. Création manuelle seulement.`;
+  document.getElementById('co-ai-status').textContent = txt;
+  document.getElementById('co-ai-status-2').textContent = txt;
+  document.getElementById('btn-co-ai-generate').disabled = !st.configured;
+
+  const list = data.proposals;
+  const card = document.getElementById('co-ai-card');
+  card.classList.toggle('hidden', !list.length);
+  const counts = s => list.filter(p => p.status === s).length;
+  document.getElementById('co-ai-card-title').textContent = `✨ Propositions IA — ${counts('open')} à relire`
+    + (counts('pending') ? `, ${counts('pending')} en cours` : '') + (counts('in_draft') ? `, ${counts('in_draft')} dans le brouillon` : '');
+  const tb = document.getElementById('co-ai-body');
+  tb.textContent = '';
+  for (const p of list) {
+    const tr = document.createElement('tr');
+    const s = p.data?.series;
+    [p.createdAt, p.concept.length > 70 ? `${p.concept.slice(0, 70)}…` : p.concept, s ? `${s.icon} ${s.names.fr || s.id}` : '—',
+     p.data ? p.data.items.length : (p.params.itemCount ?? ''), CO_AI_STATE[p.status] ?? p.status].forEach(x => addCell(tr, x));
+    tr.children[3].className = 'num';
+    admRowOpen(tr, `co-prop:${p.id}`, `Proposition ${p.id}`, row => coPropOpen(p.id, row));
+    tb.appendChild(tr);
+  }
+  // Suivi d'une génération en cours (arrêté dès qu'il n'y en a plus)
+  clearTimeout(_coAiTimer);
+  if (list.some(p => p.status === 'pending')) _coAiTimer = setTimeout(coAiPoll, 4000);
+}
+
+async function coAiPoll() {
+  const before = new Set((_coAi?.proposals ?? []).filter(p => p.status === 'pending').map(p => p.id));
+  await coAiLoad();
+  const dlg = document.getElementById('co-prop-dialog');
+  if (dlg.open && _coProp && before.has(_coProp.id)) {
+    const p = _coAi.proposals.find(x => x.id === _coProp.id);
+    if (p && p.status !== 'pending') coPropRender(p);
+  }
+}
+
+document.getElementById('btn-co-ai-generate').addEventListener('click', async e => {
+  const btn = e.currentTarget;
+  const concept = document.getElementById('co-ai-concept').value.trim();
+  if (concept.length < 3) { ptMessage('co-ai-msg', 'Décrivez la collection (au moins 3 caractères).', false); return; }
+  const season = document.getElementById('co-ai-season').value;
+  btn.disabled = true;
+  const { ok, data } = await api('POST', '/api/admin/collections/ai/proposals', {
+    concept, itemCount: Number(document.getElementById('co-ai-count').value), seasonId: season === '' ? null : Number(season) });
+  btn.disabled = false;
+  if (!ok) { ptMessage('co-ai-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('co-ai-dialog').close();
+  document.getElementById('co-ai-concept').value = '';
+  coNotice('✨ Proposition demandée : génération en cours (≈ 30 à 60 s). Elle apparaît dans « ✨ Propositions IA » ; rien n\'est ajouté au brouillon sans votre action.');
+  await coAiLoad();
+  document.getElementById('co-ai-card').open = true;
+  coPropOpen(data.proposal.id, document.getElementById('btn-co-add'));
+});
+
+// Fiche de relecture d'une proposition
+admDialogSetup('co-prop-dialog');
+document.getElementById('co-prop-dialog').addEventListener('close', () => { _coProp = null; });
+
+async function coPropOpen(id, opener) {
+  const { ok, data } = await api('GET', `/api/admin/collections/ai/proposals/${id}`);
+  if (!ok) { coNotice(data.error || 'Erreur.', false); return; }
+  coPropRender(data.proposal);
+  admDialogOpen('co-prop-dialog', opener, document.querySelector('#co-prop-dialog [data-close]'));
+}
+
+function coField(parent, label, value, { textarea = false, max = 60, cls = '', readOnly = false } = {}) {
+  const l = document.createElement('label');
+  if (cls) l.className = cls;
+  l.append(label);
+  const el = document.createElement(textarea ? 'textarea' : 'input');
+  if (textarea) el.rows = 3; else el.type = 'text';
+  el.maxLength = max;
+  el.value = value ?? '';
+  el.readOnly = readOnly;
+  l.appendChild(el);
+  parent.appendChild(l);
+  return el;
+}
+
+function coGrid(parent) {
+  const g = document.createElement('div');
+  g.className = 'co-grid';
+  parent.appendChild(g);
+  return g;
+}
+
+function coPropRender(p) {
+  _coProp = p;
+  const editable = p.status === 'open';
+  document.getElementById('co-prop-title').textContent = `✨ Proposition n° ${p.id}`;
+  const state = document.getElementById('co-prop-state');
+  state.textContent = {
+    pending: '⏳ Génération en cours (≈ 30 à 60 s) : vous pouvez fermer cette fiche, la proposition restera dans « ✨ Propositions IA ».',
+    open: 'À relire : corrigez ce qui doit l\'être, puis « Enregistrer dans le brouillon ». Rien n\'est publié ; les drops restent inactifs ; aucune image n\'est générée.',
+    error: `Échec : ${p.error ?? 'erreur inconnue'}. Aucune donnée n'a été modifiée ; vous pouvez relancer une proposition depuis « ＋ Ajouter ».`,
+    in_draft: `Déjà enregistrée dans le brouillon (série « ${p.seriesId} ») : modifiez-la dans les listes Séries et Objets, illustrez chaque objet dans 🎨 Atelier d'icônes, puis publiez.`,
+  }[p.status] ?? p.status;
+  for (const b of ['btn-co-prop-save', 'btn-co-prop-draft']) document.getElementById(b).classList.toggle('hidden', !editable);
+  document.getElementById('btn-co-prop-discard').classList.toggle('hidden', p.status === 'pending' || p.status === 'in_draft');
+  admShowError(document.getElementById('co-prop-msg'), '');
+  bkFillList(document.getElementById('co-prop-warnings'), p.warnings ?? []);
+
+  const body = document.getElementById('co-prop-body');
+  body.textContent = '';
+  const concept = document.createElement('p');
+  concept.className = 'muted';
+  concept.textContent = `Description : ${p.concept}`;
+  body.appendChild(concept);
+  if (!p.data) return;
+  const d = p.data;
+
+  // Série
+  const fs = document.createElement('fieldset');
+  fs.className = 'co-fs';
+  const lg = document.createElement('legend');
+  lg.textContent = 'Série';
+  fs.appendChild(lg);
+  const g = coGrid(fs);
+  const ro = { readOnly: !editable };
+  const sId = coField(g, 'Identifiant', d.series.id, { max: 40, ...ro });
+  sId.dataset.f = 'series.id';
+  const sIcon = coField(g, 'Icône', d.series.icon, { max: 8, ...ro });
+  sIcon.dataset.f = 'series.icon';
+  const sl = document.createElement('label');
+  sl.append('Saison');
+  const sel = document.getElementById('co-ai-season').cloneNode(true);
+  sel.removeAttribute('id');
+  sel.value = d.series.seasonId == null ? '' : String(d.series.seasonId);
+  sel.disabled = !editable;
+  sel.dataset.f = 'series.seasonId';
+  sl.appendChild(sel);
+  g.appendChild(sl);
+  for (const l of CO_LANGS) coField(g, `Nom ${l.toUpperCase()}`, d.series.names[l], ro).dataset.f = `series.names.${l}`;
+  if (d.series.theme) { const t = document.createElement('p'); t.className = 'muted'; t.textContent = `Thème : ${d.series.theme}`; fs.appendChild(t); }
+  if (d.rationale) { const t = document.createElement('p'); t.className = 'muted'; t.textContent = `Raisonnement : ${d.rationale}`; fs.appendChild(t); }
+  body.appendChild(fs);
+
+  // Aperçu : langue commune à toutes les fiches
+  const pl = document.createElement('label');
+  pl.className = 'co-inline-check';
+  pl.append('Aperçu des fiches en ');
+  const lang = document.createElement('select');
+  lang.id = 'co-prop-lang';
+  for (const l of CO_LANGS) { const o = document.createElement('option'); o.value = l; o.textContent = l; lang.appendChild(o); }
+  pl.appendChild(lang);
+  body.appendChild(pl);
+
+  // Objets
+  d.items.forEach((it, k) => {
+    const det = document.createElement('details');
+    det.className = 'co-prop-item';
+    det.dataset.item = String(k);
+    det.open = k === 0;
+    const sum = document.createElement('summary');
+    sum.textContent = `${it.icon} ${it.names.fr || it.id} · ${BK_RARITY[it.rarity] ?? it.rarity}`;
+    det.appendChild(sum);
+    const wrap = document.createElement('div');
+    wrap.className = 'co-prop-wrap';
+    const left = document.createElement('div');
+    left.className = 'co-prop-fields';
+    const gi = coGrid(left);
+    coField(gi, 'Identifiant', it.id, { max: 40, ...ro }).dataset.f = 'id';
+    const rl = document.createElement('label');
+    rl.append('Rareté');
+    const rs = document.createElement('select');
+    for (const r of _co?.rarities ?? Object.keys(BK_RARITY)) { const o = document.createElement('option'); o.value = r; o.textContent = BK_RARITY[r] ?? r; rs.appendChild(o); }
+    rs.value = it.rarity; rs.disabled = !editable; rs.dataset.f = 'rarity';
+    rl.appendChild(rs);
+    gi.appendChild(rl);
+    coField(gi, 'Icône', it.icon, { max: 8, ...ro }).dataset.f = 'icon';
+    for (const l of CO_LANGS) coField(gi, `Nom ${l.toUpperCase()}`, it.names[l], ro).dataset.f = `names.${l}`;
+    for (const l of CO_LANGS) coField(gi, `Histoire ${l.toUpperCase()}`, it.stories[l], { textarea: true, max: 1200, cls: 'co-span', ...ro }).dataset.f = `stories.${l}`;
+    const img = document.createElement('details');
+    const is = document.createElement('summary');
+    is.textContent = 'Consigne d\'illustration (reprise par l\'atelier, image générée seulement à votre demande)';
+    img.appendChild(is);
+    const gm = coGrid(img);
+    coField(gm, 'Sujet', it.image?.subject, { max: 300, cls: 'co-span', ...ro }).dataset.f = 'image.subject';
+    coField(gm, 'Détails', it.image?.details, { max: 600, cls: 'co-span', ...ro }).dataset.f = 'image.details';
+    coField(gm, 'Palette', it.image?.palette, { max: 300, cls: 'co-span', ...ro }).dataset.f = 'image.palette';
+    left.appendChild(img);
+    const dp = document.createElement('p');
+    dp.className = 'muted';
+    dp.style.fontSize = '0.75rem';
+    dp.textContent = `Drop pré-rempli (barème proposé, non validé) : ${it.drop.from.join('/')} dès ${it.drop.minDepth} m · ${+(it.drop.chance * 100).toFixed(3)} % — inactif. Modifiable ensuite dans la fiche de l'objet.`;
+    left.appendChild(dp);
+    if (editable && d.items.length > 1) {
+      const rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'btn btn-ghost'; rm.textContent = 'Retirer cet objet de la proposition';
+      rm.addEventListener('click', () => { det.remove(); coPropDirty(); });
+      left.appendChild(rm);
+    }
+    // Aperçu de la fiche joueur
+    const prev = document.createElement('div');
+    prev.className = 'co-prop-preview';
+    const art = document.createElement('div'); art.className = 'co-prop-art';
+    const rar = document.createElement('div'); rar.className = 'muted';
+    const nm = document.createElement('strong');
+    const se = document.createElement('div'); se.className = 'muted'; se.style.fontSize = '0.72rem';
+    const sto = document.createElement('p');
+    prev.append(art, rar, nm, se, sto);
+    const refresh = () => {
+      const v = f => det.querySelector(`[data-f="${f}"]`)?.value.trim() ?? '';
+      const l = lang.value;
+      art.textContent = v('icon') || '❔';
+      rar.textContent = BK_RARITY[v('rarity')] ?? '';
+      nm.textContent = v(`names.${l}`) || v('names.fr') || '(nom FR obligatoire)';
+      const sv = f => body.querySelector(`[data-f="series.${f}"]`)?.value.trim() ?? '';
+      se.textContent = `${sv('icon')} ${sv(`names.${l}`) || sv('names.fr')}`;
+      sto.textContent = v(`stories.${l}`) || v('stories.fr') || '(pas d\'histoire)';
+      sum.textContent = `${v('icon')} ${v('names.fr') || v('id')} · ${BK_RARITY[v('rarity')] ?? v('rarity')}`;
+    };
+    det._refresh = refresh;
+    wrap.append(left, prev);
+    det.appendChild(wrap);
+    det.addEventListener('input', refresh);
+    det.addEventListener('change', refresh);
+    body.appendChild(det);
+    refresh();
+  });
+  const all = () => body.querySelectorAll('.co-prop-item').forEach(x => x._refresh());
+  lang.addEventListener('change', all);
+  fs.addEventListener('input', all);
+}
+
+function coPropDirty() { admShowError(document.getElementById('co-prop-msg'), ''); }
+
+/** Lit les corrections de la fiche de relecture. */
+function coPropRead() {
+  const body = document.getElementById('co-prop-body');
+  const val = (root, f) => root.querySelector(`[data-f="${f}"]`)?.value.trim() ?? '';
+  const texts = (root, prefix) => Object.fromEntries(CO_LANGS.map(l => [l, val(root, `${prefix}.${l}`)]));
+  const season = val(body, 'series.seasonId');
+  return {
+    series: { id: val(body, 'series.id'), icon: val(body, 'series.icon'), names: texts(body, 'series.names'), seasonId: season === '' ? null : Number(season) },
+    items: [...body.querySelectorAll('.co-prop-item')].map(det => {
+      const orig = _coProp.data.items[Number(det.dataset.item)];
+      return { id: val(det, 'id'), rarity: val(det, 'rarity'), icon: val(det, 'icon'), names: texts(det, 'names'), stories: texts(det, 'stories'),
+        image: { subject: val(det, 'image.subject'), details: val(det, 'image.details'), palette: val(det, 'image.palette') },
+        // Drop pré-rempli conservé sauf si la rareté change (il suit alors le barème proposé de la nouvelle rareté)
+        drop: val(det, 'rarity') === orig.rarity ? orig.drop : null };
+    }),
+  };
+}
+
+async function coPropSave() {
+  const { ok, data } = await api('PUT', `/api/admin/collections/ai/proposals/${_coProp.id}`, coPropRead());
+  if (!ok) { ptMessage('co-prop-msg', data.error || 'Erreur.', false); return null; }
+  return data.proposal;
+}
+
+document.getElementById('btn-co-prop-save').addEventListener('click', async () => {
+  const p = await coPropSave();
+  if (!p) return;
+  coPropRender(p);
+  ptMessage('co-prop-msg', 'Corrections enregistrées dans la proposition (pas encore dans le brouillon).', true);
+  coAiLoad();
+});
+
+document.getElementById('btn-co-prop-draft').addEventListener('click', async () => {
+  const p = await coPropSave();
+  if (!p) return;
+  const { ok, data } = await api('POST', `/api/admin/collections/ai/proposals/${p.id}/draft`);
+  if (!ok) { coPropRender(p); ptMessage('co-prop-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('co-prop-dialog').close();
+  coNotice(`Série « ${data.series.id} » et ${data.items.length} objet(s) enregistrés dans le brouillon, drops inactifs. Illustrez chaque objet (🎨 sur sa fiche, une image à la fois), puis publiez le brouillon.`);
+  document.getElementById('co-filter-series').value = '';
+  loadCollections();
+});
+
+document.getElementById('btn-co-prop-discard').addEventListener('click', async () => {
+  if (!_coProp || !confirm('Abandonner cette proposition ? Elle disparaîtra de la liste (le catalogue n\'est pas modifié).')) return;
+  const { ok, data } = await api('DELETE', `/api/admin/collections/ai/proposals/${_coProp.id}`);
+  if (!ok) { ptMessage('co-prop-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('co-prop-dialog').close();
+  coNotice('Proposition abandonnée.');
+  coAiLoad();
 });
 
 

@@ -547,3 +547,19 @@ details#ai-card > summary { cursor: pointer; }
 details#ai-card[open] > summary { margin-bottom: 8px; }
 /* Libellé caché d'en-tête : rester dans le tableau (sinon, en position absolue, il élargit la page sur mobile). */
 table:has(.visually-hidden) { position: relative; }
+
+/* Collections (#39) : fiches et relecture des propositions IA */
+.co-thumb { width: 48px; text-align: center; font-size: 1.6rem; }
+.co-thumb img { display: block; margin: auto; }
+.co-fs { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+.co-fs legend { color: var(--muted); font-size: 0.78rem; padding: 0 4px; }
+.co-inline-check { white-space: nowrap; display: inline-flex; flex-direction: row; align-items: center; gap: 4px; margin-right: 12px; }
+.co-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.co-grid .co-span { grid-column: 1 / -1; }
+.co-prop-item { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin: 8px 0; }
+.co-prop-item > summary { cursor: pointer; font-weight: 600; }
+.co-prop-wrap { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; margin-top: 8px; }
+.co-prop-fields { flex: 2 1 300px; min-width: 0; }
+.co-prop-preview { flex: 1 1 200px; border: 1px solid #374151; border-radius: 16px; padding: 12px; text-align: center; }
+.co-prop-preview p { text-align: left; font-size: 0.82rem; line-height: 1.5; }
+.co-prop-art { font-size: 3rem; min-height: 64px; }
