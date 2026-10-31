@@ -387,6 +387,20 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .bk-table .bk-range small { display: block; font-size: 0.72rem; white-space: normal; min-width: 130px; }
 .bk-table .bk-state { white-space: nowrap; font-size: 0.78rem; }
 .bk-table td:last-child { text-align: right; white-space: nowrap; }
+/* Visuel effectif d'un bloc (même priorité que le jeu) ; pointillés = emoji de secours. */
+.bk-thumb { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; overflow: hidden;
+  border: 2px solid #6b7280; border-radius: 8px; background: #374151; line-height: 1; }
+.bk-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.bk-thumb--emoji, .bk-thumb--missing, .bk-thumb--error, .bk-thumb--none, .bk-thumb--pending { border-style: dashed; }
+.bk-src { display: block; font-size: 0.68rem; color: var(--muted, #9ca3af); white-space: nowrap; margin-top: 2px; }
+.bk-src--warn { color: #f59e0b; }
+.bk-table td.bk-visual { width: 56px; text-align: center; }
+.bk-table td.bk-visual .bk-thumb { width: 40px; height: 40px; font-size: 1.4rem; margin: 0 auto; }
+.bk-preview-col { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 128px; }
+.bk-preview-col .bk-src { white-space: normal; text-align: center; }
+.ai-visual { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 140px; }
+.ai-visual .bk-thumb { width: 128px; height: 128px; border-radius: 14px; border-width: 3px; font-size: 56px; }
+.ai-visual .bk-src { white-space: normal; text-align: center; font-size: 0.74rem; }
 @media (max-width: 768px) {
   .bk-filters { flex-direction: row; }
   .bk-filters input[type=search] { flex-basis: 100%; max-width: none; }

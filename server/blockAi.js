@@ -171,7 +171,7 @@ function _callsToday() {
 
 /** Garde-fous avant tout appel payant : un seul appel à la fois, quota journalier, plafond. */
 let _busy = false;
-async function _guarded(kind, proposalId, estUsd, fn) {
+function _precheck(estUsd) {
   if (_busy) throw new AiError(429, 'Une génération est déjà en cours : patientez.');
   if (_callsToday() >= MAX_CALLS_PER_DAY) throw new AiError(429, `Quota atteint : ${MAX_CALLS_PER_DAY} appels IA par 24 h.`);
   let cfg;
@@ -180,6 +180,11 @@ async function _guarded(kind, proposalId, estUsd, fn) {
   if (spent + estUsd > cfg.budgetUsd + 1e-9) {
     throw new AiError(402, `Plafond de dépense IA atteint (${spent.toFixed(2)} / ${cfg.budgetUsd} USD) : relever DIG_IMAGE_BUDGET_USD dans la configuration.`);
   }
+  return cfg;
+}
+
+async function _guarded(kind, proposalId, estUsd, fn) {
+  const cfg = _precheck(estUsd);
   _busy = true;
   const started = Date.now();
   try {
@@ -392,11 +397,34 @@ const imageUrl = sha => (sha ? `/media/blocks/${sha}.webp` : null);
 
 // ── Propositions ──────────────────────────────────────────────────────────────
 
+/** Générations d'image en cours dans CE processus (id de proposition → promesse). */
+const _imageJobs = new Map();
+const INTERRUPTED = 'Génération interrompue (serveur redémarré pendant l\'appel) : aucune image reçue, relancez « ↻ Image seule ».';
+
+/**
+ * État de l'image d'une proposition, affiché tel quel dans le panel :
+ * `ok` (image IA stockée), `pending` (génération en cours), `error` (échec, message), `none` (jamais demandée).
+ * Un `pending` enregistré sans génération active dans ce processus = appel interrompu par un redémarrage.
+ */
+function _imageState(id, data, sha) {
+  const st = data.imageState;
+  if (st?.status === 'pending') return _imageJobs.has(id) ? { imageStatus: 'pending', imageError: null } : { imageStatus: 'error', imageError: INTERRUPTED };
+  if (st?.status === 'error') return { imageStatus: 'error', imageError: st.error ?? 'Échec de la génération.' };
+  return { imageStatus: sha ? 'ok' : 'none', imageError: null };
+}
+
 function _row(r) {
   if (!r) return null;
-  const data = JSON.parse(r.data);
+  const { imageState, ...data } = JSON.parse(r.data);
   return { id: r.id, concept: r.concept, status: r.status, blockId: r.block_id, image: imageUrl(r.image_sha),
-    createdAt: r.created_at, updatedAt: r.updated_at, ...data, warnings: nameWarnings(data.names) };
+    createdAt: r.created_at, updatedAt: r.updated_at, ...data, warnings: nameWarnings(data.names),
+    ..._imageState(r.id, { imageState }, r.image_sha) };
+}
+
+/** Lit l'état brut enregistré (sans interprétation). */
+function _rawImageState(id) {
+  const r = conn().prepare('SELECT data FROM block_ai_proposals WHERE id = ?').get(id);
+  return r ? JSON.parse(r.data).imageState ?? null : null;
 }
 
 function getProposal(id) {
@@ -407,10 +435,41 @@ function listProposals(limit = 30) {
   return conn().prepare("SELECT * FROM block_ai_proposals WHERE status != 'discarded' ORDER BY id DESC LIMIT ?").all(limit).map(_row);
 }
 
-function _save(id, data, imageSha) {
-  const { warnings, id: _i, concept, status: _s, blockId, image, createdAt, updatedAt, ...rest } = data;
+/** Enregistre les données d'une proposition ; l'état d'image enregistré est conservé sauf `imageState` explicite. */
+function _save(id, data, imageSha, imageState) {
+  const { warnings, id: _i, concept, status: _s, blockId, image, createdAt, updatedAt, imageStatus, imageError, ...rest } = data;
+  const st = imageState !== undefined ? imageState : _rawImageState(id);
+  if (st) rest.imageState = st;
   conn().prepare("UPDATE block_ai_proposals SET data = ?, image_sha = COALESCE(?, image_sha), updated_at = datetime('now') WHERE id = ?")
     .run(JSON.stringify(rest), imageSha ?? null, id);
+}
+
+/**
+ * Lance la génération de l'image d'une proposition. Les garde-fous (appel en cours, quota, plafond)
+ * sont vérifiés tout de suite (erreur immédiate) ; l'état passe à `pending`, puis `ok` ou `error`.
+ * Rend la promesse de la génération : les routes ne l'attendent pas (texte + image dépassent le
+ * délai de 60 s du proxy) et le panel suit l'état ; les tests peuvent l'attendre.
+ */
+function _startImage(id, cfgEst) {
+  _precheck(cfgEst.estCostUsd);
+  _save(id, getProposal(id), null, { status: 'pending', at: new Date().toISOString() });
+  const job = (async () => {
+    const p = getProposal(id);
+    const img = await _guarded('image', id, cfgEst.estCostUsd, cfg => _callImage(cfg, _imagePrompt(p.art ?? {}, p.concept)));
+    const sha = _storeImage(img.webp, img.mime, id, img.meta);
+    // Relu après l'appel : les corrections faites pendant la génération sont conservées
+    _save(id, { ...getProposal(id), imageMeta: img.meta }, sha, { status: 'ok', at: new Date().toISOString() });
+  })().catch((err) => {
+    _save(id, getProposal(id), null, { status: 'error', error: String(err.message || err).slice(0, 300), at: new Date().toISOString() });
+    throw err;
+  }).finally(() => { _imageJobs.delete(id); });
+  _imageJobs.set(id, job);
+  return job;
+}
+
+/** Attend la génération d'image en cours d'une proposition (tests, outils) ; résolue si aucune. */
+function waitImage(id) {
+  return (_imageJobs.get(id) ?? Promise.resolve()).then(() => getProposal(id), () => getProposal(id));
 }
 
 function _open(id) {
@@ -420,8 +479,11 @@ function _open(id) {
   return p;
 }
 
-/** Nouvelle proposition : texte (noms + paramètres) puis, si demandé, image. */
-async function createProposal({ concept, withImage = true } = {}) {
+/**
+ * Nouvelle proposition : texte (noms + paramètres) puis, si demandé, image.
+ * `background: true` (routes) : rend la proposition dès le texte prêt, image en `pending`.
+ */
+async function createProposal({ concept, withImage = true, background = false } = {}) {
   const c = _clean(concept, CONCEPT_MAX);
   if (c.length < 3) throw new AiError(400, 'Décrivez le bloc (3 à 500 caractères).');
   const cfgEst = (() => { try { return config(); } catch (_) { return { textEstCostUsd: 0.01 }; } })();
@@ -434,21 +496,27 @@ async function createProposal({ concept, withImage = true } = {}) {
     throw err;
   }
   if (withImage) {
-    try { await regenerate(id, 'image'); } catch (err) { return { ...getProposal(id), imageError: err.message }; }
+    let job;
+    try { job = _startImage(id, cfgEst); } catch (err) {
+      _save(id, getProposal(id), null, { status: 'error', error: err.message, at: new Date().toISOString() });
+      return getProposal(id);
+    }
+    if (background) { job.catch(() => { /* état « error » enregistré */ }); return getProposal(id); }
+    try { await job; } catch (_) { /* état « error » enregistré, rendu par getProposal */ }
   }
   return getProposal(id);
 }
 
-/** Régénération ciblée : `names` (noms/traductions seuls), `text` (noms + paramètres), `image`. */
-async function regenerate(id, what) {
+/** Régénération ciblée : `names` (noms/traductions seuls), `text` (noms + paramètres), `image` (`background` : voir createProposal). */
+async function regenerate(id, what, { background = false } = {}) {
   const p = _open(id);
   if (p.status !== 'open') throw new AiError(409, 'Proposition déjà ajoutée au brouillon : modifiez le bloc dans le catalogue.');
   if (!['names', 'text', 'image'].includes(what)) throw new AiError(400, 'Régénération : names, text ou image.');
   const cfgEst = (() => { try { return config(); } catch (_) { return { textEstCostUsd: 0.01, estCostUsd: 0.25 }; } })();
   if (what === 'image') {
-    const img = await _guarded('image', id, cfgEst.estCostUsd, cfg => _callImage(cfg, _imagePrompt(p.art ?? {}, p.concept)));
-    const sha = _storeImage(img.webp, img.mime, id, img.meta);
-    _save(id, { ...p, imageMeta: img.meta }, sha);
+    const job = _startImage(id, cfgEst);
+    if (background) { job.catch(() => { /* état « error » enregistré */ }); return getProposal(id); }
+    await job;
   } else {
     const t = await _guarded('text', id, cfgEst.textEstCostUsd, cfg => _callText(cfg, what === 'names' ? 'names' : 'full', p.concept, p));
     const next = what === 'names' ? { ...p, names: _names(t.data.names) } : { ...p, ..._fromText(t.data) };
@@ -504,6 +572,7 @@ function impact(id) {
 function addToDraft(id, { blockId } = {}) {
   const p = _open(id);
   if (p.status !== 'open') throw new AiError(409, 'Proposition déjà ajoutée au brouillon.');
+  if (p.imageStatus === 'pending') throw new AiError(409, 'Image en cours de génération : patientez avant d\'ajouter au brouillon.');
   const bid = _slug(blockId || p.idSuggestion);
   if (!bid) throw new AiError(400, 'Identifiant technique invalide (a-z, 0-9, _).');
   const existing = new Set([...(catalog.getDraft()?.types ?? catalog.getPublished().types).map(t => t.id), ...catalog.publishedIds()]);
@@ -527,5 +596,5 @@ function listCalls(limit = 50) {
 
 module.exports = {
   AiError, IMAGE_URL_RE, init, status, setFakeTransport, createProposal, regenerate, updateProposal, addToDraft,
-  discardProposal, getProposal, listProposals, listCalls, impact, getImage, nameWarnings,
+  discardProposal, getProposal, listProposals, listCalls, impact, getImage, nameWarnings, waitImage,
 };

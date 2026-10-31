@@ -1140,13 +1140,13 @@ app.get('/api/admin/blocks/ai', requireAdmin, catalogRoute('GET /api/admin/block
   () => ({ status: blockAi.status(), proposals: blockAi.listProposals(), calls: blockAi.listCalls() })));
 
 app.post('/api/admin/blocks/ai/proposals', requireAdmin, catalogRoute('POST /api/admin/blocks/ai/proposals',
-  async req => ({ proposal: await blockAi.createProposal({ concept: req.body?.concept, withImage: req.body?.withImage !== false }) })));
+  async req => ({ proposal: await blockAi.createProposal({ concept: req.body?.concept, withImage: req.body?.withImage !== false, background: true }) })));
 
 app.put('/api/admin/blocks/ai/proposals/:id', requireAdmin, catalogRoute('PUT /api/admin/blocks/ai/proposals/:id',
   req => ({ proposal: blockAi.updateProposal(Number(req.params.id), req.body ?? {}) })));
 
 app.post('/api/admin/blocks/ai/proposals/:id/regenerate', requireAdmin, catalogRoute('POST /api/admin/blocks/ai/proposals/:id/regenerate',
-  async req => ({ proposal: await blockAi.regenerate(Number(req.params.id), String(req.body?.what ?? '')) })));
+  async req => ({ proposal: await blockAi.regenerate(Number(req.params.id), String(req.body?.what ?? ''), { background: true }) })));
 
 app.get('/api/admin/blocks/ai/proposals/:id/impact', requireAdmin, catalogRoute('GET /api/admin/blocks/ai/proposals/:id/impact',
   req => ({ impact: blockAi.impact(Number(req.params.id)) })));

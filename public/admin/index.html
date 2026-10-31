@@ -715,7 +715,7 @@
       </div>
       <div class="bk-table-wrap">
       <table class="bk-table">
-        <thead><tr><th></th><th>Identifiant</th><th>Nom FR</th><th>Catégorie</th><th>Rareté</th><th class="num">PV</th><th class="num">Récompense</th><th>Apparition</th><th class="num">Poids</th><th class="num" title="Probabilité d'apparition à la profondeur choisie">Prob.</th><th>Statut</th><th></th></tr></thead>
+        <thead><tr><th>Visuel</th><th>Identifiant</th><th>Nom FR</th><th>Catégorie</th><th>Rareté</th><th class="num">PV</th><th class="num">Récompense</th><th>Apparition</th><th class="num">Poids</th><th class="num" title="Probabilité d'apparition à la profondeur choisie">Prob.</th><th>Statut</th><th></th></tr></thead>
         <tbody id="bk-body"></tbody>
       </table>
       </div>
@@ -724,7 +724,10 @@
     <div class="overview-card">
       <h3 class="overview-card-title" id="bk-form-title">Nouveau bloc</h3>
       <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-        <div id="bk-preview" style="width:110px;height:110px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:3rem;border:3px solid #6b7280"></div>
+        <div class="bk-preview-col">
+          <div id="bk-preview" class="bk-thumb" style="width:110px;height:110px;border-radius:14px;font-size:3rem;border-width:3px"></div>
+          <small id="bk-preview-src" class="bk-src"></small>
+        </div>
         <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
           <label>Identifiant stable<input id="bk-id" type="text" maxlength="40" placeholder="obsidienne"></label>
           <label>Nom FR<input id="bk-name-fr" type="text" maxlength="40"></label>
@@ -734,7 +737,7 @@
           <label>Catégorie<select id="bk-category"></select></label>
           <label>Rareté<select id="bk-rarity"></select></label>
           <label>Icône (emoji)<input id="bk-icon" type="text" maxlength="8"></label>
-          <label>Image (/assets/…, facultatif)<input id="bk-image" type="text" maxlength="200"></label>
+          <label>Image personnalisée (/assets/… ou /media/…, prioritaire, facultatif)<input id="bk-image" type="text" maxlength="200"></label>
           <label>Couleur (#… ou linear-gradient)<input id="bk-color" type="text" maxlength="80"></label>
           <label>Accent (#…)<input id="bk-accent" type="text" maxlength="9"></label>
           <label>PV de base<input id="bk-hp" type="number" min="1"></label>
@@ -1139,6 +1142,7 @@
 
 </div>
 
+<script src="/js/iconLibrary.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>

@@ -1502,24 +1502,78 @@ function bkFillSelect(id, values, labels) {
   }
 }
 
-function bkPreview() {
-  const box = document.getElementById('bk-preview');
-  const color = document.getElementById('bk-color').value.trim();
-  const accent = document.getElementById('bk-accent').value.trim();
-  box.style.background = color;
-  box.style.borderColor = /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : '#6b7280';
+// Visuel effectif d'un bloc, comme le jeu (public/js/iconLibrary.js, réutilisé tel quel) :
+// 1. image personnalisée du catalogue ; 2. bibliothèque par défaut de library.json (v1) si le
+// matériau y figure ; 3. emoji de secours. Le panel montre le rendu par défaut des joueurs
+// (une préférence ?icons=… propre à ce navigateur est ignorée).
+let _bkIcons = null;   // library.json ; null (absent ou illisible) → emoji, comme le jeu
+
+async function bkLoadIcons() {
+  try {
+    const r = await fetch('/assets/icons/library.json', { cache: 'no-store' });
+    _bkIcons = r.ok ? await r.json() : null;
+  } catch (_) { _bkIcons = null; }
+  if (typeof IconLibrary !== 'undefined') IconLibrary.config = _bkIcons;
+}
+
+const bkAbs = (base, file) => `${base.startsWith('/') ? '' : '/'}${base}${file}`;
+
+function bkVisual(t) {
+  if (typeof IconLibrary === 'undefined') return { kind: 'emoji', label: 'Emoji (bibliothèque d\'icônes non chargée)' };
+  const own = IconLibrary.catalogImage(t);
+  if (own) return { kind: 'catalog', src: own, label: 'Image personnalisée (prioritaire)', short: 'image' };
+  const a = _bkIcons?.defaultLibrary === 'v1' ? IconLibrary.asset(t) : null;
+  if (a) {
+    return { kind: 'v1', src: bkAbs(a.base, a.entry.webp['128']), srcset: `${bkAbs(a.base, a.entry.webp['128'])} 1x, ${bkAbs(a.base, a.entry.webp['256'])} 2x`,
+      label: 'Bibliothèque v1 validée (affichée en jeu)', short: 'v1' };
+  }
+  return { kind: 'emoji', label: 'Aucune image : emoji de secours', short: 'emoji' };
+}
+
+/** Remplit `box` (classe bk-thumb) avec le visuel effectif ; `caption` (facultatif) reçoit la source. */
+function bkDrawVisual(box, caption, t) {
+  const v = bkVisual(t);
+  const color = String(t.color ?? '');
+  box.style.background = /^(#[0-9a-fA-F]{3,8}|linear-gradient\([#0-9a-fA-F, a-z.%()]+\))$/.test(color) ? color : '#374151';
+  box.style.borderColor = /^#[0-9a-fA-F]{3,8}$/.test(t.accent ?? '') ? t.accent : '#6b7280';
   box.textContent = '';
+  const setCaption = (kind, label, short) => {
+    box.className = `bk-thumb bk-thumb--${kind}`;
+    box.title = label;
+    if (caption) {
+      caption.textContent = caption.dataset.long ? label : short;
+      caption.classList.toggle('bk-src--warn', kind === 'missing');
+    }
+  };
+  setCaption(v.kind, v.label, v.short);
+  if (!v.src) { box.textContent = t.icon || '❔'; return v; }
+  const img = document.createElement('img');
+  img.alt = '';
+  img.decoding = 'async';
+  img.src = v.src;
+  if (v.srcset) img.srcset = v.srcset;
+  img.onerror = () => {
+    if (!box.contains(img)) return;
+    box.textContent = t.icon || '❔';
+    setCaption('missing', `Image introuvable (${v.src}) : emoji de secours`, '⚠ absente');
+  };
+  box.appendChild(img);
+  return v;
+}
+
+function bkPreview() {
+  const caption = document.getElementById('bk-preview-src');
+  caption.dataset.long = '1';
   const image = document.getElementById('bk-image').value.trim();
-  if (/^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/media\/(blocks|icons)\/[a-f0-9]{16}\.webp)$/.test(image) && !image.includes('..')) {
-    const img = document.createElement('img');
-    img.src = image;
-    img.alt = '';
-    img.width = 88;
-    img.height = 88;
-    img.onerror = () => { box.textContent = document.getElementById('bk-icon').value; };
-    box.appendChild(img);
-  } else {
-    box.textContent = document.getElementById('bk-icon').value;
+  const t = {
+    id: document.getElementById('bk-id').value.trim(), image: image || null,
+    icon: document.getElementById('bk-icon').value, color: document.getElementById('bk-color').value.trim(),
+    accent: document.getElementById('bk-accent').value.trim(),
+  };
+  bkDrawVisual(document.getElementById('bk-preview'), caption, t);
+  if (image && (typeof IconLibrary === 'undefined' || !IconLibrary.catalogImage(t))) {
+    caption.textContent = `Chemin d'image non accepté (attendu /assets/….webp|png|svg ou /media/blocks/….webp) — ${caption.textContent}`;
+    caption.classList.add('bk-src--warn');
   }
 }
 
@@ -1596,7 +1650,15 @@ function bkRenderTable() {
       : t.maxDepth != null ? `ancienne borne ${t.maxDepth} m, convertie en atténuation à la publication` : '';
     const state = `${t.active ? 'actif' : 'désactivé'}${changed.has(t.id) ? ' · modifié' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau'}`;
     // Classes de colonne : nombres alignés à droite, sans retour à la ligne (le texte reste identique).
-    [[t.icon, 'bk-icon'], [t.id, 'bk-id'], [t.names?.fr ?? '(intégré)', ''], [t.category, ''], [BK_RARITY[t.rarity] ?? t.rarity, 'nowrap'],
+    const vis = document.createElement('td');
+    vis.className = 'bk-visual';
+    const box = document.createElement('div');
+    const cap = document.createElement('small');
+    cap.className = 'bk-src';
+    vis.append(box, cap);
+    bkDrawVisual(box, cap, t);
+    tr.appendChild(vis);
+    [[t.id, 'bk-id'], [t.names?.fr ?? '(intégré)', ''], [t.category, ''], [BK_RARITY[t.rarity] ?? t.rarity, 'nowrap'],
      [t.hpBase, 'num'], [t.reward, 'num'], [`dès ${t.minDepth} m`, 'bk-range'], [t.weight, 'num'],
      [bkPct(odds.get(t.id)) + (BK_BOOSTED.has(t.rarity) ? ' ★' : ''), 'num'], [state, 'bk-state']]
       .forEach(([x, cls]) => {
@@ -1620,7 +1682,7 @@ function bkChangeLabel(c) {
 }
 
 async function loadBlocks() {
-  const { ok, data } = await api('GET', '/api/admin/blocks');
+  const [{ ok, data }] = await Promise.all([api('GET', '/api/admin/blocks'), bkLoadIcons()]);
   if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur lors du chargement.', false); return; }
   _bk = data;
   bkFillSelect('bk-filter-cat', data.categories);
@@ -1705,6 +1767,16 @@ function aiInput(label, value, attrs = {}) {
   return [l, i];
 }
 
+let _aiPoll = null;
+
+/** État de l'image d'une proposition IA (serveur : imageStatus / imageError). */
+const AI_IMAGE_STATE = {
+  ok: ['✓ Image IA générée (stockée ; visible en jeu seulement après ajout au brouillon et publication).', ''],
+  pending: ['⏳ Image en cours de génération (≈ 1 min) : cette carte se met à jour seule.', ''],
+  error: ['⚠ Image en échec', ' — emoji de secours affiché. « ↻ Image seule » pour réessayer.'],
+  none: ['Aucune image générée pour cette proposition — emoji de secours affiché. « ↻ Image seule » pour la créer.', ''],
+};
+
 async function loadAi() {
   const { ok, data } = await api('GET', '/api/admin/blocks/ai');
   const st = document.getElementById('ai-status');
@@ -1718,6 +1790,9 @@ async function loadAi() {
   const box = document.getElementById('ai-proposals');
   box.textContent = '';
   for (const p of data.proposals) box.appendChild(aiRenderProposal(p, s.configured));
+  // Image générée en arrière-plan : état rafraîchi tant qu'une génération est en cours
+  clearTimeout(_aiPoll);
+  if (data.proposals.some(p => p.imageStatus === 'pending')) _aiPoll = setTimeout(loadAi, 4000);
   const cb = document.getElementById('ai-calls-body');
   cb.textContent = '';
   for (const c of data.calls) {
@@ -1733,11 +1808,23 @@ function aiRenderProposal(p, configured) {
   card.appendChild(aiEl('h4', {}, `Proposition #${p.id} — ${p.status === 'in_draft' ? `dans le brouillon (« ${p.blockId} »)` : 'à valider'}`));
   card.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.78rem' }, `Concept : ${p.concept}`));
   const row = aiEl('div', { style: 'display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start' });
-  const prev = aiEl('div', { style: `width:128px;height:128px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:56px;border:3px solid ${/^#[0-9a-f]{6}$/i.test(p.accent) ? p.accent : '#6b7280'}` });
+  const state = p.imageStatus ?? (p.image ? 'ok' : 'none');
+  const visual = aiEl('div', { class: 'ai-visual' });
+  const prev = aiEl('div', { class: `bk-thumb bk-thumb--${p.image ? 'ai' : state}` });
+  prev.style.borderColor = /^#[0-9a-f]{6}$/i.test(p.accent) ? p.accent : '#6b7280';
   prev.style.background = /^linear-gradient\(145deg,#[0-9a-f]{6},#[0-9a-f]{6}\)$/i.test(p.color) ? p.color : '#374151';
-  if (p.image) { const img = aiEl('img', { src: p.image, alt: '', width: '112', height: '112' }); prev.appendChild(img); }
-  else prev.textContent = p.icon || '⬜';
-  row.appendChild(prev);
+  const [stLabel, stTail] = AI_IMAGE_STATE[state] ?? AI_IMAGE_STATE.none;
+  const caption = aiEl('small', { class: `bk-src${state === 'error' ? ' bk-src--warn' : ''}` },
+    state === 'error' ? `${stLabel} : ${p.imageError ?? 'erreur inconnue'}${p.image ? ' (image précédente conservée)' : stTail}` : stLabel);
+  if (p.image) {
+    const img = aiEl('img', { src: p.image, alt: '' });
+    img.onerror = () => { prev.textContent = p.icon || '❔'; caption.textContent = `⚠ Image IA introuvable (${p.image}) — emoji de secours affiché.`; caption.classList.add('bk-src--warn'); };
+    prev.appendChild(img);
+  } else {
+    prev.textContent = state === 'pending' ? '⏳' : (p.icon || '❔');
+  }
+  visual.append(prev, caption);
+  row.appendChild(visual);
   const names = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.5rem;flex:1' });
   const nameInputs = {};
   for (const [l, label] of AI_LANGS) {
@@ -1791,16 +1878,17 @@ function aiRenderProposal(p, configured) {
     return ok;
   };
   const regen = what => async () => {
-    msg.textContent = 'Génération en cours (jusqu\'à 1–2 min pour une image)…';
+    msg.textContent = what === 'image' ? 'Lancement de la génération de l\'image…' : 'Génération en cours…';
     const { ok, data } = await api('POST', `/api/admin/blocks/ai/proposals/${p.id}/regenerate`, { what });
     if (!ok) { msg.textContent = data.error || 'Erreur.'; return; }
     loadAi();
   };
   if (open) {
     button('Enregistrer les corrections', save);
-    button('↻ Noms / traductions', regen('names'), { disabled: !configured });
-    button('↻ Image seule', regen('image'), { disabled: !configured });
-    button('↻ Tout le texte', regen('text'), { disabled: !configured });
+    const busy = state === 'pending';
+    button('↻ Noms / traductions', regen('names'), { disabled: !configured || busy });
+    button('↻ Image seule', regen('image'), { disabled: !configured || busy });
+    button('↻ Tout le texte', regen('text'), { disabled: !configured || busy });
     button('Impact', async () => {
       if (!(await save())) return;
       const { ok, data } = await api('GET', `/api/admin/blocks/ai/proposals/${p.id}/impact`);
@@ -1825,7 +1913,7 @@ function aiRenderProposal(p, configured) {
       if (!ok) { msg.textContent = data.error || 'Erreur.'; return; }
       await loadBlocks();
       loadAi();
-    }, { primary: true });
+    }, { primary: true, disabled: state === 'pending' });
     button('Abandonner', async () => {
       if (!confirm(`Abandonner la proposition #${p.id} ?`)) return;
       const { ok, data } = await api('DELETE', `/api/admin/blocks/ai/proposals/${p.id}`);
@@ -1845,11 +1933,17 @@ document.getElementById('btn-ai-generate').addEventListener('click', async () =>
   const msg = document.getElementById('ai-msg');
   const btn = document.getElementById('btn-ai-generate');
   btn.disabled = true;
-  msg.textContent = 'Génération en cours (texte puis image : jusqu\'à 2 min)…';
+  msg.textContent = 'Génération du texte en cours (≈ 30 s), puis de l\'image (≈ 1 min, suivie dans la carte)…';
   try {
     const { ok, data } = await api('POST', '/api/admin/blocks/ai/proposals', { concept, withImage: document.getElementById('ai-with-image').checked });
-    msg.textContent = ok ? (data.proposal.imageError ? `Texte proposé ; image en échec : ${data.proposal.imageError}` : 'Proposition prête : vérifiez-la ci-dessous.') : (data.error || 'Erreur.');
+    const st = data.proposal?.imageStatus;
+    msg.textContent = !ok ? (data.error || 'Erreur.')
+      : st === 'pending' ? 'Texte prêt ; image en cours de génération : la carte ci-dessous se met à jour seule.'
+      : st === 'error' ? `Texte proposé ; image en échec : ${data.proposal.imageError}`
+      : 'Proposition prête : vérifiez-la ci-dessous.';
     if (ok) document.getElementById('ai-concept').value = '';
+  } catch (_) {
+    msg.textContent = 'Réponse du serveur interrompue : l\'état réel de la proposition est rechargé ci-dessous.';
   } finally {
     btn.disabled = false;
     loadAi();
@@ -1858,7 +1952,7 @@ document.getElementById('btn-ai-generate').addEventListener('click', async () =>
 for (const id of ['bk-filter-text', 'bk-filter-cat', 'bk-filter-status', 'bk-odds-depth']) {
   document.getElementById(id).addEventListener('input', () => { if (_bk) bkRenderTable(); });
 }
-for (const id of ['bk-icon', 'bk-image', 'bk-color', 'bk-accent']) document.getElementById(id).addEventListener('input', bkPreview);
+for (const id of ['bk-id', 'bk-icon', 'bk-image', 'bk-color', 'bk-accent']) document.getElementById(id).addEventListener('input', bkPreview);
 document.getElementById('btn-bk-new').addEventListener('click', () => bkFillForm(null));
 
 document.getElementById('btn-bk-save').addEventListener('click', async () => {
