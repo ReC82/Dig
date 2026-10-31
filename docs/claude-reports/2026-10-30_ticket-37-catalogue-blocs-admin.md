@@ -4,6 +4,106 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 31/10/2026, 14 h 31 (Bruxelles) — vrais visuels dans Admin → Blocs, état de l'image IA
+
+Suite à la recette visuelle du propriétaire du 31/10 (commentaire 13:11 UTC) : v3, 22 blocs et probabilités à 250 m validés ; deux défauts signalés : (1) la liste et le formulaire montraient des emoji au lieu des illustrations du jeu ; (2) la proposition IA « cuivre oxydé » montrait un carré vert à la place d'une image.
+
+## A. État réel
+
+**Déployé en production (SHA `580b9a8`) — en attente de recette.** Correction faite dans #37 (même ticket). Classement : **Après lancement** (panel admin, sans effet sur les joueurs). #37 reste ouvert pour les découvertes, les événements et les drops.
+
+## B. Diagnostic de l'image IA (proposition n° 1, constaté en production en lecture seule)
+
+- Journal des appels de la proposition : **un seul appel, de type texte** (réussi à 09:50:01 UTC, 0,0049 USD). **Aucun appel image n'a été enregistré**, ni réussi, ni en échec, et aucune image n'est stockée.
+- Cause : **le déploiement de `bc684be` a redémarré le serveur à 09:50:31 UTC**, 30 s après la réponse texte, pendant la génération de l'image (≈ 45 s). L'appel a été coupé avant d'être journalisé. **Rien n'a été facturé pour l'image.**
+- Le panel affichait alors l'emoji de secours de la proposition (🟩, sur le fond aux couleurs du bloc), sans aucun état : d'où le « carré vert bordé ».
+- Second défaut trouvé à cette occasion : le proxy nginx du jeu garde son délai par défaut de 60 s. Or la création attendait texte + image (≈ 15–30 s + 45 s). Même sans redémarrage, elle pouvait donc échouer en 504 côté navigateur. Les essais du 30/10 avaient été faits sans proxy.
+
+## C. Changements
+
+**1. Visuels réels dans la liste et le formulaire** (`public/admin/admin.js`, `admin.css`, `index.html`)
+- Le panel charge le **même module que le jeu** (`/js/iconLibrary.js`) et la même configuration (`/assets/icons/library.json`). Il applique la même priorité : **image personnalisée du catalogue → bibliothèque v1 par défaut (si le matériau y figure) → emoji de secours**.
+- Le panel affiche le rendu par défaut des joueurs : une préférence `?icons=…` propre au navigateur de l'admin est ignorée.
+- Nouvelle colonne « Visuel » : miniature de 40 px sur le fond du bloc, avec la source en dessous (`v1`, `image` ou `emoji`). Un emoji de secours a une **bordure en pointillés**. Si une image ne se charge pas : emoji + « ⚠ absente ».
+- Aperçu du formulaire : la même résolution, mise à jour pendant la saisie (identifiant, image, emoji, couleurs), avec la source en clair. Exemples : « Bibliothèque v1 validée (affichée en jeu) », « Aucune image : emoji de secours », chemin refusé, image introuvable.
+- Résultat sur le catalogue v3 : **14 blocs avec leur illustration v1** et **8 nouveaux minerais** (quartz → cristal ancien) signalés en emoji de secours. Ils n'ont pas encore d'icône. Aucune icône validée n'a été régénérée ni remplacée.
+
+**2. Image IA : génération en arrière-plan et état visible** (`server/blockAi.js`, `server/index.js`)
+- « ✨ Proposer un bloc » répond dès que le texte est prêt. L'image se génère ensuite **en arrière-plan**, et la carte se rafraîchit seule toutes les 4 s tant qu'elle est en cours. « ↻ Image seule » fonctionne de la même façon.
+- **État enregistré** avec la proposition (dans ses données JSON, sans changement de schéma), affiché sous l'aperçu :
+  - « ✓ Image IA générée » ;
+  - « ⏳ en cours » ;
+  - « ⚠ Image en échec : <raison> » (plafond, quota, erreur de l'API…) ;
+  - « Aucune image générée ».
+- Une génération coupée par un redémarrage apparaît comme « ⚠ Génération interrompue (serveur redémarré pendant l'appel) : relancez « ↻ Image seule » ».
+- Pendant une génération : « Ajouter au brouillon » et les régénérations sont désactivés (le serveur les refuse aussi). Les corrections de noms faites pendant la génération sont conservées.
+- Garde-fous inchangés : un appel à la fois, 40 appels / 24 h, plafond de dépense partagé, clé côté serveur, journal en ajout seul. **Aucune publication automatique.**
+- La proposition n° 1 existante s'affiche « Aucune image générée pour cette proposition — emoji de secours affiché ». **Je n'ai lancé aucune génération réelle** : elle coûte ≈ 0,08 USD et revient à votre recette.
+
+Captures (serveur de test, copie de la base de production, transport IA factice) : [liste 1280 px](img/2026-10-31_ticket-37-visuels-liste-1280.png), [formulaire 390 px](img/2026-10-31_ticket-37-visuels-formulaire-390.png), [proposition n° 1, état de l'image](img/2026-10-31_ticket-37-ia-etat-image-1280.png).
+
+## D. SHA, tests, déploiement
+
+- Branche `feature/37-catalogue-blocs-admin` : `bc0e9c0` ; **`develop` : `580b9a8`** (fusion `--no-ff`).
+- `npm test` : 370/370 sur la branche, sur `develop`, puis sur la release `580b9a8`.
+- Tests ajoutés ou adaptés (`test/block-ai.test.js`, transport factice, aucune dépense) :
+  - passages `pending → ok` ;
+  - « Ajouter au brouillon » refusé pendant la génération ;
+  - seconde génération refusée (429) ;
+  - correction conservée ;
+  - « interrompue » après redémarrage simulé ;
+  - « none » pour une ancienne proposition ;
+  - échec enregistré et relu ;
+  - route HTTP : réponse immédiate puis image disponible.
+- Navigateur (Chromium, serveur de test sur une copie de la base de production, port 3101) :
+  - en 1280×900 et en 390×844 : 22 lignes, 14 en v1, 8 en emoji, 0 image cassée, aucun débordement de page ;
+  - formulaire correct (v1 / emoji) ;
+  - « ↻ Image seule » : la carte passe de « Aucune image » à « ✓ Image IA générée », avec l'image servie ;
+  - état « interrompue » affiché ;
+  - 0 erreur JS (seule la 404 connue du favicon).
+- Copie de la base de production démarrée avec la release (port 3122) : `/health` 200, `/api/version` = `1.0.0+580b9a8`, empreintes des 6 tables joueurs identiques, `quick_check` ok. Copie supprimée.
+- Déploiement `bc684be → 580b9a8` par `scripts/deploy.sh` (de la release). Avant de lancer, j'ai vérifié qu'aucune génération IA n'était en cours en production. Sauvegarde vérifiée : `~/backups/dig/dig-20261031-143057-pre-deploy-580b9a8.sqlite`. Pas de `npm ci` (lock inchangé).
+- Production :
+  - 2 domaines → 200, `1.0.0+580b9a8` ;
+  - journal sans erreur ; `quick_check` ok ;
+  - empreintes joueurs identiques à la sauvegarde pré-déploiement ;
+  - Chromium 1280×900 et 390×844 sur `/` et `/admin/` sans erreur JS, `IconLibrary` chargé dans l'admin.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep bc684be` puis `sudo systemctl restart dig`. Aucune migration ; l'état d'image ajouté aux données d'une proposition est ignoré par l'ancien code.
+- Non vérifié par moi en production : l'onglet connecté (pas de clé admin) et une vraie génération d'image (dépense).
+
+## E. Test fonctionnel à faire par le propriétaire
+
+1. Admin → 🧱 Blocs (Ctrl+F5).
+   - Attendu : colonne « Visuel » avec les illustrations du jeu pour terre meuble … diamant (mention `v1`) ; les 8 nouveaux minerais en emoji à bordure pointillée (mention `emoji`) ; rien ne déborde, sur PC comme sur mobile.
+2. « Modifier » sur pierre.
+   - Attendu : l'aperçu montre l'illustration et la mention « Bibliothèque v1 validée (affichée en jeu) ».
+   - Sur quartz : « Aucune image : emoji de secours ».
+3. Carte IA, proposition n° 1 (cuivre oxydé).
+   - Attendu : « Aucune image générée pour cette proposition ».
+   - Cliquer « ↻ Image seule » (≈ 0,08 USD) : « ⏳ en cours », puis après ≈ 1 min « ✓ Image IA générée » avec la vraie image.
+   - Rien n'est publié tant que vous n'utilisez pas « Ajouter au brouillon » puis « Publier ».
+4. Facultatif : une nouvelle proposition. La réponse arrive après le texte (≈ 30 s), puis l'image suit dans la carte.
+
+## F. Choix techniques faits seul
+
+- Réutilisation de `iconLibrary.js` du jeu plutôt qu'une copie de ses règles dans le panel : une seule source de vérité pour la priorité et les chemins acceptés.
+- Génération en arrière-plan plutôt qu'un allongement du délai nginx : l'infrastructure n'est pas modifiable et une génération IA n'a pas à tenir une requête HTTP ouverte.
+- État enregistré dans le JSON de la proposition : aucune migration de schéma ; ancien code compatible.
+- Un « en cours » enregistré sans génération active dans le processus est présenté comme « interrompu ». Pas de relance automatique : elle serait payante.
+
+## G. Décisions demandées au propriétaire
+
+Inchangées : 1. plafond de dépense IA (2,03 / 3 USD utilisés ; recommandation : 10 USD) ; 2. gemmes pour saphir, améthyste et cristal ancien (recommandation : non pour l'instant).
+
+## H. Restant à réaliser
+
+- Recette : vraie image IA (étape E.3) et une publication.
+- Icônes des 8 nouveaux minerais (via la carte IA ou #40). Je n'ai rien généré sans demande.
+- Étapes : découvertes côté joueur, C (événements), D (tables de drops).
+- Signalé, non fait : lors d'un déploiement, une génération IA en cours est coupée. Elle est désormais signalée comme « interrompue », mais `deploy.sh` ne l'attend pas. Favicon absent dans `/admin/`.
+
+---
+
 # Mise à jour du 31/10/2026, 10 h 55 (Bruxelles) — correction de la mise en page de l'onglet 🧱 Blocs
 
 Suite à la recette du propriétaire du 31/10 (commentaire 09:35 UTC) : catalogue v3, 22 blocs, probabilités à 250 m validés ; défauts de mise en page sur ordinateur signalés.
