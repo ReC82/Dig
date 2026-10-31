@@ -1473,6 +1473,18 @@ document.getElementById('btn-sh-save').addEventListener('click', async () => {
 const BK_RARITY = { commun: 'Commun', 'peu-commun': 'Peu commun', rare: 'Rare', epique: 'Épique', legendaire: 'Légendaire' };
 const BK_BOOSTED = new Set(['rare', 'epique', 'legendaire']);
 let _bk = null;   // vue admin (GET /api/admin/blocks)
+let _bkSortDir = 'asc';   // tri visuel de la liste par profondeur d'apparition (le catalogue n'est pas modifié)
+
+// Tri numérique par « dès (m) » ; égalité → nom FR puis identifiant, pour un ordre stable.
+function bkSortTypes(types, dir) {
+  const sign = dir === 'desc' ? -1 : 1;
+  const depth = t => (Number.isFinite(Number(t.minDepth)) && t.minDepth !== null ? Number(t.minDepth) : Infinity);
+  return [...types].sort((a, b) => {
+    const da = depth(a), db = depth(b);
+    if (da !== db) return da === Infinity ? 1 : db === Infinity ? -1 : sign * (da - db);
+    return (a.names?.fr ?? a.id).localeCompare(b.names?.fr ?? b.id, 'fr') || a.id.localeCompare(b.id);
+  });
+}
 
 function bkWorking() { return _bk ? (_bk.draft ? _bk.draft.types : _bk.published.types) : []; }
 
@@ -1630,7 +1642,10 @@ function bkFillList(el, items) {
 }
 
 function bkRenderTable() {
-  const types = bkWorking();
+  const types = bkSortTypes(bkWorking(), _bkSortDir);
+  const th = document.getElementById('bk-sort-depth');
+  th.setAttribute('aria-sort', _bkSortDir === 'desc' ? 'descending' : 'ascending');
+  th.querySelector('.bk-sort-ind').textContent = _bkSortDir === 'desc' ? '▼' : '▲';
   const text = document.getElementById('bk-filter-text').value.trim().toLowerCase();
   const cat = document.getElementById('bk-filter-cat').value;
   const status = document.getElementById('bk-filter-status').value;
@@ -1948,6 +1963,10 @@ document.getElementById('btn-ai-generate').addEventListener('click', async () =>
     btn.disabled = false;
     loadAi();
   }
+});
+document.querySelector('#bk-sort-depth .bk-sort-btn').addEventListener('click', () => {
+  _bkSortDir = _bkSortDir === 'asc' ? 'desc' : 'asc';
+  if (_bk) bkRenderTable();
 });
 for (const id of ['bk-filter-text', 'bk-filter-cat', 'bk-filter-status', 'bk-odds-depth']) {
   document.getElementById(id).addEventListener('input', () => { if (_bk) bkRenderTable(); });
