@@ -120,6 +120,9 @@ test('gemme créée par IA : pas de gemme premium par défaut ; échec et quota 
   const q = await ai.createProposal({ concept: 'un autre bloc' });
   assert.match(q.imageError, /Échec de l'appel IA/);
   assert.ok(!q.imageError.includes('sk-proj-ABCD'), 'clé masquée');
+  assert.strictEqual(q.imageStatus, 'error');
+  assert.strictEqual(ai.getProposal(q.id).imageStatus, 'error', 'échec enregistré : visible après rechargement du panel');
+  assert.match(ai.getProposal(q.id).imageError, /Échec de l'appel IA/);
   const failed = ai.listCalls().find(c => !c.ok);
   assert.ok(failed && !failed.error.includes('sk-proj-ABCD'));
   await assert.rejects(ai.createProposal({ concept: 'x' }), /3 à 500/);
@@ -128,6 +131,38 @@ test('gemme créée par IA : pas de gemme premium par défaut ; échec et quota 
   for (let i = 0; i < 40; i++) ins.run();
   await assert.rejects(ai.createProposal({ concept: 'encore un bloc' }), e => e.status === 429);
   assert.ok(textCalls > 0);
+});
+
+test('image en arrière-plan : états pending → ok, corrections conservées, brouillon refusé pendant la génération, interruption visible', async () => {
+  conn().prepare('DELETE FROM block_ai_proposals').run();
+  const realNow = conn().prepare("SELECT COUNT(*) n FROM block_ai_calls WHERE created_at >= datetime('now', '-1 day')").get().n;
+  // Quota atteint par le test précédent : base jetable remise à zéro, garde-fou d'ajout seul recréé
+  if (realNow >= 40) { conn().exec('DROP TRIGGER trg_block_ai_calls_no_delete; DELETE FROM block_ai_calls;'); ai.init(); }
+  fake.text = async () => ({ data: { names: { fr: 'Basalte', en: 'Basalt', nl: 'Basalt', es: 'Basalto' }, idSuggestion: 'basalte', category: 'pierre',
+    rarity: 'commun', icon: '🪨', color1: '#374151', color2: '#111827', accent: '#9ca3af', hpBase: 60, reward: 20, minDepth: 120, weight: 5,
+    rationale: 'x', image: { subject: 'basalt', details: '', palette: '' } } });
+  let release;
+  fake.image = () => new Promise(r => { release = () => r({ webp: Buffer.from(`RIFF-bg-${crypto.randomBytes(4).toString('hex')}`) }); });
+  const p = await ai.createProposal({ concept: 'basalte sombre', background: true });
+  assert.strictEqual(p.imageStatus, 'pending');
+  assert.strictEqual(p.image, null);
+  assert.throws(() => ai.addToDraft(p.id), /en cours de génération/);
+  await assert.rejects(ai.regenerate(p.id, 'image', { background: true }), e => e.status === 429, 'une seule génération à la fois');
+  ai.updateProposal(p.id, { names: { es: 'Basalto oscuro' } });
+  release();
+  const done = await ai.waitImage(p.id);
+  assert.strictEqual(done.imageStatus, 'ok');
+  assert.match(done.image, /^\/media\/blocks\//);
+  assert.strictEqual(done.names.es, 'Basalto oscuro', 'correction faite pendant la génération conservée');
+  assert.ok(!('imageState' in done), 'état brut non exposé');
+  // Redémarrage pendant un appel : état « pending » enregistré sans génération active → erreur explicite
+  const id = conn().prepare('INSERT INTO block_ai_proposals (concept, data) VALUES (?, ?)')
+    .run('cuivre', JSON.stringify({ names: { fr: 'Cuivre' }, imageState: { status: 'pending' } })).lastInsertRowid;
+  const stale = ai.getProposal(id);
+  assert.deepStrictEqual([stale.imageStatus, /interrompue/.test(stale.imageError)], ['error', true]);
+  // Proposition ancienne, sans état : « none » (aucune image demandée)
+  const old = conn().prepare('INSERT INTO block_ai_proposals (concept, data) VALUES (?, ?)').run('vieux', JSON.stringify({ names: { fr: 'Vieux' } })).lastInsertRowid;
+  assert.strictEqual(ai.getProposal(old).imageStatus, 'none');
 });
 
 test('API non configurée : statut explicite, génération refusée (503)', async () => {
@@ -186,6 +221,16 @@ test('routes : protégées, mode test, image servie', async (t) => {
   assert.deepStrictEqual([st.status, st.body.status.configured, st.body.status.fake], [200, true, true]);
   const p = await call('POST', '/api/admin/blocks/ai/proposals', { concept: 'basalte lunaire' });
   assert.strictEqual(p.status, 200, JSON.stringify(p.body));
+  // Réponse dès le texte prêt (délai du proxy) : l'image suit en arrière-plan, état suivi par le panel
+  assert.ok(['pending', 'ok'].includes(p.body.proposal.imageStatus), p.body.proposal.imageStatus);
+  let ready = null;
+  for (let i = 0; i < 50 && !ready; i++) {
+    const v = await call('GET', '/api/admin/blocks/ai');
+    const q = v.body.proposals.find(x => x.id === p.body.proposal.id);
+    if (q.imageStatus === 'ok') ready = q; else await new Promise(r => setTimeout(r, 100));
+  }
+  assert.ok(ready && ready.image, 'image générée en arrière-plan');
+  p.body.proposal = ready;
   const img = await fetch(BASE + p.body.proposal.image);
   assert.strictEqual(img.status, 200);
   assert.match(img.headers.get('cache-control'), /immutable/);
