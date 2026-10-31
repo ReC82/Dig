@@ -85,45 +85,60 @@ test('prompts : gabarit bloc #22 inchangé, objet et interface dans le même sty
   assert.doesNotMatch(u, /\{\{/);
 });
 
-test('lot : variantes, estimation, provenance, contrôles réels, journal', async () => {
+test('génération : une image par action, consigne « Refaire », provenance, contrôles réels, journal', async () => {
   const before = blocks.getPublished();
-  const job = studio.startJob({ targets: ['item:relic', 'block:diamant'], variants: 2 });
-  assert.strictEqual(job.total, 4);
-  assert.strictEqual(job.estimatedUsd, 0.04);
-  assert.throws(() => studio.startJob({ targets: ['item:fossil'] }), e => e.status === 429, 'un lot à la fois');
-  const done = await studio.waitJob();
+  const job = studio.generate('item:relic');
+  assert.strictEqual(job.estimatedUsd, 0.01);
+  assert.strictEqual(job.target, 'item:relic');
+  assert.throws(() => studio.generate('item:fossil'), e => e.status === 429, 'une génération à la fois');
+  let done = await studio.waitJob();
   assert.strictEqual(done.status, 'done', JSON.stringify(done));
-  assert.strictEqual(done.items[0].results.length, 2);
-  assert.strictEqual(done.spentUsd, 0.04);
+  assert.match(done.result.url, /^\/media\/icons\/[a-f0-9]{16}\.webp$/);
+  assert.strictEqual(done.spentUsd, 0.01);
+  const first = done.result.sha;
+  // « Refaire » : nouvelle proposition, l'ancienne est conservée ; la consigne entre dans le prompt
+  studio.generate('item:relic', { instruction: 'plus sombre <b>', basedOn: first });
+  done = await studio.waitJob();
+  assert.strictEqual(done.status, 'done', JSON.stringify(done));
+  assert.strictEqual(done.instruction, 'plus sombre b');
   const relic = studio.getTarget('item:relic');
-  assert.strictEqual(relic.assets.length, 2);
-  const a = relic.assets[0];
-  assert.match(a.url, /^\/media\/icons\/[a-f0-9]{16}\.webp$/);
+  assert.strictEqual(relic.assets.length, 2, 'aucune proposition écrasée');
+  const a = relic.assets.find(x => x.sha === done.result.sha);
+  assert.strictEqual(a.instruction, 'plus sombre b');
+  assert.strictEqual(a.basedOn, first);
+  assert.match(a.prompt, /Specific adjustment requested for this attempt .*plus sombre b$/);
+  assert.strictEqual(a.inDraft, false);
   assert.ok(a.checks.margins.coverage > 0.7 && a.checks.margins.coverage < 0.8, 'marge 12 % appliquée');
   assert.match(a.prompt, /collectible item icon/);
   const img = studio.getImage(a.sha);
   const meta = await sharp(img.bytes).metadata();
   assert.deepStrictEqual([meta.format, meta.width, meta.hasAlpha], ['webp', 256, true]);
-  assert.strictEqual(prompts.find(p => p.target === 'block:diamant') && /resource icon/.test(prompts.find(p => p.target === 'block:diamant').prompt), true);
-  assert.strictEqual(studio.listCalls().length, 4);
+  assert.throws(() => studio.generate('item:relic', { basedOn: '0000000000000000' }), e => e.status === 404);
+  studio.generate('block:diamant');
+  await studio.waitJob();
+  assert.strictEqual(/resource icon/.test(prompts.find(p => p.target === 'block:diamant').prompt), true);
+  assert.strictEqual(studio.listCalls().length, 3);
   assert.deepStrictEqual(blocks.getPublished(), before, 'catalogue publié inchangé');
   assert.strictEqual(blocks.getDraft(), null, 'aucun brouillon créé par une génération');
+  assert.strictEqual(typeof studio.startJob, 'undefined', 'plus de génération par lot');
 });
 
 test('plafond de l\'atelier, quota, échec journalisé sans secret', async () => {
-  studio.setStudioBudget(0.05);       // 0,04 déjà dépensés
-  assert.throws(() => studio.startJob({ targets: ['item:fossil'], variants: 2 }), e => e.status === 402 && /Plafond/.test(e.message));
+  studio.setStudioBudget(0.034);      // 0,03 déjà dépensés : une image de 0,01 dépasserait
+  assert.strictEqual(studio.status().studioCapUsd, 0.03, 'arrondi au centime');
+  assert.throws(() => studio.generate('item:fossil'), e => e.status === 402 && /Plafond/.test(e.message) && /Config → Budget IA/.test(e.message));
+  assert.strictEqual(studio.status().studioCapUsd, 0.03, 'jamais relevé automatiquement');
   assert.throws(() => studio.setStudioBudget(-1), e => e.status === 400);
   studio.setStudioBudget(null);
   failNext = true;
-  studio.startJob({ targets: ['item:fossil'], variants: 1 });
+  studio.generate('item:fossil');
   const j = await studio.waitJob();
-  assert.match(j.items[0].errors[0], /Échec de la génération/);
+  assert.strictEqual(j.status, 'failed');
+  assert.match(j.error, /Échec de la génération/);
   assert.doesNotMatch(JSON.stringify(studio.listCalls()), /sk-proj-abcdefgh/, 'clé masquée dans le journal');
   assert.strictEqual(studio.listCalls()[0].ok, false);
   assert.strictEqual(studio.listCalls()[0].cost_usd, 0);
-  assert.throws(() => studio.startJob({ targets: ['item:fossil'], variants: 4 }), e => e.status === 400);
-  assert.throws(() => studio.startJob({ targets: ['block:inconnu'] }), e => e.status === 404);
+  assert.throws(() => studio.generate('block:inconnu'), e => e.status === 404);
 });
 
 test('téléversement : alpha réel exigé, JPEG refusé, image normalisée', async () => {
@@ -226,8 +241,10 @@ test('routes : protégées, image servie, gros corps seulement après la clé ad
   assert.match(img.headers.get('cache-control'), /immutable/);
   assert.strictEqual((await fetch(`${BASE}/media/icons/0000000000000000.webp`)).status, 404);
 
-  const job = await (await fetch(`${BASE}/api/admin/icons/jobs`, { method: 'POST', headers: H, body: JSON.stringify({ targets: ['ui:parametres'], variants: 1 }) })).json();
-  assert.strictEqual(job.job.total, 1);
+  assert.strictEqual((await fetch(`${BASE}/api/admin/icons/jobs`, { method: 'POST', headers: H, body: JSON.stringify({ targets: ['ui:parametres'] }) })).status, 404,
+    'route des lots retirée');
+  const job = await (await fetch(`${BASE}/api/admin/icons/targets/ui:parametres/generate`, { method: 'POST', headers: H, body: JSON.stringify({ instruction: 'engrenage plus fin' }) })).json();
+  assert.strictEqual(job.job.target, 'ui:parametres', JSON.stringify(job));
   let j;
   for (let i = 0; i < 100; i++) {
     j = (await (await fetch(`${BASE}/api/admin/icons/job`, { headers: H })).json()).job;
