@@ -4,6 +4,110 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 31/10/2026, 22 h (Bruxelles) — UX commune du panel : données d'abord, « ＋ Ajouter » en fiche (lot #37)
+
+Suite à la demande du propriétaire du 31/10 (commentaire 20:19 UTC, publié aussi sur #38, #39 et #40) : « les pages affichent d'abord les données existantes ; aucun formulaire d'ajout visible par défaut ; un bouton « + Ajouter » ouvre une fiche ; clic sur une ligne → fiche de consultation/édition ».
+
+## A. État réel
+
+**Déployé en production (SHA `27f5be2`) — en attente de recette.** Ce lot couvre les onglets **🧱 Blocs, 🗓 Saisons, 🏅 Ligues et 🛍 Boutique**. Collections (#39), Badges (#38) et Atelier (#40) sont traités dans leurs tickets. Classement : **Après lancement** (panel admin, aucun effet sur les joueurs).
+
+## B. Changements (`public/admin/index.html`, `admin.js`, `admin.css`, nouveau test `test/admin-add-dialogs.test.js`)
+
+**Socle commun réutilisable** (pour #38/#39) :
+- `admDialogSetup(id)` / `admDialogOpen(id, opener, focus)` : fiche `<dialog>` native. Échap, ✕ Fermer, Annuler ou clic sur le fond ferment **sans aucun effet**. Le focus revient au bouton ou à la ligne d'origine, même si la liste a été rechargée.
+- `admRowOpen(tr, clé, libellé, ouvrir)` : la ligne entière ouvre la fiche (souris, Entrée, Espace), avec infobulle et chevron ›.
+- Styles `.adm-dialog`, `.adm-choice`, `.adm-head-actions`. Bouton principal « ＋ Ajouter … » en haut à droite de chaque onglet.
+
+**🧱 Blocs**
+- « ＋ Ajouter un bloc » (en-tête) ouvre un choix : **✨ Créer avec l'IA** ou **✍ Créer manuellement**. Le choix IA est grisé si l'API n'est pas configurée.
+- L'ancienne carte « Création assistée par IA » toujours ouverte est supprimée. Le formulaire IA (description libre) est dans sa propre fiche.
+- **« Générer aussi l'icône » n'est plus cochée par défaut.** L'image se demande ensuite, une à la fois, avec « ↻ Image seule » sur la proposition. Une aide technique repliable explique le circuit.
+- Les propositions IA existantes sont des données. Elles sont listées dans une carte **repliée** « ✨ Propositions IA — n à valider, m dans le brouillon », absente s'il n'y en a aucune. Après une nouvelle proposition, la fiche se ferme et la carte s'ouvre dessus.
+- Le bouton « Nouveau (vider) » de la fiche d'un bloc existant est retiré : on crée uniquement par « ＋ Ajouter ».
+
+**🗓 Saisons**
+- « ＋ Ajouter une saison » ouvre la fiche de création (mêmes champs et validations qu'avant).
+- Clic sur une saison : fiche de consultation (nom, dates, statut). Pour la saison active, un bouton « Clore cette saison » demande confirmation, comme avant.
+- **Aucune modification de date dans la fiche** : la fin de la saison active passe toujours par la procédure dédiée #44, rappelée dans la fiche.
+
+**🏅 Ligues**
+- « ＋ Ajouter une ligue » ouvre la fiche de création.
+- Clic sur une ligue : fiche pré-remplie. « Enregistrer » utilise la route de modification qui existait déjà (`PUT /api/admin/leagues/:id`). « Supprimer la ligue » demande confirmation, comme le bouton de liste qu'il remplace.
+
+**🛍 Boutique**
+- Le grand formulaire « Nouvel article », auparavant affiché en permanence, est déplacé dans une fiche ouverte par « ＋ Ajouter un article ».
+- Clic sur un article : sa fiche. « Enregistrer » ferme la fiche et confirme sous le catalogue.
+- Réglages et commandes ne changent pas (ce sont des actions, pas des créations).
+
+**Correctif mobile** : sur Saisons, Ligues et Boutique, le libellé caché « Ouvrir la fiche » de l'en-tête élargissait la page (551 px au lieu de 390). La page tient désormais dans l'écran.
+
+Hors périmètre (pas de création d'élément, donc pas de bouton Ajouter inventé) : Concours, Points (l'ajustement manuel est une action), Publicité (emplacements fixes), Config, Classement, Anti-bot.
+
+## C. SHA, tests, déploiement
+
+- Branche `feature/37-catalogue-blocs-admin`, commit `4e29d21`. **`develop` = `27f5be2`** (fusion). **Déployé : `27f5be2`.**
+- `npm test` : **384/384** sur la branche, sur `develop` et sur la release. Ce total inclut 6 nouveaux tests (`test/admin-add-dialogs.test.js`) :
+  - aucun champ de création hors fiche dans les 4 onglets ;
+  - un seul bouton « ＋ Ajouter » principal par onglet ;
+  - fermeture sans effet et retour du focus ;
+  - lignes cliquables au clavier, plus de boutons Modifier, Supprimer ou Clore dans les listes ;
+  - choix IA/manuel, image IA non cochée, propositions repliées ;
+  - pas d'édition de date de saison dans la fiche.
+- Chromium, serveur de test (port 3101) sur une copie de la base de production, IA en mode factice, en 1280×900 et en 390×844 tactile :
+  - Dans les 4 onglets, aucun champ de création visible sans action. Il reste seulement les outils : filtres, simulation, note de publication, réglages et note de commande de la boutique.
+  - « ＋ Ajouter » ouvre la fiche, le focus va au premier champ, Échap la ferme et le focus revient au bouton. **0 écriture.**
+  - Entrée sur une ligne ouvre la fiche. La fermeture rend le focus à la ligne. **0 écriture.**
+  - Ligue modifiée : un seul `PUT`. Saison vide : erreur « Tous les champs sont requis » et la fiche reste ouverte. Article créé : `POST`, la fiche se ferme et l'article apparaît.
+  - Bloc : le choix « manuel » ouvre la fiche vide (focus sur Identifiant). Le choix « IA » génère une proposition en mode factice : la fiche se ferme et la carte des propositions s'ouvre.
+  - Toutes les fiches tiennent dans l'écran à 390 px. 0 erreur JS (seul le `favicon.ico` de l'admin répond 404, comme avant).
+- Release `27f5be2` sur une copie de la base de production (`NODE_ENV=production`, port 3122) : santé OK, version `1.0.0+27f5be2`, empreintes des 6 tables joueurs identiques avant et après démarrage, `quick_check` ok.
+- Avant le déploiement : aucune génération IA en cours (dernière proposition à 16:26 UTC, image `ok` ; aucun appel de l'atelier).
+- Déploiement : avance rapide `main` `e5b79fc` → `27f5be2`. Sauvegarde vérifiée `~/backups/dig/dig-20261031-220231-pre-deploy-27f5be2.sqlite`. Pas de `npm ci` (lock inchangé).
+- En production :
+  - les 2 domaines répondent 200 avec `1.0.0+27f5be2`, `/admin/` répond 200 ;
+  - journal sans erreur, `quick_check` ok ;
+  - **empreintes joueurs identiques** à la sauvegarde pré-déploiement ;
+  - Chromium 1280 et 390 sur `/` et `/admin/` : 0 erreur JS, 5 fiches communes et nouvelle feuille de style chargées.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep e5b79fc` + `sudo systemctl restart dig` (aucune migration, aucune donnée touchée).
+
+Captures : `docs/claude-reports/img/2026-10-31_ticket-37-ux-desktop-blocks-add.png`, `…-ux-desktop-ai-dialog.png`, `…-ux-desktop-leagues-sheet.png`, `…-ux-mobile-seasons-sheet.png`, `…-ux-mobile-shop-add.png`.
+
+## D. Test fonctionnel à faire par le propriétaire (panel admin, PC puis smartphone)
+
+1. **🧱 Blocs** : la page s'ouvre sur le bandeau et la liste. Aucun formulaire n'est visible.
+   - « ＋ Ajouter un bloc » → deux grands choix. Cliquez sur **Annuler** : rien n'est créé.
+   - Rouvrez puis choisissez « ✍ Créer manuellement » → fiche vide.
+   - Rouvrez puis choisissez « ✨ Créer avec l'IA » → description libre. La case « Générer aussi l'icône » est décochée. Fermez sans générer : aucune dépense.
+2. **✨ Propositions IA** (sous la liste) : la carte est repliée et affiche « 1 à valider ». Dépliez-la : la proposition « cuivre oxydé » est toujours là.
+3. **🗓 Saisons** : cliquez sur la saison active → fiche (dates, statut, « Clore cette saison »). Fermez avec Échap. **Ne cliquez pas sur « Clore » sauf intention réelle.**
+4. **🏅 Ligues** : cliquez sur Mimosa → fiche modifiable. Fermez sans enregistrer.
+5. **🛍 Boutique** : « ＋ Ajouter un article » ouvre la fiche, Annuler la ferme. Le catalogue est vide en production, c'est normal.
+
+Résultat attendu : chaque page montre d'abord ses données. Toute création passe par « ＋ Ajouter ». Fermer une fiche ne modifie rien.
+
+## E. Choix techniques faits seul
+
+- **`<dialog>` natif** plutôt qu'un tiroir latéral : il était déjà validé pour la fiche bloc. Il piège le focus, gère Échap et fonctionne sur mobile sans bibliothèque.
+- **Image IA décochée par défaut** : cela suit la règle « aucune génération payante sans action explicite, une image à la fois ». Le texte reste une action explicite (« Proposer un bloc »).
+- **Saisons en consultation seule** : l'API accepte une modification de nom et de dates, mais la fin de la saison active a sa procédure contrôlée (#44, aperçu et audit). Je n'ai pas ajouté d'édition de dates qui la contournerait.
+- **Ligues modifiables** : la route `PUT` existait déjà ; seule l'interface manquait. Les règles de ligues (#19) ne changent pas.
+- Socle commun (`admDialog*`, `admRowOpen`) écrit **dans #37**, documenté ici, pour que #38 et #39 l'appliquent aux Badges et aux Collections sans dupliquer de code.
+
+## F. Décisions demandées au propriétaire
+
+Aucune nouvelle décision pour ce lot. Les questions précédentes restent ouvertes :
+1. Plafond IA (≈ 2,11 / 3 USD utilisés) : le relever, par exemple à 10 USD, dans ⚙ Config → Budget IA avant d'illustrer les 8 minerais ? Recommandation : oui.
+2. Saphir, améthyste et cristal ancien : rapporter un jour des gemmes ? Recommandation : non pour l'instant.
+3. Feu vert pour générer (payant) les illustrations des 8 nouveaux minerais dans l'atelier #40, une par une ? Recommandation : oui, après le relèvement du plafond.
+
+## G. Restant à réaliser
+
+- #39 (Collections) et #38 (Badges) : appliquer le même socle, avec la création assistée par IA demandée.
+- Après lancement : favicon de l'admin (404 inoffensif).
+
+---
+
 # Mise à jour du 31/10/2026, 18 h (Bruxelles) — tri sur toutes les colonnes, aperçu agrandi, fiche par clic sur la ligne
 
 Suite à la recette du propriétaire du 31/10 (commentaire 16:25 UTC) : tri par profondeur **validé**, icônes v1 validées ; 4 demandes UX dans Admin → 🧱 Blocs.
