@@ -1176,7 +1176,7 @@
     <div id="ic-list-view">
       <div class="bk-filters ic-filters">
         <input type="search" id="ic-search" placeholder="Rechercher une icône…" aria-label="Rechercher une icône">
-        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets et reliques</option><option value="ui">Interface</option></select>
+        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets et reliques</option><option value="badge">Badges</option><option value="ui">Interface</option></select>
         <select id="ic-state" aria-label="État"><option value="">Tous les états</option><option value="todo">À créer</option><option value="proposal">Propositions à examiner</option><option value="draft">À publier</option><option value="live">En jeu</option><option value="locked">Validées 🔒</option></select>
       </div>
       <p id="ic-count" class="muted ic-count"></p>
@@ -1205,84 +1205,198 @@
   <section id="tab-badges" class="tab-content hidden">
     <div class="section-header">
       <h2>🏅 Badges et succès</h2>
-      <button class="btn" id="btn-refresh-badges">↻ Rafraîchir</button>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-bg-add" type="button">＋ Ajouter un badge</button>
+        <button class="btn" id="btn-refresh-badges">↻ Rafraîchir</button>
+      </div>
     </div>
-    <p class="muted" style="font-size:0.78rem">Badges <strong>purement honorifiques</strong> : aucun gain (pièces, gemmes, fragments, reliques, points, classement).
+    <p id="bg-msg" class="hidden" role="status"></p>
+    <details class="muted co-help" style="font-size:0.78rem">
+      <summary>Comment ça marche ?</summary>
+      <p>Badges <strong>purement honorifiques</strong> : aucun gain (pièces, gemmes, fragments, reliques, points, classement).
       Attribués <strong>une seule fois</strong> par le serveur, à partir de statistiques bornées par la profondeur validée (#9/#25) — jamais des compteurs déclarés par le jeu tels quels.
       Le suivi a démarré à l'activation (<span id="bg-activated"></span>) : aucun badge rétroactif.
-      Un badge n'est jamais supprimé : <strong>désactiver</strong> le retire du jeu, <strong>archiver</strong> le retire définitivement de la liste « à obtenir » ; les joueurs qui l'ont obtenu le gardent.</p>
+      Un badge n'est jamais supprimé : <strong>désactiver</strong> le retire du jeu, <strong>archiver</strong> le retire définitivement de la liste « à obtenir » ; les joueurs qui l'ont obtenu le gardent.
+      Un nouveau badge (manuel ou proposé par l'IA) est toujours enregistré <strong>désactivé</strong> : rien ne change pour les joueurs avant « Activer ».</p>
+      <p>Critères suivis par le serveur (les seuls possibles) :</p>
+      <ul id="bg-metrics"></ul>
+    </details>
 
     <div class="overview-card">
-      <h3 class="overview-card-title" id="bg-form-title">Nouveau badge</h3>
-      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
-        <label>Identifiant stable<input id="bg-id" type="text" maxlength="40" placeholder="profondeur_100"></label>
-        <label>Catégorie<select id="bg-category"></select></label>
-        <label>Condition<select id="bg-condition">
-          <option value="max_depth">Profondeur maximale (m)</option>
-          <option value="blocks_of_type">Blocs d'un type minés</option>
-          <option value="blocks_total">Blocs minés (total)</option>
-          <option value="distinct_types">Types de blocs différents minés</option>
-          <option value="chests_opened">Coffres ouverts en minant</option>
-          <option value="play_days">Jours de jeu distincts</option>
-        </select></label>
-        <label>Type de bloc<select id="bg-block"></select></label>
-        <label>Seuil<input id="bg-threshold" type="number" min="1" value="100"></label>
-        <label>Icône (emoji)<input id="bg-icon" type="text" maxlength="16" placeholder="🏅"></label>
-        <label>Image (facultative : /media/blocks/…, /media/icons/…, /assets/…)<input id="bg-image" type="text" maxlength="200"></label>
-        <label>Visibilité<select id="bg-visibility"><option value="visible">Visible</option><option value="hidden">Secret (révélé une fois obtenu)</option></select></label>
-        <label>Statut<select id="bg-status"><option value="inactive">Désactivé</option><option value="active">Actif</option><option value="archived">Archivé</option></select></label>
-        <label>Début d'événement (UTC, facultatif)<input id="bg-starts" type="text" placeholder="2026-10-31T00:00:00Z"></label>
-        <label>Fin d'événement (UTC, facultatif)<input id="bg-ends" type="text" placeholder="2026-11-02T00:00:00Z"></label>
-        <label>Ordre d'affichage<input id="bg-sort" type="number" value="0"></label>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px">
-        <fieldset><legend>FR (obligatoire)</legend>
-          <input id="bg-fr-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
-          <textarea id="bg-fr-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
-        </fieldset>
-        <fieldset><legend>EN</legend>
-          <input id="bg-en-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
-          <textarea id="bg-en-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
-        </fieldset>
-        <fieldset><legend>NL</legend>
-          <input id="bg-nl-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
-          <textarea id="bg-nl-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
-        </fieldset>
-        <fieldset><legend>ES</legend>
-          <input id="bg-es-name" type="text" maxlength="60" placeholder="Nom" style="width:100%">
-          <textarea id="bg-es-desc" rows="2" maxlength="200" placeholder="Description" style="width:100%"></textarea>
-        </fieldset>
-      </div>
-      <div class="form-actions" style="margin-top:8px">
-        <button class="btn" id="btn-bg-preview">Prévisualiser</button>
-        <button class="btn" id="btn-bg-save">Enregistrer</button>
-        <button class="btn btn-ghost" id="btn-bg-new">Nouveau (vider le formulaire)</button>
-      </div>
-      <p class="muted" style="font-size:0.78rem">Événement : le badge ne s'obtient qu'entre le début et la fin, avec la progression faite pendant la période ; une fois obtenu, il reste dans la collection.</p>
-      <div id="bg-preview" class="muted" style="font-size:0.8rem"></div>
-      <p id="bg-msg" class="hidden"></p>
-    </div>
-
-    <div class="overview-card">
-      <h3 class="overview-card-title">Badges</h3>
+      <h3 class="overview-card-title">Badges <span id="bg-count" class="muted"></span></h3>
       <p id="bg-summary" class="muted" style="font-size:0.78rem"></p>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Ordre</th><th>ID</th><th>Badge</th><th>Condition</th><th>Statut</th><th>Visibilité</th><th>Période</th><th>Obtenu par</th><th></th><th></th></tr></thead>
-          <tbody id="bg-body"><tr><td colspan="10" class="muted">Aucun badge.</td></tr></tbody>
+      <div class="form-actions bk-filters">
+        <input id="bg-filter-text" type="search" placeholder="Filtrer (identifiant, nom)" aria-label="Filtrer les badges">
+        <select id="bg-filter-category" aria-label="Catégorie"><option value="">Toutes catégories</option></select>
+        <select id="bg-filter-status" aria-label="Statut"><option value="">Tous statuts</option><option value="active">Actifs</option><option value="inactive">Désactivés</option><option value="archived">Archivés</option><option value="noimage">Sans image</option></select>
+      </div>
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead><tr><th>Visuel</th><th>Badge</th><th>Identifiant</th><th>Condition</th><th>Statut</th><th>Visibilité</th><th>Période</th><th class="num">Obtenu par</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
+          <tbody id="bg-body"><tr><td colspan="9" class="muted">Aucun badge.</td></tr></tbody>
         </table>
       </div>
+      <p class="muted" style="font-size:0.75rem">Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche : consultation, modification, activation, archivage. Nouveau badge : « ＋ Ajouter un badge » en haut de page.</p>
     </div>
 
-    <div class="overview-card">
-      <h3 class="overview-card-title">Journal</h3>
+    <!-- Propositions IA existantes (données) : affichées seulement s'il y en a ; la création passe par « ＋ Ajouter ». -->
+    <details class="overview-card hidden" id="bg-ai-card">
+      <summary class="overview-card-title" id="bg-ai-card-title">✨ Propositions IA</summary>
+      <p class="muted" style="font-size:0.78rem">Ouvrez une proposition pour la relire, la corriger, puis « Enregistrer comme badge désactivé ». <strong>Rien n'est activé automatiquement.</strong></p>
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead><tr><th>Date (UTC)</th><th>Description</th><th>Badge proposé</th><th>Critère</th><th>État</th><th><span class="visually-hidden">Ouvrir</span></th></tr></thead>
+          <tbody id="bg-ai-body"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="overview-card">
+      <summary class="overview-card-title">Journal</summary>
       <div style="overflow-x:auto">
         <table>
           <thead><tr><th>Date (UTC)</th><th>Action</th><th>Badge</th><th>Détails</th></tr></thead>
           <tbody id="bg-audit-body"></tbody>
         </table>
       </div>
-    </div>
+    </details>
+
+    <!-- « ＋ Ajouter » : choix IA / manuel. Annuler ne crée ni n'écrit rien. -->
+    <dialog id="bg-add-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="bg-add-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="bg-add-title">Ajouter un badge</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <div class="adm-choice">
+        <button type="button" class="adm-choice-btn" id="btn-bg-add-ai">
+          <strong>✨ Créer avec l'IA</strong>
+          <span>Décrivez le badge : l'IA propose nom et description FR/EN/NL/ES, emoji, consigne d'illustration et un critère <em>parmi ceux que le serveur suit réellement</em> ; les demandes impossibles sont signalées.</span>
+        </button>
+        <button type="button" class="adm-choice-btn" id="btn-bg-add-manual">
+          <strong>✍ Créer manuellement</strong>
+          <span>Fiche vide : identifiant, critère, textes, visuel, période.</span>
+        </button>
+      </div>
+      <p id="bg-ai-status" class="muted" style="font-size:0.78rem"></p>
+      <p class="muted" style="font-size:0.75rem">Dans tous les cas, le badge est enregistré <strong>désactivé</strong> : rien ne change pour les joueurs avant « Activer ».</p>
+      <div class="form-actions"><button class="btn btn-outline" type="button" data-close>Annuler</button></div>
+    </dialog>
+
+    <dialog id="bg-ai-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="bg-ai-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="bg-ai-title">✨ Créer un badge avec l'IA</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <div class="adm-form">
+        <label>Description libre du badge
+          <textarea id="bg-ai-concept" rows="4" maxlength="800" placeholder="Ex. : un badge pour ceux qui descendent très profond pendant le week-end d'Halloween, ton un peu effrayant mais drôle"></textarea>
+        </label>
+      </div>
+      <p id="bg-ai-status-2" class="muted" style="font-size:0.78rem"></p>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-bg-ai-generate" type="button">✨ Proposer un badge</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      </div>
+      <p id="bg-ai-msg" class="form-msg"></p>
+      <details class="muted" style="font-size:0.75rem"><summary>Aide technique</summary>
+        <p>Un seul appel texte (≈ 20 à 60 s, en arrière-plan : vous pouvez fermer la fiche). La clé reste côté serveur ; quota, plafond et journal sont partagés avec 🧱 Blocs, 📿 Collections et l'atelier (plafond : ⚙ Config → Budget IA).
+        Le critère est choisi <strong>uniquement</strong> parmi les métriques suivies (voir « Comment ça marche ? ») ; aucune image n'est générée : elle se crée ensuite <strong>une par une</strong> dans 🎨 Atelier d'icônes, à partir de la consigne proposée.</p>
+      </details>
+    </dialog>
+
+    <!-- Fiche d'un badge : consultation/modification, création manuelle, ou relecture d'une proposition IA. -->
+    <dialog id="bg-dialog" class="bk-dialog adm-dialog" aria-labelledby="bg-form-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="bg-form-title">Nouveau badge</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <p id="bg-state" class="ic-notice hidden" role="status"></p>
+      <ul id="bg-issues" class="error hidden"></ul>
+      <ul id="bg-warnings" class="muted hidden"></ul>
+      <div id="bg-form" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:2;min-width:260px;display:flex;flex-direction:column;gap:10px">
+          <fieldset class="co-fs"><legend>Identité</legend>
+            <div class="co-grid">
+              <label>Identifiant stable<input id="bg-id" type="text" maxlength="40" placeholder="profondeur_100" title="Ne change jamais après l'enregistrement"></label>
+              <label>Catégorie<select id="bg-category"></select></label>
+              <label>Visibilité<select id="bg-visibility"><option value="visible">Visible</option><option value="hidden">Secret (révélé une fois obtenu)</option></select></label>
+              <label>Ordre d'affichage<input id="bg-sort" type="number" value="0"></label>
+            </div>
+          </fieldset>
+          <fieldset class="co-fs"><legend>Critère de déblocage</legend>
+            <div class="co-grid">
+              <label>Condition<select id="bg-condition">
+                <option value="max_depth">Profondeur maximale (m)</option>
+                <option value="blocks_of_type">Blocs d'un type minés</option>
+                <option value="blocks_total">Blocs minés (total)</option>
+                <option value="distinct_types">Types de blocs différents minés</option>
+                <option value="chests_opened">Coffres ouverts en minant</option>
+                <option value="play_days">Jours de jeu distincts</option>
+              </select></label>
+              <label>Type de bloc<select id="bg-block"></select></label>
+              <label>Seuil<input id="bg-threshold" type="number" min="1" value="100"></label>
+            </div>
+            <p id="bg-metric-help" class="muted" style="font-size:0.75rem;margin:6px 0 0"></p>
+          </fieldset>
+          <fieldset class="co-fs"><legend>Textes (FR obligatoire)</legend>
+            <div class="co-grid">
+              <label>Nom FR<input id="bg-fr-name" type="text" maxlength="60"></label>
+              <label>Nom EN<input id="bg-en-name" type="text" maxlength="60"></label>
+              <label>Nom NL<input id="bg-nl-name" type="text" maxlength="60"></label>
+              <label>Nom ES<input id="bg-es-name" type="text" maxlength="60"></label>
+              <label class="co-span">Description FR<textarea id="bg-fr-desc" rows="2" maxlength="200"></textarea></label>
+              <label class="co-span">Description EN<textarea id="bg-en-desc" rows="2" maxlength="200"></textarea></label>
+              <label class="co-span">Description NL<textarea id="bg-nl-desc" rows="2" maxlength="200"></textarea></label>
+              <label class="co-span">Description ES<textarea id="bg-es-desc" rows="2" maxlength="200"></textarea></label>
+            </div>
+          </fieldset>
+          <fieldset class="co-fs"><legend>Visuel</legend>
+            <div class="co-grid">
+              <label>Icône (emoji)<input id="bg-icon" type="text" maxlength="16" placeholder="🏅"></label>
+              <label class="co-span" title="/media/icons/… (atelier), /media/blocks/…, /assets/…">Image (facultative)<input id="bg-image" type="text" maxlength="200" placeholder="/media/icons/….webp"></label>
+            </div>
+            <div id="bg-brief-box" class="hidden">
+              <p class="muted" style="font-size:0.75rem;margin:6px 0">Consigne d'illustration proposée (anglais), reprise par 🎨 Atelier d'icônes à l'enregistrement :</p>
+              <div class="co-grid">
+                <label class="co-span">Sujet<input id="bg-brief-subject" type="text" maxlength="300"></label>
+                <label class="co-span">Détails<input id="bg-brief-details" type="text" maxlength="600"></label>
+                <label class="co-span">Palette<input id="bg-brief-palette" type="text" maxlength="300"></label>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="co-fs"><legend>Période d'événement (facultative)</legend>
+            <div class="co-grid">
+              <label>Début (UTC)<input id="bg-starts" type="text" placeholder="2026-10-31T00:00:00Z"></label>
+              <label>Fin (UTC)<input id="bg-ends" type="text" placeholder="2026-11-02T00:00:00Z"></label>
+            </div>
+            <p class="muted" style="font-size:0.75rem;margin:6px 0 0">Le badge ne s'obtient qu'entre le début et la fin, avec la progression faite pendant la période ; une fois obtenu, il reste dans la collection.</p>
+          </fieldset>
+        </div>
+        <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px">
+          <div class="co-fs" aria-live="polite">
+            <p class="muted" style="font-size:0.75rem;margin:0 0 6px">Aperçu joueur</p>
+            <div style="display:flex;gap:10px;align-items:center">
+              <span id="bg-pv-art" class="co-thumb" style="font-size:2.2rem;width:64px"></span>
+              <div><strong id="bg-pv-name"></strong><br><span id="bg-pv-desc" class="muted" style="font-size:0.8rem"></span></div>
+            </div>
+            <p id="bg-pv-cond" class="muted" style="font-size:0.75rem;margin:6px 0 0"></p>
+          </div>
+          <p id="bg-meta" class="muted" style="font-size:0.75rem"></p>
+          <div id="bg-preview" class="muted" style="font-size:0.8rem"></div>
+          <p id="bg-rationale" class="muted hidden" style="font-size:0.75rem"></p>
+        </div>
+      </div>
+      <div class="form-actions" id="bg-actions">
+        <button class="btn" id="btn-bg-preview" type="button">Vérifier (qui l'obtiendrait ?)</button>
+        <button class="btn btn-primary" id="btn-bg-save" type="button">Enregistrer</button>
+        <button class="btn" id="btn-bg-toggle" type="button">Activer</button>
+        <button class="btn btn-ghost" id="btn-bg-archive" type="button">Archiver</button>
+        <button class="btn btn-ghost" id="btn-bg-studio" type="button">🎨 Illustrer dans l'atelier</button>
+        <button class="btn btn-danger hidden" id="btn-bg-prop-discard" type="button">Abandonner la proposition</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      </div>
+      <p id="bg-form-msg" class="hidden"></p>
+    </dialog>
   </section>
 
   <!-- ── Publicité (#45) ──────────────────────────────────────────────── -->

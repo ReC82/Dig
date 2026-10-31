@@ -85,6 +85,7 @@ const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
 const collectionAi = require('./collectionAi');
 const badges = require('./badges');
+const badgeAi = require('./badgeAi');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
@@ -800,7 +801,7 @@ function badgeRoute(label, fn) {
   return (req, res) => {
     try { res.json(fn(req)); }
     catch (err) {
-      if (err instanceof badges.BadgeError) return res.status(err.status).json({ error: err.message, details: err.details });
+      if (err instanceof badges.BadgeError || err instanceof badgeAi.BadgeAiError) return res.status(err.status).json({ error: err.message, details: err.details });
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
     }
   };
@@ -1067,6 +1068,24 @@ app.get('/api/admin/badges/audit', requireAdmin, badgeRoute('GET /api/admin/badg
 app.put('/api/admin/badges/:id', requireAdmin, badgeRoute('PUT /api/admin/badges/:id', req => ({ badge: badges.updateBadge(String(req.params.id), req.body) })));
 app.post('/api/admin/badges/:id/status', requireAdmin, badgeRoute('POST /api/admin/badges/:id/status', req => ({ badge: badges.setStatus(String(req.params.id), req.body?.status) })));
 
+// Création de badges assistée par IA (#38, 31/10) : proposition texte en arrière-plan → corrections →
+// badge DÉSACTIVÉ (jamais activé ici) ; critères limités aux métriques suivies ; image dans l'atelier (#40).
+app.get('/api/admin/badges/ai', requireAdmin, badgeRoute('GET /api/admin/badges/ai',
+  () => ({ status: blockAi.status(), proposals: badgeAi.listProposals(), metrics: badgeAi.METRICS })));
+app.post('/api/admin/badges/ai/proposals', requireAdmin, badgeRoute('POST /api/admin/badges/ai/proposals',
+  req => ({ proposal: badgeAi.startProposal({ concept: req.body?.concept }).proposal })));
+app.get('/api/admin/badges/ai/proposals/:id', requireAdmin, badgeRoute('GET /api/admin/badges/ai/proposals/:id', req => {
+  const proposal = badgeAi.getProposal(Number(req.params.id));
+  if (!proposal) throw new badgeAi.BadgeAiError(404, 'Proposition introuvable.');
+  return { proposal };
+}));
+app.put('/api/admin/badges/ai/proposals/:id', requireAdmin, badgeRoute('PUT /api/admin/badges/ai/proposals/:id',
+  req => ({ proposal: badgeAi.updateProposal(Number(req.params.id), req.body ?? {}) })));
+app.post('/api/admin/badges/ai/proposals/:id/draft', requireAdmin, badgeRoute('POST /api/admin/badges/ai/proposals/:id/draft',
+  req => badgeAi.addToDraft(Number(req.params.id))));
+app.delete('/api/admin/badges/ai/proposals/:id', requireAdmin, badgeRoute('DELETE /api/admin/badges/ai/proposals/:id',
+  req => { badgeAi.discardProposal(Number(req.params.id)); return { ok: true }; }));
+
 app.get('/api/admin/points', requireAdmin, pointsRoute('GET /api/admin/points', () => rewardPoints.buildAdminSummary()));
 
 app.put('/api/admin/points/scale', requireAdmin, pointsRoute('PUT /api/admin/points/scale',
@@ -1166,7 +1185,7 @@ function iconRoute(label, fn) {
   return async (req, res) => {
     try { res.json(await fn(req)); }
     catch (err) {
-      if (err instanceof iconStudio.StudioError || err instanceof blockCatalog.CatalogError || err instanceof collectionCatalog.CatalogError) {
+      if (err instanceof iconStudio.StudioError || err instanceof blockCatalog.CatalogError || err instanceof collectionCatalog.CatalogError || err instanceof badges.BadgeError) {
         return res.status(err.status).json({ error: err.message, details: err.details });
       }
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
@@ -1207,7 +1226,7 @@ app.post('/api/admin/icons/targets/:key/mark', requireAdmin, limit.icons, iconRo
   req => ({ target: iconStudio.mark(String(req.params.key), String(req.body?.sha ?? ''), String(req.body?.status ?? '')) })));
 
 app.post('/api/admin/icons/targets/:key/apply', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/targets/:key/apply',
-  req => iconStudio.apply(String(req.params.key), { sha: req.body?.sha ? String(req.body.sha) : null, override: req.body?.override === true })));
+  req => iconStudio.apply(String(req.params.key), { sha: req.body?.sha ? String(req.body.sha) : null, override: req.body?.override === true, live: req.body?.live === true })));
 
 app.get('/api/admin/blocks/audit', requireAdmin, catalogRoute('GET /api/admin/blocks/audit',
   req => ({ audit: blockCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
@@ -1689,6 +1708,7 @@ iconStudio.init();               // atelier d'icônes : images, historique, appe
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
 collectionAi.init();             // propositions de collections assistées par IA (#39)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
+badgeAi.init();                  // propositions de badges assistées par IA (#38)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 

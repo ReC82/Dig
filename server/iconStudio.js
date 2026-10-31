@@ -38,13 +38,14 @@ const path   = require('path');
 const db = require('./db');
 const blockCatalog = require('./blockCatalog');
 const collectionCatalog = require('./collectionCatalog');
+const badges = require('./badges');
 
 const ROOT = path.join(__dirname, '..');
 const MAX_IMAGES_PER_DAY = 40;
 const INSTRUCTION_MAX = 300;
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const SHA_RE = /^[a-f0-9]{16}$/;
-const KEY_RE = /^(block|item|ui):([a-z][a-z0-9_]{1,39})$/;
+const KEY_RE = /^(block|item|badge|ui):([a-z][a-z0-9_]{1,39})$/;
 
 /** Pictogrammes d'interface (#41 pour l'application en jeu). Profil ≠ paramètres ≠ améliorations. */
 const UI_TARGETS = [
@@ -59,7 +60,7 @@ const UI_TARGETS = [
   { id: 'saison', emoji: '🏆', name: 'Saison / classement', subject: 'A golden trophy cup', details: 'Two-handled cup on a short base, faceted gold.', palette: 'Palette: rich gold with warm highlights.' },
 ];
 
-const KIND_LABELS = { block: 'Bloc', item: 'Objet / relique', ui: 'Interface' };
+const KIND_LABELS = { block: 'Bloc', item: 'Objet / relique', badge: 'Badge', ui: 'Interface' };
 
 class StudioError extends Error {
   constructor(status, message, details) { super(message); this.status = status; this.details = details; }
@@ -243,13 +244,19 @@ function _libraryV1() {
 const _blockTypes = () => blockCatalog.getDraft()?.types ?? blockCatalog.getPublished().types;
 const _collectionContent = () => collectionCatalog.getDraft() ?? collectionCatalog.getPublished();
 /** Image actuellement en jeu (catalogue publié), pour distinguer « brouillon » et « publié ». */
+// Badge (#38) : pas de brouillon, l'image enregistrée sur le badge est celle du jeu (badge actif) ou de sa fiche.
 const _publishedImage = (kind, id) => (kind === 'block'
   ? blockCatalog.getPublished().types.find(t => t.id === id)
+  : kind === 'badge' ? badges.getBadgeRow(id)
   : collectionCatalog.getPublished().items.find(i => i.id === id))?.image ?? null;
 
 function _defaultBrief(kind, src) {
   const en = src.names?.en || src.names?.fr || src.id;
   if (kind === 'ui') return { subject: src.subject, details: src.details, palette: src.palette };
+  if (kind === 'badge') {
+    const what = String(src.descriptions?.en || src.descriptions?.fr || '').slice(0, 160);
+    return { subject: `A round honorary medal emblem for the achievement "${en}"`, details: `No text or letters; a single clear symbol in the centre${what ? `, evoking: ${what}` : ''}.`, palette: '' };
+  }
   if (kind === 'block') {
     const m = _materialBriefs()[src.id];
     if (m?.subject) return { subject: m.subject, details: m.details ?? '', palette: m.palette ?? '' };
@@ -276,6 +283,9 @@ function _target(key) {
   if (kind === 'block') {
     src = _blockTypes().find(t => t.id === id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `${src.category} · ${src.rarity} · dès ${src.minDepth} m` };
+  } else if (kind === 'badge') {
+    src = badges.getBadgeRow(id);
+    if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `badge · ${src.status}` };
   } else if (kind === 'item') {
     src = _collectionContent().items.find(i => i.id === id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `${src.seriesId} · ${src.rarity}` };
@@ -313,12 +323,19 @@ function _summary(t, counts) {
     unpublished: t.applicable && (t.current.image ?? null) !== (t.current.publishedImage ?? null) };
 }
 
+/** Badges non archivés (#38) ; aucun si le module des badges n'est pas initialisé (tests isolés). */
+function _badgeKeys() {
+  try { return badges.listBadges().filter(b => b.status !== 'archived').map(b => `badge:${b.id}`); }
+  catch (err) { if (/no such table/.test(err.message)) return []; throw err; }
+}
+
 /** Inventaire de toutes les cibles (blocs du brouillon/catalogue, objets, pictogrammes). */
 function listTargets() {
   const counts = _assetCounts();
   const keys = [
     ..._blockTypes().map(t => `block:${t.id}`),
     ..._collectionContent().items.map(i => `item:${i.id}`),
+    ..._badgeKeys(),
     ...UI_TARGETS.map(u => `ui:${u.id}`),
   ];
   return keys.map(k => _summary(_target(k), counts));
@@ -382,7 +399,7 @@ function buildPrompt(kind, brief, instruction = '') {
     if (!m) throw new Error(`gabarit ${tag} absent de prompt-master.md`);
     return m[1].trim();
   };
-  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
+  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
   return between(tpl)
     .replace('{{SUBJECT}}', brief.subject)
     .replace('{{DETAILS}}', brief.details || '')
@@ -566,7 +583,7 @@ function getTarget(key) {
     .map(e => ({ id: e.id, action: e.action, url: e.asset_sha ? imageUrl(e.asset_sha) : null, sha: e.asset_sha, details: e.details ? JSON.parse(e.details) : null, at: e.created_at }));
   const spent = conn().prepare('SELECT COALESCE(SUM(cost_usd), 0) s, COUNT(*) n FROM icon_studio_calls WHERE target = ?').get(key);
   return { ..._summary(t, { [key]: assets.length }), brief: _briefFor(t), prompt: buildPrompt(t.kind, _briefFor(t)), assets, history,
-    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : null };
+    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : null };
 }
 
 function _asset(key, sha) {
@@ -589,7 +606,7 @@ function mark(key, sha, status) {
  * Applique une image (ou l'emoji d'origine si `sha` est null) au BROUILLON du catalogue concerné.
  * Refusé sans `override` si l'icône actuelle est validée. Jamais publié ici.
  */
-function apply(key, { sha = null, override = false } = {}) {
+function apply(key, { sha = null, override = false, live = false } = {}) {
   const t = _target(key);
   if (!t.applicable) throw new StudioError(409, 'Pictogramme d\'interface : application en jeu prévue avec le ticket #41 (stocké et prêt ici).');
   if (t.validation && !override) {
@@ -597,9 +614,15 @@ function apply(key, { sha = null, override = false } = {}) {
   }
   const url = sha ? imageUrl(_asset(key, sha)) : null;
   const before = t.current.image;
+  // Badge (#38) : sans brouillon, l'image d'un badge ACTIF est visible tout de suite → accord explicite (« live »).
+  if (t.kind === 'badge' && t.src.status === 'active' && !live) {
+    throw new StudioError(409, 'Badge actif : la nouvelle image sera visible immédiatement par les joueurs. Confirmez (« live ») ou désactivez d\'abord le badge.');
+  }
   if (t.kind === 'block') blockCatalog.upsertDraftType({ ...t.src, image: url });
+  else if (t.kind === 'badge') badges.updateBadge(t.id, { image: url });
   else collectionCatalog.upsertDraftItem({ ...t.src, image: url });
-  _event(key, sha ? 'applied' : 'reverted_to_emoji', sha, { before, after: url, override: !!override && !!t.validation });
+  _event(key, sha ? 'applied' : 'reverted_to_emoji', sha, { before, after: url, override: !!override && !!t.validation, ...(t.kind === 'badge' ? { live: t.src.status === 'active' } : {}) });
+  if (t.kind === 'badge') return { target: getTarget(key), draft: t.src.status !== 'active', catalog: 'badges' };
   return { target: getTarget(key), draft: true, catalog: t.kind === 'block' ? 'blocks' : 'collections' };
 }
 

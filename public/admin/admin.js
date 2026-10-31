@@ -3417,9 +3417,15 @@ async function icApply(t, sha) {
     if (!confirm(`L'icône de « ${t.name} » est VALIDÉE. La remplacer quand même (accord explicite, tracé) ?`)) return;
     override = true;
   }
-  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override });
+  // Badge (#38) : pas de brouillon ; sur un badge actif, l'image est visible tout de suite → confirmation
+  const live = t.kind === 'badge' && / active$/.test(String(t.extra ?? ''));
+  if (live && !confirm(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
+  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live });
   const where = data.catalog === 'blocks' ? '🧱 Blocs' : '📿 Collections';
-  _icNote = { text: ok ? `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans le brouillon. Les joueurs la verront après la publication dans l'onglet ${where}.` : (data.error || 'Erreur.'), ok };
+  const done = data.catalog === 'badges'
+    ? `${sha ? 'Image enregistrée' : 'Emoji rétabli'} sur le badge${data.draft ? ' (désactivé : les joueurs la verront après son activation dans 🏅 Badges)' : ' (actif : visible par les joueurs)'}.`
+    : `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans le brouillon. Les joueurs la verront après la publication dans l'onglet ${where}.`;
+  _icNote = { text: ok ? done : (data.error || 'Erreur.'), ok };
   if (ok) { await icOpen(t.key, { keepSel: true }); loadIconsQuiet(); } else icRenderSheet();
 }
 
@@ -3444,6 +3450,13 @@ function icMobilePreview(t, url) {
     }
     phone.appendChild(grid);
     phone.appendChild(aiEl('img', { src: url, alt: '', width: '112', height: '112', style: 'object-fit:contain', title: 'Fiche détaillée' }));
+  } else if (t.kind === 'badge') {
+    // Ligne de la section « 🏅 Badges et succès » (Collection) et grande taille
+    const row = aiEl('div', { style: 'display:flex;gap:10px;align-items:center;width:100%;background:#1f2937;border:1px solid rgba(245,197,24,0.22);border-radius:12px;padding:10px' });
+    row.appendChild(aiEl('img', { src: url, alt: '', width: '40', height: '40', style: 'object-fit:contain' }));
+    row.appendChild(aiEl('span', { style: 'font-size:0.8rem;font-weight:600' }, t.name));
+    phone.appendChild(row);
+    phone.appendChild(aiEl('img', { src: url, alt: '', width: '112', height: '112', style: 'object-fit:contain' }));
   } else {
     const nav = aiEl('div', { style: 'display:flex;justify-content:space-around;width:100%;background:#0b1220;border-radius:10px;padding:8px 0' });
     for (let i = 0; i < 6; i++) {
@@ -3506,20 +3519,48 @@ document.getElementById('btn-ic-budget').addEventListener('click', async () => {
 });
 
 // ── Badges et succès honorifiques (#38) ───────────────────────────────────────
+// UX commune (31/10) : la page montre d'abord les badges ; « ＋ Ajouter un badge » → choix IA / manuel ;
+// clic sur une ligne → fiche (consultation, modification, activation). Un nouveau badge est toujours
+// enregistré DÉSACTIVÉ. La même fiche sert à relire une proposition IA (mode « proposition »).
 
 const BG_LANGS = ['fr', 'en', 'nl', 'es'];
 const BG_COND = {
   max_depth: 'Profondeur ≥ {n} m', blocks_of_type: '{block} ≥ {n}', blocks_total: 'Blocs minés ≥ {n}',
   distinct_types: 'Types différents ≥ {n}', chests_opened: 'Coffres ouverts ≥ {n}', play_days: 'Jours de jeu ≥ {n}',
 };
+const BG_METRIC_FR = {
+  max_depth: 'Profondeur maximale retenue par le serveur (mètres).',
+  blocks_total: 'Nombre total de blocs minés (crédités dans la limite des mètres validés).',
+  blocks_of_type: 'Blocs d\'un type précis minés (type publié et atteignable).',
+  distinct_types: 'Nombre de types de blocs différents minés au moins une fois.',
+  chests_opened: 'Coffres ouverts en minant (les coffres achetés en boutique ne comptent pas).',
+  play_days: 'Jours calendaires distincts (Bruxelles, pas forcément consécutifs) avec au moins un bloc miné.',
+};
 const BG_STATUS = { active: 'actif', inactive: 'désactivé', archived: 'archivé' };
+const BG_AI_STATE = { pending: '⏳ génération en cours', open: 'à relire', error: 'échec', in_draft: 'badge créé (désactivé)' };
+const BG_IMAGE_RE = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/media\/(blocks|icons)\/[a-f0-9]{16}\.webp|\/api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp))$/;
 let _bgData = null;
-let _bgEditing = null;
+let _bgAi = null;
+let _bgAiTimer = null;
+let _bgSheet = null;     // { mode: 'new' | 'edit' | 'proposal', badge?, proposal? }
 
 function bgCondLabel(b) {
+  if (!b.condition) return '⚠ critère non pris en charge';
   const bt = (_bgData?.blockTypes || []).find(t => t.id === b.blockId);
   return (BG_COND[b.condition] || b.condition).replace('{n}', Number(b.threshold).toLocaleString('fr'))
     .replace('{block}', bt ? `${bt.icon} ${bt.name}` : (b.blockId || '?'));
+}
+
+function bgArt(el, image, icon, size) {
+  el.textContent = '';
+  if (image && BG_IMAGE_RE.test(image) && !image.includes('..')) {
+    const img = document.createElement('img');
+    img.src = image; img.alt = ''; img.width = size; img.height = size; img.style.objectFit = 'contain';
+    img.onerror = () => { el.textContent = icon || '🏅'; };
+    el.appendChild(img);
+  } else {
+    el.textContent = icon || '🏅';
+  }
 }
 
 function bgReadForm() {
@@ -3533,22 +3574,20 @@ function bgReadForm() {
     id: v('bg-id'), category: v('bg-category'), condition: v('bg-condition'),
     blockId: v('bg-condition') === 'blocks_of_type' ? v('bg-block') : null,
     threshold: Number(v('bg-threshold')), icon: v('bg-icon'), image: v('bg-image') || null,
-    visibility: v('bg-visibility'), status: v('bg-status'),
+    visibility: v('bg-visibility'),
     startsAt: v('bg-starts') || null, endsAt: v('bg-ends') || null, sort: Number(v('bg-sort')) || 0,
     names, descriptions,
   };
 }
 
 function bgFillForm(b) {
-  _bgEditing = b ? b.id : null;
-  document.getElementById('bg-form-title').textContent = b ? `Modifier le badge « ${b.id} »` : 'Nouveau badge';
   const set = (id, val) => { document.getElementById(id).value = val ?? ''; };
-  set('bg-id', b?.id); document.getElementById('bg-id').disabled = !!b;
+  set('bg-id', b?.id);
   set('bg-category', b?.category ?? _bgData?.categories?.[0]);
   set('bg-condition', b?.condition ?? 'max_depth');
   set('bg-block', b?.blockId ?? 'pierre');
   set('bg-threshold', b?.threshold ?? 100); set('bg-icon', b?.icon ?? '🏅'); set('bg-image', b?.image);
-  set('bg-visibility', b?.visibility ?? 'visible'); set('bg-status', b?.status ?? 'inactive');
+  set('bg-visibility', b?.visibility ?? 'visible');
   set('bg-starts', b?.startsAt); set('bg-ends', b?.endsAt); set('bg-sort', b?.sort ?? 0);
   for (const l of BG_LANGS) { set(`bg-${l}-name`, b?.names?.[l]); set(`bg-${l}-desc`, b?.descriptions?.[l]); }
   document.getElementById('bg-preview').textContent = '';
@@ -3556,11 +3595,78 @@ function bgFillForm(b) {
 }
 
 function bgToggleBlock() {
-  document.getElementById('bg-block').disabled = document.getElementById('bg-condition').value !== 'blocks_of_type';
+  const cond = document.getElementById('bg-condition').value;
+  document.getElementById('bg-block').disabled = cond !== 'blocks_of_type' || !!document.getElementById('bg-form').inert;
+  document.getElementById('bg-metric-help').textContent = BG_METRIC_FR[cond] ?? '';
+  bgLivePreview();
+}
+
+/** Aperçu tel que le joueur le verra (FR), mis à jour à chaque saisie. */
+function bgLivePreview() {
+  const f = bgReadForm();
+  bgArt(document.getElementById('bg-pv-art'), f.image, f.icon || '🏅', 56);
+  document.getElementById('bg-pv-name').textContent = f.names.fr || '(nom FR obligatoire)';
+  document.getElementById('bg-pv-desc').textContent = f.descriptions.fr || '(description FR obligatoire)';
+  document.getElementById('bg-pv-cond').textContent = `${bgCondLabel(f)}${f.visibility === 'hidden' ? ' · secret' : ''}${f.startsAt || f.endsAt ? ` · événement ${f.startsAt || '…'} → ${f.endsAt || '…'}` : ''}`;
 }
 
 function bgError(data) {
   return [data.error || 'Erreur.', ...(Array.isArray(data.details) ? data.details : [])].join(' ');
+}
+
+function bgList(id, items) {
+  const ul = document.getElementById(id);
+  ul.textContent = '';
+  for (const t of items) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+  ul.classList.toggle('hidden', !items.length);
+}
+
+/** Ouvre la fiche : badge existant (consultation/édition), nouveau badge, ou proposition IA. */
+function bgOpenSheet(sheet, opener) {
+  _bgSheet = sheet;
+  const { mode, badge: b, proposal: p } = sheet;
+  const editable = mode !== 'proposal' || p.status === 'open';
+  const src = mode === 'proposal' ? (p.data?.badge ?? null) : b;
+  bgFillForm(src);
+  if (mode === 'proposal' && src && !src.condition) document.getElementById('bg-condition').value = '';
+  document.getElementById('bg-form').inert = !editable;
+  document.getElementById('bg-id').disabled = mode === 'edit';
+  bgToggleBlock();
+  document.getElementById('bg-form-title').textContent = mode === 'edit' ? `${b.icon} ${b.names.fr} — fiche du badge`
+    : mode === 'new' ? 'Nouveau badge (manuel)' : `✨ Proposition IA n° ${p.id}`;
+  const state = document.getElementById('bg-state');
+  const stateText = mode === 'edit'
+    ? `Statut : ${BG_STATUS[b.status]}${b.status === 'active' ? ' — les modifications enregistrées sont visibles immédiatement par les joueurs.' : ' — invisible des joueurs.'}`
+    : mode === 'new' ? 'Le badge sera enregistré désactivé : activez-le ensuite depuis sa fiche.'
+    : {
+      pending: '⏳ Génération en cours (≈ 20 à 60 s) : vous pouvez fermer cette fiche, la proposition restera dans « ✨ Propositions IA ».',
+      open: 'À relire : corrigez ce qui doit l\'être, puis « Enregistrer comme badge désactivé ». Rien n\'est activé ; aucune image n\'est générée.',
+      error: `Échec : ${p.error ?? 'erreur inconnue'}. Aucune donnée n'a été modifiée ; relancez une proposition depuis « ＋ Ajouter un badge ».`,
+      in_draft: `Déjà enregistrée comme badge désactivé « ${p.badgeId} » : ouvrez-le dans la liste pour l'illustrer et l'activer.`,
+    }[p.status] ?? p.status;
+  icNotice(state, stateText, mode === 'proposal' && p.status === 'error' ? 'warn' : 'info');
+  bgList('bg-issues', mode === 'proposal' ? p.errors ?? [] : []);
+  bgList('bg-warnings', mode === 'proposal' ? p.warnings ?? [] : []);
+  const rat = document.getElementById('bg-rationale');
+  rat.textContent = mode === 'proposal' && p.data?.rationale ? `Pourquoi ce critère : ${p.data.rationale}` : '';
+  rat.classList.toggle('hidden', !rat.textContent);
+  document.getElementById('bg-brief-box').classList.toggle('hidden', mode !== 'proposal' || !p.data);
+  for (const k of ['subject', 'details', 'palette']) document.getElementById(`bg-brief-${k}`).value = p?.data?.image?.[k] ?? '';
+  document.getElementById('bg-meta').textContent = mode === 'edit'
+    ? `Obtenu par ${b.earnedCount ?? 0} joueur(s). Créé le ${b.createdAt} UTC, modifié le ${b.updatedAt} UTC.` : '';
+
+  const show = (id, on) => document.getElementById(id).classList.toggle('hidden', !on);
+  const save = document.getElementById('btn-bg-save');
+  save.textContent = mode === 'proposal' ? 'Enregistrer comme badge désactivé' : mode === 'new' ? 'Enregistrer (désactivé)' : 'Enregistrer les modifications';
+  show('btn-bg-save', editable);
+  show('btn-bg-preview', editable);
+  show('btn-bg-toggle', mode === 'edit');
+  show('btn-bg-archive', mode === 'edit' && b.status !== 'archived');
+  show('btn-bg-studio', mode === 'edit' && b.status !== 'archived');
+  show('btn-bg-prop-discard', mode === 'proposal' && ['open', 'error'].includes(p.status));
+  if (mode === 'edit') document.getElementById('btn-bg-toggle').textContent = b.status === 'active' ? 'Désactiver' : 'Activer';
+  ptMessage('bg-form-msg', '', true);
+  admDialogOpen('bg-dialog', opener, editable ? (mode === 'new' ? 'bg-id' : 'bg-fr-name') : document.querySelector('#bg-dialog [data-close]'));
 }
 
 async function loadBadges() {
@@ -3571,49 +3677,51 @@ async function loadBadges() {
   const cat = document.getElementById('bg-category');
   if (!cat.options.length) {
     for (const c of data.categories) { const o = document.createElement('option'); o.value = c; o.textContent = c; cat.appendChild(o); }
+    coSelect('bg-filter-category', data.categories.map(c => [c, c]), 1);
   }
   const blk = document.getElementById('bg-block');
   const keep = blk.value;
   blk.textContent = '';
   for (const t of data.blockTypes) { const o = document.createElement('option'); o.value = t.id; o.textContent = `${t.icon} ${t.name} (${t.id})`; blk.appendChild(o); }
   if (keep) blk.value = keep;
-  if (!_bgEditing && !document.getElementById('bg-id').value) bgFillForm(null);
-
   const active = data.badges.filter(b => b.status === 'active').length;
   document.getElementById('bg-summary').textContent =
     `${data.badges.length} badge(s), dont ${active} actif(s) — ${data.playersTracked} joueur(s) suivi(s) depuis l'activation.`;
+  bgRenderList();
+  loadBadgeAudit();
+  bgAiLoad();
+}
+
+function bgRenderList() {
+  if (!_bgData) return;
+  const text = document.getElementById('bg-filter-text').value.trim().toLowerCase();
+  const cf = document.getElementById('bg-filter-category').value;
+  const sf = document.getElementById('bg-filter-status').value;
   const tb = document.getElementById('bg-body');
   tb.textContent = '';
-  if (!data.badges.length) tb.innerHTML = '<tr><td colspan="10" class="muted">Aucun badge.</td></tr>';
-  for (const b of data.badges) {
+  let shown = 0;
+  for (const b of _bgData.badges) {
+    if (cf && b.category !== cf) continue;
+    if (sf === 'noimage' ? !!b.image : sf && b.status !== sf) continue;
+    if (text && !`${b.id} ${Object.values(b.names).join(' ')}`.toLowerCase().includes(text)) continue;
+    shown++;
     const tr = document.createElement('tr');
-    [b.sort, b.id, `${b.icon} ${b.names.fr}`, bgCondLabel(b)].forEach(x => addCell(tr, x));
+    const art = addCell(tr, '');
+    art.className = 'co-thumb';
+    art.title = b.image ? 'Image' : 'Pas encore d\'image (emoji affiché)';
+    bgArt(art, b.image, b.icon, 40);
+    addCell(tr, b.names.fr);
+    addCell(tr, b.id).className = 'muted';
+    addCell(tr, bgCondLabel(b));
     const td = document.createElement('td'); td.appendChild(statusBadge(BG_STATUS[b.status] || b.status)); tr.appendChild(td);
     addCell(tr, b.visibility === 'hidden' ? 'secret' : 'visible');
     addCell(tr, b.startsAt || b.endsAt ? `${b.startsAt || '…'} → ${b.endsAt || '…'}` : 'permanent');
-    addCell(tr, b.earnedCount);
-    addButtonCell(tr, 'Modifier', () => { bgFillForm(b); document.getElementById('bg-form-title').scrollIntoView({ behavior: 'smooth' }); });
-    const next = b.status === 'active' ? 'inactive' : 'active';
-    const act = document.createElement('td');
-    const mk = (label, status, warn) => {
-      const btn = document.createElement('button');
-      btn.className = 'btn-ghost';
-      btn.textContent = label;
-      btn.addEventListener('click', async () => {
-        if (warn && !confirm(warn)) return;
-        const r = await api('POST', `/api/admin/badges/${encodeURIComponent(b.id)}/status`, { status });
-        ptMessage('bg-msg', r.ok ? `Badge « ${b.id} » : ${BG_STATUS[status]}.` : bgError(r.data), r.ok);
-        loadBadges();
-      });
-      act.appendChild(btn);
-    };
-    mk(next === 'active' ? 'Activer' : 'Désactiver', next,
-      next === 'active' ? `Activer « ${b.id} » ? Les joueurs qui remplissent déjà la condition le recevront à leur prochaine sauvegarde.` : null);
-    if (b.status !== 'archived') mk('Archiver', 'archived', `Archiver « ${b.id} » ? Il ne pourra plus être obtenu ; ceux qui l'ont le gardent.`);
-    tr.appendChild(act);
+    addCell(tr, b.earnedCount).className = 'num';
+    admRowOpen(tr, `badge:${b.id}`, b.names.fr, row => bgOpenSheet({ mode: 'edit', badge: _bgData.badges.find(x => x.id === b.id) ?? b }, row));
     tb.appendChild(tr);
   }
-  loadBadgeAudit();
+  if (!shown) tb.innerHTML = '<tr><td colspan="9" class="muted">Aucun badge.</td></tr>';
+  document.getElementById('bg-count').textContent = `— ${shown} / ${_bgData.badges.length}`;
 }
 
 async function loadBadgeAudit() {
@@ -3628,28 +3736,178 @@ async function loadBadgeAudit() {
   }
 }
 
+admDialogSetup('bg-dialog');
+admDialogSetup('bg-add-dialog');
+admDialogSetup('bg-ai-dialog');
+document.getElementById('bg-dialog').addEventListener('close', () => { _bgSheet = null; });
 document.getElementById('bg-condition').addEventListener('change', bgToggleBlock);
+for (const id of ['bg-icon', 'bg-image', 'bg-threshold', 'bg-block', 'bg-visibility', 'bg-starts', 'bg-ends', 'bg-fr-name', 'bg-fr-desc']) {
+  document.getElementById(id).addEventListener('input', bgLivePreview);
+}
+for (const id of ['bg-filter-text', 'bg-filter-category', 'bg-filter-status']) document.getElementById(id).addEventListener('input', bgRenderList);
 document.getElementById('btn-refresh-badges').addEventListener('click', loadBadges);
-document.getElementById('btn-bg-new').addEventListener('click', () => bgFillForm(null));
-document.getElementById('btn-bg-preview').addEventListener('click', async () => {
-  const { ok, data } = await api('POST', '/api/admin/badges/preview', bgReadForm());
-  const el = document.getElementById('bg-preview');
-  if (!ok) { el.textContent = ''; ptMessage('bg-msg', bgError(data), false); return; }
-  const b = data.badge;
-  el.textContent = `Aperçu : ${b.icon} « ${b.names.fr} » — ${b.descriptions.fr} — ${bgCondLabel(b)}. `
-    + `Joueurs suivis : ${data.playersTracked} ; rempliraient déjà la condition : ${data.wouldEarnNow} ; à mi-chemin : ${data.halfway}. ${data.note}`;
-  ptMessage('bg-msg', 'Badge valide.', true);
+
+document.getElementById('btn-bg-add').addEventListener('click', e => {
+  const ai = document.getElementById('btn-bg-add-ai');
+  admDialogOpen('bg-add-dialog', e.currentTarget, ai.disabled ? 'btn-bg-add-manual' : ai);
+  bgAiLoad();
 });
-document.getElementById('btn-bg-save').addEventListener('click', async () => {
+document.getElementById('btn-bg-add-manual').addEventListener('click', () => {
+  document.getElementById('bg-add-dialog').close();
+  bgOpenSheet({ mode: 'new' }, document.getElementById('btn-bg-add'));
+});
+document.getElementById('btn-bg-add-ai').addEventListener('click', () => {
+  document.getElementById('bg-add-dialog').close();
+  ptMessage('bg-ai-msg', '', true);
+  admDialogOpen('bg-ai-dialog', document.getElementById('btn-bg-add'), 'bg-ai-concept');
+});
+
+document.getElementById('btn-bg-preview').addEventListener('click', async () => {
   const body = bgReadForm();
-  if (body.status === 'active' && !confirm('Enregistrer ce badge comme ACTIF ? Il pourra être attribué dès la prochaine sauvegarde des joueurs.')) return;
-  const r = _bgEditing
-    ? await api('PUT', `/api/admin/badges/${encodeURIComponent(_bgEditing)}`, body)
-    : await api('POST', '/api/admin/badges', body);
-  if (!r.ok) { ptMessage('bg-msg', bgError(r.data), false); return; }
-  ptMessage('bg-msg', `Badge « ${r.data.badge.id} » enregistré.`, true);
-  bgFillForm(r.data.badge);
+  if (!body.condition) { ptMessage('bg-form-msg', 'Choisissez une condition prise en charge.', false); return; }
+  const { ok, data } = await api('POST', '/api/admin/badges/preview', body);
+  const el = document.getElementById('bg-preview');
+  if (!ok) { el.textContent = ''; ptMessage('bg-form-msg', bgError(data), false); return; }
+  el.textContent = `Joueurs suivis : ${data.playersTracked} ; rempliraient déjà la condition : ${data.wouldEarnNow} ; à mi-chemin : ${data.halfway}. ${data.note}`;
+  ptMessage('bg-form-msg', 'Badge valide.', true);
+});
+
+document.getElementById('btn-bg-save').addEventListener('click', async () => {
+  const sheet = _bgSheet;
+  if (!sheet) return;
+  const body = bgReadForm();
+  if (sheet.mode === 'proposal') {
+    const image = Object.fromEntries(['subject', 'details', 'palette'].map(k => [k, document.getElementById(`bg-brief-${k}`).value.trim()]));
+    const put = await api('PUT', `/api/admin/badges/ai/proposals/${sheet.proposal.id}`, { badge: body, image });
+    if (!put.ok) { ptMessage('bg-form-msg', bgError(put.data), false); return; }
+    const r = await api('POST', `/api/admin/badges/ai/proposals/${sheet.proposal.id}/draft`);
+    if (!r.ok) {
+      // Corrections gardées : la fiche affiche ce qui bloque encore
+      bgOpenSheet({ mode: 'proposal', proposal: put.data.proposal }, document.getElementById('btn-bg-add'));
+      ptMessage('bg-form-msg', bgError(r.data), false);
+      return;
+    }
+    document.getElementById('bg-dialog').close();
+    ptMessage('bg-msg', `Badge « ${r.data.badge.id} » créé, désactivé (invisible des joueurs). Illustrez-le dans 🎨 Atelier d'icônes puis activez-le depuis sa fiche.`, true);
+    loadBadges();
+    return;
+  }
+  if (sheet.mode === 'edit' && sheet.badge.status === 'active'
+    && !confirm('Ce badge est ACTIF : les modifications seront visibles immédiatement par les joueurs. Enregistrer ?')) return;
+  const r = sheet.mode === 'edit'
+    ? await api('PUT', `/api/admin/badges/${encodeURIComponent(sheet.badge.id)}`, body)
+    : await api('POST', '/api/admin/badges', { ...body, status: 'inactive' });
+  if (!r.ok) { ptMessage('bg-form-msg', bgError(r.data), false); return; }
+  document.getElementById('bg-dialog').close();
+  ptMessage('bg-msg', sheet.mode === 'edit' ? `Badge « ${r.data.badge.id} » enregistré.` : `Badge « ${r.data.badge.id} » créé, désactivé : activez-le depuis sa fiche.`, true);
   loadBadges();
+});
+
+async function bgSetStatus(status, warn) {
+  const b = _bgSheet?.badge;
+  if (!b || (warn && !confirm(warn))) return;
+  const r = await api('POST', `/api/admin/badges/${encodeURIComponent(b.id)}/status`, { status });
+  if (!r.ok) { ptMessage('bg-form-msg', bgError(r.data), false); return; }
+  document.getElementById('bg-dialog').close();
+  ptMessage('bg-msg', `Badge « ${b.id} » : ${BG_STATUS[status]}.`, true);
+  loadBadges();
+}
+document.getElementById('btn-bg-toggle').addEventListener('click', () => {
+  const b = _bgSheet?.badge;
+  if (!b) return;
+  if (b.status === 'active') bgSetStatus('inactive', null);
+  else bgSetStatus('active', `Activer « ${b.id} » ? Les joueurs qui remplissent déjà la condition le recevront à leur prochaine sauvegarde.`);
+});
+document.getElementById('btn-bg-archive').addEventListener('click', () => {
+  const b = _bgSheet?.badge;
+  if (b) bgSetStatus('archived', `Archiver « ${b.id} » ? Il ne pourra plus être obtenu ; ceux qui l'ont le gardent.`);
+});
+document.getElementById('btn-bg-studio').addEventListener('click', () => {
+  const id = _bgSheet?.badge?.id;
+  document.getElementById('bg-dialog').close();
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  if (id) icOpen(`badge:${id}`);
+});
+document.getElementById('btn-bg-prop-discard').addEventListener('click', async () => {
+  const p = _bgSheet?.proposal;
+  if (!p || !confirm('Abandonner cette proposition ? Aucun badge n\'est créé.')) return;
+  const r = await api('DELETE', `/api/admin/badges/ai/proposals/${p.id}`);
+  if (!r.ok) { ptMessage('bg-form-msg', bgError(r.data), false); return; }
+  document.getElementById('bg-dialog').close();
+  ptMessage('bg-msg', 'Proposition abandonnée.', true);
+  bgAiLoad();
+});
+
+// ── Badges : création assistée par IA (#38, 31/10) ────────────────────────────
+
+async function bgAiLoad() {
+  const { ok, data } = await api('GET', '/api/admin/badges/ai');
+  if (!ok) return;
+  _bgAi = data;
+  const st = data.status;
+  document.getElementById('btn-bg-add-ai').disabled = !st.configured;
+  document.getElementById('btn-bg-ai-generate').disabled = !st.configured;
+  const txt = st.configured
+    ? `IA : ${st.textModel}${st.fake ? ' (mode test)' : ''} — budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
+    : `IA non configurée : ${st.reason}. Création manuelle seulement.`;
+  document.getElementById('bg-ai-status').textContent = txt;
+  document.getElementById('bg-ai-status-2').textContent = txt;
+  const ul = document.getElementById('bg-metrics');
+  if (!ul.childElementCount) for (const k of Object.keys(data.metrics)) {
+    const li = document.createElement('li');
+    li.textContent = `${k} — ${BG_METRIC_FR[k] ?? data.metrics[k]}`;
+    ul.appendChild(li);
+  }
+
+  const list = data.proposals;
+  document.getElementById('bg-ai-card').classList.toggle('hidden', !list.length);
+  const n = s => list.filter(p => p.status === s).length;
+  document.getElementById('bg-ai-card-title').textContent = `✨ Propositions IA — ${n('open')} à relire`
+    + (n('pending') ? `, ${n('pending')} en cours` : '') + (n('in_draft') ? `, ${n('in_draft')} enregistrée(s)` : '');
+  const tb = document.getElementById('bg-ai-body');
+  tb.textContent = '';
+  for (const p of list) {
+    const tr = document.createElement('tr');
+    const b = p.data?.badge;
+    [p.createdAt, p.concept.length > 70 ? `${p.concept.slice(0, 70)}…` : p.concept, b ? `${b.icon} ${b.names.fr || b.id}` : '—',
+     b ? bgCondLabel(b) : '', BG_AI_STATE[p.status] ?? p.status].forEach(x => addCell(tr, x));
+    admRowOpen(tr, `bg-prop:${p.id}`, `Proposition ${p.id}`, row => bgPropOpen(p.id, row));
+    tb.appendChild(tr);
+  }
+  clearTimeout(_bgAiTimer);
+  if (list.some(p => p.status === 'pending')) _bgAiTimer = setTimeout(bgAiPoll, 4000);
+}
+
+async function bgAiPoll() {
+  const before = new Set((_bgAi?.proposals ?? []).filter(p => p.status === 'pending').map(p => p.id));
+  await bgAiLoad();
+  const s = _bgSheet;
+  if (document.getElementById('bg-dialog').open && s?.mode === 'proposal' && before.has(s.proposal.id)) {
+    const p = _bgAi.proposals.find(x => x.id === s.proposal.id);
+    if (p && p.status !== 'pending') bgOpenSheet({ mode: 'proposal', proposal: p }, document.getElementById('btn-bg-add'));
+  }
+}
+
+async function bgPropOpen(id, opener) {
+  const { ok, data } = await api('GET', `/api/admin/badges/ai/proposals/${id}`);
+  if (!ok) { ptMessage('bg-msg', data.error || 'Erreur.', false); return; }
+  bgOpenSheet({ mode: 'proposal', proposal: data.proposal }, opener);
+}
+
+document.getElementById('btn-bg-ai-generate').addEventListener('click', async e => {
+  const btn = e.currentTarget;
+  const concept = document.getElementById('bg-ai-concept').value.trim();
+  if (concept.length < 3) { ptMessage('bg-ai-msg', 'Décrivez le badge (au moins 3 caractères).', false); return; }
+  btn.disabled = true;
+  const { ok, data } = await api('POST', '/api/admin/badges/ai/proposals', { concept });
+  btn.disabled = false;
+  if (!ok) { ptMessage('bg-ai-msg', data.error || 'Erreur.', false); return; }
+  document.getElementById('bg-ai-dialog').close();
+  document.getElementById('bg-ai-concept').value = '';
+  ptMessage('bg-msg', '✨ Proposition demandée : génération en cours (≈ 20 à 60 s). Elle apparaît dans « ✨ Propositions IA » ; aucun badge n\'est créé sans votre action.', true);
+  await bgAiLoad();
+  document.getElementById('bg-ai-card').open = true;
+  bgPropOpen(data.proposal.id, document.getElementById('btn-bg-add'));
 });
 
 // ── Publicité (#45) ───────────────────────────────────────────────────────────
