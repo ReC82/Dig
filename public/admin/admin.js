@@ -20,6 +20,51 @@ function addCell(tr, value) {
 }
 
 /** Ajoute une cellule contenant un bouton « fantôme ». */
+// ── Fiches modales communes (UX du panel, 31/10) : la page montre d'abord les données ; « ＋ Ajouter »
+// ou un clic sur une ligne ouvre une fiche <dialog> (Échap, clic sur le fond, Annuler : fermeture sans
+// effet ; le focus revient à l'élément d'origine, retrouvé par data-adm-key si la liste a été re-rendue).
+function admDialogSetup(id) {
+  const dlg = document.getElementById(id);
+  dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => dlg.close()));
+  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+  dlg.addEventListener('close', () => {
+    const o = dlg._admOpener;
+    dlg._admOpener = null;
+    if (!o) return;
+    const key = o.dataset?.admKey;
+    const again = !document.contains(o) && key ? document.querySelector(`[data-adm-key="${CSS.escape(key)}"]`) : null;
+    (again ?? (document.contains(o) ? o : null))?.focus();
+  });
+  return dlg;
+}
+
+function admDialogOpen(id, opener, focusEl) {
+  const dlg = document.getElementById(id);
+  dlg._admOpener = opener ?? document.activeElement;
+  if (!dlg.open) dlg.showModal();
+  (typeof focusEl === 'string' ? document.getElementById(focusEl) : focusEl)?.focus();
+  return dlg;
+}
+
+/** Ligne de liste cliquable (souris, Entrée, Espace) qui ouvre une fiche ; rien n'est modifié à l'ouverture. */
+function admRowOpen(tr, key, label, onOpen) {
+  tr.classList.add('bk-row');
+  tr.tabIndex = 0;
+  tr.dataset.admKey = key;
+  tr.title = 'Cliquez pour ouvrir la fiche';
+  tr.setAttribute('aria-haspopup', 'dialog');
+  tr.setAttribute('aria-label', `${label} — ouvrir la fiche`);
+  tr.addEventListener('click', () => onOpen(tr));
+  tr.addEventListener('keydown', e => {
+    if (e.target !== tr || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    onOpen(tr);
+  });
+  addCell(tr, '›').className = 'bk-open';
+}
+
+function admShowError(el, text) { el.textContent = text; el.classList.toggle('hidden', !text); }
+
 function addButtonCell(tr, label, onClick) {
   const td  = document.createElement('td');
   const btn = document.createElement('button');
@@ -124,17 +169,53 @@ async function loadSeasons() {
     const tr = document.createElement('tr');
     [s.id, s.name, s.start_at, s.end_at].forEach(v => addCell(tr, v));
     addCell(tr, '').appendChild(statusBadge(s.status));
-    if (s.status === 'active') addButtonCell(tr, 'Clore', () => endSeason(s.id));
-    else addCell(tr, '');
+    admRowOpen(tr, `season:${s.id}`, s.name, row => openSeasonSheet(s, row));
     tbody.appendChild(tr);
   });
 }
 
-document.getElementById('btn-new-season').addEventListener('click', () => {
-  document.getElementById('new-season-form').classList.toggle('hidden');
-});
-document.getElementById('btn-cancel-season').addEventListener('click', () => {
-  document.getElementById('new-season-form').classList.add('hidden');
+// Fiche d'une saison : consultation (aucune édition de dates ici : la fin de la saison active a sa
+// procédure dédiée, #44) ; seule action : « Clore » pour la saison active, avec confirmation.
+let _seasonSheet = null;
+admDialogSetup('season-dialog');
+
+function openSeasonSheet(s, opener) {
+  _seasonSheet = s;
+  const isNew = !s;
+  document.getElementById('season-dialog-title').textContent = isNew ? 'Nouvelle saison' : `Saison #${s.id} — ${s.name}`;
+  document.getElementById('new-season-form').classList.toggle('hidden', !isNew);
+  document.getElementById('btn-create-season').classList.toggle('hidden', !isNew);
+  document.getElementById('btn-season-close').classList.toggle('hidden', isNew || s.status !== 'active');
+  document.getElementById('btn-cancel-season').textContent = isNew ? 'Annuler' : 'Fermer';
+  admShowError(document.getElementById('season-form-error'), '');
+  const view = document.getElementById('season-view');
+  view.classList.toggle('hidden', isNew);
+  view.textContent = '';
+  if (isNew) {
+    for (const id of ['ns-name', 'ns-start', 'ns-end']) document.getElementById(id).value = '';
+  } else {
+    const dl = document.createElement('dl');
+    for (const [k, v] of [['Nom', s.name], ['Début (UTC)', s.start_at], ['Fin (UTC)', s.end_at], ['Statut', s.status]]) {
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = v ?? '—';
+      dl.append(dt, dd);
+    }
+    view.appendChild(dl);
+    if (s.status === 'active') {
+      const p = document.createElement('p');
+      p.className = 'muted';
+      p.style.fontSize = '0.78rem';
+      p.textContent = 'Pour changer la date de fin sans clore : 📊 Ligues & Saisons → « Date de fin de la saison active ».';
+      view.appendChild(p);
+    }
+  }
+  admDialogOpen('season-dialog', opener, isNew ? 'ns-name' : 'btn-cancel-season');
+}
+
+document.getElementById('btn-new-season').addEventListener('click', e => openSeasonSheet(null, e.currentTarget));
+document.getElementById('btn-season-close').addEventListener('click', async () => {
+  if (!_seasonSheet) return;
+  if (await endSeason(_seasonSheet.id)) document.getElementById('season-dialog').close();
 });
 
 document.getElementById('btn-create-season').addEventListener('click', async () => {
@@ -148,14 +229,16 @@ document.getElementById('btn-create-season').addEventListener('click', async () 
   const end_at   = endRaw.replace('T', ' ')   + ':00';
   const { ok, data } = await api('POST', '/api/admin/seasons', { name, start_at, end_at });
   if (!ok) { errEl.textContent = data.error ?? 'Erreur.'; errEl.classList.remove('hidden'); return; }
-  document.getElementById('new-season-form').classList.add('hidden');
+  document.getElementById('season-dialog').close();
   loadSeasons();
 });
 
 async function endSeason(id) {
-  if (!confirm('Clore cette saison ?')) return;
-  await api('PUT', `/api/admin/seasons/${id}`, { status: 'closed' });
+  if (!confirm('Clore cette saison ?')) return false;
+  const { ok, data } = await api('PUT', `/api/admin/seasons/${id}`, { status: 'closed' });
+  if (!ok) admShowError(document.getElementById('season-form-error'), data.error ?? 'Erreur.');
   loadSeasons();
+  return ok;
 }
 
 // ── Ligues ────────────────────────────────────────────────────────────────────
@@ -170,16 +253,29 @@ async function loadLeagues() {
   data.leagues.forEach(l => {
     const tr = document.createElement('tr');
     [l.id, `${l.icon} ${l.name}`, l.level, l.rank_min, l.rank_max ?? '∞', l.sort_order].forEach(v => addCell(tr, v));
-    addButtonCell(tr, 'Supprimer', () => deleteLeague(l.id, l.name));
+    admRowOpen(tr, `league:${l.id}`, l.name, row => openLeagueSheet(l, row));
     tbody.appendChild(tr);
   });
 }
 
-document.getElementById('btn-new-league').addEventListener('click', () => {
-  document.getElementById('new-league-form').classList.toggle('hidden');
-});
-document.getElementById('btn-cancel-league').addEventListener('click', () => {
-  document.getElementById('new-league-form').classList.add('hidden');
+// Fiche d'une ligue : création, ou consultation/modification (PUT existant) et suppression confirmée.
+admDialogSetup('league-dialog');
+const NL_FIELDS = { name: 'nl-name', icon: 'nl-icon', level: 'nl-level', rank_min: 'nl-rmin', rank_max: 'nl-rmax', sort_order: 'nl-order' };
+
+function openLeagueSheet(l, opener) {
+  document.getElementById('nl-id').value = l ? l.id : '';
+  document.getElementById('league-dialog-title').textContent = l ? `Ligue #${l.id} — ${l.icon} ${l.name}` : 'Nouvelle ligue';
+  document.getElementById('btn-create-league').textContent = l ? 'Enregistrer' : 'Créer la ligue';
+  document.getElementById('btn-league-delete').classList.toggle('hidden', !l);
+  for (const [k, id] of Object.entries(NL_FIELDS)) document.getElementById(id).value = l?.[k] ?? '';
+  admShowError(document.getElementById('league-form-error'), '');
+  admDialogOpen('league-dialog', opener, l ? 'btn-cancel-league' : 'nl-name');
+}
+
+document.getElementById('btn-new-league').addEventListener('click', e => openLeagueSheet(null, e.currentTarget));
+document.getElementById('btn-league-delete').addEventListener('click', async () => {
+  const id = document.getElementById('nl-id').value;
+  if (id && await deleteLeague(id, document.getElementById('nl-name').value)) document.getElementById('league-dialog').close();
 });
 
 document.getElementById('btn-create-league').addEventListener('click', async () => {
@@ -193,16 +289,22 @@ document.getElementById('btn-create-league').addEventListener('click', async () 
   const errEl      = document.getElementById('league-form-error');
   errEl.classList.add('hidden');
   if (!name || isNaN(rank_min)) { errEl.textContent = 'Nom et rang min requis.'; errEl.classList.remove('hidden'); return; }
-  const { ok, data } = await api('POST', '/api/admin/leagues', { name, icon, level, rank_min, rank_max, sort_order });
+  const id = document.getElementById('nl-id').value;
+  const body = { name, icon, level, rank_min, rank_max, sort_order };
+  const { ok, data } = id
+    ? await api('PUT', `/api/admin/leagues/${encodeURIComponent(id)}`, body)
+    : await api('POST', '/api/admin/leagues', body);
   if (!ok) { errEl.textContent = data.error ?? 'Erreur.'; errEl.classList.remove('hidden'); return; }
-  document.getElementById('new-league-form').classList.add('hidden');
+  document.getElementById('league-dialog').close();
   loadLeagues();
 });
 
 async function deleteLeague(id, name) {
-  if (!confirm(`Supprimer la ligue "${name}" ?`)) return;
-  await api('DELETE', `/api/admin/leagues/${id}`);
+  if (!confirm(`Supprimer la ligue "${name}" ?`)) return false;
+  const { ok, data } = await api('DELETE', `/api/admin/leagues/${id}`);
+  if (!ok) admShowError(document.getElementById('league-form-error'), data.error ?? 'Erreur.');
   loadLeagues();
+  return ok;
 }
 
 // ── Classement ────────────────────────────────────────────────────────────────
@@ -1397,7 +1499,7 @@ async function loadShop() {
     [it.id, `${it.icon || ''} ${it.texts.fr.title}`, it.kind === 'real' ? 'réel' : 'virtuel', it.cost,
      it.stock_remaining ?? '∞', it.max_per_user ?? '—', it.visible ? 'oui' : 'non', it.unavailable ? 'indisponible' : 'disponible']
       .forEach(x => addCell(tr, x));
-    addButtonCell(tr, 'Modifier', () => { shFillForm(it); document.getElementById('sh-form-title').scrollIntoView({ behavior: 'smooth' }); });
+    admRowOpen(tr, `shop:${it.id}`, it.texts.fr.title, row => shOpenSheet(it, row));
     ib.appendChild(tr);
   }
 
@@ -1450,7 +1552,13 @@ async function shopTransition(o, to) {
 
 document.getElementById('btn-refresh-shop').addEventListener('click', loadShop);
 document.getElementById('sh-order-filter').addEventListener('change', loadShop);
-document.getElementById('btn-sh-new').addEventListener('click', () => shFillForm(null));
+admDialogSetup('sh-dialog');
+function shOpenSheet(item, opener) {
+  shFillForm(item);
+  document.getElementById('sh-item-msg').classList.add('hidden');
+  admDialogOpen('sh-dialog', opener, item ? document.querySelector('#sh-dialog [data-close]') : 'sh-cost');
+}
+document.getElementById('btn-sh-new').addEventListener('click', e => shOpenSheet(null, e.currentTarget));
 
 document.getElementById('btn-sh-settings').addEventListener('click', async () => {
   const body = { exchangesOpen: document.getElementById('sh-open').checked, notice: document.getElementById('sh-notice').value };
@@ -1465,8 +1573,10 @@ document.getElementById('btn-sh-save').addEventListener('click', async () => {
   const { ok, data } = id
     ? await api('PUT', `/api/admin/shop/items/${encodeURIComponent(id)}`, { item })
     : await api('POST', '/api/admin/shop/items', { item });
-  shMessage('sh-item-msg', ok ? `Article #${data.item.id} enregistré.` : (data.error || 'Erreur.'), ok);
-  if (ok) { shFillForm(data.item); loadShop(); }
+  if (!ok) return shMessage('sh-item-msg', data.error || 'Erreur.', false);
+  document.getElementById('sh-dialog').close();
+  shMessage('sh-list-msg', `Article #${data.item.id} enregistré.`, true);
+  loadShop();
 });
 
 // ── Catalogue de blocs (#37) ──────────────────────────────────────────────────
@@ -1834,7 +1944,21 @@ document.getElementById('bk-dialog').addEventListener('close', () => {
 document.getElementById('btn-bk-close').addEventListener('click', () => document.getElementById('bk-dialog').close());
 // Clic sur le fond (hors du contenu) : fermeture.
 document.getElementById('bk-dialog').addEventListener('click', e => { if (e.target.id === 'bk-dialog') e.target.close(); });
-document.getElementById('btn-bk-add').addEventListener('click', e => bkOpenSheet(null, e.currentTarget));
+// « ＋ Ajouter un bloc » : choix « Créer avec l'IA » / « Créer manuellement » (Annuler : aucun effet).
+admDialogSetup('bk-add-dialog');
+admDialogSetup('ai-dialog');
+document.getElementById('btn-bk-add').addEventListener('click', e => {
+  admDialogOpen('bk-add-dialog', e.currentTarget, document.getElementById('btn-bk-add-ai').disabled ? 'btn-bk-add-manual' : 'btn-bk-add-ai');
+});
+document.getElementById('btn-bk-add-manual').addEventListener('click', () => {
+  document.getElementById('bk-add-dialog').close();
+  bkOpenSheet(null, document.getElementById('btn-bk-add'));
+});
+document.getElementById('btn-bk-add-ai').addEventListener('click', () => {
+  document.getElementById('bk-add-dialog').close();
+  document.getElementById('ai-msg').textContent = '';
+  admDialogOpen('ai-dialog', document.getElementById('btn-bk-add'), 'ai-concept');
+});
 document.getElementById('btn-bk-studio').addEventListener('click', () => {
   const id = document.getElementById('bk-id').value.trim();
   document.getElementById('bk-dialog').close();
@@ -1946,16 +2070,24 @@ const AI_IMAGE_STATE = {
 async function loadAi() {
   const { ok, data } = await api('GET', '/api/admin/blocks/ai');
   const st = document.getElementById('ai-status');
-  if (!ok) { st.textContent = data.error || 'Erreur.'; return; }
+  const st2 = document.getElementById('ai-status-2');
+  if (!ok) { st.textContent = st2.textContent = data.error || 'Erreur.'; return; }
   const s = data.status;
-  st.textContent = s.configured
+  st.textContent = st2.textContent = s.configured
     ? `API IA : texte ${s.textModel}, image ${s.imageModel}${s.fake ? ' (MODE TEST, aucun appel réel)' : ''} — dépense ${s.spentUsd} / ${s.budgetUsd} USD (≈ ${s.estImageUsd} USD par image)`
       + ` — ${s.callsToday}/${s.maxCallsPerDay} appels sur 24 h${s.imageProcessing ? '' : ' — traitement d\'image indisponible'}.`
     : `API IA non configurée : ${s.reason}. La génération est désactivée (la clé reste côté serveur, jamais dans le navigateur).`;
   document.getElementById('btn-ai-generate').disabled = !s.configured;
+  document.getElementById('btn-bk-add-ai').disabled = !s.configured;
   const box = document.getElementById('ai-proposals');
   box.textContent = '';
   for (const p of data.proposals) box.appendChild(aiRenderProposal(p, s.configured));
+  // Propositions existantes = données : la carte n'apparaît que s'il y en a (ou un journal d'appels),
+  // repliée (aucun formulaire affiché d'office) ; elle s'ouvre après une nouvelle proposition.
+  const pending = data.proposals.filter(p => p.status === 'open').length;
+  const card = document.getElementById('ai-card');
+  card.classList.toggle('hidden', !data.proposals.length && !data.calls.length);
+  document.getElementById('ai-card-title').textContent = `✨ Propositions IA — ${pending} à valider, ${data.proposals.length - pending} dans le brouillon`;
   // Image générée en arrière-plan : état rafraîchi tant qu'une génération est en cours
   clearTimeout(_aiPoll);
   if (data.proposals.some(p => p.imageStatus === 'pending')) _aiPoll = setTimeout(loadAi, 4000);
@@ -2099,21 +2231,28 @@ document.getElementById('btn-ai-generate').addEventListener('click', async () =>
   const msg = document.getElementById('ai-msg');
   const btn = document.getElementById('btn-ai-generate');
   btn.disabled = true;
-  msg.textContent = 'Génération du texte en cours (≈ 30 s), puis de l\'image (≈ 1 min, suivie dans la carte)…';
+  const withImage = document.getElementById('ai-with-image').checked;
+  msg.textContent = `Génération du texte en cours (≈ 30 s)${withImage ? ', puis de l\'image (≈ 1 min, suivie dans la carte de la proposition)' : ''}…`;
   try {
-    const { ok, data } = await api('POST', '/api/admin/blocks/ai/proposals', { concept, withImage: document.getElementById('ai-with-image').checked });
-    const st = data.proposal?.imageStatus;
-    msg.textContent = !ok ? (data.error || 'Erreur.')
-      : st === 'pending' ? 'Texte prêt ; image en cours de génération : la carte ci-dessous se met à jour seule.'
-      : st === 'error' ? `Texte proposé ; image en échec : ${data.proposal.imageError}`
-      : 'Proposition prête : vérifiez-la ci-dessous.';
-    if (ok) document.getElementById('ai-concept').value = '';
+    const { ok, data } = await api('POST', '/api/admin/blocks/ai/proposals', { concept, withImage });
+    if (!ok) msg.textContent = data.error || 'Erreur.';
+    else {
+      // Proposition créée : la fiche se ferme et la carte « Propositions IA » s'ouvre sur elle.
+      document.getElementById('ai-concept').value = '';
+      msg.textContent = '';
+      document.getElementById('ai-dialog').close();
+      await loadAi();
+      const card = document.getElementById('ai-card');
+      card.open = true;
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
   } catch (_) {
-    msg.textContent = 'Réponse du serveur interrompue : l\'état réel de la proposition est rechargé ci-dessous.';
+    msg.textContent = 'Réponse du serveur interrompue : l\'état réel de la proposition est rechargé dans « ✨ Propositions IA ».';
   } finally {
     btn.disabled = false;
-    loadAi();
   }
+  loadAi();
 });
 for (const th of document.querySelectorAll('.bk-table th[data-sort]')) {
   th.querySelector('.bk-sort-btn').addEventListener('click', () => {
@@ -2126,7 +2265,6 @@ for (const id of ['bk-filter-text', 'bk-filter-cat', 'bk-filter-status', 'bk-odd
   document.getElementById(id).addEventListener('input', () => { if (_bk) bkRenderTable(); });
 }
 for (const id of ['bk-id', 'bk-icon', 'bk-image', 'bk-color', 'bk-accent']) document.getElementById(id).addEventListener('input', bkPreview);
-document.getElementById('btn-bk-new').addEventListener('click', () => { bkFillForm(null); document.getElementById('bk-id').focus(); });
 
 document.getElementById('btn-bk-save').addEventListener('click', async () => {
   const type = bkReadForm();

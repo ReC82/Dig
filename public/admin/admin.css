@@ -524,3 +524,26 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   .ic-compare .ic-thumb { width: 128px !important; height: 128px !important; }
   .ic-sizes { flex-wrap: wrap; }
 }
+
+/* ── Fiches modales communes (UX du panel, 31/10) : données d'abord, « ＋ Ajouter » ouvre une fiche ── */
+.btn-primary { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2) inset; }
+.adm-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.adm-dialog--narrow { width: min(620px, calc(100vw - 24px)); }
+.adm-dialog .adm-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+.adm-dialog textarea { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font: inherit; font-size: 0.85rem; }
+.adm-dialog textarea:focus { outline: none; border-color: var(--gold); }
+.adm-dialog .adm-check { flex-direction: row; align-items: flex-start; gap: 8px; margin: 8px 0; }
+.adm-dialog details summary { cursor: pointer; margin-top: 6px; }
+.adm-view dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 0.85rem; margin-bottom: 10px; }
+.adm-view dt { color: var(--muted); }
+.adm-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 6px 0 10px; }
+.adm-choice-btn { display: flex; flex-direction: column; gap: 6px; text-align: left; cursor: pointer; padding: 14px;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px; font: inherit; }
+.adm-choice-btn strong { font-size: 0.95rem; }
+.adm-choice-btn span { color: var(--muted); font-size: 0.78rem; }
+.adm-choice-btn:hover:not(:disabled), .adm-choice-btn:focus-visible { border-color: var(--gold); outline: none; }
+.adm-choice-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+details#ai-card > summary { cursor: pointer; }
+details#ai-card[open] > summary { margin-bottom: 8px; }
+/* Libellé caché d'en-tête : rester dans le tableau (sinon, en position absolue, il élargit la page sur mobile). */
+table:has(.visually-hidden) { position: relative; }
