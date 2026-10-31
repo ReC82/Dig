@@ -45,49 +45,68 @@
   <section id="tab-seasons" class="tab-content">
     <div class="section-header">
       <h2>Saisons</h2>
-      <button class="btn" id="btn-new-season">+ Nouvelle saison</button>
-    </div>
-    <div id="new-season-form" class="form-card hidden">
-      <h3>Créer une saison</h3>
-      <label>Nom <input id="ns-name" type="text" placeholder="Saison 1-2025"></label>
-      <label>Début (UTC) <input id="ns-start" type="datetime-local"></label>
-      <label>Fin (UTC)   <input id="ns-end"   type="datetime-local"></label>
-      <div class="form-actions">
-        <button class="btn" id="btn-create-season">Créer</button>
-        <button class="btn btn-outline" id="btn-cancel-season">Annuler</button>
-      </div>
-      <p id="season-form-error" class="error hidden"></p>
+      <button class="btn btn-primary" id="btn-new-season" type="button">＋ Ajouter une saison</button>
     </div>
     <table id="seasons-table">
-      <thead><tr><th>ID</th><th>Nom</th><th>Début</th><th>Fin</th><th>Statut</th><th>Actions</th></tr></thead>
+      <thead><tr><th>ID</th><th>Nom</th><th>Début</th><th>Fin</th><th>Statut</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
       <tbody></tbody>
     </table>
+    <p class="muted" style="font-size:0.75rem">Cliquez sur une saison (ou Entrée / Espace) pour ouvrir sa fiche.</p>
+
+    <dialog id="season-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="season-dialog-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="season-dialog-title">Nouvelle saison</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
+      <div id="season-view" class="adm-view hidden"></div>
+      <div id="new-season-form" class="adm-form">
+        <label>Nom <input id="ns-name" type="text" placeholder="Saison 1-2025"></label>
+        <label>Début (UTC) <input id="ns-start" type="datetime-local"></label>
+        <label>Fin (UTC)   <input id="ns-end"   type="datetime-local"></label>
+        <p class="muted" style="font-size:0.78rem">La fin de la saison active se règle dans 📊 Ligues &amp; Saisons → « Date de fin de la saison active ».</p>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-create-season" type="button">Créer la saison</button>
+        <button class="btn btn-danger hidden" id="btn-season-close" type="button">Clore cette saison</button>
+        <button class="btn btn-outline" id="btn-cancel-season" type="button" data-close>Annuler</button>
+      </div>
+      <p id="season-form-error" class="error hidden"></p>
+    </dialog>
   </section>
 
   <!-- Tab Ligues -->
   <section id="tab-leagues" class="tab-content hidden">
     <div class="section-header">
       <h2>Ligues</h2>
-      <button class="btn" id="btn-new-league">+ Nouvelle ligue</button>
+      <button class="btn btn-primary" id="btn-new-league" type="button">＋ Ajouter une ligue</button>
     </div>
-    <div id="new-league-form" class="form-card hidden">
-      <h3>Créer une ligue</h3>
+    <table id="leagues-table">
+      <thead><tr><th>ID</th><th>Nom</th><th>Niv.</th><th>Rang min</th><th>Rang max</th><th>Ordre</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="muted" style="font-size:0.75rem">Cliquez sur une ligue (ou Entrée / Espace) pour ouvrir sa fiche : consultation, modification ou suppression.</p>
+
+    <dialog id="league-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="league-dialog-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="league-dialog-title">Nouvelle ligue</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
+      <input type="hidden" id="nl-id">
+      <div id="new-league-form" class="adm-form">
       <label>Nom    <input id="nl-name"   type="text"   placeholder="Bronze"></label>
       <label>Icône  <input id="nl-icon"   type="text"   placeholder="🏅" maxlength="4"></label>
       <label>Niveau <input id="nl-level"  type="number" placeholder="1" min="0"> <small>(0 = Mimosa = plus bas)</small></label>
       <label>Rang min <input id="nl-rmin" type="number" placeholder="11" min="1"></label>
       <label>Rang max <input id="nl-rmax" type="number" placeholder="50" min="1"> <small>(vide = illimité)</small></label>
       <label>Ordre  <input id="nl-order"  type="number" placeholder="1"  min="0"></label>
+      </div>
       <div class="form-actions">
-        <button class="btn" id="btn-create-league">Créer</button>
-        <button class="btn btn-outline" id="btn-cancel-league">Annuler</button>
+        <button class="btn btn-primary" id="btn-create-league" type="button">Créer la ligue</button>
+        <button class="btn btn-danger hidden" id="btn-league-delete" type="button">Supprimer la ligue</button>
+        <button class="btn btn-outline" id="btn-cancel-league" type="button" data-close>Annuler</button>
       </div>
       <p id="league-form-error" class="error hidden"></p>
-    </div>
-    <table id="leagues-table">
-      <thead><tr><th>ID</th><th>Nom</th><th>Niv.</th><th>Rang min</th><th>Rang max</th><th>Ordre</th><th>Actions</th></tr></thead>
-      <tbody></tbody>
-    </table>
+    </dialog>
   </section>
 
   <!-- Tab Classement -->
@@ -586,7 +605,10 @@
   <section id="tab-shop" class="tab-content hidden">
     <div class="section-header">
       <h2>🛍 Boutique de cadeaux</h2>
-      <button class="btn" id="btn-refresh-shop">↻ Rafraîchir</button>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-sh-new" type="button">＋ Ajouter un article</button>
+        <button class="btn" id="btn-refresh-shop">↻ Rafraîchir</button>
+      </div>
     </div>
     <p id="sh-banner" class="contest-banner"></p>
 
@@ -602,7 +624,22 @@
     </div>
 
     <div class="overview-card">
-      <h3 class="overview-card-title" id="sh-form-title">Nouvel article</h3>
+      <h3 class="overview-card-title">Catalogue</h3>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>ID</th><th>Article</th><th>Sorte</th><th>Coût</th><th>Stock</th><th>Max/joueur</th><th>Visible</th><th>État</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
+          <tbody id="sh-items-body"><tr><td colspan="9" class="muted">Aucun article.</td></tr></tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:0.75rem">Cliquez sur un article (ou Entrée / Espace) pour ouvrir sa fiche et le modifier.</p>
+      <p id="sh-list-msg" class="hidden"></p>
+    </div>
+
+    <dialog id="sh-dialog" class="bk-dialog adm-dialog" aria-labelledby="sh-form-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="sh-form-title">Nouvel article</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
       <input type="hidden" id="sh-id">
       <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
         <label>Sorte<select id="sh-kind"><option value="virtual">Virtuel</option><option value="real">Réel (verrouillé)</option></select></label>
@@ -644,22 +681,13 @@
         </fieldset>
       </div>
       <div class="form-actions" style="margin-top:8px">
-        <button class="btn" id="btn-sh-save">Enregistrer l'article</button>
-        <button class="btn btn-ghost" id="btn-sh-new">Nouveau (vider le formulaire)</button>
+        <button class="btn btn-primary" id="btn-sh-save" type="button">Enregistrer l'article</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
       </div>
       <p class="muted" style="font-size:0.78rem">Un article n'est jamais supprimé : décocher « Visible » le retire du catalogue (les commandes passées restent).</p>
       <p id="sh-item-msg" class="hidden"></p>
-    </div>
+    </dialog>
 
-    <div class="overview-card">
-      <h3 class="overview-card-title">Catalogue</h3>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>ID</th><th>Article</th><th>Sorte</th><th>Coût</th><th>Stock</th><th>Max/joueur</th><th>Visible</th><th>État</th><th></th></tr></thead>
-          <tbody id="sh-items-body"><tr><td colspan="9" class="muted">Aucun article.</td></tr></tbody>
-        </table>
-      </div>
-    </div>
 
     <div class="overview-card">
       <h3 class="overview-card-title">Commandes</h3>
@@ -698,33 +726,15 @@
   <section id="tab-blocks" class="tab-content hidden">
     <div class="section-header">
       <h2>🧱 Catalogue de blocs</h2>
-      <button class="btn" id="btn-refresh-blocks">↻ Rafraîchir</button>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-bk-add" type="button">＋ Ajouter un bloc</button>
+        <button class="btn" id="btn-refresh-blocks">↻ Rafraîchir</button>
+      </div>
     </div>
     <p id="bk-banner" class="contest-banner"></p>
     <p class="muted" style="font-size:0.78rem">Contenu du jeu (minerais, pierres, coffres, gemmes) — distinct des cadeaux réels (onglets Concours / Boutique).
       Les modifications vont dans un <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier ». Un bloc déjà publié ne se supprime pas, il se désactive.
       Aucune profondeur maximale : un bloc apparaît <strong>dès X m</strong> puis à toutes les profondeurs suivantes.</p>
-
-    <div class="overview-card" id="ai-card">
-      <h3 class="overview-card-title">✨ Création assistée par IA</h3>
-      <p id="ai-status" class="muted" style="font-size:0.8rem"></p>
-      <p class="muted" style="font-size:0.78rem">Décrivez un bloc, un minerai ou un coffre : l'IA propose les noms FR/EN/NL, la catégorie, les paramètres et une icône dans le style validé.
-        Corrigez chaque langue, régénérez une partie, vérifiez l'impact, puis « Ajouter au brouillon ». <strong>Rien n'est publié automatiquement.</strong></p>
-      <textarea id="ai-concept" rows="2" maxlength="500" placeholder="Ex. : un minerai de cuivre oxydé, vert-de-gris, vers 300 m, peu commun" style="width:100%"></textarea>
-      <div class="form-actions">
-        <label><input type="checkbox" id="ai-with-image" checked> Générer aussi l'icône</label>
-        <button class="btn btn-primary" id="btn-ai-generate">✨ Proposer un bloc</button>
-      </div>
-      <p id="ai-msg" class="form-msg"></p>
-      <div id="ai-proposals"></div>
-      <details>
-        <summary class="muted">Journal des appels IA (coûts estimés)</summary>
-        <table>
-          <thead><tr><th>Date (UTC)</th><th>Prop.</th><th>Type</th><th>Modèle</th><th>Résultat</th><th>Coût estimé</th><th>Durée</th></tr></thead>
-          <tbody id="ai-calls-body"></tbody>
-        </table>
-      </details>
-    </div>
 
     <div class="overview-card">
       <h3 class="overview-card-title">Blocs <span id="bk-list-source" class="muted"></span></h3>
@@ -733,7 +743,6 @@
         <select id="bk-filter-cat"><option value="">Toutes catégories</option></select>
         <select id="bk-filter-status"><option value="">Tous</option><option value="active">Actifs</option><option value="inactive">Désactivés</option><option value="changed">Modifiés dans le brouillon</option><option value="emoji">Sans illustration (emoji)</option></select>
         <label class="bk-odds">Probabilités à <input id="bk-odds-depth" type="number" min="1" value="250"> m</label>
-        <button class="btn" id="btn-bk-add" type="button">＋ Nouveau bloc</button>
       </div>
       <div class="bk-table-wrap">
       <table class="bk-table">
@@ -741,14 +750,69 @@
         <tbody id="bk-body"></tbody>
       </table>
       </div>
-      <p class="muted" style="font-size:0.75rem">Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche du bloc : consultation, puis modification dans le brouillon. Survolez un visuel pour l'agrandir.</p>
+      <p class="muted" style="font-size:0.75rem">Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche du bloc : consultation, puis modification dans le brouillon. Survolez un visuel pour l'agrandir. Nouveau bloc : « ＋ Ajouter un bloc » en haut de page.</p>
       <div id="bk-zoom" class="bk-zoom hidden" aria-hidden="true"></div>
     </div>
+
+    <!-- Propositions IA existantes (données) : affichées seulement s'il y en a ; la création passe par « ＋ Ajouter un bloc ». -->
+    <details class="overview-card hidden" id="ai-card">
+      <summary class="overview-card-title" id="ai-card-title">✨ Propositions IA</summary>
+      <p class="muted" style="font-size:0.78rem">Corrigez chaque langue, régénérez une partie, vérifiez l'impact, puis « Ajouter au brouillon ». <strong>Rien n'est publié automatiquement.</strong></p>
+      <div id="ai-proposals"></div>
+      <details>
+        <summary class="muted">Journal des appels IA (coûts estimés)</summary>
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Prop.</th><th>Type</th><th>Modèle</th><th>Résultat</th><th>Coût estimé</th><th>Durée</th></tr></thead>
+          <tbody id="ai-calls-body"></tbody>
+        </table>
+      </details>
+    </details>
+
+    <!-- « ＋ Ajouter un bloc » : choix IA / manuel. Annuler ne crée ni n'écrit rien. -->
+    <dialog id="bk-add-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="bk-add-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="bk-add-title">Ajouter un bloc</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <div class="adm-choice">
+        <button type="button" class="adm-choice-btn" id="btn-bk-add-ai">
+          <strong>✨ Créer avec l'IA</strong>
+          <span>Décrivez le bloc : l'IA propose noms FR/EN/NL/ES, catégorie et paramètres. Image seulement à votre demande.</span>
+        </button>
+        <button type="button" class="adm-choice-btn" id="btn-bk-add-manual">
+          <strong>✍ Créer manuellement</strong>
+          <span>Fiche vide : identifiant, noms, rareté, PV, récompense, profondeur, poids.</span>
+        </button>
+      </div>
+      <p id="ai-status" class="muted" style="font-size:0.78rem"></p>
+      <p class="muted" style="font-size:0.75rem">Dans les deux cas, le bloc va dans le <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier ».</p>
+      <div class="form-actions"><button class="btn btn-outline" type="button" data-close>Annuler</button></div>
+    </dialog>
+
+    <dialog id="ai-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="ai-dialog-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="ai-dialog-title">✨ Créer un bloc avec l'IA</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <label>Description libre du bloc
+        <textarea id="ai-concept" rows="3" maxlength="500" placeholder="Ex. : un minerai de cuivre oxydé, vert-de-gris, vers 300 m, peu commun" style="width:100%"></textarea>
+      </label>
+      <label class="adm-check"><input type="checkbox" id="ai-with-image"> Générer aussi l'icône maintenant (payant, ≈ 1 min) — sinon : « ↻ Image seule » plus tard, sur la proposition</label>
+      <p id="ai-status-2" class="muted" style="font-size:0.78rem"></p>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-ai-generate" type="button">✨ Proposer un bloc</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      </div>
+      <p id="ai-msg" class="form-msg"></p>
+      <details class="muted" style="font-size:0.75rem"><summary>Aide technique</summary>
+        <p>Un appel texte (≈ 30 s) puis, si demandé, une image dans le style validé (pierre C), une seule à la fois. La clé reste côté serveur ; le plafond de dépense se règle dans ⚙ Config → Budget IA. La proposition apparaît ensuite dans « ✨ Propositions IA », éditable, et n'entre dans le brouillon que par « Ajouter au brouillon ».</p>
+      </details>
+    </dialog>
 
     <dialog id="bk-dialog" class="bk-dialog" aria-labelledby="bk-form-title">
       <div class="section-header bk-dialog-head">
         <h3 class="overview-card-title" id="bk-form-title">Nouveau bloc</h3>
-        <button type="button" class="btn" id="btn-bk-close" aria-label="Fermer la fiche">✕ Fermer</button>
+        <button type="button" class="btn btn-outline" id="btn-bk-close" aria-label="Fermer la fiche">✕ Fermer</button>
       </div>
       <p id="bk-sheet-summary" class="bk-sheet-summary"></p>
       <div id="bk-sheet-art" class="bk-sheet-art">
@@ -785,7 +849,6 @@
       <p class="muted" style="font-size:0.78rem">PV et récompense augmentent avec la profondeur (+12 % et +5 % par mètre). Les noms des 14 blocs d'origine viennent des traductions intégrées tant que les champs Nom sont vides. Les raretés rare, épique et légendaire sont favorisées par la Chance du joueur.</p>
       <div class="form-actions">
         <button class="btn" id="btn-bk-save">Enregistrer dans le brouillon</button>
-        <button class="btn btn-ghost" id="btn-bk-new">Nouveau (vider)</button>
         <button class="btn btn-ghost" id="btn-bk-remove">Retirer du brouillon (jamais publié)</button>
       </div>
       <p id="bk-form-msg" class="hidden"></p>
