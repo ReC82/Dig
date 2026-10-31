@@ -707,16 +707,18 @@
 
     <div class="overview-card">
       <h3 class="overview-card-title">Blocs <span id="bk-list-source" class="muted"></span></h3>
-      <div class="form-actions">
-        <input id="bk-filter-text" type="search" placeholder="Filtrer (identifiant, nom)" style="flex:1">
+      <div class="form-actions bk-filters">
+        <input id="bk-filter-text" type="search" placeholder="Filtrer (identifiant, nom)">
         <select id="bk-filter-cat"><option value="">Toutes catégories</option></select>
         <select id="bk-filter-status"><option value="">Tous</option><option value="active">Actifs</option><option value="inactive">Désactivés</option><option value="changed">Modifiés dans le brouillon</option></select>
-        <label>Probabilités à <input id="bk-odds-depth" type="number" min="1" value="250" style="width:80px"> m</label>
+        <label class="bk-odds">Probabilités à <input id="bk-odds-depth" type="number" min="1" value="250"> m</label>
       </div>
-      <table>
-        <thead><tr><th></th><th>Identifiant</th><th>Nom FR</th><th>Catégorie</th><th>Rareté</th><th>PV</th><th>Récompense</th><th>Dès</th><th>Poids</th><th>Prob.</th><th>Statut</th><th></th></tr></thead>
+      <div class="bk-table-wrap">
+      <table class="bk-table">
+        <thead><tr><th></th><th>Identifiant</th><th>Nom FR</th><th>Catégorie</th><th>Rareté</th><th class="num">PV</th><th class="num">Récompense</th><th>Apparition</th><th class="num">Poids</th><th class="num" title="Probabilité d'apparition à la profondeur choisie">Prob.</th><th>Statut</th><th></th></tr></thead>
         <tbody id="bk-body"></tbody>
       </table>
+      </div>
     </div>
 
     <div class="overview-card">

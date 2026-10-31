@@ -1592,12 +1592,23 @@ function bkRenderTable() {
     if (status === 'inactive' && t.active) continue;
     if (status === 'changed' && !changed.has(t.id)) continue;
     const tr = document.createElement('tr');
-    const range = t.fadeFrom != null ? `dès ${t.minDepth} m (atténué > ${t.fadeFrom} m : ${t.fadeWeight})`
-      : t.maxDepth != null ? `dès ${t.minDepth} m (ancienne borne ${t.maxDepth} m, convertie en atténuation à la publication)`
-      : `dès ${t.minDepth} m`;
+    const rangeNote = t.fadeFrom != null ? `atténué > ${t.fadeFrom} m : ${t.fadeWeight}`
+      : t.maxDepth != null ? `ancienne borne ${t.maxDepth} m, convertie en atténuation à la publication` : '';
     const state = `${t.active ? 'actif' : 'désactivé'}${changed.has(t.id) ? ' · modifié' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau'}`;
-    [t.icon, t.id, t.names?.fr ?? '(intégré)', t.category, BK_RARITY[t.rarity] ?? t.rarity, t.hpBase, t.reward, range,
-     t.weight, bkPct(odds.get(t.id)) + (BK_BOOSTED.has(t.rarity) ? ' ★' : ''), state].forEach(x => addCell(tr, x));
+    // Classes de colonne : nombres alignés à droite, sans retour à la ligne (le texte reste identique).
+    [[t.icon, 'bk-icon'], [t.id, 'bk-id'], [t.names?.fr ?? '(intégré)', ''], [t.category, ''], [BK_RARITY[t.rarity] ?? t.rarity, 'nowrap'],
+     [t.hpBase, 'num'], [t.reward, 'num'], [`dès ${t.minDepth} m`, 'bk-range'], [t.weight, 'num'],
+     [bkPct(odds.get(t.id)) + (BK_BOOSTED.has(t.rarity) ? ' ★' : ''), 'num'], [state, 'bk-state']]
+      .forEach(([x, cls]) => {
+        const td = addCell(tr, x);
+        if (cls) td.className = cls;
+        if (cls === 'bk-range' && rangeNote) {
+          const note = document.createElement('small');
+          note.className = 'muted';
+          note.textContent = rangeNote;
+          td.appendChild(note);
+        }
+      });
     addButtonCell(tr, 'Modifier', () => { bkFillForm(t); document.getElementById('bk-form-title').scrollIntoView({ behavior: 'smooth' }); });
     tb.appendChild(tr);
   }
