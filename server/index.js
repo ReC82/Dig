@@ -1187,8 +1187,9 @@ app.get('/api/admin/icons/job', requireAdmin, iconRoute('GET /api/admin/icons/jo
 app.put('/api/admin/icons/budget', requireAdmin, limit.icons, iconRoute('PUT /api/admin/icons/budget',
   req => ({ status: iconStudio.setStudioBudget(req.body?.studioBudgetUsd ?? null) })));
 
-app.post('/api/admin/icons/jobs', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/jobs',
-  req => ({ job: iconStudio.startJob({ targets: req.body?.targets, variants: req.body?.variants }) })));
+// Une seule image par action (refonte UX du 31/10) : génération en arrière-plan, suivie par GET …/job.
+app.post('/api/admin/icons/targets/:key/generate', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/targets/:key/generate',
+  req => ({ job: iconStudio.generate(String(req.params.key), { instruction: req.body?.instruction ?? '', basedOn: req.body?.basedOn ?? null }) })));
 
 app.get('/api/admin/icons/targets/:key', requireAdmin, iconRoute('GET /api/admin/icons/targets/:key',
   req => ({ target: iconStudio.getTarget(String(req.params.key)) })));

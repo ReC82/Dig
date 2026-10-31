@@ -6,8 +6,9 @@
  * paramètres, navigation — application en jeu avec #41). Badges : à brancher quand #38 existera.
  *
  * Cycle d'une icône :
- *   brief (sujet/détails/palette, modifiable) → génération IA (1 à 3 variantes, unitaire ou par lot)
- *   ou téléversement manuel → contrôles (vrai alpha, marges 12 %, recadrage, lisibilité sur fond
+ *   brief (sujet/détails/palette, modifiable) → génération IA d'UNE image par action (consigne
+ *   facultative, « Refaire » = nouvelle proposition, l'ancienne est conservée ; refonte UX du
+ *   31/10 : plus de lots ni de variantes multiples) ou téléversement manuel → contrôles (vrai alpha, marges 12 %, recadrage, lisibilité sur fond
  *   sombre : tools/icons/process.js) → aperçu taille réelle → « Appliquer au brouillon » du
  *   catalogue concerné → publication par l'admin dans l'onglet Blocs / Collections (recette).
  *   Rien n'est jamais publié ici ; le jeu ne change qu'à la publication du brouillon.
@@ -19,7 +20,7 @@
  *     place, jamais renvoyée ni journalisée) ; erreurs masquées ;
  *   - une génération à la fois, quota d'images par 24 h, double plafond de dépense : plafond global
  *     de la configuration (journal partagé ~/.local/state/dig-icons/ledger.jsonl) ET plafond propre
- *     à l'atelier, réglable dans le panel (jamais au-delà du global) ; estimation avant le lot ;
+ *     à l'atelier, réglable dans ⚙ Config → Budget IA (jamais au-delà du global, jamais relevé automatiquement) ;
  *   - stockage dans la base (sauvegardée avec elle), en ajout seul : images (WebP 256, URL
  *     immuable /media/icons/<sha>.webp), provenance (prompt, modèle, référence, contrôles, coût),
  *     historique des actions (génération, téléversement, choix, application, retour, validation).
@@ -40,8 +41,7 @@ const collectionCatalog = require('./collectionCatalog');
 
 const ROOT = path.join(__dirname, '..');
 const MAX_IMAGES_PER_DAY = 40;
-const MAX_VARIANTS = 3;
-const MAX_BATCH_TARGETS = 20;
+const INSTRUCTION_MAX = 300;
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const SHA_RE = /^[a-f0-9]{16}$/;
 const KEY_RE = /^(block|item|ui):([a-z][a-z0-9_]{1,39})$/;
@@ -188,6 +188,9 @@ function budget(cfg = config()) {
     studioCapUsd: studioCap == null ? null : Number(studioCap), studioSpentUsd: +studioSpent.toFixed(4),
     remainingUsd: +Math.max(0, Math.min(globalRemaining, studioRemaining)).toFixed(4),
     estImageUsd: cfg.estCostUsd,
+    // Plafond qui limite en premier : celui de l'atelier (panel) ou celui du serveur (fichier de configuration)
+    limitedBy: studioRemaining < globalRemaining ? 'studio' : 'global',
+    budgetReached: Math.min(globalRemaining, studioRemaining) + 1e-9 < cfg.estCostUsd,
   };
 }
 
@@ -199,7 +202,7 @@ function status() {
       if (!fs.existsSync(cfg.keyFile)) throw new Error('fichier de clé introuvable');
     }
     return { configured: true, fake: !!cfg.fake, imageModel: cfg.editModel || cfg.model, imageProcessing: _sharpAvailable(),
-      imagesToday: _imagesToday(), maxImagesPerDay: MAX_IMAGES_PER_DAY, maxVariants: MAX_VARIANTS, ...budget(cfg),
+      imagesToday: _imagesToday(), maxImagesPerDay: MAX_IMAGES_PER_DAY, ...budget(cfg),
       reference: _reference() ? path.relative(ROOT, _reference()) : null };
   } catch (err) {
     let studioCapUsd = null;
@@ -239,6 +242,10 @@ function _libraryV1() {
 
 const _blockTypes = () => blockCatalog.getDraft()?.types ?? blockCatalog.getPublished().types;
 const _collectionContent = () => collectionCatalog.getDraft() ?? collectionCatalog.getPublished();
+/** Image actuellement en jeu (catalogue publié), pour distinguer « brouillon » et « publié ». */
+const _publishedImage = (kind, id) => (kind === 'block'
+  ? blockCatalog.getPublished().types.find(t => t.id === id)
+  : collectionCatalog.getPublished().items.find(i => i.id === id))?.image ?? null;
 
 function _defaultBrief(kind, src) {
   const en = src.names?.en || src.names?.fr || src.id;
@@ -278,6 +285,7 @@ function _target(key) {
     applicable = false;
   }
   if (!src) throw new StudioError(404, 'Cible introuvable.');
+  if (applicable) current.publishedImage = _publishedImage(kind, id);
   const lib = kind === 'block' ? _libraryV1() : null;
   const v1Entry = lib?.materials?.[id] ?? null;
   const v1 = v1Entry ? { url: `/${lib.base}${v1Entry.webp['256']}`, status: v1Entry.validated ? 'validée' : (v1Entry.status ?? 'pilote') } : null;
@@ -299,7 +307,10 @@ function _assetCounts() {
 function _summary(t, counts) {
   return { key: t.key, kind: t.kind, kindLabel: KIND_LABELS[t.kind], id: t.id, ...t.current, applicable: t.applicable,
     v1: t.v1, validated: t.validation, candidates: counts[t.key] ?? 0,
-    state: t.validation ? 'validée' : t.current.image ? 'image' : t.v1 ? `v1 ${t.v1.status}` : 'emoji provisoire' };
+    background: t.kind === 'block' ? { color: t.src.color, accent: t.src.accent } : null,
+    state: t.validation ? 'validée' : t.current.image ? 'image' : t.v1 ? `v1 ${t.v1.status}` : 'emoji provisoire',
+    // Image du brouillon pas encore publiée (ou retour à l'emoji en attente) : publication à faire dans Blocs/Collections
+    unpublished: t.applicable && (t.current.image ?? null) !== (t.current.publishedImage ?? null) };
 }
 
 /** Inventaire de toutes les cibles (blocs du brouillon/catalogue, objets, pictogrammes). */
@@ -364,7 +375,7 @@ function _reference() {
 }
 
 /** Gabarit par famille : bloc = prompt maître #22 inchangé ; objet et interface = variantes v1.1. */
-function buildPrompt(kind, brief) {
+function buildPrompt(kind, brief, instruction = '') {
   const master = fs.readFileSync(path.join(ROOT, 'tools', 'icons', 'prompt-master.md'), 'utf8');
   const between = tag => {
     const m = master.match(new RegExp(`<!-- ${tag} -->\\n([\\s\\S]*?)\\n<!-- /${tag} -->`));
@@ -377,12 +388,13 @@ function buildPrompt(kind, brief) {
     .replace('{{DETAILS}}', brief.details || '')
     .replace('{{PALETTE}}', brief.palette || '')
     .replace('{{REFERENCE}}', _reference() ? ` ${between(ref)}` : '')
-    .replace(/\s{2,}/g, ' ');
+    .replace(/\s{2,}/g, ' ')
+    + (instruction ? ` Specific adjustment requested for this attempt (keep the same common style): ${instruction}` : '');
 }
 
-// ── Génération (unitaire = lot d'une cible) ───────────────────────────────────
+// ── Génération : une seule image par action de l'admin ────────────────────────
 
-let _job = null;     // lot en cours ou dernier lot terminé (mémoire du processus)
+let _job = null;     // génération en cours ou dernière terminée (mémoire du processus)
 let _jobSeq = 0;
 
 const _clean = (v, max) => String(v ?? '').replace(/[<>\u0000-\u001f]/g, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, max);
@@ -411,8 +423,10 @@ function _checkBudget(images) {
   const b = budget(cfg);
   const planned = images * cfg.estCostUsd;
   if (planned > b.remainingUsd + 1e-9) {
-    throw new StudioError(402, `Plafond de dépense : ${images} image(s) ≈ ${planned.toFixed(2)} USD estimés, reste ${b.remainingUsd.toFixed(2)} USD`
-      + ` (global ${b.globalSpentUsd.toFixed(2)} / ${b.globalCapUsd} USD${b.studioCapUsd != null ? `, atelier ${b.studioSpentUsd.toFixed(2)} / ${b.studioCapUsd} USD` : ''}).`);
+    throw new StudioError(402, `Plafond de dépense IA atteint : une image coûte environ ${planned.toFixed(2)} USD, il reste ${b.remainingUsd.toFixed(2)} USD. `
+      + (b.limitedBy === 'studio'
+        ? `Pour continuer, relevez la limite de l'atelier dans ⚙ Config → Budget IA (${b.studioSpentUsd.toFixed(2)} / ${b.studioCapUsd} USD).`
+        : `Pour continuer, relevez le plafond du serveur (${b.globalSpentUsd.toFixed(2)} / ${b.globalCapUsd} USD) : DIG_IMAGE_BUDGET_USD dans ~/.config/dig/openai.env, pris en compte sans redémarrage.`));
   }
   return { cfg, planned };
 }
@@ -427,9 +441,9 @@ function _logCall({ target, model, ok, error = null, cost, durationMs, usage = n
 }
 
 /** Un appel image + contrôles + stockage. Rend { sha } ou lève. Toujours journalisé. */
-async function _generateOne(t, brief, variant) {
+async function _generateOne(t, brief, { instruction = '', basedOn = null } = {}) {
   const { cfg } = _checkBudget(1);
-  const prompt = buildPrompt(t.kind, brief);
+  const prompt = buildPrompt(t.kind, brief, instruction);
   const started = Date.now();
   let png, usage = null, model, cost, params = null;
   try {
@@ -451,54 +465,41 @@ async function _generateOne(t, brief, variant) {
   _logCall({ target: t.key, model, ok: true, cost, durationMs: Date.now() - started, usage });
   const done = await _process(png);
   const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : 'v1.1', brief: { subject: brief.subject, details: brief.details, palette: brief.palette },
-    model, params, reference: _reference() ? path.relative(ROOT, _reference()) : null, variant, costUsd: cost.cost_usd, costBasis: cost.basis,
+    model, params, reference: _reference() ? path.relative(ROOT, _reference()) : null, instruction: instruction || null, basedOn,
+    costUsd: cost.cost_usd, costBasis: cost.basis,
     durationMs: Date.now() - started, checks: done.checks, masterSha256: done.masterSha256 };
   const { sha } = _store(t.key, 'ai', done.webp, meta);
-  _event(t.key, 'generated', sha, { variant, costUsd: cost.cost_usd });
+  _event(t.key, 'generated', sha, { costUsd: cost.cost_usd, ...(instruction ? { instruction } : {}), ...(basedOn ? { basedOn } : {}) });
   return { sha, costUsd: cost.cost_usd };
 }
 
 /**
- * Lance un lot (une ou plusieurs cibles, 1 à 3 variantes chacune) en arrière-plan. Coût total
- * estimé et vérifié AVANT le premier appel ; budget revérifié avant chaque image.
+ * Génère UNE image pour une cible, en arrière-plan (un appel ≈ 1 min : plus long que le délai du
+ * proxy, d'où le suivi par GET /api/admin/icons/job). Consigne facultative (« plus sombre »…) ajoutée
+ * au prompt ; « basedOn » = proposition refaite (provenance seulement, l'ancienne est conservée).
+ * Budget, quota et configuration vérifiés AVANT l'appel ; une seule génération à la fois.
  */
-function startJob({ targets, variants = 1 } = {}) {
-  if (_job && _job.status === 'running') throw new StudioError(429, 'Un lot est déjà en cours : patientez.');
-  const keys = [...new Set((Array.isArray(targets) ? targets : []).map(String))];
-  if (!keys.length) throw new StudioError(400, 'Choisissez au moins une icône.');
-  if (keys.length > MAX_BATCH_TARGETS) throw new StudioError(400, `Au plus ${MAX_BATCH_TARGETS} icônes par lot.`);
-  const n = Math.round(Number(variants));
-  if (!(n >= 1 && n <= MAX_VARIANTS)) throw new StudioError(400, `Variantes : 1 à ${MAX_VARIANTS}.`);
-  const list = keys.map(k => _target(k));
-  const { planned } = _checkBudget(list.length * n);
-  const job = { id: ++_jobSeq, status: 'running', startedAt: new Date().toISOString(), finishedAt: null, variants: n,
-    estimatedUsd: +planned.toFixed(4), spentUsd: 0, total: list.length * n, done: 0, current: null,
-    items: list.map(t => ({ key: t.key, name: t.current.name, results: [], errors: [] })) };
+function generate(key, { instruction = '', basedOn = null } = {}) {
+  if (_job && _job.status === 'running') throw new StudioError(429, 'Une image est déjà en cours de génération : patientez.');
+  const t = _target(key);
+  const consigne = _clean(instruction, INSTRUCTION_MAX);
+  const from = basedOn ? _asset(key, String(basedOn)) : null;
+  const { planned } = _checkBudget(1);
+  const job = { id: ++_jobSeq, status: 'running', target: key, name: t.current.name, startedAt: new Date().toISOString(), finishedAt: null,
+    estimatedUsd: +planned.toFixed(4), spentUsd: 0, instruction: consigne || null, basedOn: from, result: null, error: null };
   _job = job;
   job.promise = (async () => {
-    for (const [i, t] of list.entries()) {
-      const brief = _briefFor(t);
-      for (let v = 1; v <= n; v++) {
-        job.current = `${t.current.name} (${v}/${n})`;
-        try {
-          const r = await _generateOne(t, brief, v);
-          job.items[i].results.push(imageUrl(r.sha));
-          job.spentUsd = +(job.spentUsd + r.costUsd).toFixed(4);
-        } catch (err) {
-          job.items[i].errors.push(err.message);
-          // Plafond, quota ou configuration : inutile de poursuivre le lot
-          if ([402, 429, 503].includes(err.status)) { job.stopped = err.message; break; }
-          // Requête refusée par l'API (4xx) : les variantes suivantes de cette cible échoueraient pareil
-          if (/OpenAI 4\d\d/.test(err.message)) break;
-        }
-        job.done += 1;
-      }
-      if (job.stopped) break;
+    try {
+      const r = await _generateOne(t, _briefFor(t), { instruction: consigne, basedOn: from });
+      job.result = { sha: r.sha, url: imageUrl(r.sha) };
+      job.spentUsd = r.costUsd;
+      job.status = 'done';
+    } catch (err) {
+      job.error = err.message;
+      job.status = 'failed';
     }
-    job.status = job.stopped ? 'stopped' : 'done';
-    job.current = null;
     job.finishedAt = new Date().toISOString();
-  })().catch(err => { job.status = 'failed'; job.stopped = String(err.message); job.finishedAt = new Date().toISOString(); });
+  })();
   return jobView();
 }
 
@@ -508,7 +509,7 @@ function jobView() {
   return structuredClone(v);
 }
 
-/** Attendre la fin du lot en cours (tests). */
+/** Attendre la fin de la génération en cours (tests). */
 async function waitJob() { if (_job?.promise) await _job.promise; return jobView(); }
 
 // ── Téléversement manuel ──────────────────────────────────────────────────────
@@ -557,14 +558,15 @@ function getTarget(key) {
     .map(a => {
       const meta = JSON.parse(a.meta);
       return { sha: a.sha, url: imageUrl(a.sha), source: a.source, createdAt: a.created_at, status: statuses[a.sha] ?? 'candidate',
-        model: meta.model ?? null, costUsd: meta.costUsd ?? 0, checks: meta.checks ?? null, prompt: meta.prompt ?? null, variant: meta.variant ?? null };
+        model: meta.model ?? null, costUsd: meta.costUsd ?? 0, checks: meta.checks ?? null, prompt: meta.prompt ?? null,
+        instruction: meta.instruction ?? null, basedOn: meta.basedOn ?? null,
+        inDraft: imageUrl(a.sha) === t.current.image, published: imageUrl(a.sha) === t.current.publishedImage };
     });
   const history = conn().prepare('SELECT id, action, asset_sha, details, created_at FROM icon_studio_events WHERE target = ? ORDER BY id DESC LIMIT 100').all(key)
     .map(e => ({ id: e.id, action: e.action, url: e.asset_sha ? imageUrl(e.asset_sha) : null, sha: e.asset_sha, details: e.details ? JSON.parse(e.details) : null, at: e.created_at }));
   const spent = conn().prepare('SELECT COALESCE(SUM(cost_usd), 0) s, COUNT(*) n FROM icon_studio_calls WHERE target = ?').get(key);
   return { ..._summary(t, { [key]: assets.length }), brief: _briefFor(t), prompt: buildPrompt(t.kind, _briefFor(t)), assets, history,
-    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : null,
-    background: t.kind === 'block' ? { color: t.src.color, accent: t.src.accent } : null };
+    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : null };
 }
 
 function _asset(key, sha) {
@@ -619,6 +621,6 @@ function _references() {
 }
 
 module.exports = {
-  StudioError, UI_TARGETS, init, status, setStudioBudget, listTargets, getTarget, setBrief, startJob, jobView, waitJob,
+  StudioError, UI_TARGETS, init, status, setStudioBudget, listTargets, getTarget, setBrief, generate, jobView, waitJob,
   upload, mark, apply, listCalls, overview, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
 };

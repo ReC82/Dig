@@ -67,5 +67,5 @@ test('atelier d\'icônes : cible « logo » (emblème compact, sans texte) gén�
   const logo = UI_TARGETS.find(u => u.id === 'logo');
   assert.ok(logo);
   assert.match(logo.details, /no text/);
-  assert.match(read('public/admin/admin.js'), /key === 'ui:logo'[\s\S]{0,200}\/\?logo=media:\$\{a\.sha\}/);
+  assert.match(read('public/admin/admin.js'), /key === 'ui:logo'[\s\S]{0,200}\/\?logo=media:\$\{sel\.sha\}/);
 });

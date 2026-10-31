@@ -108,6 +108,27 @@
     <div id="config-rows"></div>
     <button class="btn" id="btn-save-config">Enregistrer</button>
     <p id="config-msg" class="success hidden">Sauvegardé !</p>
+
+    <!-- Budget IA (#40) : réglage séparé de l'atelier d'icônes -->
+    <div class="overview-card ic-budget-card" id="ai-budget-card">
+      <h3 class="overview-card-title">🤖 Budget IA</h3>
+      <p id="aib-summary">—</p>
+      <div class="ic-meter" aria-hidden="true"><span id="aib-meter"></span></div>
+      <p id="aib-reached" class="ic-notice hidden" role="status"></p>
+      <div class="form-actions">
+        <label>Limite de l'atelier d'icônes (USD, facultative)
+          <input type="number" id="ic-budget" min="0" max="1000" step="0.5" placeholder="aucune">
+        </label>
+        <button class="btn" id="btn-ic-budget">Enregistrer la limite</button>
+      </div>
+      <p id="aib-msg" class="form-msg"></p>
+      <details>
+        <summary class="muted">Comment relever le plafond du serveur ?</summary>
+        <p class="muted">Le plafond du serveur protège toutes les dépenses d'images (atelier d'icônes et création de blocs). Il n'est jamais relevé automatiquement.
+          Pour le modifier : changez <code>DIG_IMAGE_BUDGET_USD</code> dans <code>~/.config/dig/openai.env</code> sur le serveur ; la nouvelle valeur est prise en compte sans redémarrage.
+          La limite de l'atelier ci-dessus ne peut que réduire ce plafond (laisser vide = plafond du serveur seul).</p>
+      </details>
+    </div>
   </section>
 
   <!-- Tab Ligues & Saisons -->
@@ -967,54 +988,38 @@
   <section id="tab-icons" class="tab-content hidden">
     <div class="section-header">
       <h2>🎨 Atelier d'icônes</h2>
-      <button class="btn" id="btn-refresh-icons">↻ Rafraîchir</button>
+      <button class="btn btn-outline" id="btn-refresh-icons">↻ Rafraîchir</button>
     </div>
-    <p class="muted" style="font-size:0.78rem">Toutes les icônes du jeu au même endroit : blocs (minerais, pierres, coffres, gemmes), objets de collection et reliques, pictogrammes d'interface.
-      Style commun : celui des icônes v1 validées (la pierre validée est jointe à chaque génération). Générez 1 à 3 variantes (une icône ou un lot), ou téléversez une image ;
-      chaque image passe les contrôles (fond transparent réel, marges 12 %, recadrage, lisibilité sur fond sombre).
-      « Appliquer » place l'icône dans le <strong>brouillon</strong> du catalogue concerné : <strong>rien ne change pour les joueurs avant la publication</strong> dans l'onglet 🧱 Blocs ou 📿 Collections.
-      Une icône <strong>validée</strong> n'est jamais remplacée sans votre accord explicite.</p>
+    <p id="ic-notice" class="ic-notice hidden" role="status"></p>
 
-    <div class="overview-card">
-      <h3 class="overview-card-title">API, budget et lot en cours</h3>
-      <p id="ic-status" class="muted" style="font-size:0.8rem"></p>
-      <div class="form-actions">
-        <label>Plafond de l'atelier (USD, vide = plafond global seul) <input type="number" id="ic-budget" min="0" max="1000" step="0.5" style="width:7rem"></label>
-        <button class="btn" id="btn-ic-budget">Enregistrer le plafond</button>
+    <!-- Étape 1 : choisir une icône -->
+    <div id="ic-list-view">
+      <div class="bk-filters ic-filters">
+        <input type="search" id="ic-search" placeholder="Rechercher une icône…" aria-label="Rechercher une icône">
+        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets et reliques</option><option value="ui">Interface</option></select>
+        <select id="ic-state" aria-label="État"><option value="">Tous les états</option><option value="todo">À créer</option><option value="proposal">Propositions à examiner</option><option value="draft">À publier</option><option value="live">En jeu</option><option value="locked">Validées 🔒</option></select>
       </div>
-      <p id="ic-job" class="form-msg"></p>
+      <p id="ic-count" class="muted ic-count"></p>
+      <div id="ic-grid" class="ic-grid"></div>
     </div>
 
-    <div class="overview-card">
-      <h3 class="overview-card-title">Icônes du jeu</h3>
-      <div class="form-actions">
-        <label>Famille <select id="ic-kind"><option value="">Toutes</option><option value="block">Blocs</option><option value="item">Objets / reliques</option><option value="ui">Interface</option></select></label>
-        <label>État <select id="ic-state"><option value="">Tous</option><option value="emoji provisoire">Emoji provisoire</option><option value="v1 pilote">v1 pilote</option><option value="v1 validée">v1 validée</option><option value="image">Image appliquée</option><option value="validée">Validée (atelier)</option></select></label>
-        <label>Recherche <input type="text" id="ic-search" placeholder="nom ou identifiant"></label>
-      </div>
-      <div class="form-actions">
-        <label>Variantes par icône <select id="ic-variants"><option>1</option><option>2</option><option>3</option></select></label>
-        <button class="btn btn-primary" id="btn-ic-batch">✨ Générer la sélection</button>
-        <span id="ic-estimate" class="muted" style="font-size:0.78rem"></span>
-      </div>
-      <p id="ic-msg" class="form-msg"></p>
-      <table>
-        <thead><tr><th><input type="checkbox" id="ic-all" aria-label="Tout sélectionner"></th><th>Icône</th><th>Nom</th><th>Famille</th><th>État</th><th>Propositions</th><th></th></tr></thead>
-        <tbody id="ic-body"></tbody>
-      </table>
-    </div>
+    <!-- Étape 2 : fiche d'une icône -->
+    <div id="ic-sheet" class="ic-sheet hidden"></div>
 
-    <div class="overview-card hidden" id="ic-detail"></div>
-
-    <div class="overview-card">
-      <details>
-        <summary class="muted">Journal des générations (coûts estimés)</summary>
+    <details class="ic-help">
+      <summary>Aide et journal technique</summary>
+      <p class="muted">Chaque génération produit <strong>une seule image</strong>, dans le style des icônes v1 validées (la pierre validée sert de modèle de style). « Refaire » crée une nouvelle proposition sans effacer les précédentes.
+        Chaque image est contrôlée : fond transparent, marges, cadrage, lisibilité sur fond sombre.
+        « Conserver cette image » la place dans le <strong>brouillon</strong> du catalogue 🧱 Blocs ou 📿 Collections : rien ne change pour les joueurs avant la publication de ce brouillon.
+        Une icône validée 🔒 n'est jamais remplacée sans votre accord. Le budget se règle dans ⚙ Config → Budget IA.</p>
+      <p id="ic-tech" class="muted"></p>
+      <div class="bk-table-wrap">
         <table>
           <thead><tr><th>Date (UTC)</th><th>Icône</th><th>Modèle</th><th>Résultat</th><th>Coût estimé</th><th>Durée</th></tr></thead>
           <tbody id="ic-calls-body"></tbody>
         </table>
-      </details>
-    </div>
+      </div>
+    </details>
   </section>
 
   <section id="tab-badges" class="tab-content hidden">
