@@ -4,6 +4,73 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 31/10/2026, 10 h 55 (Bruxelles) — correction de la mise en page de l'onglet 🧱 Blocs
+
+Suite à la recette du propriétaire du 31/10 (commentaire 09:35 UTC) : catalogue v3, 22 blocs, probabilités à 250 m validés ; défauts de mise en page sur ordinateur signalés.
+
+## A. État réel
+
+**Déployé en production (SHA `bc684be`) — en attente de recette.** Correction faite dans #37 (même ticket, pas de nouveau ticket). Classement : **Après lancement** (panel admin, sans effet sur les joueurs). #37 reste ouvert pour les étapes C et D.
+
+## B. Changements (mise en page uniquement)
+
+Fichiers : `public/admin/admin.css`, `public/admin/admin.js` (`bkRenderTable`), `public/admin/index.html`. Aucune donnée, aucune règle de probabilité, aucun brouillon ni aucune route serveur modifiés.
+
+| Défaut constaté | Correction |
+|---|---|
+| Tableau limité à 960 px | L'onglet Blocs utilise toute la largeur, jusqu'à 1440 px (les autres onglets ne changent pas). |
+| Champs de filtre très hauts (69 px, champ de recherche blanc non stylé) | Champs de 34 px dans le thème sombre ; le libellé « Probabilités à … m » reste sur une seule ligne. Sur mobile, les filtres passent à la ligne. |
+| « Prob. » et d'autres valeurs coupées sur deux lignes | Colonnes numériques (PV, Récompense, Poids, Prob.) alignées à droite, sans retour à la ligne ; en-têtes sur une ligne ; « Peu commun » sur une ligne. |
+| Colonne « Dès » trop longue (« dès 1 m (atténué > 12 m : 2.1) ») | Colonne renommée « Apparition » : « dès 1 m » sur une ligne, et l'atténuation en petit gris sur une seconde ligne. |
+| Boutons « Modifier » hors du tableau | Le tableau est dans un conteneur à défilement horizontal : il ne sort jamais de la carte. Bouton aligné à droite. |
+
+Mesures dans Chromium (serveur de test) :
+
+| Mesure | Avant | Après |
+|---|---|---|
+| Largeur de la section en 1280×900 | 960 px | 1280 px |
+| Largeur de la section en 1920×1080 | 960 px | 1440 px |
+| Bord droit du bouton « Modifier » le plus à droite (bord de la carte : 1260 px) | 1058 px, pour une carte qui s'arrête à 940 px (débordement) | 1229 px |
+| Hauteur du champ de filtre | 69 px | 34 px |
+
+Captures en 1280×900 : [avant](img/2026-10-31_ticket-37-blocs-avant-1280.png), [après](img/2026-10-31_ticket-37-blocs-apres-1280.png). Sur mobile (390×844), le tableau défile horizontalement dans sa carte, comme avant.
+
+Fonctionnement contrôlé après la modification : filtre texte « quartz » → 1 ligne ; catégorie « gemme » → 6 ; « Probabilités à 10 m » recalcule ; « Modifier » remplit le formulaire avec le bon bloc ; aucune erreur JavaScript.
+
+## C. SHA, tests, déploiement
+
+- Branche `feature/37-catalogue-blocs-admin` : `b9086eb` ; **`develop` : `bc684be`** (fusion `--no-ff`).
+- `npm test` : 369/369 sur la branche, puis 369/369 sur la release `bc684be` (même arbre que `develop`).
+- Copie de la base de production démarrée avec la release (port 3122) : `/health` ok, `/api/version` = `1.0.0+bc684be`, empreintes des 6 tables joueurs identiques, `quick_check` ok. Copie supprimée.
+- Déploiement `9c93981 → bc684be` par `scripts/deploy.sh` (de la release) ; sauvegarde vérifiée `~/backups/dig/dig-20261031-105031-pre-deploy-bc684be.sqlite` ; aucun `npm ci` (lock inchangé).
+- Contrôles en production : les 2 domaines répondent 200 avec `1.0.0+bc684be` ; journal sans erreur ; `quick_check` ok ; empreintes joueurs identiques à celles d'avant le déploiement ; Chromium 1280×900 et 390×844 sur `/` et `/admin/` sans erreur JS, nouvelle feuille de style chargée.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 9c93981` puis `sudo systemctl restart dig` (aucune migration, aucune donnée touchée).
+- Non vérifié par moi en production : l'affichage connecté de l'onglet Blocs (je n'ai pas la clé admin) ; il a été vérifié sur un serveur de test avec le même code.
+
+## D. Test fonctionnel à faire par le propriétaire
+
+1. Admin → 🧱 Blocs, sur ordinateur (rechargement forcé : Ctrl+F5).
+2. Attendu : le tableau occupe la largeur de l'écran ; filtres sur une seule ligne, de hauteur normale ; « 0.92 % » et « 3.52 % ★ » sur une ligne ; terre meuble et argile affichent « dès 1 m » / « dès 4 m » avec l'atténuation en petit gris en dessous ; tous les boutons « Modifier » sont à l'intérieur de la carte.
+3. Vérifier que les données n'ont pas bougé : v3, 22 blocs, aucun brouillon, terre meuble 0,92 % et argile 0,59 % à 250 m.
+
+## E. Choix techniques faits seul
+
+- Élargissement limité à l'onglet Blocs (`#tab-blocks`) pour ne modifier aucun autre onglet sans demande. Le même défaut de largeur (960 px) existe ailleurs : signalé ci-dessous, non corrigé.
+- Ajout d'un conteneur à défilement horizontal plutôt que la réduction de colonnes : aucune information retirée.
+- Pas de test automatisé : le changement est purement visuel ; il a été contrôlé par mesures et captures dans Chromium.
+
+## F. Décisions demandées au propriétaire
+
+Inchangées (voir la section du 30/10 ci-dessous) : 1. plafond de dépense IA (recommandation : 10 USD) ; 2. gemmes pour saphir, améthyste et cristal ancien (recommandation : non pour l'instant).
+
+## G. Restant à réaliser
+
+- Recette restante, signalée par le propriétaire : test de la génération IA et d'une publication.
+- Étapes : découvertes côté joueur, C (événements), D (tables de drops) — voir la section G du 30/10.
+- Signalé, non fait : les autres onglets de l'admin restent limités à 960 px (même défaut possible sur les grands écrans) ; favicon absent dans `/admin/`.
+
+---
+
 # Mise à jour du 30/10/2026, 18 h 55 (Bruxelles) — étape B, règle de profondeur, création IA
 
 Suite à la décision du propriétaire (commentaire du 30/10, 17:09 UTC : étape B approuvée, création IA demandée, règle « sans borne maximale »).
