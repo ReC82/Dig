@@ -497,7 +497,7 @@ function playerView(userId, { nowMs = Date.now() } = {}) {
 }
 
 module.exports = {
-  init, BadgeError, CONDITIONS, CATEGORIES, STATUSES, LANGS, SEED,
+  init, BadgeError, CONDITIONS, CATEGORIES, STATUSES, VISIBILITY, LANGS, SEED,
   normalizeBadge, listBadges, getBadgeRow, createBadge, updateBadge, setStatus, previewBadge, listAudit, adminSummary,
   sanitizeCounts, processSave, playerView, activatedAt,
 };
