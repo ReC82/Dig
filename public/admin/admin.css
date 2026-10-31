@@ -360,3 +360,35 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .badge-expired { color: var(--muted); font-size: 0.78rem; }
 .contest-overdue { color: var(--red); font-weight: 600; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Catalogue de blocs (#37) : pleine largeur, filtres compacts, tableau lisible ── */
+#tab-blocks.tab-content { max-width: 1440px; }
+.bk-filters { flex-wrap: wrap; align-items: center; }
+.bk-filters input[type=search], .bk-filters select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: 0.85rem;
+  height: 34px;
+}
+.bk-filters input[type=search] { flex: 1 1 220px; min-width: 0; max-width: 420px; }
+.bk-filters select { flex: 0 0 auto; }
+.bk-filters .bk-odds { flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; }
+.bk-filters .bk-odds input { width: 80px; height: 34px; }
+.bk-table-wrap { overflow-x: auto; margin-top: 8px; }
+.bk-table th { white-space: nowrap; }
+.bk-table th, .bk-table td { padding: 8px 10px; vertical-align: middle; }
+.bk-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bk-table .nowrap, .bk-table .bk-id, .bk-table .bk-icon { white-space: nowrap; }
+.bk-table .bk-id { font-family: monospace; font-size: 0.8rem; }
+.bk-table .bk-range { white-space: nowrap; }
+.bk-table .bk-range small { display: block; font-size: 0.72rem; white-space: normal; min-width: 130px; }
+.bk-table .bk-state { white-space: nowrap; font-size: 0.78rem; }
+.bk-table td:last-child { text-align: right; white-space: nowrap; }
+@media (max-width: 768px) {
+  .bk-filters { flex-direction: row; }
+  .bk-filters input[type=search] { flex-basis: 100%; max-width: none; }
+  .bk-table { display: table; white-space: normal; }
+}
