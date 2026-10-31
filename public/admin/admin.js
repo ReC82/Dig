@@ -1473,17 +1473,49 @@ document.getElementById('btn-sh-save').addEventListener('click', async () => {
 const BK_RARITY = { commun: 'Commun', 'peu-commun': 'Peu commun', rare: 'Rare', epique: 'Épique', legendaire: 'Légendaire' };
 const BK_BOOSTED = new Set(['rare', 'epique', 'legendaire']);
 let _bk = null;   // vue admin (GET /api/admin/blocks)
-let _bkSortDir = 'asc';   // tri visuel de la liste par profondeur d'apparition (le catalogue n'est pas modifié)
+// Tri visuel de la liste (le catalogue n'est pas modifié) : colonne + sens ; défaut = apparition croissante.
+let _bkSort = { key: 'minDepth', dir: 'asc' };
+const BK_RARITY_ORDER = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];   // ordre métier, pas alphabétique
+const BK_VISUAL_ORDER = { catalog: 0, v1: 1, emoji: 2, missing: 3 };                // image perso → v1 → emoji → absente
 
-// Tri numérique par « dès (m) » ; égalité → nom FR puis identifiant, pour un ordre stable.
-function bkSortTypes(types, dir) {
+/** Nom FR affiché : catalogue, sinon traduction intégrée du jeu (14 blocs d'origine), sinon null. */
+function bkNameFr(t) {
+  if (t.names?.fr) return t.names.fr;
+  return typeof I18n !== 'undefined' && I18n.has(`block.${t.id}`, 'fr') ? I18n.t(`block.${t.id}`) : null;
+}
+
+const bkNum = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/** Statut sous forme de rang : actifs avant désactivés ; puis inchangé, modifié, nouveau. */
+function bkStatusRank(t, changed) {
+  return (t.active ? 0 : 4) + (_bk.publishedIds.includes(t.id) ? 0 : 2) + (changed.has(t.id) ? 1 : 0);
+}
+
+/** Valeur de tri d'une colonne (nombre ou texte ; null = valeur absente, toujours en fin de liste). */
+function bkSortValue(t, key, ctx) {
+  switch (key) {
+    case 'visual': return BK_VISUAL_ORDER[bkVisual(t).kind] ?? 9;
+    case 'id': return t.id;
+    case 'name': return bkNameFr(t);
+    case 'category': return t.category ?? null;
+    case 'rarity': { const i = BK_RARITY_ORDER.indexOf(t.rarity); return i < 0 ? null : i; }
+    case 'hpBase': case 'reward': case 'minDepth': case 'weight': return bkNum(t[key]);
+    case 'prob': return ctx.odds.get(t.id) ?? 0;
+    case 'status': return bkStatusRank(t, ctx.changed);
+    default: return null;
+  }
+}
+
+/** Tri stable : nombres numériquement, textes en ordre français ; égalité → nom FR puis identifiant. */
+function bkSortTypes(types, { key = 'minDepth', dir = 'asc' } = {}, ctx = { odds: new Map(), changed: new Set() }) {
   const sign = dir === 'desc' ? -1 : 1;
-  const depth = t => (Number.isFinite(Number(t.minDepth)) && t.minDepth !== null ? Number(t.minDepth) : Infinity);
-  return [...types].sort((a, b) => {
-    const da = depth(a), db = depth(b);
-    if (da !== db) return da === Infinity ? 1 : db === Infinity ? -1 : sign * (da - db);
-    return (a.names?.fr ?? a.id).localeCompare(b.names?.fr ?? b.id, 'fr') || a.id.localeCompare(b.id);
-  });
+  const text = (x, y) => String(x).localeCompare(String(y), 'fr', { sensitivity: 'base', numeric: true });
+  const tie = (a, b) => text(bkNameFr(a) ?? a.id, bkNameFr(b) ?? b.id) || a.id.localeCompare(b.id);
+  return types.map(t => ({ t, v: bkSortValue(t, key, ctx) })).sort((x, y) => {
+    if (x.v === null || y.v === null) return x.v === y.v ? tie(x.t, y.t) : x.v === null ? 1 : -1;
+    const c = typeof x.v === 'number' && typeof y.v === 'number' ? x.v - y.v : text(x.v, y.v);
+    return c ? sign * c : tie(x.t, y.t);
+  }).map(x => x.t);
 }
 
 function bkWorking() { return _bk ? (_bk.draft ? _bk.draft.types : _bk.published.types) : []; }
@@ -1597,7 +1629,7 @@ function bkFillForm(t) {
   idEl.value = t ? t.id : '';
   idEl.readOnly = !!t;
   for (const l of BK_LANGS) document.getElementById(`bk-name-${l}`).value = t?.names?.[l] ?? '';
-  document.getElementById('bk-name-fr').placeholder = t && _bk.legacyIds.includes(t.id) ? '(traduction intégrée)' : '';
+  document.getElementById('bk-name-fr').placeholder = t && _bk.legacyIds.includes(t.id) ? `${bkNameFr(t) ?? ''} (traduction intégrée)`.trim() : '';
   document.getElementById('bk-category').value = t ? t.category : 'minerai';
   document.getElementById('bk-rarity').value = t ? t.rarity : 'commun';
   document.getElementById('bk-icon').value = t ? t.icon : '';
@@ -1613,6 +1645,7 @@ function bkFillForm(t) {
   document.getElementById('bk-gem-reward').checked = t ? t.gemReward !== false : true;
   document.getElementById('bk-active').checked = t ? t.active : true;
   document.getElementById('btn-bk-remove').disabled = !t || _bk.publishedIds.includes(t.id);
+  bkFillSheet(t);
   bkPreview();
 }
 
@@ -1641,26 +1674,49 @@ function bkFillList(el, items) {
   for (const x of items) { const li = document.createElement('li'); li.textContent = x; el.appendChild(li); }
 }
 
+function bkRenderSortHeaders() {
+  for (const th of document.querySelectorAll('.bk-table th[data-sort]')) {
+    const on = th.dataset.sort === _bkSort.key;
+    th.setAttribute('aria-sort', on ? (_bkSort.dir === 'desc' ? 'descending' : 'ascending') : 'none');
+    th.classList.toggle('bk-sorted', on);
+    th.querySelector('.bk-sort-ind').textContent = on ? (_bkSort.dir === 'desc' ? '▼' : '▲') : '↕';
+  }
+}
+
 function bkRenderTable() {
-  const types = bkSortTypes(bkWorking(), _bkSortDir);
-  const th = document.getElementById('bk-sort-depth');
-  th.setAttribute('aria-sort', _bkSortDir === 'desc' ? 'descending' : 'ascending');
-  th.querySelector('.bk-sort-ind').textContent = _bkSortDir === 'desc' ? '▼' : '▲';
   const text = document.getElementById('bk-filter-text').value.trim().toLowerCase();
   const cat = document.getElementById('bk-filter-cat').value;
   const status = document.getElementById('bk-filter-status').value;
   const depth = Math.max(1, Number(document.getElementById('bk-odds-depth').value) || 1);
-  const odds = bkOdds(types, depth);
+  const all = bkWorking();
+  const odds = bkOdds(all, depth);
   const changed = new Set((_bk.draft?.changes ?? []).map(c => c.id));
+  const types = bkSortTypes(all, _bkSort, { odds, changed });
+  bkRenderSortHeaders();
   const tb = document.getElementById('bk-body');
   tb.textContent = '';
   for (const t of types) {
-    if (text && !`${t.id} ${t.names?.fr ?? ''} ${t.names?.en ?? ''} ${t.names?.nl ?? ''} ${t.names?.es ?? ''}`.toLowerCase().includes(text)) continue;
+    const nameFr = bkNameFr(t);
+    if (text && !`${t.id} ${nameFr ?? ''} ${t.names?.en ?? ''} ${t.names?.nl ?? ''} ${t.names?.es ?? ''}`.toLowerCase().includes(text)) continue;
     if (cat && t.category !== cat) continue;
     if (status === 'active' && !t.active) continue;
     if (status === 'inactive' && t.active) continue;
     if (status === 'changed' && !changed.has(t.id)) continue;
+    if (status === 'emoji' && !['emoji', 'missing'].includes(bkVisual(t).kind)) continue;
     const tr = document.createElement('tr');
+    // Ligne entière = ouverture de la fiche (souris, Entrée, Espace) ; rien n'est modifié à l'ouverture.
+    tr.className = 'bk-row';
+    tr.tabIndex = 0;
+    tr.dataset.id = t.id;
+    tr.title = 'Cliquez pour consulter ou modifier ce bloc';
+    tr.setAttribute('aria-haspopup', 'dialog');
+    tr.setAttribute('aria-label', `${nameFr ?? t.id} (${t.id}) — ouvrir la fiche`);
+    tr.addEventListener('click', () => bkOpenSheet(t, tr));
+    tr.addEventListener('keydown', e => {
+      if (e.target !== tr || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      bkOpenSheet(t, tr);
+    });
     const rangeNote = t.fadeFrom != null ? `atténué > ${t.fadeFrom} m : ${t.fadeWeight}`
       : t.maxDepth != null ? `ancienne borne ${t.maxDepth} m, convertie en atténuation à la publication` : '';
     const state = `${t.active ? 'actif' : 'désactivé'}${changed.has(t.id) ? ' · modifié' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau'}`;
@@ -1671,9 +1727,14 @@ function bkRenderTable() {
     const cap = document.createElement('small');
     cap.className = 'bk-src';
     vis.append(box, cap);
-    bkDrawVisual(box, cap, t);
+    const v = bkDrawVisual(box, cap, t);
+    if (v.kind === 'emoji') cap.textContent = 'emoji · à illustrer';
+    box.addEventListener('mouseenter', () => bkZoomShow(box, t));
+    box.addEventListener('mouseleave', bkZoomHide);
+    tr.addEventListener('focus', () => { if (tr.matches(':focus-visible')) bkZoomShow(box, t); });
+    tr.addEventListener('blur', bkZoomHide);
     tr.appendChild(vis);
-    [[t.id, 'bk-id'], [t.names?.fr ?? '(intégré)', ''], [t.category, ''], [BK_RARITY[t.rarity] ?? t.rarity, 'nowrap'],
+    [[t.id, 'bk-id'], [nameFr ?? '(intégré)', ''], [t.category, ''], [BK_RARITY[t.rarity] ?? t.rarity, 'nowrap'],
      [t.hpBase, 'num'], [t.reward, 'num'], [`dès ${t.minDepth} m`, 'bk-range'], [t.weight, 'num'],
      [bkPct(odds.get(t.id)) + (BK_BOOSTED.has(t.rarity) ? ' ★' : ''), 'num'], [state, 'bk-state']]
       .forEach(([x, cls]) => {
@@ -1686,10 +1747,99 @@ function bkRenderTable() {
           td.appendChild(note);
         }
       });
-    addButtonCell(tr, 'Modifier', () => { bkFillForm(t); document.getElementById('bk-form-title').scrollIntoView({ behavior: 'smooth' }); });
+    addCell(tr, '›').className = 'bk-open';
     tb.appendChild(tr);
   }
 }
+
+// ── Aperçu agrandi au survol (souris) ou au focus clavier ; sur écran tactile, la fiche le remplace.
+// Même visuel que la miniature, en 256 px, proportions conservées (object-fit: contain, jamais recadré).
+function bkZoomShow(anchor, t) {
+  if (!window.matchMedia('(hover: hover)').matches && !anchor.closest('tr')?.matches(':focus-visible')) return;
+  const zoom = document.getElementById('bk-zoom');
+  const box = document.createElement('div');
+  const cap = document.createElement('small');
+  cap.className = 'bk-src';
+  cap.dataset.long = '1';
+  const v = bkDrawVisual(box, cap, t);
+  const img = box.querySelector('img');
+  if (img && v.kind === 'v1') { img.removeAttribute('srcset'); img.src = bkAbs(..._bkV1Big(t)); }
+  zoom.textContent = '';
+  const title = document.createElement('strong');
+  title.textContent = `${bkNameFr(t) ?? t.id} (${t.id})`;
+  zoom.append(title, box, cap);
+  zoom.classList.remove('hidden');
+  const r = anchor.getBoundingClientRect();
+  const w = zoom.offsetWidth, h = zoom.offsetHeight;
+  let left = r.right + 12, top = r.top + r.height / 2 - h / 2;
+  if (left + w > window.innerWidth - 8) left = Math.max(8, r.left - w - 12);
+  top = Math.min(Math.max(8, top), window.innerHeight - h - 8);
+  zoom.style.left = `${left}px`;
+  zoom.style.top = `${top}px`;
+}
+
+function bkZoomHide() { document.getElementById('bk-zoom').classList.add('hidden'); }
+window.addEventListener('scroll', bkZoomHide, { passive: true });
+document.getElementById('bk-body').closest('.bk-table-wrap').addEventListener('scroll', bkZoomHide, { passive: true });
+
+/** [base, fichier] du visuel v1 en 256 px. */
+function _bkV1Big(t) {
+  const a = IconLibrary.asset(t);
+  return [a.base, a.entry.webp['256'] ?? a.entry.webp['128']];
+}
+
+// ── Fiche d'un bloc (dialogue modal) : consultation, puis modification dans le brouillon.
+let _bkSheetOpener = null;
+
+function bkOpenSheet(t, opener) {
+  bkZoomHide();
+  _bkSheetOpener = opener ?? document.activeElement;
+  document.getElementById('bk-form-msg').classList.add('hidden');
+  bkFillForm(t);
+  const dlg = document.getElementById('bk-dialog');
+  if (!dlg.open) dlg.showModal();
+  (t ? document.getElementById('btn-bk-close') : document.getElementById('bk-id')).focus();
+}
+
+/** Résumé et état de l'illustration en tête de fiche (t = null : nouveau bloc). */
+function bkFillSheet(t) {
+  const sum = document.getElementById('bk-sheet-summary');
+  const art = document.getElementById('bk-sheet-art');
+  if (!t) { sum.textContent = 'Nouveau bloc : il sera ajouté au brouillon, invisible des joueurs jusqu\'à la publication.'; art.classList.add('hidden'); return; }
+  const depth = Math.max(1, Number(document.getElementById('bk-odds-depth').value) || 1);
+  const p = bkOdds(bkWorking(), depth).get(t.id);
+  const changed = (_bk.draft?.changes ?? []).some(c => c.id === t.id);
+  const names = BK_LANGS.map(l => `${l.toUpperCase()} : ${t.names?.[l] ?? (l === 'fr' && bkNameFr(t) ? `${bkNameFr(t)} (intégré)` : '—')}`).join(' · ');
+  sum.textContent = `${BK_RARITY[t.rarity] ?? t.rarity} · ${t.category} · dès ${t.minDepth} m · ${bkPct(p)} à ${depth} m`
+    + ` · ${t.active ? 'actif' : 'désactivé'}${changed ? ' · modifié dans le brouillon' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau (jamais publié)'} — ${names}`;
+  const v = bkVisual(t);
+  art.classList.remove('hidden');
+  art.classList.toggle('bk-sheet-art--todo', v.kind === 'emoji' || v.kind === 'missing');
+  document.getElementById('bk-sheet-art-text').textContent = v.kind === 'v1'
+    ? '🔒 Icône v1 validée, affichée en jeu. L\'atelier ne la remplace qu\'avec votre accord explicite.'
+    : v.kind === 'catalog'
+      ? 'Image personnalisée du catalogue, prioritaire en jeu. Historique et variantes dans l\'atelier d\'icônes.'
+      : 'Pas encore d\'illustration : l\'emoji de secours est affiché en jeu. Créez-la dans l\'atelier d\'icônes (#40), '
+        + 'validez-la, appliquez-la au brouillon, puis publiez ici. Rien n\'est appliqué ni publié automatiquement.';
+}
+
+document.getElementById('bk-dialog').addEventListener('close', () => {
+  // Retour du focus sur la ligne d'origine (re-rendue après un enregistrement : retrouvée par identifiant).
+  const id = _bkSheetOpener?.dataset?.id;
+  const row = id ? document.querySelector(`#bk-body tr[data-id="${CSS.escape(id)}"]`) : null;
+  (row ?? (document.contains(_bkSheetOpener) ? _bkSheetOpener : null))?.focus();
+  _bkSheetOpener = null;
+});
+document.getElementById('btn-bk-close').addEventListener('click', () => document.getElementById('bk-dialog').close());
+// Clic sur le fond (hors du contenu) : fermeture.
+document.getElementById('bk-dialog').addEventListener('click', e => { if (e.target.id === 'bk-dialog') e.target.close(); });
+document.getElementById('btn-bk-add').addEventListener('click', e => bkOpenSheet(null, e.currentTarget));
+document.getElementById('btn-bk-studio').addEventListener('click', () => {
+  const id = document.getElementById('bk-id').value.trim();
+  document.getElementById('bk-dialog').close();
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  if (id) icOpen(`block:${id}`);
+});
 
 function bkChangeLabel(c) {
   if (c.kind === 'added') return 'ajouté';
@@ -1936,7 +2086,7 @@ function aiRenderProposal(p, configured) {
       loadAi();
     });
   } else {
-    actions.appendChild(aiEl('span', { class: 'muted' }, 'Dans le brouillon du catalogue : relisez, simulez puis publiez plus bas. Modifications ultérieures : bouton « Modifier » de la liste.'));
+    actions.appendChild(aiEl('span', { class: 'muted' }, 'Dans le brouillon du catalogue : relisez, simulez puis publiez plus bas. Modifications ultérieures : cliquez sur sa ligne dans la liste des blocs.'));
   }
   card.appendChild(actions);
   card.appendChild(msg);
@@ -1964,15 +2114,18 @@ document.getElementById('btn-ai-generate').addEventListener('click', async () =>
     loadAi();
   }
 });
-document.querySelector('#bk-sort-depth .bk-sort-btn').addEventListener('click', () => {
-  _bkSortDir = _bkSortDir === 'asc' ? 'desc' : 'asc';
-  if (_bk) bkRenderTable();
-});
+for (const th of document.querySelectorAll('.bk-table th[data-sort]')) {
+  th.querySelector('.bk-sort-btn').addEventListener('click', () => {
+    const key = th.dataset.sort;
+    _bkSort = { key, dir: _bkSort.key === key && _bkSort.dir === 'asc' ? 'desc' : 'asc' };
+    if (_bk) bkRenderTable();
+  });
+}
 for (const id of ['bk-filter-text', 'bk-filter-cat', 'bk-filter-status', 'bk-odds-depth']) {
   document.getElementById(id).addEventListener('input', () => { if (_bk) bkRenderTable(); });
 }
 for (const id of ['bk-id', 'bk-icon', 'bk-image', 'bk-color', 'bk-accent']) document.getElementById(id).addEventListener('input', bkPreview);
-document.getElementById('btn-bk-new').addEventListener('click', () => bkFillForm(null));
+document.getElementById('btn-bk-new').addEventListener('click', () => { bkFillForm(null); document.getElementById('bk-id').focus(); });
 
 document.getElementById('btn-bk-save').addEventListener('click', async () => {
   const type = bkReadForm();
