@@ -7,7 +7,7 @@
 
 ## 1. État réel
 
-**Déployé en production (SHA `bee0df4`) — en attente de recette.** Mise en ligne le 30/10/2026 à 22:02 (Bruxelles).
+**Déployé en production (SHA `6e6f58a`) — en attente de recette.** Première livraison : `bee0df4`, mise en ligne le 30/10/2026 à 22:02 (Bruxelles). Lot du 31/10 (UX commune et création par IA) : `6e6f58a`, mis en ligne le 31/10/2026 à 22:55. Voir la section datée du 31/10 en fin de document.
 
 ## 2. Résultat
 
@@ -177,3 +177,83 @@ Aucune n'est bloquante : la livraison fonctionne telle quelle.
 - Textes en espagnol avec #42 : le champ ES existe déjà côté admin.
 - Vérification complète du type miné, en rejouant le tirage côté serveur (lot C/D de #25), si les badges prennent de la valeur.
 - Badges « participation à un événement » liés aux événements de #37 étape C, quand ils existeront. Les badges datés couvrent déjà le cas d'Halloween.
+
+
+---
+
+## Mise à jour du 31/10/2026 (soir) — UX commune du panel et création de badges par IA
+
+Ce lot répond à la demande du propriétaire du 31/10 à 20:19 ([commentaire](https://github.com/ReC82/Dig/issues/38#issuecomment-6548642561)) : appliquer à l'onglet Badges la même UX que le reste du panel, et proposer une création assistée par IA.
+
+### État réel
+**Déployé en production (SHA `6e6f58a`) — en attente de recette.** Classement : **Après lancement** (panel admin uniquement, rien ne change pour les joueurs).
+
+### Ce qui change dans le panel admin (onglet 🏅 Badges)
+- **La page montre d'abord les données.** On voit la liste des badges : miniature (image ou emoji), nom, identifiant, condition, statut, visibilité, période et nombre de joueurs qui l'ont obtenu. Une recherche et des filtres (catégorie, statut, « sans image ») sont disponibles. **Aucun formulaire n'est affiché par défaut.** Le texte d'explication et la liste des critères suivis sont dans « Comment ça marche ? » (replié). Le journal est replié lui aussi.
+- **Ouvrir un badge.** Un clic sur une ligne (ou Entrée / Espace) ouvre la **fiche** du badge. Elle est organisée en sections : Identité, Critère de déblocage (avec une aide sur ce que mesure le critère), Textes FR/EN/NL/ES, Visuel, Période d'événement. Un **aperçu joueur** se met à jour pendant la saisie. Depuis la fiche, on peut Vérifier (combien de joueurs l'obtiendraient), Enregistrer, Activer ou Désactiver, Archiver, ou 🎨 Illustrer dans l'atelier. Si le badge est actif, l'enregistrement demande une confirmation. Échap, ✕ ou Annuler ferment la fiche sans rien modifier.
+- **Bouton « ＋ Ajouter un badge »** : il propose « ✨ Créer avec l'IA » ou « ✍ Créer manuellement ». **Un nouveau badge est toujours enregistré désactivé.** Le choix « Actif » a disparu de la création : on active ensuite depuis la fiche.
+- **Création avec l'IA.** L'admin écrit une description libre. Un seul appel texte a lieu, en arrière-plan (≈ 20 à 60 s ; on peut fermer la fiche). La proposition s'ouvre ensuite dans la même fiche, entièrement modifiable. Elle comprend : un nom et une description dans les quatre langues, un emoji, une catégorie, une visibilité, une période d'événement facultative, une consigne d'illustration (en anglais) et un **critère choisi uniquement parmi ceux que le serveur suit réellement** : profondeur retenue, blocs au total, blocs d'un type publié, types différents, coffres ouverts en minant, jours de jeu distincts.
+  - Les demandes impossibles sont **signalées** comme « Non pris en charge » (par exemple « 7 jours d'affilée » : seuls les jours distincts sont suivis ; ou des pièces gagnées). Aucun suivi n'est inventé.
+  - Un critère inconnu ou un type de bloc inexistant **bloque l'enregistrement** tant que l'admin ne l'a pas corrigé.
+  - « Enregistrer comme badge désactivé » crée le badge (désactivé) et transmet la consigne d'illustration à l'atelier. **Rien n'est jamais activé automatiquement**, et aucune image n'est générée à ce moment-là.
+  - Les propositions déjà faites restent dans « ✨ Propositions IA » (replié, visible seulement s'il y en a).
+- **Atelier d'icônes (#40).** Les badges non archivés font maintenant partie des icônes de l'atelier (famille « Badges »). L'image se génère **une par une**, sur action explicite, avec le gabarit « objet » et la référence de style commune. Comme un badge n'a pas de brouillon, on ne peut appliquer une image à un badge **actif** qu'après une confirmation explicite (elle devient visible tout de suite). Sur un badge désactivé, l'image attend son activation.
+
+Captures (serveur de test, IA en mode factice) :
+- liste : `docs/claude-reports/img/2026-10-31_ticket-38-ux-desktop-list.png`
+- relecture d'une proposition IA : `docs/claude-reports/img/2026-10-31_ticket-38-ux-desktop-proposal.png`
+- atelier sur un badge : `docs/claude-reports/img/2026-10-31_ticket-38-ux-desktop-studio.png`
+- nouvelle fiche sur smartphone (390 px) : `docs/claude-reports/img/2026-10-31_ticket-38-ux-mobile-new.png`
+
+### Fichiers
+- `server/badgeAi.js` (nouveau) : propositions, normalisation, contrôle des critères, enregistrement en badge désactivé.
+- `server/index.js` : routes `GET /api/admin/badges/ai`, `POST|GET|PUT|DELETE /api/admin/badges/ai/proposals[/:id]`, `POST …/:id/draft` (toutes avec `requireAdmin`).
+- `server/iconStudio.js` : nouvelle famille `badge:` (cibles, consigne par défaut, application protégée par « live » sur un badge actif).
+- `server/badges.js` : export de `VISIBILITY`.
+- `public/admin/index.html`, `public/admin/admin.js` : onglet refait sur le socle commun (`admDialogSetup` / `admDialogOpen` / `admRowOpen`, écrit pour #37).
+- `test/badge-ai.test.js` (nouveau, 8 tests).
+
+### SHA et tests
+- Branche `feature/38-badges-succes`, commit `4d6a092` ; **develop `6e6f58a`** (merge).
+- `npm test` : **400/400** sur la branche, sur develop et sur la release `6e6f58a`.
+- Essai Chromium (serveur de test, port 3101, base de test, IA factice), avec de vrais clics et le clavier :
+  - PC 1280×900 et smartphone 390×844 ;
+  - aucun formulaire visible par défaut ; le filtre fonctionne ; la fiche s'ouvre au clavier ;
+  - parcours IA complet : proposition, avertissement « jours consécutifs », création d'un badge désactivé, ouverture de l'atelier ;
+  - un identifiant déjà pris est refusé et la fiche reste ouverte ;
+  - pas de défilement horizontal sur smartphone ; aucune erreur JavaScript.
+- Copie de la base de production démarrée deux fois en `NODE_ENV=production` : migration idempotente, empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`, `badges` et `player_badges` identiques avant et après. Seul ajout : la table `badge_ai_proposals`.
+
+### Déploiement
+- Avant le déploiement, aucune génération IA n'était en cours en production (un redémarrage l'aurait interrompue).
+- `main` a été avancé en avance rapide de `5ad36b1` à `6e6f58a`, puis `scripts/deploy.sh` (celui de la release) a été lancé.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261031-225525-pre-deploy-6e6f58a.sqlite`.
+- Vérifications : les deux domaines répondent 200 avec la version `1.0.0+6e6f58a` ; `/api/admin/badges/ai` répond 401 sans clé ; journal sans erreur ; `quick_check` ok ; empreintes de production identiques à la sauvegarde ; nouveau panel servi.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 5ad36b1` puis `sudo systemctl restart dig` (aucun changement de dépendances). La table ajoutée peut rester en place, elle est sans effet.
+
+### Impact sur les données des joueurs
+Aucun. Une seule table est ajoutée (`badge_ai_proposals`). Aucun badge n'a été activé ou modifié, et aucune attribution n'a eu lieu.
+
+### Test fonctionnel à faire par le propriétaire (panel admin → 🏅 Badges)
+1. Ouvrir l'onglet : la liste des 8 badges s'affiche, sans formulaire. Taper « pierre » dans le filtre : seul « Tailleur de pierre » reste.
+2. Cliquer sur « Cinq cents mètres » : la fiche s'ouvre. Appuyer sur Échap : la fiche se ferme et rien n'a changé.
+3. Cliquer sur « ＋ Ajouter un badge », puis « ✨ Créer avec l'IA ». Décrire par exemple « un badge pour ceux qui minent 7 jours d'affilée pendant les vacances », puis « Proposer un badge ». Après 20 à 60 s, la fiche affiche la proposition. Résultat attendu : un critère pris en charge (par exemple jours de jeu distincts) et l'avertissement « Non pris en charge : jours consécutifs… ». Corriger un texte, puis « Enregistrer comme badge désactivé » : le badge apparaît dans la liste, avec le statut désactivé.
+4. Ouvrir ce badge, puis « 🎨 Illustrer dans l'atelier » : la fiche de l'atelier s'ouvre avec la consigne proposée. Générer une image uniquement si vous le souhaitez (une par action). « Conserver » l'applique au badge désactivé.
+5. Facultatif : activer le badge depuis sa fiche (une confirmation est demandée).
+
+### Choix techniques faits seul
+- **Brouillon d'un badge = badge désactivé.** Les badges n'ont pas de catalogue brouillon/publié comme les blocs ou les collections. Un badge désactivé n'est jamais attribué : c'est le brouillon le plus simple, sans nouvelle notion à apprendre.
+- **Une seule fiche** pour la consultation, la création manuelle et la relecture d'une proposition IA. Cela évite de dupliquer le formulaire.
+- **Critère « impossible » = condition vide** dans la proposition. Le serveur refuse de l'enregistrer : l'IA ne peut pas faire passer un critère inventé.
+- **Image d'un badge actif = accord explicite (« live »)**, parce qu'il n'existe pas de publication différée pour les badges.
+- Proposition texte via `blockAi.guardedJson`, partagée avec #37 et #39 : clé côté serveur, un appel à la fois, quota, plafond et journal communs. Aucune nouvelle infrastructure.
+
+### Décisions demandées au propriétaire
+Les questions du 30/10 restent ouvertes (aucune n'empêche ce lot) :
+1. Quels paliers activer parmi 500 m, 1 000 m, 1 000 blocs, 10 types, premier coffre et 7 jours ? Recommandation : Premier trésor, Explorateur, 500 m.
+2. Où mettre en avant 3 badges ? Recommandation : à côté du pseudo dans le classement Saison, après le lancement.
+3. Les coffres achetés en boutique comptent-ils dans « coffres ouverts » ? Recommandation : non (c'est le comportement actuel).
+
+### Restes à faire (Après lancement)
+- Nouvelles métriques, si vous le souhaitez : jours consécutifs, collection complétée (#39). Elles demandent un suivi serveur supplémentaire et ne sont pas inventées ici.
+- Dans l'atelier, la mention « Actuelle en jeu » s'affiche aussi pour un badge désactivé. C'est cosmétique.
