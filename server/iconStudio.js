@@ -302,10 +302,43 @@ function _target(key) {
   return { key, kind, id, src, current, applicable, v1, validation: _validation(key, v1Entry) };
 }
 
+// Objets et badges : une consigne décrit UN seul objet. Même sujet + mêmes détails (casse ignorée) chez
+// plusieurs cibles de la même famille = consigne répétée (recette #40 du 02/11 : la consigne « lanterne »
+// importée pour les 6 objets d'une collection a produit une lanterne pour le crayon).
+const _BRIEF_UNIQUE = new Set(['item', 'badge']);
+const _briefSig = b => `${String(b.subject ?? '').trim().toLowerCase()}\n${String(b.details ?? '').trim().toLowerCase()}`;
+
+/** Autres cibles de la même famille ayant enregistré exactement la même consigne. */
+function _briefTwins(key, b) {
+  const sig = _briefSig(b);
+  const prefix = `${key.split(':')[0]}:`;
+  return conn().prepare('SELECT target, subject, details, updated_at FROM icon_studio_briefs WHERE substr(target, 1, ?) = ? AND target <> ?')
+    .all(prefix.length, prefix, key).filter(r => _briefSig(r) === sig && _exists(r.target));
+}
+const _exists = key => { try { _target(key); return true; } catch (_) { return false; } };
+
+/**
+ * Consigne utilisée pour générer. Une consigne répétée chez d'autres objets n'est retenue que pour la
+ * cible qui l'a enregistrée en dernier, seule (correction manuelle après une importation) ; sinon elle
+ * est ignorée (conservée en base, signalée) et la fiche repart du nom et de l'histoire de l'objet.
+ */
 function _briefFor(t) {
   const row = conn().prepare('SELECT subject, details, palette, updated_at FROM icon_studio_briefs WHERE target = ?').get(t.key);
-  return row ? { subject: row.subject, details: row.details, palette: row.palette, custom: true, updatedAt: row.updated_at }
-    : { ..._defaultBrief(t.kind, t.src), custom: false };
+  if (!row) return { ..._defaultBrief(t.kind, t.src), custom: false };
+  const own = { subject: row.subject, details: row.details, palette: row.palette, custom: true, updatedAt: row.updated_at };
+  if (!_BRIEF_UNIQUE.has(t.kind)) return own;
+  const twins = _briefTwins(t.key, row);
+  if (!twins.length || twins.every(r => r.updated_at < row.updated_at)) return { ...own, sharedWith: twins.map(r => r.target.slice(t.kind.length + 1)) };
+  return { ..._defaultBrief(t.kind, t.src), custom: false,
+    ignored: { subject: row.subject, details: row.details, palette: row.palette, sharedWith: twins.map(r => r.target.slice(t.kind.length + 1)) } };
+}
+
+/** Identité de l'objet, tirée du catalogue (jamais de la consigne) : ce que l'image doit représenter. */
+function _identity(t) {
+  if (!_BRIEF_UNIQUE.has(t.kind)) return null;
+  const en = String(t.src.names?.en || '').trim(), fr = String(t.src.names?.fr || '').trim();
+  const name = en || fr || t.id;
+  return { name, fr: fr && fr !== name ? fr : null };
 }
 
 function _assetCounts() {
@@ -392,7 +425,11 @@ function _reference() {
 }
 
 /** Gabarit par famille : bloc = prompt maître #22 inchangé ; objet et interface = variantes v1.1. */
-function buildPrompt(kind, brief, instruction = '') {
+/**
+ * Prompt en trois parties distinctes : identité de l'objet (catalogue), description visuelle (consigne
+ * de l'objet), contraintes communes de style (gabarit + référence pierre, qui ne donne que le style).
+ */
+function buildPrompt(kind, brief, instruction = '', identity = null) {
   const master = fs.readFileSync(path.join(ROOT, 'tools', 'icons', 'prompt-master.md'), 'utf8');
   const between = tag => {
     const m = master.match(new RegExp(`<!-- ${tag} -->\\n([\\s\\S]*?)\\n<!-- /${tag} -->`));
@@ -400,7 +437,10 @@ function buildPrompt(kind, brief, instruction = '') {
     return m[1].trim();
   };
   const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
-  return between(tpl)
+  const who = identity
+    ? `Object to depict: "${identity.name}"${identity.fr ? ` (French name: "${identity.fr}")` : ''}; the icon shows this exact object and nothing else. Visual description: `
+    : '';
+  return who + between(tpl)
     .replace('{{SUBJECT}}', brief.subject)
     .replace('{{DETAILS}}', brief.details || '')
     .replace('{{PALETTE}}', brief.palette || '')
@@ -423,6 +463,15 @@ function setBrief(key, input = {}) {
   } else {
     const b = { subject: _clean(input.subject, 300), details: _clean(input.details, 600), palette: _clean(input.palette, 300) };
     if (b.subject.length < 3) throw new StudioError(400, 'Sujet requis (3 à 300 caractères, en anglais de préférence).');
+    if (_BRIEF_UNIQUE.has(t.kind)) {
+      // Refus seulement si la même consigne est retenue ailleurs ; une consigne répétée et ignorée
+      // (importation d'avant le 02/11) peut être reprise ici : elle devient celle de cet objet seul.
+      const held = _briefTwins(key, b).filter(r => !_briefFor(_target(r.target)).ignored);
+      if (held.length) {
+        const names = held.map(r => `« ${_target(r.target).current.name} »`).join(', ');
+        throw new StudioError(409, `Consigne identique à celle de ${names} : décrivez la forme et la matière propres à « ${t.current.name} ».`);
+      }
+    }
     conn().prepare(`INSERT INTO icon_studio_briefs (target, subject, details, palette, updated_at) VALUES (?, ?, ?, ?, datetime('now'))
       ON CONFLICT(target) DO UPDATE SET subject = excluded.subject, details = excluded.details, palette = excluded.palette, updated_at = excluded.updated_at`)
       .run(key, b.subject, b.details, b.palette);
@@ -460,7 +509,8 @@ function _logCall({ target, model, ok, error = null, cost, durationMs, usage = n
 /** Un appel image + contrôles + stockage. Rend { sha } ou lève. Toujours journalisé. */
 async function _generateOne(t, brief, { instruction = '', basedOn = null } = {}) {
   const { cfg } = _checkBudget(1);
-  const prompt = buildPrompt(t.kind, brief, instruction);
+  const identity = _identity(t);
+  const prompt = buildPrompt(t.kind, brief, instruction, identity);
   const started = Date.now();
   let png, usage = null, model, cost, params = null;
   try {
@@ -481,7 +531,8 @@ async function _generateOne(t, brief, { instruction = '', basedOn = null } = {})
   // L'image a été facturée : l'appel est journalisé avec son coût, même si les contrôles la refusent.
   _logCall({ target: t.key, model, ok: true, cost, durationMs: Date.now() - started, usage });
   const done = await _process(png);
-  const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : 'v1.1', brief: { subject: brief.subject, details: brief.details, palette: brief.palette },
+  const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : identity ? 'v1.2' : 'v1.1', identity,
+    brief: { subject: brief.subject, details: brief.details, palette: brief.palette, custom: !!brief.custom },
     model, params, reference: _reference() ? path.relative(ROOT, _reference()) : null, instruction: instruction || null, basedOn,
     costUsd: cost.cost_usd, costBasis: cost.basis,
     durationMs: Date.now() - started, checks: done.checks, masterSha256: done.masterSha256 };
@@ -588,10 +639,10 @@ function getTarget(key) {
   const itemExtra = t.kind === 'item' ? {
     defaultBrief: _defaultBrief('item', t.src),
     neverPublished: !collectionCatalog.getPublished().items.some(i => i.id === t.id),
-    briefSharedWith: brief.custom ? conn().prepare("SELECT target FROM icon_studio_briefs WHERE target LIKE 'item:%' AND target <> ? AND subject = ? AND details = ? ORDER BY target")
-      .all(key, brief.subject, brief.details).map(r => r.target.slice(5)) : [],
+    briefSharedWith: [...(brief.ignored?.sharedWith ?? brief.sharedWith ?? [])].sort(),
+    briefIgnored: !!brief.ignored,
   } : {};
-  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief), assets, history, ...itemExtra,
+  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), assets, history, ...itemExtra,
     costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : null };
 }
 

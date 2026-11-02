@@ -3576,10 +3576,13 @@ function icItemBrief(parent, t) {
     ? 'Préparée avec la collection, modifiable. Elle accompagne chaque génération ; aucune image n\'est créée sans clic sur « Générer ».'
     : 'Tirée du nom et de l\'histoire de l\'objet, modifiable. Aucune image n\'est créée sans clic sur « Générer ».'));
   const els = {};
-  if (t.briefSharedWith?.length) {
-    const w = aiEl('div', { class: 'ic-notice ic-notice--warn' });
-    w.appendChild(aiEl('p', {}, `⚠ Cette consigne est identique pour ${t.briefSharedWith.length + 1} objets (avec ${t.briefSharedWith.join(', ')}) : `
-      + `l'IA de la collection a répété la même consigne. Vérifiez qu'elle décrit bien « ${t.name} », corrigez-la ou repartez du nom et de l'histoire.`));
+  if (t.briefIgnored) {
+    // Consigne répétée pour plusieurs objets (importation d'une collection) : jamais utilisée, la fiche repart du nom
+    wrap.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' }, `⚠ La consigne enregistrée pour cet objet est la même que pour ${t.briefSharedWith.join(', ')} `
+      + `(« ${t.brief.ignored?.subject ?? ''} ») : elle n'est pas utilisée. La consigne ci-dessous repart du nom et de l'histoire de « ${t.name} » ; complétez-la si besoin.`));
+  } else if (t.briefSharedWith?.length) {
+    const w = aiEl('div', { class: 'ic-notice ic-notice--info' });
+    w.appendChild(aiEl('p', {}, `ℹ ${t.briefSharedWith.join(', ')} portent encore cette même consigne : elle n'est utilisée que pour « ${t.name} », eux repartent de leur nom et de leur histoire.`));
     icButton(w, 'Repartir du nom et de l\'histoire', async () => {
       for (const k of Object.keys(els)) { els[k].value = t.defaultBrief?.[k] ?? ''; memo[k] = els[k].value; }
       els.subject.focus();
@@ -3604,7 +3607,8 @@ async function icSaveItemBrief(t, els) {
   const { ok, data } = await api('PUT', `/api/admin/icons/targets/${icEnc(t.key)}/brief`, b);
   if (!ok) { _icNote = { text: data.error || 'Erreur.', ok: false }; icRenderSheet(); return false; }
   t.brief = data.brief;
-  t.briefSharedWith = [];
+  t.briefSharedWith = data.brief.sharedWith ?? [];
+  t.briefIgnored = false;
   for (const k of Object.keys(els)) delete _icTyped[t.key]?.[k];
   return true;
 }
@@ -3619,8 +3623,10 @@ function icButton(parent, label, fn, cls = 'btn btn-outline') {
 function icRenderSheet() {
   const t = _icTarget;
   const box = document.getElementById('ic-sheet');
-  const typed = box.querySelector('#ic-instruction')?.value ?? '';
+  // Saisie en cours reprise seulement si la fiche affichée est celle du même objet (jamais d'un objet à l'autre)
+  const typed = box.dataset.key === t.key ? box.querySelector('#ic-instruction')?.value ?? '' : '';
   box.textContent = '';
+  box.dataset.key = t.key;
   const st = icState(t);
   const running = _icJob?.status === 'running';
   const mine = running && _icJob.target === t.key;

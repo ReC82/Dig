@@ -201,6 +201,51 @@ test('brief : personnalisé, nettoyé, rétabli', () => {
   assert.strictEqual(studio.setBrief('item:fossil', { reset: true }).custom, false);
 });
 
+test('recette du 02/11 : générations successives d\'objets distincts, consigne répétée neutralisée', async () => {
+  const lantern = { subject: 'Worn brass miner\'s lantern', details: 'A small tarnished brass lantern with a frosted glass globe.', palette: 'Palette: warm amber.' };
+  // Cas de la production : la même consigne écrite en une fois pour plusieurs objets par une importation
+  const ins = conn().prepare("INSERT OR REPLACE INTO icon_studio_briefs (target, subject, details, palette, updated_at) VALUES (?, ?, ?, ?, '2026-11-02 14:33:58')");
+  for (const k of ['crystal', 'fossil', 'mystic_orb']) ins.run(`item:${k}`, lantern.subject, lantern.details, lantern.palette);
+  const before = Object.fromEntries(['crystal', 'fossil', 'mystic_orb'].map(k => [k, studio.getTarget(`item:${k}`).assets.length]));
+  const fossil = studio.getTarget('item:fossil');
+  assert.deepStrictEqual([fossil.briefIgnored, fossil.brief.custom, fossil.briefSharedWith], [true, false, ['crystal', 'mystic_orb']]);
+  assert.strictEqual(fossil.brief.ignored.subject, lantern.subject, 'consigne enregistrée conservée, seulement ignorée');
+  const sent = {};
+  for (const [k, instruction] of [['crystal', 'plus sombre'], ['fossil', ''], ['mystic_orb', '']]) {
+    const n = prompts.length;
+    studio.generate(`item:${k}`, { instruction });
+    const j = await studio.waitJob();
+    assert.strictEqual(j.status, 'done', JSON.stringify(j));
+    assert.strictEqual(prompts.length, n + 1);
+    assert.strictEqual(prompts[n].target, `item:${k}`);
+    sent[k] = prompts[n].prompt;
+  }
+  assert.match(sent.crystal, /^Object to depict: "Blue Crystal" \(French name: "Cristal bleu"\); the icon shows this exact object and nothing else\. Visual description: A single blue crystal collectible/);
+  assert.match(sent.fossil, /^Object to depict: "Fossil" \(French name: "Fossile"\)/);
+  assert.match(sent.mystic_orb, /^Object to depict: "Mysterious Orb"/);
+  for (const p of Object.values(sent)) assert.doesNotMatch(p, /lantern/i, 'aucune consigne répétée transmise');
+  assert.doesNotMatch(sent.fossil, /plus sombre|Crystal|Cristal/, 'rien de la génération précédente');
+  assert.strictEqual(new Set(Object.values(sent)).size, 3);
+  for (const k of Object.keys(sent)) {
+    const t = studio.getTarget(`item:${k}`);
+    assert.strictEqual(t.assets.length, before[k] + 1, 'propositions existantes conservées');
+    const meta = JSON.parse(conn().prepare('SELECT meta FROM icon_studio_assets WHERE sha = ?').get(t.assets[0].sha).meta);
+    assert.deepStrictEqual([meta.reference, meta.basedOn, meta.promptVersion], ['art/icons/v1/reference/pierre.png', null, 'v1.2'], 'seule la référence de style pierre');
+    assert.strictEqual(meta.identity.name, { crystal: 'Blue Crystal', fossil: 'Fossil', mystic_orb: 'Mysterious Orb' }[k]);
+  }
+  // Correction manuelle : la consigne « lanterne » reprise pour UN objet devient la sienne, les autres restent neutralisés
+  const b = studio.setBrief('item:crystal', lantern);
+  assert.deepStrictEqual([b.custom, b.ignored], [true, undefined]);
+  assert.match(studio.getTarget('item:crystal').prompt, /^Object to depict: "Blue Crystal".*Worn brass miner's lantern/);
+  assert.strictEqual(studio.getTarget('item:fossil').briefIgnored, true);
+  // Et plus jamais deux objets distincts avec la même consigne (casse et espaces ignorés)
+  assert.throws(() => studio.setBrief('item:relic', { ...lantern, subject: '  WORN BRASS miner\'s lantern ' }), e => e.status === 409 && /Cristal bleu/.test(e.message));
+  assert.throws(() => studio.setBrief('item:fossil', lantern), e => e.status === 409);
+  assert.strictEqual(studio.setBrief('item:fossil', { ...lantern, subject: 'A small ammonite fossil' }).custom, true, 'consigne propre acceptée');
+  assert.strictEqual(studio.setBrief('item:crystal', lantern).custom, true, 'réenregistrer sa propre consigne reste possible');
+  studio.setBrief('item:fossil', { reset: true });
+});
+
 test('routes : protégées, image servie, gros corps seulement après la clé admin', async (t) => {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,

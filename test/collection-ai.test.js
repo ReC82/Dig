@@ -134,10 +134,12 @@ test('recette du 02/11 (atelier) : consigne répétée pour plusieurs objets sig
   const crayon = studio.getTarget('item:crayon_t');
   assert.deepStrictEqual([crayon.brief.custom, crayon.brief.subject, crayon.briefSharedWith], [true, 'A stubby pencil', []]);
   // Consignes déjà enregistrées à l'identique (cas de la production) : signalées, repli proposé
-  studio.setBrief('item:lanterne_t', lantern);
-  studio.setBrief('item:boussole_t', lantern);
+  // (écrites en une fois par l'importation d'avant le garde-fou) : ignorées, signalées, repli proposé
+  const ins = db.getDb().prepare("INSERT OR REPLACE INTO icon_studio_briefs (target, subject, details, palette, updated_at) VALUES (?, ?, ?, ?, '2026-11-02 14:33:58')");
+  for (const k of ['lanterne_t', 'boussole_t']) ins.run(`item:${k}`, lantern.subject, lantern.details, lantern.palette);
   const t = studio.getTarget('item:boussole_t');
-  assert.deepStrictEqual(t.briefSharedWith, ['lanterne_t']);
+  assert.deepStrictEqual([t.briefSharedWith, t.briefIgnored, t.brief.custom], [['lanterne_t'], true, false]);
+  assert.doesNotMatch(t.prompt, /lantern/i, 'la consigne répétée n\'entre pas dans le prompt');
   assert.match(t.defaultBrief.subject, /collectible/);
   assert.strictEqual(t.neverPublished, true, 'objet du brouillon jamais publié : pas « en jeu »');
 });
