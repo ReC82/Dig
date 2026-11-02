@@ -430,6 +430,42 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .bk-dialog select:focus { outline: none; border-color: var(--gold); }
 .bk-dialog label:has(> input[type=checkbox]) { flex-direction: row; align-items: center; gap: 8px; }
 .bk-row { -webkit-tap-highlight-color: transparent; }
+/* Fiche en sections (recette du 02/11) : aide ⓘ dépliable, état du brouillon, probabilités effectives. */
+.bk-sec { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px 10px; margin: 0 0 10px; min-width: 0; }
+.bk-sec > legend, .bk-adv > summary { font-weight: 600; font-size: 0.85rem; padding: 0 4px; color: var(--gold); }
+.bk-adv > summary { cursor: pointer; padding: 2px 0; }
+.bk-adv[open] > summary { margin-bottom: 8px; }
+.bk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; margin-bottom: 6px; }
+.bk-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bk-field > label > span { display: inline-flex; align-items: center; gap: 4px; }
+.bk-info { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 50%; width: 22px; height: 22px;
+  font-size: 0.78rem; line-height: 1; cursor: pointer; flex: 0 0 auto; }
+.bk-info[aria-expanded="true"], .bk-info:focus-visible { color: var(--gold); border-color: var(--gold); }
+.bk-hint, .bk-hint-static { font-size: 0.74rem; color: var(--muted); line-height: 1.35; }
+.bk-hint { background: var(--bg); border-left: 3px solid var(--gold); padding: 4px 8px; border-radius: 4px; }
+.bk-check { flex-direction: row !important; align-items: center; gap: 8px; }
+.bk-name-src { font-size: 0.72rem; }
+.bk-name-src--custom, .bk-name-src--builtin { color: var(--green); }
+.bk-name-src--missing { color: #f59e0b; }
+.bk-ai-filled { border-color: #a78bfa !important; box-shadow: 0 0 0 1px #a78bfa; }
+.bk-translate-row { align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.bk-eff { font-size: 0.8rem; margin-top: 6px; overflow-x: auto; }
+.bk-eff small { display: block; }
+.bk-eff p { margin-bottom: 4px; font-weight: 600; }
+.bk-eff-table { width: auto; font-size: 0.78rem; margin-bottom: 4px; }
+.bk-eff-table td, .bk-eff-table th { padding: 3px 10px; text-align: right; white-space: nowrap; }
+@media (max-width: 480px) { .bk-eff-table td, .bk-eff-table th { padding: 3px 5px; } .bk-sec { padding: 6px 8px 8px; } }
+.bk-eff-table td:first-child, .bk-eff-table th:first-child { text-align: left; }
+.bk-eff-cur td { color: var(--gold); font-weight: 600; }
+.bk-sheet-draft { border: 1px solid #f59e0b; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.82rem; }
+.bk-sheet-draft .form-actions { flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.bk-sheet-diff { width: auto; font-size: 0.8rem; margin-top: 6px; }
+.bk-sheet-diff td, .bk-sheet-diff th { padding: 3px 10px; }
+.btn-danger-text { color: var(--red) !important; }
+.bk-visual-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 6px; }
+.bk-visual-row .bk-sheet-art { flex: 1 1 260px; margin-bottom: 0; }
+.bk-sheet-actions { align-items: center; gap: 12px; flex-wrap: wrap; }
+.bk-dirty { color: #f59e0b; font-size: 0.8rem; }
 #bk-preview { width: 160px; height: 160px; border-radius: 16px; font-size: 4.5rem; border-width: 3px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .bk-preview-col { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 172px; }

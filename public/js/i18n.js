@@ -1998,6 +1998,12 @@ const I18n = (() => {
     return typeof _resolve(String(key), lang) === 'string';
   }
 
+  /** Traduction propre à une langue (sans repli), ou null : utilisé par le panel admin. */
+  function get(key, lang) {
+    const v = _resolve(String(key), lang);
+    return typeof v === 'string' ? v : null;
+  }
+
   function onLangChange(fn) { _callbacks.push(fn); }
 
   /** Retourne true si une langue a déjà été enregistrée (pas le premier lancement). */
@@ -2009,7 +2015,7 @@ const I18n = (() => {
     document.documentElement.lang = _current;
   }
 
-  return { init, setLang, getCurrent, t, has, applyTranslations, onLangChange, LANGS, hasStoredLang };
+  return { init, setLang, getCurrent, t, has, get, applyTranslations, onLangChange, LANGS, hasStoredLang };
 
 })();
 

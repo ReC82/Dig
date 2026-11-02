@@ -815,44 +815,91 @@
         <button type="button" class="btn btn-outline" id="btn-bk-close" aria-label="Fermer la fiche">✕ Fermer</button>
       </div>
       <p id="bk-sheet-summary" class="bk-sheet-summary"></p>
-      <div id="bk-sheet-art" class="bk-sheet-art">
-        <p id="bk-sheet-art-text"></p>
-        <button type="button" class="btn" id="btn-bk-studio">🎨 Ouvrir dans l'atelier d'icônes</button>
-      </div>
-      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-        <div class="bk-preview-col">
-          <div id="bk-preview" class="bk-thumb"></div>
-          <small id="bk-preview-src" class="bk-src"></small>
+      <div id="bk-sheet-draft" class="bk-sheet-draft hidden">
+        <p id="bk-sheet-draft-text"></p>
+        <table class="bk-sheet-diff"><thead><tr><th>Champ</th><th id="bk-diff-pub">Version publiée</th><th>Brouillon</th></tr></thead><tbody id="bk-sheet-diff-body"></tbody></table>
+        <div class="form-actions">
+          <button type="button" class="btn" id="btn-bk-revert">↺ Annuler les modifications de ce bloc</button>
+          <button type="button" class="btn btn-ghost" id="btn-bk-remove">Retirer ce nouveau bloc du brouillon</button>
+          <button type="button" class="btn btn-ghost btn-danger-text" id="btn-bk-discard-all">Abandonner tout le brouillon…</button>
         </div>
-        <div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px">
-          <label>Identifiant stable<input id="bk-id" type="text" maxlength="40" placeholder="obsidienne"></label>
-          <label>Nom FR<input id="bk-name-fr" type="text" maxlength="40"></label>
-          <label>Nom EN<input id="bk-name-en" type="text" maxlength="40"></label>
-          <label>Nom NL<input id="bk-name-nl" type="text" maxlength="40"></label>
-          <label>Nom ES<input id="bk-name-es" type="text" maxlength="40"></label>
-          <label>Catégorie<select id="bk-category"></select></label>
-          <label>Rareté<select id="bk-rarity"></select></label>
-          <label>Icône (emoji)<input id="bk-icon" type="text" maxlength="8"></label>
-          <label>Image personnalisée (/assets/… ou /media/…, prioritaire, facultatif)<input id="bk-image" type="text" maxlength="200"></label>
-          <label>Couleur (#… ou linear-gradient)<input id="bk-color" type="text" maxlength="80"></label>
-          <label>Accent (#…)<input id="bk-accent" type="text" maxlength="9"></label>
-          <label>PV de base<input id="bk-hp" type="number" min="1"></label>
-          <label>Récompense de base<input id="bk-reward" type="number" min="0"></label>
-          <label>Dès (m)<input id="bk-min" type="number" min="1"></label>
-          <label>Poids d'apparition<input id="bk-weight" type="number" min="0.001" step="any"></label>
-          <label>Atténué au-delà de (m)<input id="bk-fade-from" type="number" min="1" placeholder="jamais"></label>
-          <label>Poids atténué (&gt; 0, &lt; poids)<input id="bk-fade-weight" type="number" min="0.001" step="any"></label>
-          <label><input type="checkbox" id="bk-gem-reward" checked> Gemme : rapporte 1 gemme</label>
-          <label><input type="checkbox" id="bk-active" checked> Actif</label>
-        </div>
+        <small class="muted">« Annuler les modifications de ce bloc » remet ce seul bloc à sa version publiée, sans rien publier ; les autres changements du brouillon restent. « Abandonner tout le brouillon » supprime tous les changements non publiés de tous les blocs.</small>
       </div>
-      <p class="muted" style="font-size:0.78rem">PV et récompense augmentent avec la profondeur (+12 % et +5 % par mètre). Les noms des 14 blocs d'origine viennent des traductions intégrées tant que les champs Nom sont vides. Les raretés rare, épique et légendaire sont favorisées par la Chance du joueur.</p>
-      <div class="form-actions">
+
+      <fieldset class="bk-sec"><legend>Identité et traductions</legend>
+        <div class="bk-grid">
+          <div class="bk-field"><label><span>Identifiant stable <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-id" aria-label="Aide">ⓘ</button></span><input id="bk-id" type="text" maxlength="40" placeholder="obsidienne"></label><small id="bk-h-id" class="bk-hint" hidden>Nom technique définitif (a-z, 0-9, _), utilisé par les sauvegardes des joueurs : il ne peut plus changer une fois créé.</small></div>
+          <div class="bk-field"><label>Nom FR<input id="bk-name-fr" type="text" maxlength="40"></label><small id="bk-name-src-fr" class="bk-name-src"></small></div>
+          <div class="bk-field"><label>Nom EN<input id="bk-name-en" type="text" maxlength="40"></label><small id="bk-name-src-en" class="bk-name-src"></small></div>
+          <div class="bk-field"><label>Nom NL<input id="bk-name-nl" type="text" maxlength="40"></label><small id="bk-name-src-nl" class="bk-name-src"></small></div>
+          <div class="bk-field"><label>Nom ES<input id="bk-name-es" type="text" maxlength="40"></label><small id="bk-name-src-es" class="bk-name-src"></small></div>
+        </div>
+        <div class="form-actions bk-translate-row">
+          <button type="button" class="btn btn-outline" id="btn-bk-translate">✨ Générer les traductions manquantes avec l'IA</button>
+          <small id="bk-translate-msg" class="muted"></small>
+        </div>
+        <small class="muted">En jeu, chaque langue affiche : le nom personnalisé de cette langue, sinon la traduction intégrée au jeu, sinon le nom FR. Un champ vide n'est donc pas forcément une traduction manquante : la ligne sous chaque champ indique le nom réellement affiché et sa provenance. L'IA ne remplit que les langues manquantes, comme proposition à relire, et n'enregistre rien.</small>
+      </fieldset>
+
+      <fieldset class="bk-sec"><legend>Apparition et rareté</legend>
+        <div class="bk-grid">
+          <div class="bk-field"><label><span>Catégorie <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-cat" aria-label="Aide">ⓘ</button></span><select id="bk-category"></select></label><small id="bk-h-cat" class="bk-hint" hidden></small></div>
+          <div class="bk-field"><label><span>Rareté (étiquette) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-rarity" aria-label="Aide">ⓘ</button></span><select id="bk-rarity"></select></label><small id="bk-h-rarity" class="bk-hint" hidden>La rareté est une étiquette : elle ne fixe pas la fréquence (c'est le poids). Deux effets réels : la Chance du joueur multiplie le poids des blocs rare, épique et légendaire (+10 % par niveau), et pour un coffre elle choisit la table de récompenses. La probabilité réelle est affichée ci-dessous.</small></div>
+          <div class="bk-field"><label><span>Profondeur minimale (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-min" aria-label="Aide">ⓘ</button></span><input id="bk-min" type="number" min="1"></label><small id="bk-h-min" class="bk-hint" hidden>Le bloc peut apparaître à partir de cette profondeur, et ensuite à toutes les profondeurs plus grandes (il n'existe pas de maximum). Exemple : 25 → absent de 1 à 24 m, possible dès 25 m.</small></div>
+          <div class="bk-field"><label><span>Poids d'apparition <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-weight" aria-label="Aide">ⓘ</button></span><input id="bk-weight" type="number" min="0.001" step="any"></label><small id="bk-h-weight" class="bk-hint" hidden>Fréquence relative. À une profondeur donnée, probabilité = poids du bloc ÷ somme des poids de tous les blocs disponibles à cette profondeur. Exemple : poids 5 parmi des blocs totalisant 100 → 5 %. Ajouter un bloc fait baisser la part de tous les autres.</small></div>
+          <div class="bk-field"><label><span>Atténué au-delà de (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-fade" aria-label="Aide">ⓘ</button></span><input id="bk-fade-from" type="number" min="1" placeholder="jamais"></label><small id="bk-h-fade" class="bk-hint" hidden>Facultatif. Au-delà de cette profondeur, le bloc utilise le « poids atténué » au lieu du poids normal : il devient rare en profondeur sans disparaître. Exemple : terre, atténuée au-delà de 50 m avec un poids 0,5 au lieu de 40. Vide = jamais atténué.</small></div>
+          <div class="bk-field"><label><span>Poids atténué (&gt; 0, &lt; poids) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-fadew" aria-label="Aide">ⓘ</button></span><input id="bk-fade-weight" type="number" min="0.001" step="any"></label><small id="bk-h-fadew" class="bk-hint" hidden>Poids utilisé au-delà de la profondeur d'atténuation. Obligatoire si une profondeur d'atténuation est saisie ; doit être plus petit que le poids normal et supérieur à 0.</small></div>
+        </div>
+        <div id="bk-eff" class="bk-eff" aria-live="polite"></div>
+      </fieldset>
+
+      <fieldset class="bk-sec"><legend>Récompenses et gemmes</legend>
+        <div class="bk-grid">
+          <div class="bk-field"><label><span>PV de base <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-hp" aria-label="Aide">ⓘ</button></span><input id="bk-hp" type="number" min="1"></label><small id="bk-h-hp" class="bk-hint" hidden>Points de vie à 1 m. Le jeu les multiplie par 1 + 0,12 × (profondeur − 1). Exemple : 100 PV de base → 100 PV à 1 m, 1 288 PV à 100 m.</small></div>
+          <div class="bk-field"><label><span>Récompense de base (pièces) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-reward" aria-label="Aide">ⓘ</button></span><input id="bk-reward" type="number" min="0"></label><small id="bk-h-reward" class="bk-hint" hidden>Pièces gagnées en cassant le bloc à 1 m. Le jeu les multiplie par 1 + 0,05 × (profondeur − 1), avant les bonus du joueur. Exemple : 20 → 20 pièces à 1 m, 119 à 100 m.</small></div>
+          <div class="bk-field"><label class="bk-check"><input type="checkbox" id="bk-gem-reward" checked> Rapporte 1 gemme à chaque bloc cassé</label><small id="bk-gem-note" class="bk-hint-static"></small></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="bk-sec"><legend>Visuel</legend>
+        <div class="bk-visual-row">
+          <div class="bk-preview-col">
+            <div id="bk-preview" class="bk-thumb"></div>
+            <small id="bk-preview-src" class="bk-src"></small>
+          </div>
+          <div id="bk-sheet-art" class="bk-sheet-art">
+            <p id="bk-sheet-art-text"></p>
+            <button type="button" class="btn" id="btn-bk-studio">🎨 Ouvrir dans l'atelier d'icônes</button>
+          </div>
+        </div>
+        <small class="muted">Priorité d'affichage en jeu : 1. image personnalisée du catalogue (options avancées) ; 2. icône de la bibliothèque validée (v1) ; 3. l'emoji, seulement en secours si aucune image n'existe ou ne se charge.</small>
+      </fieldset>
+
+      <details class="bk-sec bk-adv"><summary>Options avancées (emoji de secours, image, couleurs, activation)</summary>
+        <div class="bk-grid">
+          <div class="bk-field"><label><span>Emoji de secours <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-icon" aria-label="Aide">ⓘ</button></span><input id="bk-icon" type="text" maxlength="8"></label><small id="bk-h-icon" class="bk-hint" hidden>Affiché seulement si aucune image (personnalisée ou bibliothèque validée) n'est disponible ou ne se charge pas. Obligatoire comme filet de sécurité.</small></div>
+          <div class="bk-field"><label><span>Image personnalisée (facultatif) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-image" aria-label="Aide">ⓘ</button></span><input id="bk-image" type="text" maxlength="200"></label><small id="bk-h-image" class="bk-hint" hidden>Chemin /assets/….webp|png|svg ou /media/blocks/….webp. Prioritaire sur la bibliothèque v1. Normalement rempli par l'atelier d'icônes, pas à la main.</small></div>
+          <div class="bk-field"><label>Couleur de fond (#… ou linear-gradient)<input id="bk-color" type="text" maxlength="80"></label></div>
+          <div class="bk-field"><label>Accent / bordure (#…)<input id="bk-accent" type="text" maxlength="9"></label></div>
+          <div class="bk-field"><label class="bk-check"><input type="checkbox" id="bk-active" checked> Actif (peut apparaître)</label><small class="bk-hint-static">Désactiver un bloc publié l'empêche d'apparaître à nouveau ; les sauvegardes qui le contiennent restent valides.</small></div>
+        </div>
+      </details>
+
+      <div class="form-actions bk-sheet-actions">
         <button class="btn" id="btn-bk-save">Enregistrer dans le brouillon</button>
-        <button class="btn btn-ghost" id="btn-bk-remove">Retirer du brouillon (jamais publié)</button>
+        <span id="bk-dirty" class="bk-dirty hidden">● modifications non enregistrées</span>
       </div>
       <p id="bk-form-msg" class="hidden"></p>
-      <p class="muted" style="font-size:0.75rem">L'ouverture de la fiche ne modifie rien. « Enregistrer dans le brouillon » ne change rien pour les joueurs : la mise en jeu se fait par « Publier » (section Brouillon et publication).</p>
+      <p class="muted" style="font-size:0.75rem">L'ouverture de la fiche ne modifie rien. « Enregistrer dans le brouillon » ne change rien pour les joueurs : la mise en jeu se fait par « Publier » (section Brouillon et publication, sous la liste).</p>
+    </dialog>
+
+    <dialog id="bk-leave-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="bk-leave-title">
+      <h3 class="overview-card-title" id="bk-leave-title">Modifications non enregistrées</h3>
+      <p id="bk-leave-text">Des valeurs de cette fiche ont été modifiées et ne sont pas enregistrées dans le brouillon.</p>
+      <div class="form-actions">
+        <button type="button" class="btn" id="btn-bk-leave-stay">Continuer à modifier</button>
+        <button type="button" class="btn btn-danger" id="btn-bk-leave-go">Abandonner les modifications</button>
+      </div>
     </dialog>
 
     <div class="overview-card">

@@ -611,6 +611,44 @@ function discardProposal(id) {
   conn().prepare("UPDATE block_ai_proposals SET status = 'discarded', updated_at = datetime('now') WHERE id = ?").run(id);
 }
 
+/**
+ * Traductions manquantes d'un bloc (recette du 02/11) : PROPOSITION seulement, rien n'est
+ * enregistré ; le panel remplit les champs vides et l'admin relit avant « Enregistrer ». Seules les
+ * langues demandées (`langs`, sans le FR) sont rendues ; contrôles : nom non vide, ≤ 40 caractères,
+ * pas de recopie du FR (avertissement). Même garde-fous que les autres appels (budget, quota).
+ */
+async function translateNames({ id, names, category, langs } = {}) {
+  const fr = _clean(names?.fr, 40);
+  if (!fr) throw new AiError(400, 'Nom FR requis pour traduire.');
+  const want = [...new Set((Array.isArray(langs) ? langs : []).filter(l => l !== 'fr' && LANGS.includes(l)))];
+  if (!want.length) throw new AiError(400, 'Aucune langue à traduire.');
+  const known = LANGS.filter(l => l !== 'fr' && _clean(names?.[l], 40)).map(l => `${LANG_LABELS[l]}: ${_clean(names[l], 40)}`);
+  const schema = { type: 'object', additionalProperties: false, required: want,
+    properties: Object.fromEntries(want.map(l => [l, { type: 'string' }])) };
+  const messages = [
+    { role: 'system', content: [
+      'You translate block names for DIG!, an idle clicker mining game (blocks of earth, stone, ore, chests, gems).',
+      'Return ONLY the JSON object requested: one short name (max 30 chars) per requested language.',
+      'Each name must be the genuine term native speakers use (mining/mineralogy terminology), never the French word copied unless that is truly correct.',
+      'Keep terminology consistent with the existing catalogue (e.g. "Minerai de X" / "X ore" / "X-erts" / "Mineral de X").',
+    ].join('\n') },
+    { role: 'user', content: `Block id: ${_clean(id, 40)}\nCategory: ${_clean(category, 20)}\nFrench name: ${fr}\n`
+      + (known.length ? `Existing translations: ${known.join('; ')}\n` : '')
+      + `Translate into: ${want.map(l => `${l} (${LANG_LABELS[l]})`).join(', ')}.` },
+  ];
+  const out = await guardedJson({ kind: 'block-translate', source: 'admin-blocks', name: 'dig_block_names', schema, messages,
+    fake: () => Object.fromEntries(want.map(l => [l, ({ en: 'Lunar basalt', nl: 'Maanbasalt', es: 'Basalto lunar' })[l] ?? fr])) });
+  const proposal = {};
+  const warnings = [];
+  for (const l of want) {
+    const v = _clean(out.data?.[l], 40);
+    if (!v) { warnings.push(`Nom ${l.toUpperCase()} non proposé : à saisir.`); continue; }
+    if (v.toLowerCase() === fr.toLowerCase()) warnings.push(`Nom ${l.toUpperCase()} identique au français : à vérifier.`);
+    proposal[l] = v;
+  }
+  return { names: proposal, warnings };
+}
+
 function listCalls(limit = 50) {
   return conn().prepare('SELECT id, created_at, proposal_id, kind, model, ok, error, cost_usd, cost_basis, duration_ms FROM block_ai_calls ORDER BY id DESC LIMIT ?')
     .all(limit).map(c => ({ ...c, ok: !!c.ok }));
@@ -619,4 +657,5 @@ function listCalls(limit = 50) {
 module.exports = {
   AiError, IMAGE_URL_RE, init, status, setFakeTransport, createProposal, regenerate, updateProposal, addToDraft,
   discardProposal, getProposal, listProposals, listCalls, impact, getImage, nameWarnings, waitImage, guardedJson, precheckText,
+  translateNames,
 };

@@ -545,7 +545,42 @@ function upsertDraftType(input) {
     if (i >= 0) draft.types[i] = t; else draft.types.push(t);
     _saveDraft(draft.types, draft.basedOn);
     _audit(i >= 0 ? 'draft_update' : 'draft_add', null, { id: t.id, changes: before ? diff([before], [t])[0]?.fields ?? [] : null });
+    _dropIfClean();
     return t;
+  })();
+}
+
+/**
+ * Brouillon identique à la version en vigueur (même base, aucun écart) : supprimé, pour qu'il ne
+ * soit pas présenté comme un changement en attente (recette du 02/11). Rend true s'il l'a été.
+ */
+function _dropIfClean() {
+  const draft = getDraft();
+  const current = getPublished();
+  if (!draft || draft.basedOn !== current.version || draft.types.length !== current.types.length) return false;
+  if (diff(current.types, draft.types).length) return false;
+  conn().prepare('DELETE FROM block_catalog_draft WHERE id = 1').run();
+  _audit('draft_clean', null, null);
+  return true;
+}
+
+/**
+ * Annule les modifications d'UN bloc publié : il reprend dans le brouillon son contenu de la
+ * version en vigueur ; les autres blocs du brouillon ne bougent pas, rien n'est publié. Un bloc
+ * jamais publié se retire avec removeDraftType. Rend { type, draftDropped }.
+ */
+function revertDraftType(id) {
+  return conn().transaction(() => {
+    const draft = getDraft();
+    const pub = getPublished().types.find(t => t.id === id);
+    if (!pub) throw new CatalogError(409, `« ${id} » n'est pas dans la version en vigueur : retirez-le du brouillon.`);
+    const i = draft ? draft.types.findIndex(t => t.id === id) : -1;
+    if (i < 0 || !diff([pub], [draft.types[i]]).length) throw new CatalogError(409, `« ${id} » n'a aucune modification dans le brouillon.`);
+    const before = draft.types[i];
+    draft.types[i] = pub;
+    _saveDraft(draft.types, draft.basedOn);
+    _audit('draft_revert', null, { id, changes: diff([before], [pub])[0]?.fields ?? [] });
+    return { type: pub, draftDropped: _dropIfClean() };
   })();
 }
 
@@ -557,6 +592,7 @@ function removeDraftType(id) {
     if (!draft || !draft.types.some(t => t.id === id)) throw new CatalogError(404, 'Type absent du brouillon.');
     _saveDraft(draft.types.filter(t => t.id !== id), draft.basedOn);
     _audit('draft_remove', null, { id });
+    _dropIfClean();
   })();
 }
 
@@ -626,9 +662,13 @@ function buildAdminView() {
   const published = getPublished();
   const draft = getDraft();
   const validation = draft ? validateCatalog(draft.types) : null;
+  const changes = draft ? diff(published.types, validation.types) : [];
+  // Brouillon identique à la version en vigueur (ex. valeur remise à la main avant ce correctif) :
+  // présenté comme « aucun brouillon », sans écriture lors d'une simple consultation.
+  const pending = draft && (changes.length || draft.basedOn !== published.version || draft.types.length !== published.types.length);
   return {
     published,
-    draft: draft && { ...draft, errors: validation.errors, warnings: validation.warnings, changes: diff(published.types, validation.types) },
+    draft: pending ? { ...draft, errors: validation.errors, warnings: validation.warnings, changes } : null,
     publishedIds: [...publishedIds()],
     legacyIds: originTypes().map(t => t.id),
     versions: listVersions(),
@@ -643,5 +683,5 @@ module.exports = {
   init, originTypes, liftLegacyBound, getPublished, getVersion, getDraft, listVersions, publicCatalog, publishedIds,
   STEP_B_TYPES, SURFACE_FADE, CONTENT_MIGRATIONS,
   normalizeType, validateCatalog, odds, weightAt, simulate, diff, minHpSegments, refreshAntibot,
-  upsertDraftType, removeDraftType, discardDraft, publishDraft, rollbackTo, listAudit, buildAdminView,
+  upsertDraftType, revertDraftType, removeDraftType, discardDraft, publishDraft, rollbackTo, listAudit, buildAdminView,
 };
