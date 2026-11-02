@@ -1,0 +1,127 @@
+{
+  "pack": "objets_trouves_legende_v1",
+  "concept": "Collection préparée (directive éditoriale du 02/11) : le bureau des objets trouvés de la légende — folklore, chanson, BD, cinéma, sketch et histoire, un clin d'œil différent par objet.",
+  "series": {
+    "id": "objets_trouves_legende",
+    "names": {
+      "fr": "Les Objets trouvés de la Légende",
+      "en": "The Legendary Lost & Found",
+      "nl": "Gevonden voorwerpen van de Legende",
+      "es": "Objetos perdidos de la Leyenda"
+    },
+    "icon": "🧳",
+    "theme": "Le bureau des objets trouvés de l'Histoire et du folklore : des objets égarés par des rois de chanson, des carnavaliers, des chevaliers de cinéma ou des bricoleurs trop passionnés, déterrés couche après couche."
+  },
+  "items": [
+    {
+      "id": "orange_gille",
+      "rarity": "commun",
+      "icon": "🍊",
+      "reference": "Folklore belge : au carnaval de Binche, les Gilles lancent des oranges à la foule.",
+      "names": { "fr": "L'orange perdue d'un Gille", "en": "A Gille's lost orange", "nl": "De verloren sinaasappel van een Gille", "es": "La naranja perdida de un Gille" },
+      "stories": {
+        "fr": "Au carnaval de Binche, les Gilles lancent des oranges à la foule. Celle-ci a visiblement raté sa cible… de quelques mètres de profondeur. Elle sent encore le Mardi gras et refuse catégoriquement d'être pressée.",
+        "en": "At the Binche carnival in Belgium, the Gilles throw oranges into the crowd. This one clearly missed its target… by a few metres of depth. It still smells of Shrove Tuesday and flatly refuses to be squeezed.",
+        "nl": "Op het carnaval van Binche gooien de Gilles sinaasappels naar het publiek. Deze heeft zijn doel duidelijk gemist… met een paar meter diepte. Hij ruikt nog naar Vastenavond en weigert pertinent om geperst te worden.",
+        "es": "En el carnaval de Binche, en Bélgica, los Gilles lanzan naranjas al público. Esta falló claramente el blanco… por unos cuantos metros de profundidad. Todavía huele a Martes de Carnaval y se niega en redondo a ser exprimida."
+      },
+      "image": {
+        "subject": "A single round orange fruit thrown at a Belgian carnival",
+        "details": "Glossy dimpled orange peel with one small flattened dent on its side from a hard landing, a short stem with two green leaves, a few crumbs of brown soil stuck to the bottom, slightly tilted as if it just rolled in.",
+        "palette": "Palette: bright tangerine orange, leaf green, warm brown soil accents."
+      }
+    },
+    {
+      "id": "culotte_dagobert",
+      "rarity": "commun",
+      "icon": "🩲",
+      "reference": "Chanson enfantine française « Le bon roi Dagobert » (culotte mise à l'envers, remarque de saint Éloi).",
+      "names": { "fr": "La culotte du roi Dagobert", "en": "King Dagobert's breeches", "nl": "De broek van koning Dagobert", "es": "Los calzones del rey Dagoberto" },
+      "stories": {
+        "fr": "Selon la célèbre chanson, le bon roi Dagobert mit un jour sa culotte à l'envers. Celle-ci porte deux étiquettes, une de chaque côté : quelqu'un a manifestement voulu éviter que l'incident se reproduise.",
+        "en": "According to the famous French nursery song, good King Dagobert once put his breeches on inside out. This pair has two labels, one on each side: someone clearly wanted to make sure it never happened again.",
+        "nl": "Volgens het bekende Franse kinderliedje trok de goede koning Dagobert ooit zijn broek binnenstebuiten aan. Deze broek heeft twee labels, aan elke kant één: iemand wilde duidelijk voorkomen dat het nog eens gebeurde.",
+        "es": "Según la famosa canción infantil francesa, el buen rey Dagoberto se puso un día los calzones del revés. Estos llevan dos etiquetas, una a cada lado: alguien quiso asegurarse de que no volviera a pasar."
+      },
+      "image": {
+        "subject": "A pair of baggy medieval royal breeches",
+        "details": "Puffy knee-length breeches in crimson velvet with gold trim at the cuffs, a tiny embroidered gold crown on the waistband, one blank white fabric label stitched on the outside, a drawstring belt with two tassels.",
+        "palette": "Palette: crimson red velvet, gold trim, cream white label."
+      }
+    },
+    {
+      "id": "menhir_de_poche",
+      "rarity": "rare",
+      "icon": "🪨",
+      "reference": "Bande dessinée et cinéma : évocation du livreur de menhirs gaulois (aucun personnage ni dessin repris).",
+      "names": { "fr": "Le menhir de poche", "en": "The pocket menhir", "nl": "De zakmenhir", "es": "El menhir de bolsillo" },
+      "stories": {
+        "fr": "On raconte qu'un tailleur de menhirs gaulois, lassé des livraisons trop lourdes, inventa ce modèle de voyage. Il tient dans une poche… à condition d'avoir une poche très, très solide.",
+        "en": "Legend has it that a Gaulish menhir maker, tired of back-breaking deliveries, invented this travel-sized model. It fits in a pocket… as long as the pocket is very, very sturdy.",
+        "nl": "Men zegt dat een Gallische menhirhouwer, moe van loodzware leveringen, dit reismodel uitvond. Het past in je zak… als die zak tenminste heel, heel stevig is.",
+        "es": "Cuentan que un tallador de menhires galo, harto de entregas agotadoras, inventó este modelo de viaje. Cabe en un bolsillo… siempre que el bolsillo sea muy, muy resistente."
+      },
+      "image": {
+        "subject": "A small upright standing stone (menhir) with a leather carrying strap",
+        "details": "Tall narrow grey granite stone with a rough chiselled surface and a few lichen speckles, tapered rounded top, a brown leather strap with a brass buckle wrapped around its middle like a suitcase handle.",
+        "palette": "Palette: cool granite grey, lichen green speckles, saddle brown leather, brass buckle."
+      }
+    },
+    {
+      "id": "noix_coco_chevalier",
+      "rarity": "rare",
+      "icon": "🥥",
+      "reference": "Cinéma et sketch : parodie britannique des chevaliers de la Table ronde qui imitent le galop avec deux demi-noix de coco (évocation, aucun personnage).",
+      "names": { "fr": "Les noix de coco du chevalier", "en": "The knight's coconuts", "nl": "De kokosnoten van de ridder", "es": "Los cocos del caballero" },
+      "stories": {
+        "fr": "Faute de cheval, un chevalier aurait traversé tout un royaume en entrechoquant ces deux demi-noix de coco : tagada, tagada. Personne n'a jamais osé lui demander d'où venaient des noix de coco en pleine Angleterre.",
+        "en": "With no horse to ride, a knight is said to have crossed an entire kingdom clapping these two coconut halves together: clip-clop, clip-clop. Nobody ever dared ask where coconuts came from in the middle of England.",
+        "nl": "Zonder paard zou een ridder een heel koninkrijk zijn doorgetrokken terwijl hij deze twee kokosnoothelften tegen elkaar klapte: klipklop, klipklop. Niemand durfde ooit te vragen waar die kokosnoten in hartje Engeland vandaan kwamen.",
+        "es": "Sin caballo que montar, dicen que un caballero cruzó todo un reino entrechocando estas dos mitades de coco: cataclop, cataclop. Nadie se atrevió nunca a preguntarle de dónde salían unos cocos en plena Inglaterra."
+      },
+      "image": {
+        "subject": "Two coconut half-shells tied together with a cord",
+        "details": "Two hairy brown coconut halves with slightly chipped rims and white flesh visible inside, one shell upright and the other tilted against it, joined by a short braided red cord with a small iron horseshoe charm dangling from it.",
+        "palette": "Palette: hairy coconut brown, creamy white flesh, braided red cord, iron grey horseshoe."
+      }
+    },
+    {
+      "id": "vase_soissons",
+      "rarity": "epique",
+      "icon": "🏺",
+      "reference": "Histoire de France : l'anecdote du vase de Soissons (Clovis, rapportée par Grégoire de Tours ; « Souviens-toi du vase de Soissons »).",
+      "names": { "fr": "Le vase de Soissons, recollé", "en": "The Soissons vase, glued back", "nl": "De vaas van Soissons, gelijmd", "es": "El jarrón de Soissons, pegado" },
+      "stories": {
+        "fr": "Selon une célèbre anecdote de l'histoire de France, un guerrier brisa ce vase sous les yeux de Clovis, qui ne l'oublia jamais. Quelqu'un l'a patiemment recollé depuis. On voit encore une empreinte de doigt dans la colle : souviens-toi du vase de Soissons !",
+        "en": "According to a famous tale from French history, a warrior smashed this vase in front of King Clovis, who never forgot it. Someone has patiently glued it back together since. A fingerprint is still visible in the glue: remember the vase of Soissons!",
+        "nl": "Volgens een beroemde anekdote uit de Franse geschiedenis sloeg een krijger deze vaas kapot onder de ogen van koning Clovis, die het nooit vergat. Iemand heeft hem sindsdien geduldig gelijmd. In de lijm zit nog een vingerafdruk: denk aan de vaas van Soissons!",
+        "es": "Según una célebre anécdota de la historia de Francia, un guerrero rompió este jarrón ante el rey Clodoveo, que nunca lo olvidó. Desde entonces, alguien lo ha pegado con paciencia. Aún se ve una huella dactilar en el pegamento: ¡recuerda el jarrón de Soissons!"
+      },
+      "image": {
+        "subject": "An ornate antique vase visibly repaired after being smashed",
+        "details": "Tall bulbous vase with two curved handles and a narrow neck, tarnished silver body engraved with simple leaf patterns, a network of shiny gold glue lines where the pieces were joined, one small chip missing near the rim, a single beige sticking plaster across one crack.",
+        "palette": "Palette: tarnished silver, bright gold repair lines, small beige plaster accent."
+      }
+    },
+    {
+      "id": "tour_eiffel_allumettes",
+      "rarity": "legendaire",
+      "icon": "🗼",
+      "reference": "Cinéma français : clin d'œil à la comédie du « dîner » dont l'invité passionné construit des maquettes en allumettes (évocation, aucun personnage ni visuel repris).",
+      "names": { "fr": "La tour Eiffel en allumettes", "en": "The matchstick Eiffel Tower", "nl": "De Eiffeltoren van lucifers", "es": "La torre Eiffel de cerillas" },
+      "stories": {
+        "fr": "Son auteur, un passionné de maquettes, y aurait consacré des milliers d'allumettes et presque autant de soirées. Il voulait la montrer à un dîner ; le dîner a mal tourné, la tour a survécu. Interdiction formelle d'en approcher un briquet.",
+        "en": "Its maker, a model-building enthusiast, reportedly spent thousands of matchsticks and almost as many evenings on it. He wanted to show it off at a dinner party; the dinner went wrong, the tower survived. Lighters strictly forbidden nearby.",
+        "nl": "De maker, een fervente maquettebouwer, zou er duizenden lucifers en bijna evenveel avonden aan hebben besteed. Hij wilde hem tonen op een etentje; het etentje liep slecht af, de toren overleefde. Aanstekers ten strengste verboden in de buurt.",
+        "es": "Su autor, un apasionado de las maquetas, le habría dedicado miles de cerillas y casi otras tantas noches. Quería enseñarla en una cena; la cena salió fatal, la torre sobrevivió. Prohibido terminantemente acercarle un mechero."
+      },
+      "image": {
+        "subject": "A miniature Eiffel Tower model built entirely from matchsticks",
+        "details": "Recognisable tapering four-legged lattice tower silhouette made of hundreds of tiny glued wooden matchsticks, red match heads visible at the joints, a slightly crooked top antenna, small drops of dried glue, standing on a square dark wooden base.",
+        "palette": "Palette: pale pine wood, red match heads, honey-coloured glue, dark wooden base."
+      }
+    }
+  ],
+  "rationale": "Six clins d'œil de sources différentes, tous ancrés dans quelque chose de réel ou de célèbre ; raretés selon le barème proposé (2 communs, 2 rares, 1 épique, 1 légendaire).",
+  "review": "Variété : folklore belge, chanson enfantine, BD évoquée, parodie de cinéma britannique, anecdote d'histoire de France, comédie française — six silhouettes distinctes (fruit, culotte, pierre dressée, demi-coques, vase, tour). Faits réels (Gilles de Binche, chanson de Dagobert, anecdote de Soissons) présentés comme chanson, anecdote ou légende ; blagues au conditionnel ou sous « on raconte ». Œuvres protégées seulement évoquées : aucun nom de personnage, aucun visuel de film. À surveiller : la tour Eiffel doit rester lisible en petit ; « Gille » (sans s) est l'orthographe locale du singulier."
+}

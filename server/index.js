@@ -1728,6 +1728,8 @@ blockAi.init();                  // création de blocs assistée par IA : propos
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
 collectionAi.init();             // propositions de collections assistées par IA (#39)
+// Collections préparées (server/content/collections) → brouillon, une seule fois (#39) ; pas en test (bases neuves)
+if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_COLLECTIONS !== '0') collectionAi.importPrepared();
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
