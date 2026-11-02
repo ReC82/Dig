@@ -170,8 +170,12 @@ function createMailer(env = process.env) {
     fs.mkdirSync(dir, { recursive: true });
     let n = 0;
     deliver = async (msg) => {
-      const file = path.join(dir, `${Date.now()}-${process.pid}-${++n}.json`);
-      fs.writeFileSync(file, JSON.stringify({ ...msg, from: from || 'dig@localhost' }));
+      const name = `${Date.now()}-${process.pid}-${++n}.json`;
+      // Écriture atomique : fichier temporaire caché puis renommage, pour qu'un
+      // lecteur ne voie jamais un message à moitié écrit.
+      const tmp = path.join(dir, `.${name}.tmp`);
+      fs.writeFileSync(tmp, JSON.stringify({ ...msg, from: from || 'dig@localhost' }));
+      fs.renameSync(tmp, path.join(dir, name));
     };
   } else if (mode === 'smtp') {
     if (!smtpHost) return disabled('SMTP_HOST manquant');
