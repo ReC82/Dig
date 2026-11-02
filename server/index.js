@@ -1216,6 +1216,17 @@ app.post('/api/admin/icons/targets/:key/generate', requireAdmin, limit.icons, ic
     // Version du panel qui envoie la demande (en-tête) et fiche visée (corps) : refus d'un onglet obsolète
     client: { build: req.get('x-dig-admin-build') ?? null, target: req.body?.target ?? null } }) })));
 
+// Collection entière (demande du 02/11) : une image par objet sans image, enchaînées en arrière-plan.
+app.get('/api/admin/icons/series/:id', requireAdmin, iconRoute('GET /api/admin/icons/series/:id',
+  req => ({ plan: iconStudio.seriesPlan(String(req.params.id)) })));
+
+app.post('/api/admin/icons/series/:id/generate', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/series/:id/generate',
+  req => ({ job: iconStudio.generateSeries(String(req.params.id), {
+    client: { build: req.get('x-dig-admin-build') ?? null, target: req.body?.target ?? null } }) })));
+
+app.post('/api/admin/icons/job/cancel', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/job/cancel',
+  () => ({ job: iconStudio.cancelJob() })));
+
 app.get('/api/admin/icons/targets/:key', requireAdmin, iconRoute('GET /api/admin/icons/targets/:key',
   req => ({ target: iconStudio.getTarget(String(req.params.key)) })));
 

@@ -61,6 +61,11 @@ const UI_TARGETS = [
   { id: 'saison', emoji: '🏆', name: 'Saison / classement', subject: 'A golden trophy cup', details: 'Two-handled cup on a short base, faceted gold.', palette: 'Palette: rich gold with warm highlights.' },
 ];
 
+// v1.2 : identité du catalogue en tête ; v1.3 : forme réelle de l'objet imposée (gabarit et consigne par défaut)
+const PROMPT_VERSION = 'v1.3';
+// Contrôle du sujet : appel texte (vision) peu coûteux, réservé avant chaque image d'objet ou de badge
+const CHECK_EST_USD = 0.01;
+
 const KIND_LABELS = { block: 'Bloc', item: 'Objet / relique', badge: 'Badge', ui: 'Interface' };
 
 class StudioError extends Error {
@@ -178,7 +183,8 @@ function _globalSpent() {
 }
 
 function _imagesToday() {
-  return conn().prepare("SELECT COUNT(*) n FROM icon_studio_calls WHERE created_at >= datetime('now', '-1 day')").get().n;
+  // Les contrôles du sujet (appels texte, cible « check:… ») ne sont pas des images
+  return conn().prepare("SELECT COUNT(*) n FROM icon_studio_calls WHERE created_at >= datetime('now', '-1 day') AND target NOT LIKE 'check:%'").get().n;
 }
 
 /** Budgets : global (configuration, partagé #22/#37) et propre à l'atelier (panel). Jamais de secret. */
@@ -266,8 +272,12 @@ function _defaultBrief(kind, src) {
     const what = { coffre: 'small closed treasure chest', gemme: 'raw faceted gemstone', minerai: 'irregular chunk of ore', terre: 'irregular clump', pierre: 'irregular rock' }[src.category] ?? 'game resource';
     return { subject: `A single ${en.toLowerCase()} (${what})`, details: `Same silhouette scale as the reference stone; material clearly recognisable as ${en.toLowerCase()}.`, palette: '' };
   }
+  // Prompt v1.3 (recette réelle du 02/11 : « a single golden token collectible » + « found wedged under a
+  // rounded stone » a donné une pépite facettée) : le sujet est l'objet seul, l'histoire ne donne que
+  // l'usure et l'ambiance, jamais un autre objet à dessiner.
   const story = String(src.stories?.en ?? '').slice(0, 220);
-  return { subject: `A single ${en.toLowerCase()} collectible`, details: story ? `Inspired by its story: ${story}` : 'Precious collectible object found while digging.', palette: '' };
+  return { subject: `A single ${en.toLowerCase()}, shown with its usual real-world shape`,
+    details: story ? `Its story only suggests wear and mood (draw nothing else it mentions): ${story}` : 'Precious collectible object found while digging.', palette: '' };
 }
 
 /** Icône verrouillée : validée en v1 (#22) ou validée dans l'atelier. */
@@ -553,16 +563,16 @@ function setBrief(key, input = {}) {
   return _briefFor(t);
 }
 
-function _checkBudget(images) {
+function _checkBudget(images, extraUsd = 0) {
   if (_imagesToday() + images > MAX_IMAGES_PER_DAY) {
     throw new StudioError(429, `Quota : ${MAX_IMAGES_PER_DAY} images par 24 h (${_imagesToday()} déjà générées).`);
   }
   let cfg;
   try { cfg = config(); } catch (err) { throw new StudioError(503, `API d'images non configurée : ${oa().redact(String(err.message).replace(os.homedir(), '~'))}`); }
   const b = budget(cfg);
-  const planned = images * cfg.estCostUsd;
+  const planned = images * cfg.estCostUsd + extraUsd;
   if (planned > b.remainingUsd + 1e-9) {
-    throw new StudioError(402, `Plafond de dépense IA atteint : une image coûte environ ${planned.toFixed(2)} USD, il reste ${b.remainingUsd.toFixed(2)} USD. `
+    throw new StudioError(402, `Plafond de dépense IA atteint : une image (et son contrôle) coûte au plus ${planned.toFixed(2)} USD selon l'estimation configurée, il reste ${b.remainingUsd.toFixed(2)} USD. `
       + (b.limitedBy === 'studio'
         ? `Pour continuer, relevez la limite de l'atelier dans ⚙ Config → Budget IA (${b.studioSpentUsd.toFixed(2)} / ${b.studioCapUsd} USD).`
         : `Pour continuer, relevez le plafond du serveur (${b.globalSpentUsd.toFixed(2)} / ${b.globalCapUsd} USD) : DIG_IMAGE_BUDGET_USD dans ~/.config/dig/openai.env, pris en compte sans redémarrage.`));
@@ -570,18 +580,18 @@ function _checkBudget(images) {
   return { cfg, planned };
 }
 
-function _logCall({ target, model, ok, error = null, cost, durationMs, usage = null }) {
+function _logCall({ target, model, ok, error = null, cost, durationMs, usage = null, ledger = true }) {
   conn().prepare(`INSERT INTO icon_studio_calls (target, model, ok, error, cost_usd, cost_basis, duration_ms, usage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(target, model ?? null, ok ? 1 : 0, error, cost.cost_usd, cost.basis, durationMs, usage ? JSON.stringify(usage) : null);
-  if (!_fake) {
+  if (!_fake && ledger) {
     oa().appendLedger({ at: new Date().toISOString(), source: 'admin-icons', target, model, ok, error: error ?? undefined,
       cost_usd: cost.cost_usd, cost_basis: cost.basis, duration_ms: durationMs, usage: usage ?? undefined });
   }
 }
 
 /** Un appel image + contrôles + stockage. Rend { sha } ou lève. Toujours journalisé. */
-async function _generateOne(t, brief, { instruction = '', basedOn = null, acknowledged } = {}) {
-  const { cfg } = _checkBudget(1);
+async function _generateOne(t, brief, { instruction = '', basedOn = null, acknowledged, batch = null } = {}) {
+  const { cfg } = _checkBudget(1, _identity(t) ? _checkEst() : 0);
   const identity = _identity(t);
   const prompt = buildPrompt(t.kind, brief, instruction, identity);
   const started = Date.now();
@@ -604,15 +614,90 @@ async function _generateOne(t, brief, { instruction = '', basedOn = null, acknow
   // L'image a été facturée : l'appel est journalisé avec son coût, même si les contrôles la refusent.
   _logCall({ target: t.key, model, ok: true, cost, durationMs: Date.now() - started, usage });
   const done = await _process(png);
-  const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : identity ? 'v1.2' : 'v1.1', identity,
+  const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : identity ? PROMPT_VERSION : 'v1.1', identity,
     brief: { subject: brief.subject, details: brief.details, palette: brief.palette, custom: !!brief.custom },
     model, params, reference: _reference() ? path.relative(ROOT, _reference()) : null, instruction: instruction || null, basedOn,
     ...(acknowledged ? { acknowledgedConflicts: acknowledged } : {}),
     costUsd: cost.cost_usd, costBasis: cost.basis,
     durationMs: Date.now() - started, checks: done.checks, masterSha256: done.masterSha256 };
   const { sha } = _store(t.key, 'ai', done.webp, meta);
-  _event(t.key, 'generated', sha, { costUsd: cost.cost_usd, ...(identity ? { identity: identity.name } : {}), ...(instruction ? { instruction } : {}), ...(basedOn ? { basedOn } : {}) });
-  return { sha, costUsd: cost.cost_usd };
+  _event(t.key, 'generated', sha, { costUsd: cost.cost_usd, ...(identity ? { identity: identity.name } : {}), ...(instruction ? { instruction } : {}), ...(basedOn ? { basedOn } : {}), ...(batch ? { batch } : {}) });
+  const check = identity ? await _checkSubject(t, sha, done.webp, brief) : null;
+  return { sha, costUsd: cost.cost_usd + (check?.costUsd ?? 0), imageUsd: cost.cost_usd, durationMs: Date.now() - started, check };
+}
+
+// ── Contrôle du sujet : l'image représente-t-elle l'objet demandé ? ──────────
+// Demande du propriétaire du 02/11 : réduire le temps d'intervention humaine. Chaque image d'objet ou de
+// badge est décrite par un modèle texte avec vision (≈ 0,002 USD) ; une image qui ne correspond pas est
+// signalée « à revoir ». Le contrôle n'empêche rien et ne décide rien : l'admin garde le dernier mot.
+
+const _checkEst = () => {
+  if (_fake) return 0;
+  try { return require('./blockAi').status().estTextUsd ?? CHECK_EST_USD; } catch (_) { return CHECK_EST_USD; }
+};
+
+const CHECK_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['seen', 'matches', 'confidence'],
+  properties: {
+    seen: { type: 'string', description: 'What the image shows, in a few English words.' },
+    matches: { type: 'boolean' },
+    confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+  },
+};
+
+async function _checkSubject(t, sha, webp, brief) {
+  const id = _identity(t);
+  const png = await require('sharp')(webp).png().toBuffer();
+  const messages = [
+    { role: 'system', content: 'You check icons for a mining video game. Judge only WHAT object is depicted, not the art style (stylized low-poly 3D facets are expected). '
+      + 'Be strict about the characteristic shape: the right colour or material with the wrong shape does not match (for example a round faceted lump is a nugget, not a token or coin, which is a flat disc).' },
+    { role: 'user', content: [
+      { type: 'text', text: `Requested object: "${id.name}"${id.fr ? ` (French name: "${id.fr}")` : ''}. Visual description given to the artist: ${String(brief.subject ?? '').slice(0, 300)}. `
+        + 'In seen, name the object a player would see and its overall shape, in a few words. '
+        + 'matches = true if a player would immediately name the main kind of object with its usual shape (pencil, token, lantern, key…); '
+        + 'ignore qualifiers such as worn, golden, miner\'s, pocket or ancient, and colours.' },
+      { type: 'image_url', image_url: { url: `data:image/png;base64,${png.toString('base64')}`, detail: 'low' } },
+    ] },
+  ];
+  const started = Date.now();
+  let out;
+  try {
+    if (_fake) {
+      const r = _fake.check ? await _fake.check({ target: t.key, identity: id }) : { seen: 'test image', matches: true, confidence: 'high' };
+      out = { data: r, model: 'fake-text', cost: { cost_usd: 0, basis: 'test' } };
+    } else {
+      out = await require('./blockAi').guardedJson({ kind: 'icon-subject-check', source: 'admin-icons', name: 'dig_icon_subject', schema: CHECK_SCHEMA, messages });
+    }
+  } catch (err) {
+    const error = oa().redact(String(err.message || err)).slice(0, 200);
+    _event(t.key, 'subject_check', sha, { error });
+    return { error, costUsd: 0 };
+  }
+  // Coût déjà inscrit au journal partagé par blockAi : compté ici dans le budget de l'atelier seulement
+  _logCall({ target: `check:${t.key}`, model: out.model, ok: true, cost: out.cost, durationMs: Date.now() - started, usage: out.usage ?? null, ledger: false });
+  const d = out.data ?? {};
+  const check = { matches: d.matches === true, seen: String(d.seen ?? '').slice(0, 160), confidence: ['high', 'medium', 'low'].includes(d.confidence) ? d.confidence : 'low',
+    model: out.model, costUsd: out.cost.cost_usd };
+  _event(t.key, 'subject_check', sha, check);
+  return check;
+}
+
+/** Contrôle du sujet d'une image existante (propositions antérieures au contrôle automatique). */
+async function checkAsset(key, sha) {
+  const t = _target(key);
+  if (!_identity(t)) throw new StudioError(400, 'Contrôle du sujet réservé aux objets et badges.');
+  const row = conn().prepare('SELECT bytes FROM icon_studio_assets WHERE sha = ? AND target = ?').get(String(sha), key);
+  if (!row) throw new StudioError(404, 'Image introuvable pour cette icône.');
+  return _checkSubject(t, row.sha ?? String(sha), row.bytes, _briefFor(t));
+}
+
+/** Dernier contrôle du sujet de chaque image d'une cible. */
+function _subjectChecks(key) {
+  const out = {};
+  for (const e of conn().prepare("SELECT asset_sha, details FROM icon_studio_events WHERE target = ? AND action = 'subject_check' ORDER BY id").all(key)) {
+    out[e.asset_sha] = JSON.parse(e.details);
+  }
+  return out;
 }
 
 /**
@@ -624,14 +709,8 @@ async function _generateOne(t, brief, { instruction = '', basedOn = null, acknow
 function generate(key, { instruction = '', basedOn = null, acknowledge = [], client = null } = {}) {
   // Panel HTTP : la page doit être celle de la version en ligne (un onglet ouvert avant un déploiement
   // garde l'ancien code du panel, recette du 02/11) et viser la fiche affichée.
-  if (client) {
-    if (client.build !== APP_VERSION) {
-      throw new StudioError(409, `Le panel affiché date d'une version précédente (${client.build || 'inconnue'} ; en ligne : ${APP_VERSION}). `
-        + 'Rechargez la page (F5) puis relancez : aucune image n\'a été générée, rien n\'a été dépensé.', { code: 'stale_client', version: APP_VERSION });
-    }
-    if (client.target !== key) throw new StudioError(409, 'La demande ne correspond pas à la fiche affichée : rien n\'a été généré. Rouvrez la fiche.', { code: 'target_mismatch' });
-  }
-  if (_job && _job.status === 'running') throw new StudioError(429, 'Une image est déjà en cours de génération : patientez.');
+  _assertClient(client, key);
+  _assertIdle();
   const t = _target(key);
   const consigne = _clean(instruction, INSTRUCTION_MAX);
   const from = basedOn ? _asset(key, String(basedOn)) : null;
@@ -640,15 +719,15 @@ function generate(key, { instruction = '', basedOn = null, acknowledge = [], cli
   const conflicts = _subjectConflicts(t, _subjectSources(consigne, brief));
   const blocking = conflicts.filter(c => c.strict || !ack.has(c.id));
   if (blocking.length) throw new StudioError(409, _conflictMessage(t, blocking), { code: 'subject_conflict', conflicts: blocking });
-  const { planned } = _checkBudget(1);
-  const job = { id: ++_jobSeq, status: 'running', target: key, name: t.current.name, startedAt: new Date().toISOString(), finishedAt: null,
+  const { planned } = _checkBudget(1, _identity(t) ? _checkEst() : 0);
+  const job = { id: ++_jobSeq, kind: 'single', status: 'running', target: key, name: t.current.name, startedAt: new Date().toISOString(), finishedAt: null,
     estimatedUsd: +planned.toFixed(4), spentUsd: 0, instruction: consigne || null, basedOn: from, result: null, error: null,
     identity: _identity(t), acknowledged: conflicts.length ? conflicts.map(c => c.term) : undefined };
   _job = job;
   job.promise = (async () => {
     try {
       const r = await _generateOne(t, brief, { instruction: consigne, basedOn: from, acknowledged: job.acknowledged });
-      job.result = { sha: r.sha, url: imageUrl(r.sha) };
+      job.result = { sha: r.sha, url: imageUrl(r.sha), check: r.check };
       job.spentUsd = r.costUsd;
       job.status = 'done';
     } catch (err) {
@@ -657,6 +736,116 @@ function generate(key, { instruction = '', basedOn = null, acknowledge = [], cli
     }
     job.finishedAt = new Date().toISOString();
   })();
+  return jobView();
+}
+
+function _assertIdle() {
+  if (_job && _job.status === 'running') {
+    throw new StudioError(429, _job.kind === 'series' ? `Génération de la collection « ${_job.name} » en cours : patientez ou arrêtez-la.` : 'Une image est déjà en cours de génération : patientez.');
+  }
+}
+
+function _assertClient(client, target) {
+  if (!client) return;
+  if (client.build !== APP_VERSION) {
+    throw new StudioError(409, `Le panel affiché date d'une version précédente (${client.build || 'inconnue'} ; en ligne : ${APP_VERSION}). `
+      + 'Rechargez la page (F5) puis relancez : aucune image n\'a été générée, rien n\'a été dépensé.', { code: 'stale_client', version: APP_VERSION });
+  }
+  if (client.target !== target) throw new StudioError(409, 'La demande ne correspond pas à la fiche affichée : rien n\'a été généré. Rouvrez la fiche.', { code: 'target_mismatch' });
+}
+
+// ── Collection entière : une image par objet, enchaînées (demande du 02/11) ──
+// Seuls les objets sans image utilisable sont générés ; chaque objet est contrôlé comme une génération
+// unitaire (conflit de sujet = ignoré sans dépense, plafond vérifié avant CHAQUE image, arrêt propre au
+// plafond, jamais relevé). L'admin ne corrige ensuite que les objets signalés.
+
+const _isV13 = v => typeof v === 'string' && /^v\d+\.\d+$/.test(v) && v.localeCompare(PROMPT_VERSION, undefined, { numeric: true }) >= 0;
+
+/** Raison de ne pas générer un objet de la collection (null = à générer). */
+function _seriesSkip(t) {
+  if (t.current.image) return { state: 'has_image', text: 'image déjà dans le brouillon' };
+  const statuses = _assetStatus(t.key), checks = _subjectChecks(t.key);
+  for (const a of conn().prepare('SELECT sha, source, meta FROM icon_studio_assets WHERE target = ?').all(t.key)) {
+    if (statuses[a.sha] === 'rejected') continue;
+    const meta = JSON.parse(a.meta);
+    if (_assetWarning(t, meta) || checks[a.sha]?.matches === false) continue;
+    // Une proposition de l'ancien prompt ne compte pas : elle reste visible dans la fiche
+    if (a.source === 'upload' || _isV13(meta.promptVersion)) return { state: 'has_proposal', text: 'proposition à examiner' };
+  }
+  const conflicts = _subjectConflicts(t, _subjectSources('', _briefFor(t)));
+  if (conflicts.length) return { state: 'conflict', text: _conflictMessage(t, conflicts) };
+  return null;
+}
+
+/** Plan d'une collection : objets à générer, objets ignorés (raison), coût estimé, budget. */
+function seriesPlan(seriesId) {
+  const c = _collectionContent();
+  const series = c.series.find(s => s.id === seriesId);
+  if (!series) throw new StudioError(404, 'Collection introuvable.');
+  const items = c.items.filter(i => i.seriesId === seriesId && i.active !== false).map(i => {
+    const t = _target(`item:${i.id}`);
+    const skip = _seriesSkip(t);
+    return { key: t.key, id: i.id, name: t.current.name, image: t.current.image, state: skip?.state ?? 'todo', reason: skip?.text ?? null };
+  });
+  const todo = items.filter(i => i.state === 'todo').length;
+  let cfg = null, b = null;
+  try { cfg = config(); b = budget(cfg); } catch (_) { /* API non configurée : signalé par status() */ }
+  const perImage = cfg ? cfg.estCostUsd + _checkEst() : null;
+  const avg = conn().prepare("SELECT AVG(cost_usd) c, AVG(duration_ms) d FROM (SELECT cost_usd, duration_ms FROM icon_studio_calls WHERE ok = 1 AND target NOT LIKE 'check:%' ORDER BY id DESC LIMIT 20)").get();
+  return { seriesId, name: series.names?.fr || seriesId, icon: series.icon, items, todo,
+    estPerImageUsd: perImage, estTotalUsd: perImage == null ? null : +(todo * perImage).toFixed(2),
+    measuredPerImageUsd: avg.c == null ? null : +avg.c.toFixed(4), measuredSeconds: avg.d == null ? null : Math.round(avg.d / 1000),
+    remainingUsd: b?.remainingUsd ?? null, limitedBy: b?.limitedBy ?? null,
+    // Images que le plafond permet avant l'arrêt (estimation configurée, prudente)
+    affordable: perImage ? Math.min(todo, Math.floor((b.remainingUsd + 1e-9) / perImage)) : 0 };
+}
+
+function generateSeries(seriesId, { client = null } = {}) {
+  _assertClient(client, `series:${seriesId}`);
+  _assertIdle();
+  const plan = seriesPlan(seriesId);
+  if (!plan.todo) throw new StudioError(409, 'Aucun objet à générer dans cette collection : chaque objet a déjà une image ou une proposition à examiner.');
+  _checkBudget(1, _checkEst());      // au moins une image possible, sinon refus immédiat expliqué
+  const job = { id: ++_jobSeq, kind: 'series', status: 'running', target: `series:${seriesId}`, seriesId, name: plan.name,
+    startedAt: new Date().toISOString(), finishedAt: null, estimatedUsd: plan.estTotalUsd, spentUsd: 0, cancelRequested: false, stopReason: null,
+    items: plan.items.map(i => ({ key: i.key, name: i.name, state: i.state === 'todo' ? 'pending' : i.state, reason: i.reason,
+      sha: null, url: null, costUsd: 0, durationMs: null, check: null, error: null })) };
+  _job = job;
+  job.promise = (async () => {
+    for (const it of job.items) {
+      if (it.state !== 'pending') continue;
+      if (job.cancelRequested) { it.state = 'cancelled'; continue; }
+      if (job.stopReason) { it.state = 'not_run'; it.reason = job.stopReason; continue; }
+      it.state = 'running';
+      try {
+        const t = _target(it.key);
+        const brief = _briefFor(t);
+        // Consigne modifiée depuis le plan : mêmes contrôles qu'une génération unitaire
+        const conflicts = _subjectConflicts(t, _subjectSources('', brief));
+        if (conflicts.length) { it.state = 'conflict'; it.reason = _conflictMessage(t, conflicts); continue; }
+        const r = await _generateOne(t, brief, { batch: job.id });
+        Object.assign(it, { sha: r.sha, url: imageUrl(r.sha), costUsd: r.costUsd, durationMs: r.durationMs, check: r.check,
+          state: r.check?.matches === false ? 'review' : 'done' });
+        job.spentUsd = +(job.spentUsd + r.costUsd).toFixed(4);
+      } catch (err) {
+        if (err.status === 402 || err.status === 429 || err.status === 503) {
+          // Plafond, quota ou API indisponible : arrêt propre, rien n'est relevé automatiquement
+          it.state = 'not_run'; it.reason = err.message; job.stopReason = err.message;
+        } else {
+          it.state = 'failed'; it.error = err.message;
+        }
+      }
+    }
+    job.status = job.cancelRequested ? 'cancelled' : job.stopReason ? 'stopped' : 'done';
+    job.finishedAt = new Date().toISOString();
+  })();
+  return jobView();
+}
+
+/** Arrêter une collection en cours après l'image en cours (aucun appel n'est interrompu ni perdu). */
+function cancelJob() {
+  if (!_job || _job.status !== 'running' || _job.kind !== 'series') throw new StudioError(409, 'Aucune génération de collection en cours.');
+  _job.cancelRequested = true;
   return jobView();
 }
 
@@ -710,7 +899,7 @@ function _assetStatus(key) {
 
 function getTarget(key) {
   const t = _target(key);
-  const statuses = _assetStatus(key);
+  const statuses = _assetStatus(key), checks = _subjectChecks(key);
   const assets = conn().prepare('SELECT sha, source, meta, created_at FROM icon_studio_assets WHERE target = ? ORDER BY created_at DESC, rowid DESC').all(key)
     .map(a => {
       const meta = JSON.parse(a.meta);
@@ -718,6 +907,7 @@ function getTarget(key) {
         model: meta.model ?? null, costUsd: meta.costUsd ?? 0, checks: meta.checks ?? null, prompt: meta.prompt ?? null,
         instruction: meta.instruction ?? null, basedOn: meta.basedOn ?? null,
         identity: meta.identity ?? null, promptVersion: meta.promptVersion ?? null, brief: meta.brief ?? null, warning: _assetWarning(t, meta),
+        subjectCheck: checks[a.sha] ?? null, currentPrompt: _isV13(meta.promptVersion) || a.source === 'upload' || !meta.identity,
         inDraft: imageUrl(a.sha) === t.current.image, published: imageUrl(a.sha) === t.current.publishedImage };
     });
   const history = conn().prepare('SELECT id, action, asset_sha, details, created_at FROM icon_studio_events WHERE target = ? ORDER BY id DESC LIMIT 100').all(key)
@@ -791,6 +981,7 @@ function listCalls(limit = 50) {
 
 function overview() {
   return { status: status(), targets: listTargets(), job: jobView(), calls: listCalls(),
+    series: _collectionContent().series.filter(x => x.active !== false).map(x => seriesPlan(x.id)),
     references: _references() };
 }
 
@@ -803,5 +994,5 @@ function _references() {
 
 module.exports = {
   StudioError, UI_TARGETS, init, status, setStudioBudget, listTargets, getTarget, setBrief, generate, jobView, waitJob,
-  upload, mark, apply, listCalls, overview, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
+  upload, mark, apply, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
 };

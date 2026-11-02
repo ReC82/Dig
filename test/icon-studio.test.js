@@ -117,7 +117,8 @@ test('génération : une image par action, consigne « Refaire », provenance, c
   studio.generate('block:diamant');
   await studio.waitJob();
   assert.strictEqual(/resource icon/.test(prompts.find(p => p.target === 'block:diamant').prompt), true);
-  assert.strictEqual(studio.listCalls().length, 3);
+  assert.strictEqual(studio.listCalls().filter(c => !c.target.startsWith('check:')).length, 3, '3 images');
+  assert.deepStrictEqual(studio.listCalls().filter(c => c.target.startsWith('check:')).map(c => c.target), ['check:item:relic', 'check:item:relic'], 'sujet des objets contrôlé, pas celui des blocs');
   assert.deepStrictEqual(blocks.getPublished(), before, 'catalogue publié inchangé');
   assert.strictEqual(blocks.getDraft(), null, 'aucun brouillon créé par une génération');
   assert.strictEqual(typeof studio.startJob, 'undefined', 'plus de génération par lot');
@@ -220,7 +221,7 @@ test('recette du 02/11 : générations successives d\'objets distincts, consigne
     assert.strictEqual(prompts[n].target, `item:${k}`);
     sent[k] = prompts[n].prompt;
   }
-  assert.match(sent.crystal, /^Object to depict: "Blue Crystal" \(French name: "Cristal bleu"\); the icon shows this exact object and nothing else\. Visual description: A single blue crystal collectible/);
+  assert.match(sent.crystal, /^Object to depict: "Blue Crystal" \(French name: "Cristal bleu"\); the icon shows this exact object and nothing else\. Visual description: A single blue crystal, shown with its usual real-world shape/);
   assert.match(sent.fossil, /^Object to depict: "Fossil" \(French name: "Fossile"\)/);
   assert.match(sent.mystic_orb, /^Object to depict: "Mysterious Orb"/);
   for (const p of Object.values(sent)) assert.doesNotMatch(p, /lantern/i, 'aucune consigne répétée transmise');
@@ -230,7 +231,7 @@ test('recette du 02/11 : générations successives d\'objets distincts, consigne
     const t = studio.getTarget(`item:${k}`);
     assert.strictEqual(t.assets.length, before[k] + 1, 'propositions existantes conservées');
     const meta = JSON.parse(conn().prepare('SELECT meta FROM icon_studio_assets WHERE sha = ?').get(t.assets[0].sha).meta);
-    assert.deepStrictEqual([meta.reference, meta.basedOn, meta.promptVersion], ['art/icons/v1/reference/pierre.png', null, 'v1.2'], 'seule la référence de style pierre');
+    assert.deepStrictEqual([meta.reference, meta.basedOn, meta.promptVersion], ['art/icons/v1/reference/pierre.png', null, 'v1.3'], 'seule la référence de style pierre');
     assert.strictEqual(meta.identity.name, { crystal: 'Blue Crystal', fossil: 'Fossil', mystic_orb: 'Mysterious Orb' }[k]);
   }
   // Correction manuelle : la consigne « lanterne » reprise pour UN objet devient la sienne, les autres restent neutralisés
@@ -297,6 +298,67 @@ test('recette du 02/11 (2) : une demande qui cite un autre objet est refusée av
   studio.apply('item:fossil', { sha: null });
 });
 
+test('collection entière (02/11) : une image par objet, enchaînées, plafond respecté, échecs seuls à corriger', async () => {
+  const seen = [];
+  const badCheck = new Set(['monster_tooth']);
+  const fakeImage = async ({ prompt, target }) => { prompts.push({ prompt, target }); seen.push(target); return { png: await studio.fakeIconPng(seen.length * 53) }; };
+  studio.setFakeTransport({ image: fakeImage,
+    check: async ({ target, identity }) => ({ seen: badCheck.has(target.slice(5)) ? 'a golden nugget' : `a ${identity.name.toLowerCase()}`, matches: !badCheck.has(target.slice(5)), confidence: 'high' }) });
+  studio.setBrief('item:map_fragment', { subject: 'A mysterious orb on a parchment scrap', details: '', palette: '' });
+  const draftBefore = JSON.stringify(coll.getDraft());
+  const plan = studio.seriesPlan('origines');
+  const st = Object.fromEntries(plan.items.map(i => [i.id, i.state]));
+  assert.deepStrictEqual(['ancient_coin', 'broken_crown', 'monster_tooth'].map(k => st[k]), ['todo', 'todo', 'todo']);
+  assert.strictEqual(st.map_fragment, 'conflict', 'conflit de sujet : ignoré sans dépense');
+  assert.strictEqual(st.relic, 'has_proposal', 'proposition v1.3 à examiner : pas de nouvelle dépense');
+  assert.deepStrictEqual([plan.todo, plan.estTotalUsd], [3, 0.03]);
+  assert.throws(() => studio.seriesPlan('inconnue'), e => e.status === 404);
+  // Mêmes protections qu'une fiche : panel obsolète, cible différente
+  assert.throws(() => studio.generateSeries('origines', { client: { build: 'ancien', target: 'series:origines' } }), e => e.details?.code === 'stale_client');
+  assert.throws(() => studio.generateSeries('origines', { client: { build: require('../server/version').APP_VERSION, target: 'item:relic' } }), e => e.details?.code === 'target_mismatch');
+
+  // Plafond de l'atelier : 2 images possibles, la 3e n'est pas lancée, le plafond n'est jamais relevé
+  const spent = () => studio.status().studioSpentUsd;
+  studio.setStudioBudget(+(spent() + 0.02).toFixed(2));    // coût factice : 0,01 par image, contrôle gratuit
+  const cap = studio.status().studioCapUsd;
+  const job = studio.generateSeries('origines');
+  assert.deepStrictEqual([job.kind, job.status, job.target], ['series', 'running', 'series:origines']);
+  assert.throws(() => studio.generate('item:relic'), e => e.status === 429 && /collection/.test(e.message), 'une seule génération à la fois');
+  let j = await studio.waitJob();
+  const by = id => j.items.find(i => i.key === `item:${id}`);
+  assert.strictEqual(j.status, 'stopped', JSON.stringify(j));
+  assert.deepStrictEqual(['ancient_coin', 'broken_crown', 'monster_tooth', 'map_fragment', 'relic'].map(k => by(k).state), ['done', 'done', 'not_run', 'conflict', 'has_proposal']);
+  assert.match(by('monster_tooth').reason, /Plafond/);
+  assert.deepStrictEqual(seen, ['item:ancient_coin', 'item:broken_crown'], 'un appel par objet, aucun pour les objets ignorés');
+  assert.deepStrictEqual([by('ancient_coin').check.matches, by('ancient_coin').check.seen], [true, 'a ancient coin']);
+  assert.strictEqual(studio.status().studioCapUsd, cap, 'plafond inchangé');
+  assert.throws(() => studio.generateSeries('origines'), e => e.status === 402, 'plafond atteint : refus immédiat');
+
+  // Budget relevé par l'admin : l'objet restant est généré ; le contrôle du sujet le signale « à revoir »
+  studio.setStudioBudget(cap + 0.05);
+  studio.generateSeries('origines');
+  j = await studio.waitJob();
+  assert.strictEqual(j.status, 'done');
+  assert.deepStrictEqual([by('monster_tooth').state, by('monster_tooth').check.seen, by('ancient_coin').state], ['review', 'a golden nugget', 'has_proposal']);
+  const mt = studio.getTarget('item:monster_tooth').assets[0];
+  assert.deepStrictEqual([mt.subjectCheck.matches, mt.currentPrompt, mt.inDraft], [false, true, false]);
+  assert.strictEqual(studio.seriesPlan('origines').items.find(i => i.id === 'monster_tooth').state, 'todo', 'image refusée par le contrôle : reste à faire');
+
+  // Arrêt demandé : l'image en cours se termine, les suivantes ne sont pas lancées
+  badCheck.clear();
+  studio.setBrief('item:map_fragment', { reset: true });
+  studio.generateSeries('origines');
+  studio.cancelJob();
+  j = await studio.waitJob();
+  assert.deepStrictEqual([j.status, by('monster_tooth').state, by('map_fragment').state], ['cancelled', 'done', 'cancelled']);
+  assert.throws(() => studio.cancelJob(), e => e.status === 409);
+  const ev = conn().prepare("SELECT details FROM icon_studio_events WHERE target = 'item:monster_tooth' AND action = 'generated' ORDER BY id DESC").get();
+  assert.strictEqual(typeof JSON.parse(ev.details).batch, 'number', 'génération tracée comme partie d\'une collection');
+  assert.strictEqual(JSON.stringify(coll.getDraft()), draftBefore, 'rien appliqué au brouillon ni publié');
+  studio.setStudioBudget(null);
+  studio.setFakeTransport({ image: fakeImage });
+});
+
 test('routes : protégées, image servie, gros corps seulement après la clé admin', async (t) => {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
@@ -355,6 +417,15 @@ test('routes : protégées, image servie, gros corps seulement après la clé ad
   const cbody = await conflict.json();
   assert.deepStrictEqual([conflict.status, cbody.details?.code, cbody.details?.conflicts?.[0]?.id], [409, 'subject_conflict', 'crystal']);
   assert.strictEqual((await (await fetch(`${BASE}/api/admin/icons/job`, { headers: H })).json()).job, null, 'aucune génération lancée');
+  // Collection entière : plan lisible, mêmes refus (panel obsolète, cible), arrêt sans génération en cours
+  assert.strictEqual((await fetch(`${BASE}/api/admin/icons/series/origines`)).status, 401);
+  const plan = await (await fetch(`${BASE}/api/admin/icons/series/origines`, { headers: H })).json();
+  assert.ok(plan.plan.items.length === 8 && plan.plan.todo > 0, JSON.stringify(plan));
+  const sg = (body, build) => fetch(`${BASE}/api/admin/icons/series/origines/generate`, { method: 'POST', headers: build === undefined ? H : { ...H, 'X-Dig-Admin-Build': build }, body: JSON.stringify(body) });
+  assert.strictEqual((await (await sg({ target: 'series:origines' })).json()).details?.code, 'stale_client');
+  assert.strictEqual((await (await sg({ target: 'item:fossil' }, version)).json()).details?.code, 'target_mismatch');
+  assert.strictEqual((await fetch(`${BASE}/api/admin/icons/job/cancel`, { method: 'POST', headers: H, body: '{}' })).status, 409);
+  assert.ok(Array.isArray((await (await fetch(`${BASE}/api/admin/icons`, { headers: H })).json()).series), 'plans des collections dans la vue d\'ensemble');
   const job = await (await gen('ui:parametres', { target: 'ui:parametres', instruction: 'engrenage plus fin' }, version)).json();
   assert.strictEqual(job.job.target, 'ui:parametres', JSON.stringify(job));
   let j;

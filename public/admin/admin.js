@@ -3458,6 +3458,12 @@ function icNotice(el, text, cls = '') {
 function icRenderNotice() {
   const s = _ic?.status;
   const el = document.getElementById('ic-notice');
+  if (_icJob?.status === 'running' && _icJob.kind === 'series') {
+    const todo = _icJob.items.filter(i => ['pending', 'running', 'done', 'review', 'failed'].includes(i.state));
+    const cur = todo.findIndex(i => i.state === 'running');
+    return icNotice(el, `⏳ Collection « ${_icJob.name} » : image ${cur + 1}/${todo.length}${cur >= 0 ? ` (« ${todo[cur].name} »)` : ''} en cours. `
+      + 'La génération continue sur le serveur si vous quittez cette page.', 'info');
+  }
   if (_icJob?.status === 'running') return icNotice(el, `⏳ Génération en cours pour « ${_icJob.name} »… (environ une minute)`, 'info');
   if (s && !s.configured) return icNotice(el, 'Génération d\'images indisponible : l\'API n\'est pas configurée sur le serveur. Le téléversement d\'une image reste possible.', 'warn');
   if (s?.budgetReached) return icNotice(el, icBudgetHelp(s), 'warn');
@@ -3485,7 +3491,7 @@ async function loadIcons() {
   cb.textContent = '';
   for (const c of data.calls) {
     const tr = document.createElement('tr');
-    [icWhen(c.created_at), c.target, c.model, c.ok ? 'OK' : `Échec : ${c.error ?? ''}`, `${c.cost_usd} USD`,
+    [icWhen(c.created_at), c.target.startsWith('check:') ? `${c.target.slice(6)} (contrôle du sujet)` : c.target, c.model, c.ok ? 'OK' : `Échec : ${c.error ?? ''}`, `${c.cost_usd} USD`,
      c.duration_ms != null ? `${(c.duration_ms / 1000).toFixed(1)} s` : ''].forEach(v => addCell(tr, v));
     cb.appendChild(tr);
   }
@@ -3501,6 +3507,7 @@ function icFiltered() {
 }
 
 function icRenderGrid() {
+  icRenderSeries();
   const grid = document.getElementById('ic-grid');
   grid.textContent = '';
   const list = icFiltered();
@@ -3519,6 +3526,106 @@ function icRenderGrid() {
     grid.appendChild(card);
   }
   if (!list.length) grid.appendChild(aiEl('p', { class: 'muted' }, 'Aucune icône ne correspond à cette recherche.'));
+}
+
+// ── Collection entière : une image par objet sans image, enchaînées (demande du 02/11) ──
+
+const IC_BATCH_STATES = {
+  pending: ['En attente', ''], running: ['⏳ En cours', 'info'], done: ['✓ À examiner', 'ok'], review: ['⚠ À revoir', 'warn'],
+  failed: ['✗ Échec', 'error'], conflict: ['⚠ Conflit de sujet', 'warn'], not_run: ['⏸ Non lancée', 'warn'], cancelled: ['⏹ Arrêtée', ''],
+  has_image: ['Image déjà dans le brouillon', ''], has_proposal: ['Proposition à examiner', ''],
+};
+const icUsd = v => (v == null ? '?' : `${Number(v).toFixed(2).replace('.', ',')} USD`);
+
+function icRenderSeries() {
+  const box = document.getElementById('ic-series');
+  if (!box) return;
+  box.textContent = '';
+  const kind = document.getElementById('ic-kind').value;
+  if ((kind && kind !== 'item') || !_ic?.series?.length) return;
+  const running = _icJob?.status === 'running';
+  const head = aiEl('div', { class: 'ic-series-head' });
+  head.appendChild(aiEl('strong', {}, 'Collections : une image par objet, enchaînées automatiquement'));
+  head.appendChild(aiEl('span', { class: 'muted' }, ' — seuls les objets sans image ni proposition à examiner sont générés ; vous ne corrigez ensuite que ceux signalés.'));
+  box.appendChild(head);
+  for (const p of _ic.series) {
+    const row = aiEl('div', { class: 'ic-series-row' });
+    row.appendChild(aiEl('span', { class: 'ic-series-name' }, `${p.icon ?? ''} ${p.name}`));
+    const n = k => p.items.filter(i => i.state === k).length;
+    const parts = [`${p.items.length} objets`, p.todo ? `${p.todo} à générer` : 'aucun à générer',
+      n('has_image') && `${n('has_image')} avec image`, n('has_proposal') && `${n('has_proposal')} à examiner`, n('conflict') && `${n('conflict')} en conflit de sujet`].filter(Boolean);
+    row.appendChild(aiEl('span', { class: 'muted' }, parts.join(' · ')));
+    if (p.todo) {
+      const b = icButton(row, `Générer les ${p.todo} image${p.todo > 1 ? 's' : ''} manquante${p.todo > 1 ? 's' : ''}`, () => icSeriesStart(p.seriesId), 'btn ic-main');
+      b.disabled = running || !_ic.status?.configured;
+    }
+    box.appendChild(row);
+  }
+  const j = _icJob?.kind === 'series' ? _icJob : null;
+  if (j) box.appendChild(icBatchPanel(j));
+}
+
+function icBatchPanel(j) {
+  const panel = aiEl('div', { class: 'ic-batch', role: 'region', 'aria-label': `Génération de la collection ${j.name}` });
+  const c = k => j.items.filter(i => i.state === k).length;
+  const made = c('done') + c('review');
+  const title = j.status === 'running' ? `⏳ Collection « ${j.name} » en cours`
+    : j.status === 'cancelled' ? `⏹ Collection « ${j.name} » arrêtée à votre demande`
+    : j.status === 'stopped' ? `⏸ Collection « ${j.name} » arrêtée avant la fin` : `✓ Collection « ${j.name} » terminée`;
+  panel.appendChild(aiEl('p', { class: 'ic-batch-title' }, title));
+  const sum = [`${made} image${made > 1 ? 's' : ''} générée${made > 1 ? 's' : ''} (${icUsd(j.spentUsd)})`,
+    c('review') && `${c('review')} à revoir`, c('failed') && `${c('failed')} en échec`, c('conflict') && `${c('conflict')} en conflit`,
+    c('not_run') && `${c('not_run')} non lancée${c('not_run') > 1 ? 's' : ''}`, c('cancelled') && `${c('cancelled')} arrêtée${c('cancelled') > 1 ? 's' : ''}`].filter(Boolean);
+  panel.appendChild(aiEl('p', { class: 'muted' }, `${sum.join(' · ')}. Commencé le ${icWhen(j.startedAt)} (heure de Bruxelles). Ouvrez un objet pour conserver, refaire ou écarter son image : rien n'est conservé ni publié automatiquement.`));
+  if (j.stopReason) panel.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' }, j.stopReason));
+  if (j.status === 'running') {
+    const bar = aiEl('div', { class: 'ic-row' });
+    icButton(bar, j.cancelRequested ? 'Arrêt demandé…' : '⏹ Arrêter après l\'image en cours', async () => {
+      const { ok, data } = await api('POST', '/api/admin/icons/job/cancel', {});
+      if (ok) icSetJob(data.job);
+    }).disabled = !!j.cancelRequested;
+    panel.appendChild(bar);
+  }
+  const grid = aiEl('div', { class: 'ic-batch-grid' });
+  for (const it of j.items) {
+    const [label, tone] = IC_BATCH_STATES[it.state] ?? [it.state, ''];
+    const t = (_ic?.targets ?? []).find(x => x.key === it.key) ?? { kind: 'item', emoji: '⬜' };
+    const card = aiEl('button', { type: 'button', class: `ic-batch-item${tone ? ` ic-batch-item--${tone}` : ''}`, 'aria-label': `Ouvrir la fiche ${it.name} : ${label}` });
+    card.appendChild(icThumb(t, 64, it.url));
+    card.appendChild(aiEl('span', { class: 'ic-card-name' }, it.name));
+    card.appendChild(aiEl('span', { class: 'ic-batch-state' }, label));
+    const detail = it.check?.seen ? `Contrôle : « ${it.check.seen} »` : it.error ?? (['conflict', 'not_run'].includes(it.state) ? it.reason : '');
+    if (detail) card.appendChild(aiEl('span', { class: 'muted ic-batch-detail', title: detail }, detail));
+    if (it.durationMs) card.appendChild(aiEl('span', { class: 'muted ic-batch-detail' }, `${Math.round(it.durationMs / 1000)} s · ${icUsd(it.costUsd)}`));
+    card.addEventListener('click', () => icOpen(it.key));
+    grid.appendChild(card);
+  }
+  panel.appendChild(grid);
+  return panel;
+}
+
+async function icSeriesStart(seriesId) {
+  const { ok, data } = await api('GET', `/api/admin/icons/series/${icEnc(seriesId)}`);
+  const el = document.getElementById('ic-notice');
+  if (!ok) return icNotice(el, data.error || 'Erreur.', 'error');
+  const p = data.plan;
+  const todo = p.items.filter(i => i.state === 'todo');
+  const skipped = p.items.filter(i => i.state !== 'todo').map(i => `${i.name} (${IC_BATCH_STATES[i.state]?.[0] ?? i.state}${i.state === 'conflict' ? ' : à corriger dans sa fiche' : ''})`);
+  const measured = p.measuredPerImageUsd != null ? `≈ ${icUsd(p.measuredPerImageUsd)} par image constatés, soit ≈ ${icUsd(p.measuredPerImageUsd * todo.length)}` : 'coût réel encore inconnu';
+  const msg = [`Générer UNE image pour chacun des ${todo.length} objets de « ${p.name} » ?`, '',
+    `• Objets : ${todo.map(i => i.name).join(', ')}.`,
+    skipped.length ? `• Ignorés : ${skipped.join(' ; ')}.` : '',
+    `• Coût : ${measured} (estimation prudente du serveur : ${icUsd(p.estTotalUsd)}).`,
+    `• Budget restant : ${icUsd(p.remainingUsd)} → ${p.affordable >= todo.length ? 'suffisant' : `au plus ${p.affordable} image(s) selon l'estimation prudente ; la génération s'arrêtera d'elle-même au plafond, qui n'est jamais relevé automatiquement`}.`,
+    `• Durée : ${p.measuredSeconds ? `≈ ${p.measuredSeconds} s` : 'environ 40 s'} par image, l'une après l'autre ; vous pouvez quitter la page.`,
+    '• Chaque image est contrôlée automatiquement (objet reconnu ?). Rien n\'est conservé ni publié sans vous.'].filter(Boolean).join('\n');
+  if (!confirm(msg)) return;
+  const r = await api('POST', `/api/admin/icons/series/${icEnc(seriesId)}/generate`, { target: `series:${seriesId}` });
+  if (!r.ok) {
+    if (r.data.details?.code === 'stale_client') admStaleBanner(r.data.details.version);
+    return icNotice(el, r.data.error || 'Erreur.', 'error');
+  }
+  icSetJob(r.data.job);
 }
 
 function icShowList() {
@@ -3550,6 +3657,7 @@ function icSetJob(job) {
     return;
   }
   icRenderNotice();
+  icRenderSeries();
   if (_icTarget) icRenderSheet();
 }
 
@@ -3705,7 +3813,7 @@ function icRenderSheet() {
   box.dataset.key = t.key;
   const st = icState(t);
   const running = _icJob?.status === 'running';
-  const mine = running && _icJob.target === t.key;
+  const mine = running && (_icJob.target === t.key || (_icJob.kind === 'series' && _icJob.items.some(i => i.key === t.key && i.state === 'running')));
   const canGenerate = !!_ic?.status?.configured && !_ic?.status?.budgetReached && !running;
   const sel = t.assets.find(a => a.sha === _icSel) ?? null;
 
@@ -3747,6 +3855,10 @@ function icRenderSheet() {
         : `Prompt ${sel.promptVersion ?? 'v1.0'} : ancienne version, le nom de l'objet n'était pas transmis à l'IA.`));
     }
     if (sel.instruction) f.appendChild(aiEl('p', { class: 'muted ic-fig-note' }, `Précision de cette génération : « ${sel.instruction} »`));
+    const sc = sel.subjectCheck;
+    if (sc?.error) f.appendChild(aiEl('p', { class: 'muted ic-fig-note' }, 'Contrôle automatique du sujet indisponible pour cette image : vérifiez-la vous-même.'));
+    else if (sc?.matches) f.appendChild(aiEl('p', { class: 'success ic-fig-note' }, `✓ Contrôle automatique : l'image montre « ${sc.seen} ».`));
+    else if (sc) f.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' }, `⚠ Contrôle automatique : l'image semble montrer « ${sc.seen} », pas « ${t.name} ». Refaites-la (précisez la forme attendue) ou écartez-la.`));
     if (sel.warning) f.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' }, `⚠ ${sel.warning.text} Ne la conservez pas : générez-en une nouvelle.`));
   } else {
     const empty = aiEl('span', { class: 'bk-thumb ic-thumb bk-thumb--none', style: 'width:160px;height:160px;border-radius:26px;font-size:2.2rem' }, '＋');
@@ -3826,7 +3938,7 @@ function icRenderSheet() {
       const b = aiEl('button', { type: 'button', class: `ic-strip-item${a.sha === _icSel ? ' is-sel' : ''}${a.status === 'rejected' ? ' is-rejected' : ''}`,
         'aria-pressed': String(a.sha === _icSel), title: [a.warning?.text, a.instruction ? `Précision : ${a.instruction}` : ''].filter(Boolean).join(' — ') });
       b.appendChild(icThumb(t, 64, a.url));
-      b.appendChild(aiEl('span', {}, a.published ? 'En jeu' : a.inDraft ? 'Brouillon' : a.status === 'rejected' ? 'Écartée' : `${a.warning ? '⚠ ' : ''}${icWhen(a.createdAt, true)}`));
+      b.appendChild(aiEl('span', {}, a.published ? 'En jeu' : a.inDraft ? 'Brouillon' : a.status === 'rejected' ? 'Écartée' : `${a.warning || a.subjectCheck?.matches === false ? '⚠ ' : ''}${icWhen(a.createdAt, true)}`));
       b.addEventListener('click', () => { _icSel = a.sha; _icNote = null; icRenderSheet(); });
       row.appendChild(b);
     }
