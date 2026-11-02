@@ -1,5 +1,133 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 03/11/2026, 0 h 05 (Bruxelles) — ligne éditoriale humoristique et nouvelle collection en brouillon (directive du 02/11 au soir)
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux commentaires du propriétaire du 02/11 :
+- [21:41 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6589165584) : **directive éditoriale durable**. Les collections doivent être absurdes mais ancrées dans une certaine réalité (humour, folklore, histoire, cinéma, sketches). Les clins d'œil doivent être originaux et variés, chaque objet doit avoir sa micro-histoire et sa propre description visuelle. Pas de faux faits historiques présentés comme vrais. Les œuvres protégées sont évoquées, jamais reproduites. Il faut aussi des contrôles de qualité, et rien n'est publié automatiquement.
+- [22:12 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6589763613) : **priorité de nuit**. Créer une nouvelle collection de ce type en brouillon (FR/EN/NL/ES, histoires, consignes d'illustration uniques), sans activer les drops ni publier, et préparer les images pour une revue demain.
+
+## A⁗. État réel
+
+**Déployé en production (SHA `06ca5ba`) — en attente de recette.** Classement : **Après lancement** (contenu et outil d'administration, sans effet sur les joueurs tant que rien n'est publié).
+- La collection « **Les Objets trouvés de la Légende** » est dans le **brouillon** des collections de la production : 6 objets, statut « Brouillon — non publié », drops inactifs.
+- Aucune image n'a été générée et rien n'a été publié (version publiée toujours v1).
+- Ce déploiement met aussi en ligne le lot #37 déjà intégré dans develop (fiche bloc : annulation par bloc, sections, aide, traductions IA). Il attendait un déploiement à cause d'une course dans un test, sans lien avec #37 : les tests passent maintenant à 424/424 sur le SHA exact.
+
+## B⁗. Changements
+
+Fichiers : `server/collectionAi.js`, `server/index.js`, `server/content/collections/objets-trouves-legende.json` (nouveau), `public/admin/admin.js`, `test/collection-ai.test.js`, `test/collection-catalog.test.js`.
+
+1. **Ligne éditoriale dans le prompt IA des collections**. Le bouton ✨ « collection avec l'IA » suit maintenant votre directive :
+   - Objets absurdes mais reconnaissables, ancrés dans le folklore, l'histoire, le cinéma, les sketches, les chansons, la BD ou les traditions du thème. Vos exemples sont donnés comme intention, pas à recopier.
+   - Une **référence différente par objet**, si possible d'un type de source différent.
+   - Faits réels seulement s'ils sont vrais ; toute anecdote inventée est présentée comme une légende (« on raconte que… », conditionnel).
+   - Œuvres protégées : évocation ou parodie de la situation ou de l'objet. Jamais de marque, de personnage dessiné ou de plan de film recopié, et on évite de nommer des personnes vivantes.
+   - Histoires : 2 à 3 phrases avec une chute, une blague propre à chaque objet.
+   - Consigne d'image concrète (silhouette, forme, matière, couleurs, un détail drôle), une **silhouette différente par objet**, aucun texte dans l'image.
+   - Deux nouveaux champs : **« Clin d'œil »** (pour chaque objet, la référence visée, pour la relecture) et une **relecture synthétique** de l'IA (variété, humour, références sensibles, objet faible à améliorer).
+   - L'ancien prompt interdisait tout personnage ou personne réelle, ce qui empêchait « la culotte du roi Dagobert ». Cette règle est remplacée par la règle d'évocation ci-dessus.
+2. **Contrôles de qualité automatiques** (alertes dans la relecture d'une proposition, avant l'enregistrement au brouillon) :
+   - consignes d'illustration **très proches** (mots en commun ≥ 50 %, en plus des consignes strictement identiques déjà signalées) ;
+   - histoires FR très proches (≥ 45 %) ;
+   - noms FR en double ;
+   - clin d'œil manquant pour une partie des objets.
+   
+   L'humour ne se mesure pas automatiquement : la relecture IA et vous en jugez.
+3. **Relecture d'une proposition** (Admin → 📿 Collections → ✨ Propositions IA) : la relecture synthétique s'affiche sous le nom de la série. La fiche de chaque objet montre le champ « Clin d'œil (référence, pour la relecture) », modifiable et conservé quand on enregistre des corrections.
+4. **Collection préparée livrée avec le code** (`server/content/collections/*.json`). Au démarrage, chaque collection préparée est importée **une seule fois** :
+   - elle devient une proposition (n° 2 en production), puis elle est enregistrée dans le **brouillon** ;
+   - les drops restent inactifs, l'image est vide et la consigne d'illustration de chaque objet est transmise à l'atelier ;
+   - si vous la modifiez ou la supprimez ensuite, elle n'est **jamais réimportée** ;
+   - si un identifiant est déjà pris, elle reste une proposition ouverte à corriger ;
+   - l'import est désactivé en test (`NODE_ENV=test` ou `DIG_PREPARED_COLLECTIONS=0`).
+
+### La collection « Les Objets trouvés de la Légende » 🧳
+
+Thème : le bureau des objets trouvés de l'Histoire et du folklore. Ce sont des objets égarés par des rois de chanson, des carnavaliers, des chevaliers de cinéma ou des bricoleurs trop passionnés, et déterrés couche après couche. La série n'est rattachée à aucune saison : elle s'affiche « Permanente » dans la liste, et la saison se choisit avant publication (voir #48).
+
+| Objet (FR) | Rareté | Clin d'œil | Image (silhouette) |
+|---|---|---|---|
+| 🍊 L'orange perdue d'un Gille | Commun | Folklore belge : carnaval de Binche, les Gilles lancent des oranges | orange cabossée, deux feuilles, un peu de terre |
+| 🩲 La culotte du roi Dagobert | Commun | Chanson « Le bon roi Dagobert » (culotte à l'envers) | culotte bouffante en velours rouge, couronne brodée, étiquette cousue dehors |
+| 🪨 Le menhir de poche | Rare | BD/cinéma : évocation du livreur de menhirs gaulois | petite pierre dressée avec sangle de cuir comme une poignée de valise |
+| 🥥 Les noix de coco du chevalier | Rare | Parodie britannique : le galop imité avec deux demi-noix de coco | deux demi-noix de coco reliées par un cordon rouge et un petit fer à cheval |
+| 🏺 Le vase de Soissons, recollé | Épique | Histoire de France : « Souviens-toi du vase de Soissons » | vase d'argent à anses, fissures recollées à l'or, un pansement |
+| 🗼 La tour Eiffel en allumettes | Légendaire | Comédie française du « dîner » et son maquettiste passionné | tour Eiffel en allumettes à têtes rouges, antenne un peu tordue, socle en bois |
+
+Exemple d'histoire (FR) : « Faute de cheval, un chevalier aurait traversé tout un royaume en entrechoquant ces deux demi-noix de coco : tagada, tagada. Personne n'a jamais osé lui demander d'où venaient des noix de coco en pleine Angleterre. » Toutes les histoires existent en FR, EN, NL et ES et font au plus 320 caractères.
+
+Arbitrages éditoriaux :
+- Six sources de types différents (folklore belge, chanson, BD, cinéma britannique, histoire, comédie française).
+- Sur vos quatre exemples, j'en ai repris deux (Dagobert, tour Eiffel en allumettes). Les quatre autres objets sont nouveaux.
+- Les faits réels sont vrais (Gilles de Binche, chanson, anecdote rapportée par Grégoire de Tours) et toujours présentés comme chanson, anecdote ou légende.
+- Aucun nom de personnage protégé (ni Obélix, ni François Pignon, ni Monty Python) : les objets les évoquent seulement.
+- Les raretés suivent le barème proposé (2 communs, 2 rares, 1 épique, 1 légendaire). Les drops sont pré-remplis selon ce barème et **inactifs**.
+
+## C⁗. SHA, branche, procédure de test
+
+- Branche `feature/39-collections-saisonnieres` : commit `2bb5162`. **develop : `06ca5ba`** (fusion), déployé en production.
+- `npm test` : 424/424 sur la branche, sur develop `06ca5ba` et sur le worktree de release. 3 tests ajoutés :
+  - directive dans le prompt, clin d'œil et relecture conservés après correction ;
+  - alertes de consignes, d'histoires et de noms trop proches ;
+  - collection préparée : 6 objets, 4 langues, ≤ 320 caractères, aucune alerte de qualité ; import une seule fois dans le brouillon, version publiée inchangée, drops inactifs, 6 consignes distinctes dans l'atelier ; jamais réimportée, même après suppression.
+- Reproduire : `DB_FILE=test-39.sqlite PORT=3101 DIG_AI_FAKE=1 ADMIN_SECRET=… node server/index.js` sur une copie de base. Le journal affiche « collection préparée … ajoutée au brouillon ». Ensuite : Admin → 📿 Collections.
+
+## D⁗. Vérifications, limites, données
+
+- Serveur de test 3101 sur une copie de la base de production, Chromium 1280 et 390 tactile :
+  - la série et les 6 objets apparaissent en « Brouillon — non publié », drops « inactif » ;
+  - la proposition n° 2 affiche la relecture, aucune alerte, et le clin d'œil dans la fiche de chaque objet ;
+  - l'atelier a la bonne consigne pour chaque objet (par exemple le vase de Soissons), `neverPublished` ;
+  - aucune requête d'écriture, aucune erreur JS (seul `favicon.ico` répond 404, comme avant), aucun débordement.
+- Copie de la base de production démarrée en mode production (release) : empreintes des 6 tables joueurs identiques, quick_check ok, version publiée des collections toujours 1.
+- **Données des joueurs : aucune modification.** Seuls le brouillon admin des collections, une ligne de proposition et 6 consignes de l'atelier sont ajoutés.
+- Limites :
+  - Le prompt IA modifié n'a **pas été essayé avec la vraie API**, pour ne pas dépenser hors demande. Il a été vérifié par les tests en mode factice.
+  - Le contrôle de similarité compte les mots en commun : il repère les clones, pas un manque d'humour.
+  - Le « clin d'œil » et la relecture restent dans la proposition : la fiche d'un objet du catalogue ne les a pas.
+  - Le brouillon des collections est **unique** : publier le brouillon publierait aussi « Trésors de la vieille mine » et cette collection, drops inactifs, sauf si vous retirez d'abord ce que vous ne voulez pas.
+
+## E⁗. Déploiement
+
+- SHA déployé : **`06ca5ba`** (8ec98ed → 06ca5ba, sans `npm ci`). Sauvegarde vérifiée : `dig-20261102-235701-pre-deploy-06ca5ba.sqlite`.
+- Avant déploiement : aucune génération IA en cours (dernier appel d'icône à 21:28 UTC, aucune proposition en attente).
+- Après déploiement :
+  - les deux domaines répondent 200, version `1.0.0+06ca5ba` ; admin sans clé : 401 ;
+  - journal propre (une ligne « collection préparée … ajoutée au brouillon (proposition 2) ») ;
+  - quick_check ok ; empreintes des 6 tables joueurs identiques à la sauvegarde ;
+  - Chromium production 1280/390, jeu et admin : 0 erreur.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 8ec98ed` puis redémarrage. Le brouillon ajouté resterait (inoffensif ; il se retire dans l'admin).
+
+### Test fonctionnel à faire par le propriétaire (Admin → 📿 Collections, Ctrl+F5)
+
+1. Liste **Séries** : « 🧳 Les Objets trouvés de la Légende », 6 objets, « Brouillon — non publié ».
+2. Liste **Objets** : 6 objets (orange, culotte, menhir, noix de coco, vase, tour Eiffel), drops « inactif ». Ouvrez-en un, passez FR → EN → NL → ES : nom et histoire dans chaque langue, aperçu joueur.
+3. **✨ Propositions IA** → proposition n° 2 : sous le nom, la ligne « Relecture : … » ; dans chaque objet, le champ « Clin d'œil ».
+4. **🎨 Illustrer dans l'atelier** depuis un objet : la consigne propre à l'objet est préremplie (par exemple « Two coconut half-shells tied together with a cord… »). Rien n'est généré sans votre clic. Pour la revue de demain, vous pouvez générer les six images une par une, ou en une action pour toute la collection (#40). Si une image ne vous plaît pas, modifiez la consigne avant de régénérer.
+5. Facultatif : ✨ « collection avec l'IA » sur un thème (« Bruxelles », « Rome », « Halloween »…). Résultat attendu : des objets drôles et variés, un clin d'œil par objet, une relecture, et des alertes si deux objets se ressemblent.
+
+Résultat attendu : rien n'est visible côté joueur, la version publiée ne change pas, aucune image n'est générée automatiquement.
+
+## F⁗. Choix techniques faits seul
+
+- **Collection rédigée directement plutôt que générée par l'API en production** : je ne peux pas appeler l'admin de production sans sa clé, et le contenu peut ainsi être relu dans le dépôt. Le format d'import est réutilisable par #48 (saisons préparées automatiquement).
+- **Import dans le brouillon plutôt que proposition à valider** : vous vouliez réduire vos interventions. Le brouillon n'est pas publié et les drops sont inactifs. Un repère empêche toute réimportation.
+- **Pas d'image générée** : la génération payante se demande dans l'atelier (#40) et reste soumise à votre validation visuelle. Les 6 consignes sont prêtes.
+- **Contrôle par mots en commun (Jaccard)** : il est simple, explicable et sans coût d'API.
+
+## G⁗. Décisions demandées au propriétaire
+
+Aucune nouvelle décision bloquante. Les trois questions de la section 7 restent ouvertes : barème des drops saisonniers (recommandation : oui), exclusivité des objets d'une saison terminée (recommandation : non obtenables ensuite), révélation en grisé (recommandation : oui). La saison de rattachement de la nouvelle collection se choisira à la publication ou via #48.
+
+## H⁗. Restant à réaliser
+
+- Images des 6 objets (atelier, à votre demande), puis revue visuelle.
+- Choix de la saison et publication contrôlée du brouillon (drops seulement après validation du barème).
+- #48 : réutiliser `server/content/collections/` ou le prompt pour préparer automatiquement la collection de chaque saison.
+- Après lancement : afficher le « clin d'œil » dans la fiche d'objet du catalogue (aujourd'hui seulement dans la proposition).
+
+---
+
 # Mise à jour du 02/11/2026, 16 h 30 (Bruxelles) — statut publié/brouillon, fiche objet par langue, consigne de l'atelier (recettes du 02/11 après-midi)
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux recettes du propriétaire du 02/11 :
