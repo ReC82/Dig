@@ -1,5 +1,86 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 02/11/2026, 13 h 30 (Bruxelles) — présentation des listes (recette du 02/11)
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Suite à la recette du propriétaire du 02/11 (commentaire 11:50 UTC). Validé partiellement : vue de consultation, « ＋ Ajouter », v1 avec 8 objets et 8 drops. Demande : utiliser la largeur de l'écran, élargir les colonnes, agrandir les miniatures avec un aperçu au survol ou au focus, comme pour les blocs (#37), et garder le mobile.
+
+## A'. État réel
+
+**Déployé en production (SHA `605d320`) — en attente de recette.** Classement : **Après lancement** (présentation du panel admin seulement). Aucune donnée, aucun drop ni aucune route API n'a été modifié.
+
+## B'. Changements (`public/admin/index.html`, `admin.js`, `admin.css`)
+
+- **Largeur** : l'onglet Collections monte à 1440 px, comme Blocs (960 px avant). Les paragraphes d'aide restent limités à 90 caractères par ligne pour rester lisibles.
+- **Miniatures des objets** : 56 px au lieu de 40, dans le même cadre que les blocs.
+  - Une image s'affiche entière, sans recadrage ni étirement.
+  - Un objet sans image montre son emoji dans un cadre en pointillés.
+- **Aperçu agrandi** en 256 px, avec le nom, l'identifiant, la rareté et « image » ou « emoji · à illustrer » :
+  - au survol de la miniature à la souris ;
+  - au focus clavier de la ligne (Tab).
+  - Il se ferme quand on quitte la miniature, quand on fait défiler ou quand la fiche s'ouvre.
+  - Sur écran tactile, un tap ouvre directement la fiche, qui montre déjà l'aperçu en grand.
+- **Colonnes** :
+  - identifiant en police à chasse fixe ;
+  - série (avec son icône) et rareté sur une seule ligne ;
+  - drop sur deux lignes courtes : « sources · dès N m », puis le taux, avec « inactif » le cas échéant ;
+  - langues en pastilles FR / EN / NL / ES : vert = nom et histoire, jaune « XX* » = nom seul, « — » = absent. Une infobulle explique chaque pastille.
+  - Dans la liste des séries, l'icône est plus grande et la saison tient sur une ligne.
+- **Mobile** : les tableaux défilent horizontalement dans leur carte, comme pour les blocs. La page ne déborde pas.
+- **Test #44 rendu indépendant de la date** (`test/season-end.test.js`, test seulement). La base de test créait la saison de la semaine réelle, alors que le scénario simule la semaine 44. Le test échouait donc depuis le lundi 02/11, ce qui aurait bloqué tout déploiement. Le code de production n'a pas changé.
+
+## C'. SHA, tests, déploiement
+
+- Branche `feature/39-collections-saisonnieres`, commit `5681366`. **`develop` = `605d320`** (merge `--no-ff`).
+- `npm test` : **400/400** sur la branche, sur `develop` et sur la release `605d320`.
+  - Lors du 1er passage de la release, `ranking-depth` a échoué : un serveur de test de ce même passage est resté orphelin sur le port 3110, puis les tests suivants ont reçu un 409.
+  - Ce processus a été identifié (dossier de la release, base `/tmp`) et arrêté. Le passage complet suivant : 400/400.
+  - La session précédente avait vu le même cas. Fragilité connue du test, à fiabiliser après le lancement.
+- **Serveur de test 3101** (copie de la base de prod, Chromium) :
+  - 1280×900 et 1920×1080 : onglet à 1280 et 1440 px, miniatures de 56 px, aperçu de 256 px au survol, masqué en sortant ;
+  - aperçu au focus clavier, Entrée ouvre la fiche (aperçu masqué), Échap ferme et rend le focus à la ligne ;
+  - une image large simulée (côté navigateur seulement) est affichée entière (`object-fit: contain`) en miniature et en aperçu ;
+  - 390×844 tactile : un tap ouvre la fiche, aucun débordement de page ;
+  - **0 requête d'écriture**, 0 erreur JavaScript.
+- **Copie de la base de prod en mode production** (port 3122) : `/health` 200, version `605d320`. Empreintes des 6 tables joueurs identiques avant et après le démarrage, `quick_check` ok, copie supprimée.
+- **Production** :
+  - sauvegarde vérifiée `dig-20261102-132057-pre-deploy-605d320.sqlite` ;
+  - déploiement `6e6f58a → 605d320` sans `npm ci` (lock inchangé) ;
+  - les 2 domaines renvoient 200, version `1.0.0+605d320` ; admin Collections sans clé : 401 ;
+  - journal sans erreur, `quick_check` ok, empreintes identiques à la sauvegarde ;
+  - Chromium : jeu et admin sur les deux domaines, 0 erreur.
+  - Avant le déploiement, j'ai vérifié qu'aucune génération IA n'était en cours. La proposition de collection créée à 12:00 UTC était terminée (« open »).
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 6e6f58a` puis `sudo systemctl restart dig`. Seuls des fichiers statiques de l'admin ont changé.
+
+## D'. Test fonctionnel à faire par le propriétaire (Admin → 📿 Collections)
+
+1. Sur PC, actualiser la page (Ctrl+F5). Les listes Séries et Objets utilisent la largeur de l'écran, jusqu'à 1440 px. Le texte d'aide reste en colonne lisible.
+2. Liste Objets :
+   - les miniatures font environ 56 px ;
+   - série et rareté tiennent sur une ligne ;
+   - le drop est sur deux lignes (sources · profondeur, puis taux) ;
+   - les langues sont des pastilles vertes FR EN NL ES.
+3. Survoler une miniature : un aperçu de 256 px apparaît à côté (emoji en pointillés tant qu'il n'y a pas d'image). Il disparaît quand la souris s'en va.
+4. Au clavier (Tab jusqu'à une ligne) : l'aperçu apparaît. Entrée ouvre la fiche, Échap la ferme.
+5. Sur smartphone : la page ne déborde pas, les tableaux défilent dans leur carte et un tap ouvre la fiche.
+6. Toujours à tester (lot du 31/10) : ouverture des fiches, création IA → brouillon → publication. Une proposition IA existe déjà en base (créée le 02/11 à 12:00 UTC) : la relire dans « ✨ Propositions IA ».
+
+## E'. Choix techniques faits seul
+
+- J'ai repris le gabarit des blocs (classes `bk-thumb`, `bk-zoom`) plutôt que d'en créer un nouveau : rendu identique et pas de CSS en double. L'aperçu des Collections a son propre conteneur (`#co-zoom`), parce que celui des blocs est dans un onglet masqué.
+- Je n'ai pas ajouté de tri par colonne : la recette ne le demande pas et il y a 8 objets. Cela reste possible après le lancement.
+- J'ai corrigé le test #44 dans ce ticket, car il bloquait le déploiement. Le correctif ne touche que la base temporaire du test.
+
+## F'. Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Les 3 questions du 30/10 sur le barème des drops saisonniers restent ouvertes (voir F ci-dessous).
+
+## G'. Restant à réaliser
+
+- Votre recette de la création IA et de la publication (#39 reste ouvert).
+- Après lancement : fiabiliser `ranking-depth` (le serveur enfant doit être arrêté même en cas d'échec) ; tri par colonne des listes de collections si utile ; favicon de l'admin.
+
+---
+
 # Mise à jour du 31/10/2026, 22 h 30 (Bruxelles) — UX commune des Collections et création assistée par IA
 
 Suite à la demande du propriétaire du 31/10 (commentaire 20:19 UTC, aussi publiée sur #37, #38 et #40) : les pages montrent d'abord les données, aucun formulaire d'ajout n'est visible par défaut, « ＋ Ajouter » ouvre une fiche, un clic sur une ligne ouvre sa fiche. Pour les collections : « Créer avec l'IA » ou « Créer manuellement ».
