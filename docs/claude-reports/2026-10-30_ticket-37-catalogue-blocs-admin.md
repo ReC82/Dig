@@ -4,6 +4,49 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 03/11/2026, 00 h 50 (Bruxelles) — course du test account-recovery corrigée, déployé 3722008
+
+Réponse au commentaire du propriétaire du 02/11 23:19 UTC (« corriger proprement la course, ne pas désactiver le test ni contourner le gate, puis déployer »).
+
+## A. État réel
+
+**Déployé en production (SHA `3722008`) — en attente de recette ergonomique du #37.** Le lot « fiche d'un bloc » (`068decf`) était déjà en ligne depuis le déploiement `06ca5ba` (02/11 23:57) d'une autre session ; ce déploiement ajoute le correctif de la course.
+
+## B. Cause et correctif
+
+- Cause : en mode test (`MAIL_TRANSPORT=file`), `server/mailer.js` écrivait le message JSON directement sous son nom final. Le test, dans un autre processus, scrute le dossier toutes les 50 ms : il pouvait voir le fichier créé mais encore vide ou incomplet → `Unexpected end of JSON input`.
+- Correctif (aucun test désactivé, aucun contournement) : écriture **atomique** — le message est écrit dans un fichier temporaire caché `.<nom>.json.tmp` du même dossier, puis renommé (`rename`, atomique sur le même système de fichiers). Les lecteurs des tests (`test/account-recovery.test.js`, `test/social-login.test.js`) ne lisent que les fichiers `.json` finaux.
+- Nouveau test : « mailer file : écriture atomique » (5 messages de 2 Mo → 5 fichiers complets, aucun temporaire restant).
+- Mode `file` toujours refusé en production : aucun effet sur le jeu en ligne.
+
+## C. Vérifications
+
+- `npm test` : 433/433 sur la branche, 433/433 sur develop `3722008`, **433/433 dans le worktree de release au SHA exact** (premier passage, aucun nouveau passage utilisé).
+- Copie de la base de production démarrée sur le port 3122 (`NODE_ENV=production`) : `/health` ok, version `1.0.0+3722008` ; empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` identiques avant/après ; copie supprimée.
+- **Brouillon du catalogue de blocs (Charbon remis à 22) préservé** : contenu de `block_catalog_draft` identique (même empreinte) sur la copie avant/après démarrage et en production après déploiement. Rien publié, aucun changement économique.
+
+## D. Déploiement
+
+- `main` avancé `1ac0ecf → 3722008` (avance rapide), `scripts/deploy.sh` de la release : sauvegarde vérifiée `~/backups/dig/dig-20261103-004546-pre-deploy-3722008.sqlite`, santé et version OK.
+- Après : dig.lodygames.com et dig.lodylands.com → 200, `/api/version` = `1.0.0+3722008` ; journal sans erreur ; `quick_check` ok ; empreintes joueurs identiques à la sauvegarde pré-déploiement.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 1ac0ecf` + `sudo systemctl restart dig` (aucune migration).
+
+## E. Test fonctionnel à faire par le propriétaire (recette ergonomique #37, 3 min)
+
+/admin/ (**Ctrl+F5**) → 🧱 Blocs :
+1. Bannière « Aucun brouillon » (le charbon remis à 22 est identique au publié v3).
+2. Ouvrir **Charbon** : sections, options avancées repliées, aides ⓘ, tableau « Version publiée / Brouillon », provenance des traductions, probabilité effective à 1/25/100/250/400 m.
+3. Mettre 23 puis Échap → « Abandonner les modifications / Continuer à modifier ».
+4. Enregistrer 23 → tableau 22 | 23 ; puis « ↺ Annuler les modifications de ce bloc » → « Aucun brouillon », rien publié.
+
+Classement : **Après lancement** (outil admin ; le correctif de test sécurise les déploiements suivants).
+
+## F. Décisions demandées au propriétaire
+
+Inchangées (voir mise à jour du 02/11, § F) : chance × quantité des gemmes dans #49 ; facteur de Chance par bloc après lancement ; plafond IA à 10 USD ; feu vert pour les illustrations des 8 minerais (#40).
+
+---
+
 # Mise à jour du 02/11/2026, 23 h 30 (Bruxelles) — fiche d'un bloc : annuler ce bloc ou tout le brouillon, sections, aide, traductions, probabilités effectives
 
 Réponse aux deux retours de recette du propriétaire du 02/11 (fiche Charbon, 22:01 et 22:04 UTC).
