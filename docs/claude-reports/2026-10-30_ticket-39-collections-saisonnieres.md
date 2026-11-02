@@ -1,5 +1,95 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 02/11/2026, 16 h 30 (Bruxelles) — statut publié/brouillon, fiche objet par langue, consigne de l'atelier (recettes du 02/11 après-midi)
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux recettes du propriétaire du 02/11 :
+- [14:35 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6579819338) : enregistrement de « Trésors de la vieille mine » dans le brouillon **validé** ; deux corrections demandées (statut ambigu « actif · modifié · nouveau » ; fiche d'objet qui montre encore les quatre noms et les quatre histoires).
+- [14:37 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6579869348) : navigation Collections → Atelier **validée** ; défaut : la consigne d'illustration préparée par l'IA n'apparaît pas, le champ montre un exemple de minerai.
+
+## A'''. État réel
+
+**Déployé en production (SHA `029e6cf`) — en attente de recette.** Classement : **Après lancement**, car cela ne concerne que l'outil d'administration. Rien n'a été publié, aucun drop n'a été activé, aucune image n'a été générée, et aucune donnée de la production n'a été réécrite.
+
+## B'''. Changements
+
+Fichiers : `public/admin/index.html`, `admin.js`, `admin.css`, `server/collectionAi.js`, `server/iconStudio.js`, `test/collection-ai.test.js`.
+
+1. **Statut des lignes (Séries et Objets)**. L'état de **publication** passe en premier :
+   - « **Brouillon — non publié** » (en jaune) : l'objet n'existe que dans le brouillon, les joueurs ne le voient pas ;
+   - « **Publié · modifié dans le brouillon** » (en bleu) : les joueurs voient la version publiée, et les changements s'appliqueront à la publication ;
+   - « **Publié** » (en vert) : identique à ce qui est en jeu.
+   
+   En dessous, en petit et séparément : « Objet activé / désactivé » (« Série activée / désactivée »). C'est un **indicateur de contenu**, indépendant de la publication : désactivé veut dire que l'objet n'apparaît plus et ne tombe plus une fois publié. La case de la fiche s'appelle maintenant « Objet activé » (« Série activée »), avec une infobulle. La sémantique serveur n'a pas changé.
+2. **Fiche de modification d'un objet**. Le même sélecteur **FR / EN / NL / ES** que la relecture IA (FR par défaut à chaque ouverture, flèches ← → au clavier, pastilles vert/jaune selon que la langue est complète ou non) n'affiche que le **nom et l'histoire de la langue choisie**.
+   - Les autres langues restent dans la fiche et sont enregistrées ensemble.
+   - L'aperçu joueur suit la langue choisie.
+   - Le texte FR est disponible en référence (replié) quand on édite une autre langue.
+   - Si le nom FR manque à l'enregistrement, la fiche revient sur FR.
+   - **Fermer avec des modifications non enregistrées** (✕, Annuler, Échap, clic hors de la fiche, ou « Illustrer dans l'atelier ») demande une confirmation.
+   - L'image, le téléversement, « Illustrer dans l'atelier » et le drop sont inchangés.
+3. **Atelier d'icônes ouvert sur un objet de collection**.
+   - **Constat** : les consignes existaient bien et avaient été transmises à l'atelier, mais seulement dans « Plus d'options → Description de l'icône », qui est replié. Le champ visible « Consigne (facultative) » est un complément.
+   - **Constat important** : en production, l'IA a renvoyé la **même consigne pour les 6 objets** de « Trésors de la vieille mine » (« Worn brass miner's lantern… »). Seule la Lanterne de poche est donc bien décrite. Je l'ai vérifié en lecture seule dans la proposition enregistrée.
+   - **Désormais**, l'étape principale montre « **Consigne d'illustration de cet objet** » (Sujet, Forme et matière, Couleurs), **préremplie et modifiable**. Elle n'est enregistrée qu'au clic sur « ✨ Générer une image ». Rien ne part automatiquement.
+   - Le champ libre s'appelle « Précision supplémentaire (facultative) ». Son exemple est adapté au type d'icône : pour un objet, « ex. vue de trois quarts, reflets plus chauds » ; plus d'exemple de minerai.
+   - **Saisies conservées** (consigne et précision) quand on quitte la fiche pour une autre icône ou pour la fiche de l'objet, puis qu'on revient. Un bouton « **← Retour à la fiche de l'objet** » recharge la fiche avec les données à jour.
+   - **Consigne identique sur plusieurs objets** : un avertissement l'indique (« identique pour 6 objets… ») avec un bouton « **Repartir du nom et de l'histoire** », qui remplit une consigne tirée du nom anglais et de l'histoire de l'objet. Aucun appel payant.
+   - La vignette d'un objet jamais publié indique « Actuelle (objet en brouillon, jamais publié) » au lieu de « Actuelle en jeu ».
+4. **IA des collections (prochaines propositions)**.
+   - La consigne demandée est désormais propre à chaque objet : sujet et détails différents, seuls le style et les couleurs restent cohérents.
+   - Les consignes identiques sont signalées dans la relecture.
+   - À l'ajout au brouillon, une consigne répétée n'est pas reprise : l'atelier part du nom et de l'histoire.
+
+## C'''. SHA, branche, procédure de test
+
+- Branche `feature/39-collections-saisonnieres`, commit `2396958` ; **develop `029e6cf`**.
+- `npm test` : 405/405 (3 tests ajoutés dans `test/collection-ai.test.js`).
+- Navigateur (Chromium, serveur de test 3101, base de test, IA factice), en 1280 et en 390 tactile :
+  - statuts « Publié / Brouillon — non publié / Publié · modifié dans le brouillon » + « Objet activé » ;
+  - fiche : seuls Nom FR et Histoire FR sont visibles, focus sur Nom FR ; EN → seuls les champs EN, aperçu en EN, FR en référence ; flèche → NL ; corrections FR et EN conservées ;
+  - Échap refusé → la fiche reste ouverte ; enregistrement → les 4 langues sont envoyées ;
+  - Atelier : consigne préremplie, avertissement « identique pour 2 objets », « Repartir du nom et de l'histoire », précision saisie conservée après retour à la fiche ;
+  - aucune requête de génération, 0 erreur JS, pas de débordement.
+
+## D'''. Vérifications, limites, données
+
+- Aucune route de publication ni de drop modifiée. Le serveur ajoute seulement trois champs en lecture à la fiche atelier d'un objet : `defaultBrief`, `briefSharedWith`, `neverPublished`.
+- **Les consignes déjà enregistrées en production ne sont pas corrigées automatiquement** (aucune réécriture) : c'est à vous de choisir, objet par objet, dans l'atelier (voir le test ci-dessous).
+- Le même libellé ambigu existe encore dans l'onglet 🧱 Blocs (« actif · modifié · nouveau ») : il n'a pas été touché (hors périmètre, à harmoniser avec #37).
+
+## E'''. Déploiement
+
+- **SHA déployé : `029e6cf`** (le 02/11 à 16 h 02, Bruxelles), par `scripts/deploy.sh` depuis la release : avance rapide de `main` `1e53430` → `029e6cf`, `npm ci` non nécessaire.
+- Sauvegarde pré-déploiement vérifiée : `dig-20261102-160157-pre-deploy-029e6cf.sqlite`.
+- Avant : `npm test` 405/405 sur la branche, sur develop et sur la release. Copie de la production démarrée en mode production (3122) : santé OK, version `1.0.0+029e6cf`, empreintes des 6 tables joueurs identiques, `quick_check` ok. Aucune génération IA en cours.
+- Après : les 2 domaines répondent 200 avec la version `1.0.0+029e6cf` ; admin sans clé → 401 ; journal sans erreur ; `quick_check` ok ; empreintes identiques à la sauvegarde ; Chromium sur la production (jeu et admin, 1280 et 390) : 0 erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 1e53430` puis `sudo systemctl restart dig` (aucune migration, aucun changement de dépendance).
+
+**Test à faire par le propriétaire** (Admin → 📿 Collections) :
+1. Liste des objets : les six objets de « Trésors de la vieille mine » affichent « **Brouillon — non publié** » et, dessous, « Objet activé » ; les objets d'origine affichent « Publié ».
+2. Ouvrir « Lanterne de poche » : seuls Nom (FR) et Histoire (FR) sont visibles. Cliquer EN : on voit le nom et l'histoire anglais, et l'aperçu passe en anglais. Revenir à FR : une correction faite reste. Annuler avec une correction → confirmation.
+3. « 🎨 Illustrer dans l'atelier » : la « Consigne d'illustration de cet objet » est préremplie (lanterne) et modifiable ; l'exemple ne parle plus de minerai.
+4. Ouvrir ensuite « Boussole tordue » dans l'atelier : un avertissement indique que la consigne est identique pour 6 objets. Cliquer « Repartir du nom et de l'histoire » ou corriger le sujet (par exemple « A bent brass miner's compass »). Ne cliquez sur « Générer » que si vous voulez réellement une image (une image par clic).
+5. Taper une précision, cliquer « ← Retour à la fiche de l'objet », puis revenir dans l'atelier : la précision est toujours là.
+
+## F'''. Choix techniques faits seul
+
+- **Consigne préremplie = la description de l'icône** (sujet/forme/couleurs), plutôt qu'une copie dans le champ « Consigne » : sinon, le texte aurait été envoyé deux fois à l'IA. Le champ libre reste disponible pour une précision.
+- **Pas de correction automatique des 5 consignes erronées en production** : cela aurait été une réécriture de données. L'avertissement et le repli en un clic suffisent, et sont réversibles.
+- **Langues de la fiche objet** : les huit champs restent dans la page (masqués hors de la langue choisie). La lecture et l'enregistrement sont donc inchangés et aucune saisie ne peut se perdre.
+
+## G'''. Décisions demandées au propriétaire
+
+Pas de nouvelle question. Les trois questions de la section 7 (barème des drops saisonniers, exclusivité, révélation en grisé) restent ouvertes.
+
+## H'''. Restant à réaliser
+
+- Images des objets (atelier, à votre demande), publication contrôlée du brouillon « Trésors de la vieille mine » (drops inactifs tant que le barème n'est pas validé), tests finaux.
+- Harmoniser le statut de l'onglet Blocs (#37).
+
+---
+
+
 # Mise à jour du 02/11/2026, 13 h 45 (Bruxelles) — relecture des propositions IA et ligne technique IA (recettes du 02/11)
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux retours de recette du 02/11 qui n'avaient pas encore été appliqués :
