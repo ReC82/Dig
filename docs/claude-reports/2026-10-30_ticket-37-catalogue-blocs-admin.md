@@ -4,6 +4,92 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 02/11/2026, 23 h 30 (Bruxelles) — fiche d'un bloc : annuler ce bloc ou tout le brouillon, sections, aide, traductions, probabilités effectives
+
+Réponse aux deux retours de recette du propriétaire du 02/11 (fiche Charbon, 22:01 et 22:04 UTC).
+
+## A. État réel
+
+**Intégré dans develop (068decf) — non déployé.** Les tests complets sont passés sur la branche (421/421) puis sur develop au SHA exact 068decf (421/421). Le passage obligatoire dans le worktree de release a eu un seul échec : `account-recovery` « mot de passe oublié… » (`Unexpected end of JSON input`). Ce test lit le fichier d'un e-mail factice pendant que le serveur de test l'écrit encore : c'est une course dans le test, sans lien avec #37. La procédure DIGORCH n'admet un second passage que pour le test `rate-limit` ; je n'ai donc **pas déployé**. Production inchangée : `1.0.0+8ec98ed`. Le prochain déploiement ordinaire de develop (par la prochaine session qui livre un ticket) mettra ce lot en ligne après ses propres tests.
+
+Le brouillon de test « charbon 22 → 23 » n'a **pas été publié**. En production, le propriétaire a déjà remis 22 : le brouillon existant est identique à la version publiée v3 (vérifié en lecture seule). Après déploiement, il s'affichera « Aucun brouillon ».
+
+## B. Changements
+
+Fichiers : `server/blockCatalog.js`, `server/blockAi.js`, `server/index.js`, `public/admin/index.html`, `admin.js`, `admin.css`, `public/js/i18n.js` (ajout de `I18n.get`, lecture seule). Nouveaux tests : `test/admin-block-sheet.test.js` et l'essai navigateur `test/e2e/block-sheet.e2e.js`.
+
+1. **Annulation (retour du 02/11, 22:04)**
+   - Dans la fiche, un encadré « Brouillon » montre un tableau **Champ / Version publiée (v3) / Brouillon**, par exemple « Récompense de base : 22 → 23 ».
+   - **« ↺ Annuler les modifications de ce bloc »** (nouvelle route `POST /api/admin/blocks/draft/types/:id/revert`, réservée à l'admin) remet ce seul bloc à sa version publiée. Les autres blocs du brouillon ne bougent pas. Rien n'est publié. L'action est journalisée (`draft_revert`) et confirmée avant exécution, avec le détail « 23 → 22 ».
+   - **« Abandonner tout le brouillon… »** est désormais aussi dans la fiche. Sa confirmation donne le nombre de changements et les blocs concernés. La portée de chaque bouton est expliquée sous les boutons.
+   - Un nouveau bloc jamais publié garde « Retirer ce nouveau bloc du brouillon ».
+2. **Brouillon identique au publié** : il est supprimé dès qu'une modification, une annulation ou un retrait le rend identique (journal `draft_clean`). Un brouillon déjà identique en base, comme celui de la production, est présenté comme « Aucun brouillon », sans écriture lors de la simple consultation. Remettre 22 à la main donne le même résultat.
+3. **Sections** : Identité et traductions / Apparition et rareté / Récompenses et gemmes / Visuel / Options avancées. Les options avancées (emoji de secours, chemin d'image, couleurs, actif) sont repliées.
+4. **Aide ⓘ** (clic, clavier, toucher) avec exemples : identifiant, catégorie, rareté, profondeur minimale, poids, atténuation, poids atténué, PV, récompense, emoji, image.
+   - **Catégories** : l'aide explique terre, pierre, minerai, coffre et gemme. Un coffre ouvre une table selon sa rareté et compte pour les badges. Une gemme donne 1 gemme si la case est cochée. Les trouvailles de collection dépendent de la catégorie. L'aide indique aussi les effets d'un changement de catégorie.
+   - **Rareté** : c'est une étiquette, pas une fréquence. Elle a deux effets réels : la Chance (+10 % de poids par niveau) favorise rare, épique et légendaire, et la rareté d'un coffre choisit sa table de récompenses.
+5. **Probabilité effective** du bloc tel que saisi, recalculée à chaque frappe, à 1, 25, 100, 250 et 400 m et à la profondeur choisie dans la liste. Elle est donnée sans Chance et avec Chance 10, avec le poids utilisé (normal ou atténué) et « ≈ 1 bloc sur N ».
+6. **Traductions** : sous chaque nom, la fiche indique le nom réellement affiché en jeu et sa provenance. Les cas possibles sont « ✓ personnalisée », « ✓ intégrée au jeu : « Coal » » ou « ⚠ manquante : le jeu affiche le nom FR ». Le texte intégré apparaît aussi en indication dans le champ vide.
+   - **« ✨ Générer les traductions manquantes avec l'IA »** (`POST /api/admin/blocks/translate`) n'est actif que s'il manque une langue. Il remplit uniquement les champs vides, surlignés comme proposition à relire. Il n'enregistre rien, respecte le plafond et le quota IA, et signale un nom identique au français.
+   - Pour les 14 blocs d'origine et les 8 minerais de l'étape B, aucune traduction ne manque : les champs vides utilisent les traductions intégrées.
+7. **Gemmes** : la case n'apparaît que pour la catégorie « gemme ». Le modèle actuel est affiché (« 1 gemme à chaque bloc cassé (100 %) ≈ x gemmes pour 1 000 blocs à N m »), avec un renvoi à #49. **Aucun taux n'est modifié** (voir F).
+8. **Visuel** : priorité d'affichage indiquée (image personnalisée → bibliothèque v1 validée → emoji en secours seulement).
+9. **Fermeture accidentelle** : s'il y a des valeurs non enregistrées, Échap, ✕, un clic sur le fond, le passage à l'atelier d'icônes et la fermeture ou le rechargement de la page demandent **« Abandonner les modifications / Continuer à modifier »**. Le focus va sur « Continuer ». Sans modification, la fermeture est immédiate. Un indicateur « ● modifications non enregistrées » est affiché.
+
+## C. SHA, tests
+
+- Branche `feature/37-catalogue-blocs-admin` : 199d3ed. **develop : 068decf.**
+- `npm test` : 421/421 sur la branche et sur develop 068decf ; release 068decf : 420/421 (course du test `account-recovery`, voir A).
+- Nouveaux tests unitaires et HTTP (`admin-block-sheet`, 6 tests) :
+  - annulation d'un seul bloc, sans publication et journalisée ;
+  - refus d'annuler un bloc sans modification ou jamais publié ;
+  - brouillon nettoyé quand il redevient identique (22 → 23 → 22), et brouillon déjà identique en base affiché « aucun » sans écriture ;
+  - traduction IA factice limitée aux langues demandées, avec recopie du FR signalée et rien enregistré ;
+  - routes 401 sans admin ;
+  - balisage des sections, des aides et de la confirmation.
+- Essai navigateur sur une copie de la base de production (IA factice, aucune dépense), Chromium 1280×900 et 390×844 tactile :
+  - fiche Charbon en sections, provenance EN « Coal » intégrée, ⓘ, probabilité effective ;
+  - Échap sans modification : fermeture immédiate ;
+  - après modification, Échap, ✕ et clic sur le fond affichent la confirmation ; « Continuer » garde la valeur et « Abandonner » n'écrit rien ;
+  - enregistrement 22 → 23 : tableau v3 22 / brouillon 23 ; « Annuler les modifications de ce bloc » donne « Aucun brouillon », rien n'est publié ;
+  - deux blocs modifiés puis « Abandonner tout le brouillon » depuis une fiche : plus de brouillon ;
+  - nouveau bloc : traduction des langues manquantes, champs surlignés, rien enregistré ;
+  - mobile : fiche dans l'écran, tableau lisible, aide au toucher, confirmation ;
+  - 0 erreur JS. Copie de base supprimée, serveur de test arrêté.
+
+## D. Test fonctionnel à faire par le propriétaire (après le déploiement de develop ≥ 068decf, vérifier `/api/version`)
+
+1. Admin → 🧱 Blocs : la bannière indique « Aucun brouillon » (le 22 remis à la main n'est plus un changement en attente).
+2. Ouvrir Charbon : les sections sont visibles. Sous Nom EN, NL et ES : « ✓ intégrée au jeu : « Coal » / « Steenkool » / « Carbón » ». Le bouton IA est grisé (rien ne manque).
+3. Cliquer ⓘ à côté de « Poids d'apparition » puis de « Catégorie » : explications avec exemples. Lire le tableau « À 250 m : … ≈ 1 bloc sur N ».
+4. Mettre la récompense à 23, puis Échap : la question « Abandonner / Continuer » apparaît. Choisir « Continuer », puis « Enregistrer dans le brouillon ». L'encadré montre « Récompense de base | 22 | 23 ».
+5. « ↺ Annuler les modifications de ce bloc » → confirmer : message « version publiée rétablie, rien n'a été publié », bannière « Aucun brouillon ».
+6. Smartphone : mêmes étapes 2 à 4 ; la fiche tient dans l'écran.
+
+Classement : **Après lancement** (panel admin interne, aucun effet joueur). Les annulations du point 1 réduisent toutefois le risque de publier un test par erreur.
+
+## E. Choix techniques faits seul
+
+- Annuler = copier la version **en vigueur** du bloc dans le brouillon, et jamais publier (la consigne excluait d'annuler par une publication). Le bouton est refusé pour un bloc jamais publié, qui se retire.
+- Brouillon identique : supprimé lors d'une écriture, mais seulement masqué lors d'une consultation, pour qu'un GET n'écrive jamais en base.
+- Traduction IA en appel synchrone court (4 noms au plus, quelques secondes, < 60 s du proxy) avec les garde-fous communs `guardedJson`. La proposition est faite côté client dans les champs vides seulement.
+- Probabilité effective calculée dans le navigateur avec la même règle que le jeu et le serveur (poids atténué, Chance +10 %/niveau sur rare, épique et légendaire). La « Simulation » du bas de page reste l'outil sur tout le catalogue.
+- La confirmation de fermeture utilise un petit `<dialog>` aux libellés explicites plutôt que `confirm()`. Les actions d'annulation et d'abandon gardent `confirm()`, comme le reste du panel.
+
+## F. Décisions demandées au propriétaire
+
+1. **Gemmes, modèle « probabilité × quantité »** (avec #49) : chaque bloc de catégorie gemme aurait une **chance (%)** et une **quantité** de gemmes. Le gain moyen par bloc serait chance × quantité, et la fiche afficherait « ≈ x gemmes / 1 000 blocs à N m ». L'ancien modèle se convertit sans changement : case cochée = 100 % × 1, décochée = 0 %. Options : (a) ajouter les champs avec ces valeurs par défaut, comportement identique, et fixer les taux dans #49 ; (b) tout reporter à #49. **Recommandation : (a)**, sans aucune valeur modifiée tant que #49 n'a pas tranché.
+2. **Rareté « personnalisée »** (facteur de Chance propre à chaque bloc) : touche l'économie. **Recommandation : après lancement** ; la probabilité effective affichée couvre le besoin de lecture.
+3. Questions précédentes toujours ouvertes : plafond IA (≈ 2,11 / 3 USD, recommandation 10 USD) ; saphir, améthyste et cristal ancien sans gemmes pour l'instant (recommandation : non, à fusionner avec la question 1) ; feu vert pour illustrer les 8 minerais un par un (recommandation : oui, après le relèvement du plafond).
+
+## G. Restant à réaliser
+
+- Déployer develop ≥ 068decf (prochain déploiement ordinaire).
+- Signalé hors périmètre : rendre atomique l'écriture des e-mails factices de test (fichier temporaire puis renommage) ou rendre leur lecture tolérante dans `test/account-recovery.test.js`, pour supprimer la course qui a bloqué ce déploiement.
+- Réutiliser la confirmation avant perte de modifications dans les autres fiches (#38, #39).
+
+---
+
 # Mise à jour du 31/10/2026, 22 h (Bruxelles) — UX commune du panel : données d'abord, « ＋ Ajouter » en fiche (lot #37)
 
 Suite à la demande du propriétaire du 31/10 (commentaire 20:19 UTC, publié aussi sur #38, #39 et #40) : « les pages affichent d'abord les données existantes ; aucun formulaire d'ajout visible par défaut ; un bouton « + Ajouter » ouvre une fiche ; clic sur une ligne → fiche de consultation/édition ».
