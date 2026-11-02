@@ -4,6 +4,55 @@ Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (B
 
 ---
 
+# Mise à jour du 02/11/2026, 16 h 15 (Bruxelles) — consigne préremplie depuis une collection : déjà livrée
+
+**État réel : Déjà livré — déployé en production (SHA `029e6cf`) — en attente de recette.**
+
+Retour traité : [recette du 02/11, 14:37 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6579870726). Navigation Collections → Atelier **validée**. Défaut : le champ « Consigne (facultative) » est vide et propose un exemple de minerai, au lieu de la consigne préparée par l'IA pour l'objet.
+
+Le même retour a été publié sur #39 (commentaire 6579869348). La session #39 l'a corrigé dans `2396958`, intégré dans `develop` (`029e6cf`) et déployé à 15:54 (Bruxelles). Voir le [rapport #39](https://github.com/ReC82/Dig/blob/develop/docs/claude-reports/2026-10-30_ticket-39-collections-saisonnieres.md) et [son commentaire](https://github.com/ReC82/Dig/issues/39#issuecomment-6580436380). Cette session n'a rien recodé (pas de travail en double).
+
+## Ce qui répond à chaque point de la demande (vérifié en lecture dans la production)
+
+| Demande | Livré dans `029e6cf` |
+|---|---|
+| Préremplir la consigne de l'objet, modifiable | L'étape principale affiche « Consigne d'illustration de cet objet » (Sujet, Forme et matière, Couleurs), préremplie et modifiable. |
+| Consigne retrouvée sans génération payante | La consigne existait bien. Elle était enregistrée à l'ajout au brouillon, mais repliée dans « Plus d'options ». Elle est lue telle quelle, sans appel IA. |
+| Conserver le texte saisi au retour de la fiche | Les saisies sont conservées entre les fiches. Un bouton « ← Retour à la fiche de l'objet » est ajouté. |
+| Pas d'exemple de minerai pour un objet | Chaque type a désormais son propre exemple : celui du minerai est réservé aux blocs. Pour un objet : « ex. vue de trois quarts, reflets plus chauds ». |
+| Jamais d'image automatique | La consigne n'est enregistrée qu'au clic sur « ✨ Générer une image », qui produit une image par clic. |
+
+Constat utile (session #39, lecture seule) : en production, l'IA des collections a renvoyé **la même consigne (une lanterne) pour les 6 objets** de « Trésors de la vieille mine ». L'atelier l'indique par l'avertissement « identique pour 6 objets ». Le bouton « Repartir du nom et de l'histoire » propose alors une consigne tirée du nom et de l'histoire de l'objet. Aucune consigne enregistrée n'a été réécrite automatiquement.
+
+## Vérifications de cette session
+
+- `https://dig.lodygames.com` et `https://dig.lodylands.com` répondent 200, avec `/api/version` = `1.0.0+029e6cf`.
+- `public/admin/admin.js` en production contient la consigne d'objet, la mémoire des saisies (`_icTyped`) et le repli « Repartir du nom et de l'histoire ». L'exemple « minerai » n'est plus utilisé que pour les blocs.
+- La branche `feature/40-atelier-icones` est déjà contenue dans `origin/develop`.
+- Aucun nouveau test lancé et aucun déploiement, puisque le code est inchangé. Les tests complets et le contrôle de la base ont été faits par la session #39 sur `029e6cf`.
+- Impact sur les données des joueurs : aucun.
+
+## Test fonctionnel à faire par le propriétaire (identique à #39, étapes 3 à 5)
+
+1. Admin → 📚 Collections → « Lanterne de poche » → « 🎨 Illustrer dans l'atelier ». Résultat attendu : la consigne (lanterne) est préremplie et modifiable, et aucun minerai n'est cité en exemple.
+2. Ouvrir « Boussole tordue » dans l'atelier. Résultat attendu : l'avertissement « identique pour 6 objets » s'affiche. « Repartir du nom et de l'histoire » propose une consigne de boussole.
+3. Taper une précision, cliquer « ← Retour à la fiche de l'objet », puis revenir dans l'atelier. Résultat attendu : la précision est toujours là.
+4. Ne cliquer sur « Générer » que pour obtenir réellement une image (payant, une image par clic).
+
+Classement : **Après lancement** (outil d'administration, sans effet sur le jeu des joueurs).
+
+## Décisions demandées au propriétaire
+
+Les questions encore ouvertes sur ce ticket sont inchangées :
+1. Budget IA : relever `DIG_IMAGE_BUDGET_USD` à 10 ? Recommandé : oui (réglage expliqué dans ⚙ Config → Budget IA).
+2. Générer les 8 minerais de l'étape B, une image chacun via la fiche, puis un « Refaire » ciblé ? Recommandé : oui.
+
+## Reste à faire
+
+- Recette du point ci-dessus, puis génération des images des objets (sur action explicite).
+
+---
+
 ## Mise à jour du 31/10/2026, 21 h 45 (Bruxelles) — refonte UX demandée par le propriétaire
 
 Demande : [commentaire du 31/10](https://github.com/ReC82/Dig/issues/40#issuecomment-6548563178). L'écran était trop chargé. Le propriétaire veut **une seule image à la fois** et un budget réglé ailleurs.
