@@ -2793,11 +2793,17 @@ async function coAiLoad() {
   const st = data.status;
   const aiBtn = document.getElementById('btn-co-add-ai');
   aiBtn.disabled = !st.configured;
-  const txt = st.configured
-    ? `IA : ${st.textModel}${st.fake ? ' (mode test)' : ''} — budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
-    : `IA non configurée : ${st.reason}. Création manuelle seulement.`;
-  document.getElementById('co-ai-status').textContent = txt;
-  document.getElementById('co-ai-status-2').textContent = txt;
+  // Recette du 02/11 : mention simple dans les fiches ; modèle, budget et quota dans l'aide technique repliée
+  // (et ⚙ Config → Budget IA). Les limites restent appliquées par le serveur.
+  const limited = st.configured && (st.remainingUsd < st.estTextUsd || st.callsToday >= st.maxCallsPerDay);
+  document.getElementById('co-ai-status').textContent = !st.configured
+    ? 'IA non configurée : création manuelle seulement.'
+    : limited ? 'Limite IA atteinte pour le moment (détails : ⚙ Config → Budget IA). La création manuelle reste possible.'
+    : 'La génération IA peut entraîner un coût ; rien n\'est publié automatiquement.';
+  document.getElementById('co-ai-status-2').textContent = st.configured
+    ? `Modèle ${st.textModel}${st.fake ? ' (mode test)' : ''} — budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
+    : `IA non configurée : ${st.reason}.`;
+  document.getElementById('co-ai-limit').textContent = limited ? 'Limite IA atteinte pour le moment : la demande sera refusée (détails dans l\'aide technique).' : '';
   document.getElementById('btn-co-ai-generate').disabled = !st.configured;
 
   const list = data.proposals;
@@ -2852,7 +2858,16 @@ document.getElementById('btn-co-ai-generate').addEventListener('click', async e 
 
 // Fiche de relecture d'une proposition
 admDialogSetup('co-prop-dialog');
-document.getElementById('co-prop-dialog').addEventListener('close', () => { _coProp = null; });
+document.getElementById('co-prop-dialog').addEventListener('close', () => { _coProp = null; _coPropWork = null; });
+// Corrections non enregistrées : confirmation avant de fermer (✕, Fermer, Échap, clic hors fiche)
+{
+  const dlg = document.getElementById('co-prop-dialog');
+  const keep = () => _coPropWork?.dirty && !confirm('Des corrections ne sont pas enregistrées. Fermer quand même (elles seront perdues) ?');
+  dlg.addEventListener('click', e => {
+    if ((e.target === dlg || e.target.closest('[data-close]')) && keep()) e.stopPropagation();
+  }, true);
+  dlg.addEventListener('cancel', e => { if (keep()) e.preventDefault(); });
+}
 
 async function coPropOpen(id, opener) {
   const { ok, data } = await api('GET', `/api/admin/collections/ai/proposals/${id}`);
@@ -2882,6 +2897,11 @@ function coGrid(parent) {
   return g;
 }
 
+// Recette du 02/11 : synthèse compacte des objets (une ligne chacun), puis fiche d'un seul objet
+// éditée langue par langue (FR par défaut, aperçu en face). Les corrections restent dans une copie
+// de travail quand on change d'objet ou de langue ; rien n'est envoyé avant « Enregistrer ».
+let _coPropWork = null; // { series, items, lang, idx (null = synthèse), dirty, rationale }
+
 function coPropRender(p) {
   _coProp = p;
   const editable = p.status === 'open';
@@ -2889,7 +2909,7 @@ function coPropRender(p) {
   const state = document.getElementById('co-prop-state');
   state.textContent = {
     pending: '⏳ Génération en cours (≈ 30 à 60 s) : vous pouvez fermer cette fiche, la proposition restera dans « ✨ Propositions IA ».',
-    open: 'À relire : corrigez ce qui doit l\'être, puis « Enregistrer dans le brouillon ». Rien n\'est publié ; les drops restent inactifs ; aucune image n\'est générée.',
+    open: 'À relire : ouvrez chaque objet pour corriger son nom et son histoire langue par langue, puis « Enregistrer dans le brouillon ». Rien n\'est publié ; les drops restent inactifs ; aucune image n\'est générée.',
     error: `Échec : ${p.error ?? 'erreur inconnue'}. Aucune donnée n'a été modifiée ; vous pouvez relancer une proposition depuis « ＋ Ajouter ».`,
     in_draft: `Déjà enregistrée dans le brouillon (série « ${p.seriesId} ») : modifiez-la dans les listes Séries et Objets, illustrez chaque objet dans 🎨 Atelier d'icônes, puis publiez.`,
   }[p.status] ?? p.status;
@@ -2897,146 +2917,328 @@ function coPropRender(p) {
   document.getElementById('btn-co-prop-discard').classList.toggle('hidden', p.status === 'pending' || p.status === 'in_draft');
   admShowError(document.getElementById('co-prop-msg'), '');
   bkFillList(document.getElementById('co-prop-warnings'), p.warnings ?? []);
+  const d = p.data ? structuredClone(p.data) : null;
+  // _k : position d'origine (pour retrouver le drop pré-rempli de l'objet)
+  _coPropWork = d && { series: d.series, items: d.items.map((it, k) => ({ ...it, _k: k })), rationale: d.rationale,
+    lang: _coPropWork?.lang ?? 'fr', idx: null, dirty: false, editable };
+  coPropDraw();
+}
 
+/** Pastilles FR/EN/NL/ES : vert = nom et histoire, jaune = nom seul. */
+function coLangState(it, l) { return it.names?.[l] && it.stories?.[l] ? 'ok' : (it.names?.[l] ? 'name' : 'none'); }
+
+function coLangTags(parent, it) {
+  const box = document.createElement('span');
+  box.className = 'co-langs';
+  for (const l of CO_LANGS) {
+    const s = coLangState(it, l);
+    const tag = document.createElement('span');
+    tag.className = `co-lang co-lang--${s}`;
+    tag.textContent = s === 'ok' ? l.toUpperCase() : (s === 'name' ? `${l.toUpperCase()}*` : '—');
+    tag.title = `${l.toUpperCase()} : ${{ ok: 'nom et histoire', name: 'nom seul, histoire manquante', none: 'absent' }[s]}`;
+    box.appendChild(tag);
+  }
+  parent.appendChild(box);
+}
+
+/** Sélecteur de langue (boutons à bascule, flèches gauche/droite). */
+function coLangSwitch(parent, stateOf, onPick) {
+  const w = _coPropWork;
+  const g = document.createElement('div');
+  g.className = 'co-lang-switch';
+  g.setAttribute('role', 'group');
+  g.setAttribute('aria-label', 'Langue éditée');
+  CO_LANGS.forEach((l, k) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.lang = l;
+    b.className = `co-lang-btn co-lang--${stateOf(l)}`;
+    b.textContent = l.toUpperCase();
+    b.title = { ok: 'complet', name: 'histoire manquante', none: 'à traduire' }[stateOf(l)];
+    b.setAttribute('aria-pressed', String(w.lang === l));
+    b.addEventListener('click', () => onPick(l));
+    b.addEventListener('keydown', e => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      onPick(CO_LANGS[(k + step + CO_LANGS.length) % CO_LANGS.length]);
+    });
+    g.appendChild(b);
+  });
+  parent.appendChild(g);
+  return g;
+}
+
+function coPropTouch() { _coPropWork.dirty = true; admShowError(document.getElementById('co-prop-msg'), ''); }
+
+/** Champ lié à la copie de travail : obj[key] suit la saisie. */
+function coBind(parent, label, obj, key, opts = {}) {
+  const w = _coPropWork;
+  const el = coField(parent, label, obj[key], { ...opts, readOnly: !w.editable });
+  el.addEventListener('input', () => { obj[key] = el.value; coPropTouch(); opts.onInput?.(); });
+  return el;
+}
+
+function coPropDraw(focus) {
   const body = document.getElementById('co-prop-body');
   body.textContent = '';
+  const p = _coProp, w = _coPropWork;
+  if (!w) {
+    const concept = document.createElement('p');
+    concept.className = 'muted';
+    concept.textContent = `Description : ${p.concept}`;
+    body.appendChild(concept);
+    return;
+  }
+  document.getElementById('co-prop-warnings').classList.toggle('hidden', w.idx != null);
+  if (w.idx == null) coPropDrawList(body, focus); else coPropDrawItem(body, focus);
+}
+
+function coPropDrawList(body, focus) {
+  const p = _coProp, w = _coPropWork, s = w.series;
   const concept = document.createElement('p');
-  concept.className = 'muted';
+  concept.className = 'muted co-prop-concept';
   concept.textContent = `Description : ${p.concept}`;
   body.appendChild(concept);
-  if (!p.data) return;
-  const d = p.data;
 
-  // Série
+  // Série : identifiant, icône, saison, puis nom dans la langue choisie
   const fs = document.createElement('fieldset');
   fs.className = 'co-fs';
   const lg = document.createElement('legend');
   lg.textContent = 'Série';
   fs.appendChild(lg);
   const g = coGrid(fs);
-  const ro = { readOnly: !editable };
-  const sId = coField(g, 'Identifiant', d.series.id, { max: 40, ...ro });
-  sId.dataset.f = 'series.id';
-  const sIcon = coField(g, 'Icône', d.series.icon, { max: 8, ...ro });
-  sIcon.dataset.f = 'series.icon';
+  coBind(g, 'Identifiant', s, 'id', { max: 40 });
+  coBind(g, 'Icône', s, 'icon', { max: 8 });
   const sl = document.createElement('label');
   sl.append('Saison');
   const sel = document.getElementById('co-ai-season').cloneNode(true);
   sel.removeAttribute('id');
-  sel.value = d.series.seasonId == null ? '' : String(d.series.seasonId);
-  sel.disabled = !editable;
-  sel.dataset.f = 'series.seasonId';
+  sel.value = s.seasonId == null ? '' : String(s.seasonId);
+  sel.disabled = !w.editable;
+  sel.addEventListener('change', () => { s.seasonId = sel.value === '' ? null : Number(sel.value); coPropTouch(); });
   sl.appendChild(sel);
   g.appendChild(sl);
-  for (const l of CO_LANGS) coField(g, `Nom ${l.toUpperCase()}`, d.series.names[l], ro).dataset.f = `series.names.${l}`;
-  if (d.series.theme) { const t = document.createElement('p'); t.className = 'muted'; t.textContent = `Thème : ${d.series.theme}`; fs.appendChild(t); }
-  if (d.rationale) { const t = document.createElement('p'); t.className = 'muted'; t.textContent = `Raisonnement : ${d.rationale}`; fs.appendChild(t); }
+  const nameRow = document.createElement('div');
+  nameRow.className = 'co-lang-row co-span';
+  g.appendChild(nameRow);
+  coLangSwitch(nameRow, l => (s.names?.[l] ? 'ok' : 'none'), l => { w.lang = l; coPropDraw({ lang: l }); });
+  coBind(nameRow, `Nom de la série (${w.lang.toUpperCase()})`, s.names, w.lang, { max: 60 });
+  if (s.theme || w.rationale) {
+    const det = document.createElement('details');
+    const sum = document.createElement('summary');
+    sum.className = 'muted';
+    sum.textContent = 'Thème et raisonnement de l\'IA';
+    det.appendChild(sum);
+    for (const [k, v] of [['Thème', s.theme], ['Raisonnement', w.rationale]]) {
+      if (!v) continue;
+      const t = document.createElement('p'); t.className = 'muted'; t.textContent = `${k} : ${v}`; det.appendChild(t);
+    }
+    fs.appendChild(det);
+  }
   body.appendChild(fs);
 
-  // Aperçu : langue commune à toutes les fiches
-  const pl = document.createElement('label');
-  pl.className = 'co-inline-check';
-  pl.append('Aperçu des fiches en ');
-  const lang = document.createElement('select');
-  lang.id = 'co-prop-lang';
-  for (const l of CO_LANGS) { const o = document.createElement('option'); o.value = l; o.textContent = l; lang.appendChild(o); }
-  pl.appendChild(lang);
-  body.appendChild(pl);
-
-  // Objets
-  d.items.forEach((it, k) => {
-    const det = document.createElement('details');
-    det.className = 'co-prop-item';
-    det.dataset.item = String(k);
-    det.open = k === 0;
-    const sum = document.createElement('summary');
-    sum.textContent = `${it.icon} ${it.names.fr || it.id} · ${BK_RARITY[it.rarity] ?? it.rarity}`;
-    det.appendChild(sum);
-    const wrap = document.createElement('div');
-    wrap.className = 'co-prop-wrap';
-    const left = document.createElement('div');
-    left.className = 'co-prop-fields';
-    const gi = coGrid(left);
-    coField(gi, 'Identifiant', it.id, { max: 40, ...ro }).dataset.f = 'id';
-    const rl = document.createElement('label');
-    rl.append('Rareté');
-    const rs = document.createElement('select');
-    for (const r of _co?.rarities ?? Object.keys(BK_RARITY)) { const o = document.createElement('option'); o.value = r; o.textContent = BK_RARITY[r] ?? r; rs.appendChild(o); }
-    rs.value = it.rarity; rs.disabled = !editable; rs.dataset.f = 'rarity';
-    rl.appendChild(rs);
-    gi.appendChild(rl);
-    coField(gi, 'Icône', it.icon, { max: 8, ...ro }).dataset.f = 'icon';
-    for (const l of CO_LANGS) coField(gi, `Nom ${l.toUpperCase()}`, it.names[l], ro).dataset.f = `names.${l}`;
-    for (const l of CO_LANGS) coField(gi, `Histoire ${l.toUpperCase()}`, it.stories[l], { textarea: true, max: 1200, cls: 'co-span', ...ro }).dataset.f = `stories.${l}`;
-    const img = document.createElement('details');
-    const is = document.createElement('summary');
-    is.textContent = 'Consigne d\'illustration (reprise par l\'atelier, image générée seulement à votre demande)';
-    img.appendChild(is);
-    const gm = coGrid(img);
-    coField(gm, 'Sujet', it.image?.subject, { max: 300, cls: 'co-span', ...ro }).dataset.f = 'image.subject';
-    coField(gm, 'Détails', it.image?.details, { max: 600, cls: 'co-span', ...ro }).dataset.f = 'image.details';
-    coField(gm, 'Palette', it.image?.palette, { max: 300, cls: 'co-span', ...ro }).dataset.f = 'image.palette';
-    left.appendChild(img);
-    const dp = document.createElement('p');
-    dp.className = 'muted';
-    dp.style.fontSize = '0.75rem';
-    dp.textContent = `Drop pré-rempli (barème proposé, non validé) : ${it.drop.from.join('/')} dès ${it.drop.minDepth} m · ${+(it.drop.chance * 100).toFixed(3)} % — inactif. Modifiable ensuite dans la fiche de l'objet.`;
-    left.appendChild(dp);
-    if (editable && d.items.length > 1) {
-      const rm = document.createElement('button');
-      rm.type = 'button'; rm.className = 'btn btn-ghost'; rm.textContent = 'Retirer cet objet de la proposition';
-      rm.addEventListener('click', () => { det.remove(); coPropDirty(); });
-      left.appendChild(rm);
-    }
-    // Aperçu de la fiche joueur
-    const prev = document.createElement('div');
-    prev.className = 'co-prop-preview';
-    const art = document.createElement('div'); art.className = 'co-prop-art';
-    const rar = document.createElement('div'); rar.className = 'muted';
-    const nm = document.createElement('strong');
-    const se = document.createElement('div'); se.className = 'muted'; se.style.fontSize = '0.72rem';
-    const sto = document.createElement('p');
-    prev.append(art, rar, nm, se, sto);
-    const refresh = () => {
-      const v = f => det.querySelector(`[data-f="${f}"]`)?.value.trim() ?? '';
-      const l = lang.value;
-      art.textContent = v('icon') || '❔';
-      rar.textContent = BK_RARITY[v('rarity')] ?? '';
-      nm.textContent = v(`names.${l}`) || v('names.fr') || '(nom FR obligatoire)';
-      const sv = f => body.querySelector(`[data-f="series.${f}"]`)?.value.trim() ?? '';
-      se.textContent = `${sv('icon')} ${sv(`names.${l}`) || sv('names.fr')}`;
-      sto.textContent = v(`stories.${l}`) || v('stories.fr') || '(pas d\'histoire)';
-      sum.textContent = `${v('icon')} ${v('names.fr') || v('id')} · ${BK_RARITY[v('rarity')] ?? v('rarity')}`;
-    };
-    det._refresh = refresh;
-    wrap.append(left, prev);
-    det.appendChild(wrap);
-    det.addEventListener('input', refresh);
-    det.addEventListener('change', refresh);
-    body.appendChild(det);
-    refresh();
+  // Synthèse : une ligne par objet ; clic / Entrée = fiche de l'objet
+  const h = document.createElement('h4');
+  h.className = 'co-prop-h';
+  h.textContent = `Objets (${w.items.length}) — cliquez sur un objet pour le relire`;
+  body.appendChild(h);
+  const wrap = document.createElement('div');
+  wrap.className = 'bk-table-wrap';
+  const table = document.createElement('table');
+  table.className = 'bk-table co-items-table co-prop-table';
+  const head = table.createTHead().insertRow();
+  for (const t of ['Visuel', 'Nom (FR)', 'Rareté', 'Image', 'Drop', 'Langues', '']) {
+    const th = document.createElement('th'); th.textContent = t; head.appendChild(th);
+  }
+  head.lastChild.innerHTML = '<span class="visually-hidden">Ouvrir</span>';
+  const tb = table.createTBody();
+  w.items.forEach((it, k) => {
+    const tr = document.createElement('tr');
+    const cell = addCell(tr, '');
+    cell.className = 'bk-visual';
+    const box = document.createElement('span');
+    coThumb(box, null, it.icon);
+    cell.appendChild(box);
+    const nm = addCell(tr, it.names?.fr || '');
+    if (!it.names?.fr) { nm.textContent = '(nom FR manquant)'; nm.className = 'error'; }
+    const id = document.createElement('small');
+    id.className = 'bk-id muted';
+    id.textContent = it.id;
+    nm.append(document.createElement('br'), id);
+    addCell(tr, BK_RARITY[it.rarity] ?? it.rarity).className = 'nowrap';
+    const img = addCell(tr, 'emoji · à illustrer');
+    const brief = document.createElement('small');
+    brief.className = 'muted';
+    brief.textContent = it.image?.subject ? 'consigne prête' : 'sans consigne';
+    img.append(document.createElement('br'), brief);
+    const drop = addCell(tr, `${it.drop.from.join(' / ')} · dès ${it.drop.minDepth} m`);
+    drop.className = 'bk-range';
+    const ch = document.createElement('small');
+    ch.className = 'muted';
+    ch.textContent = `${+(it.drop.chance * 100).toFixed(3)} % · inactif`;
+    drop.appendChild(ch);
+    coLangTags(addCell(tr, ''), it);
+    admRowOpen(tr, `co-prop-item:${k}`, it.names?.fr || it.id, () => { w.idx = k; coPropDraw({ first: true }); });
+    tr.removeAttribute('aria-haspopup');
+    tr.title = 'Ouvrir la fiche de cet objet';
+    tb.appendChild(tr);
   });
-  const all = () => body.querySelectorAll('.co-prop-item').forEach(x => x._refresh());
-  lang.addEventListener('change', all);
-  fs.addEventListener('input', all);
+  wrap.appendChild(table);
+  body.appendChild(wrap);
+  if (focus?.row != null) tb.rows[focus.row]?.focus();
+  else if (focus?.lang) body.querySelector(`.co-lang-btn[data-lang="${focus.lang}"]`)?.focus();
 }
 
-function coPropDirty() { admShowError(document.getElementById('co-prop-msg'), ''); }
+function coPropDrawItem(body, focus) {
+  const w = _coPropWork, s = w.series, k = w.idx, it = w.items[k], n = w.items.length;
+  const back = () => { w.idx = null; coPropDraw({ row: k }); };
 
-/** Lit les corrections de la fiche de relecture. */
+  const nav = document.createElement('div');
+  nav.className = 'co-prop-nav';
+  const bBack = document.createElement('button');
+  bBack.type = 'button'; bBack.className = 'btn btn-outline'; bBack.textContent = '← Tous les objets';
+  bBack.addEventListener('click', back);
+  const pos = document.createElement('span');
+  pos.className = 'muted';
+  pos.textContent = `Objet ${k + 1} / ${n}`;
+  const bPrev = document.createElement('button');
+  bPrev.type = 'button'; bPrev.className = 'btn btn-ghost'; bPrev.textContent = '‹ Précédent'; bPrev.disabled = k === 0;
+  bPrev.addEventListener('click', () => { w.idx = k - 1; coPropDraw({ nav: 'prev' }); });
+  const bNext = document.createElement('button');
+  bNext.type = 'button'; bNext.className = 'btn btn-ghost'; bNext.textContent = 'Suivant ›'; bNext.disabled = k === n - 1;
+  bNext.addEventListener('click', () => { w.idx = k + 1; coPropDraw({ nav: 'next' }); });
+  nav.append(bBack, pos, bPrev, bNext);
+  body.appendChild(nav);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'co-prop-wrap';
+  const left = document.createElement('div');
+  left.className = 'co-prop-fields';
+
+  const fi = document.createElement('fieldset');
+  fi.className = 'co-fs';
+  const li = document.createElement('legend'); li.textContent = 'Identité'; fi.appendChild(li);
+  const gi = coGrid(fi);
+  coBind(gi, 'Identifiant', it, 'id', { max: 40 });
+  const rl = document.createElement('label');
+  rl.append('Rareté');
+  const rs = document.createElement('select');
+  for (const r of _co?.rarities ?? Object.keys(BK_RARITY)) { const o = document.createElement('option'); o.value = r; o.textContent = BK_RARITY[r] ?? r; rs.appendChild(o); }
+  rs.value = it.rarity; rs.disabled = !w.editable;
+  rl.appendChild(rs);
+  gi.appendChild(rl);
+  coBind(gi, 'Icône (emoji)', it, 'icon', { max: 8, onInput: () => refresh() });
+  left.appendChild(fi);
+
+  // Nom et histoire : une langue à la fois (les autres restent en mémoire)
+  const ft = document.createElement('fieldset');
+  ft.className = 'co-fs';
+  const lt = document.createElement('legend'); lt.textContent = 'Nom et histoire'; ft.appendChild(lt);
+  const sw = coLangSwitch(ft, l => coLangState(it, l), l => { w.lang = l; coPropDraw({ lang: l }); });
+  const gt = coGrid(ft);
+  const updTags = () => sw.querySelectorAll('.co-lang-btn').forEach(b => {
+    const st = coLangState(it, b.dataset.lang);
+    b.className = `co-lang-btn co-lang--${st}`;
+    b.title = { ok: 'complet', name: 'histoire manquante', none: 'à traduire' }[st];
+  });
+  const nameEl = coBind(gt, `Nom (${w.lang.toUpperCase()})`, it.names, w.lang, { max: 60, cls: 'co-span', onInput: () => { refresh(); updTags(); } });
+  const storyEl = coBind(gt, `Histoire (${w.lang.toUpperCase()})`, it.stories, w.lang, { textarea: true, max: 1200, cls: 'co-span', onInput: () => { refresh(); updTags(); } });
+  storyEl.rows = 7;
+  if (w.lang !== 'fr' && (it.names.fr || it.stories.fr)) {
+    const ref = document.createElement('details');
+    const rs2 = document.createElement('summary');
+    rs2.className = 'muted';
+    rs2.textContent = 'Voir le texte FR (référence)';
+    const rp = document.createElement('p');
+    rp.className = 'muted co-prop-ref';
+    rp.textContent = `${it.names.fr} — ${it.stories.fr}`;
+    ref.append(rs2, rp);
+    ft.appendChild(ref);
+  }
+  left.appendChild(ft);
+
+  const img = document.createElement('details');
+  img.className = 'co-fs';
+  const is = document.createElement('summary');
+  is.textContent = 'Consigne d\'illustration (reprise par l\'atelier, image générée seulement à votre demande)';
+  img.appendChild(is);
+  const gm = coGrid(img);
+  it.image ??= { subject: '', details: '', palette: '' };
+  coBind(gm, 'Sujet', it.image, 'subject', { max: 300, cls: 'co-span' });
+  coBind(gm, 'Détails', it.image, 'details', { max: 600, cls: 'co-span' });
+  coBind(gm, 'Palette', it.image, 'palette', { max: 300, cls: 'co-span' });
+  left.appendChild(img);
+
+  const dp = document.createElement('p');
+  dp.className = 'muted';
+  dp.style.fontSize = '0.75rem';
+  const dropText = () => {
+    const orig = _coProp.data.items[it._k];
+    dp.textContent = it.rarity === orig.rarity
+      ? `Drop pré-rempli (barème proposé, non validé) : ${it.drop.from.join('/')} dès ${it.drop.minDepth} m · ${+(it.drop.chance * 100).toFixed(3)} % — inactif. Modifiable ensuite dans la fiche de l'objet.`
+      : 'Rareté changée : le drop suivra le barème proposé de la nouvelle rareté à l\'enregistrement — inactif.';
+  };
+  dropText();
+  rs.addEventListener('change', () => { it.rarity = rs.value; coPropTouch(); dropText(); refresh(); });
+  left.appendChild(dp);
+  if (w.editable && n > 1) {
+    const rm = document.createElement('button');
+    rm.type = 'button'; rm.className = 'btn btn-ghost'; rm.textContent = 'Retirer cet objet de la proposition';
+    rm.addEventListener('click', () => {
+      if (!confirm(`Retirer « ${it.names.fr || it.id} » de la proposition ? (effectif à l'enregistrement)`)) return;
+      w.items.splice(k, 1);
+      coPropTouch();
+      w.idx = null;
+      coPropDraw({ row: Math.min(k, w.items.length - 1) });
+    });
+    left.appendChild(rm);
+  }
+
+  // Aperçu de la fiche joueur, dans la langue éditée
+  const prev = document.createElement('div');
+  prev.className = 'co-prop-preview';
+  prev.setAttribute('aria-live', 'polite');
+  const cap = document.createElement('div');
+  cap.className = 'muted co-prop-cap';
+  cap.textContent = `Aperçu joueur — ${w.lang.toUpperCase()}`;
+  const art = document.createElement('div'); art.className = 'co-prop-art';
+  const rar = document.createElement('div'); rar.className = 'muted';
+  const nm = document.createElement('strong');
+  const se = document.createElement('div'); se.className = 'muted'; se.style.fontSize = '0.72rem';
+  const sto = document.createElement('p');
+  prev.append(cap, art, rar, nm, se, sto);
+  const refresh = () => {
+    const l = w.lang;
+    art.textContent = it.icon || '❔';
+    rar.textContent = BK_RARITY[it.rarity] ?? it.rarity;
+    nm.textContent = it.names[l] || `${it.names.fr || '(nom FR obligatoire)'}${l === 'fr' ? '' : ` (${l.toUpperCase()} manquant : FR affiché)`}`;
+    se.textContent = `${s.icon} ${s.names?.[l] || s.names?.fr || ''}`;
+    sto.textContent = it.stories[l] || it.stories.fr || '(pas d\'histoire)';
+  };
+  refresh();
+  wrap.append(left, prev);
+  body.appendChild(wrap);
+
+  if (focus?.lang) sw.querySelector(`[data-lang="${focus.lang}"]`)?.focus();
+  else if (focus?.nav === 'prev') (bPrev.disabled ? bNext : bPrev).focus();
+  else if (focus?.nav === 'next') (bNext.disabled ? bPrev : bNext).focus();
+  else if (focus?.first) (w.editable ? nameEl : bBack).focus();
+}
+
+/** Corrections de la copie de travail, au format de l'API. */
 function coPropRead() {
-  const body = document.getElementById('co-prop-body');
-  const val = (root, f) => root.querySelector(`[data-f="${f}"]`)?.value.trim() ?? '';
-  const texts = (root, prefix) => Object.fromEntries(CO_LANGS.map(l => [l, val(root, `${prefix}.${l}`)]));
-  const season = val(body, 'series.seasonId');
+  const w = _coPropWork, s = w.series;
+  const t = (o, l) => String(o?.[l] ?? '').trim();
+  const texts = o => Object.fromEntries(CO_LANGS.map(l => [l, t(o, l)]));
   return {
-    series: { id: val(body, 'series.id'), icon: val(body, 'series.icon'), names: texts(body, 'series.names'), seasonId: season === '' ? null : Number(season) },
-    items: [...body.querySelectorAll('.co-prop-item')].map(det => {
-      const orig = _coProp.data.items[Number(det.dataset.item)];
-      return { id: val(det, 'id'), rarity: val(det, 'rarity'), icon: val(det, 'icon'), names: texts(det, 'names'), stories: texts(det, 'stories'),
-        image: { subject: val(det, 'image.subject'), details: val(det, 'image.details'), palette: val(det, 'image.palette') },
+    series: { id: t(s, 'id'), icon: t(s, 'icon'), names: texts(s.names), seasonId: s.seasonId ?? null },
+    items: w.items.map(it => {
+      const orig = _coProp.data.items[it._k];
+      return { id: t(it, 'id'), rarity: it.rarity, icon: t(it, 'icon'), names: texts(it.names), stories: texts(it.stories),
+        image: { subject: t(it.image, 'subject'), details: t(it.image, 'details'), palette: t(it.image, 'palette') },
         // Drop pré-rempli conservé sauf si la rareté change (il suit alors le barème proposé de la nouvelle rareté)
-        drop: val(det, 'rarity') === orig.rarity ? orig.drop : null };
+        drop: it.rarity === orig.rarity ? orig.drop : null };
     }),
   };
 }
@@ -3047,15 +3249,35 @@ async function coPropSave() {
   return data.proposal;
 }
 
+/** Réaffiche la proposition enregistrée en restant sur l'objet et la langue en cours. */
+function coPropRefresh(p) {
+  const { idx, lang } = _coPropWork;
+  coPropRender(p);
+  if (!_coPropWork) return;
+  _coPropWork.lang = lang;
+  if (idx != null && idx < _coPropWork.items.length) _coPropWork.idx = idx;
+  coPropDraw();
+}
+
 document.getElementById('btn-co-prop-save').addEventListener('click', async () => {
   const p = await coPropSave();
   if (!p) return;
-  coPropRender(p);
+  coPropRefresh(p);
   ptMessage('co-prop-msg', 'Corrections enregistrées dans la proposition (pas encore dans le brouillon).', true);
   coAiLoad();
 });
 
 document.getElementById('btn-co-prop-draft').addEventListener('click', async () => {
+  // Contrôle avant enregistrement : nom FR obligatoire ; traductions manquantes signalées (le serveur revalide tout)
+  const w = _coPropWork;
+  const k = w.items.findIndex(it => !String(it.names?.fr ?? '').trim());
+  if (k >= 0) {
+    w.idx = k; w.lang = 'fr'; coPropDraw({ first: true });
+    ptMessage('co-prop-msg', `Objet ${k + 1} : le nom FR est obligatoire.`, false);
+    return;
+  }
+  const miss = w.items.filter(it => CO_LANGS.some(l => coLangState(it, l) !== 'ok')).length;
+  if (miss && !confirm(`${miss} objet(s) ont un nom ou une histoire manquant dans une langue (pastilles jaunes ou —). Enregistrer quand même dans le brouillon ? Vous pourrez compléter avant de publier.`)) return;
   const p = await coPropSave();
   if (!p) return;
   const { ok, data } = await api('POST', `/api/admin/collections/ai/proposals/${p.id}/draft`);
