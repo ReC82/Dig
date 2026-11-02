@@ -4,6 +4,136 @@ Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (B
 
 ---
 
+# Mise à jour du 02/11/2026, 22 h 15 (Bruxelles) — 2e retour : « Jeton doré » devenu un crayon
+
+**État réel : Déployé en production (SHA `00ae1ca`) — en attente de recette.** Classement : **Après lancement** (outil d'administration, sans effet sur les joueurs), mais traité en priorité comme test échoué du ticket.
+
+Retour traité : [recette du 02/11, 20:38 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6587886663). Le propriétaire voit une proposition « 20:36 » du Jeton doré qui représente un crayon, avec, sous l'image, la précision écrite pour le crayon. La seule proposition du crayon (« 19:48 ») montre toujours une lanterne.
+
+## 1. Chronologie reconstituée (sans appel IA : base de production en lecture seule et journaux nginx)
+
+**Les heures affichées par l'atelier étaient en UTC, sans que ce soit indiqué** : « 20:36 » = 21:36 à Bruxelles, « 19:48 » = 20:48 à Bruxelles. Un seul navigateur (même adresse, même navigateur) dans toute la séquence.
+
+| Bruxelles | UTC | Événement (source) |
+|---|---|---|
+| 19:01:18 | 18:01:18 | L'onglet admin charge `admin.js?v=1.0.0+029e6cf` (nginx). **Ce code n'est plus jamais rechargé avant 21:36:40.** |
+| 20:43–20:44 | 19:43–19:44 | Lanterne générée (prompt v1.1 « Worn brass miner's lantern » + précision « Ambiance ancienne mine… »), conservée à 20:47:09. **Image valide, préservée.** |
+| 20:47:23 | 19:47:23 | Crayon : génération sans précision. Le prompt v1.1 était la consigne « lanterne » répétée (cause du 1er retour). Résultat à 20:48:05 : **une lanterne**. |
+| 20:48–20:57 | 19:48–19:57 | Le propriétaire saisit, dans le champ « précision » de la fiche du crayon, la correction « L'image précédente représente une lanterne… Remplace entièrement la lanterne par un CRAYON DE MINEUR… ». **Il ne lance pas de génération pour le crayon** : aucun POST, aucun appel. À 20:57:05, il ouvre la fiche « Jeton doré » dans le même onglet. |
+| 21:06:44 | 20:06:44 | Déploiement de `56a8cb4` (serveur). **L'onglet ouvert garde l'ancien client 029e6cf.** |
+| 21:34:52 | 20:34:52 | Fiche « Jeton doré » rafraîchie dans le même onglet (pas de rechargement de la page). |
+| 21:35:40 | 20:35:40 | **POST generate pour `item:jeton_dore`**, envoyé par l'ancien client. Ce client recopiait la valeur du champ affiché d'une fiche à l'autre ; c'est ce défaut que `56a8cb4` corrigeait, mais côté navigateur seulement. |
+| 21:36:12–16 | 20:36:12–16 | Le serveur `56a8cb4` construit un prompt **v1.2** qui commence bien par `Object to depict: "Golden Token" (French name: "Jeton doré")`. Il est **suivi de la précision du crayon**, tronquée à 300 caractères. L'IA obéit à la précision : **un crayon**. Coût 0,0823 USD. |
+| 21:36:40 | 20:36:40 | L'onglet est rechargé : le nouveau client `56a8cb4` est chargé à ce moment. |
+
+Conclusions :
+- `56a8cb4` fonctionnait côté serveur : l'identité était bien imposée. Il restait deux trous. (a) **Un onglet ouvert avant un déploiement continuait à tourner avec l'ancien code du panel.** (b) **Aucune vérification ne refusait une précision demandant un autre objet** : l'identité en tête du prompt ne suffit pas quand la précision dit « remplace par un crayon ».
+- Le crayon n'a **jamais** été régénéré après le correctif : sa seule proposition reste la lanterne de 20:48 (prompt v1.1).
+- Aucune image n'a été conservée ni publiée pour le crayon ou le jeton. La lanterne et la boussole restent intactes dans le brouillon. Rien n'a été modifié dans la base de production en dehors du déploiement.
+
+## 2. Correction (`fd3ef3f`, intégrée dans `develop` en `00ae1ca`)
+
+**Côté serveur, toute génération est refusée (409) avant tout appel et toute dépense**, dans trois cas :
+1. **Panel obsolète.** Le panel envoie sa version (en-tête `X-Dig-Admin-Build`). Une version absente ou différente de la version en ligne est refusée avec « Rechargez la page (F5)… aucune image n'a été générée, rien n'a été dépensé ». Ce refus aurait bloqué la génération du jeton de 21:35.
+2. **Fiche différente.** Le corps de la demande contient la clé de la fiche affichée ; elle doit correspondre à la cible de l'URL.
+3. **Conflit de sujet.** La précision, ou la consigne d'illustration enregistrée, cite **un autre objet de la même famille** :
+   - **Nom complet** (« Crayon de mineur », « Pocket Lantern ») : refus **définitif**. Il faut retirer la mention.
+   - **Nom principal seul** (« crayon », « lantern », pluriel compris ; 5 lettres minimum ; mots trop courants exclus : fragment, pièce, relic…) : refus **confirmable**. Le bouton « Ce n'est pas un autre objet : générer quand même » relance la génération, et la confirmation est enregistrée dans la provenance.
+   - Le nom de l'objet lui-même ne déclenche jamais de conflit (accents et casse ignorés). La consigne par défaut, tirée du nom et de l'histoire de l'objet, n'est pas contrôlée.
+
+**Propositions douteuses.** Une proposition dont la provenance cite un autre objet est marquée « ⚠ Proposition douteuse : sa précision demandait « crayon de mineur » (objet « Crayon de mineur »), pas « Jeton doré » ». « Conserver » est alors refusé sans confirmation explicite, et une conservation confirmée est tracée (`doubtful`). Cela concerne en production la lanterne du crayon et le crayon du jeton. La lanterne et la boussole valides ne sont pas signalées.
+
+**Panel admin :**
+- La génération vise toujours la clé de la fiche **où l'on a cliqué**. Si l'on quitte la fiche pendant l'enregistrement de la consigne, rien n'est lancé.
+- Les saisies sont rangées par clé d'objet. Une précision refusée reste sur **sa** fiche, pour être corrigée.
+- Bandeau « Une nouvelle version du jeu est en ligne… Recharger » (vérification toutes les minutes, et immédiate en cas de refus pour version obsolète).
+- **Heures affichées à l'heure de Bruxelles**, avec la mention « (heure de Bruxelles) » sur les propositions, la frise, l'historique et le journal des appels.
+- Provenance lisible : « Objet demandé à l'IA : « Jeton doré » (Golden Token) · prompt v1.2 », ou « Prompt v1.1 : ancienne version, le nom de l'objet n'était pas transmis » ; « Précision de cette génération : … ». L'historique indique aussi l'objet demandé.
+- Trois états distincts :
+  - la consigne d'illustration : « ✓ Enregistrée pour cet objet », « ✎ Modifiée, pas encore enregistrée : elle sera enregistrée au clic sur Générer » ou « Consigne par défaut » ;
+  - la précision : « pour cette seule génération, non enregistrée » ;
+  - le rappel de l'objet du catalogue envoyé en premier.
+- Aperçu immédiat d'un conflit pendant la saisie. Le serveur reste seul juge.
+
+Fichiers : `server/iconStudio.js`, `server/index.js`, `public/admin/admin.js`, `public/admin/admin.css`, `test/icon-studio.test.js`, `test/e2e/icon-studio-subject.e2e.js` (nouveau).
+
+## 3. SHA, branche, procédure de test
+
+- Branche `feature/40-atelier-icones`, commit `fd3ef3f` ; **`develop` = `00ae1ca`** ; **production = `00ae1ca`**.
+- `npm test` : **407/407** sur la branche, sur `develop` et sur la release `00ae1ca`. `npm run check` OK. Lors d'un premier passage, un échec isolé (`account-recovery` puis `security`) venait d'un serveur de test resté actif sur le port 3111 après une exécution partielle. Après son arrêt : 13/13, puis 407/407 complet.
+- Nouveau test `recette du 02/11 (2)` :
+  - la précision polluée envoyée au fossile est refusée (nom complet) : aucun appel, aucun coût, aucune image ;
+  - un nom principal est refusé, puis accepté après confirmation tracée ;
+  - le nom propre de l'objet passe ;
+  - une consigne enregistrée qui cite un autre objet est signalée et bloque ;
+  - une ancienne proposition douteuse est signalée et ne peut être conservée qu'avec confirmation.
+- Test HTTP : sans en-tête ou avec l'ancienne version `029e6cf`, la réponse est 409 `stale_client` ; une fiche différente donne 409 `target_mismatch` ; un conflit donne 409 `subject_conflict` ; aucune génération n'est lancée.
+- **Essai navigateur** (`test/e2e/icon-studio-subject.e2e.js`, Chromium headless, **transport IA simulé, 0 USD**) sur une **copie de la base de production** (supprimée ensuite), port 3101 :
+  - Lanterne : saisie → Crayon : champ vide, ancienne lanterne signalée douteuse, heure « 20:48 (heure de Bruxelles) » ;
+  - Jeton : champ vide, ancien crayon signalé, heure « 21:36 (heure de Bruxelles) » ; la précision du crayon collée ici est refusée (« Conflit de sujet… rien n'a été dépensé »), sans contournement possible, 0 appel ;
+  - retour au Crayon : sa propre saisie est retrouvée ; refus « lanterne » confirmable → confirmation → image v1.2 `Object to depict: "Miner's Pencil"` ;
+  - navigation vers le Jeton **pendant** l'appel (4 s simulées) : le Jeton n'hérite de rien, n'obtient aucune image, la fiche ne change pas ;
+  - rechargement : tous les champs sont vides ;
+  - Lanterne : génération acceptée (`Pocket Lantern`) ;
+  - images de la lanterne et de la boussole inchangées ;
+  - **redémarrage du serveur avec une autre version, onglet laissé ouvert** : génération refusée, bandeau « Recharger », 0 appel ;
+  - aucune erreur JavaScript ; affichage vérifié en 1280×900 et 390×844.
+  - Relancer : voir l'en-tête du fichier (`PW`, `BASE`, `ADMIN`, `RESTART_CMD`, serveur `DIG_AI_FAKE=1 DIG_AI_FAKE_DELAY_MS=4000`).
+
+## 4. Vérifications, limites, données joueurs
+
+- Aucune migration ni nouvelle table. Seules nouveautés : des champs JSON dans la provenance des **nouvelles** images (`acknowledgedConflicts`) et dans l'historique (`identity`, `doubtful`). Aucune donnée joueur touchée.
+- Limites :
+  - la détection repose sur les **noms du catalogue**. « Remplace par une épée », alors qu'aucun objet ne s'appelle épée, n'est pas détecté : l'identité placée en tête du prompt reste le seul garde-fou dans ce cas ;
+  - un mot courant identique au nom principal d'un autre objet peut déclencher un refus confirmable ;
+  - le contrôle de version ne concerne que la génération, pas les autres actions du panel (le bandeau invite à recharger).
+
+## 5. Déploiement
+
+- Release `00ae1ca` : `npm ci`, `npm test` 407/407.
+- Copie de la base de production démarrée sur le port 3122 : `/health` OK, `/api/version` = `1.0.0+00ae1ca`, `/admin/` 200. Empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` identiques avant et après. Copie supprimée.
+- Aucune génération IA en cours avant le déploiement : dernier appel à 21:46 Bruxelles, déploiement à 22:10.
+- `main` avancé en avance rapide `56a8cb4 → 00ae1ca`. `scripts/deploy.sh` de la release : sauvegarde vérifiée `~/backups/dig/dig-20261102-221053-pre-deploy-00ae1ca.sqlite`, « OK : 00ae1ca en service ».
+- Après le déploiement :
+  - les 2 domaines répondent 200 avec `/api/version` = `1.0.0+00ae1ca` ;
+  - `/admin/` sert `admin.js?v=1.0.0+00ae1ca` ;
+  - journal sans erreur, `quick_check` ok ;
+  - nombres de lignes (users, user_saves, season_rankings, icon_studio_assets) identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 56a8cb4` + `sudo systemctl restart dig` (lock inchangé).
+
+## 6. Test fonctionnel à faire par le propriétaire (un objet à la fois, aucune génération collective)
+
+1. **Recharger complètement le panel (Ctrl+F5)**, puis 🎨 Icônes. Si un onglet plus ancien reste ouvert ailleurs, il affiche le bandeau « Une nouvelle version… Recharger » et ne peut plus générer.
+2. Ouvrir « Jeton doré ». Attendu :
+   - « Proposition du 02/11/2026 21:36 (heure de Bruxelles) » ;
+   - « Objet demandé à l'IA : « Jeton doré » (Golden Token) · prompt v1.2 » ;
+   - l'avertissement « ⚠ Proposition douteuse : sa précision demandait « crayon de mineur »… ».
+   Ne pas la conserver.
+3. Dans « Refaire », coller l'ancienne précision du crayon → l'aperçu ⚠ apparaît pendant la saisie ; au clic, « Conflit de sujet… Aucune image n'a été générée et rien n'a été dépensé », sans bouton pour passer outre. Vider le champ, puis « ↻ Refaire » (≈ 0,08 USD) → attendu : **un jeton doré**.
+4. Ouvrir « Crayon de mineur » : champ vide, ancienne lanterne marquée douteuse. « ↻ Refaire » sans précision (≈ 0,08 USD) → attendu : **un crayon** ; « Objet demandé : Crayon de mineur (Miner's Pencil) · prompt v1.2 ».
+5. Revenir à « Lanterne de poche » et « Boussole tordue » : images inchangées, sans avertissement.
+
+## 7. Choix techniques faits seul
+
+- **Refuser plutôt qu'avertir** : aucune dépense tant qu'un conflit existe, comme demandé. Seul le nom principal seul est confirmable, pour ne pas bloquer définitivement un faux positif (par exemple un « jeton en forme de pièce »).
+- **Contrôle de version sur la génération** (seule action payante) plutôt que sur tout le panel : cela évite de casser les autres onglets pendant un déploiement. Le bandeau couvre le reste.
+- **Une précision refusée reste sur sa propre fiche** : elle n'est jamais reportée ailleurs, et l'admin peut la corriger.
+- **Propositions douteuses signalées, jamais supprimées** (tables en ajout seul) ; leur conservation demande une confirmation tracée.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Questions ouvertes, inchangées :
+1. Budget IA : relever `DIG_IMAGE_BUDGET_USD` dans `~/.config/dig/openai.env` (recommandé : 10) ?
+2. Générer les 8 minerais de l'étape B, une image chacun via la fiche, avec « Refaire » ciblé ensuite ? (recommandé : oui, après la recette des points 2 à 4 ci-dessus)
+
+## 9. Reste à faire
+
+- Recette du propriétaire (points 1 à 5).
+- La génération collective reste **non autorisée** par le propriétaire jusqu'à stabilisation. Rien n'a été fait dans ce sens.
+- Suggestion (après lancement) : appliquer le même contrôle de version aux autres actions d'enregistrement du panel.
+
+---
+
 # Mise à jour du 02/11/2026, 21 h 10 (Bruxelles) — BUG : l'atelier générait l'image d'un autre objet
 
 **État réel : Déployé en production (SHA `56a8cb4`) — en attente de recette.**
