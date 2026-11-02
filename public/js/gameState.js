@@ -120,9 +120,19 @@ const GameState = {
     return (this.coinBoost.expiresAt > Date.now()) ? this.coinBoost.multiplier : 1;
   },
 
-  setCoinBoost(multiplier, durationMs) {
-    this.coinBoost.multiplier = multiplier;
-    this.coinBoost.expiresAt  = Date.now() + durationMs;
+  /**
+   * Accorde un boost de pièces (coffre, pub, bonus quotidien, boutique).
+   * Un nouveau boost ne réduit JAMAIS la durée restante (#47) : sa durée
+   * s'ajoute au temps restant, et le multiplicateur le plus fort est conservé
+   * (même règle que le bouton pub, qui prolongeait déjà le boost actif).
+   */
+  setCoinBoost(multiplier, durationMs, now = Date.now()) {
+    const mult = Number(multiplier);
+    const ms   = Number(durationMs);
+    if (!Number.isFinite(mult) || mult <= 1 || !Number.isFinite(ms) || ms <= 0) return;
+    const active = this.coinBoost.expiresAt > now;
+    this.coinBoost.multiplier = active ? Math.max(this.coinBoost.multiplier, mult) : mult;
+    this.coinBoost.expiresAt  = (active ? this.coinBoost.expiresAt : now) + ms;
   },
 
   reset() {

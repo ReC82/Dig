@@ -3147,24 +3147,15 @@ elBlock.addEventListener('keydown', (e) => {
 });
 
 // Bouton pub récompensée — accorde un boost ×2 pendant 2 min (visible sur le bloc)
-// Si un boost plus fort est déjà actif, le pub prolonge simplement sa durée.
+// Si un boost est déjà actif, la pub prolonge sa durée (règle de setCoinBoost, #47).
 document.getElementById('btn-bonus-boost').addEventListener('click', () => {
   if (!Monetization.canWatchAd()) return;
   if (!Blocks.current) return;
 
   Monetization.showRewardedAd(
     () => {
-      const currentMult = GameState.getCoinBoostMultiplier();
-      let finalMult;
-      if (currentMult >= 2) {
-        // Boost plus fort déjà actif → on prolonge sa durée de 2 min
-        GameState.coinBoost.expiresAt += 2 * 60_000;
-        finalMult = currentMult;
-      } else {
-        // Pas de boost actif → on active ×2 pendant 2 min
-        GameState.setCoinBoost(2, 2 * 60_000);
-        finalMult = 2;
-      }
+      GameState.setCoinBoost(2, 2 * 60_000);
+      const finalMult = GameState.getCoinBoostMultiplier();
       showAchievement('📺', t('notif.boost_activated', { mult: finalMult }));
       renderBlock();          // affiche immédiatement "💰 X ⚡×N → 💰 Y"
       renderBoostBanner();
