@@ -1,6 +1,120 @@
 # Ticket #40 — Atelier d'icônes IA dans le panel : objets, reliques, blocs et cohérence graphique
 
-Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch.
+Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch ; dernière mise à jour le 02/11/2026, 23 h 10.
+
+---
+
+# Mise à jour du 02/11/2026, 23 h 10 (Bruxelles) — recette réelle : jeton et crayon, collection entière en une action
+
+**État réel : Déployé en production (SHA `8ec98ed`) — en attente de recette.** Classement : **Après lancement** (outil d'administration, sans effet sur les joueurs).
+
+Demande traitée : [décision du propriétaire du 02/11, 21:22 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6588787318). Elle demande des générations réelles ciblées pour le *Jeton doré* et le *Crayon de mineur*, la mesure du coût, de la réussite du sujet et du temps, puis une recette d'une collection entière : une image par objet, enchaînées automatiquement, correction manuelle des seuls échecs, plafond strictement respecté.
+
+## 1. Mesures réelles (API payante, plafond respecté, aucun plafond relevé)
+
+**Point de départ** (base de production, lecture seule) : le propriétaire a généré un nouveau *Jeton doré* à 22:28 (Bruxelles), avec le prompt v1.2. L'objet demandé était bien « Golden Token », mais l'image montre une **pépite dorée facettée**, pas un jeton :
+
+![Jeton v1.2 : pépite](img/2026-11-02_ticket-40-jeton-dore-v1.2-pepite.png)
+
+Deux causes se cumulaient. La consigne par défaut (« A single golden token collectible ») recopiait l'histoire, qui parle d'un jeton « found wedged under a **rounded stone** ». Le gabarit et la référence pierre (« facet density », « darker lower faces ») tirent aussi vers une roche.
+
+**Prompt v1.3** (objets et badges ; les blocs restent en v1.0) :
+- le gabarit objet impose la forme réelle : « Keep the real-world silhouette, shape and proportions of this object…; the low-poly facets only describe its surface finish and must never turn it into a rock, crystal or nugget unless it is one » ;
+- la consigne par défaut devient « A single <nom>, shown with its usual real-world shape ». L'histoire n'y apporte plus que l'usure et l'ambiance (« draw nothing else it mentions »).
+
+**Essais réels** sur une copie de la base de production (le journal de dépense partagé est bien mis à jour), un seul essai par objet :
+
+| Objet | Résultat | Contrôle automatique | Coût | Durée |
+|---|---|---|---|---|
+| Jeton doré | ✓ jeton plat à rebord, au 1er essai | « round coin-like token (flat disc) » ✓ | 0,0826 USD | 38 s |
+| Crayon de mineur | ✓ crayon usé, au 1er essai | « short wooden pencil (hexagonal) with graphite tip » ✓ | 0,0830 USD | 38 s |
+
+![Jeton v1.3](img/2026-11-02_ticket-40-jeton-dore-v1.3.png) ![Crayon v1.3](img/2026-11-02_ticket-40-crayon-de-mineur-v1.3.png)
+
+Ces deux images ne sont **pas** en production : elles ont été faites sur une copie, pour mesurer avant de vous proposer la recette. Elles servent de point de comparaison.
+
+**Contrôle automatique du sujet** (nouveau). Après chaque image d'objet ou de badge, un modèle texte avec vision (gpt-5-mini, environ **0,0005 USD** et 3 s) dit ce qu'il voit et si l'objet est reconnu. La consigne a été réglée sur les 7 images réelles connues, en trois passages. La première version acceptait la pépite (« faceted golden token ») ; la deuxième refusait le bon crayon (pas assez « de mineur »). La version retenue est stricte sur la nature et la forme de l'objet, mais ignore les qualificatifs : **7 verdicts justes sur 7**.
+- Refusés : pépite du jeton (« faceted gold nugget »), crayon du jeton (« short yellow pencil »), lanterne du crayon (« hanging metal lantern ») ;
+- Acceptés : jeton v1.3, crayon v1.3, boussole, lanterne.
+
+**Coût total de ces essais : 0,176 USD** (2 images à 0,083 USD et 19 contrôles à 0,0005 USD en moyenne). Coût réel constaté sur les 7 images de l'atelier : **0,082 USD par image** (de 0,0818 à 0,0830). C'est 3 fois moins que l'estimation prudente configurée sur le serveur (0,25 USD), qui sert au contrôle du plafond.
+
+## 2. Collection entière en une action
+
+Le bloc « Collections » apparaît en tête de l'onglet 🎨 Icônes, avec une ligne par collection : « 6 objets · 4 à générer · 2 avec image », puis le bouton **« Générer les 4 images manquantes »**.
+- **Une image par objet**, l'une après l'autre, en arrière-plan sur le serveur. Vous pouvez quitter la page. Le bandeau indique « image k/N (« objet ») en cours ».
+- **Objets ignorés, sans dépense** : ceux qui ont déjà une image dans le brouillon ; ceux qui ont une proposition v1.3 ou téléversée à examiner (une proposition écartée, douteuse ou refusée par le contrôle ne compte pas) ; ceux dont la consigne présente un **conflit de sujet**. Les anciennes propositions v1.1/v1.2 ne comptent pas : elles restent visibles dans la fiche.
+- **Confirmation avant de lancer** : liste des objets, objets ignorés et raison, coût constaté et estimation prudente, budget restant, nombre d'images possibles avant le plafond, durée par image.
+- **Plafond vérifié avant CHAQUE image**, contrôle du sujet compris. Une fois le plafond atteint, la génération s'arrête proprement (« ⏸ Non lancée » + message). Le plafond n'est jamais relevé automatiquement.
+- **« ⏹ Arrêter après l'image en cours »** : aucun appel n'est interrompu ni perdu.
+- **Résultat par objet** : « ✓ À examiner », « ⚠ À revoir » (le contrôle ne reconnaît pas l'objet), « ✗ Échec » (erreur API ou contrôle d'image), « ⚠ Conflit de sujet », « ⏸ Non lancée », ainsi que ce que voit le contrôle, la durée et le coût. Un clic ouvre la fiche, où l'on garde, refait ou écarte l'image. Rien n'est conservé, appliqué ni publié automatiquement.
+- **Mêmes protections** que pour une fiche : panel obsolète (409 `stale_client`), cible différente (409 `target_mismatch`), conflit de sujet, une seule génération à la fois.
+- Dans la fiche, chaque proposition affiche « ✓ Contrôle automatique : l'image montre « … » » ou « ⚠ … semble montrer « … », pas « Jeton doré ». Refaites-la ou écartez-la. » Le contrôle est aussi fait pour une génération unitaire. Le journal technique indique « (contrôle du sujet) », et son en-tête donne désormais l'heure de Bruxelles.
+
+![Collection terminée, 1280 px](img/2026-11-02_ticket-40-collection-1280.png)
+
+Fichiers : `server/iconStudio.js` (`seriesPlan`, `generateSeries`, `cancelJob`, `checkAsset`, contrôle du sujet, v1.3), `server/index.js` (GET `/api/admin/icons/series/:id`, POST `…/series/:id/generate`, POST `/api/admin/icons/job/cancel`), `tools/icons/prompt-master.md`, `public/admin/admin.js|css`, `public/admin/index.html`, `test/icon-studio.test.js`, `test/collection-ai.test.js`, `test/e2e/icon-studio-series.e2e.js` (nouveau), `test/e2e/icon-studio-subject.e2e.js`.
+
+## 3. SHA, branche, tests
+
+- Branche `feature/40-atelier-icones`, commit `8df5c1c` ; **`develop` = `8ec98ed`** ; **production = `8ec98ed`**.
+- `npm test` : **415/415** sur la branche, sur `develop` et sur la release ; `npm run check` OK.
+- Nouveau test unitaire « collection entière », IA simulée :
+  - plan : 3 objets à générer, 1 conflit, propositions v1.3 non régénérées ;
+  - panel obsolète et cible différente refusés ;
+  - plafond permettant 2 images : 2 appels exactement, le 3e objet « non lancé », plafond inchangé, nouveau lancement refusé (402) ;
+  - plafond relevé par l'admin : l'objet restant est généré et le contrôle le signale « à revoir » ;
+  - arrêt demandé : l'image en cours se termine, la suivante est « arrêtée » ;
+  - génération tracée avec son numéro de lot ; brouillon inchangé.
+- Le test HTTP couvre 401, plan, `stale_client`, `target_mismatch`, et l'arrêt sans génération en cours (409).
+- **Essai navigateur** (`test/e2e/icon-studio-series.e2e.js`, Chromium, IA simulée, 0 USD) sur une copie de la base de production (supprimée ensuite) : « Trésors de la vieille mine » affiche 4 objets à générer et 2 avec image ; la confirmation est complète ; le suivi indique k/4 et le bouton est désactivé pendant la génération ; une fiche ouverte puis refermée pendant la génération ne gêne rien ; à la fin, 4 « ✓ À examiner », lanterne et boussole intactes, 4 images + 4 contrôles, prompt v1.3 et contrôle visibles dans la fiche, brouillon inchangé ; aucun débordement en 390×844 ; aucune erreur JavaScript.
+
+## 4. Données, limites
+
+- Aucune donnée joueur touchée. Aucune migration : le contrôle du sujet est enregistré dans les tables existantes, en ajout seul (événement `subject_check`, appel `check:<cible>`).
+- Le contrôle automatique est une aide. Réglé sur 7 images, il peut encore se tromper sur des cas limites ; « ⚠ À revoir » n'empêche pas de conserver l'image.
+- Un redémarrage du serveur (déploiement) pendant une collection arrête la suite. Les images déjà faites sont conservées et un nouveau clic reprend les objets restants, sans les régénérer.
+- Le contrôle du sujet passe par l'infrastructure texte de #37 : si une autre génération texte est en cours au même moment, il est marqué « indisponible » pour cette image.
+
+## 5. Déploiement
+
+- Release `8ec98ed` : 415/415. Copie de production démarrée en `NODE_ENV=production` (port 3122) : `/health` OK, `/api/version` = `1.0.0+8ec98ed`, empreintes des 6 tables joueurs identiques.
+- Aucune génération IA en cours avant le déploiement (dernier POST de génération à 22:28, terminé).
+- `main` avancé en avance rapide `0e1a561` → `8ec98ed` ; `scripts/deploy.sh` de la release : sauvegarde vérifiée `~/backups/dig/dig-20261102-230257-pre-deploy-8ec98ed.sqlite`, santé et version OK.
+- Après : 2 domaines 200, `/api/version` = `1.0.0+8ec98ed`, `admin.js?v=1.0.0+8ec98ed`, journal sans erreur, `quick_check` ok, empreintes identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 0e1a561` + `sudo systemctl restart dig` (aucune migration à défaire).
+
+## 6. Test fonctionnel à faire par le propriétaire
+
+**Budget actuel** : plafond du serveur 2,71 / 3 USD (il reste 0,29 USD) ; limite de l'atelier 0,41 / 1 USD. Avec l'estimation prudente de 0,25 USD par image, **une seule image** peut être lancée (voir décisions 1 et 2). Sans réglage, la recette s'arrêtera proprement après la 1re image : c'est aussi un test du plafond.
+
+1. Rechargez le panel (Ctrl+F5) : le bandeau « nouvelle version » s'affiche dans l'onglet resté ouvert.
+2. (Recommandé) Relevez les plafonds (décisions 1 et 2).
+3. Ouvrez 🎨 Icônes. Dans « Collections », « Trésors de la vieille mine » doit indiquer **6 objets · 4 à générer · 2 avec image** (crayon, jeton, tasse, clé ; lanterne et boussole sont ignorées).
+4. Cliquez sur « Générer les 4 images manquantes », lisez la confirmation, puis OK. Comptez environ 40 s par image, soit environ 3 min ; vous pouvez quitter la page.
+5. Résultat attendu : 4 cartes avec image, « ✓ À examiner » ou « ⚠ À revoir », pour environ 0,33 USD réels. Ouvrez chaque objet : « Conserver » si l'image est bonne, « Refaire » avec une précision sinon.
+6. Notez le nombre d'objets qu'il a fallu corriger : c'est la mesure du temps d'intervention humaine.
+7. Publiez la collection dans 📿 Collections quand tout est bon. Rien n'est publié avant.
+
+## 7. Choix techniques faits seul
+
+- Contrôle du sujet par un modèle texte avec vision, déjà configuré (gpt-5-mini, image 256 px en `detail: low`). Coût négligeable devant celui d'un « Refaire » humain, et il désigne les seuls objets à corriger.
+- L'estimation prudente (0,25 USD) sert toujours au contrôle du plafond. Le coût constaté (moyenne des 20 derniers appels) n'est utilisé que pour l'information affichée. Abaisser l'estimation reste votre décision (question 2).
+- Les propositions antérieures au prompt v1.3 ne comptent pas comme « à examiner » : la pépite actuelle du jeton sera donc régénérée par la collection.
+- Pas de variantes multiples, ni de nouvel essai automatique en cas d'échec : un échec est signalé, et vous décidez de refaire ou non.
+
+## 8. Décisions demandées au propriétaire
+
+1. **Plafond du serveur** `DIG_IMAGE_BUDGET_USD` (fichier `~/.config/dig/openai.env`, pris en compte sans redémarrage) : il reste 0,29 USD. **Recommandé : 10 USD**, soit environ 115 images au coût constaté. Question ouverte depuis le 30/10.
+2. **Estimation prudente** `DIG_IMAGE_EST_COST_USD` (même fichier) : 0,25 USD configurés, contre 0,082 USD constatés sur 7 images. **Recommandé : 0,12 USD.** Le plafond reste strict, et une collection n'est plus bloquée 3 fois trop tôt.
+3. **Limite de l'atelier** (⚙ Config → Budget IA) : 0,41 / 1 USD. **Recommandé : 5 USD, ou vide** (plafond du serveur seul).
+4. Ensuite : lancer la collection « Collection des origines » (8 objets) avec le même bouton ? Recommandé : oui, après la recette des « Trésors ».
+
+## 9. Reste à faire
+
+- Recette de la collection « Trésors » par le propriétaire (section 6), puis publication.
+- Minerais de l'étape B (#22) : à faire un par un, via les fiches des blocs. La génération d'une collection ne concerne que les objets de collection. **Après lancement.**
+- Suggestion, non implémentée : un bouton « Contrôler » pour les anciennes propositions. La fonction serveur `checkAsset` existe déjà.
 
 ---
 
