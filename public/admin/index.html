@@ -1092,7 +1092,7 @@
         <label>Nom NL<input id="co-s-name-nl" type="text" maxlength="60"></label>
         <label>Nom ES<input id="co-s-name-es" type="text" maxlength="60"></label>
         <label>Icône (emoji)<input id="co-s-icon" type="text" maxlength="8" value="📦"></label>
-        <label><input type="checkbox" id="co-s-active" checked> Active</label>
+        <label title="Indicateur de contenu, indépendant de la publication : une série désactivée ne fait plus tomber ses objets après publication."><input type="checkbox" id="co-s-active" checked> Série activée</label>
       </div>
       <div class="form-actions">
         <button class="btn btn-primary" id="btn-co-s-save">Enregistrer la série dans le brouillon</button>
@@ -1115,20 +1115,34 @@
               <label>Série<select id="co-i-series"></select></label>
               <label>Rareté<select id="co-i-rarity"></select></label>
               <label>Icône (emoji)<input id="co-i-icon" type="text" maxlength="8"></label>
-              <label><input type="checkbox" id="co-i-active" checked> Actif</label>
+              <label title="Indicateur de contenu, indépendant de la publication : un objet désactivé n'apparaît plus et ne tombe plus après publication (les objets déjà trouvés restent)."><input type="checkbox" id="co-i-active" checked> Objet activé</label>
             </div>
           </fieldset>
-          <fieldset class="co-fs"><legend>Noms et histoires</legend>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
-              <label>Nom FR<input id="co-i-name-fr" type="text" maxlength="60"></label>
-              <label>Nom EN<input id="co-i-name-en" type="text" maxlength="60"></label>
-              <label>Nom NL<input id="co-i-name-nl" type="text" maxlength="60"></label>
-              <label>Nom ES<input id="co-i-name-es" type="text" maxlength="60"></label>
-              <label style="grid-column:1/-1">Histoire FR<textarea id="co-i-story-fr" rows="3" maxlength="1200"></textarea></label>
-              <label style="grid-column:1/-1">Histoire EN<textarea id="co-i-story-en" rows="3" maxlength="1200"></textarea></label>
-              <label style="grid-column:1/-1">Histoire NL<textarea id="co-i-story-nl" rows="3" maxlength="1200"></textarea></label>
-              <label style="grid-column:1/-1">Histoire ES<textarea id="co-i-story-es" rows="3" maxlength="1200"></textarea></label>
+          <fieldset class="co-fs"><legend>Nom et histoire</legend>
+            <div class="co-lang-switch" id="co-i-langs" role="group" aria-label="Langue éditée">
+              <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true">FR</button>
+              <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false">EN</button>
+              <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false">NL</button>
+              <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false">ES</button>
             </div>
+            <div class="co-i-lang" data-lang="fr" style="display:grid;gap:8px">
+              <label>Nom (FR) — obligatoire<input id="co-i-name-fr" type="text" maxlength="60"></label>
+              <label>Histoire (FR)<textarea id="co-i-story-fr" rows="6" maxlength="1200"></textarea></label>
+            </div>
+            <div class="co-i-lang hidden" data-lang="en" style="display:grid;gap:8px">
+              <label>Nom (EN)<input id="co-i-name-en" type="text" maxlength="60"></label>
+              <label>Histoire (EN)<textarea id="co-i-story-en" rows="6" maxlength="1200"></textarea></label>
+            </div>
+            <div class="co-i-lang hidden" data-lang="nl" style="display:grid;gap:8px">
+              <label>Nom (NL)<input id="co-i-name-nl" type="text" maxlength="60"></label>
+              <label>Histoire (NL)<textarea id="co-i-story-nl" rows="6" maxlength="1200"></textarea></label>
+            </div>
+            <div class="co-i-lang hidden" data-lang="es" style="display:grid;gap:8px">
+              <label>Nom (ES)<input id="co-i-name-es" type="text" maxlength="60"></label>
+              <label>Histoire (ES)<textarea id="co-i-story-es" rows="6" maxlength="1200"></textarea></label>
+            </div>
+            <details id="co-i-fr-ref" class="hidden"><summary class="muted">Voir le texte FR (référence)</summary><p class="muted co-prop-ref" id="co-i-fr-ref-text"></p></details>
+            <p class="muted" style="font-size:0.75rem;margin:4px 0 0">Les autres langues restent en mémoire : tout est enregistré ensemble avec « Enregistrer l'objet dans le brouillon ».</p>
           </fieldset>
           <fieldset class="co-fs"><legend>Image</legend>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">

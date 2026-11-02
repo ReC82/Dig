@@ -591,3 +591,14 @@ table:has(.visually-hidden) { position: relative; }
 .co-prop-preview { flex: 1 1 220px; position: sticky; top: 0; border: 1px solid #374151; border-radius: 16px; padding: 12px; text-align: center; }
 .co-prop-preview p { text-align: left; font-size: 0.82rem; line-height: 1.5; }
 .co-prop-art { font-size: 3rem; min-height: 64px; }
+
+/* #39 — statut d'une ligne Collections : publication d'abord, indicateur de contenu à part */
+.co-pub { font-weight: 600; }
+.co-pub--draft { color: #fcd34d; }
+.co-pub--changed { color: #93c5fd; }
+.co-pub--live { color: #86efac; }
+.co-flag-off { color: #fca5a5; }
+.ic-item-brief { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
+.ic-item-brief h4 { margin: 0; font-size: 0.9rem; }
+.ic-item-brief .ic-hint { margin: 0; font-size: 0.78rem; }
+.ic-item-brief .ic-notice p { margin: 0 0 6px; }
