@@ -1744,7 +1744,10 @@ function bkFillForm(t) {
   idEl.value = t ? t.id : '';
   idEl.readOnly = !!t;
   for (const l of BK_LANGS) document.getElementById(`bk-name-${l}`).value = t?.names?.[l] ?? '';
-  document.getElementById('bk-name-fr').placeholder = t && _bk.legacyIds.includes(t.id) ? `${bkNameFr(t) ?? ''} (traduction intégrée)`.trim() : '';
+  for (const l of BK_LANGS) {
+    const b = t ? bkBuiltInName(t.id, l) : null;
+    document.getElementById(`bk-name-${l}`).placeholder = b ? `${b} (traduction intégrée)` : '';
+  }
   document.getElementById('bk-category').value = t ? t.category : 'minerai';
   document.getElementById('bk-rarity').value = t ? t.rarity : 'commun';
   document.getElementById('bk-icon').value = t ? t.icon : '';
@@ -1759,9 +1762,14 @@ function bkFillForm(t) {
   document.getElementById('bk-fade-weight').value = t?.fadeWeight ?? '';
   document.getElementById('bk-gem-reward').checked = t ? t.gemReward !== false : true;
   document.getElementById('bk-active').checked = t ? t.active : true;
-  document.getElementById('btn-bk-remove').disabled = !t || _bk.publishedIds.includes(t.id);
   bkFillSheet(t);
   bkPreview();
+  bkNamesSources();
+  bkEffective();
+  document.getElementById('bk-translate-msg').textContent = '';
+  for (const l of BK_LANGS) document.getElementById(`bk-name-${l}`).classList.remove('bk-ai-filled');
+  _bkSnapshot = JSON.stringify(bkReadForm());
+  bkDirtyUpdate();
 }
 
 function bkReadForm() {
@@ -1916,17 +1924,15 @@ function bkOpenSheet(t, opener) {
   (t ? document.getElementById('btn-bk-close') : document.getElementById('bk-id')).focus();
 }
 
-/** Résumé et état de l'illustration en tête de fiche (t = null : nouveau bloc). */
+/** Résumé, état dans le brouillon et illustration en tête de fiche (t = null : nouveau bloc). */
 function bkFillSheet(t) {
   const sum = document.getElementById('bk-sheet-summary');
   const art = document.getElementById('bk-sheet-art');
+  bkFillDraftState(t);
   if (!t) { sum.textContent = 'Nouveau bloc : il sera ajouté au brouillon, invisible des joueurs jusqu\'à la publication.'; art.classList.add('hidden'); return; }
-  const depth = Math.max(1, Number(document.getElementById('bk-odds-depth').value) || 1);
-  const p = bkOdds(bkWorking(), depth).get(t.id);
   const changed = (_bk.draft?.changes ?? []).some(c => c.id === t.id);
-  const names = BK_LANGS.map(l => `${l.toUpperCase()} : ${t.names?.[l] ?? (l === 'fr' && bkNameFr(t) ? `${bkNameFr(t)} (intégré)` : '—')}`).join(' · ');
-  sum.textContent = `${BK_RARITY[t.rarity] ?? t.rarity} · ${t.category} · dès ${t.minDepth} m · ${bkPct(p)} à ${depth} m`
-    + ` · ${t.active ? 'actif' : 'désactivé'}${changed ? ' · modifié dans le brouillon' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau (jamais publié)'} — ${names}`;
+  sum.textContent = `${bkNameFr(t) ?? t.id} · ${BK_RARITY[t.rarity] ?? t.rarity} · ${t.category} · dès ${t.minDepth} m`
+    + ` · ${t.active ? 'actif' : 'désactivé'}${changed ? ' · modifié dans le brouillon' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau (jamais publié)'}`;
   const v = bkVisual(t);
   art.classList.remove('hidden');
   art.classList.toggle('bk-sheet-art--todo', v.kind === 'emoji' || v.kind === 'missing');
@@ -1938,6 +1944,207 @@ function bkFillSheet(t) {
         + 'validez-la, appliquez-la au brouillon, puis publiez ici. Rien n\'est appliqué ni publié automatiquement.';
 }
 
+
+// ── Fiche : état dans le brouillon, traductions, probabilités effectives, aide (recette du 02/11) ──
+
+const BK_FIELD_LABELS = { names: 'Noms', category: 'Catégorie', rarity: 'Rareté', icon: 'Emoji de secours', image: 'Image personnalisée',
+  color: 'Couleur', accent: 'Accent', hpBase: 'PV de base', reward: 'Récompense de base', minDepth: 'Profondeur minimale',
+  maxDepth: 'Profondeur maximale', weight: 'Poids', fadeFrom: 'Atténué au-delà de', fadeWeight: 'Poids atténué',
+  gemReward: 'Rapporte une gemme', active: 'Actif' };
+
+const bkShow = v => (v === null || v === undefined ? '—' : typeof v === 'boolean' ? (v ? 'oui' : 'non')
+  : typeof v === 'object' ? Object.entries(v).map(([k, x]) => `${k.toUpperCase()} ${x}`).join(', ') : String(v));
+
+/** Encadré « Brouillon » de la fiche : publié / brouillon champ par champ, annulation de ce bloc ou de tout le brouillon. */
+function bkFillDraftState(t) {
+  const box = document.getElementById('bk-sheet-draft');
+  const change = t ? (_bk.draft?.changes ?? []).find(c => c.id === t.id) : null;
+  const isNew = t && !_bk.publishedIds.includes(t.id);
+  const nChanges = _bk.draft?.changes?.length ?? 0;
+  box.classList.toggle('hidden', !t || (!change && !isNew && !nChanges));
+  if (!t) return;
+  const body = document.getElementById('bk-sheet-diff-body');
+  body.textContent = '';
+  const text = document.getElementById('bk-sheet-draft-text');
+  document.getElementById('bk-diff-pub').textContent = `Version publiée (v${_bk.published.version})`;
+  if (change?.kind === 'changed') {
+    text.textContent = `Ce bloc est modifié dans le brouillon (pas encore visible des joueurs). Les joueurs voient toujours la version publiée v${_bk.published.version}.`;
+    for (const f of change.fields) {
+      const tr = document.createElement('tr');
+      [BK_FIELD_LABELS[f.field] ?? f.field, bkShow(f.before), bkShow(f.after)].forEach(x => addCell(tr, x));
+      body.appendChild(tr);
+    }
+  } else if (isNew) {
+    text.textContent = 'Nouveau bloc, présent uniquement dans le brouillon : il n\'a jamais été publié.';
+  } else {
+    text.textContent = `Ce bloc est identique à la version publiée v${_bk.published.version}. Le brouillon contient ${nChanges} changement(s) sur d'autres blocs.`;
+  }
+  body.closest('table').classList.toggle('hidden', !body.children.length);
+  const revert = document.getElementById('btn-bk-revert');
+  revert.classList.toggle('hidden', isNew);
+  revert.disabled = change?.kind !== 'changed';
+  document.getElementById('btn-bk-remove').classList.toggle('hidden', !isNew);
+  document.getElementById('btn-bk-discard-all').disabled = !_bk.draft;
+}
+
+/** Traduction intégrée au jeu pour une langue (sans repli), ou null. */
+function bkBuiltInName(id, l) {
+  if (typeof I18n === 'undefined' || !id) return null;
+  return typeof I18n.get === 'function' ? I18n.get(`block.${id}`, l) : (l === 'fr' && I18n.has(`block.${id}`, 'fr') ? I18n.t(`block.${id}`) : null);
+}
+
+/** Nom réellement affiché en jeu pour chaque langue, avec sa provenance (même repli que Blocks.displayName). */
+function bkNameUsed(id, names, l) {
+  if (names[l]) return { name: names[l], src: 'custom' };
+  const b = bkBuiltInName(id, l);
+  if (b) return { name: b, src: 'builtin' };
+  const fr = names.fr || bkBuiltInName(id, 'fr');
+  return { name: fr || null, src: 'missing' };
+}
+
+function bkNamesSources() {
+  const id = document.getElementById('bk-id').value.trim();
+  const names = {};
+  for (const l of BK_LANGS) names[l] = document.getElementById(`bk-name-${l}`).value.trim();
+  let missing = 0;
+  for (const l of BK_LANGS) {
+    const u = bkNameUsed(id, names, l);
+    const el = document.getElementById(`bk-name-src-${l}`);
+    el.className = `bk-name-src bk-name-src--${u.src}`;
+    if (u.src === 'custom') el.textContent = '✓ personnalisée (prioritaire)';
+    else if (u.src === 'builtin') el.textContent = `✓ intégrée au jeu : « ${u.name} »`;
+    else if (l === 'fr') el.textContent = '⚠ manquante : nom FR obligatoire';
+    else { missing++; el.textContent = u.name ? `⚠ manquante : le jeu affiche le nom FR « ${u.name} »` : '⚠ manquante'; }
+  }
+  const btn = document.getElementById('btn-bk-translate');
+  btn.disabled = !missing || !(names.fr || bkBuiltInName(id, 'fr'));
+  btn.title = missing ? `${missing} langue(s) sans traduction` : 'Toutes les langues ont une traduction (personnalisée ou intégrée).';
+  return names;
+}
+
+const BK_CATEGORY_HELP = {
+  terre: 'Terre : bloc ordinaire, rapporte des pièces. Peut faire tomber les trouvailles de collection prévues pour la terre.',
+  pierre: 'Pierre : bloc ordinaire, rapporte des pièces. Peut faire tomber les trouvailles prévues pour la pierre.',
+  minerai: 'Minerai : bloc ordinaire, rapporte des pièces (en général plus). Peut faire tomber les trouvailles prévues pour les minerais.',
+  coffre: 'Coffre : le casser ouvre un coffre (pièces, fragments ou boost) dont la table dépend de la rareté ; compte pour les badges « coffres ouverts » ; peut faire tomber les trouvailles prévues pour les coffres.',
+  gemme: 'Gemme : rapporte en plus 1 gemme si la case « Rapporte 1 gemme » est cochée (sinon le jeu le traite comme un minerai) ; compte dans les gemmes trouvées.',
+};
+
+function bkCategoryHelp() {
+  const cat = document.getElementById('bk-category').value;
+  document.getElementById('bk-h-cat').textContent = `${BK_CATEGORY_HELP[cat] ?? ''} Les catégories : `
+    + Object.keys(BK_CATEGORY_HELP).join(', ') + '. Changer la catégorie change ce comportement (coffre ↔ bloc ordinaire, gemme, trouvailles de collection) '
+    + 'et la forme proposée par l\'atelier d\'icônes ; c\'est indépendant de la rareté, qui règle la Chance et la table d\'un coffre.';
+}
+
+const BK_EFF_DEPTHS = [1, 25, 100, 250, 400];
+
+/** Probabilités effectives du bloc tel que saisi (remplace sa version de travail), sans Chance et avec Chance 10. */
+function bkEffective() {
+  const box = document.getElementById('bk-eff');
+  const f = bkReadForm();
+  const gem = document.getElementById('bk-gem-note');
+  const isGem = f.category === 'gemme';
+  document.getElementById('bk-gem-reward').closest('label').classList.toggle('hidden', !isGem);
+  bkCategoryHelp();
+  box.textContent = '';
+  if (!f.id || !(f.weight > 0) || !(f.minDepth >= 1)) {
+    box.textContent = 'Renseignez la profondeur minimale et le poids pour voir la probabilité réelle.';
+    gem.textContent = isGem ? 'Modèle actuel : 1 gemme à chaque bloc cassé (100 %). Probabilité × quantité : voir #49.' : 'Seuls les blocs de catégorie « gemme » rapportent une gemme.';
+    return;
+  }
+  const types = bkWorking().filter(t => t.id !== f.id).concat([{ ...f, active: true }]);
+  const depthIn = Math.max(1, Number(document.getElementById('bk-odds-depth').value) || 250);
+  const depths = [...new Set([...BK_EFF_DEPTHS, depthIn])].sort((a, b) => a - b);
+  const luckOdds = (depth, lvl) => {
+    const mult = 1 + lvl * 0.10;
+    const pool = types.filter(t => t.active && depth >= t.minDepth).map(t => [t.id, bkWeightAt(t, depth) * (BK_BOOSTED.has(t.rarity) ? mult : 1)]);
+    const tot = pool.reduce((a, [, w]) => a + w, 0);
+    return tot > 0 ? (pool.find(([id]) => id === f.id)?.[1] ?? 0) / tot : 0;
+  };
+  const p0 = luckOdds(depthIn, 0);
+  const head = document.createElement('p');
+  head.textContent = p0
+    ? `À ${depthIn} m : ${bkPct(p0)} des blocs, soit environ 1 bloc sur ${Math.round(1 / p0).toLocaleString('fr-BE')} (sans Chance).`
+    : `À ${depthIn} m : n'apparaît pas (profondeur minimale ${f.minDepth} m).`;
+  if (!f.active) head.textContent += ' Bloc désactivé : en réalité il n\'apparaît pas ; calcul fait comme s\'il était actif.';
+  box.appendChild(head);
+  const tbl = document.createElement('table');
+  tbl.className = 'bk-eff-table';
+  const hr = document.createElement('tr');
+  ['Profondeur', 'Poids utilisé', 'Probabilité', 'avec Chance 10'].forEach(x => { const th = document.createElement('th'); th.textContent = x; hr.appendChild(th); });
+  const thead = document.createElement('thead'); thead.appendChild(hr); tbl.appendChild(thead);
+  const tb = document.createElement('tbody');
+  for (const d of depths) {
+    const tr = document.createElement('tr');
+    const avail = d >= f.minDepth;
+    [`${d} m`, avail ? String(bkWeightAt(f, d)) : '—', avail ? bkPct(luckOdds(d, 0)) : 'absent', avail ? bkPct(luckOdds(d, 10)) : 'absent']
+      .forEach(x => addCell(tr, x));
+    if (d === depthIn) tr.className = 'bk-eff-cur';
+    tb.appendChild(tr);
+  }
+  tbl.appendChild(tb);
+  box.appendChild(tbl);
+  const note = document.createElement('small');
+  note.className = 'muted';
+  note.textContent = (BK_BOOSTED.has(f.rarity)
+    ? `Rareté « ${BK_RARITY[f.rarity]} » : la Chance du joueur augmente son poids de 10 % par niveau (colonne « avec Chance 10 » : ×2).`
+    : `Rareté « ${BK_RARITY[f.rarity] ?? f.rarity} » : non favorisée par la Chance (sa part baisse un peu quand la Chance favorise les blocs rares).`)
+    + ' Les probabilités tiennent compte de tous les blocs du brouillon/catalogue de travail et de cette fiche telle que saisie. Profondeur de référence : champ « Probabilités à … m » de la liste.';
+  box.appendChild(note);
+  gem.textContent = !isGem ? 'Seuls les blocs de catégorie « gemme » rapportent une gemme.'
+    : f.gemReward ? `Modèle actuel : 1 gemme à chaque bloc cassé (100 %). À ${depthIn} m, ≈ ${(p0 * 1000).toFixed(2)} gemme(s) pour 1 000 blocs cassés. Un modèle « probabilité × quantité » est en attente d'arbitrage économique (#49) : rien n'est modifié ici.`
+      : 'Ne rapporte aucune gemme (traité comme un minerai en jeu).';
+}
+
+// Aide contextuelle : ⓘ ouvre/ferme l'explication (souris, clavier, tactile), sans activer le champ.
+document.getElementById('bk-dialog').addEventListener('click', e => {
+  const b = e.target.closest('.bk-info');
+  if (!b) return;
+  e.preventDefault();
+  const h = document.getElementById(b.getAttribute('aria-controls'));
+  h.hidden = !h.hidden;
+  b.setAttribute('aria-expanded', String(!h.hidden));
+});
+
+// Modifications non enregistrées : confirmation avant toute fermeture (✕, Échap, fond, atelier, page).
+let _bkSnapshot = null;
+const bkDirty = () => document.getElementById('bk-dialog').open && _bkSnapshot !== null && JSON.stringify(bkReadForm()) !== _bkSnapshot;
+function bkDirtyUpdate() { document.getElementById('bk-dirty').classList.toggle('hidden', !bkDirty()); }
+
+function bkRequestClose(then) {
+  const dlg = document.getElementById('bk-dialog');
+  const go = () => { _bkSnapshot = null; dlg.close(); then?.(); };
+  if (!bkDirty()) { go(); return; }
+  const leave = document.getElementById('bk-leave-dialog');
+  leave._then = go;
+  leave.showModal();
+  document.getElementById('btn-bk-leave-stay').focus();
+}
+document.getElementById('btn-bk-leave-stay').addEventListener('click', () => { const l = document.getElementById('bk-leave-dialog'); l._then = null; l.close(); });
+document.getElementById('btn-bk-leave-go').addEventListener('click', () => {
+  const l = document.getElementById('bk-leave-dialog');
+  const then = l._then;
+  l._then = null;
+  l.close();
+  then?.();
+});
+document.getElementById('bk-leave-dialog').addEventListener('close', () => {
+  if (document.getElementById('bk-dialog').open) document.getElementById('btn-bk-save').focus();
+});
+document.getElementById('bk-dialog').addEventListener('cancel', e => {
+  if (!bkDirty()) { _bkSnapshot = null; return; }
+  e.preventDefault();
+  bkRequestClose();
+});
+window.addEventListener('beforeunload', e => { if (bkDirty()) { e.preventDefault(); e.returnValue = ''; } });
+document.getElementById('bk-dialog').addEventListener('input', e => {
+  if (e.target.id?.startsWith('bk-name-') || e.target.id === 'bk-id') bkNamesSources();
+  if (e.target.closest('.bk-sec') && !e.target.id?.startsWith('bk-name-')) bkEffective();
+  bkDirtyUpdate();
+});
+document.getElementById('bk-dialog').addEventListener('change', () => { bkEffective(); bkDirtyUpdate(); });
+
 document.getElementById('bk-dialog').addEventListener('close', () => {
   // Retour du focus sur la ligne d'origine (re-rendue après un enregistrement : retrouvée par identifiant).
   const id = _bkSheetOpener?.dataset?.id;
@@ -1945,9 +2152,9 @@ document.getElementById('bk-dialog').addEventListener('close', () => {
   (row ?? (document.contains(_bkSheetOpener) ? _bkSheetOpener : null))?.focus();
   _bkSheetOpener = null;
 });
-document.getElementById('btn-bk-close').addEventListener('click', () => document.getElementById('bk-dialog').close());
-// Clic sur le fond (hors du contenu) : fermeture.
-document.getElementById('bk-dialog').addEventListener('click', e => { if (e.target.id === 'bk-dialog') e.target.close(); });
+document.getElementById('btn-bk-close').addEventListener('click', () => bkRequestClose());
+// Clic sur le fond (hors du contenu) : fermeture, avec confirmation si des valeurs ne sont pas enregistrées.
+document.getElementById('bk-dialog').addEventListener('click', e => { if (e.target.id === 'bk-dialog') bkRequestClose(); });
 // « ＋ Ajouter un bloc » : choix « Créer avec l'IA » / « Créer manuellement » (Annuler : aucun effet).
 admDialogSetup('bk-add-dialog');
 admDialogSetup('ai-dialog');
@@ -1965,9 +2172,10 @@ document.getElementById('btn-bk-add-ai').addEventListener('click', () => {
 });
 document.getElementById('btn-bk-studio').addEventListener('click', () => {
   const id = document.getElementById('bk-id').value.trim();
-  document.getElementById('bk-dialog').close();
-  document.querySelector('.tab-btn[data-tab="icons"]').click();
-  if (id) icOpen(`block:${id}`);
+  bkRequestClose(() => {
+    document.querySelector('.tab-btn[data-tab="icons"]').click();
+    if (id) icOpen(`block:${id}`);
+  });
 });
 
 function bkChangeLabel(c) {
@@ -2274,16 +2482,82 @@ document.getElementById('btn-bk-save').addEventListener('click', async () => {
   const type = bkReadForm();
   if (!type.id) { ptMessage('bk-form-msg', 'Identifiant requis.', false); return; }
   const { ok, data } = await api('PUT', `/api/admin/blocks/draft/types/${encodeURIComponent(type.id)}`, { type });
-  ptMessage('bk-form-msg', ok ? `« ${data.type.id} » enregistré dans le brouillon (pas encore visible des joueurs).` : (data.error || 'Erreur.'), ok);
-  if (ok) { await loadBlocks(); bkFillForm(bkWorking().find(t => t.id === data.type.id)); }
+  if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur.', false); return; }
+  // Message après le rechargement : la fiche affiche déjà l'état enregistré (plus de « non enregistré »).
+  await loadBlocks();
+  bkFillForm(bkWorking().find(t => t.id === data.type.id));
+  ptMessage('bk-form-msg', _bk.draft?.changes.some(c => c.id === data.type.id)
+    ? `« ${data.type.id} » enregistré dans le brouillon (pas encore visible des joueurs).`
+    : `« ${data.type.id} » est identique à la version publiée : aucun changement en attente pour ce bloc.`, true);
+});
+
+/** Après une annulation ou un abandon : fiche rechargée sur l'état réel, sans demande de confirmation. */
+async function bkAfterUndo(id, msg) {
+  await loadBlocks();
+  const t = id ? bkWorking().find(x => x.id === id) : null;
+  if (t) bkFillForm(t); else { _bkSnapshot = null; document.getElementById('bk-dialog').close(); }
+  ptMessage(t ? 'bk-form-msg' : 'bk-publish-msg', msg, true);
+}
+
+document.getElementById('btn-bk-revert').addEventListener('click', async () => {
+  const id = document.getElementById('bk-id').value.trim();
+  const change = (_bk.draft?.changes ?? []).find(c => c.id === id);
+  if (!id || !change || change.kind !== 'changed') return;
+  const what = change.fields.map(f => `${BK_FIELD_LABELS[f.field] ?? f.field} : ${bkShow(f.after)} → ${bkShow(f.before)}`).join('\n');
+  if (!confirm(`Annuler les modifications de « ${id} » et revenir à la version publiée v${_bk.published.version} ?\n\n${what}\n\nRien n'est publié ; les autres blocs du brouillon ne changent pas.`)) return;
+  const { ok, data } = await api('POST', `/api/admin/blocks/draft/types/${encodeURIComponent(id)}/revert`);
+  if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur.', false); return; }
+  await bkAfterUndo(id, `Modifications de « ${id} » annulées : version publiée rétablie, rien n'a été publié.`
+    + (data.draftDropped ? ' Le brouillon ne contenait plus aucun changement : il a été supprimé.' : ''));
 });
 
 document.getElementById('btn-bk-remove').addEventListener('click', async () => {
   const id = document.getElementById('bk-id').value.trim();
-  if (!id || !confirm(`Retirer « ${id} » du brouillon ?`)) return;
+  if (!id || !confirm(`Retirer le nouveau bloc « ${id} » du brouillon ? Il n'a jamais été publié.`)) return;
   const { ok, data } = await api('DELETE', `/api/admin/blocks/draft/types/${encodeURIComponent(id)}`);
-  ptMessage('bk-form-msg', ok ? `« ${id} » retiré du brouillon.` : (data.error || 'Erreur.'), ok);
-  if (ok) { bkFillForm(null); loadBlocks(); }
+  if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur.', false); return; }
+  await bkAfterUndo(null, `« ${id} » retiré du brouillon.`);
+});
+
+async function bkDiscardAll() {
+  if (!_bk?.draft) return false;
+  const ids = [...new Set(_bk.draft.changes.map(c => c.id))];
+  if (!confirm(`Abandonner TOUT le brouillon ?\n\n${_bk.draft.changes.length} changement(s) non publié(s) seront perdus : ${ids.join(', ') || '—'}.\n`
+    + 'La version publiée n\'est pas modifiée ; rien n\'est publié.')) return false;
+  const { ok, data } = await api('DELETE', '/api/admin/blocks/draft');
+  ptMessage('bk-publish-msg', ok ? 'Brouillon abandonné : le catalogue de travail est revenu à la version publiée.' : (data.error || 'Erreur.'), ok);
+  return ok;
+}
+
+document.getElementById('btn-bk-discard-all').addEventListener('click', async () => {
+  const id = document.getElementById('bk-id').value.trim();
+  if (await bkDiscardAll()) await bkAfterUndo(id, 'Tout le brouillon a été abandonné : ce bloc est revenu à la version publiée.');
+});
+
+document.getElementById('btn-bk-translate').addEventListener('click', async () => {
+  const id = document.getElementById('bk-id').value.trim();
+  const names = bkNamesSources();
+  const langs = BK_LANGS.filter(l => l !== 'fr' && bkNameUsed(id, names, l).src === 'missing');
+  if (!langs.length) return;
+  const btn = document.getElementById('btn-bk-translate');
+  const msg = document.getElementById('bk-translate-msg');
+  btn.disabled = true;
+  msg.textContent = `Traduction en cours (${langs.join(', ').toUpperCase()})…`;
+  const { ok, data } = await api('POST', '/api/admin/blocks/translate',
+    { id, names: { ...names, fr: names.fr || bkBuiltInName(id, 'fr') }, category: document.getElementById('bk-category').value, langs });
+  if (!ok) { msg.textContent = data.error || 'Erreur.'; bkNamesSources(); return; }
+  const filled = [];
+  for (const [l, v] of Object.entries(data.names)) {
+    const el = document.getElementById(`bk-name-${l}`);
+    if (el.value.trim()) continue;   // jamais d'écrasement d'un champ saisi entre-temps
+    el.value = v;
+    el.classList.add('bk-ai-filled');
+    filled.push(l.toUpperCase());
+  }
+  msg.textContent = (filled.length ? `Proposition IA dans ${filled.join(', ')} (champs surlignés) : relisez, corrigez, puis « Enregistrer dans le brouillon ». Rien n'est enregistré.` : 'Aucune proposition utilisable.')
+    + (data.warnings.length ? ` ⚠ ${data.warnings.join(' ')}` : '');
+  bkNamesSources();
+  bkDirtyUpdate();
 });
 
 document.getElementById('btn-bk-publish').addEventListener('click', async () => {
@@ -2296,10 +2570,7 @@ document.getElementById('btn-bk-publish').addEventListener('click', async () => 
 });
 
 document.getElementById('btn-bk-discard').addEventListener('click', async () => {
-  if (!confirm('Abandonner le brouillon ? Les modifications non publiées seront perdues.')) return;
-  const { ok, data } = await api('DELETE', '/api/admin/blocks/draft');
-  ptMessage('bk-publish-msg', ok ? 'Brouillon abandonné.' : (data.error || 'Erreur.'), ok);
-  if (ok) { bkFillForm(null); loadBlocks(); }
+  if (await bkDiscardAll()) loadBlocks();
 });
 
 document.getElementById('btn-bk-simulate').addEventListener('click', async () => {

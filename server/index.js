@@ -1139,6 +1139,12 @@ app.put('/api/admin/blocks/draft/types/:id', requireAdmin, catalogRoute('PUT /ap
 app.delete('/api/admin/blocks/draft/types/:id', requireAdmin, catalogRoute('DELETE /api/admin/blocks/draft/types/:id',
   req => { blockCatalog.removeDraftType(String(req.params.id)); return { ok: true }; }));
 
+app.post('/api/admin/blocks/draft/types/:id/revert', requireAdmin, catalogRoute('POST /api/admin/blocks/draft/types/:id/revert',
+  req => blockCatalog.revertDraftType(String(req.params.id))));
+
+app.post('/api/admin/blocks/translate', requireAdmin, catalogRoute('POST /api/admin/blocks/translate',
+  req => blockAi.translateNames(req.body ?? {})));
+
 app.delete('/api/admin/blocks/draft', requireAdmin, catalogRoute('DELETE /api/admin/blocks/draft',
   () => ({ discarded: blockCatalog.discardDraft() })));
 
