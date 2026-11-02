@@ -246,6 +246,57 @@ test('recette du 02/11 : générations successives d\'objets distincts, consigne
   studio.setBrief('item:fossil', { reset: true });
 });
 
+test('recette du 02/11 (2) : une demande qui cite un autre objet est refusée avant toute dépense', async () => {
+  const calls = () => conn().prepare('SELECT COUNT(*) n FROM icon_studio_calls').get().n;
+  const count = k => studio.getTarget(`item:${k}`).assets.length;
+  const [n0, c0, a0] = [prompts.length, calls(), count('fossil')];
+  // Cas de la production : la précision écrite pour un autre objet (crayon) envoyée depuis la fiche du jeton
+  const polluted = 'L\'image précédente représente une lanterne, c\'est une erreur. Remplace entièrement la lanterne par un CRISTAL BLEU : aucun élément de lanterne.';
+  assert.throws(() => studio.generate('item:fossil', { instruction: polluted }),
+    e => e.status === 409 && e.details.code === 'subject_conflict' && /Fossile/.test(e.message) && /rien n'a été dépensé/.test(e.message)
+      && e.details.conflicts.length === 1 && e.details.conflicts[0].id === 'crystal' && e.details.conflicts[0].strict && e.details.conflicts[0].where === 'précision');
+  assert.throws(() => studio.generate('item:fossil', { instruction: polluted, acknowledge: ['crystal'] }), e => e.status === 409, 'nom complet : jamais contournable');
+  assert.deepStrictEqual([prompts.length, calls(), count('fossil'), studio.jobView()?.target === 'item:fossil' && studio.jobView()?.status === 'running'], [n0, c0, a0, false],
+    'aucun appel, aucun coût, aucune image');
+  // Nom principal seul (« crystal », pluriel compris) : conflit probable, confirmable explicitement
+  assert.throws(() => studio.generate('item:fossil', { instruction: 'entouré de petits crystals' }), e => e.status === 409 && !e.details.conflicts[0].strict);
+  studio.generate('item:fossil', { instruction: 'entouré de petits crystals', acknowledge: ['crystal'] });
+  let j = await studio.waitJob();
+  assert.strictEqual(j.status, 'done', JSON.stringify(j));
+  assert.match(prompts.at(-1).prompt, /^Object to depict: "Fossil"/);
+  const meta = sha => JSON.parse(conn().prepare('SELECT meta FROM icon_studio_assets WHERE sha = ?').get(sha).meta);
+  assert.deepStrictEqual(meta(j.result.sha).acknowledgedConflicts, ['crystal'], 'confirmation tracée dans la provenance');
+  // Son propre nom, accents et casse ignorés : aucun conflit
+  studio.generate('item:fossil', { instruction: 'FOSSILE plus sombre, pierre usée' });
+  j = await studio.waitJob();
+  assert.strictEqual(j.status, 'done', JSON.stringify(j));
+  // Consigne d'illustration enregistrée qui décrit un autre objet : signalée sur la fiche et bloquante
+  studio.setBrief('item:relic', { subject: 'A mysterious orb glowing softly', details: 'Round glass sphere.', palette: '' });
+  assert.deepStrictEqual(studio.getTarget('item:relic').subjectConflicts.map(c => [c.id, c.where]), [['mystic_orb', 'consigne d\'illustration']]);
+  assert.throws(() => studio.generate('item:relic'), e => e.status === 409 && /consigne d'illustration/.test(e.message));
+  studio.setBrief('item:relic', { reset: true });
+  // Consigne par défaut (histoire du catalogue) : jamais bloquante
+  assert.deepStrictEqual(studio.getTarget('item:relic').subjectConflicts, []);
+
+  // Proposition antérieure douteuse (ancienne consigne d'un autre objet) : signalée, conservation refusée sans confirmation
+  const bad = { kind: 'item', prompt: 'A blue crystal shard', promptVersion: 'v1.1', brief: { subject: 'A blue crystal shard', details: '', palette: '' }, instruction: null };
+  const png = await studio.fakeIconPng(10);
+  const webp = await sharp(png).resize(256, 256).webp().toBuffer();
+  const sha = crypto.createHash('sha256').update(webp).digest('hex').slice(0, 16);
+  conn().prepare("INSERT INTO icon_studio_assets (sha, target, source, mime, bytes, meta, created_at) VALUES (?, 'item:fossil', 'ai', 'image/webp', ?, ?, '2026-11-02 19:48:05')")
+    .run(sha, webp, JSON.stringify(bad));
+  const tf = studio.getTarget('item:fossil');
+  const a = tf.assets.find(x => x.sha === sha);
+  assert.match(a.warning.text, /Proposition douteuse/);
+  assert.strictEqual(a.identity, null);
+  assert.strictEqual(tf.assets.find(x => x.sha === j.result.sha).warning, null, 'proposition correcte non signalée');
+  assert.strictEqual(tf.assets.find(x => x.sha === j.result.sha).identity.name, 'Fossil');
+  assert.throws(() => studio.apply('item:fossil', { sha }), e => e.status === 409 && e.details.code === 'doubtful_asset');
+  const r = studio.apply('item:fossil', { sha, doubtful: true });
+  assert.strictEqual(r.target.history[0].details.doubtful, true);
+  studio.apply('item:fossil', { sha: null });
+});
+
 test('routes : protégées, image servie, gros corps seulement après la clé admin', async (t) => {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
@@ -288,7 +339,23 @@ test('routes : protégées, image servie, gros corps seulement après la clé ad
 
   assert.strictEqual((await fetch(`${BASE}/api/admin/icons/jobs`, { method: 'POST', headers: H, body: JSON.stringify({ targets: ['ui:parametres'] }) })).status, 404,
     'route des lots retirée');
-  const job = await (await fetch(`${BASE}/api/admin/icons/targets/ui:parametres/generate`, { method: 'POST', headers: H, body: JSON.stringify({ instruction: 'engrenage plus fin' }) })).json();
+  // Onglet ouvert avant un déploiement (aucun en-tête, ou ancienne version) ou fiche différente : refus sans dépense
+  const version = (await (await fetch(`${BASE}/api/version`)).json()).version;
+  const gen = (key, body, build) => fetch(`${BASE}/api/admin/icons/targets/${key}/generate`, { method: 'POST',
+    headers: build === undefined ? H : { ...H, 'X-Dig-Admin-Build': build }, body: JSON.stringify(body) });
+  for (const build of [undefined, '1.0.0+029e6cf']) {
+    const res = await gen('ui:parametres', { target: 'ui:parametres' }, build);
+    const body = await res.json();
+    assert.deepStrictEqual([res.status, body.details?.code, body.details?.version], [409, 'stale_client', version], JSON.stringify(body));
+    assert.match(body.error, /Rechargez la page/);
+  }
+  const mism = await gen('ui:parametres', { target: 'item:relic' }, version);
+  assert.deepStrictEqual([mism.status, (await mism.json()).details?.code], [409, 'target_mismatch']);
+  const conflict = await gen('item:fossil', { target: 'item:fossil', instruction: 'Remplace par un Cristal bleu' }, version);
+  const cbody = await conflict.json();
+  assert.deepStrictEqual([conflict.status, cbody.details?.code, cbody.details?.conflicts?.[0]?.id], [409, 'subject_conflict', 'crystal']);
+  assert.strictEqual((await (await fetch(`${BASE}/api/admin/icons/job`, { headers: H })).json()).job, null, 'aucune génération lancée');
+  const job = await (await gen('ui:parametres', { target: 'ui:parametres', instruction: 'engrenage plus fin' }, version)).json();
   assert.strictEqual(job.job.target, 'ui:parametres', JSON.stringify(job));
   let j;
   for (let i = 0; i < 100; i++) {

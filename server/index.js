@@ -1211,7 +1211,10 @@ app.put('/api/admin/icons/budget', requireAdmin, limit.icons, iconRoute('PUT /ap
 
 // Une seule image par action (refonte UX du 31/10) : génération en arrière-plan, suivie par GET …/job.
 app.post('/api/admin/icons/targets/:key/generate', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/targets/:key/generate',
-  req => ({ job: iconStudio.generate(String(req.params.key), { instruction: req.body?.instruction ?? '', basedOn: req.body?.basedOn ?? null }) })));
+  req => ({ job: iconStudio.generate(String(req.params.key), { instruction: req.body?.instruction ?? '', basedOn: req.body?.basedOn ?? null,
+    acknowledge: req.body?.acknowledge ?? [],
+    // Version du panel qui envoie la demande (en-tête) et fiche visée (corps) : refus d'un onglet obsolète
+    client: { build: req.get('x-dig-admin-build') ?? null, target: req.body?.target ?? null } }) })));
 
 app.get('/api/admin/icons/targets/:key', requireAdmin, iconRoute('GET /api/admin/icons/targets/:key',
   req => ({ target: iconStudio.getTarget(String(req.params.key)) })));
@@ -1226,7 +1229,8 @@ app.post('/api/admin/icons/targets/:key/mark', requireAdmin, limit.icons, iconRo
   req => ({ target: iconStudio.mark(String(req.params.key), String(req.body?.sha ?? ''), String(req.body?.status ?? '')) })));
 
 app.post('/api/admin/icons/targets/:key/apply', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/targets/:key/apply',
-  req => iconStudio.apply(String(req.params.key), { sha: req.body?.sha ? String(req.body.sha) : null, override: req.body?.override === true, live: req.body?.live === true })));
+  req => iconStudio.apply(String(req.params.key), { sha: req.body?.sha ? String(req.body.sha) : null, override: req.body?.override === true, live: req.body?.live === true,
+    doubtful: req.body?.doubtful === true })));
 
 app.get('/api/admin/blocks/audit', requireAdmin, catalogRoute('GET /api/admin/blocks/audit',
   req => ({ audit: blockCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
