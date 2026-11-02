@@ -204,7 +204,7 @@ test('images : signature contrôlée, taille maximale, dédoublonnage', () => {
 test('routes : catalogue public, images, administration protégée', async (t) => {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT, SESSIONS_DIR: path.join(dir, 'sessions'), DB_FILE: path.join(dir, 'http.sqlite'), ADMIN_SECRET: ADMIN,
+    env: { ...process.env, PORT, SESSIONS_DIR: path.join(dir, 'sessions'), DB_FILE: path.join(dir, 'http.sqlite'), ADMIN_SECRET: ADMIN, DIG_PREPARED_COLLECTIONS: '0',
       SESSION_SECRET: crypto.randomBytes(16).toString('hex') },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

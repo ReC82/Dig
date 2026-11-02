@@ -166,6 +166,46 @@ test('échec IA : état « error » sans écriture au catalogue ; appel interrom
   assert.deepStrictEqual([q.status, /interrompue/.test(q.error)], ['error', true]);
 });
 
+test('directive éditoriale du 02/11 : prompt (humour ancré, variété, pas de faux faits, évocation), clin d\'œil et relecture', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'collectionAi.js'), 'utf8');
+  for (const re of [/EDITORIAL LINE/, /absurd but recognisable wink anchored in some reality/, /DIFFERENT reference/,
+    /Never present invented history as fact/, /evoke or parody/, /clearly different silhouette/, /self-review/]) assert.match(src, re);
+  const r = reply();
+  r.items[0].reference = 'Folklore : un clin d\'œil.';
+  r.review = 'Variété correcte.';
+  answer = r;
+  return propose({ concept: 'Givre', itemCount: 3 }).then(p => {
+    answer = null;
+    assert.strictEqual(p.data.review, 'Variété correcte.');
+    assert.strictEqual(p.data.items[0].reference, 'Folklore : un clin d\'œil.');
+    assert.ok(p.warnings.some(w => /Clin d'œil non précisé pour « Flocon jumeau », « Luge »/.test(w)), p.warnings.join(' | '));
+    const q = ai.updateProposal(p.id, { items: p.data.items.map(i => ({ ...i, reference: i.reference || 'Source.' })) });
+    assert.strictEqual(q.data.review, 'Variété correcte.', 'relecture conservée après correction');
+    assert.ok(q.data.items.every(i => i.reference));
+    ai.discardProposal(p.id);
+  }).finally(() => { answer = null; });
+});
+
+test('contrôles de qualité : consignes et histoires trop proches, noms en double ; collection variée sans alerte', async () => {
+  assert.strictEqual(ai.similarity('A brass lantern with soot', 'A brass lantern with soot'), 1);
+  assert.strictEqual(ai.similarity('A round orange fruit', 'A tall granite standing stone'), 0);
+  const r = reply();
+  r.series.idSuggestion = 'clones';
+  const img = k => ({ subject: `An old rusty miner lantern number ${k}`, details: 'Old rusty miner lantern with glass panes and handle.', palette: 'Palette: amber.' });
+  r.items = r.items.map((i, k) => ({ ...i, idSuggestion: `clone_${k}`, reference: 'Source.', image: img(k),
+    names: k === 2 ? r.items[0].names : i.names,
+    stories: texts('On raconte que cette vieille lanterne éclairait les mineurs perdus de la galerie.', 'x', 'x', 'x') }));
+  answer = r;
+  try {
+    const p = await propose({ concept: 'Clones', itemCount: 3 });
+    const w = p.warnings.join(' | ');
+    assert.match(w, /Consignes d'illustration très proches pour « Flocon éternel » et « Flocon jumeau »/);
+    assert.match(w, /Histoires FR très proches/);
+    assert.match(w, /Nom FR identique pour « Flocon éternel », « Flocon éternel »/);
+    ai.discardProposal(p.id);
+  } finally { answer = null; }
+});
+
 test('garde-fous partagés : quota journalier', async () => {
   const ins = conn().prepare("INSERT INTO block_ai_calls (kind, ok, cost_usd) VALUES ('text', 1, 0)");
   for (let i = 0; i < 40; i++) ins.run();
@@ -281,7 +321,7 @@ test('recette du 02/11 : relecture IA en synthèse puis fiche d\'un objet, une l
 });
 
 test('recette du 02/11 (atelier) : consigne de l\'objet préremplie et modifiable, saisie conservée, jamais de génération automatique', () => {
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'server', 'collectionAi.js'), 'utf8'), /Every item gets its own different subject and details/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'server', 'collectionAi.js'), 'utf8'), /Every item has a clearly different silhouette and subject/);
   const sheet = JS.slice(JS.indexOf('function icRenderSheet('), JS.indexOf('function icHistory('));
   assert.match(sheet, /t\.kind === 'item' \? icItemBrief\(step, t\)/);
   assert.match(sheet, /IC_HINTS\[t\.kind\]/, 'plus de consigne « minerai » pour un objet');
@@ -304,4 +344,38 @@ test('recette du 02/11 : fiche objet une langue à la fois, statut publication d
   assert.match(JS, /'Brouillon — non publié'/);
   assert.match(JS, /'Publié · modifié dans le brouillon' : 'Publié'/);
   assert.doesNotMatch(JS, /' · nouveau'\}`;\n    const cell = addCell/);
+});
+
+test('collection préparée du 02/11 : contenu complet et varié, importée une seule fois dans le brouillon, rien publié', () => {
+  const file = path.join(__dirname, '..', 'server', 'content', 'collections', 'objets-trouves-legende.json');
+  const pack = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.strictEqual(pack.items.length, 6);
+  for (const i of pack.items) {
+    for (const l of ['fr', 'en', 'nl', 'es']) {
+      assert.ok(i.names[l] && i.names[l].length <= 60, `${i.id} nom ${l}`);
+      assert.ok(i.stories[l] && i.stories[l].length <= 320, `${i.id} histoire ${l} (≤ 320)`);
+    }
+    assert.ok(i.reference && i.image.subject && i.image.details && /^Palette:/.test(i.image.palette), i.id);
+  }
+  assert.deepStrictEqual(pack.items.map(i => i.rarity).sort(), ['commun', 'commun', 'epique', 'legendaire', 'rare', 'rare']);
+  const v = catalog.getPublished().version;
+  const res = ai.importPrepared();
+  assert.deepStrictEqual(res.map(x => [x.pack, x.status]), [['objets_trouves_legende_v1', 'in_draft']]);
+  const prop = ai.getProposal(res[0].proposal);
+  assert.deepStrictEqual(prop.warnings, [], 'aucune alerte de qualité');
+  assert.match(prop.data.review, /Variété/);
+  assert.strictEqual(catalog.getPublished().version, v, 'jamais publié');
+  const draft = catalog.getDraft();
+  const added = draft.items.filter(i => i.seriesId === 'objets_trouves_legende');
+  assert.strictEqual(added.length, 6);
+  assert.ok(added.every(i => i.dropEnabled === false && i.image === null), 'drops inactifs, aucune image');
+  assert.strictEqual(catalog.validateContent(draft).errors.length, 0);
+  const subjects = added.map(i => studio.getTarget(`item:${i.id}`).brief);
+  assert.ok(subjects.every(b => b.custom === true), 'consigne propre reprise par l\'atelier pour chaque objet');
+  assert.strictEqual(new Set(subjects.map(b => b.subject)).size, 6);
+  assert.deepStrictEqual(ai.importPrepared(), [], 'jamais réimportée');
+  // Supprimée du brouillon par l'admin : toujours pas réimportée
+  for (const i of added) catalog.removeDraftEntry('items', i.id);
+  catalog.removeDraftEntry('series', 'objets_trouves_legende');
+  assert.deepStrictEqual(ai.importPrepared(), []);
 });

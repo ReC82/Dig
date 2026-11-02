@@ -3269,7 +3269,7 @@ function coPropRender(p) {
   bkFillList(document.getElementById('co-prop-warnings'), p.warnings ?? []);
   const d = p.data ? structuredClone(p.data) : null;
   // _k : position d'origine (pour retrouver le drop pré-rempli de l'objet)
-  _coPropWork = d && { series: d.series, items: d.items.map((it, k) => ({ ...it, _k: k })), rationale: d.rationale,
+  _coPropWork = d && { series: d.series, items: d.items.map((it, k) => ({ ...it, _k: k })), rationale: d.rationale, review: d.review,
     lang: _coPropWork?.lang ?? 'fr', idx: null, dirty: false, editable };
   coPropDraw();
 }
@@ -3374,6 +3374,13 @@ function coPropDrawList(body, focus) {
   g.appendChild(nameRow);
   coLangSwitch(nameRow, l => (s.names?.[l] ? 'ok' : 'none'), l => { w.lang = l; coPropDraw({ lang: l }); });
   coBind(nameRow, `Nom de la série (${w.lang.toUpperCase()})`, s.names, w.lang, { max: 60 });
+  if (w.review) {
+    // Relecture synthétique (variété, humour, références à surveiller) : visible d'emblée
+    const rv = document.createElement('p');
+    rv.className = 'muted co-prop-review';
+    rv.textContent = `Relecture : ${w.review}`;
+    fs.appendChild(rv);
+  }
   if (s.theme || w.rationale) {
     const det = document.createElement('details');
     const sum = document.createElement('summary');
@@ -3479,6 +3486,8 @@ function coPropDrawItem(body, focus) {
   rl.appendChild(rs);
   gi.appendChild(rl);
   coBind(gi, 'Icône (emoji)', it, 'icon', { max: 8, onInput: () => refresh() });
+  it.reference ??= '';
+  coBind(gi, 'Clin d\'œil (référence, pour la relecture)', it, 'reference', { max: 300, cls: 'co-span' });
   left.appendChild(fi);
 
   // Nom et histoire : une langue à la fois (les autres restent en mémoire)
@@ -3586,6 +3595,7 @@ function coPropRead() {
     items: w.items.map(it => {
       const orig = _coProp.data.items[it._k];
       return { id: t(it, 'id'), rarity: it.rarity, icon: t(it, 'icon'), names: texts(it.names), stories: texts(it.stories),
+        reference: t(it, 'reference'),
         image: { subject: t(it.image, 'subject'), details: t(it.image, 'details'), palette: t(it.image, 'palette') },
         // Drop pré-rempli conservé sauf si la rareté change (il suit alors le barème proposé de la nouvelle rareté)
         drop: it.rarity === orig.rarity ? orig.drop : null };

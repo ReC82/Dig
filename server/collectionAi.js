@@ -70,15 +70,16 @@ function _schema() {
   const texts = { type: 'object', additionalProperties: false, required: LANGS, properties: Object.fromEntries(LANGS.map(l => [l, str])) };
   return {
     type: 'object', additionalProperties: false,
-    required: ['series', 'items', 'rationale'],
+    required: ['series', 'items', 'rationale', 'review'],
     properties: {
       series: { type: 'object', additionalProperties: false, required: ['idSuggestion', 'names', 'icon', 'theme'],
         properties: { idSuggestion: str, names: texts, icon: str, theme: str } },
       items: { type: 'array', items: { type: 'object', additionalProperties: false,
-        required: ['idSuggestion', 'names', 'stories', 'rarity', 'icon', 'image'],
-        properties: { idSuggestion: str, names: texts, stories: texts, rarity: { type: 'string', enum: catalog.RARITIES }, icon: str,
+        required: ['idSuggestion', 'names', 'stories', 'rarity', 'icon', 'reference', 'image'],
+        properties: { idSuggestion: str, names: texts, stories: texts, rarity: { type: 'string', enum: catalog.RARITIES }, icon: str, reference: str,
           image: { type: 'object', additionalProperties: false, required: ['subject', 'details', 'palette'], properties: { subject: str, details: str, palette: str } } } } },
       rationale: str,
+      review: str,
     },
   };
 }
@@ -88,10 +89,18 @@ function _existingSummary() {
   return c.series.map(s => `${s.id} (${s.names?.fr ?? s.id}) : ${c.items.filter(i => i.seriesId === s.id).map(i => `${i.names?.fr ?? i.id} [${i.rarity}]`).join(', ')}`).join('\n');
 }
 
-/** Exemple de ton : l'histoire FR d'un objet d'origine. */
-function _toneSample() {
-  return catalog.ORIGIN_ITEMS.slice(0, 2).map(i => `${i.names.fr} : ${i.stories.fr}`).join('\n');
-}
+/**
+ * Ligne éditoriale durable du propriétaire (directive du 02/11/2026, #39) : collections absurdes mais
+ * ancrées dans une certaine réalité (folklore, histoire, cinéma, sketches, chansons), clins d'œil
+ * originaux et variés, micro-histoires cocasses, jamais d'histoire inventée présentée comme un fait,
+ * œuvres protégées seulement évoquées ou parodiées. Exemples d'intention du propriétaire (pas une liste).
+ */
+const EDITORIAL_EXAMPLES = [
+  'King Dagobert\'s breeches (the French nursery song where he wears them inside out)',
+  'Manneken-Pis\'s nappy (Brussels folklore)',
+  'a matchstick Eiffel Tower made by an over-enthusiastic hobbyist (nod to a French dinner-party comedy)',
+  'a feather from a ridiculous castle chicken (nod to a French film parody)',
+];
 
 function _messages(concept, { itemCount, seasonName }) {
   const langs = LANGS.map(l => `${l} (${LANG_LABELS[l]})`).join(', ');
@@ -99,15 +108,21 @@ function _messages(concept, { itemCount, seasonName }) {
     'You design collectible content for DIG!, an idle clicker mining game for all ages: the player digs down block after block and sometimes finds collectible objects.',
     'A collection is a themed series of objects. Each object has a card with a large picture, its rarity, and a short original story.',
     `Return ONLY the JSON object requested, with exactly ${itemCount} items. Every text must exist in ${langs}, written natively and idiomatically in each language (never a copied French word unless correct).`,
-    'Series name: max 40 chars. Object names: short, max 30 chars, evocative, all distinct, and distinct from existing objects.',
-    'Stories: 2 to 3 sentences (max 320 chars per language), warm, witty and family-friendly, original (no existing brands, characters or real people), in the same tone as these examples:',
-    _toneSample(),
-    `Rarities: mix them sensibly for ${itemCount} objects (mostly commun/peu-commun, few rare, at most one epique and one legendaire); allowed values: ${catalog.RARITIES.join(', ')}.`,
+    'EDITORIAL LINE (mandatory): no generic relics, no list of serious treasures. Each object is an absurd but recognisable wink anchored in some reality: folklore, history, cinema, comedy sketches, songs, comics, local traditions of the theme. Intent examples (do not reuse them unless the theme asks for it): '
+      + `${EDITORIAL_EXAMPLES.join('; ')}.`,
+    'Variety: every object comes from a DIFFERENT reference and, where possible, a different kind of source (folklore, history, film, sketch, song, comic…). Never six variations of the same idea.',
+    'Truthfulness: real facts may be used only if true; any invented anecdote is framed as legend, rumour or obvious exaggeration ("on raconte que…", "legend has it…", conditional tense). Never present invented history as fact.',
+    'Protected works (films, sketches, comics): evoke or parody the situation, object or a paraphrased line; never name trademarked brands, never copy a character design, logo or film still; avoid naming living people.',
+    'Series name: max 40 chars. Object names: short, max 30 chars, funny and evocative, all distinct, and distinct from existing objects.',
+    'Stories: 2 to 3 sentences (max 320 chars per language), a comic micro-story with a punchline, family-friendly, explaining why this object ended up buried underground; each story has its own joke (no shared template or opening).',
+    `Rarities: mix them sensibly for ${itemCount} objects (mostly commun/peu-commun, few rare, at most one epique and one legendaire); the most iconic wink gets the highest rarity; allowed values: ${catalog.RARITIES.join(', ')}.`,
     'icon: exactly one emoji for the series and for each object.',
     'idSuggestion: lowercase ascii snake_case derived from the French name (2-40 chars, starts with a letter).',
     'theme: one French sentence summarising the visual and narrative theme of the series.',
-    'image: English art direction for the icon of THIS object only (subject naming this specific object; details of its own shape/material; palette sentence starting with "Palette:"). Every item gets its own different subject and details; only the art style and colour family stay consistent across the series.',
+    'reference: one short French sentence for the reviewer naming what the object winks at (kind of source + reference) and how it is evoked.',
+    'image: English art direction for the icon of THIS object only, identifiable without any text: subject naming this specific object; details giving its own silhouette, shape, material, colours and one distinctive funny detail; palette sentence starting with "Palette:". Every item has a clearly different silhouette and subject; no letters or words in the picture; never a reproduction of a film still or character.',
     'rationale: 1-2 French sentences explaining the theme and rarity choices.',
+    'review: a short French self-review (2-4 sentences): variety of sources, where the humour is, risky or protected references and how they are only evoked, any weak object to improve.',
     'Do NOT propose drop rates, prices or rewards: they are set by the game owner.',
     `Existing collections (avoid duplicates):\n${_existingSummary()}`,
   ];
@@ -180,11 +195,12 @@ function _normalize(raw, { seasonId = null } = {}) {
     const rarity = catalog.RARITIES.includes(i.rarity) ? i.rarity : 'commun';
     return {
       id, names: _texts(i.names, 60), stories: _texts(i.stories, 1200), rarity, icon: _emoji(i.icon, series.icon),
+      reference: _clean(i.reference, 300),
       image: { subject: _clean(i.image?.subject, 300), details: _clean(i.image?.details, 600), palette: _clean(i.image?.palette, 300) },
       drop: _drop(rarity, i.drop),
     };
   });
-  return { series, items, rationale: _clean(raw?.rationale, 600) };
+  return { series, items, rationale: _clean(raw?.rationale, 600), review: _clean(raw?.review, 1200) };
 }
 
 // ── Propositions ──────────────────────────────────────────────────────────────
@@ -206,6 +222,55 @@ function _warnings(data) {
   for (const group of _sharedImages(data.items)) {
     w.push(`Consigne d'illustration identique pour ${group.map(i => `« ${i.names.fr || i.id} »`).join(', ')} : décrivez chaque objet dans sa fiche, sinon l'atelier repartira du nom et de l'histoire.`);
   }
+  return [...w, ..._qualityWarnings(data.items)];
+}
+
+// ── Contrôles de qualité (directive éditoriale du 02/11) ──────────────────────
+// Variété : noms en double, consignes d'illustration ou histoires trop proches (mots en commun),
+// clin d'œil non renseigné. L'humour ne se mesure pas : la relecture IA (`review`) et l'admin en jugent.
+
+const SIMILAR_IMAGE = 0.5, SIMILAR_STORY = 0.45;
+const STOP = new Set(('with from that this their there they into over under very more most just only also each '
+  + 'dans avec pour plus sans sous elle elles leur leurs mais comme tout tous toute cette celui celle sont était '
+  + 'palette').split(' '));
+
+function _words(text) {
+  return new Set(String(text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .split(/[^a-z0-9]+/).filter(x => x.length >= 4 && !STOP.has(x)));
+}
+
+/** Indice de Jaccard entre deux ensembles de mots (0 = rien en commun, 1 = mêmes mots). */
+function similarity(a, b) {
+  const A = a instanceof Set ? a : _words(a), B = b instanceof Set ? b : _words(b);
+  if (!A.size || !B.size) return 0;
+  let common = 0;
+  for (const x of A) if (B.has(x)) common++;
+  return common / (A.size + B.size - common);
+}
+
+function _qualityWarnings(items) {
+  const w = [];
+  const label = i => `« ${i.names?.fr || i.id} »`;
+  const identical = new Set(_sharedImages(items).flat());
+  const names = new Map();
+  for (const i of items) {
+    const n = String(i.names?.fr ?? '').trim().toLowerCase();
+    if (n) names.set(n, [...(names.get(n) ?? []), i]);
+  }
+  for (const g of names.values()) if (g.length > 1) w.push(`Nom FR identique pour ${g.map(label).join(', ')} : chaque objet doit avoir son propre nom.`);
+  const img = items.map(i => _words(`${i.image?.subject ?? ''} ${i.image?.details ?? ''}`));
+  const sto = items.map(i => _words(i.stories?.fr));
+  for (let a = 0; a < items.length; a++) {
+    for (let b = a + 1; b < items.length; b++) {
+      const pair = `${label(items[a])} et ${label(items[b])}`;
+      if (!(identical.has(items[a]) && identical.has(items[b])) && similarity(img[a], img[b]) >= SIMILAR_IMAGE) {
+        w.push(`Consignes d'illustration très proches pour ${pair} : donnez à chacun sa silhouette, sa matière et ses couleurs.`);
+      }
+      if (similarity(sto[a], sto[b]) >= SIMILAR_STORY) w.push(`Histoires FR très proches pour ${pair} : variez la blague et la tournure.`);
+    }
+  }
+  const noRef = items.filter(i => i.reference === '');
+  if (noRef.length && noRef.length < items.length) w.push(`Clin d'œil non précisé pour ${noRef.map(label).join(', ')} (champ « Référence »).`);
   return w;
 }
 
@@ -294,7 +359,7 @@ function updateProposal(id, input = {}) {
   const p = _open(id);
   const sid = input.series && 'seasonId' in input.series ? input.series.seasonId : p.data.series.seasonId;
   const next = _normalize({ series: { ...p.data.series, ...(input.series ?? {}) }, items: Array.isArray(input.items) ? input.items : p.data.items,
-    rationale: p.data.rationale }, { seasonId: sid === '' || sid == null ? null : Number(sid) });
+    rationale: p.data.rationale, review: p.data.review }, { seasonId: sid === '' || sid == null ? null : Number(sid) });
   if (next.series.seasonId != null) _seasonName(next.series.seasonId);
   if (!next.items.length) throw new CollectionAiError(400, 'Gardez au moins un objet.');
   conn().prepare("UPDATE collection_ai_proposals SET data = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(next), id);
@@ -345,7 +410,47 @@ function discardProposal(id) {
 
 function waitJob(id) { return _jobs.get(id) ?? Promise.resolve(); }
 
+// ── Collections préparées (contenu livré avec le code) ────────────────────────
+// Demande du propriétaire du 02/11 : une collection rédigée selon la ligne éditoriale, prête en
+// BROUILLON pour relecture (jamais publiée, drops inactifs), consignes d'illustration transmises à
+// l'atelier (aucune image générée). Chaque pack n'est importé qu'une fois (repère `params.pack`) :
+// supprimé ou modifié ensuite par l'admin, il n'est jamais réimporté. Identifiants déjà pris : le pack
+// reste une proposition ouverte à corriger dans « ✨ Propositions IA ».
+
+const PREPARED_DIR = require('path').join(__dirname, 'content', 'collections');
+
+function importPrepared(dir = PREPARED_DIR) {
+  const fs = require('fs');
+  const out = [];
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort(); } catch { return out; }
+  for (const f of files) {
+    try {
+      const pack = JSON.parse(fs.readFileSync(require('path').join(dir, f), 'utf8'));
+      const key = String(pack.pack ?? '');
+      if (!/^[a-z0-9_]{3,60}$/.test(key)) throw new Error('identifiant de pack invalide');
+      if (conn().prepare("SELECT 1 FROM collection_ai_proposals WHERE json_extract(params, '$.pack') = ?").get(key)) continue;
+      const data = _normalize(pack);
+      if (!data.items.length) throw new Error('aucun objet');
+      const params = { pack: key, prepared: true, itemCount: data.items.length, seasonId: data.series.seasonId };
+      const id = conn().prepare("INSERT INTO collection_ai_proposals (concept, params, status, data) VALUES (?, ?, 'open', ?)")
+        .run(_clean(pack.concept, CONCEPT_MAX) || `Collection préparée ${key}`, JSON.stringify(params), JSON.stringify(data)).lastInsertRowid;
+      try {
+        addToDraft(id);
+        out.push({ pack: key, proposal: id, status: 'in_draft' });
+        console.log(`[collectionAi] collection préparée « ${key} » ajoutée au brouillon (proposition ${id}, non publiée, drops inactifs)`);
+      } catch (err) {
+        out.push({ pack: key, proposal: id, status: 'open', error: err.message });
+        console.warn(`[collectionAi] collection préparée « ${key} » laissée en proposition ${id} : ${err.message}`);
+      }
+    } catch (err) {
+      console.warn(`[collectionAi] pack ${f} ignoré : ${err.message}`);
+    }
+  }
+  return out;
+}
+
 module.exports = {
   CollectionAiError, DEFAULT_DROPS, ITEMS_MIN, ITEMS_MAX, init, startProposal, getProposal, listProposals,
-  updateProposal, addToDraft, discardProposal, waitJob,
+  updateProposal, addToDraft, discardProposal, waitJob, importPrepared, similarity,
 };
