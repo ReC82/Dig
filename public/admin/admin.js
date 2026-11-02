@@ -148,6 +148,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'config')          loadAiBudget();
     if (btn.dataset.tab === 'badges')          loadBadges();
     if (btn.dataset.tab === 'ads')             loadAds();
+    if (btn.dataset.tab === 'beta')            loadBeta();
   });
 });
 
@@ -4969,4 +4970,166 @@ document.getElementById('btn-ad-toggle').addEventListener('click', async () => {
   if (!ok) return adMessage('ad-settings-msg', data.error || 'Erreur.', false);
   adMessage('ad-settings-msg', data.settings.enabled ? 'Interrupteur général ACTIVÉ.' : 'Interrupteur général désactivé.', true);
   renderAds(data);
+});
+
+// ── Bêta fermée (#57) ─────────────────────────────────────────────────────────
+
+const BETA_MODES  = { open: 'ouverte à tous', invite: 'sur invitation', closed: 'fermée' };
+const BETA_STATES = { active: 'active', used: 'épuisé', expired: 'expiré', revoked: 'révoqué' };
+const BETA_STATUS = { new: 'nouveau', seen: 'vu', fixed: 'corrigé', wontfix: 'non retenu' };
+
+function betaInviteLink(code) {
+  return `${location.origin}/?invite=${encodeURIComponent(code)}`;
+}
+
+function renderBeta(data) {
+  const s = data.settings;
+  const banner = document.getElementById('beta-state');
+  banner.className = `contest-banner contest-banner--${s.registrationMode === 'open' ? 'open' : 'locked'}`;
+  banner.textContent = `Inscription ${BETA_MODES[s.registrationMode]} · bandeau ${s.bannerEnabled ? 'affiché' : 'masqué'} · `
+    + `Discord ${s.discordUrl ? 'configuré' : 'non configuré'} · signalements ${s.reportsEnabled ? 'ouverts' : 'fermés'}`;
+  document.getElementById('beta-mode').value = s.registrationMode;
+  document.getElementById('beta-discord').value = s.discordUrl;
+  document.getElementById('beta-banner').checked = s.bannerEnabled;
+  document.getElementById('beta-reports').checked = s.reportsEnabled;
+  document.getElementById('beta-policy').value = s.resetPolicy;
+  document.getElementById('beta-known').value = s.knownIssues;
+
+  const ib = document.getElementById('beta-invites');
+  ib.textContent = '';
+  if (!data.invites.length) ib.innerHTML = '<tr><td colspan="8" class="muted">Aucun code.</td></tr>';
+  for (const inv of data.invites) {
+    const tr = document.createElement('tr');
+    addCell(tr, inv.code).style.fontFamily = 'monospace';
+    const linkTd = addCell(tr, '');
+    if (inv.state === 'active') {
+      const copy = document.createElement('button');
+      copy.className = 'btn-ghost'; copy.textContent = '📋 Copier le lien';
+      copy.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(betaInviteLink(inv.code)); copy.textContent = '✓ Copié'; }
+        catch { prompt('Lien à copier :', betaInviteLink(inv.code)); }
+      });
+      linkTd.appendChild(copy);
+    }
+    [inv.label || '—', inv.wave, `${inv.uses} / ${inv.maxUses}`, inv.expiresAt || 'jamais', BETA_STATES[inv.state] || inv.state].forEach(x => addCell(tr, x));
+    const act = addCell(tr, '');
+    if (inv.state === 'active') {
+      const rev = document.createElement('button');
+      rev.className = 'btn-ghost'; rev.textContent = 'Révoquer';
+      rev.addEventListener('click', async () => {
+        if (!confirm(`Révoquer ${inv.code} ? Les comptes déjà créés avec ce code ne sont pas touchés.`)) return;
+        const { ok, data: d } = await api('POST', `/api/admin/beta/invites/${inv.id}/revoke`);
+        if (!ok) return adMessage('beta-invite-msg', d.error || 'Erreur.', false);
+        loadBeta();
+      });
+      act.appendChild(rev);
+    }
+    ib.appendChild(tr);
+  }
+
+  const sm = data.summary;
+  document.getElementById('beta-testers-summary').textContent = `${sm.total} testeur(s) · ${sm.activated} ont sauvegardé au moins une fois · `
+    + `retour J+1 : ${sm.d1.returned}/${sm.d1.eligible} · retour J+7 : ${sm.d7.returned}/${sm.d7.eligible} `
+    + '(approximation : dernière sauvegarde cloud au moins 1 ou 7 jours après l’inscription).';
+  const tb = document.getElementById('beta-testers');
+  tb.textContent = '';
+  if (!data.testers.length) tb.innerHTML = '<tr><td colspan="8" class="muted">Aucun compte créé avec un code.</td></tr>';
+  for (const x of data.testers) {
+    const tr = document.createElement('tr');
+    [x.username, x.label || '—', x.wave, x.createdAt, x.lastSaveAt || '—', x.returnedD1 ? 'oui' : '—', x.returnedD7 ? 'oui' : '—', x.reports]
+      .forEach(v => addCell(tr, v));
+    tb.appendChild(tr);
+  }
+
+  const c = data.reports.counts;
+  document.getElementById('beta-reports-counts').textContent = Object.entries(BETA_STATUS).map(([k, l]) => `${l} : ${c[k] || 0}`).join(' · ');
+  const list = document.getElementById('beta-reports-list');
+  list.textContent = '';
+  if (!data.reports.reports.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Aucun signalement.'; list.appendChild(p); }
+  for (const r of data.reports.reports) {
+    const card = document.createElement('div');
+    card.className = 'overview-card';
+    const h = document.createElement('h4');
+    h.textContent = `n°${r.id} — ${r.createdAt} UTC — ${r.username || 'invité'} — ${BETA_STATUS[r.status]}`;
+    card.appendChild(h);
+    for (const [label, val] of [['Appareil', r.device], ['Étape', r.step], ['Attendu', r.expected], ['Constaté', r.observed]]) {
+      const p = document.createElement('p');
+      p.style.whiteSpace = 'pre-wrap'; p.style.margin = '2px 0';
+      const b = document.createElement('strong'); b.textContent = `${label} : `;
+      p.append(b, val || '—');
+      card.appendChild(p);
+    }
+    const diag = document.createElement('pre');
+    diag.style.cssText = 'font-size:0.72rem;white-space:pre-wrap;word-break:break-all';
+    diag.textContent = r.diagnostics ? JSON.stringify(r.diagnostics, null, 1) : 'Diagnostic : non joint (le joueur n’a pas coché la case).';
+    card.appendChild(diag);
+    const row = document.createElement('div');
+    row.className = 'form-actions';
+    const sel = document.createElement('select');
+    for (const [k, l] of Object.entries(BETA_STATUS)) sel.appendChild(new Option(l, k));
+    sel.value = r.status;
+    const gh = document.createElement('input');
+    gh.type = 'url'; gh.maxLength = 200; gh.placeholder = 'https://github.com/ReC82/Dig/issues/…'; gh.value = r.githubUrl || '';
+    const note = document.createElement('input');
+    note.type = 'text'; note.maxLength = 1000; note.placeholder = 'Note interne'; note.value = r.adminNote || '';
+    const save = document.createElement('button');
+    save.className = 'btn'; save.textContent = 'Enregistrer';
+    save.addEventListener('click', async () => {
+      const { ok, data: d } = await api('PUT', `/api/admin/beta/reports/${r.id}`, { status: sel.value, githubUrl: gh.value.trim(), adminNote: note.value });
+      if (!ok) return adMessage('beta-report-msg', d.error || 'Erreur.', false);
+      adMessage('beta-report-msg', `Signalement n°${r.id} enregistré.`, true);
+      loadBeta();
+    });
+    row.append(sel, gh, note, save);
+    card.appendChild(row);
+    list.appendChild(card);
+  }
+}
+
+async function loadBeta() {
+  const { ok, data } = await api('GET', '/api/admin/beta');
+  if (!ok) return adMessage('beta-settings-msg', data.error || 'Erreur lors du chargement.', false);
+  renderBeta(data);
+}
+
+document.getElementById('btn-refresh-beta').addEventListener('click', loadBeta);
+
+document.getElementById('btn-beta-settings').addEventListener('click', async () => {
+  const mode = document.getElementById('beta-mode').value;
+  if (mode === 'closed' && !confirm('Fermer les inscriptions ? Plus personne ne pourra créer de compte (les joueurs existants continuent de jouer).')) return;
+  const { ok, data } = await api('PUT', '/api/admin/beta/settings', {
+    registrationMode: mode,
+    discordUrl:       document.getElementById('beta-discord').value.trim(),
+    bannerEnabled:    document.getElementById('beta-banner').checked,
+    reportsEnabled:   document.getElementById('beta-reports').checked,
+    resetPolicy:      document.getElementById('beta-policy').value,
+    knownIssues:      document.getElementById('beta-known').value,
+  });
+  if (!ok) return adMessage('beta-settings-msg', data.error || 'Erreur.', false);
+  adMessage('beta-settings-msg', 'Réglages enregistrés (visibles par les joueurs au prochain chargement de page).', true);
+  loadBeta();
+});
+
+document.getElementById('btn-beta-invite').addEventListener('click', async () => {
+  const num = id => Number(document.getElementById(id).value);
+  const { ok, data } = await api('POST', '/api/admin/beta/invites', {
+    label: document.getElementById('beta-inv-label').value.trim(),
+    wave: num('beta-inv-wave'), maxUses: num('beta-inv-uses'), expiresInDays: num('beta-inv-days'), count: num('beta-inv-count'),
+  });
+  if (!ok) return adMessage('beta-invite-msg', data.error || 'Erreur.', false);
+  adMessage('beta-invite-msg', `${data.invites.length} code(s) créé(s) : ${data.invites.map(i => i.code).join(', ')}`, true);
+  loadBeta();
+});
+
+document.getElementById('btn-beta-pw').addEventListener('click', async () => {
+  const name = document.getElementById('beta-pw-user').value.trim();
+  if (!name) return;
+  const { ok, data } = await api('GET', `/api/admin/players/search?q=${encodeURIComponent(name)}`);
+  const user = ok && data.users.find(u => u.username.toLowerCase() === name.toLowerCase());
+  if (!user) return adMessage('beta-pw-msg', 'Joueur introuvable (nom exact attendu).', false);
+  const confirmName = prompt(`Remplacer le mot de passe de « ${user.username} » et fermer ses sessions ?\nSaisir son nom exact pour confirmer :`);
+  if (confirmName === null) return;
+  const r = await api('POST', `/api/admin/players/${user.id}/temp-password`, { confirm: confirmName.trim() });
+  if (!r.ok) return adMessage('beta-pw-msg', r.data.error || 'Erreur.', false);
+  adMessage('beta-pw-msg', `Mot de passe temporaire de ${r.data.username} : ${r.data.tempPassword} — affiché une seule fois, à transmettre en privé.`, true);
 });

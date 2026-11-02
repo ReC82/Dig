@@ -39,6 +39,7 @@
     <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
     <button class="tab-btn" data-tab="badges">🏅 Badges</button>
     <button class="tab-btn" data-tab="ads">📢 Publicité</button>
+    <button class="tab-btn" data-tab="beta">🧪 Bêta</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -1512,6 +1513,77 @@
       <p class="muted" style="font-size:0.78rem">Nombre de fois où le serveur a servi le cadre d'un emplacement (mesure technique, sans donnée personnelle).
         Ce ne sont <strong>pas</strong> des impressions facturées : impressions et revenus réels sont dans le tableau de bord de la régie.</p>
       <div style="overflow-x:auto"><table><thead><tr><th>Jour (UTC)</th><th>Emplacement</th><th>Cadres servis</th></tr></thead><tbody id="ad-stats"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="tab-beta" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🧪 Bêta fermée</h2>
+      <button class="btn" id="btn-refresh-beta">↻ Rafraîchir</button>
+    </div>
+    <p id="beta-state" class="contest-banner"></p>
+    <p class="muted" style="font-size:0.8rem">Rien n'est envoyé automatiquement : tu transmets toi-même les liens d'invitation (Discord, message privé).
+      Changer le mode d'inscription ou révoquer un code ne déconnecte <strong>jamais</strong> les comptes existants.</p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Réglages</h3>
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+        <label>Inscription
+          <select id="beta-mode">
+            <option value="open">Ouverte à tous (comme avant)</option>
+            <option value="invite">Sur invitation (code obligatoire)</option>
+            <option value="closed">Fermée (aucun nouveau compte)</option>
+          </select></label>
+        <label>Lien d'invitation Discord (https://discord.gg/…)<input id="beta-discord" type="url" maxlength="200" placeholder="vide = aucun lien affiché"></label>
+      </div>
+      <div class="form-actions">
+        <label><input type="checkbox" id="beta-banner"> Bandeau « BÊTA » + section Bêta dans Paramètres</label>
+        <label><input type="checkbox" id="beta-reports"> Bouton « Signaler un bug »</label>
+      </div>
+      <label style="display:block;margin-top:8px">Politique de progression / reset (vide = texte par défaut traduit : « la progression peut être ajustée ou remise à zéro pendant la bêta, aucune récompense réelle promise »)
+        <textarea id="beta-policy" rows="3" maxlength="2000" style="width:100%"></textarea></label>
+      <label style="display:block;margin-top:8px">Bugs connus (affichés aux joueurs, une ligne par bug)
+        <textarea id="beta-known" rows="3" maxlength="2000" style="width:100%"></textarea></label>
+      <div class="form-actions"><button class="btn" id="btn-beta-settings">Enregistrer</button></div>
+      <p id="beta-settings-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Codes d'invitation</h3>
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
+        <label>Libellé (ex. prénom)<input id="beta-inv-label" type="text" maxlength="60"></label>
+        <label>Vague<input id="beta-inv-wave" type="number" min="1" max="20" value="1"></label>
+        <label>Utilisations par code<input id="beta-inv-uses" type="number" min="1" max="500" value="1"></label>
+        <label>Expire dans (jours, 0 = jamais)<input id="beta-inv-days" type="number" min="0" max="90" value="14"></label>
+        <label>Nombre de codes<input id="beta-inv-count" type="number" min="1" max="20" value="1"></label>
+      </div>
+      <div class="form-actions"><button class="btn" id="btn-beta-invite">Créer</button></div>
+      <p id="beta-invite-msg" class="hidden"></p>
+      <div style="overflow-x:auto"><table><thead><tr><th>Code</th><th>Lien à envoyer</th><th>Libellé</th><th>Vague</th><th>Utilisé</th><th>Expire (UTC)</th><th>État</th><th></th></tr></thead><tbody id="beta-invites"></tbody></table></div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Testeurs (comptes créés avec un code)</h3>
+      <p id="beta-testers-summary" class="muted" style="font-size:0.8rem"></p>
+      <div style="overflow-x:auto"><table><thead><tr><th>Joueur</th><th>Libellé</th><th>Vague</th><th>Inscrit (UTC)</th><th>Dernière sauvegarde (UTC)</th><th>J+1</th><th>J+7</th><th>Signalements</th></tr></thead><tbody id="beta-testers"></tbody></table></div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Signalements de bugs</h3>
+      <p id="beta-reports-counts" class="muted" style="font-size:0.8rem"></p>
+      <div id="beta-reports-list"></div>
+      <p id="beta-report-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Mot de passe oublié (sans e-mail)</h3>
+      <p class="muted" style="font-size:0.8rem">Tant que les e-mails du jeu ne sont pas configurés (#43), un testeur qui a perdu son mot de passe ne peut pas le réinitialiser seul.
+        Ceci génère un mot de passe temporaire, affiché une seule fois, et ferme toutes ses sessions. Transmets-le en message privé ; il le change ensuite dans Paramètres → Compte.</p>
+      <div class="form-actions">
+        <input id="beta-pw-user" type="text" maxlength="20" placeholder="Nom exact du joueur">
+        <button class="btn" id="btn-beta-pw">Générer un mot de passe temporaire</button>
+      </div>
+      <p id="beta-pw-msg" class="hidden"></p>
     </div>
   </section>
 

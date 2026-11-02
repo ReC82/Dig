@@ -38,12 +38,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function, feedback: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass, feedback: pass };
   }
 
   const common = {
@@ -136,6 +136,14 @@ function createRateLimiters(env = process.env) {
       ...common,
       windowMs: 15 * MINUTE,
       limit:    intFromEnv(env, 'RATE_ICONS_MAX', 60),
+    }),
+
+    // Signalements de bugs de la bêta (#57) : ≤ 5 / 15 min / compte (à défaut, par IP).
+    feedback: rateLimit({
+      ...common,
+      windowMs:     15 * MINUTE,
+      limit:        intFromEnv(env, 'RATE_FEEDBACK_MAX', 5),
+      keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
     }),
   };
 }

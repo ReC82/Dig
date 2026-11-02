@@ -1328,8 +1328,8 @@ async function _fetchMe() {
   _loadChestCatalog();   // probabilités des coffres (fenêtre des chances, tirage anonyme, #20)
 }
 
-async function _doRegister(username, email, password) {
-  const { ok, data } = await _apiFetch('POST', '/api/register', { username, email, password });
+async function _doRegister(username, email, password, inviteCode) {
+  const { ok, data } = await _apiFetch('POST', '/api/register', { username, email, password, inviteCode });
   if (ok) { _account = data.user; return null; }
   return data.error || t('account.err_generic');
 }
@@ -2250,6 +2250,7 @@ function renderSettings() {
         <div class="lang-menu" id="lang-menu" role="group" aria-labelledby="lang-title" hidden>${optionsHtml}</div>
       </div>
     </div>
+    ${DigBeta.settingsSectionHtml()}
     <div class="settings-section" id="notif-history"></div>
     ${DigAds.settingsSectionHtml()}
     <p class="settings-legal"><a href="/legal/confidentialite" target="_blank" rel="noopener">${t('ads.privacy_link')}</a></p>
@@ -2263,6 +2264,7 @@ function renderSettings() {
   _bindAccountSection(container);
   _refreshNotifHistory();
   DigAds.bindSettings(container, renderSettings);
+  DigBeta.bindSettings(container, !!_account);
 
   // Retour à la vue précédente
   document.getElementById('btn-settings-back')
@@ -2438,6 +2440,11 @@ function _accountSectionHtml() {
         : ''}
       <input class="account-input" id="acc-password" type="password"
         placeholder="${t('account.label_password')}" aria-label="${t('account.label_password')}" autocomplete="${tab === 'register' ? 'new-password' : 'current-password'}">
+      ${(tab === 'register' && DigBeta.showInviteField())
+        ? `<input class="account-input" id="acc-invite" type="text" maxlength="20" autocomplete="off" autocapitalize="characters"
+            value="${escapeHtml(DigBeta.pendingInvite() || '')}" placeholder="${t('beta.invite_label')}" aria-label="${t('beta.invite_label')}">
+          <p class="account-hint">${t('beta.invite_required')}</p>`
+        : ''}
       ${tab === 'register'
         ? `<p class="account-hint">${t('account.hint_username')}<br>${t('account.hint_email')}<br>${t('account.hint_password')}</p>`
         : ''}
@@ -2710,10 +2717,11 @@ function _bindAccountSection(container) {
     const username = document.getElementById('acc-username').value.trim();
     const email    = (document.getElementById('acc-email')?.value ?? '').trim();
     const password = document.getElementById('acc-password').value;
+    const invite   = (document.getElementById('acc-invite')?.value ?? '').trim();
     document.getElementById('acc-error').textContent = '';
 
     const error = _accountTab === 'register'
-      ? await _doRegister(username, email, password)
+      ? await _doRegister(username, email, password, invite || undefined)
       : await _doLogin(username, password);
     if (error) return { ok: false, text: error };
 
@@ -3292,6 +3300,14 @@ function init() {
 
   // Publicité (#45) : désactivée par défaut ; bannière haute seulement si le serveur l'autorise ici.
   DigAds.init();
+  // Bêta fermée (#57) : bandeau et section « Bêta » seulement si l'admin les active ; un lien
+  // d'invitation ouvre directement le formulaire d'inscription, code prérempli.
+  DigBeta.init().then(() => {
+    if (DigBeta.pendingInvite() && !_account && !isViewActive('settings')) {
+      _accountTab = 'register';
+      switchView('settings');
+    } else if (isViewActive('settings')) renderSettings();
+  });
   // Bibliothèque d'icônes (v1 par défaut, library.json) : re-rendu du bloc une fois la configuration lue.
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
   // Catalogue de blocs publié (#37) : s'applique aux prochains blocs, le bloc courant est conservé.
