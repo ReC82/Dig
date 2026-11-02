@@ -551,6 +551,19 @@ table:has(.visually-hidden) { position: relative; }
 /* Collections (#39) : fiches et relecture des propositions IA */
 .co-thumb { width: 48px; text-align: center; font-size: 1.6rem; }
 .co-thumb img { display: block; margin: auto; }
+/* Listes Séries / Objets (recette du 02/11) : même gabarit que les blocs (#37) — largeur disponible,
+   miniatures 56 px + aperçu 256 px au survol/focus, libellés courts sur une ligne ; textes limités à une largeur de lecture. */
+#tab-collections.tab-content { max-width: 1440px; }
+#tab-collections .co-help p, #tab-collections .overview-card > p { max-width: 90ch; }
+.co-series-table td.co-series-icon { font-size: 1.8rem; width: 56px; text-align: center; }
+.co-items-table td.co-series-cell { white-space: nowrap; }
+.co-items-table td.bk-range { min-width: 150px; }
+.co-items-table td.bk-range small { min-width: 0; }
+.co-langs { white-space: nowrap; }
+.co-lang { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 1px 5px; margin-right: 3px; border-radius: 4px; border: 1px solid var(--border); }
+.co-lang--ok { color: #86efac; border-color: #166534; }
+.co-lang--name { color: #fcd34d; border-color: #92400e; }
+.co-lang--none { color: var(--muted); }
 .co-fs { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
 .co-fs legend { color: var(--muted); font-size: 0.78rem; padding: 0 4px; }
 .co-inline-check { white-space: nowrap; display: inline-flex; flex-direction: row; align-items: center; gap: 4px; margin-right: 12px; }

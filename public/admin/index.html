@@ -930,7 +930,7 @@
     <div class="overview-card">
       <h3 class="overview-card-title">Séries <span id="co-source" class="muted"></span></h3>
       <div class="bk-table-wrap">
-      <table class="bk-table">
+      <table class="bk-table co-series-table">
         <thead><tr><th>Icône</th><th>Identifiant</th><th>Nom FR</th><th>Saison</th><th class="num">Objets</th><th>Statut</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
         <tbody id="co-series-body"></tbody>
       </table>
@@ -945,12 +945,13 @@
         <select id="co-filter-state" aria-label="État"><option value="">Tous</option><option value="noimage">Sans image</option><option value="nostory">Histoire incomplète</option><option value="changed">Nouveaux ou modifiés</option><option value="drop">Drop actif</option></select>
       </div>
       <div class="bk-table-wrap">
-      <table class="bk-table">
-        <thead><tr><th>Visuel</th><th>Identifiant</th><th>Nom FR</th><th>Série</th><th>Rareté</th><th>Drop</th><th>Langues</th><th>Statut</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
+      <table class="bk-table co-items-table">
+        <thead><tr><th>Visuel</th><th>Identifiant</th><th>Nom FR</th><th>Série</th><th>Rareté</th><th>Drop</th><th><abbr title="Nom et histoire traduits ; * = nom seul ; — = absent">Langues</abbr></th><th>Statut</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
         <tbody id="co-items-body"></tbody>
       </table>
       </div>
-      <p class="muted" style="font-size:0.75rem">Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche. Nouvelle série, nouvel objet ou collection complète : « ＋ Ajouter » en haut de page.</p>
+      <p class="muted" style="font-size:0.75rem">Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche. Survolez un visuel pour l'agrandir. Nouvelle série, nouvel objet ou collection complète : « ＋ Ajouter » en haut de page.</p>
+      <div id="co-zoom" class="bk-zoom hidden" aria-hidden="true"></div>
     </div>
 
     <!-- Propositions IA existantes (données) : affichées seulement s'il y en a ; la création passe par « ＋ Ajouter ». -->

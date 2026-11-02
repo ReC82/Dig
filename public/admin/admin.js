@@ -2371,6 +2371,45 @@ function coArt(el, image, icon, size) {
   }
 }
 
+/** Miniature d'objet au format des blocs (#37) : image entière (jamais recadrée) ou emoji en pointillés. */
+function coThumb(box, image, icon) {
+  const hasImage = image && CO_IMAGE_RE.test(image) && !image.includes('..');
+  box.className = `bk-thumb bk-thumb--${hasImage ? 'image' : 'emoji'}`;
+  box.title = hasImage ? '' : 'Pas encore d\'image (emoji affiché)';
+  coArt(box, hasImage ? image : null, icon, 256);
+  const img = box.querySelector('img');
+  if (img) {
+    img.removeAttribute('width'); img.removeAttribute('height');
+    img.addEventListener('error', () => { box.className = 'bk-thumb bk-thumb--error'; });
+  }
+}
+
+// Aperçu agrandi au survol (souris) ou au focus clavier, comme pour les blocs ; sur écran tactile, la fiche le remplace.
+function coZoomShow(anchor, d) {
+  if (!window.matchMedia('(hover: hover)').matches && !anchor.closest('tr')?.matches(':focus-visible')) return;
+  const zoom = document.getElementById('co-zoom');
+  const box = document.createElement('span');
+  coThumb(box, d.image, d.icon);
+  const title = document.createElement('strong');
+  title.textContent = d.title;
+  const cap = document.createElement('small');
+  cap.className = 'bk-src';
+  cap.textContent = `${d.sub} · ${box.classList.contains('bk-thumb--image') ? 'image' : 'emoji · à illustrer'}`;
+  zoom.textContent = '';
+  zoom.append(title, box, cap);
+  zoom.classList.remove('hidden');
+  const r = anchor.getBoundingClientRect();
+  const w = zoom.offsetWidth, h = zoom.offsetHeight;
+  let left = r.right + 12, top = r.top + r.height / 2 - h / 2;
+  if (left + w > window.innerWidth - 8) left = Math.max(8, r.left - w - 12);
+  top = Math.min(Math.max(8, top), window.innerHeight - h - 8);
+  zoom.style.left = `${left}px`;
+  zoom.style.top = `${top}px`;
+}
+function coZoomHide() { document.getElementById('co-zoom').classList.add('hidden'); }
+window.addEventListener('scroll', coZoomHide, { passive: true });
+document.getElementById('co-items-body').closest('.bk-table-wrap').addEventListener('scroll', coZoomHide, { passive: true });
+
 function coNotice(text, ok = true) { ptMessage('co-notice', text, ok); }
 
 // Séries
@@ -2422,6 +2461,7 @@ function coFillItemForm(i) {
   coPreview();
 }
 function coOpenItem(i, opener) {
+  coZoomHide();
   coFillItemForm(i);
   admDialogOpen('co-item-dialog', opener, i ? 'co-i-name-fr' : 'co-i-id');
 }
@@ -2476,15 +2516,40 @@ function coRenderItems() {
     shown++;
     const tr = document.createElement('tr');
     const s = series.find(x => x.id === i.seriesId);
-    const drop = `${i.drop.from.join('/')} dès ${i.drop.minDepth} m · ${+(i.drop.chance * 100).toFixed(3)} %${i.dropEnabled ? '' : ' (inactif)'}`;
-    const langs = CO_LANGS.map(l => (i.names?.[l] && i.stories?.[l] ? l : (i.names?.[l] ? `${l}*` : '—'))).join(' ');
     const state = `${i.active ? 'actif' : 'désactivé'}${changed.has(i.id) ? ' · modifié' : ''}${_co.publishedIds.items.includes(i.id) ? '' : ' · nouveau'}`;
-    const art = addCell(tr, '');
-    art.className = 'co-thumb';
-    art.title = i.image ? 'Image' : 'Pas encore d\'image (emoji affiché)';
-    coArt(art, i.image, i.icon, 40);
-    [i.id, i.names?.fr ?? '', s ? s.names.fr : i.seriesId, BK_RARITY[i.rarity] ?? i.rarity, drop, langs, state].forEach(x => addCell(tr, x));
+    const cell = addCell(tr, '');
+    cell.className = 'bk-visual';
+    const box = document.createElement('span');
+    coThumb(box, i.image, i.icon);
+    cell.appendChild(box);
+    addCell(tr, i.id).className = 'bk-id';
+    addCell(tr, i.names?.fr ?? '');
+    addCell(tr, s ? `${s.icon} ${s.names.fr}` : i.seriesId).className = 'co-series-cell';
+    addCell(tr, BK_RARITY[i.rarity] ?? i.rarity).className = 'nowrap';
+    // Drop sur deux lignes courtes : sources et profondeur, puis chance (et « inactif »).
+    const drop = addCell(tr, `${i.drop.from.join(' / ')} · dès ${i.drop.minDepth} m`);
+    drop.className = 'bk-range';
+    const chance = document.createElement('small');
+    chance.textContent = `${+(i.drop.chance * 100).toFixed(3)} %${i.dropEnabled ? '' : ' · inactif'}`;
+    if (!i.dropEnabled) chance.className = 'muted';
+    drop.appendChild(chance);
+    const langs = addCell(tr, '');
+    langs.className = 'co-langs';
+    for (const l of CO_LANGS) {
+      const full = i.names?.[l] && i.stories?.[l];
+      const tag = document.createElement('span');
+      tag.className = `co-lang co-lang--${full ? 'ok' : (i.names?.[l] ? 'name' : 'none')}`;
+      tag.textContent = full ? l.toUpperCase() : (i.names?.[l] ? `${l.toUpperCase()}*` : '—');
+      tag.title = `${l.toUpperCase()} : ${full ? 'nom et histoire' : (i.names?.[l] ? 'nom seul, histoire manquante' : 'absent')}`;
+      langs.appendChild(tag);
+    }
+    addCell(tr, state).className = 'bk-state';
     admRowOpen(tr, `co-item:${i.id}`, i.names?.fr ?? i.id, row => coOpenItem(coWorking().items.find(x => x.id === i.id) ?? i, row));
+    const zoomData = { image: i.image, icon: i.icon, title: `${i.names?.fr ?? i.id} (${i.id})`, sub: BK_RARITY[i.rarity] ?? i.rarity };
+    box.addEventListener('mouseenter', () => coZoomShow(box, zoomData));
+    box.addEventListener('mouseleave', coZoomHide);
+    tr.addEventListener('focus', () => { if (tr.matches(':focus-visible')) coZoomShow(box, zoomData); });
+    tr.addEventListener('blur', coZoomHide);
     tb.appendChild(tr);
   }
   document.getElementById('co-items-count').textContent = `— ${shown} / ${items.length}`;
@@ -2529,7 +2594,7 @@ async function loadCollections() {
     const tr = document.createElement('tr');
     [s.icon, s.id, s.names.fr, coSeasonLabel(s.seasonId), w.items.filter(i => i.seriesId === s.id).length,
      `${s.active ? 'active' : 'désactivée'}${data.publishedIds.series.includes(s.id) ? '' : ' · nouvelle'}`].forEach(x => addCell(tr, x));
-    tr.children[4].className = 'num';
+    ['co-series-icon', 'bk-id', '', 'nowrap', 'num', 'bk-state'].forEach((c, k) => { if (c) tr.children[k].className = c; });
     admRowOpen(tr, `co-series:${s.id}`, s.names.fr, row => coOpenSeries(coWorking().series.find(x => x.id === s.id) ?? s, row));
     sb.appendChild(tr);
   }

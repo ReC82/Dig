@@ -36,6 +36,9 @@ const seasonEnd = require('../server/seasonEnd');
 
 db.initDb();
 const conn = () => db.getDb();
+// initDb crée sur base vierge la saison de la semaine RÉELLE : le scénario à horloge simulée
+// (semaine 44-2026) ouvre la sienne lui-même, sinon le test dépend du jour où il est lancé.
+conn().prepare('DELETE FROM seasons').run();
 
 const MIN = 60_000;
 const at  = iso => new Date(iso);
