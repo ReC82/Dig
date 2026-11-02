@@ -772,6 +772,55 @@ function initDb() {
     );
   `);
 
+  // Bêta fermée (#57) : réglages (une ligne ; inscription ouverte et bandeau masqué par défaut,
+  // donc aucun changement visible au déploiement), codes d'invitation, comptes créés avec un code
+  // et signalements de bugs. Tables ajoutées seules ; aucune donnée existante modifiée.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS beta_settings (
+      id                INTEGER PRIMARY KEY CHECK (id = 1),
+      banner_enabled    INTEGER NOT NULL DEFAULT 0 CHECK (banner_enabled IN (0, 1)),
+      registration_mode TEXT    NOT NULL DEFAULT 'open' CHECK (registration_mode IN ('open', 'invite', 'closed')),
+      discord_url       TEXT    NOT NULL DEFAULT '',
+      reset_policy      TEXT    NOT NULL DEFAULT '',
+      known_issues      TEXT    NOT NULL DEFAULT '',
+      reports_enabled   INTEGER NOT NULL DEFAULT 1 CHECK (reports_enabled IN (0, 1)),
+      updated_at        TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT OR IGNORE INTO beta_settings (id) VALUES (1);
+    CREATE TABLE IF NOT EXISTS beta_invites (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      code       TEXT    NOT NULL UNIQUE,
+      label      TEXT    NOT NULL DEFAULT '',
+      wave       INTEGER NOT NULL DEFAULT 1,
+      max_uses   INTEGER NOT NULL DEFAULT 1 CHECK (max_uses >= 1),
+      uses       INTEGER NOT NULL DEFAULT 0 CHECK (uses >= 0 AND uses <= max_uses),
+      expires_at TEXT,
+      revoked_at TEXT,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS beta_invite_uses (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      invite_id  INTEGER NOT NULL REFERENCES beta_invites(id),
+      user_id    INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+      used_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS bug_reports (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      step        TEXT    NOT NULL DEFAULT '',
+      expected    TEXT    NOT NULL DEFAULT '',
+      observed    TEXT    NOT NULL,
+      device      TEXT    NOT NULL DEFAULT '',
+      diagnostics TEXT,
+      status      TEXT    NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'seen', 'fixed', 'wontfix')),
+      github_url  TEXT    NOT NULL DEFAULT '',
+      admin_note  TEXT    NOT NULL DEFAULT '',
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_user ON bug_reports(user_id, id);
+  `);
+
   // ── Seeds config ──────────────────────────────────────────────────────────
   const cfgStmt = _db.prepare(
     `INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`

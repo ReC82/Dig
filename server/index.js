@@ -33,6 +33,7 @@ const { APP_VERSION } = require('./version');
 
 const {
   initDb,
+  getDb,
   logUserEvent,
   runTransaction,
   createUser,
@@ -96,6 +97,7 @@ const antibot = require('./antibot');
 const playSession = require('./playSession');
 const ads = require('./ads');
 const legal = require('./legal');
+const beta  = require('./beta');
 const { isValidEmail, intParam } = require('./validation');
 const { createMailer } = require('./mailer');
 const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
@@ -290,7 +292,13 @@ function isValidPassword(p) {
  * Sanity-check : retourne ok + timestamp.
  */
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, ts: new Date().toISOString() });
+  // La base doit répondre (#57) : un serveur vivant dont la base est inaccessible n'est pas sain.
+  try { getDb().prepare('SELECT 1').get(); }
+  catch (err) {
+    console.error('[health] base indisponible', err.message);
+    return res.status(503).json({ ok: false, db: false, ts: new Date().toISOString() });
+  }
+  res.json({ ok: true, db: true, ts: new Date().toISOString() });
 });
 
 /**
@@ -325,6 +333,15 @@ app.post('/api/register', limit.register, async (req, res) => {
     return res.status(400).json({ error: 'Mot de passe trop court (6 caractères minimum).' });
   }
 
+  // Bêta fermée (#57) : inscriptions fermées ou sur invitation (code vérifié avant le hachage,
+  // puis consommé avec la création du compte, dans la même transaction).
+  let inviteCode = null;
+  try { inviteCode = beta.checkRegistration(req.body?.inviteCode); }
+  catch (err) {
+    if (err instanceof beta.BetaError) return res.status(err.status).json({ error: err.message, code: err.code });
+    console.error('[register] invitation', err); return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+
   // Message identique pour le nom et l'e-mail : l'inscription ne révèle pas
   // si une adresse e-mail possède déjà un compte (#14).
   if (getUserByUsername(username) || getUserByEmail(email)) {
@@ -333,11 +350,13 @@ app.post('/api/register', limit.register, async (req, res) => {
 
   try {
     const hash = await bcrypt.hash(password, 10);
-    const user = createUser(username, email, hash);
+    const user = beta.registerWithInvite(inviteCode, () => createUser(username, email, hash));
     req.session.userId      = user.id;
     req.session.authVersion = 0;
     res.json({ user: { id: user.id, username: user.username } });
   } catch (err) {
+    if (err instanceof beta.BetaError) return res.status(err.status).json({ error: err.message, code: err.code });
+    if (/UNIQUE/.test(err.message)) return res.status(409).json({ error: 'Ce nom d\'utilisateur ou cette adresse e-mail est déjà utilisé.' });
     console.error('[register]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
@@ -1559,6 +1578,71 @@ app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
     });
   } catch (err) {
     console.error('[POST /api/me/shop/chest/open]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// ── Bêta fermée (#57) : bandeau, invitations, signalements ────────────────────
+
+function betaRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof beta.BetaError) return res.status(err.status).json({ error: err.message, code: err.code });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+// Configuration lue par le jeu (bandeau, mode d'inscription, lien Discord, textes).
+app.get('/api/beta/config', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  betaRoute('GET /api/beta/config', () => beta.publicConfig())(req, res);
+});
+
+// Signalement de bug (joueur connecté ou invité) : diagnostic seulement si la case est cochée.
+app.post('/api/beta/reports', limit.feedback,
+  betaRoute('POST /api/beta/reports', req => ({ report: beta.createReport(req.session.userId, req.body) })));
+
+// Suivi par le joueur connecté de ses signalements (statut, correction).
+app.get('/api/beta/reports/mine', requireUser,
+  betaRoute('GET /api/beta/reports/mine', req => ({ reports: beta.listMyReports(req.session.userId) })));
+
+app.get('/api/admin/beta', requireAdmin, betaRoute('GET /api/admin/beta', () => beta.adminSummary()));
+app.put('/api/admin/beta/settings', requireAdmin,
+  betaRoute('PUT /api/admin/beta/settings', req => ({ settings: beta.updateSettings(req.body) })));
+app.post('/api/admin/beta/invites', requireAdmin,
+  betaRoute('POST /api/admin/beta/invites', req => ({ invites: beta.createInvites(req.body) })));
+app.post('/api/admin/beta/invites/:id/revoke', requireAdmin,
+  betaRoute('POST /api/admin/beta/invites/:id/revoke', req => { beta.revokeInvite(req.params.id); return { ok: true }; }));
+app.get('/api/admin/beta/reports', requireAdmin,
+  betaRoute('GET /api/admin/beta/reports', req => beta.listReports({ status: req.query.status })));
+app.put('/api/admin/beta/reports/:id', requireAdmin,
+  betaRoute('PUT /api/admin/beta/reports/:id', req => ({ report: beta.updateReport(req.params.id, req.body) })));
+
+/**
+ * POST /api/admin/players/:userId/temp-password
+ * Mot de passe temporaire pour un joueur qui a perdu le sien tant que les e-mails ne sont pas
+ * configurés (#57, en attendant #43). Affiché une seule fois au panel, jamais stocké en clair ;
+ * toutes les sessions du joueur sont fermées. Le joueur le change ensuite dans Paramètres.
+ */
+const TEMP_PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+app.post('/api/admin/players/:userId/temp-password', requireAdmin, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'userId invalide.' });
+    const user = getUserById(userId);
+    if (!user) return res.status(404).json({ error: 'Joueur introuvable.' });
+    if (req.body?.confirm !== user.username) {
+      return res.status(400).json({ error: 'Confirmation requise : saisir exactement le nom du joueur.' });
+    }
+    const tempPassword = Array.from(require('crypto').randomBytes(12),
+      b => TEMP_PASSWORD_ALPHABET[b % TEMP_PASSWORD_ALPHABET.length]).join('');
+    require('./db').setUserPassword(userId, await bcrypt.hash(tempPassword, 10));
+    logUserEvent(userId, 'admin_temp_password', null);
+    res.json({ username: user.username, tempPassword });
+  } catch (err) {
+    console.error('[POST /api/admin/players/:userId/temp-password]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
