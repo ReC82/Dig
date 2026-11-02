@@ -102,11 +102,11 @@ async function main() {
   const crayon = await target('item:crayon_de_mineur');
   const fresh = crayon.assets[0];
   assert.strictEqual(crayon.assets.length, before.crayon.assets.length + 1);
-  assert.deepStrictEqual([fresh.identity.name, fresh.identity.fr, fresh.promptVersion, fresh.warning], ['Miner\'s Pencil', 'Crayon de mineur', 'v1.2', null]);
+  assert.deepStrictEqual([fresh.identity.name, fresh.identity.fr, fresh.promptVersion, fresh.warning], ['Miner\'s Pencil', 'Crayon de mineur', 'v1.3', null]);
   assert.match(fresh.prompt, /^Object to depict: "Miner's Pencil" \(French name: "Crayon de mineur"\)/);
   assert.strictEqual((await target('item:jeton_dore')).assets.length, before.jeton.assets.length, 'aucune image ajoutée au jeton');
   assert.strictEqual(await calls(), calls0 + 1);
-  log('crayon : conflit « lanterne » confirmé explicitement, une image v1.2 « Miner\'s Pencil » ; navigation pendant l\'appel sans effet');
+  log('crayon : conflit « lanterne » confirmé explicitement, une image v1.3 « Miner\'s Pencil » ; navigation pendant l\'appel sans effet');
 
   // 5. Rechargement : aucune saisie ne survit
   await login();

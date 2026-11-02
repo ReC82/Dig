@@ -140,7 +140,7 @@ test('recette du 02/11 (atelier) : consigne répétée pour plusieurs objets sig
   const t = studio.getTarget('item:boussole_t');
   assert.deepStrictEqual([t.briefSharedWith, t.briefIgnored, t.brief.custom], [['lanterne_t'], true, false]);
   assert.doesNotMatch(t.prompt, /lantern/i, 'la consigne répétée n\'entre pas dans le prompt');
-  assert.match(t.defaultBrief.subject, /collectible/);
+  assert.match(t.defaultBrief.subject, /^A single .*usual real-world shape$/, 'consigne par défaut v1.3 : l\'objet seul, sous sa forme réelle');
   assert.strictEqual(t.neverPublished, true, 'objet du brouillon jamais publié : pas « en jeu »');
 });
 

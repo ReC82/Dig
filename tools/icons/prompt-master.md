@@ -26,8 +26,13 @@ Ajoutés le 30/10/2026 sans modifier le gabarit des blocs ci-dessus (les icônes
 validées restent reproductibles). Même lumière, même angle, même finition, même marge : seule la
 nature du sujet change. La référence validée (`pierre.png`) est jointe de la même façon.
 
+v1.3 (02/11/2026, objets et badges) : phrase « Keep the real-world silhouette… » ajoutée au gabarit
+objet, et consigne par défaut « A single <nom>, shown with its usual real-world shape » où l'histoire ne
+donne que l'usure et l'ambiance. Essai réel : le « Golden Token », rendu en pépite facettée en v1.2,
+devient un jeton plat à rebord au premier essai ; le « Miner's Pencil » est un crayon au premier essai.
+
 <!-- PROMPT_OBJECT -->
-{{SUBJECT}}, premium stylized 3D low-poly game collectible item icon. {{DETAILS}} {{PALETTE}} Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no letters, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins.{{REFERENCE}}
+{{SUBJECT}}, premium stylized 3D low-poly game collectible item icon. {{DETAILS}} {{PALETTE}} Keep the real-world silhouette, shape and proportions of this object so it is recognised at first glance; the low-poly facets only describe its surface finish and must never turn it into a rock, crystal or nugget unless it is one. Softly illuminated by a warm golden-white key light from the upper left, delicate highlights along a few facet edges, darker lower faces, soft ambient occlusion between facets. Slight three-quarter view, centered, visually substantial and readable at small sizes on a dark interface. Modern polished fantasy mining game aesthetic, sophisticated but not photorealistic, neither cartoon emoji nor flat vector art. One isolated object only. No text, no letters, no border, no UI card, no pedestal, no scenery, no floor, no cast shadow outside the object. True transparent alpha background. Square 1024x1024 canvas, object occupying approximately 75 percent of canvas, consistent margins.{{REFERENCE}}
 <!-- /PROMPT_OBJECT -->
 
 <!-- PROMPT_UI -->
