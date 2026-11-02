@@ -4,6 +4,103 @@ Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (B
 
 ---
 
+# Mise à jour du 02/11/2026, 21 h 10 (Bruxelles) — BUG : l'atelier générait l'image d'un autre objet
+
+**État réel : Déployé en production (SHA `56a8cb4`) — en attente de recette.**
+
+Retour traité : [bug du 02/11, 19:54 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6586980341). Ouvrir « Lanterne de poche », générer : on obtient une lanterne, c'est correct. Ouvrir ensuite « Crayon de mineur » et générer : on obtient **une nouvelle lanterne**.
+
+## Cause racine (établie sans aucun appel IA : base de production en lecture seule, journaux)
+
+1. La proposition IA n° 1 de la collection « Trésors de la vieille mine » contenait **la même consigne d'illustration pour ses 6 objets** : « Worn brass miner's lantern — A small tarnished brass lantern with a frosted glass globe… ». C'est le défaut de l'IA de texte déjà signalé dans #39.
+2. Le 02/11 à 14:33:58 UTC, « Ajouter au brouillon » a copié cette consigne dans l'atelier, pour chacun des 6 objets (6 lignes `icon_studio_briefs` portant le même horodatage). Le garde-fou #39 (`2396958`), qui refuse de reprendre une consigne répétée, a été déployé **après** cette copie, à 14:54 UTC. Il ne protégeait que les importations suivantes et n'a pas corrigé les consignes déjà enregistrées.
+3. L'atelier signalait bien la consigne identique, mais il **l'utilisait quand même** pour générer. La proposition du crayon (19:48:05 UTC) a donc été demandée avec le prompt « Worn brass miner's lantern… » : ce prompt est enregistré dans la provenance de l'image, ce qui le prouve. Le prompt ne contenait nulle part le nom de l'objet.
+
+Ce qui a été vérifié et **n'est pas** en cause :
+- **Aucun prompt d'un autre objet réutilisé.** Le prompt est reconstruit à chaque génération à partir de la fiche de l'objet demandé (`_briefFor(t)` indexé par la clé de l'objet) et la tâche est rattachée à cette clé.
+- **Aucune image précédente injectée.** La seule image jointe à l'appel est la référence de style `art/icons/v1/reference/pierre.png`, toujours la même. `basedOn` (« Refaire ») ne sert qu'à la provenance et n'est jamais envoyé à l'API.
+- **Une fuite côté client a été trouvée et corrigée en passant.** Le champ « Précision supplémentaire » d'une fiche pouvait être repris sur la fiche suivante (lecture du champ encore affiché avant le nouveau rendu). Ce n'est pas la cause ici : la précision de la lanterne avait été vidée à l'envoi, et le prompt du crayon n'en contient aucune.
+
+## Correction (`b4f842e`, intégrée dans `develop` en `56a8cb4`)
+
+- **Prompt en trois parties distinctes** pour les objets et les badges :
+  - l'**identité**, tirée du catalogue et jamais de la consigne : `Object to depict: "Miner's Pencil" (French name: "Crayon de mineur"); the icon shows this exact object and nothing else.` ;
+  - la **description visuelle**, c'est-à-dire la consigne de l'objet ;
+  - les **contraintes communes de style** : le gabarit, plus la référence pierre, qui ne donne que le style.
+
+  Version de prompt `v1.2`. L'identité est enregistrée dans la provenance de chaque image.
+- **Consigne répétée neutralisée.** Quand plusieurs objets distincts portent exactement la même consigne (sujet et détails identiques, casse ignorée), cette consigne **n'est plus utilisée**. Elle reste en base, rien n'est supprimé. La fiche affiche un avertissement et repart du nom et de l'histoire de l'objet. Exception : un objet pour lequel l'admin a réenregistré cette consigne plus tard, seul, la garde ; les autres restent neutralisés.
+- **Refus à l'enregistrement.** Une consigne déjà retenue pour un autre objet de la même famille est refusée (409), avec le nom de l'objet concerné.
+- **Admin.** L'avertissement est explicite (« elle n'est pas utilisée »). Une saisie en cours n'est jamais reprise d'une fiche à l'autre.
+
+Sur une copie de la base de production (supprimée ensuite), les fiches de la collection donnent désormais :
+- « Lanterne de poche » → `Object to depict: "Pocket Lantern"… A single pocket lantern collectible…` ;
+- « Crayon de mineur » → `Object to depict: "Miner's Pencil"… A single miner's pencil collectible…` (plus aucune lanterne) ;
+- jeton, tasse et clé : chacun son nom ;
+- « Boussole tordue » : inchangée (sa consigne avait déjà été refaite seule).
+
+## Données
+
+- Aucune table et aucune colonne ajoutées. Aucune ligne supprimée ni réécrite.
+- Les 6 consignes enregistrées sont conservées telles quelles (seulement ignorées).
+- Les propositions existantes sont conservées, y compris la « lanterne » générée pour le crayon : vous pouvez l'écarter dans sa fiche. L'image de la lanterne et celle de la boussole, conservées dans le brouillon, sont inchangées.
+- Données des joueurs non touchées.
+
+## Tests
+
+- Nouveau test `test/icon-studio.test.js` (« recette du 02/11 ») : 3 objets portent la même consigne « lanterne », écrite d'un coup comme en production. Ils sont générés à la suite, avec une précision sur le premier. Le test vérifie que :
+  - chaque prompt commence par l'identité de son propre objet ;
+  - aucun prompt ne contient « lantern » ;
+  - la précision du premier objet ne passe pas au suivant ;
+  - les 3 prompts sont distincts ;
+  - chaque image n'a que la référence pierre, `basedOn` vide et la version `v1.2` ;
+  - les propositions existantes sont conservées ;
+  - la reprise manuelle de la consigne pour un seul objet fonctionne ;
+  - une consigne dupliquée (casse et espaces différents) est refusée avec une 409.
+- Test `test/collection-ai.test.js` adapté au cas de la production : les consignes dupliquées sont ignorées et n'entrent pas dans le prompt.
+- `npm test` complet : **406/406** dans la branche, puis sur la release `56a8cb4`. `npm run check` OK.
+- Aucun appel IA payant : transport factice uniquement.
+
+## Déploiement
+
+- `56a8cb4` déployé le 02/11 à 21:06 (Bruxelles). Sauvegarde vérifiée : `~/backups/dig/dig-20261102-210644-pre-deploy-56a8cb4.sqlite`.
+- Avant le déploiement :
+  - aucune génération IA en cours (dernier appel à 20:47) ;
+  - copie de la base démarrée en production sur le port 3122 : santé et version OK, empreintes des 6 tables joueurs identiques.
+- Après le déploiement :
+  - les 2 domaines répondent 200 avec `/api/version` = `1.0.0+56a8cb4` ;
+  - journal sans erreur, `quick_check` ok, nombres de lignes identiques à la sauvegarde ;
+  - le nouveau `admin.js` est servi.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 029e6cf` puis `sudo systemctl restart dig`. Aucune migration.
+
+## Test fonctionnel à faire par le propriétaire (aucune génération par lot)
+
+1. Panel → 🎨 Icônes → « Crayon de mineur ». Résultat attendu : un avertissement indique que la consigne « Worn brass miner's lantern » enregistrée est la même que pour 4 autres objets et qu'**elle n'est pas utilisée**. La consigne affichée parle d'un *miner's pencil*. « Voir le prompt » (Plus d'options) commence par `Object to depict: "Miner's Pencil"`.
+2. Facultatif : complétez la consigne (par exemple « A short flat carpenter's pencil, chewed wooden end, graphite tip »), puis cliquez sur ✨ Générer une image. Résultat attendu : un **crayon**. Une seule image, environ 0,08 USD.
+3. Ouvrez « Jeton doré » : la consigne parle d'un *golden token*, pas d'une lanterne.
+4. Essayez d'enregistrer sur un autre objet exactement la consigne d'un objet déjà corrigé : un refus nomme l'objet qui l'utilise.
+5. Dans la fiche du crayon, écartez l'ancienne proposition « lanterne » si vous le souhaitez.
+
+**Classement : Bloquant MVP public** (l'illustration des collections en dépend). Les générations par lot restent à proscrire jusqu'à votre recette.
+
+## Choix techniques faits seul
+
+- **Neutraliser plutôt que supprimer** les consignes dupliquées. C'est non destructif, et les consignes restent visibles dans l'avertissement.
+- **Désigner la consigne retenue** par le dernier enregistrement fait seul, ce qui permet de reprendre la consigne « lanterne » pour la seule lanterne. Des enregistrements à la même seconde, comme ceux d'une importation, sont tous neutralisés.
+- **Protection étendue aux badges** (même famille d'objets uniques). Les blocs et les pictogrammes ne sont pas concernés.
+- **Aucun contrôle lexical** du type « la consigne contient-elle le nom ? ». Il est trop fragile entre les langues (« miner's » figurait dans la consigne de la lanterne comme dans le nom du crayon). L'identité explicite en tête de prompt joue ce rôle.
+
+## Décisions demandées
+
+Aucune nouvelle décision. Les questions ouvertes (budget IA, 8 minerais de l'étape B) sont inchangées.
+
+## Restant
+
+- La recette ci-dessus.
+- Après lancement : l'IA de collection répète encore parfois la même consigne. Elle est déjà signalée et refusée, mais l'avertissement pourrait devenir bloquant dès la relecture (#39).
+
+---
+
 # Mise à jour du 02/11/2026, 16 h 15 (Bruxelles) — consigne préremplie depuis une collection : déjà livrée
 
 **État réel : Déjà livré — déployé en production (SHA `029e6cf`) — en attente de recette.**
