@@ -106,7 +106,7 @@ function _messages(concept, { itemCount, seasonName }) {
     'icon: exactly one emoji for the series and for each object.',
     'idSuggestion: lowercase ascii snake_case derived from the French name (2-40 chars, starts with a letter).',
     'theme: one French sentence summarising the visual and narrative theme of the series.',
-    'image: English art direction for ONE isolated collectible object icon (subject; details of shape/material; palette sentence starting with "Palette:"), consistent across the series.',
+    'image: English art direction for the icon of THIS object only (subject naming this specific object; details of its own shape/material; palette sentence starting with "Palette:"). Every item gets its own different subject and details; only the art style and colour family stay consistent across the series.',
     'rationale: 1-2 French sentences explaining the theme and rarity choices.',
     'Do NOT propose drop rates, prices or rewards: they are set by the game owner.',
     `Existing collections (avoid duplicates):\n${_existingSummary()}`,
@@ -203,7 +203,21 @@ function _warnings(data) {
     const miss = LANGS.filter(l => !i.names[l] || !i.stories[l]);
     if (miss.length) w.push(`« ${i.names.fr || i.id} » : nom ou histoire manquant en ${miss.join(', ').toUpperCase()}.`);
   }
+  for (const group of _sharedImages(data.items)) {
+    w.push(`Consigne d'illustration identique pour ${group.map(i => `« ${i.names.fr || i.id} »`).join(', ')} : décrivez chaque objet dans sa fiche, sinon l'atelier repartira du nom et de l'histoire.`);
+  }
   return w;
+}
+
+/** Objets dont la consigne d'illustration (sujet + détails) est strictement la même : groupes de 2 ou plus. */
+function _sharedImages(items) {
+  const by = new Map();
+  for (const i of items) {
+    if (!i.image?.subject) continue;
+    const k = `${i.image.subject.toLowerCase()}\n${(i.image.details ?? '').toLowerCase()}`;
+    by.set(k, [...(by.get(k) ?? []), i]);
+  }
+  return [...by.values()].filter(g => g.length > 1);
 }
 
 function _row(r) {
@@ -311,9 +325,12 @@ function addToDraft(id) {
     conn().prepare("UPDATE collection_ai_proposals SET status = 'in_draft', series_id = ?, updated_at = datetime('now') WHERE id = ?").run(series.id, id);
   })();
   // Consignes d'illustration pour l'atelier (#40) : aucune image générée ici
+  // Une consigne répétée à l'identique pour plusieurs objets ne décrit pas chacun d'eux : non reprise,
+  // l'atelier part alors du nom et de l'histoire de l'objet (modifiable avant toute génération).
   const studio = require('./iconStudio');
+  const shared = new Set(_sharedImages(items).flat().map(i => i.id));
   for (const i of items) {
-    if (!i.image?.subject) continue;
+    if (!i.image?.subject || shared.has(i.id)) continue;
     try { studio.setBrief(`item:${i.id}`, i.image); } catch (err) { console.warn('[collectionAi] consigne atelier', i.id, err.message); }
   }
   return { proposal: getProposal(id), series: toSeries, items: toItems.map(i => i.id) };

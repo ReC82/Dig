@@ -2458,13 +2458,60 @@ function coFillItemForm(i) {
   document.getElementById('btn-co-i-studio').title = i ? 'Ouvre l\'atelier d\'icônes sur cet objet : une image par action, jamais automatique'
     : 'Enregistrez d\'abord l\'objet dans le brouillon';
   admShowError(document.getElementById('co-i-msg'), '');
-  coPreview();
+  coItemLang('fr');
+  _coItemSnap = JSON.stringify(coReadItem());
 }
 function coOpenItem(i, opener) {
   coZoomHide();
   coFillItemForm(i);
   admDialogOpen('co-item-dialog', opener, i ? 'co-i-name-fr' : 'co-i-id');
 }
+
+// Fiche objet : nom + histoire d'une seule langue à la fois (les autres restent dans leurs champs)
+let _coItemSnap = null; // état de la fiche à l'ouverture (modifications non enregistrées)
+const coItemDirty = () => _coItemSnap !== null && JSON.stringify(coReadItem()) !== _coItemSnap;
+function coItemLangState(l) {
+  const n = document.getElementById(`co-i-name-${l}`).value.trim(), st = document.getElementById(`co-i-story-${l}`).value.trim();
+  return n && st ? 'ok' : (n ? 'name' : 'none');
+}
+function coItemLangTags() {
+  for (const b of document.querySelectorAll('#co-i-langs .co-lang-btn')) {
+    const st = coItemLangState(b.dataset.lang);
+    b.className = `co-lang-btn co-lang--${st}`;
+    b.title = { ok: 'complet', name: 'histoire manquante', none: 'à traduire' }[st];
+  }
+}
+/** Change la langue éditée ; l'aperçu suit la même langue. */
+function coItemLang(l, focus = false) {
+  for (const b of document.querySelectorAll('#co-i-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const d of document.querySelectorAll('#co-item-dialog .co-i-lang')) d.classList.toggle('hidden', d.dataset.lang !== l);
+  const ref = [document.getElementById('co-i-name-fr').value.trim(), document.getElementById('co-i-story-fr').value.trim()].filter(Boolean).join(' — ');
+  document.getElementById('co-i-fr-ref').classList.toggle('hidden', l === 'fr' || !ref);
+  document.getElementById('co-i-fr-ref-text').textContent = ref;
+  document.getElementById('co-preview-lang').value = l;
+  coItemLangTags();
+  coPreview();
+  if (focus) document.querySelector(`#co-i-langs .co-lang-btn[data-lang="${l}"]`).focus();
+}
+// Modifications non enregistrées : confirmation avant de fermer (✕, Annuler, Échap, clic hors fiche)
+{
+  const dlg = document.getElementById('co-item-dialog');
+  const keep = () => coItemDirty() && !confirm('Des modifications de cet objet ne sont pas enregistrées. Fermer quand même (elles seront perdues) ?');
+  dlg.addEventListener('click', e => {
+    if ((e.target === dlg || e.target.closest('[data-close]')) && keep()) e.stopPropagation();
+  }, true);
+  dlg.addEventListener('cancel', e => { if (keep()) e.preventDefault(); });
+  dlg.addEventListener('close', () => { _coItemSnap = null; });
+}
+document.querySelectorAll('#co-i-langs .co-lang-btn').forEach((b, k, all) => {
+  b.addEventListener('click', () => coItemLang(b.dataset.lang));
+  b.addEventListener('keydown', e => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    coItemLang(all[(k + step + all.length) % all.length].dataset.lang, true);
+  });
+});
 
 function coReadItem() {
   const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : Number(v); };
@@ -2497,6 +2544,27 @@ function coPreview() {
   document.getElementById('co-preview-story').textContent = pick('co-i-story') || '(pas encore d\'histoire)';
 }
 
+/**
+ * Statut d'une ligne : d'abord la PUBLICATION (ce que voient les joueurs), puis, à part, l'indicateur
+ * de contenu « activé / désactivé » (indépendant de la publication).
+ */
+function coStateCell(tr, published, changed, active, what) {
+  const cell = addCell(tr, '');
+  cell.className = 'bk-state';
+  const pub = document.createElement('span');
+  pub.className = `co-pub co-pub--${!published ? 'draft' : changed ? 'changed' : 'live'}`;
+  pub.textContent = !published ? 'Brouillon — non publié' : changed ? 'Publié · modifié dans le brouillon' : 'Publié';
+  pub.title = !published ? 'Nouveau : n\'existe que dans le brouillon, invisible des joueurs tant que le brouillon n\'est pas publié.'
+    : changed ? 'Les joueurs voient la version publiée ; les modifications du brouillon s\'appliqueront à la publication.'
+    : 'Identique à la version en jeu.';
+  const flag = document.createElement('small');
+  const fem = what === 'Série';
+  flag.className = active ? 'muted' : 'co-flag-off';
+  flag.textContent = `${what} ${active ? (fem ? 'activée' : 'activé') : (fem ? 'désactivée' : 'désactivé')}`;
+  flag.title = 'Indicateur de contenu, indépendant de la publication : désactivé = n\'apparaît plus et ne tombe plus (les objets déjà trouvés restent).';
+  cell.append(pub, document.createElement('br'), flag);
+}
+
 function coRenderItems() {
   const { items, series } = coWorking();
   const text = document.getElementById('co-filter-text').value.trim().toLowerCase();
@@ -2516,7 +2584,6 @@ function coRenderItems() {
     shown++;
     const tr = document.createElement('tr');
     const s = series.find(x => x.id === i.seriesId);
-    const state = `${i.active ? 'actif' : 'désactivé'}${changed.has(i.id) ? ' · modifié' : ''}${_co.publishedIds.items.includes(i.id) ? '' : ' · nouveau'}`;
     const cell = addCell(tr, '');
     cell.className = 'bk-visual';
     const box = document.createElement('span');
@@ -2543,7 +2610,7 @@ function coRenderItems() {
       tag.title = `${l.toUpperCase()} : ${full ? 'nom et histoire' : (i.names?.[l] ? 'nom seul, histoire manquante' : 'absent')}`;
       langs.appendChild(tag);
     }
-    addCell(tr, state).className = 'bk-state';
+    coStateCell(tr, _co.publishedIds.items.includes(i.id), changed.has(i.id), i.active, 'Objet');
     admRowOpen(tr, `co-item:${i.id}`, i.names?.fr ?? i.id, row => coOpenItem(coWorking().items.find(x => x.id === i.id) ?? i, row));
     const zoomData = { image: i.image, icon: i.icon, title: `${i.names?.fr ?? i.id} (${i.id})`, sub: BK_RARITY[i.rarity] ?? i.rarity };
     box.addEventListener('mouseenter', () => coZoomShow(box, zoomData));
@@ -2590,11 +2657,12 @@ async function loadCollections() {
 
   const sb = document.getElementById('co-series-body');
   sb.textContent = '';
+  const seriesChanged = new Set((data.draft?.changes ?? []).filter(c => c.kind === 'series').map(c => c.id));
   for (const s of w.series) {
     const tr = document.createElement('tr');
-    [s.icon, s.id, s.names.fr, coSeasonLabel(s.seasonId), w.items.filter(i => i.seriesId === s.id).length,
-     `${s.active ? 'active' : 'désactivée'}${data.publishedIds.series.includes(s.id) ? '' : ' · nouvelle'}`].forEach(x => addCell(tr, x));
-    ['co-series-icon', 'bk-id', '', 'nowrap', 'num', 'bk-state'].forEach((c, k) => { if (c) tr.children[k].className = c; });
+    [s.icon, s.id, s.names.fr, coSeasonLabel(s.seasonId), w.items.filter(i => i.seriesId === s.id).length].forEach(x => addCell(tr, x));
+    ['co-series-icon', 'bk-id', '', 'nowrap', 'num'].forEach((c, k) => { if (c) tr.children[k].className = c; });
+    coStateCell(tr, data.publishedIds.series.includes(s.id), seriesChanged.has(s.id), s.active, 'Série');
     admRowOpen(tr, `co-series:${s.id}`, s.names.fr, row => coOpenSeries(coWorking().series.find(x => x.id === s.id) ?? s, row));
     sb.appendChild(tr);
   }
@@ -2672,8 +2740,11 @@ document.getElementById('btn-refresh-collections').addEventListener('click', loa
 document.getElementById('co-filter-text').addEventListener('input', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-series').addEventListener('change', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-state').addEventListener('change', () => { if (_co) coRenderItems(); });
-for (const id of ['co-i-icon', 'co-i-image', 'co-i-rarity', 'co-i-series', 'co-preview-lang', ...CO_LANGS.flatMap(l => [`co-i-name-${l}`, `co-i-story-${l}`])]) {
+for (const id of ['co-i-icon', 'co-i-image', 'co-i-rarity', 'co-i-series', 'co-preview-lang']) {
   document.getElementById(id).addEventListener('input', coPreview);
+}
+for (const id of CO_LANGS.flatMap(l => [`co-i-name-${l}`, `co-i-story-${l}`])) {
+  document.getElementById(id).addEventListener('input', () => { coItemLangTags(); coPreview(); });
 }
 
 // « ＋ Ajouter » : choix IA / manuel (aucune écriture à l'ouverture ni à l'annulation)
@@ -2724,8 +2795,10 @@ document.getElementById('btn-co-s-remove').addEventListener('click', async () =>
 document.getElementById('btn-co-i-save').addEventListener('click', async () => {
   const item = coReadItem();
   if (!item.id) { ptMessage('co-i-msg', 'Identifiant requis.', false); return; }
+  if (!item.names?.fr) { coItemLang('fr'); document.getElementById('co-i-name-fr').focus(); ptMessage('co-i-msg', 'Nom FR obligatoire.', false); return; }
   const { ok, data } = await api('PUT', `/api/admin/collections/draft/items/${encodeURIComponent(item.id)}`, { item });
   if (!ok) { ptMessage('co-i-msg', data.error || 'Erreur.', false); return; }
+  _coItemSnap = null;
   document.getElementById('co-item-dialog').close();
   coNotice(`« ${data.item.id} » enregistré dans le brouillon (pas encore visible des joueurs).`);
   loadCollections();
@@ -2743,9 +2816,11 @@ document.getElementById('btn-co-i-remove').addEventListener('click', async () =>
 
 document.getElementById('btn-co-i-studio').addEventListener('click', () => {
   const id = document.getElementById('co-i-id').value.trim();
+  if (coItemDirty() && !confirm('Modifications non enregistrées dans cette fiche : les abandonner pour ouvrir l\'atelier ?\n(Annuler, puis « Enregistrer l\'objet dans le brouillon » pour les garder.)')) return;
+  _coItemSnap = null;
   document.getElementById('co-item-dialog').close();
   document.querySelector('.tab-btn[data-tab="icons"]').click();
-  if (id) icOpen(`item:${id}`);
+  if (id) { _icFrom = { kind: 'item', id }; icOpen(`item:${id}`); }
 });
 
 document.getElementById('co-i-upload').addEventListener('change', e => {
@@ -3310,6 +3385,8 @@ let _icTarget = null;    // détail de la fiche ouverte
 let _icJob = null;       // génération en cours ou dernière terminée
 let _icPoll = null;      // minuterie de suivi de la génération
 let _icNote = null;      // message de la fiche { text, ok }
+let _icFrom = null;      // fiche d'origine quand l'atelier est ouvert depuis Collections { kind: 'item', id }
+const _icTyped = {};     // saisies non envoyées par icône (consigne, description) : conservées entre les fiches
 const IC_ACTIONS = { generated: 'Image générée', uploaded: 'Image téléversée', chosen: 'Retenue', rejected: 'Écartée', restored: 'Remise en proposition',
   validated: 'Verrouillée (validée)', applied: 'Conservée dans le brouillon', reverted_to_emoji: 'Retour à l\'emoji (brouillon)', brief: 'Description modifiée' };
 const IC_BG_RE = /^linear-gradient\(\d+deg,\s*#[0-9a-f]{6},\s*#[0-9a-f]{6}\)$/i;
@@ -3450,6 +3527,7 @@ async function icGenerate(instruction, basedOn) {
   _icNote = null;
   const field = document.getElementById('ic-instruction');
   if (field) field.value = '';   // consigne envoyée : le champ repart vide pour la prochaine
+  if (_icTyped[_icOpen]) delete _icTyped[_icOpen].instruction;
   icSetJob(data.job);
 }
 
@@ -3468,6 +3546,67 @@ async function icOpen(key, { keepSel = false } = {}) {
   const visible = _icTarget.assets.filter(a => a.status !== 'rejected');
   if (!keepSel || !_icTarget.assets.some(a => a.sha === _icSel)) _icSel = (visible[0] ?? _icTarget.assets[0])?.sha ?? null;
   icRenderSheet();
+}
+
+const IC_HINTS = {
+  block: 'ex. minerai bleu vif aux reflets métalliques',
+  item: 'ex. vue de trois quarts, reflets plus chauds',
+  badge: 'ex. médaille plus brillante, symbole plus simple',
+  ui: 'ex. trait plus épais, couleurs plus vives',
+};
+
+/** Retour à la fiche de l'objet d'origine, rechargée (l'atelier a pu changer son image dans le brouillon). */
+async function icBackToItem(id) {
+  _co = null;
+  document.querySelector('.tab-btn[data-tab="collections"]').click();
+  for (let k = 0; k < 50 && !_co; k++) await new Promise(r => setTimeout(r, 100));
+  const it = _co && coWorking().items.find(x => x.id === id);
+  if (it) coOpenItem(it, document.querySelector(`[data-adm-key="${CSS.escape(`co-item:${id}`)}"]`));
+}
+
+/**
+ * Consigne d'illustration d'un objet (sujet, forme, couleurs) : celle préparée avec la collection, ou à
+ * défaut tirée du nom et de l'histoire. Modifiable ; enregistrée seulement au clic sur « Générer ».
+ */
+function icItemBrief(parent, t) {
+  const memo = (_icTyped[t.key] ??= {});
+  const wrap = aiEl('div', { class: 'ic-item-brief' });
+  wrap.appendChild(aiEl('h4', {}, 'Consigne d\'illustration de cet objet'));
+  wrap.appendChild(aiEl('p', { class: 'muted ic-hint' }, t.brief.custom
+    ? 'Préparée avec la collection, modifiable. Elle accompagne chaque génération ; aucune image n\'est créée sans clic sur « Générer ».'
+    : 'Tirée du nom et de l\'histoire de l\'objet, modifiable. Aucune image n\'est créée sans clic sur « Générer ».'));
+  const els = {};
+  if (t.briefSharedWith?.length) {
+    const w = aiEl('div', { class: 'ic-notice ic-notice--warn' });
+    w.appendChild(aiEl('p', {}, `⚠ Cette consigne est identique pour ${t.briefSharedWith.length + 1} objets (avec ${t.briefSharedWith.join(', ')}) : `
+      + `l'IA de la collection a répété la même consigne. Vérifiez qu'elle décrit bien « ${t.name} », corrigez-la ou repartez du nom et de l'histoire.`));
+    icButton(w, 'Repartir du nom et de l\'histoire', async () => {
+      for (const k of Object.keys(els)) { els[k].value = t.defaultBrief?.[k] ?? ''; memo[k] = els[k].value; }
+      els.subject.focus();
+    });
+    wrap.appendChild(w);
+  }
+  for (const [k, label, max] of [['subject', 'Sujet', 300], ['details', 'Forme et matière', 600], ['palette', 'Couleurs', 300]]) {
+    const [l, el] = aiInput(label, memo[k] ?? t.brief[k], { maxlength: String(max) });
+    l.classList.add('ic-field');
+    el.addEventListener('input', () => { memo[k] = el.value; });
+    els[k] = el;
+    wrap.appendChild(l);
+  }
+  parent.appendChild(wrap);
+  return els;
+}
+
+/** Enregistre la consigne de l'objet si elle a été modifiée (avant de générer). */
+async function icSaveItemBrief(t, els) {
+  const b = Object.fromEntries(Object.entries(els).map(([k, el]) => [k, el.value.trim()]));
+  if (b.subject === t.brief.subject && b.details === (t.brief.details ?? '') && b.palette === (t.brief.palette ?? '')) return true;
+  const { ok, data } = await api('PUT', `/api/admin/icons/targets/${icEnc(t.key)}/brief`, b);
+  if (!ok) { _icNote = { text: data.error || 'Erreur.', ok: false }; icRenderSheet(); return false; }
+  t.brief = data.brief;
+  t.briefSharedWith = [];
+  for (const k of Object.keys(els)) delete _icTyped[t.key]?.[k];
+  return true;
 }
 
 function icButton(parent, label, fn, cls = 'btn btn-outline') {
@@ -3491,6 +3630,7 @@ function icRenderSheet() {
   // En-tête : retour, nom, état
   const head = aiEl('div', { class: 'ic-sheet-head' });
   icButton(head, '← Toutes les icônes', async () => icShowList());
+  if (_icFrom?.kind === 'item' && t.key === `item:${_icFrom.id}`) icButton(head, '← Retour à la fiche de l\'objet', () => icBackToItem(_icFrom.id));
   const title = aiEl('div', { class: 'ic-sheet-title' });
   title.appendChild(aiEl('h3', {}, t.name));
   title.appendChild(icBadge(st));
@@ -3509,7 +3649,8 @@ function icRenderSheet() {
     cmp.appendChild(f);
     return f;
   };
-  fig(icThumb(t, 160), t.applicable ? (t.unpublished ? 'Actuelle (brouillon, pas encore en jeu)' : 'Actuelle en jeu') : 'Actuelle');
+  fig(icThumb(t, 160), !t.applicable ? 'Actuelle' : t.neverPublished ? 'Actuelle (objet en brouillon, jamais publié)'
+    : t.unpublished ? 'Actuelle (brouillon, pas encore en jeu)' : 'Actuelle en jeu');
   if (mine) {
     const wait = aiEl('span', { class: 'bk-thumb ic-thumb ic-wait', style: 'width:160px;height:160px;border-radius:26px' });
     wait.appendChild(aiEl('span', { class: 'ic-spinner', 'aria-hidden': 'true' }));
@@ -3530,7 +3671,8 @@ function icRenderSheet() {
   const field = (label, placeholder) => {
     const l = aiEl('label', { class: 'ic-field' }, label);
     const i = aiEl('input', { type: 'text', id: 'ic-instruction', maxlength: '300', placeholder });
-    i.value = typed;
+    i.value = _icTyped[t.key]?.instruction ?? typed;
+    i.addEventListener('input', () => { (_icTyped[t.key] ??= {}).instruction = i.value; });
     l.appendChild(i);
     step.appendChild(l);
     return i;
@@ -3539,8 +3681,13 @@ function icRenderSheet() {
     : !_ic?.status?.configured ? 'Génération indisponible (API non configurée) : utilisez « Téléverser une image » dans les options.'
     : _ic?.status?.budgetReached ? icBudgetHelp(_ic.status) : '';
   if (!sel || mine) {
-    const i = field('Consigne (facultative)', 'ex. minerai bleu vif aux reflets métalliques');
-    const g = icButton(step, '✨ Générer une image', () => icGenerate(i.value, null), 'btn ic-main');
+    // Objet de collection : la consigne d'illustration préparée est affichée ici, préremplie et modifiable
+    const briefEls = t.kind === 'item' ? icItemBrief(step, t) : null;
+    const i = field(briefEls ? 'Précision supplémentaire (facultative)' : 'Consigne (facultative)', IC_HINTS[t.kind] ?? IC_HINTS.ui);
+    const g = icButton(step, '✨ Générer une image', async () => {
+      if (briefEls && !(await icSaveItemBrief(t, briefEls))) return;
+      await icGenerate(i.value, null);
+    }, 'btn ic-main');
     g.disabled = !canGenerate;
   } else {
     const row = aiEl('div', { class: 'form-actions' });
@@ -3645,11 +3792,13 @@ function icOptions(t, sel) {
   const ba = aiEl('div', { class: 'form-actions' });
   icButton(ba, 'Enregistrer la description', async () => {
     const { ok, data } = await api('PUT', `/api/admin/icons/targets/${icEnc(t.key)}/brief`, { subject: subj.value, details: det.value, palette: pal.value });
+    if (ok) delete _icTyped[t.key];
     say(ok ? 'Description enregistrée.' : (data.error || 'Erreur.'), ok);
     if (ok) icOpen(t.key, { keepSel: true }); else icRenderSheet();
   });
   if (t.brief.custom) icButton(ba, 'Description par défaut', async () => {
     const { ok, data } = await api('PUT', `/api/admin/icons/targets/${icEnc(t.key)}/brief`, { reset: true });
+    if (ok) delete _icTyped[t.key];
     say(ok ? 'Description par défaut rétablie.' : (data.error || 'Erreur.'), ok);
     if (ok) icOpen(t.key, { keepSel: true }); else icRenderSheet();
   });

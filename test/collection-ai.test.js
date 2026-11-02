@@ -118,6 +118,30 @@ test('corrections sans coût, puis brouillon seulement : version publiée inchan
   assert.throws(() => ai.addToDraft(p.id), /déjà enregistrée/);
 });
 
+test('recette du 02/11 (atelier) : consigne répétée pour plusieurs objets signalée, non reprise ; repli nom + histoire', async () => {
+  const lantern = { subject: 'Worn brass miner\'s lantern', details: 'A small tarnished brass lantern.', palette: 'Palette: amber.' };
+  const r = reply();
+  r.series.idSuggestion = 'vieille_mine';
+  r.items = r.items.slice(0, 3).map((i, k) => ({ ...i, idSuggestion: ['lanterne_t', 'boussole_t', 'crayon_t'][k], image: k < 2 ? lantern : { subject: 'A stubby pencil', details: 'Chewed end.', palette: '' } }));
+  answer = r;
+  try {
+    const p = await propose({ concept: 'Trésors de la vieille mine', itemCount: 3 });
+    assert.ok(p.warnings.some(w => /Consigne d'illustration identique pour « Flocon éternel », « Flocon jumeau »/.test(w)), p.warnings.join(' | '));
+    ai.addToDraft(p.id);
+  } finally { answer = null; }
+  assert.strictEqual(studio.getTarget('item:lanterne_t').brief.custom, false, 'consigne répétée non reprise');
+  assert.match(studio.getTarget('item:lanterne_t').brief.subject, /twin snowflake|eternal snowflake/i, 'repli : nom de l\'objet');
+  const crayon = studio.getTarget('item:crayon_t');
+  assert.deepStrictEqual([crayon.brief.custom, crayon.brief.subject, crayon.briefSharedWith], [true, 'A stubby pencil', []]);
+  // Consignes déjà enregistrées à l'identique (cas de la production) : signalées, repli proposé
+  studio.setBrief('item:lanterne_t', lantern);
+  studio.setBrief('item:boussole_t', lantern);
+  const t = studio.getTarget('item:boussole_t');
+  assert.deepStrictEqual(t.briefSharedWith, ['lanterne_t']);
+  assert.match(t.defaultBrief.subject, /collectible/);
+  assert.strictEqual(t.neverPublished, true, 'objet du brouillon jamais publié : pas « en jeu »');
+});
+
 test('validations : description, nombre d\'objets, saison inconnue ; abandon', async () => {
   assert.throws(() => ai.startProposal({ concept: 'a' }), /Décrivez/);
   assert.throws(() => ai.startProposal({ concept: 'hiver', itemCount: 12 }), /entre 3 et 8/);
@@ -252,4 +276,30 @@ test('recette du 02/11 : relecture IA en synthèse puis fiche d\'un objet, une l
   assert.doesNotMatch(item, /for \(const l of CO_LANGS\) coField/);
   assert.match(JS, /names: texts\(it\.names\), stories: texts\(it\.stories\)/);
   assert.doesNotMatch(item, /dropEnabled|api\(/, 'aucun drop activé ni appel depuis la fiche d\'objet');
+});
+
+test('recette du 02/11 (atelier) : consigne de l\'objet préremplie et modifiable, saisie conservée, jamais de génération automatique', () => {
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'server', 'collectionAi.js'), 'utf8'), /Every item gets its own different subject and details/);
+  const sheet = JS.slice(JS.indexOf('function icRenderSheet('), JS.indexOf('function icHistory('));
+  assert.match(sheet, /t\.kind === 'item' \? icItemBrief\(step, t\)/);
+  assert.match(sheet, /IC_HINTS\[t\.kind\]/, 'plus de consigne « minerai » pour un objet');
+  assert.match(JS, /item: 'ex\. vue de trois quarts/);
+  assert.match(JS, /_icTyped\[t\.key\]\?\.instruction \?\? typed/, 'consigne saisie conservée entre les fiches');
+  assert.match(JS, /memo\[k\] \?\? t\.brief\[k\]/, 'description saisie conservée');
+  const brief = JS.slice(JS.indexOf('function icItemBrief('), JS.indexOf('/** Enregistre la consigne de l\'objet'));
+  assert.doesNotMatch(brief, /generate/, 'aucune génération depuis la consigne');
+  assert.match(JS, /← Retour à la fiche de l\\'objet/);
+});
+
+test('recette du 02/11 : fiche objet une langue à la fois, statut publication distinct de l\'indicateur activé', () => {
+  const d = dialog('co-item-dialog');
+  assert.match(d, /id="co-i-langs" role="group"/);
+  for (const l of ['fr', 'en', 'nl', 'es']) assert.match(d, new RegExp(`class="co-i-lang${l === 'fr' ? '' : ' hidden'}" data-lang="${l}"`));
+  assert.match(d, /Objet activé/);
+  assert.match(JS, /coItemLang\('fr'\);\n  _coItemSnap = JSON\.stringify\(coReadItem\(\)\);/, 'FR par défaut à chaque ouverture');
+  assert.match(JS, /document\.getElementById\('co-preview-lang'\)\.value = l;/, 'aperçu synchronisé');
+  assert.match(JS, /names: coTexts\('co-i-name'\),\n    stories: coTexts\('co-i-story'\)/, 'les quatre langues restent enregistrées ensemble');
+  assert.match(JS, /'Brouillon — non publié'/);
+  assert.match(JS, /'Publié · modifié dans le brouillon' : 'Publié'/);
+  assert.doesNotMatch(JS, /' · nouveau'\}`;\n    const cell = addCell/);
 });

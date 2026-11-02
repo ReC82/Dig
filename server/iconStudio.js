@@ -582,7 +582,16 @@ function getTarget(key) {
   const history = conn().prepare('SELECT id, action, asset_sha, details, created_at FROM icon_studio_events WHERE target = ? ORDER BY id DESC LIMIT 100').all(key)
     .map(e => ({ id: e.id, action: e.action, url: e.asset_sha ? imageUrl(e.asset_sha) : null, sha: e.asset_sha, details: e.details ? JSON.parse(e.details) : null, at: e.created_at }));
   const spent = conn().prepare('SELECT COALESCE(SUM(cost_usd), 0) s, COUNT(*) n FROM icon_studio_calls WHERE target = ?').get(key);
-  return { ..._summary(t, { [key]: assets.length }), brief: _briefFor(t), prompt: buildPrompt(t.kind, _briefFor(t)), assets, history,
+  const brief = _briefFor(t);
+  // Objet de collection (#39) : consigne de repli tirée du nom et de l'histoire, et autres objets portant
+  // exactement la même consigne enregistrée (une IA qui répète la même consigne pour toute une série).
+  const itemExtra = t.kind === 'item' ? {
+    defaultBrief: _defaultBrief('item', t.src),
+    neverPublished: !collectionCatalog.getPublished().items.some(i => i.id === t.id),
+    briefSharedWith: brief.custom ? conn().prepare("SELECT target FROM icon_studio_briefs WHERE target LIKE 'item:%' AND target <> ? AND subject = ? AND details = ? ORDER BY target")
+      .all(key, brief.subject, brief.details).map(r => r.target.slice(5)) : [],
+  } : {};
+  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief), assets, history, ...itemExtra,
     costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : null };
 }
 
