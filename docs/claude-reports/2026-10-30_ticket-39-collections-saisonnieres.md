@@ -1,5 +1,97 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 02/11/2026, 13 h 45 (Bruxelles) — relecture des propositions IA et ligne technique IA (recettes du 02/11)
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux retours de recette du 02/11 qui n'avaient pas encore été appliqués :
+- 11:52 et 11:54 UTC : retirer des fiches la ligne technique « IA : gpt-5-mini — budget restant … appels sur 24 h ».
+- 12:03 UTC : la relecture d'une proposition IA affichait les six objets dépliés dans les quatre langues, d'où un défilement interminable.
+
+## A''. État réel
+
+**Déployé en production (SHA `1e53430`) — en attente de recette.** Classement : **Après lancement**, car cela ne concerne que l'outil d'administration. Aucune donnée, aucun drop, aucune route API et aucun contrôle de budget n'a été modifié.
+
+## B''. Changements (`public/admin/index.html`, `admin.js`, `admin.css`, `test/collection-ai.test.js`)
+
+- **Fenêtre « ＋ Ajouter »** : la ligne technique est remplacée par une mention simple : « La génération IA peut entraîner un coût ; rien n'est publié automatiquement. » Deux cas particuliers :
+  - IA non configurée : « IA non configurée : création manuelle seulement. »
+  - Limite atteinte : « Limite IA atteinte pour le moment (détails : ⚙ Config → Budget IA). »
+- **Fiche « ✨ Créer une collection avec l'IA »** : le modèle, le budget restant, le coût estimé et le quota sur 24 h sont maintenant dans « Aide technique », qui est repliée par défaut. Une ligne courte s'affiche seulement si la limite est atteinte. Le plafond, le quota et le journal restent appliqués par le serveur, sans changement.
+- **Relecture d'une proposition IA**, en deux niveaux :
+  1. **Synthèse.** Elle commence par la description et la série : identifiant, icône, saison, et le nom dans la langue choisie. Le thème et le raisonnement de l'IA sont repliés. Viennent ensuite les objets, **une ligne compacte par objet** : miniature, nom FR et identifiant, rareté, image (« emoji · à illustrer », consigne prête ou non), drop (sources, profondeur, taux, « inactif ») et pastilles de langues FR/EN/NL/ES. Les avertissements du serveur s'affichent sous la liste.
+  2. **Fiche d'un seul objet**, ouverte par un clic, Entrée ou Espace sur une ligne :
+     - boutons « ← Tous les objets », « ‹ Précédent » et « Suivant › » ;
+     - identité : identifiant, rareté, emoji ;
+     - **sélecteur de langue FR / EN / NL / ES**, FR par défaut, avec les flèches ← → au clavier ;
+     - un seul nom et une seule histoire à l'écran, avec le texte FR repliable comme référence quand on traduit ;
+     - **aperçu joueur en face**, dans la langue éditée ;
+     - consigne d'illustration repliée, rappel du drop pré-rempli (inactif) et « Retirer cet objet ».
+- **Corrections conservées** : elles restent dans une copie de travail quand on change d'objet, de langue ou qu'on revient à la synthèse. Les pastilles se mettent à jour pendant la saisie.
+  - « Enregistrer les corrections » sauvegarde la proposition et reste sur l'objet et la langue en cours.
+  - Si des corrections ne sont pas enregistrées, ✕, Fermer, Échap ou un clic hors de la fiche demandent confirmation.
+- **Contrôle avant « Enregistrer dans le brouillon »** : un objet sans nom FR ouvre directement sa fiche en FR, avec un message. Si un nom ou une histoire manque dans une langue, une confirmation l'annonce. Le serveur revalide tout, comme avant. Si le brouillon est refusé (identifiant déjà utilisé, par exemple), l'écran revient à la synthèse, où se trouvent l'identifiant de la série et les avertissements.
+- Rien n'a changé pour les drops : ils restent inactifs. Aucune image n'est générée, aucune publication n'a lieu.
+
+## C''. SHA, tests, déploiement
+
+- Branche `feature/39-collections-saisonnieres` : commit `954d063`. `develop` : fusion `1e53430`.
+- `npm test` : **402/402** sur la branche, sur `develop` `1e53430` et sur la release. Deux tests ont été ajoutés :
+  - aucune ligne technique dans la fenêtre « ＋ Ajouter », détails dans l'aide repliée ;
+  - synthèse puis fiche d'objet, FR par défaut, un seul nom et une seule histoire éditables, confirmation à Échap.
+- Chromium sur un serveur de test (port 3101, base de test, IA factice, base et serveur supprimés ensuite), en 1280×900 et en 390×844 tactile :
+  - fenêtre « ＋ Ajouter » : la mention simple s'affiche ;
+  - fiche IA : la ligne technique n'apparaît que dans l'aide dépliée ;
+  - génération : la synthèse affiche 6 lignes, sans aucun champ de texte d'objet ;
+  - clavier : Entrée sur une ligne ouvre la fiche, avec le focus sur « Nom (FR) » ;
+  - langue : correction FR, passage en EN, correction EN, flèche → vers NL, Suivant puis Précédent, retour en FR : **la correction FR est conservée** ;
+  - « ← Tous les objets » rend le focus à la ligne d'origine ;
+  - Échap avec des corrections non enregistrées affiche bien la confirmation ;
+  - à la réouverture, la langue repart en FR ;
+  - « Enregistrer » garde l'objet et la langue en cours (NL enregistré en base de test) ;
+  - brouillon refusé pour identifiant de série en double : le message s'affiche ;
+  - mobile : pas de débordement de la fiche, le tableau défile dans son cadre ;
+  - 0 erreur JavaScript.
+- Copie de la base de production en mode production (port 3122) : `/health` ok, version `1.0.0+1e53430`, empreintes des 6 tables joueurs identiques avant et après démarrage, `quick_check` ok, copie supprimée.
+- Avant de déployer, j'ai vérifié qu'aucune génération IA n'était en cours en production (dernier appel à 12:00 UTC, aucune proposition « en cours »).
+- **Déploiement** `605d320 → 1e53430` avec `scripts/deploy.sh` de la release :
+  - sauvegarde vérifiée `~/backups/dig/dig-20261102-134039-pre-deploy-1e53430.sqlite` ;
+  - santé et version contrôlées ;
+  - les 2 domaines répondent 200 en `1.0.0+1e53430` ;
+  - API admin sans clé : 401 ;
+  - journal sans erreur, `quick_check` ok ;
+  - **empreintes identiques à la sauvegarde** ;
+  - Chromium sur la production (jeu et admin, PC et mobile) : 0 erreur.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 605d320` puis `sudo systemctl restart dig`. Aucune migration, `package-lock.json` inchangé.
+
+## D''. Test fonctionnel à faire par le propriétaire (Admin → 📿 Collections, Ctrl+F5)
+
+1. « ＋ Ajouter » : la ligne « IA : gpt-5-mini — budget… » a disparu. À la place : « La génération IA peut entraîner un coût ; rien n'est publié automatiquement. »
+2. « ✨ Créer une collection avec l'IA » : pas de ligne technique visible. En dépliant « Aide technique », on voit le modèle, le budget et le quota.
+3. « ✨ Propositions IA » → votre proposition « Trésors de la vieille mine » : la fiche montre la série puis **6 lignes compactes**, sans défilement interminable.
+4. Cliquer sur « Lanterne de poche » : la fiche de cet objet seul s'ouvre en **FR**, avec l'aperçu à droite.
+5. Modifier le nom FR, passer en **EN**, modifier l'histoire, puis cliquer sur « Suivant › » et « ‹ Précédent ». Revenir en FR : vos deux corrections sont toujours là.
+6. « Enregistrer les corrections » : un message de confirmation s'affiche et vous restez sur l'objet.
+7. Essayer de fermer avec une correction non enregistrée : une confirmation est demandée.
+8. Clavier : Tab jusqu'à une ligne puis Entrée. Dans la fiche, les flèches ← → changent de langue.
+9. Ensuite, « Enregistrer dans le brouillon » (rien n'est publié, les drops restent inactifs), puis 🎨 et « Publier » quand vous le souhaitez. Ces étapes restent à recetter.
+
+## E''. Choix techniques faits seul
+
+- **Copie de travail côté navigateur** plutôt qu'un enregistrement à chaque changement d'objet ou de langue : vous l'avez demandé (« conserver les corrections en cours »), et l'API n'est appelée que sur vos boutons.
+- **La langue choisie s'applique aussi au nom de la série** dans la synthèse. C'est cohérent : une seule langue à l'écran à la fois.
+- **Nom FR obligatoire contrôlé côté navigateur** avant le brouillon, pour éviter un aller-retour en erreur. Les traductions manquantes ne bloquent pas : elles sont signalées et peuvent être complétées avant de publier. Le serveur reste juge.
+- **Badges (#38)** : sa fiche IA affiche encore la même ligne technique. Je ne l'ai pas modifiée, car ce n'est pas le périmètre de #39. À reprendre dans #38 si vous le souhaitez (même correctif, quelques lignes).
+
+## F''. Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Les 3 questions du 30/10 sur le barème des drops saisonniers restent ouvertes (voir F ci-dessous).
+
+## G''. Restant à réaliser
+
+- Votre recette de la nouvelle relecture, puis brouillon → illustration → publication (#39 reste ouvert).
+- Après lancement : la même mention simple pour la fiche IA des Badges (#38) ; masquer sur mobile les colonnes Image et Drop de la synthèse si le défilement horizontal gêne.
+
+---
+
 # Mise à jour du 02/11/2026, 13 h 30 (Bruxelles) — présentation des listes (recette du 02/11)
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Suite à la recette du propriétaire du 02/11 (commentaire 11:50 UTC). Validé partiellement : vue de consultation, « ＋ Ajouter », v1 avec 8 objets et 8 drops. Demande : utiliser la largeur de l'écran, élargir les colonnes, agrandir les miniatures avec un aperçu au survol ou au focus, comme pour les blocs (#37), et garder le mobile.
