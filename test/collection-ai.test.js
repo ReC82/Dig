@@ -228,3 +228,28 @@ test('fiches Collections : fermeture sans effet, choix IA / manuel, IA grisée s
   assert.doesNotMatch(dialog('co-ai-dialog'), /type="checkbox"/, 'pas d\'option d\'image dans la création IA');
   assert.match(dialog('co-item-dialog'), /id="btn-co-i-studio"/, 'illustration une par une via l\'atelier');
 });
+
+test('recette du 02/11 : pas de ligne technique IA dans les fiches, détails dans l\'aide repliée', () => {
+  const add = dialog('co-add-dialog');
+  assert.match(add, /<p id="co-ai-status"/);
+  assert.match(JS, /La génération IA peut entraîner un coût ; rien n\\'est publié automatiquement\./);
+  // Modèle, budget et quota : uniquement dans « Aide technique » (repliée) de la fiche IA
+  const ai = dialog('co-ai-dialog');
+  assert.match(ai, /<details[^>]*><summary>Aide technique<\/summary>\s*<p id="co-ai-status-2"><\/p>/);
+  const simple = JS.slice(JS.indexOf("document.getElementById('co-ai-status').textContent"), JS.indexOf("document.getElementById('co-ai-status-2').textContent"));
+  assert.doesNotMatch(simple, /budget restant|appels sur 24 h|textModel/);
+});
+
+test('recette du 02/11 : relecture IA en synthèse puis fiche d\'un objet, une langue à la fois', () => {
+  assert.match(JS, /function coPropDrawList\(/);
+  assert.match(JS, /function coPropDrawItem\(/);
+  assert.match(JS, /admRowOpen\(tr, `co-prop-item:\$\{k\}`/, 'ligne d\'objet ouvrable à la souris et au clavier');
+  assert.match(JS, /lang: _coPropWork\?\.lang \?\? 'fr'/, 'FR par défaut');
+  assert.match(JS, /_coProp = null; _coPropWork = null;/, 'langue remise à FR à la fermeture');
+  assert.match(JS, /addEventListener\('cancel', e => \{ if \(keep\(\)\) e\.preventDefault\(\); \}\)/, 'Échap ne perd pas les corrections sans confirmation');
+  // Un seul nom et une seule histoire éditables à l'écran : les quatre langues restent dans la copie de travail
+  const item = JS.slice(JS.indexOf('function coPropDrawItem('), JS.indexOf('/** Corrections de la copie de travail'));
+  assert.doesNotMatch(item, /for \(const l of CO_LANGS\) coField/);
+  assert.match(JS, /names: texts\(it\.names\), stories: texts\(it\.stories\)/);
+  assert.doesNotMatch(item, /dropEnabled|api\(/, 'aucun drop activé ni appel depuis la fiche d\'objet');
+});

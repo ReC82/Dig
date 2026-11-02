@@ -1048,13 +1048,14 @@
         <label>Nombre d'objets<input id="co-ai-count" type="number" min="3" max="8" value="6"></label>
         <label>Saison de la série<select id="co-ai-season"></select></label>
       </div>
-      <p id="co-ai-status-2" class="muted" style="font-size:0.78rem"></p>
+      <p id="co-ai-limit" class="muted" style="font-size:0.78rem"></p>
       <div class="form-actions">
         <button class="btn btn-primary" id="btn-co-ai-generate" type="button">✨ Proposer une collection</button>
         <button class="btn btn-outline" type="button" data-close>Annuler</button>
       </div>
       <p id="co-ai-msg" class="form-msg"></p>
       <details class="muted" style="font-size:0.75rem"><summary>Aide technique</summary>
+        <p id="co-ai-status-2"></p>
         <p>Un seul appel texte (≈ 30 à 60 s, en arrière-plan : vous pouvez fermer la fiche). La clé reste côté serveur ; quota, plafond et journal sont partagés avec 🧱 Blocs et l'atelier (plafond : ⚙ Config → Budget IA).
         Les paramètres de drop sont pré-remplis selon la rareté (barème proposé, <strong>non validé</strong>) et restent <strong>inactifs</strong>. Les images se génèrent ensuite <strong>une par une</strong> dans 🎨 Atelier d'icônes, à partir de la consigne proposée.</p>
       </details>
