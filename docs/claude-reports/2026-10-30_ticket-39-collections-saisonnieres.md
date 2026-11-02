@@ -1,6 +1,6 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
-# Mise à jour du 03/11/2026, 0 h 05 (Bruxelles) — ligne éditoriale humoristique et nouvelle collection en brouillon (directive du 02/11 au soir)
+# Mise à jour du 02/11/2026, 23 h 59 (Bruxelles) — ligne éditoriale humoristique et nouvelle collection en brouillon (directive du 02/11 au soir)
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux commentaires du propriétaire du 02/11 :
 - [21:41 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6589165584) : **directive éditoriale durable**. Les collections doivent être absurdes mais ancrées dans une certaine réalité (humour, folklore, histoire, cinéma, sketches). Les clins d'œil doivent être originaux et variés, chaque objet doit avoir sa micro-histoire et sa propre description visuelle. Pas de faux faits historiques présentés comme vrais. Les œuvres protégées sont évoquées, jamais reproduites. Il faut aussi des contrôles de qualité, et rien n'est publié automatiquement.
