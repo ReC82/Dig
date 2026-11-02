@@ -39,6 +39,7 @@ const db = require('./db');
 const blockCatalog = require('./blockCatalog');
 const collectionCatalog = require('./collectionCatalog');
 const badges = require('./badges');
+const { APP_VERSION } = require('./version');
 
 const ROOT = path.join(__dirname, '..');
 const MAX_IMAGES_PER_DAY = 40;
@@ -139,7 +140,9 @@ const oa = () => (_oa ??= require('../tools/icons/openai-images'));
 let _fake = null;
 function setFakeTransport(fake) { _fake = fake; }
 if (process.env.DIG_AI_FAKE === '1' && process.env.NODE_ENV !== 'production') {
-  _fake = { image: async () => ({ png: await fakeIconPng(), usage: null }) };
+  // DIG_AI_FAKE_DELAY_MS : durée simulée d'un appel (essais navigateur d'une génération en cours)
+  const delay = Math.min(60000, Number(process.env.DIG_AI_FAKE_DELAY_MS) || 0);
+  _fake = { image: async () => { await new Promise(r => setTimeout(r, delay)); return { png: await fakeIconPng(), usage: null }; } };
 }
 
 /** PNG RGBA 1024 « plausible » (disque anti-crénelé sur fond transparent) : passe les contrôles. */
@@ -341,6 +344,76 @@ function _identity(t) {
   return { name, fr: fr && fr !== name ? fr : null };
 }
 
+// ── Sujet : l'image représente l'objet du catalogue, jamais un autre ─────────
+// Recette du 02/11 (2e retour) : une précision « remplace la lanterne par un CRAYON DE MINEUR » restée
+// dans un ancien onglet a été envoyée pour le Jeton doré, qui est devenu un crayon. Toute mention d'un
+// AUTRE objet de la même famille dans la précision ou la consigne d'illustration bloque la dépense.
+
+const _norm = s => ` ${String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+const _has = (hay, term) => hay.includes(` ${term} `) || hay.includes(` ${term}s `);
+// Mots trop courants pour désigner à eux seuls un autre objet (« coin », « dent » en anglais, « relic »…)
+const _GENERIC_HEADS = new Set(['fragment', 'piece', 'relic', 'relique', 'objet', 'object']);
+/** Nom principal d'un objet : premier mot du nom français, dernier mot du nom anglais (5 lettres et plus). */
+function _heads(names = {}) {
+  const fr = _norm(names.fr).trim().split(' ')[0] ?? '';
+  const en = _norm(names.en).trim().split(' ').pop() ?? '';
+  return [...new Set([fr, en].filter(w => w.length >= 5 && !_GENERIC_HEADS.has(w)))];
+}
+
+/** Autres cibles de la même famille (objets de collection, ou badges non archivés). */
+function _peers(t) {
+  if (t.kind === 'item') return _collectionContent().items.filter(i => i.id !== t.id);
+  if (t.kind === 'badge') {
+    try { return badges.listBadges().filter(b => b.status !== 'archived' && b.id !== t.id); } catch (_) { return []; }
+  }
+  return [];
+}
+
+/**
+ * Mentions d'un autre objet dans des textes ({ where, text }). Nom complet d'un autre objet = conflit
+ * certain (`strict`, jamais contournable) ; nom principal seul (« crayon », « lantern ») = conflit
+ * probable, contournable par confirmation explicite (« ce n'est pas un autre objet »).
+ */
+function _subjectConflicts(t, sources) {
+  if (!_BRIEF_UNIQUE.has(t.kind)) return [];
+  const own = [t.src.names?.fr, t.src.names?.en, t.id.replace(/_/g, ' ')].map(_norm).join(' ');
+  const out = [];
+  for (const p of _peers(t)) {
+    const full = [p.names?.fr, p.names?.en].map(n => _norm(n).trim()).filter(n => n.length >= 3 && !_has(own, n));
+    const heads = _heads(p.names).filter(w => !_has(own, w));
+    for (const { where, text } of sources) {
+      const hay = _norm(text);
+      const strict = full.find(n => _has(hay, n));
+      const term = strict ?? heads.find(w => _has(hay, w));
+      if (term) { out.push({ id: p.id, name: p.names?.fr || p.names?.en || p.id, term, where, strict: !!strict }); break; }
+    }
+  }
+  return out.sort((a, b) => b.strict - a.strict);   // conflit certain cité en premier
+}
+
+/** Textes envoyés à l'IA qui décrivent le sujet : précision de cette génération et consigne d'illustration. */
+const _subjectSources = (instruction, brief) => [
+  { where: 'précision', text: instruction ?? '' },
+  // Consigne tirée du nom et de l'histoire (catalogue) : non vérifiée, une histoire peut citer un autre objet
+  { where: 'consigne d\'illustration', text: brief.custom === false ? '' : `${brief.subject ?? ''} ${brief.details ?? ''}` },
+];
+
+/** Proposition douteuse : sa provenance demandait un autre objet (ancien correctif, précision polluée…). */
+function _assetWarning(t, meta) {
+  if (!meta?.brief && !meta?.instruction) return null;
+  // Conflit probable confirmé par l'admin au moment de générer (tracé dans la provenance) : pas douteux
+  const ack = new Set(meta.acknowledgedConflicts ?? []);
+  const c = _subjectConflicts(t, _subjectSources(meta.instruction, meta.brief ?? {})).filter(x => x.strict || !ack.has(x.term));
+  return c.length ? { conflicts: c, text: `Proposition douteuse : sa ${c[0].where} demandait « ${c[0].term} » (objet « ${c[0].name} »), pas « ${t.current.name} ».` } : null;
+}
+
+function _conflictMessage(t, list) {
+  const parts = list.map(c => `« ${c.term} » (objet « ${c.name} ») dans la ${c.where}`).join(', ');
+  return `Conflit de sujet : cette fiche est « ${t.current.name} », mais la demande mentionne ${parts}. `
+    + 'Aucune image n\'a été générée et rien n\'a été dépensé. Retirez cette mention'
+    + (list.some(c => c.strict) ? '.' : ', ou confirmez qu\'il ne s\'agit pas d\'un autre objet.');
+}
+
 function _assetCounts() {
   const out = {};
   for (const r of conn().prepare('SELECT target, COUNT(*) n FROM icon_studio_assets GROUP BY target').all()) out[r.target] = r.n;
@@ -507,7 +580,7 @@ function _logCall({ target, model, ok, error = null, cost, durationMs, usage = n
 }
 
 /** Un appel image + contrôles + stockage. Rend { sha } ou lève. Toujours journalisé. */
-async function _generateOne(t, brief, { instruction = '', basedOn = null } = {}) {
+async function _generateOne(t, brief, { instruction = '', basedOn = null, acknowledged } = {}) {
   const { cfg } = _checkBudget(1);
   const identity = _identity(t);
   const prompt = buildPrompt(t.kind, brief, instruction, identity);
@@ -534,10 +607,11 @@ async function _generateOne(t, brief, { instruction = '', basedOn = null } = {})
   const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : identity ? 'v1.2' : 'v1.1', identity,
     brief: { subject: brief.subject, details: brief.details, palette: brief.palette, custom: !!brief.custom },
     model, params, reference: _reference() ? path.relative(ROOT, _reference()) : null, instruction: instruction || null, basedOn,
+    ...(acknowledged ? { acknowledgedConflicts: acknowledged } : {}),
     costUsd: cost.cost_usd, costBasis: cost.basis,
     durationMs: Date.now() - started, checks: done.checks, masterSha256: done.masterSha256 };
   const { sha } = _store(t.key, 'ai', done.webp, meta);
-  _event(t.key, 'generated', sha, { costUsd: cost.cost_usd, ...(instruction ? { instruction } : {}), ...(basedOn ? { basedOn } : {}) });
+  _event(t.key, 'generated', sha, { costUsd: cost.cost_usd, ...(identity ? { identity: identity.name } : {}), ...(instruction ? { instruction } : {}), ...(basedOn ? { basedOn } : {}) });
   return { sha, costUsd: cost.cost_usd };
 }
 
@@ -547,18 +621,33 @@ async function _generateOne(t, brief, { instruction = '', basedOn = null } = {})
  * au prompt ; « basedOn » = proposition refaite (provenance seulement, l'ancienne est conservée).
  * Budget, quota et configuration vérifiés AVANT l'appel ; une seule génération à la fois.
  */
-function generate(key, { instruction = '', basedOn = null } = {}) {
+function generate(key, { instruction = '', basedOn = null, acknowledge = [], client = null } = {}) {
+  // Panel HTTP : la page doit être celle de la version en ligne (un onglet ouvert avant un déploiement
+  // garde l'ancien code du panel, recette du 02/11) et viser la fiche affichée.
+  if (client) {
+    if (client.build !== APP_VERSION) {
+      throw new StudioError(409, `Le panel affiché date d'une version précédente (${client.build || 'inconnue'} ; en ligne : ${APP_VERSION}). `
+        + 'Rechargez la page (F5) puis relancez : aucune image n\'a été générée, rien n\'a été dépensé.', { code: 'stale_client', version: APP_VERSION });
+    }
+    if (client.target !== key) throw new StudioError(409, 'La demande ne correspond pas à la fiche affichée : rien n\'a été généré. Rouvrez la fiche.', { code: 'target_mismatch' });
+  }
   if (_job && _job.status === 'running') throw new StudioError(429, 'Une image est déjà en cours de génération : patientez.');
   const t = _target(key);
   const consigne = _clean(instruction, INSTRUCTION_MAX);
   const from = basedOn ? _asset(key, String(basedOn)) : null;
+  const brief = _briefFor(t);
+  const ack = new Set((Array.isArray(acknowledge) ? acknowledge : []).map(String));
+  const conflicts = _subjectConflicts(t, _subjectSources(consigne, brief));
+  const blocking = conflicts.filter(c => c.strict || !ack.has(c.id));
+  if (blocking.length) throw new StudioError(409, _conflictMessage(t, blocking), { code: 'subject_conflict', conflicts: blocking });
   const { planned } = _checkBudget(1);
   const job = { id: ++_jobSeq, status: 'running', target: key, name: t.current.name, startedAt: new Date().toISOString(), finishedAt: null,
-    estimatedUsd: +planned.toFixed(4), spentUsd: 0, instruction: consigne || null, basedOn: from, result: null, error: null };
+    estimatedUsd: +planned.toFixed(4), spentUsd: 0, instruction: consigne || null, basedOn: from, result: null, error: null,
+    identity: _identity(t), acknowledged: conflicts.length ? conflicts.map(c => c.term) : undefined };
   _job = job;
   job.promise = (async () => {
     try {
-      const r = await _generateOne(t, _briefFor(t), { instruction: consigne, basedOn: from });
+      const r = await _generateOne(t, brief, { instruction: consigne, basedOn: from, acknowledged: job.acknowledged });
       job.result = { sha: r.sha, url: imageUrl(r.sha) };
       job.spentUsd = r.costUsd;
       job.status = 'done';
@@ -628,6 +717,7 @@ function getTarget(key) {
       return { sha: a.sha, url: imageUrl(a.sha), source: a.source, createdAt: a.created_at, status: statuses[a.sha] ?? 'candidate',
         model: meta.model ?? null, costUsd: meta.costUsd ?? 0, checks: meta.checks ?? null, prompt: meta.prompt ?? null,
         instruction: meta.instruction ?? null, basedOn: meta.basedOn ?? null,
+        identity: meta.identity ?? null, promptVersion: meta.promptVersion ?? null, brief: meta.brief ?? null, warning: _assetWarning(t, meta),
         inDraft: imageUrl(a.sha) === t.current.image, published: imageUrl(a.sha) === t.current.publishedImage };
     });
   const history = conn().prepare('SELECT id, action, asset_sha, details, created_at FROM icon_studio_events WHERE target = ? ORDER BY id DESC LIMIT 100').all(key)
@@ -642,7 +732,10 @@ function getTarget(key) {
     briefSharedWith: [...(brief.ignored?.sharedWith ?? brief.sharedWith ?? [])].sort(),
     briefIgnored: !!brief.ignored,
   } : {};
-  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), assets, history, ...itemExtra,
+  const subjectConflicts = _subjectConflicts(t, _subjectSources('', brief));
+  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), identity: _identity(t), subjectConflicts,
+    peerNames: _BRIEF_UNIQUE.has(t.kind) ? _peers(t).map(p => ({ id: p.id, name: p.names?.fr || p.id, terms: [p.names?.fr, p.names?.en].filter(Boolean) })) : [],
+    assets, history, ...itemExtra,
     costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : null };
 }
 
@@ -666,8 +759,13 @@ function mark(key, sha, status) {
  * Applique une image (ou l'emoji d'origine si `sha` est null) au BROUILLON du catalogue concerné.
  * Refusé sans `override` si l'icône actuelle est validée. Jamais publié ici.
  */
-function apply(key, { sha = null, override = false, live = false } = {}) {
+function apply(key, { sha = null, override = false, live = false, doubtful = false } = {}) {
   const t = _target(key);
+  if (sha) {
+    const row = conn().prepare('SELECT meta FROM icon_studio_assets WHERE sha = ? AND target = ?').get(String(sha), key);
+    const w = row && _assetWarning(t, JSON.parse(row.meta));
+    if (w && !doubtful) throw new StudioError(409, `${w.text} Conservation refusée sans confirmation explicite.`, { code: 'doubtful_asset' });
+  }
   if (!t.applicable) throw new StudioError(409, 'Pictogramme d\'interface : application en jeu prévue avec le ticket #41 (stocké et prêt ici).');
   if (t.validation && !override) {
     throw new StudioError(409, `Icône validée (${t.validation.by === 'v1' ? 'bibliothèque v1' : 'atelier'}, ${t.validation.at}) : remplacement refusé sans accord explicite (« override »).`);
@@ -681,7 +779,7 @@ function apply(key, { sha = null, override = false, live = false } = {}) {
   if (t.kind === 'block') blockCatalog.upsertDraftType({ ...t.src, image: url });
   else if (t.kind === 'badge') badges.updateBadge(t.id, { image: url });
   else collectionCatalog.upsertDraftItem({ ...t.src, image: url });
-  _event(key, sha ? 'applied' : 'reverted_to_emoji', sha, { before, after: url, override: !!override && !!t.validation, ...(t.kind === 'badge' ? { live: t.src.status === 'active' } : {}) });
+  _event(key, sha ? 'applied' : 'reverted_to_emoji', sha, { before, after: url, override: !!override && !!t.validation, ...(doubtful ? { doubtful: true } : {}), ...(t.kind === 'badge' ? { live: t.src.status === 'active' } : {}) });
   if (t.kind === 'badge') return { target: getTarget(key), draft: t.src.status !== 'active', catalog: 'badges' };
   return { target: getTarget(key), draft: true, catalog: t.kind === 'block' ? 'blocks' : 'collections' };
 }

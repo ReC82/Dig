@@ -86,10 +86,14 @@ function statusBadge(status) {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
+// Version du panel chargée dans cet onglet (injectée par le serveur) : envoyée avec chaque demande pour
+// qu'un onglet ouvert avant un déploiement ne lance pas de génération avec l'ancien code (#40, 02/11).
+const ADMIN_BUILD = window.APP_VERSION ?? '';
+
 async function api(method, path, body) {
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_secret}` },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_secret}`, 'X-Dig-Admin-Build': ADMIN_BUILD },
   };
   if (body) opts.body = JSON.stringify(body);
   const res  = await fetch(path, opts);
@@ -3386,11 +3390,39 @@ let _icJob = null;       // génération en cours ou dernière terminée
 let _icPoll = null;      // minuterie de suivi de la génération
 let _icNote = null;      // message de la fiche { text, ok }
 let _icFrom = null;      // fiche d'origine quand l'atelier est ouvert depuis Collections { kind: 'item', id }
-const _icTyped = {};     // saisies non envoyées par icône (consigne, description) : conservées entre les fiches
+const _icTyped = {};     // saisies non envoyées, rangées par clé d'icône : chaque fiche ne retrouve que les siennes
+let _icConflict = null;  // génération refusée pour conflit de sujet { key, instruction, basedOn, conflicts }
+let _icBriefEls = null;  // champs de la consigne d'illustration de la fiche affichée (objets)
 const IC_ACTIONS = { generated: 'Image générée', uploaded: 'Image téléversée', chosen: 'Retenue', rejected: 'Écartée', restored: 'Remise en proposition',
   validated: 'Verrouillée (validée)', applied: 'Conservée dans le brouillon', reverted_to_emoji: 'Retour à l\'emoji (brouillon)', brief: 'Description modifiée' };
 const IC_BG_RE = /^linear-gradient\(\d+deg,\s*#[0-9a-f]{6},\s*#[0-9a-f]{6}\)$/i;
 const icEnc = k => encodeURIComponent(k);
+/** Date de la base (UTC, « AAAA-MM-JJ HH:MM:SS ») affichée à l'heure de Bruxelles. */
+const _icFmt = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+function icWhen(utc, short = false) {
+  const d = new Date(`${String(utc ?? '').replace(' ', 'T').replace(/Z?$/, 'Z')}`);
+  if (Number.isNaN(d.getTime())) return String(utc ?? '');
+  const s = _icFmt.format(d).replace(',', '');
+  return short ? s.replace(/\/\d{4}/, '') : s;
+}
+
+/** Bandeau « nouvelle version en ligne » : le panel ouvert avant un déploiement doit être rechargé. */
+function admStaleBanner(version) {
+  if (document.getElementById('adm-stale')) return;
+  const b = aiEl('div', { id: 'adm-stale', class: 'adm-stale', role: 'alert' });
+  b.appendChild(aiEl('span', {}, `Une nouvelle version du jeu est en ligne (${version}) ; ce panel date de ${ADMIN_BUILD || 'une version précédente'}. `
+    + 'Rechargez la page avant de générer ou d\'enregistrer.'));
+  const r = aiEl('button', { type: 'button', class: 'btn' }, 'Recharger');
+  r.addEventListener('click', () => location.reload());
+  b.appendChild(r);
+  document.body.prepend(b);
+}
+setInterval(async () => {
+  try {
+    const v = (await (await fetch('/api/version', { cache: 'no-store' })).json()).version;
+    if (v && ADMIN_BUILD && v !== ADMIN_BUILD) admStaleBanner(v);
+  } catch (_) { /* hors ligne : on réessaiera */ }
+}, 60000);
 
 /** État lisible d'une icône : une seule étiquette, du plus fort au plus faible. */
 function icState(t) {
@@ -3453,7 +3485,7 @@ async function loadIcons() {
   cb.textContent = '';
   for (const c of data.calls) {
     const tr = document.createElement('tr');
-    [c.created_at, c.target, c.model, c.ok ? 'OK' : `Échec : ${c.error ?? ''}`, `${c.cost_usd} USD`,
+    [icWhen(c.created_at), c.target, c.model, c.ok ? 'OK' : `Échec : ${c.error ?? ''}`, `${c.cost_usd} USD`,
      c.duration_ms != null ? `${(c.duration_ms / 1000).toFixed(1)} s` : ''].forEach(v => addCell(tr, v));
     cb.appendChild(tr);
   }
@@ -3490,7 +3522,7 @@ function icRenderGrid() {
 }
 
 function icShowList() {
-  _icOpen = null; _icSel = null; _icTarget = null; _icNote = null;
+  _icOpen = null; _icSel = null; _icTarget = null; _icNote = null; _icConflict = null;
   document.getElementById('ic-sheet').classList.add('hidden');
   document.getElementById('ic-list-view').classList.remove('hidden');
   icRenderGrid();
@@ -3521,20 +3553,34 @@ function icSetJob(job) {
   if (_icTarget) icRenderSheet();
 }
 
-async function icGenerate(instruction, basedOn) {
-  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(_icOpen)}/generate`, { instruction, basedOn });
-  if (!ok) { _icNote = { text: data.error || 'Erreur.', ok: false }; icRenderSheet(); return; }
-  _icNote = null;
-  const field = document.getElementById('ic-instruction');
-  if (field) field.value = '';   // consigne envoyée : le champ repart vide pour la prochaine
-  if (_icTyped[_icOpen]) delete _icTyped[_icOpen].instruction;
+/**
+ * Lance UNE génération pour la fiche `key` (jamais « la fiche ouverte au retour de la requête ») ; la
+ * clé est aussi envoyée dans le corps et vérifiée par le serveur. Conflit de sujet ou panel obsolète :
+ * refus sans dépense, expliqué dans la fiche.
+ */
+async function icGenerate(key, instruction, basedOn, acknowledge = []) {
+  _icConflict = null;
+  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(key)}/generate`, { target: key, instruction, basedOn, acknowledge });
+  if (!ok) {
+    if (data.details?.code === 'stale_client') admStaleBanner(data.details.version);
+    if (data.details?.code === 'subject_conflict') _icConflict = { key, instruction, basedOn, conflicts: data.details.conflicts };
+    if (_icOpen === key) { _icNote = { text: data.error || 'Erreur.', ok: false }; icRenderSheet(); }
+    return;
+  }
+  if (_icTyped[key]) delete _icTyped[key].instruction;   // précision envoyée : elle n'est pas réutilisée
+  if (_icOpen === key) {
+    _icNote = null;
+    const box = document.getElementById('ic-sheet');
+    const field = box.dataset.key === key ? box.querySelector('#ic-instruction') : null;
+    if (field) field.value = '';
+  }
   icSetJob(data.job);
 }
 
 // ── Fiche d'une icône ──
 
 async function icOpen(key, { keepSel = false } = {}) {
-  if (_icOpen !== key) { _icSel = null; _icNote = null; }
+  if (_icOpen !== key) { _icSel = null; _icNote = null; _icConflict = null; }
   _icOpen = key;
   document.getElementById('ic-list-view').classList.add('hidden');
   const box = document.getElementById('ic-sheet');
@@ -3589,13 +3635,22 @@ function icItemBrief(parent, t) {
     });
     wrap.appendChild(w);
   }
+  const state = aiEl('p', { class: 'muted ic-hint ic-brief-state' });
+  const refresh = () => {
+    const changed = Object.entries(els).some(([k, el]) => el.value.trim() !== String(t.brief[k] ?? '').trim());
+    state.textContent = changed ? '✎ Modifiée, pas encore enregistrée : elle sera enregistrée pour cet objet au clic sur « Générer ».'
+      : t.brief.custom ? '✓ Enregistrée pour cet objet.' : 'Consigne par défaut (nom et histoire de l\'objet), rien d\'enregistré.';
+    state.classList.toggle('is-dirty', changed);
+  };
   for (const [k, label, max] of [['subject', 'Sujet', 300], ['details', 'Forme et matière', 600], ['palette', 'Couleurs', 300]]) {
     const [l, el] = aiInput(label, memo[k] ?? t.brief[k], { maxlength: String(max) });
     l.classList.add('ic-field');
-    el.addEventListener('input', () => { memo[k] = el.value; });
+    el.addEventListener('input', () => { memo[k] = el.value; refresh(); icLiveConflict(); });
     els[k] = el;
     wrap.appendChild(l);
   }
+  refresh();
+  wrap.appendChild(state);
   parent.appendChild(wrap);
   return els;
 }
@@ -3605,12 +3660,33 @@ async function icSaveItemBrief(t, els) {
   const b = Object.fromEntries(Object.entries(els).map(([k, el]) => [k, el.value.trim()]));
   if (b.subject === t.brief.subject && b.details === (t.brief.details ?? '') && b.palette === (t.brief.palette ?? '')) return true;
   const { ok, data } = await api('PUT', `/api/admin/icons/targets/${icEnc(t.key)}/brief`, b);
-  if (!ok) { _icNote = { text: data.error || 'Erreur.', ok: false }; icRenderSheet(); return false; }
+  if (!ok) { if (_icOpen === t.key) { _icNote = { text: data.error || 'Erreur.', ok: false }; icRenderSheet(); } return false; }
   t.brief = data.brief;
   t.briefSharedWith = data.brief.sharedWith ?? [];
   t.briefIgnored = false;
   for (const k of Object.keys(els)) delete _icTyped[t.key]?.[k];
   return true;
+}
+
+/** Aperçu immédiat (le serveur reste seul juge) : la saisie cite-t-elle un autre objet du catalogue ? */
+const IC_GENERIC_HEADS = new Set(['fragment', 'piece', 'relic', 'relique', 'objet', 'object']);   // = serveur (iconStudio.js)
+const _icNorm = v => ` ${String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+function icLiveConflict() {
+  const out = document.getElementById('ic-live-conflict');
+  const t = _icTarget;
+  if (!out || !t?.peerNames?.length) return;
+  const own = _icNorm(`${t.name} ${t.identity?.name ?? ''}`);
+  const has = (hay, w) => hay.includes(` ${w} `) || hay.includes(` ${w}s `);
+  const hay = _icNorm([document.getElementById('ic-instruction')?.value, ...Object.values(_icBriefEls ?? {}).map(el => el.value)].join(' | '));
+  const hits = [];
+  for (const p of t.peerNames) {
+    const terms = p.terms.map(n => _icNorm(n).trim());
+    const heads = [terms[0]?.split(' ')[0], terms[1]?.split(' ').pop()].filter(w => w && w.length >= 5 && !IC_GENERIC_HEADS.has(w));
+    const term = [...terms.filter(n => n.length >= 3), ...heads].find(w => !has(own, w) && has(hay, w));
+    if (term) hits.push(`« ${term} » (objet « ${p.name} »)`);
+  }
+  out.textContent = hits.length ? `⚠ Votre saisie cite un autre objet : ${hits.join(', ')}. Cette fiche est « ${t.name} » : la génération sera refusée sans dépense.` : '';
+  out.classList.toggle('hidden', !hits.length);
 }
 
 function icButton(parent, label, fn, cls = 'btn btn-outline') {
@@ -3663,8 +3739,15 @@ function icRenderSheet() {
     fig(wait, 'Génération en cours… (environ une minute)');
   } else if (sel) {
     const where = sel.published ? 'en jeu' : sel.inDraft ? 'dans le brouillon' : sel.status === 'rejected' ? 'écartée' : 'proposition';
-    const f = fig(icThumb(t, 160, sel.url), `${sel.source === 'ai' ? 'Proposition' : 'Image téléversée'} du ${sel.createdAt.slice(0, 16).replace('T', ' ')} — ${where}`);
-    if (sel.instruction) f.appendChild(aiEl('p', { class: 'muted ic-fig-note' }, `Consigne : « ${sel.instruction} »`));
+    const f = fig(icThumb(t, 160, sel.url), `${sel.source === 'ai' ? 'Proposition' : 'Image téléversée'} du ${icWhen(sel.createdAt)} (heure de Bruxelles) — ${where}`);
+    if (sel.source === 'ai') {
+      // Provenance lisible : objet demandé (catalogue), version du prompt, précision de cette génération
+      f.appendChild(aiEl('p', { class: 'muted ic-fig-note' }, sel.identity
+        ? `Objet demandé à l'IA : « ${sel.identity.fr ?? sel.identity.name} » (${sel.identity.name}) · prompt ${sel.promptVersion}`
+        : `Prompt ${sel.promptVersion ?? 'v1.0'} : ancienne version, le nom de l'objet n'était pas transmis à l'IA.`));
+    }
+    if (sel.instruction) f.appendChild(aiEl('p', { class: 'muted ic-fig-note' }, `Précision de cette génération : « ${sel.instruction} »`));
+    if (sel.warning) f.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' }, `⚠ ${sel.warning.text} Ne la conservez pas : générez-en une nouvelle.`));
   } else {
     const empty = aiEl('span', { class: 'bk-thumb ic-thumb bk-thumb--none', style: 'width:160px;height:160px;border-radius:26px;font-size:2.2rem' }, '＋');
     fig(empty, 'Aucune proposition pour l\'instant');
@@ -3678,7 +3761,7 @@ function icRenderSheet() {
     const l = aiEl('label', { class: 'ic-field' }, label);
     const i = aiEl('input', { type: 'text', id: 'ic-instruction', maxlength: '300', placeholder });
     i.value = _icTyped[t.key]?.instruction ?? typed;
-    i.addEventListener('input', () => { (_icTyped[t.key] ??= {}).instruction = i.value; });
+    i.addEventListener('input', () => { (_icTyped[t.key] ??= {}).instruction = i.value; icLiveConflict(); });
     l.appendChild(i);
     step.appendChild(l);
     return i;
@@ -3689,16 +3772,22 @@ function icRenderSheet() {
   if (!sel || mine) {
     // Objet de collection : la consigne d'illustration préparée est affichée ici, préremplie et modifiable
     const briefEls = t.kind === 'item' ? icItemBrief(step, t) : null;
-    const i = field(briefEls ? 'Précision supplémentaire (facultative)' : 'Consigne (facultative)', IC_HINTS[t.kind] ?? IC_HINTS.ui);
+    _icBriefEls = briefEls;
+    const i = field(briefEls ? 'Précision supplémentaire (facultative, pour cette seule génération, non enregistrée)' : 'Consigne (facultative)', IC_HINTS[t.kind] ?? IC_HINTS.ui);
+    if (t.identity) step.appendChild(aiEl('p', { class: 'muted ic-hint' }, `L'IA reçoit toujours en premier l'objet du catalogue : « ${t.identity.fr ?? t.identity.name} » (${t.identity.name}). `
+      + 'Une précision ou une consigne qui cite un autre objet est refusée avant toute dépense.'));
+    step.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn hidden', id: 'ic-live-conflict', role: 'status' }));
+    const key = t.key;
     const g = icButton(step, '✨ Générer une image', async () => {
       if (briefEls && !(await icSaveItemBrief(t, briefEls))) return;
-      await icGenerate(i.value, null);
+      if (_icOpen !== key) return;   // fiche quittée pendant l'enregistrement : rien n'est lancé
+      await icGenerate(key, i.value, null);
     }, 'btn ic-main');
     g.disabled = !canGenerate;
   } else {
     const row = aiEl('div', { class: 'form-actions' });
     if (t.applicable && !sel.inDraft) {
-      icButton(row, '✓ Conserver cette image', () => icApply(t, sel.sha), 'btn ic-main');
+      icButton(row, '✓ Conserver cette image', () => icApply(t, sel.sha, { doubtful: !!sel.warning }), sel.warning ? 'btn btn-outline' : 'btn ic-main');
     } else if (t.applicable && sel.inDraft) {
       row.appendChild(aiEl('span', { class: 'ic-kept' }, sel.published ? '✓ Cette image est en jeu.' : '✓ Conservée dans le brouillon.'));
       if (!sel.published) icButton(row, `Publier dans ${t.kind === 'block' ? '🧱 Blocs' : '📿 Collections'} →`, async () => {
@@ -3709,12 +3798,23 @@ function icRenderSheet() {
     const redo = aiEl('div', { class: 'ic-redo' });
     const i = field('Refaire : que faut-il changer ?', 'ex. plus sombre, forme plus irrégulière');
     redo.appendChild(i.parentElement);
-    const r = icButton(redo, '↻ Refaire', () => icGenerate(i.value, sel.sha));
+    const r = icButton(redo, '↻ Refaire', () => icGenerate(t.key, i.value, sel.sha));
     r.disabled = !canGenerate;
+    _icBriefEls = null;
+    step.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn hidden', id: 'ic-live-conflict', role: 'status' }));
     step.appendChild(redo);
   }
   if (why && !mine) step.appendChild(aiEl('p', { class: 'muted ic-why' }, why));
   step.appendChild(note);
+  // Conflit de sujet probable (nom principal d'un autre objet) : confirmation explicite possible ;
+  // nom complet d'un autre objet : aucun contournement, il faut retirer la mention.
+  const cf = _icConflict?.key === t.key ? _icConflict : null;
+  if (cf && cf.conflicts.every(c => !c.strict)) {
+    icButton(step, `Ce n'est pas un autre objet : générer « ${t.name} » quand même`,
+      () => icGenerate(t.key, cf.instruction, cf.basedOn, cf.conflicts.map(c => c.id)));
+  }
+  if (t.subjectConflicts?.length) step.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' },
+    `⚠ La consigne d'illustration enregistrée mentionne ${t.subjectConflicts.map(c => `« ${c.term} » (objet « ${c.name} »)`).join(', ')} : corrigez-la avant de générer.`));
   box.appendChild(step);
 
   // Propositions précédentes : comparer et revenir à l'une d'elles
@@ -3724,9 +3824,9 @@ function icRenderSheet() {
     const row = aiEl('div', { class: 'ic-strip' });
     for (const a of t.assets) {
       const b = aiEl('button', { type: 'button', class: `ic-strip-item${a.sha === _icSel ? ' is-sel' : ''}${a.status === 'rejected' ? ' is-rejected' : ''}`,
-        'aria-pressed': String(a.sha === _icSel), title: a.instruction ? `Consigne : ${a.instruction}` : '' });
+        'aria-pressed': String(a.sha === _icSel), title: [a.warning?.text, a.instruction ? `Précision : ${a.instruction}` : ''].filter(Boolean).join(' — ') });
       b.appendChild(icThumb(t, 64, a.url));
-      b.appendChild(aiEl('span', {}, a.published ? 'En jeu' : a.inDraft ? 'Brouillon' : a.status === 'rejected' ? 'Écartée' : a.createdAt.slice(5, 16).replace('T', ' ')));
+      b.appendChild(aiEl('span', {}, a.published ? 'En jeu' : a.inDraft ? 'Brouillon' : a.status === 'rejected' ? 'Écartée' : `${a.warning ? '⚠ ' : ''}${icWhen(a.createdAt, true)}`));
       b.addEventListener('click', () => { _icSel = a.sha; _icNote = null; icRenderSheet(); });
       row.appendChild(b);
     }
@@ -3754,6 +3854,7 @@ function icRenderSheet() {
 
   box.appendChild(icOptions(t, sel));
   box.appendChild(icHistory(t));
+  icLiveConflict();
 }
 
 /** Actions secondaires, repliées : téléversement, description, verrou, écarter, retour à l'emoji. */
@@ -3826,8 +3927,8 @@ function icHistory(t) {
   const hb = aiEl('tbody');
   for (const h of t.history) {
     const tr = document.createElement('tr');
-    addCell(tr, h.at);
-    addCell(tr, `${IC_ACTIONS[h.action] ?? h.action}${h.details?.instruction ? ` — « ${h.details.instruction} »` : ''}`);
+    addCell(tr, icWhen(h.at));
+    addCell(tr, `${IC_ACTIONS[h.action] ?? h.action}${h.details?.identity ? ` (objet demandé : ${h.details.identity})` : ''}${h.details?.instruction ? ` — précision « ${h.details.instruction} »` : ''}`);
     const ti = document.createElement('td');
     if (h.url) ti.appendChild(aiEl('img', { src: h.url, alt: '', width: '32', height: '32' }));
     tr.appendChild(ti);
@@ -3853,7 +3954,8 @@ async function icMark(t, sha, status, text) {
 }
 
 /** « Conserver » : écrit dans le BROUILLON du catalogue (jamais publié ici). */
-async function icApply(t, sha) {
+async function icApply(t, sha, { doubtful = false } = {}) {
+  if (doubtful && !confirm(`Cette proposition est douteuse (sa demande citait un autre objet). La conserver quand même pour « ${t.name} » ?`)) return;
   let override = false;
   if (t.validated) {
     if (!confirm(`L'icône de « ${t.name} » est VALIDÉE. La remplacer quand même (accord explicite, tracé) ?`)) return;
@@ -3862,7 +3964,7 @@ async function icApply(t, sha) {
   // Badge (#38) : pas de brouillon ; sur un badge actif, l'image est visible tout de suite → confirmation
   const live = t.kind === 'badge' && / active$/.test(String(t.extra ?? ''));
   if (live && !confirm(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
-  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live });
+  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live, doubtful });
   const where = data.catalog === 'blocks' ? '🧱 Blocs' : '📿 Collections';
   const done = data.catalog === 'badges'
     ? `${sha ? 'Image enregistrée' : 'Emoji rétabli'} sur le badge${data.draft ? ' (désactivé : les joueurs la verront après son activation dans 🏅 Badges)' : ' (actif : visible par les joueurs)'}.`

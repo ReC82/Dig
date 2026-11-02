@@ -602,3 +602,8 @@ table:has(.visually-hidden) { position: relative; }
 .ic-item-brief h4 { margin: 0; font-size: 0.9rem; }
 .ic-item-brief .ic-hint { margin: 0; font-size: 0.78rem; }
 .ic-item-brief .ic-notice p { margin: 0 0 6px; }
+
+/* Panel ouvert avant un déploiement : rechargement demandé (#40) */
+.adm-stale { position: sticky; top: 0; z-index: 1000; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap;
+  padding: 10px 16px; background: #78350f; color: #fef3c7; font-weight: 600; }
+.ic-brief-state.is-dirty { color: #fcd34d; }
