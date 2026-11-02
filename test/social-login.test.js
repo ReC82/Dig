@@ -327,7 +327,7 @@ test('liaison depuis Paramètres : mot de passe exigé, prompt=login ; identité
     // Après retrait, Google ne connecte plus : identité de nouveau inconnue.
     assert.strictEqual(await client().google('login', { identity: google(2) }), 'pending');
     // Notifications envoyées à l'adresse du compte (SMTP simulé).
-    const mails = fs.readdirSync(path.join(dir, 'outbox')).map(f => JSON.parse(fs.readFileSync(path.join(dir, 'outbox', f), 'utf8')));
+    const mails = fs.readdirSync(path.join(dir, 'outbox')).filter(f => f.endsWith('.json') && !f.startsWith('.')).map(f => JSON.parse(fs.readFileSync(path.join(dir, 'outbox', f), 'utf8')));
     assert.ok(mails.some(m => m.to === 'alice2@example.test' && /Compte Google lié/.test(m.subject)));
     assert.ok(mails.some(m => m.to === 'alice2@example.test' && /Compte Google retiré/.test(m.subject)));
     db.close();

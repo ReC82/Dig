@@ -93,7 +93,7 @@ async function registered(username, email = `${username}@example.com`, password 
 /** Messages de la boîte d'envoi, du plus ancien au plus récent. */
 function outbox(srv) {
   if (!fs.existsSync(srv.outbox)) return [];
-  return fs.readdirSync(srv.outbox).sort((a, b) => {
+  return fs.readdirSync(srv.outbox).filter(f => /^\d+-\d+-\d+\.json$/.test(f)).sort((a, b) => {
     const [ta, , na] = a.split(/[-.]/).map(Number);
     const [tb, , nb] = b.split(/[-.]/).map(Number);
     return ta - tb || na - nb;
@@ -313,4 +313,18 @@ test('mailer : refus du mode « file » en production, liens jamais déduits de 
   assert.strictEqual(smtp.mode, 'smtp');
   assert.strictEqual(resolvePublicBaseUrl({ NODE_ENV: 'production' }), 'https://dig.lodygames.com');
   assert.strictEqual(resolvePublicBaseUrl({ PUBLIC_BASE_URL: 'https://dig.lodylands.com/' }), 'https://dig.lodylands.com');
+});
+
+test('mailer « file » : écriture atomique, aucun message partiel visible (course du 02/11)', async () => {
+  const { createMailer } = require('../server/mailer');
+  const box = path.join(dir, 'atomic-outbox');
+  const m = createMailer({ MAIL_TRANSPORT: 'file', MAIL_OUTBOX_DIR: box });
+  const big = 'x'.repeat(2_000_000);
+  // Le serveur (autre processus) écrit dans un fichier caché puis le renomme : le lecteur
+  // du test ne voit donc que des « .json » complets, et aucun temporaire ne doit rester.
+  for (let i = 0; i < 5; i++) await m.send({ to: 'a@example.test', subject: 's', text: big });
+  const files = fs.readdirSync(box);
+  assert.strictEqual(files.length, 5, 'aucun fichier temporaire restant');
+  assert.ok(files.every(f => /^\d+-\d+-\d+\.json$/.test(f)));
+  for (const f of files) assert.strictEqual(JSON.parse(fs.readFileSync(path.join(box, f), 'utf8')).text.length, big.length);
 });
