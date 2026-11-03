@@ -1,5 +1,117 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 03/11/2026, 02 h 25 (Bruxelles) — cohérence des collections : publication ciblée par série, statut « Permanente » expliqué
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite le commentaire du propriétaire du [02/11 à 23:32 UTC « Nuit 03/11 — cohérence des collections »](https://github.com/ReC82/Dig/issues/39#issuecomment-6591199266) : ne pas publier le brouillon global ni activer de drops, ne pas effacer les illustrations validées, expliquer le statut « Permanente » des « Objets trouvés de la Légende », proposer un rattachement à une future saison (sans le faire), et préparer une publication atomique ciblée pour la saison sans exposer les séries incomplètes.
+
+## A (03/11). État réel
+
+**Déployé en production (SHA `abd53af`) — en attente de recette.** Classement : **Après lancement** (outil d'administration ; aucun effet sur les joueurs tant que rien n'est publié).
+- **Rien n'a été publié** : la version des collections en jeu est toujours la v1 (8 objets d'origine). Le brouillon de production est intact (empreinte identique avant et après le déploiement). Aucun drop activé, aucune image générée, aucune illustration retirée, aucune saison créée.
+- Le déploiement met aussi en ligne les commits de rapport #33 déjà dans develop (documentation seule).
+
+## B (03/11). Diagnostic — pourquoi « Permanente » ?
+
+Dans le brouillon de production, il y a deux séries nouvelles (plus la série d'origine) :
+
+| Série | Saison | Illustrées | Drops actifs | Publiable seule ? |
+|---|---|---|---|---|
+| ⛏️ Trésors de la vieille mine | n° 8 « Saison 45-2026 » (en cours, fin dim. 08/11 23:59 UTC) | 2/6 | 0/6 | Non : 4 illustrations manquantes, drops inactifs |
+| 🧳 Les Objets trouvés de la Légende | **aucune → « Permanente »** | 1/6 (culotte de Dagobert) | 0/6 | Non : pas de saison, 5 illustrations manquantes, drops inactifs |
+
+**Explication** : « Permanente » est simplement l'affichage d'une série **sans saison** (`seasonId` vide). La collection a été importée ainsi exprès le 02/11 : le rattachement à une saison est une décision métier, et **aucune saison future n'existait** dans la base. Les saisons hebdomadaires ne sont créées qu'à leur ouverture (lundi 00:00 UTC), sauf si l'admin en programme une à l'avance (onglet Saisons, statut « programmée »). Le formulaire de série ne propose que des saisons existantes, donc la seule option possible était « Permanente ».
+
+**Risque** : publiée telle quelle, une série permanente fait tomber ses objets **chaque semaine, sans fin**, comme la collection des origines. Ce serait contraire à l'idée « une collection unique par saison ». Ce risque est maintenant bloqué : voir C.
+
+**Proposition de rattachement (non appliquée, décision demandée)** : la rattacher à la **saison du lundi 09/11 au dimanche 15/11 (semaine 46)**, en la programmant dans l'onglet Saisons. Une série rattachée à une saison programmée reste **invisible et sans drop** jusqu'à l'ouverture de la saison, puis tombe automatiquement pendant la semaine. Vérifié sur une copie de la base : la rotation active bien la saison programmée à sa date.
+
+## C (03/11). Changements
+
+Fichiers : `server/collectionCatalog.js`, `server/index.js`, `public/admin/admin.js`, `public/admin/index.html`, `public/admin/admin.css`, `test/collection-catalog.test.js`.
+
+1. **Contrôle de complétude par série** (`seriesReadiness`). Chaque série touchée par le brouillon reçoit un état. Les **points bloquants** (en rouge) sont :
+   - nouvelle série sans saison (« Permanente ») tant que ce n'est pas confirmé ;
+   - saison terminée ;
+   - aucun objet activé ;
+   - nouvel objet sans illustration ;
+   - nom ou histoire manquant dans une des 4 langues (FR/EN/NL/ES) ;
+   - aucun drop activé (les objets seraient visibles mais introuvables).
+
+   Il y a aussi des **avertissements** (illustration déjà publiée qui serait retirée ou remplacée, objets au drop inactif) et des **informations** (« Saison programmée : invisible jusqu'au … puis drops jusqu'au … », « Saison en cours : visible dès la publication »).
+2. **Publication ciblée d'une série** (`POST /api/admin/collections/series/:id/publish`). La nouvelle version contient la version en vigueur, plus **cette série et ses objets seuls**. Les autres séries restent dans le brouillon, invisibles des joueurs, et le brouillon passe sur la nouvelle version. Tout se fait dans une seule transaction (atomique). La publication est refusée si la série est incomplète ou si la version a changé entre-temps. Il faut aussi cocher « barème validé » pour des drops nouveaux, et « série permanente voulue » pour une nouvelle série sans saison. Chaque publication est tracée au journal (`publish_series`) et peut être annulée par le retour arrière existant.
+3. **Publication globale protégée** : « Publier tout le brouillon » est maintenant **refusé** si une série touchée est incomplète. Le message renvoie vers la publication ciblée. Une case explicite « Publier quand même des séries incomplètes (déconseillé) » permet de passer outre, et le choix est tracé au journal.
+4. **Admin → 📿 Collections → Brouillon et publication** : nouveau bloc « **Publication ciblée — une série à la fois** ». Une carte par série montre la saison, le nombre d'objets illustrés et de drops actifs, puis ✅ prête ou ❌ n points à régler. Elle donne la liste des manques, les cases à cocher utiles et le bouton « **Publier cette série seule** » (désactivé tant que la série est incomplète). Autres changements :
+   - le bouton global s'appelle « Publier tout le brouillon » ;
+   - le libellé devient « Permanente (aucune saison) » ;
+   - la fiche série explique ce que veut dire une saison vide ou programmée ;
+   - « Abandonner le brouillon » indique combien d'illustrations appliquées à des objets non publiés seraient retirées du brouillon (les images restent dans l'atelier).
+
+## D (03/11). SHA, branche, procédure de test
+
+- Branche `feature/39-collections-saisonnieres`, commit `d74d463`. **develop `abd53af`** (fusion), déployé `abd53af`.
+- Tests : `npm test` → **451/451** sur la branche, sur develop `abd53af` et sur la release. Nouveau test « publication ciblée » : états bloquants (Permanente, drops, illustrations, langues), refus de la publication ciblée et de la publication globale sur une série incomplète, rattachement à une saison programmée, barème exigé, version périmée refusée, seule la série visée est publiée, reste du brouillon rebasé, journal, côté jeu (série masquée et sans drop avant sa saison, drops à l'ouverture), alerte de retrait d'une illustration publiée, série permanente confirmée, brouillon supprimé quand il ne reste rien. Les tests de publication existants ont été adaptés à la nouvelle protection.
+
+## E (03/11). Vérifications, limites, données joueurs
+
+- **Copie de la base de production, serveur de test 3101** :
+  - les deux séries apparaissent ❌ avec les manques exacts (tableau B) ; publication globale → 409 (séries incomplètes) ; publication ciblée de « Trésors » → 409 ;
+  - **recette simulée de bout en bout** : saison 46 programmée du 09/11 au 15/11, « Objets trouvés » rattachée, illustrations factices, drops activés → refusée sans barème, puis **publiée seule** (v2). Le catalogue public contient alors origines + Objets trouvés (saison programmée), mais pas « Trésors », qui reste dans le brouillon rebasé sur v2. Cette copie a ensuite été supprimée ;
+  - Chromium 1280 et 390 tactile : bloc rendu correctement, boutons désactivés, **0 écriture**, aucune erreur JS (un 404 de ressource, image de l'atelier absente du serveur de test).
+- **Limites** :
+  - une série publiée à l'avance pour une saison programmée figure dans `/api/collections/catalog` (lisible par un curieux), mais n'est ni affichée ni obtenable en jeu avant l'ouverture ;
+  - les manques d'objets **déjà publiés** (ex. origines sans illustration) ne bloquent pas, puisqu'ils sont déjà en jeu.
+- **Données joueurs** : aucune migration ni nouvelle table. Empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` et des tables de collections identiques avant et après le démarrage sur la copie, puis entre la sauvegarde pré-déploiement et la production.
+
+## F (03/11). Déploiement
+
+- **Déployé `abd53af`** (avance rapide de `main` `aeeb5e8` → `abd53af`, `scripts/deploy.sh` de la release). Sauvegarde vérifiée : `dig-20261103-021559-pre-deploy-abd53af.sqlite`.
+- Avant le déploiement, aucune génération IA n'était en cours (dernière activité de l'atelier à 23:26 UTC).
+- Après le déploiement :
+  - dig.lodygames.com et dig.lodylands.com → 200, version `1.0.0+abd53af` ;
+  - admin et nouvelle route de publication sans clé → 401 ;
+  - journal propre, `quick_check` ok, empreintes identiques à la sauvegarde ;
+  - catalogue public toujours v1 ;
+  - Chromium sur la production (jeu + admin, 1280 et 390) : nouveau bloc présent, aucune erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep aeeb5e8` puis `sudo systemctl restart dig`. Pas de dépendance ni de schéma modifié.
+
+### Test fonctionnel à faire par le propriétaire (3 minutes)
+1. Admin → 📿 Collections → section « Brouillon et publication ». **Attendu** : bloc « Publication ciblée » avec deux cartes ❌ : « Trésors de la vieille mine » (4 illustrations, drops) et « Les Objets trouvés de la Légende » (♾️ Permanente, 5 illustrations, drops). « Publier cette série seule » est grisé.
+2. Cliquer « Publier tout le brouillon », puis confirmer. **Attendu** : refus « Le brouillon contient des séries incomplètes… » avec la liste des manques, et **rien de publié** (bandeau toujours « v1 »).
+3. Ouvrir la série « Les Objets trouvés de la Légende » : le texte sous les champs explique « Permanente ».
+
+### Recette de publication ciblée (à faire seulement après vos décisions)
+1. Onglet **Saisons** : programmer la saison du lundi 09/11 00:00 au dimanche 15/11 23:59:59 UTC (statut « programmée »).
+2. Fiche série « Objets trouvés » : choisir cette saison → la carte affiche 🗓️ « Saison programmée ».
+3. Illustrer les 5 objets restants dans l'atelier (#40). La carte suit la progression (x/6 illustré(s)).
+4. Après validation du barème : activer le drop des 6 objets.
+5. La carte passe à ✅. Cocher « Barème validé », puis cliquer « **Publier cette série seule** ». « Trésors » reste en brouillon.
+6. Contrôle : en jeu cette semaine, rien de visible ; lundi 09/11, la série apparaît et ses objets tombent.
+
+Annulation : « Versions publiées → Revenir à v1 » (la série et ses objets sont désactivés, les objets déjà trouvés sont conservés).
+
+## G (03/11). Choix techniques faits seul
+
+- **Illustration obligatoire** pour publier un nouvel objet : vous voulez des collections illustrées et l'atelier (#40) est là pour ça. Les objets déjà publiés ne sont pas concernés.
+- **Drops inactifs = série incomplète** : sinon les joueurs verraient des « ? » impossibles à obtenir.
+- **Publication globale refusée par défaut** si une série est incomplète. Les tests existants ont été adaptés avec l'acceptation explicite.
+- **Je n'ai rien rattaché, programmé ni publié** : ce sont des décisions métier.
+
+## H (03/11). Décisions demandées au propriétaire
+
+1. **Objets trouvés de la Légende → saison du 09–15/11 (semaine 46)**, programmée dans l'onglet Saisons ? Recommandation : **oui**. Autre option : la garder pour un thème plus tard (#48).
+2. **Trésors de la vieille mine** est rattachée à la saison en cours, qui finit dimanche 08/11 avec 4 illustrations manquantes et des drops inactifs. Recommandation : **la reporter sur une saison suivante (semaine 47)** plutôt que la publier en fin de semaine. Si rien n'est fait, après le 08/11 elle sera bloquée (« saison terminée »).
+3. Barème des drops saisonniers (question déjà posée) : 2 communs à 3 % dès 5 m, 2 rares à 1,5 % dès 40 m, 1 épique à 8 % sur coffre dès 60 m, 1 légendaire à 5 % sur gemme dès 100 m. Recommandation : oui.
+4. Objets d'une saison terminée obtenables plus tard ? Recommandation : non (exclusivité). Révéler en grisé les objets non trouvés d'une saison finie ? Recommandation : oui.
+
+## I (03/11). Restant à réaliser
+
+- Illustrations des objets manquants (#40, atelier) : 5 pour « Objets trouvés », 4 pour « Trésors ».
+- Publication programmée automatique au démarrage de la saison et annonce J-1 : à faire dans #48 et #50 (la publication ciblée en est la brique).
+- Après lancement : un aperçu « vue joueur » d'une série avant publication.
+
+---
+
+
 # Mise à jour du 02/11/2026, 23 h 59 (Bruxelles) — ligne éditoriale humoristique et nouvelle collection en brouillon (directive du 02/11 au soir)
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux commentaires du propriétaire du 02/11 :
