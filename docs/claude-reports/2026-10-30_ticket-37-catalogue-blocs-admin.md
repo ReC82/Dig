@@ -4,6 +4,61 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 03/11/2026, 14 h 40 (Bruxelles) — debug joueur : autocomplétion, coffres et sauvegarde explicités, déployé 7c0b521
+
+Réponse à la recette « Économie & Joueurs » du propriétaire (commentaire du 03/11 12:27 UTC). Valeurs de la fiche `testeur` jugées cohérentes ; aucun reset effectué (et aucun dans cette session).
+
+## A. État réel
+
+**Déployé en production (SHA `7c0b521`) — en attente de recette.** Points (1) à (3) livrés ; le point (4) (page étroite, alignée à gauche) relève de la correction transversale **#62**, comme indiqué par le propriétaire : non traité ici.
+
+## B. Changements
+
+- **(1) Autocomplétion des pseudos** (Admin → 💰 Économie & Joueurs → Debug joueur) : dès 2 caractères, liste « pseudo · ID n » sous le champ (pseudos qui *commencent* par la saisie d'abord, puis ceux qui la *contiennent*, 10 au plus). Souris, ou ↑/↓ + Entrée ; Échap ferme. Choisir une suggestion ouvre directement la fiche **par identifiant stable** (pas par nom). Entrée sans suggestion surlignée / bouton « Rechercher » : tableau complet comme avant.
+  - Nouvelle route protégée `GET /api/admin/players/suggest?q=` (`server/index.js`) et fonction `suggestUsers` (`server/db.js`) : ne renvoie **que `id` et `username`, jamais l'e-mail** ; jokers `%` et `_` saisis pris au pied de la lettre.
+  - Composant réutilisable `attachPlayerAutocomplete(input, list, { onSelect, onEnter })` (`public/admin/admin.js`), prévu pour les événements TEST du #56.
+- **(2) Coffres** : trois cases « 📦 Coffres simples achetés (saison) », « 💎 Coffres rares achetés (saison) », « 🏺 Coffres antiques achetés (saison) » au lieu d'une ligne d'emojis (c'est le compteur `shopChestsBought`, remis à zéro à chaque saison).
+- **(3) « Save V. »** remplacé par trois cases avec infobulle : « 🔢 Format de sauvegarde v16 » (version du *format* des données), « 🔁 Révision serveur n° X » (nombre d'enregistrements acceptés par le serveur) et « ⏱ Dernière sauvegarde » (heure de Bruxelles + UTC entre parenthèses).
+- Test `test/admin-player-suggest.test.js` (4 tests : ordre, casse, jokers, aucune adresse e-mail, route 401 sans session admin, révision, balisage).
+
+## C. Vérifications
+
+- `npm test` : 538/538 sur develop `7c0b521` et 538/538 dans le worktree de release au SHA exact (1er passage). Sur la branche, un premier passage complet avait vu `antibot.test.js` dépasser 120 s, à cause d'un serveur de test orphelin de ce même passage sur le port 3131 ; serveur arrêté, fichier relancé seul : 26/26. Aucun lien avec le changement.
+- Navigateur headless (1280×900 et 390×844), serveur de test port 3101 : saisie `test` → `test_bis · ID 3`, `testeur · ID 1`, `montest · ID 2` ; ↓↓ Entrée → fiche « testeur (ID 1) », coffres 1/0/2 libellés, « Format de sauvegarde v16 », « Révision serveur n° 1 », date Bruxelles + UTC ; aucune erreur JS. Serveur et base de test supprimés.
+- Copie de la base de production démarrée (`NODE_ENV=production`, port 3122) : `/health` ok, version `1.0.0+7c0b521`, empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` et `block_catalog_draft` identiques ; copie supprimée.
+- Aucune migration, aucune écriture de données joueur. Le brouillon de blocs (Charbon) est intact (empreinte identique).
+
+## D. Déploiement
+
+- `9731025 → 7c0b521` via `scripts/deploy.sh` de la release ; sauvegarde vérifiée `~/backups/dig/dig-20261103-143724-pre-deploy-7c0b521.sqlite`. Aucune génération IA en cours avant de déployer (dernière activité 12:56 UTC).
+- Après déploiement : dig.lodygames.com et dig.lodylands.com → 200, `/api/version` = `1.0.0+7c0b521` ; journal sans erreur ; `quick_check` ok ; empreintes identiques à la sauvegarde pré-déploiement ; `/api/admin/players/suggest` → 401 sans session admin ; `/admin/` sert le nouveau balisage.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 9731025` + `sudo systemctl restart dig` (pas de changement de dépendances).
+
+**Test fonctionnel à faire par le propriétaire** (Admin → 💰 Économie & Joueurs → Debug joueur) :
+1. Taper `test` sans cliquer : la liste « testeur · ID … » apparaît sous le champ, sans aucune adresse e-mail.
+2. Cliquer la suggestion (ou ↓ puis Entrée) : la fiche du joueur s'ouvre directement.
+3. Vérifier les trois cases de coffres libellées et les cases « Format de sauvegarde v16 », « Révision serveur n° … », « Dernière sauvegarde » (heure de Bruxelles).
+4. Ne pas cliquer « Reset saisonnier ».
+
+Classement : **Après lancement** (confort d'administration, pas bloquant pour le MVP public).
+
+## E. Choix techniques faits seul
+
+- Route dédiée aux suggestions plutôt que réutiliser `/players/search` : celle-ci renvoie l'e-mail (tableau complet, inchangé) ; la nouvelle ne sélectionne jamais la colonne e-mail.
+- 2 caractères minimum et délai de 200 ms avant la requête, pour limiter la charge ; les réponses périmées (saisie modifiée entre-temps) sont ignorées.
+- « Révision serveur » ajoutée : la valeur `revision` était déjà renvoyée par l'API mais jamais affichée. C'est le vrai compteur de sauvegardes, à distinguer du format.
+
+## F. Décisions demandées au propriétaire
+
+Inchangées (voir la section du 02/11 ci-dessous) : chance × quantité pour les gemmes, rareté « custom », plafond IA, illustrations des 8 nouveaux minerais. Rien de nouveau pour ce lot.
+
+## G. Restant à réaliser
+
+- Point (4) largeur/centrage : ticket #62.
+- Brancher `attachPlayerAutocomplete` sur la sélection des joueurs des événements TEST : à faire dans #56.
+
+---
+
 # Mise à jour du 03/11/2026, 00 h 50 (Bruxelles) — course du test account-recovery corrigée, déployé 3722008
 
 Réponse au commentaire du propriétaire du 02/11 23:19 UTC (« corriger proprement la course, ne pas désactiver le test ni contourner le gate, puis déployer »).
