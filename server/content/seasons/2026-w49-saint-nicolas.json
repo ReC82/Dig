@@ -1,0 +1,142 @@
+{
+  "pack": "saison_saint_nicolas_v1",
+  "preferredWeek": "2026-W49",
+  "icon": "🎁",
+  "names": {
+    "fr": "La Saison de Saint-Nicolas",
+    "en": "The Saint Nicholas Season",
+    "nl": "Het Sinterklaasseizoen",
+    "es": "La Temporada de San Nicolás"
+  },
+  "taglines": {
+    "fr": "Début décembre, saint Nicolas rend visite aux enfants sages. Il a semé quelques surprises en chemin, jusque sous terre…",
+    "en": "In early December, Saint Nicholas visits well-behaved children. He dropped a few surprises along the way, even underground…",
+    "nl": "Begin december bezoekt Sinterklaas de brave kinderen. Onderweg liet hij wat verrassingen vallen, tot diep onder de grond…",
+    "es": "A principios de diciembre, san Nicolás visita a los niños buenos. Por el camino dejó caer algunas sorpresas, incluso bajo tierra…"
+  },
+  "collection": {
+    "pack": "saison_saint_nicolas_collection_v1",
+    "concept": "Collection de la saison de Saint-Nicolas (#48) : traditions belges, néerlandaises et du nord-est de la France — carotte pour l'âne, chaussure près de la cheminée, spéculoos, mitre, crosse — un clin d'œil différent par objet.",
+    "series": {
+      "id": "chemin_saint_nicolas",
+      "names": {
+        "fr": "Le Chemin de Saint-Nicolas",
+        "en": "Saint Nicholas's Trail",
+        "nl": "Het spoor van de Sint",
+        "es": "El camino de San Nicolás"
+      },
+      "icon": "🎁",
+      "theme": "La tournée de saint Nicolas début décembre, racontée par ce qu'il a laissé tomber en route et qui a fini sous terre."
+    },
+    "items": [
+      {
+        "id": "carotte_ane_nicolas",
+        "rarity": "commun",
+        "icon": "🥕",
+        "reference": "Tradition belge et du nord-est de la France : les enfants laissent une carotte pour l'âne de saint Nicolas.",
+        "names": { "fr": "La carotte de l'âne", "en": "The donkey's carrot", "nl": "De wortel voor de ezel", "es": "La zanahoria del burro" },
+        "stories": {
+          "fr": "En Belgique et dans le nord-est de la France, les enfants laissent une carotte pour l'âne de saint Nicolas. Celle-ci n'a jamais été mangée : l'âne, rassasié après mille maisons, l'a discrètement enterrée pour plus tard.",
+          "en": "In Belgium and north-eastern France, children leave a carrot for Saint Nicholas's donkey. This one was never eaten: the donkey, full after a thousand houses, discreetly buried it for later.",
+          "nl": "In Wallonië en Noordoost-Frankrijk laten kinderen een wortel achter voor de ezel van Sint-Niklaas. Deze is nooit opgegeten: de ezel, voldaan na duizend huizen, heeft hem stiekem begraven voor later.",
+          "es": "En Bélgica y el noreste de Francia, los niños dejan una zanahoria para el burro de san Nicolás. Esta nunca se la comió nadie: el burro, lleno tras mil casas, la enterró discretamente para más tarde."
+        },
+        "image": {
+          "subject": "One whole fresh carrot with its leafy top tied with red twine",
+          "details": "Bright carrot-coloured tapered root, completely untouched, a bushy green leafy top gathered by a small loop of red twine, a few specks of dark soil near the tip.",
+          "palette": "Palette: vivid carrot colour, fresh leaf green, twine red, dark soil."
+        }
+      },
+      {
+        "id": "chaussure_cheminee",
+        "rarity": "commun",
+        "icon": "👞",
+        "reference": "Tradition : la veille de la Saint-Nicolas, les enfants déposent leur chaussure près de la cheminée (avec du foin ou une carotte pour la monture).",
+        "names": { "fr": "La chaussure près de la cheminée", "en": "The shoe by the fireplace", "nl": "De schoen bij de schouw", "es": "El zapato junto a la chimenea" },
+        "stories": {
+          "fr": "La veille du grand jour, on dépose sa chaussure près de la cheminée. Celle-ci a été posée si loin du feu, par prudence, qu'elle a fini au fond de la mine. Elle attend toujours ses friandises, la semelle pleine d'espoir.",
+          "en": "On the eve of the big day, children put a shoe by the fireplace. This one was placed so far from the fire, just to be safe, that it ended up at the bottom of the mine. It is still waiting for its treats, its sole full of hope.",
+          "nl": "De avond voor het grote feest zet je je schoen bij de schouw. Deze werd voor de zekerheid zo ver van het vuur gezet dat hij onder in de mijn terechtkwam. Hij wacht nog altijd op zijn snoepgoed, de zool vol hoop.",
+          "es": "La víspera del gran día, se deja el zapato junto a la chimenea. Este lo pusieron tan lejos del fuego, por prudencia, que acabó en el fondo de la mina. Todavía espera sus golosinas, con la suela llena de esperanza."
+        },
+        "image": {
+          "subject": "A single small child's brown leather lace-up shoe with hay sticking out",
+          "details": "Little scuffed brown leather shoe with a worn toe and a loosely tied lace bow, a tuft of golden hay poking out of the opening, sitting on a sooty brick.",
+          "palette": "Palette: chocolate brown leather, golden hay, soot grey."
+        }
+      },
+      {
+        "id": "speculoos_cavalier",
+        "rarity": "peu-commun",
+        "icon": "🍪",
+        "reference": "Tradition : les spéculoos de la Saint-Nicolas, biscuits épicés moulés en forme de personnages.",
+        "names": { "fr": "Le spéculoos décapité", "en": "The headless speculoos", "nl": "De onthoofde speculaas", "es": "El speculoos sin cabeza" },
+        "stories": {
+          "fr": "Les spéculoos de la Saint-Nicolas sont souvent moulés en forme de personnages. Celui-ci représentait un cavalier très digne, avant qu'une souris gourmande ne lui croque la tête. Il garde depuis un air un peu étonné… enfin, on suppose.",
+          "en": "Saint Nicholas speculoos are often moulded into little figures. This one showed a very dignified rider, until a greedy mouse nibbled off his head. He has looked rather surprised ever since… or so we assume.",
+          "nl": "Sinterklaasspeculaas wordt vaak in de vorm van figuurtjes gebakken. Deze stelde een heel deftige ruiter voor, tot een snoepgrage muis zijn hoofd eraf knabbelde. Sindsdien kijkt hij nogal verbaasd… veronderstellen we.",
+          "es": "Los speculoos de San Nicolás suelen tener forma de figuritas. Este representaba a un jinete muy digno, hasta que un ratón goloso le mordisqueó la cabeza. Desde entonces tiene cara de sorpresa… o eso suponemos."
+        },
+        "image": {
+          "subject": "A flat spiced biscuit shaped like a rider on a horse, with the rider's head bitten off",
+          "details": "Thin caramel-brown biscuit with a finely embossed relief of a horse and rider, the top corner missing with tiny mouse bite marks, a few crumbs scattered around.",
+          "palette": "Palette: caramel brown, darker baked edges, golden crumbs."
+        }
+      },
+      {
+        "id": "mitre_trop_grande",
+        "rarity": "rare",
+        "icon": "🧢",
+        "reference": "Costume de saint Nicolas (mitre d'évêque) ; l'apprenti à la mitre trop grande est une histoire inventée.",
+        "names": { "fr": "La mitre trop grande", "en": "The oversized mitre", "nl": "De veel te grote mijter", "es": "La mitra demasiado grande" },
+        "stories": {
+          "fr": "On raconte qu'un apprenti saint Nicolas avait commandé une mitre trois tailles trop grande. Elle lui tombait sur le nez à chaque pas, si bien qu'il a distribué les cadeaux à l'aveuglette. Les enfants ont adoré, les parents beaucoup moins.",
+          "en": "They say an apprentice Saint Nicholas once ordered a mitre three sizes too big. It slid over his nose at every step, so he handed out presents blindly. The children loved it; the parents, much less.",
+          "nl": "Men vertelt dat een leerling-Sinterklaas ooit een mijter bestelde die drie maten te groot was. Bij elke stap zakte hij over zijn neus, dus deelde hij de cadeautjes blindelings uit. De kinderen vonden het geweldig, de ouders een stuk minder.",
+          "es": "Dicen que un aprendiz de san Nicolás encargó una vez una mitra tres tallas más grande. Se le caía sobre la nariz a cada paso, así que repartió los regalos a ciegas. A los niños les encantó; a los padres, bastante menos."
+        },
+        "image": {
+          "subject": "A tall red bishop's mitre that is comically oversized and slumped to one side",
+          "details": "Tall pointed red velvet headdress with wide gold trim bands, two gold-fringed fabric lappets hanging from the back, the whole hat sagging sideways as if it just slipped off someone's head.",
+          "palette": "Palette: deep festive red, shiny gold trim, soft velvet shadows."
+        }
+      },
+      {
+        "id": "mandarine_voyageuse",
+        "rarity": "peu-commun",
+        "icon": "🍊",
+        "reference": "Tradition : autrefois, une mandarine ou une orange dans la chaussure était un cadeau d'hiver précieux ; le voyage centenaire est une exagération.",
+        "names": { "fr": "La mandarine voyageuse", "en": "The travelling tangerine", "nl": "De reizende mandarijn", "es": "La mandarina viajera" },
+        "stories": {
+          "fr": "Autrefois, une mandarine dans la chaussure était un vrai trésor d'hiver. Celle-ci serait passée de chaussure en chaussure pendant un siècle sans que personne n'ose la manger. Elle est aujourd'hui officiellement trop précieuse… et un peu trop sèche.",
+          "en": "Long ago, a tangerine in your shoe was a real winter treasure. Rumour has it this one went from shoe to shoe for a century without anyone daring to eat it. Today it is officially too precious… and a little too dry.",
+          "nl": "Vroeger was een mandarijn in je schoen een echte winterschat. Deze zou een eeuw lang van schoen tot schoen zijn gegaan zonder dat iemand hem durfde op te eten. Vandaag is hij officieel te kostbaar… en een tikje te droog.",
+          "es": "Antiguamente, una mandarina en el zapato era un verdadero tesoro de invierno. Dicen que esta pasó de zapato en zapato durante un siglo sin que nadie se atreviera a comérsela. Hoy es oficialmente demasiado valiosa… y un poco demasiado seca."
+        },
+        "image": {
+          "subject": "A small wrinkled tangerine wearing a tiny travel label tag tied with string",
+          "details": "Slightly shrivelled, deeply wrinkled tangerine with one dry green leaf on its stem, a blank brown paper luggage tag tied to the stem with twine, a few faded stamp-like coloured squares on the tag with no writing.",
+          "palette": "Palette: faded tangerine, dry leaf green, kraft paper brown."
+        }
+      },
+      {
+        "id": "crosse_saint_nicolas",
+        "rarity": "legendaire",
+        "icon": "✨",
+        "reference": "Costume de saint Nicolas (crosse d'évêque dorée) ; l'histoire de la crosse plantée dans la neige est une légende inventée.",
+        "names": { "fr": "La crosse dorée du Grand Saint", "en": "The Great Saint's golden crozier", "nl": "De gouden staf van de Sint", "es": "El báculo dorado del Gran Santo" },
+        "stories": {
+          "fr": "On raconte que saint Nicolas avait planté sa crosse dans la neige pour aider son âne à grimper sur un toit glissant, puis qu'il l'a oubliée là. La neige a fondu, la crosse a glissé, et elle a creusé jusqu'ici toute seule. Elle brille encore de fierté.",
+          "en": "Legend has it that Saint Nicholas planted his crozier in the snow to help his donkey up a slippery roof, then forgot it there. The snow melted, the crozier slid, and it dug its own way down here. It still shines with pride.",
+          "nl": "Men zegt dat de Sint zijn staf in de sneeuw plantte om zijn rijdier een glad dak op te helpen, en hem daarna vergat. De sneeuw smolt, de staf gleed weg en groef zich helemaal alleen tot hier. Hij glanst nog steeds van trots.",
+          "es": "Cuenta la leyenda que san Nicolás clavó su báculo en la nieve para ayudar a su burro a subir a un tejado resbaladizo, y luego lo olvidó allí. La nieve se derritió, el báculo resbaló y excavó solo hasta aquí. Todavía brilla de orgullo."
+        },
+        "image": {
+          "subject": "A long golden bishop's crozier with a curled spiral top",
+          "details": "Slender shining golden staff ending in an ornate spiral crook, a small glittering red gem set where the spiral begins, a few snowflakes clinging to the curl, standing slightly tilted.",
+          "palette": "Palette: polished gold, ruby red gem, icy white snowflakes."
+        }
+      }
+    ]
+  }
+}

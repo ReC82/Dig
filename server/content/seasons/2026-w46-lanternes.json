@@ -1,0 +1,142 @@
+{
+  "pack": "saison_lanternes_v1",
+  "preferredWeek": "2026-W46",
+  "icon": "🏮",
+  "names": {
+    "fr": "La Saison des Lanternes",
+    "en": "The Lantern Season",
+    "nl": "Het Lampionnenseizoen",
+    "es": "La Temporada de los Faroles"
+  },
+  "taglines": {
+    "fr": "Autour du 11 novembre, les enfants fêtent la Saint-Martin avec des lanternes. Creuse à la lueur des lampions !",
+    "en": "Around 11 November, children celebrate Saint Martin with lanterns. Dig by lantern light!",
+    "nl": "Rond 11 november lopen kinderen met lampionnen voor Sint-Maarten. Graaf mee bij lampionlicht!",
+    "es": "Hacia el 11 de noviembre, los niños celebran San Martín con farolillos. ¡Excava a la luz de los faroles!"
+  },
+  "collection": {
+    "pack": "saison_lanternes_collection_v1",
+    "concept": "Collection de la saison des lanternes (#48) : la Saint-Martin du 11 novembre — lanternes, oies, manteau partagé, porte-à-porte — un clin d'œil différent par objet.",
+    "series": {
+      "id": "tresors_saint_martin",
+      "names": {
+        "fr": "Les Trésors de la Saint-Martin",
+        "en": "Saint Martin's Treasures",
+        "nl": "Schatten van Sint-Maarten",
+        "es": "Tesoros de San Martín"
+      },
+      "icon": "🏮",
+      "theme": "La Saint-Martin du 11 novembre, ses lanternes et sa légende, racontées par les objets que les cortèges ont égarés sous terre."
+    },
+    "items": [
+      {
+        "id": "lanterne_betterave",
+        "rarity": "commun",
+        "icon": "🏮",
+        "reference": "Tradition : avant les lampions en papier, on creusait des betteraves pour en faire des lanternes de Saint-Martin.",
+        "names": { "fr": "La lanterne en betterave", "en": "The beet lantern", "nl": "De bietenlantaarn", "es": "El farol de remolacha" },
+        "stories": {
+          "fr": "Avant les lampions en papier, on creusait des betteraves pour en faire des lanternes. Celle-ci a éclairé tant de rues qu'elle a fini par descendre éclairer les galeries. Elle sent toujours un peu la soupe.",
+          "en": "Before paper lanterns, people hollowed out beets to make them. This one lit up so many streets that it eventually moved down to light the tunnels. It still smells faintly of soup.",
+          "nl": "Vóór de papieren lampionnen holde men bieten uit om er lantaarns van te maken. Deze heeft zoveel straten verlicht dat hij uiteindelijk de mijngangen is gaan verlichten. Hij ruikt nog altijd een beetje naar soep.",
+          "es": "Antes de los farolillos de papel, se vaciaban remolachas para hacer faroles. Este iluminó tantas calles que acabó bajando a iluminar las galerías. Todavía huele un poco a sopa."
+        },
+        "image": {
+          "subject": "A hollowed-out sugar beet carved into a small lantern",
+          "details": "Rough purple-red beet skin, a cheerful carved face with a warm candle flame glowing inside, a twisted string handle knotted to a short twig, a few thin root hairs dangling at the bottom.",
+          "palette": "Palette: deep beet purple-red, warm candle yellow, brown string."
+        }
+      },
+      {
+        "id": "plume_oie_bavarde",
+        "rarity": "peu-commun",
+        "icon": "🪶",
+        "reference": "Légende de saint Martin : caché parmi les oies pour ne pas devenir évêque, il aurait été trahi par leurs cris.",
+        "names": { "fr": "La plume de l'oie bavarde", "en": "The chatty goose's feather", "nl": "De veer van de kwebbelgans", "es": "La pluma de la oca parlanchina" },
+        "stories": {
+          "fr": "On raconte que Martin, qui ne voulait pas devenir évêque, s'était caché parmi les oies. Elles ont cacardé si fort qu'on l'a retrouvé aussitôt. Cette plume appartenait à la plus bavarde : elle n'a toujours pas appris à se taire.",
+          "en": "Legend has it that Martin, who did not want to become a bishop, hid among the geese. They honked so loudly that he was found at once. This feather belonged to the chattiest one, and it still hasn't learned to keep quiet.",
+          "nl": "Volgens de legende verstopte Martinus zich tussen de ganzen omdat hij geen bisschop wilde worden. Ze snaterden zo luid dat hij meteen gevonden werd. Deze veer was van de grootste kwebbel: ze heeft nog steeds niet leren zwijgen.",
+          "es": "Cuenta la leyenda que Martín, que no quería ser obispo, se escondió entre las ocas. Graznaron tan fuerte que lo encontraron enseguida. Esta pluma era de la más parlanchina, y todavía no ha aprendido a callarse."
+        },
+        "image": {
+          "subject": "A single white goose feather that seems to be chattering",
+          "details": "Long curved white feather with a ruffled, slightly messy tip, a hollow cream quill, three small curved motion marks near the tip suggesting noisy honking, one barb sticking out cheekily.",
+          "palette": "Palette: snow white, soft cream, pale grey shadows."
+        }
+      },
+      {
+        "id": "demi_manteau_martin",
+        "rarity": "legendaire",
+        "icon": "🧥",
+        "reference": "Légende de saint Martin : soldat romain, il coupa son manteau en deux pour le partager avec un pauvre transi de froid.",
+        "names": { "fr": "Le demi-manteau de Martin", "en": "Martin's half cloak", "nl": "De halve mantel van Martinus", "es": "La media capa de Martín" },
+        "stories": {
+          "fr": "La légende dit que Martin, soldat romain, coupa son manteau en deux pour le partager avec un pauvre qui grelottait. Voici l'une des deux moitiés. Personne ne sait laquelle : chacune prétend être la plus chaude.",
+          "en": "Legend says that Martin, a Roman soldier, cut his cloak in two to share it with a shivering beggar. Here is one of the two halves. Nobody knows which one: each claims to be the warmer half.",
+          "nl": "De legende vertelt dat Martinus, een Romeinse soldaat, zijn mantel in tweeën sneed om hem te delen met een bibberende bedelaar. Dit is een van de twee helften. Niemand weet welke: allebei beweren ze de warmste te zijn.",
+          "es": "La leyenda dice que Martín, soldado romano, cortó su capa en dos para compartirla con un pobre que tiritaba. Esta es una de las dos mitades. Nadie sabe cuál: cada una asegura ser la más calentita."
+        },
+        "image": {
+          "subject": "Exactly one half of a red woollen soldier's cloak, cut straight down the middle",
+          "details": "Heavy crimson wool fabric draped in a soft fold, one perfectly straight cut edge along its side, a round bronze clasp at the collar, a slightly frayed hem, a faint golden glow around it.",
+          "palette": "Palette: crimson red, bronze, warm gold highlights."
+        }
+      },
+      {
+        "id": "fer_cheval_martin",
+        "rarity": "rare",
+        "icon": "🐴",
+        "reference": "Iconographie : saint Martin est presque toujours représenté à cheval ; l'anecdote du fer perdu est une exagération assumée.",
+        "names": { "fr": "Le fer du cheval de Martin", "en": "Martin's horseshoe", "nl": "Het hoefijzer van Martinus' paard", "es": "La herradura del caballo de Martín" },
+        "stories": {
+          "fr": "Sur les images, saint Martin est presque toujours à cheval. On raconte que sa monture trottait si fièrement aux processions qu'elle perdait un fer à chaque virage. Celui-ci porte encore de la boue… de quel siècle, mystère.",
+          "en": "In pictures, Saint Martin is almost always on horseback. They say his horse trotted so proudly in processions that it lost a shoe at every bend. This one still carries some mud… from which century, nobody knows.",
+          "nl": "Op afbeeldingen zit Sint-Maarten bijna altijd te paard. Men zegt dat zijn paard zo trots door de optochten draafde dat het in elke bocht een hoefijzer verloor. Aan dit exemplaar kleeft nog modder… uit welke eeuw, dat blijft een raadsel.",
+          "es": "En las imágenes, san Martín casi siempre va a caballo. Dicen que su montura trotaba tan orgullosa en las procesiones que perdía una herradura en cada curva. Esta todavía lleva barro… de qué siglo, nadie lo sabe."
+        },
+        "image": {
+          "subject": "A worn antique iron horseshoe",
+          "details": "U-shaped dark iron horseshoe with seven nail holes, one bent nail still stuck in it, a crust of dried mud on one branch, a red woollen thread knotted around the top as a lucky charm.",
+          "palette": "Palette: dark iron grey, rusty brown, mud brown, bright red wool."
+        }
+      },
+      {
+        "id": "bonbon_porte_a_porte",
+        "rarity": "commun",
+        "icon": "🍬",
+        "reference": "Tradition flamande et néerlandaise : le soir de la Saint-Martin, les enfants chantent de porte en porte pour recevoir des friandises.",
+        "names": { "fr": "Le bonbon du porte-à-porte", "en": "The door-to-door sweet", "nl": "Het snoepje van de deurtjes", "es": "El caramelo de puerta en puerta" },
+        "stories": {
+          "fr": "Le soir de la Saint-Martin, des enfants chantent de porte en porte pour recevoir des bonbons. Celui-ci a glissé d'un sac trop rempli et roulé jusqu'au fond de la mine. Il attend toujours qu'on lui chante quelque chose.",
+          "en": "On Saint Martin's evening, children sing from door to door to get sweets. This one slipped out of an overfilled bag and rolled all the way down the mine. It is still waiting for someone to sing to it.",
+          "nl": "Op Sint-Maartensavond zingen kinderen langs de deuren voor snoep. Dit snoepje glipte uit een veel te volle zak en rolde helemaal tot onder in de mijn. Het wacht nog altijd tot iemand er een liedje voor zingt.",
+          "es": "La noche de San Martín, los niños cantan de puerta en puerta para recibir golosinas. Este caramelo se escapó de una bolsa demasiado llena y rodó hasta el fondo de la mina. Todavía espera que alguien le cante algo."
+        },
+        "image": {
+          "subject": "A single round hard candy wrapped in twisted cellophane",
+          "details": "Red-and-white swirled boiled sweet inside crinkled transparent amber cellophane twisted at both ends like a bow tie, a tiny chip on its edge, a speck of soil on the wrapper.",
+          "palette": "Palette: cherry red, white swirls, shiny transparent amber."
+        }
+      },
+      {
+        "id": "lampion_chante_faux",
+        "rarity": "peu-commun",
+        "icon": "🎶",
+        "reference": "Chansons de la Saint-Martin chantées en cortège ; le lampion qui chante faux est une exagération comique.",
+        "names": { "fr": "Le lampion qui chantait faux", "en": "The off-key paper lampion", "nl": "Het valse zanglampionnetje", "es": "El farolillo desafinado" },
+        "stories": {
+          "fr": "Ce lampion en papier a accompagné tant de cortèges qu'il connaît toutes les chansons de la Saint-Martin par cœur. Hélas, il les chante toutes sur le même air, un ton trop haut. Les mineurs l'ont enterré… par amour de la musique.",
+          "en": "This paper lampion joined so many parades that it knows every Saint Martin song by heart. Sadly, it sings them all to the same tune, one note too high. The miners buried it… out of love for music.",
+          "nl": "Dit papieren lampionnetje liep in zoveel optochten mee dat het alle Sint-Maartensliedjes uit het hoofd kent. Helaas zingt het ze allemaal op dezelfde wijs, een toon te hoog. De mijnwerkers hebben het begraven… uit liefde voor de muziek.",
+          "es": "Este farolillo de papel acompañó tantos desfiles que se sabe de memoria todas las canciones de San Martín. Por desgracia, las canta todas con la misma melodía, un tono demasiado alto. Los mineros lo enterraron… por amor a la música."
+        },
+        "image": {
+          "subject": "A round accordion-folded paper lampion hanging from a stick",
+          "details": "Bright blue and yellow pleated paper sphere with a crumpled dent on one side, glowing softly from within, hanging by a wire hook from a thin wooden rod, two tiny musical notes floating beside it.",
+          "palette": "Palette: bright blue, sunny yellow, soft inner glow, light wood."
+        }
+      }
+    ]
+  }
+}

@@ -86,6 +86,7 @@ const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
 const collectionAi = require('./collectionAi');
+const seasonThemes = require('./seasonThemes');
 const badges = require('./badges');
 const badgeAi = require('./badgeAi');
 const rewardPoints = require('./rewardPoints');
@@ -1476,7 +1477,8 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
     const { key, value } = req.body ?? {};
     if (!key || value == null) return res.status(400).json({ error: 'Champs key et value requis.' });
     // Paramètres économiques bornés (#20), interrupteurs anti-bot (#25) et paramètres de ligue (#19) : appliqués sans redéploiement.
-    const checked = antibot.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? validateEconomyValue(key, value);
+    const checked = antibot.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
+      ?? validateEconomyValue(key, value);
     if (checked.error) return res.status(400).json({ error: checked.error });
     const previous = getAdminConfig()[key];
     setAdminConfig(key, checked.value);
@@ -1489,6 +1491,40 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
     res.json({ ok: true });
   } catch (err) { console.error('[PUT /api/admin/config]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
+
+// ── Admin — Saisons thématiques (#48) ────────────────────────────────────────
+
+function themeRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof seasonThemes.ThemeError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err);
+      res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+/** Saison actuelle / suivante : thème, préparation, annonce, collection, images, journal. */
+app.get('/api/admin/season-themes', requireAdmin, themeRoute('GET /api/admin/season-themes', () => seasonThemes.adminView()));
+
+/** Préparer la saison suivante tout de suite (sans attendre l'horizon). Idempotent. */
+app.post('/api/admin/season-themes/prepare', requireAdmin, themeRoute('POST /api/admin/season-themes/prepare', () => {
+  seasonThemes.sync(new Date(), { force: true });
+  return seasonThemes.adminView();
+}));
+
+app.put('/api/admin/season-themes/:id', requireAdmin, themeRoute('PUT /api/admin/season-themes/:id',
+  req => ({ theme: seasonThemes.updateTheme(intParam(req.params.id, { def: 0, min: 1 }), req.body ?? {}) })));
+
+app.post('/api/admin/season-themes/:id/reroll', requireAdmin, themeRoute('POST /api/admin/season-themes/:id/reroll',
+  req => ({ theme: seasonThemes.rerollTheme(intParam(req.params.id, { def: 0, min: 1 }), { exclude: req.body?.exclude === true }) })));
+
+app.post('/api/admin/season-themes/exclusions', requireAdmin, themeRoute('POST /api/admin/season-themes/exclusions',
+  req => ({ key: seasonThemes.addExclusion(req.body?.label) })));
+
+app.delete('/api/admin/season-themes/exclusions/:key', requireAdmin, themeRoute('DELETE /api/admin/season-themes/exclusions/:key',
+  req => { seasonThemes.removeExclusion(String(req.params.key)); return { ok: true }; }));
 
 // ── Admin — Anti-bot (#25, lot A) ────────────────────────────────────────────
 
@@ -1829,6 +1865,7 @@ collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, dr
 collectionAi.init();             // propositions de collections assistées par IA (#39)
 // Collections préparées (server/content/collections) → brouillon, une seule fois (#39) ; pas en test (bases neuves)
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_COLLECTIONS !== '0') collectionAi.importPrepared();
+seasonThemes.init();             // saisons thématiques : thèmes, noms réservés, journal ; préparation par le planificateur (#48)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)

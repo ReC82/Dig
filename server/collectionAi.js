@@ -419,6 +419,30 @@ function waitJob(id) { return _jobs.get(id) ?? Promise.resolve(); }
 
 const PREPARED_DIR = require('path').join(__dirname, 'content', 'collections');
 
+/**
+ * Importe UN pack (même format que les fichiers de content/collections) : proposition `open` puis
+ * brouillon des collections si les identifiants sont libres. Idempotent par clé de pack : déjà importé
+ * → `{ status: 'already', proposal, seriesId }` sans rien réécrire. Aussi utilisé par les saisons
+ * thématiques (#48), qui préparent la collection de la saison à partir d'un pack de saison.
+ */
+function importPack(pack, { key = pack?.pack, seasonId = null } = {}) {
+  key = String(key ?? '');
+  if (!/^[a-z0-9_]{3,60}$/.test(key)) throw new Error('identifiant de pack invalide');
+  const prev = conn().prepare("SELECT id, status, series_id FROM collection_ai_proposals WHERE json_extract(params, '$.pack') = ?").get(key);
+  if (prev) return { pack: key, proposal: prev.id, status: 'already', seriesId: prev.series_id };
+  const data = _normalize(pack, { seasonId });
+  if (!data.items.length) throw new Error('aucun objet');
+  const params = { pack: key, prepared: true, itemCount: data.items.length, seasonId: data.series.seasonId };
+  const id = conn().prepare("INSERT INTO collection_ai_proposals (concept, params, status, data) VALUES (?, ?, 'open', ?)")
+    .run(_clean(pack.concept, CONCEPT_MAX) || `Collection préparée ${key}`, JSON.stringify(params), JSON.stringify(data)).lastInsertRowid;
+  try {
+    const r = addToDraft(id);
+    return { pack: key, proposal: id, status: 'in_draft', seriesId: r.series.id };
+  } catch (err) {
+    return { pack: key, proposal: id, status: 'open', seriesId: null, error: err.message };
+  }
+}
+
 function importPrepared(dir = PREPARED_DIR) {
   const fs = require('fs');
   const out = [];
@@ -427,22 +451,11 @@ function importPrepared(dir = PREPARED_DIR) {
   for (const f of files) {
     try {
       const pack = JSON.parse(fs.readFileSync(require('path').join(dir, f), 'utf8'));
-      const key = String(pack.pack ?? '');
-      if (!/^[a-z0-9_]{3,60}$/.test(key)) throw new Error('identifiant de pack invalide');
-      if (conn().prepare("SELECT 1 FROM collection_ai_proposals WHERE json_extract(params, '$.pack') = ?").get(key)) continue;
-      const data = _normalize(pack);
-      if (!data.items.length) throw new Error('aucun objet');
-      const params = { pack: key, prepared: true, itemCount: data.items.length, seasonId: data.series.seasonId };
-      const id = conn().prepare("INSERT INTO collection_ai_proposals (concept, params, status, data) VALUES (?, ?, 'open', ?)")
-        .run(_clean(pack.concept, CONCEPT_MAX) || `Collection préparée ${key}`, JSON.stringify(params), JSON.stringify(data)).lastInsertRowid;
-      try {
-        addToDraft(id);
-        out.push({ pack: key, proposal: id, status: 'in_draft' });
-        console.log(`[collectionAi] collection préparée « ${key} » ajoutée au brouillon (proposition ${id}, non publiée, drops inactifs)`);
-      } catch (err) {
-        out.push({ pack: key, proposal: id, status: 'open', error: err.message });
-        console.warn(`[collectionAi] collection préparée « ${key} » laissée en proposition ${id} : ${err.message}`);
-      }
+      const r = importPack(pack);
+      if (r.status === 'already') continue;
+      out.push(r.error ? { pack: r.pack, proposal: r.proposal, status: r.status, error: r.error } : { pack: r.pack, proposal: r.proposal, status: r.status });
+      if (r.error) console.warn(`[collectionAi] collection préparée « ${r.pack} » laissée en proposition ${r.proposal} : ${r.error}`);
+      else console.log(`[collectionAi] collection préparée « ${r.pack} » ajoutée au brouillon (proposition ${r.proposal}, non publiée, drops inactifs)`);
     } catch (err) {
       console.warn(`[collectionAi] pack ${f} ignoré : ${err.message}`);
     }
@@ -452,5 +465,5 @@ function importPrepared(dir = PREPARED_DIR) {
 
 module.exports = {
   CollectionAiError, DEFAULT_DROPS, ITEMS_MIN, ITEMS_MAX, init, startProposal, getProposal, listProposals,
-  updateProposal, addToDraft, discardProposal, waitJob, importPrepared, similarity,
+  updateProposal, addToDraft, discardProposal, waitJob, importPack, importPrepared, similarity, proposalWarnings: _warnings,
 };
