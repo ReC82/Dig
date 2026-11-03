@@ -101,12 +101,38 @@ function _getOrCreateLeagueAbove(currentLeague) {
  *
  * Formule :
  *   promotionPct = promotion_rate / (1 + league.level * difficulty_coefficient)
- *   promotedCount = max(1, floor(activePlayers * promotionPct))
+ *   promotedCount = max(1, floor(activePlayers * promotionPct)), au plus activePlayers
  */
+/**
+ * Paramètres de promotion lus dans la config admin. Une valeur absente, illisible ou hors bornes
+ * reprend la valeur par défaut (sinon un NaN donnait 0 promu en silence, contre la règle
+ * « au moins un promu par ligue éligible »). Ne change pas le barème par défaut.
+ */
+function leagueSettings(config) {
+  const num = (raw, def, ok) => { const n = Number(String(raw ?? '').trim()); return String(raw ?? '').trim() !== '' && Number.isFinite(n) && ok(n) ? n : def; };
+  return {
+    promotionRate: num(config.promotion_rate,                0.50, n => n >= 0 && n <= 1),
+    difficulty:    num(config.difficulty_coefficient,        0.45, n => n >= 0),
+    minPlayers:    num(config.min_active_players_per_league, 10,   n => Number.isInteger(n) && n >= 1),
+  };
+}
+
+/** Validation PUT /api/admin/config des paramètres de ligue ; null si la clé n'en est pas un. */
+function validateLeagueConfigValue(key, raw) {
+  const rules = {
+    promotion_rate:                ['nombre entre 0 et 1 attendu', n => n >= 0 && n <= 1],
+    difficulty_coefficient:        ['nombre positif ou nul attendu', n => n >= 0],
+    min_active_players_per_league: ['entier ≥ 1 attendu', n => Number.isInteger(n) && n >= 1],
+  };
+  if (!rules[key]) return null;
+  const text = String(raw).trim();
+  const n = Number(text);
+  if (text === '' || !Number.isFinite(n) || !rules[key][1](n)) return { error: `${key} : ${rules[key][0]}.` };
+  return { value: String(n) };
+}
+
 function _applyPromotions(season, config) {
-  const promotionRate = parseFloat(config.promotion_rate               ?? '0.50');
-  const difficulty    = parseFloat(config.difficulty_coefficient        ?? '0.45');
-  const minPlayers    = parseInt (config.min_active_players_per_league  ?? '10', 10);
+  const { promotionRate, difficulty, minPlayers } = leagueSettings(config);
 
   const leagues = getAllLeagues().sort((a, b) => a.level - b.level);
   const report  = [];
@@ -129,7 +155,7 @@ function _applyPromotions(season, config) {
 
     // Taux de promotion décroissant avec le niveau
     const promotionPct  = promotionRate / (1 + league.level * difficulty);
-    const promotedCount = Math.max(1, Math.floor(total * promotionPct));
+    const promotedCount = Math.min(total, Math.max(1, Math.floor(total * promotionPct)));
     const toPromote     = players.slice(0, promotedCount);
 
     const nextLeague = _getOrCreateLeagueAbove(league);
@@ -943,6 +969,8 @@ function buildActiveSeasonLeaderboard(leagueId = null, page = 1) {
 
 module.exports = {
   checkAndRotateSeason,
+  leagueSettings,
+  validateLeagueConfigValue,
   planNextSeason,
   isWithinSeason,
   startSeasonScheduler,
