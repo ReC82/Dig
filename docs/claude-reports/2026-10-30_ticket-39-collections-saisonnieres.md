@@ -1,5 +1,169 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 03/11/2026, 15 h 10 (Bruxelles) — fiche dédiée des souvenirs d'événements et simulation chiffrée des drops Saint-Martin
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux commentaires du propriétaire :
+
+- la recette UX de [12:27 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6603768364) (Collection → Souvenirs d'événements) ;
+- la décision « Progressif » de [13:31 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6605143555), qui demande une simulation chiffrée du barème (demande déjà formulée à [13:02 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6604514177)).
+
+Les commentaires de 12:36 et 12:58 UTC sont des validations sans demande : les 6 images sont conservées et il ne faut rien régénérer. Le retour transversal sur le centrage relève de #62.
+
+## A (03/11 après-midi). État réel
+
+**Déployé en production (SHA `7e7c885`) — en attente de recette.**
+
+- **Fiche dédiée des souvenirs d'événements** — classement : **Bloquant MVP public**. C'est un défaut visible dans l'écran Collection d'un joueur.
+- **Simulation et barème** : livrés comme **proposition seulement**. **Aucun taux modifié, aucun drop activé, rien publié.** Le choix du barème revient au propriétaire. Classement : **Bloquant pour la publication de la Saint-Martin (W46, 09/11)**, pas pour le reste du MVP.
+
+## B (03/11 après-midi). Souvenirs d'événements : cause et correction
+
+**Cause du chevauchement.** Le titre « Souvenirs d'événements » réutilise le style des archives de collection. Ce style a une marge basse **négative** (`-6px`), prévue pour `#collection-grid`, qui est une grille flex avec 16 px d'écart. Le panneau des événements (`#events-panel`) n'avait pas cet écart : la marge négative faisait donc remonter le titre « 🧪 Événement test · 1 » sur « Souvenirs d'événements ». Le défaut a été reproduit en navigateur avant la correction.
+
+**Correction (`public/css/style.css`).** `#events-panel` reçoit le même rythme vertical que la grille de collection : flex en colonne, écart de 16 px, marges des titres et notes ajustées. L'image de la fiche est responsive (`min(160px, 42vw)`).
+
+**Fiche dédiée (`public/js/main.js`).**
+
+- Le paragraphe de description qui s'affichait sous la petite carte est supprimé.
+- Un clic sur un objet d'événement ouvre maintenant la **même fenêtre que les objets de collection**. Elle contient :
+  - grande illustration, ou emoji agrandi si l'objet n'a pas d'image ;
+  - badge de rareté ;
+  - nom ;
+  - « 🧪 Événement test · Terminé le 3 novembre 2026 » (ou « Jusqu'au … » pendant l'événement) ;
+  - « Trouvé le … » ;
+  - petite histoire.
+- Un objet non trouvé d'un événement en cours affiche « ❔ Objet non découvert » avec l'invitation à creuser, sans rareté ni date.
+- La fenêtre commune a été extraite dans `_openItemSheet`, utilisée par la collection (`showFindSheet`) et par les événements (`showEventItemSheet`).
+- Accessibilité :
+  - `role="dialog"` existant ;
+  - le focus va sur « Fermer » et Tab y reste ;
+  - Échap, un clic à l'extérieur ou « Fermer » ferment la fiche ;
+  - **le focus revient à la carte** à la fermeture (nouveau, pour les deux usages) ;
+  - texte inséré sans HTML.
+
+**Textes.** Nouvelle clé `events.ended` (« Terminé le {date} ») en FR, EN, NL et ES. Elle est aussi ajoutée à la langue pilote italienne (#59, 602/602) via `tools/i18n` (mémoire `i18n/it.json` puis `build it`).
+
+**Inchangés** : drops des événements, données des joueurs, règle « l'objet reste acquis après l'événement ».
+
+## C (03/11 après-midi). Simulation chiffrée des drops Saint-Martin (lecture seule)
+
+**Outil.** Nouvel outil `tools/balance/collection-drop-sim.js`. Il réutilise le simulateur économique #49 (`tools/balance/economy-sim.js`), qui exécute le **vrai code du jeu** :
+
+- probabilités des blocs par profondeur (catalogue publié, 22 blocs), PV, pioche, Chance, Auto-Dig = 1 coup/s ;
+- améliorations achetées, reliques, coffres, temps d'animation, gains hors ligne.
+
+À chaque bloc détruit, l'outil reproduit `Collection.tryDrop` :
+
+- seuls les objets éligibles sont tirés, **dans l'ordre du catalogue** ;
+- **au plus un objet par bloc** ;
+- les 8 objets permanents passent d'abord, puis les 6 de la Saint-Martin.
+
+Le simulateur #49 reçoit un seul crochet `onBlock`, sans effet sur la partie (vérifié par un test). Le résultat complet est [`docs/claude-reports/2026-11-03_ticket-39-simulation-drops-saint-martin.md`](2026-11-03_ticket-39-simulation-drops-saint-martin.md) : 2 000 joueurs par profil, résultats reproductibles.
+
+**Faits établis :**
+
+- **Profondeur.** 1 bloc = 1 m et la profondeur repart de 1 à chaque saison. Au-delà de 100 m, la composition des blocs est stable : environ 63 % pierre, 25 % minerai, 6 % coffre, **3 % gemme**, 1,5 % terre.
+- **Le légendaire.** « 5 % par gemme dès 100 m » donne donc ≈ **0,15 % par bloc** au-delà de 100 m.
+- **Gemmes rencontrées au-delà de 100 m dans la semaine (médiane)** :
+
+  | Profil | Saison 1 | Saison 4 |
+  |---|---|---|
+  | Occasionnel (20 min/j, 4 j/7) | 11 | 18 |
+  | Nouvel entrant (1 h/j dès vendredi) | 35 | — |
+  | Auto-Dig (15 min/j + 8 h onglet ouvert) | 41 | 73 |
+  | Régulier (1 h/j) | 69 | 117 |
+  | Assidu | 170 | 383 |
+
+  Le seuil de 100 m est franchi dès la première séance pour tous les profils : **le risque d'une série « quasiment impossible » ne se vérifie pas**. En revanche, **le légendaire est presque garanti (97 % et plus) dès 1 h par jour**.
+- **Mêmes sources, même rareté.** Les deux communs (et les deux peu communs) partagent leurs sources. Un bloc ne donne qu'un objet, mais les deux sont trouvés par plus de 99 % des joueurs : l'effet est négligeable.
+- **Objets permanents prioritaires.** Sur un compte neuf, la dent de monstre (gemme dès 35 m) et l'orbe mystique (gemme dès 70 m) passent avant le légendaire de la Saint-Martin. C'est compris dans les chiffres « saison 1 ».
+- **Auto-Dig et serveur.** Clic manuel et Auto-Dig passent par la même fonction (`handleBlockDestroyed` → `Collection.tryDrop`), avec le générateur déterministe du bloc (#35). Les chances sont donc identiques. Les objets de collection sont **tirés par le client** et conservés dans la sauvegarde. Le serveur ne retire pas le tirage, contrairement aux événements #56 (limite connue, à traiter **après lancement**).
+- **Pas de limite par compte et par objet à ajouter** : un objet possédé n'est plus tiré.
+
+**Série complète en 7 jours (part des joueurs)** — saison 1 = compte neuf, saison 4 = joueur installé :
+
+| Profil | Brouillon actuel | **Progressif (recommandé)** | Exigeant |
+|---|---|---|---|
+| Occasionnel / lent, saison 1 | 26 % (légendaire 40 %) | **16 %** (légendaire 26 %) | 8 % |
+| Occasionnel / lent, saison 4 | 48 % | **31 %** | 17 % |
+| Nouvel entrant (vendredi → dimanche) | 76 % | **57 %** | 38 % |
+| Auto-Dig, saison 1 · saison 4 | 83 % · 96 % | **65 % · 88 %** | 46 % · 71 % |
+| Régulier 1 h/j, saison 1 · saison 4 | 96 % · 99 % | **85 % · 98 %** | 69 % · 88 % |
+| Assidu, saison 1 · saison 4 | 100 % · 100 % | **99 % · 100 %** | 95 % · > 99 % |
+
+Les communs sont trouvés par plus de 99 % des joueurs dans les trois barèmes, en général dès la première séance.
+
+**Barèmes comparés** (sources et profondeurs inchangées, sauf mention) :
+
+- **Brouillon actuel** : communs 3 % ; peu communs 2 % dès 20 m ; rare 1,5 % dès 40 m ; légendaire 5 % par gemme dès 100 m.
+- **Progressif (recommandé)** : communs **4 %**, peu communs et rare inchangés, légendaire **3 %** par gemme dès 100 m. Les communs sont un peu plus immédiats. Le légendaire n'est plus garanti pour un joueur régulier (86 % sur un compte neuf), mais reste très probable pour quiconque joue chaque jour.
+- **Exigeant** : rare **1 %**, légendaire **2 % par gemme dès 150 m**. La série complète devient un vrai défi, même pour un joueur régulier.
+
+**Aucune de ces valeurs n'a été appliquée.**
+
+**Limite.** Les profils sont des modèles (#49) : 4 à 6 clics/s en actif, Auto-Dig 1 coup/s. La production compte trop peu de classements pour les calibrer (4 classements non nuls, profondeurs maximales de 5 à 279 m). Un joueur qui joue moins que le profil « occasionnel » (par exemple 2 × 10 min) se situe en dessous de ses chiffres.
+
+## D (03/11 après-midi). SHA, tests, déploiement
+
+- Branche `feature/39-collections-saisonnieres`, commit `24e390e`. Intégration dans `develop` : **`7e7c885`** (arbre identique à la branche testée).
+- **Tests automatiques**
+  - `npm test` **545/545** sur la branche, sur `develop` et sur la release `7e7c885`.
+  - Nouveaux tests :
+    - `test/event-item-sheet.test.js` : clic → fiche, plus de description sous la carte, focus rendu, espacement du panneau, libellé « Terminé le » dans 4 langues. Il échoue sur l'ancien code.
+    - `test/collection-drop-sim.test.js` : barème du brouillon, reproductibilité, crochet sans effet sur #49.
+  - Un premier passage a signalé l'italien à 99,8 % (nouvelle clé) : corrigé avant intégration.
+- **Essai navigateur** (`test/e2e/event-item-sheet.e2e.js`, serveur de test 3101, `/api/events` simulé avec « Caillou de test »), 1280×900 et 390×844 :
+  - aucun chevauchement des titres et cartes, aucune description sous la carte, pas de défilement horizontal ;
+  - fiche entièrement visible, contenu attendu ;
+  - Échap ferme la fiche et rend le focus à la carte ;
+  - 0 erreur JS.
+  
+  Le chevauchement avait été reproduit avant la correction.
+- **Copie de la base de production** : empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` identiques avant et après démarrage de la release. Copie supprimée.
+- **Avant le déploiement** : aucune génération IA en cours (dernière activité de l'atelier à 12:56 UTC).
+- **Déploiement** : `deploy.sh` OK (7c0b521 → 7e7c885). Sauvegarde vérifiée : `dig-20261103-150644-pre-deploy-7e7c885.sqlite`.
+- **Après le déploiement** :
+  - dig.lodygames.com et dig.lodylands.com répondent 200 avec la version `1.0.0+7e7c885` ;
+  - `quick_check` = ok, journal sans erreur ;
+  - empreintes joueurs identiques à la sauvegarde pré-déploiement ;
+  - le `main.js` servi contient la correction.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 7c0b521` puis `sudo systemctl restart dig`. Aucune migration.
+- **Non fait** : essai navigateur sur la production avec un vrai compte qui possède un souvenir.
+
+## E (03/11 après-midi). Test fonctionnel à faire par le propriétaire
+
+1. En jeu, sur PC puis sur smartphone : Collection (Ctrl+F5 si besoin). Dans « 🎉 Événements », le titre « Souvenirs d'événements » puis « 🧪 Événement test · 1 » sont bien séparés, au-dessus de la carte « Caillou de test ».
+2. Cliquer sur « Caillou de test ». Une fenêtre centrée s'ouvre avec :
+   - 🪨 en grand ;
+   - le badge « COMMUN » ;
+   - « Caillou de test » ;
+   - « 🧪 Événement test · Terminé le … » ;
+   - « Trouvé le … » ;
+   - l'histoire.
+   
+   Aucun texte n'apparaît sous la carte.
+3. Fermer avec « Fermer », Échap ou un clic à l'extérieur. On retrouve la grille, et la carte garde le focus au clavier.
+4. Barème : lire le tableau de la section C et choisir (question 3 ci-dessous).
+
+## F (03/11 après-midi). Choix techniques faits seul
+
+- **Une seule fenêtre pour la collection et les événements**, plutôt qu'une seconde fenêtre : même présentation, même accessibilité, moins de code.
+- **Simulation construite sur le simulateur #49** plutôt qu'un nouveau modèle de joueur : chiffres cohérents avec l'audit économique, et les deux évoluent ensemble.
+- **Même flux de blocs pour tous les barèmes** : la comparaison ne dépend pas du hasard du joueur simulé.
+- **Barème « accessible »** (légendaire dès 60 m) étudié puis écarté : il n'aide pas les joueurs lents, car la limite vient du nombre de gemmes croisées, pas de la profondeur.
+
+## G (03/11 après-midi). Décisions demandées au propriétaire
+
+1. Rattacher « Les Objets trouvés de la Légende » à la semaine 2026-W47 ? Recommandation : oui (W46 = Saint-Martin).
+2. Reporter « Trésors de la vieille mine » (saison en cours, fin 08/11, incomplète) sur une semaine future, par exemple 2026-W48 ? Recommandation : oui.
+3. **Barème Saint-Martin** (section C) : **(a) Progressif — recommandé** (communs 4 %, légendaire 3 % par gemme dès 100 m, le reste inchangé) ; (b) brouillon actuel (plus généreux : légendaire presque garanti dès 1 h par jour) ; (c) Exigeant. Après le choix, une session applique les taux dans le brouillon, active les drops et prépare la publication ciblée, **sans publier sans votre feu vert**.
+4. Objets d'une saison terminée : plus jamais obtenables (exclusivité) ? Recommandation : oui. Afficher en grisé ceux qui n'ont pas été trouvés ? Recommandation : oui.
+
+## H (03/11 après-midi). Restant à réaliser
+
+- **Bloquant pour W46** : appliquer le barème choisi, activer les drops et publier la série (après décision 3).
+- **Après lancement** : faire vérifier par le serveur les drops de collection (comme les événements #56) pour empêcher un client modifié de s'attribuer des objets.
+
 # Mise à jour du 03/11/2026, 12 h 55 (Bruxelles) — aperçu de la fiche objet : saison future au lieu de « Permanente »
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite la recette du propriétaire du [03/11 à 11:21 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6602490144), qui porte sur la fiche de « La lanterne en betterave ». La recette croisée #39/#40 de [11:30 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6602662639) valide l'illustration enregistrée dans le brouillon et ne demande aucun changement.
