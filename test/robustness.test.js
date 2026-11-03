@@ -103,7 +103,7 @@ test('i18n : EN, NL et ES ont toutes les clés FR, et les clés utilisées exist
     assert.deepStrictEqual(Object.keys(F.fr).filter(k => !(k in F[lang])), [], `clés absentes en ${lang}`);
   }
   const used = new Set();
-  const files = fs.readdirSync(path.join(ROOT, 'public/js')).map(f => path.join(ROOT, 'public/js', f))
+  const files = fs.readdirSync(path.join(ROOT, 'public/js')).filter(f => f.endsWith('.js')).map(f => path.join(ROOT, 'public/js', f))
     .concat(path.join(ROOT, 'public/index.html'));
   for (const f of files) {
     const s = fs.readFileSync(f, 'utf8');

@@ -1,14 +1,20 @@
 ﻿/**
  * i18n.js — Internationalisation minimaliste
- * Langues : fr (défaut), en, nl, es
+ * Langues : registre central js/languages.js (#59). fr (défaut et repli), en, nl, es intégrés ici ;
+ * les autres langues sont des fichiers générés js/locales/<code>.js (tools/i18n), chargés à la demande.
  *
  * API publique :
  *   t('ui.btn_upgrade')                     → "Améliorer"
  *   t('stats.depth_val', { n: 42 })         → "42m"
  *   I18n.setLang('en')                      → change la langue + re-applique
- *   I18n.getCurrent()                       → 'fr' | 'en' | 'nl' | 'es'
+ *   I18n.getCurrent()                       → 'fr' | 'en' | 'nl' | 'es' | langue preview
  *   I18n.onLangChange(fn)                   → callback sur changement
+ *   I18n.registerLocale('it', dict)         → appelé par js/locales/it.js
  *   applyTranslations()                     → remplit les [data-i18n]
+ *
+ * Pluriels : une valeur peut être { $n: 'count', one: '…', other: '…' } (catégories Intl.PluralRules,
+ * few/many pour le russe…) ; $n nomme la variable du nombre (défaut n).
+ * Langue « preview » : masquée au public, ouverte au testeur par ?lang=<code> (mémorisé).
  *
  * HTML :
  *   <span data-i18n="nav.dig"></span>
@@ -18,8 +24,13 @@
 const I18n = (() => {
 
   const STORAGE_KEY = 'dig_lang';
+  const PREVIEW_KEY = 'dig_lang_preview';
   const _callbacks  = [];
   let   _current    = 'fr';
+
+  // Registre central (#59) ; repli sur les 4 langues intégrées si le registre n'est pas chargé
+  const REG = typeof DigLanguages !== 'undefined' ? DigLanguages : null;
+  const _meta = code => (REG ? REG.get(code) : null);
 
   /**
    * Drapeaux en SVG intégré (#42) : les drapeaux emoji s'affichent en lettres (« FR », « GB »…)
@@ -34,15 +45,35 @@ const I18n = (() => {
       + '<path d="M30,0V40M0,20H60" stroke="#c8102e" stroke-width="7"/>'),
     nl: _svg('<rect width="60" height="14" fill="#ae1c28"/><rect y="13" width="60" height="14" fill="#fff"/><rect y="26.5" width="60" height="13.5" fill="#21468b"/>'),
     es: _svg('<rect width="60" height="40" fill="#aa151b"/><rect y="10" width="60" height="20" fill="#f1bf00"/>'),
+    it: _svg('<rect width="20" height="40" fill="#009246"/><rect x="20" width="20" height="40" fill="#fff"/><rect x="40" width="20" height="40" fill="#ce2b37"/>'),
   };
+  /** Langue sans drapeau (une langue n'est pas un pays) : pastille neutre avec son code. */
+  const _codeBadge = code => _svg('<rect width="60" height="40" rx="6" fill="#475569"/><text x="30" y="27" text-anchor="middle" '
+    + `font-size="18" font-family="sans-serif" font-weight="700" fill="#fff">${String(code).toUpperCase().replace(/[^A-Z-]/g, '')}</text>`);
 
-  /** Métadonnées des langues — ordre d'affichage dans les paramètres. */
-  const LANGS = [
-    { code: 'fr', label: 'Français',    flag: '🇫🇷', flagSvg: FLAGS.fr },
-    { code: 'en', label: 'English',     flag: '🇬🇧', flagSvg: FLAGS.en },
-    { code: 'nl', label: 'Nederlands',  flag: '🇳🇱', flagSvg: FLAGS.nl },
-    { code: 'es', label: 'Español',     flag: '🇪🇸', flagSvg: FLAGS.es },
+  /** Métadonnées des langues sélectionnables — ordre d'affichage dans les paramètres. */
+  const _entry = l => ({ code: l.code, label: l.nativeName, flag: l.flag || '',
+    flagSvg: (l.flag && FLAGS[l.flag]) || _codeBadge(l.code), status: l.status });
+  const _builtinMeta = [
+    { code: 'fr', nativeName: 'Français',   flag: 'fr', status: 'active' },
+    { code: 'en', nativeName: 'English',    flag: 'en', status: 'active' },
+    { code: 'nl', nativeName: 'Nederlands', flag: 'nl', status: 'active' },
+    { code: 'es', nativeName: 'Español',    flag: 'es', status: 'active' },
   ];
+
+  // Accès testeur à une langue preview : ?lang=it (mémorisé ; ?lang=fr pour revenir)
+  (function _readUrlLang() {
+    try {
+      const want = REG && typeof location !== 'undefined' ? REG.normalize(new URLSearchParams(location.search).get('lang')) : null;
+      const m = want && REG.get(want);
+      if (!m || (m.status !== 'active' && m.status !== 'preview')) return;
+      localStorage.setItem(STORAGE_KEY, m.code);
+      if (m.status === 'preview') localStorage.setItem(PREVIEW_KEY, '1');
+    } catch (_) { /* pas de location (tests) */ }
+  })();
+
+  const _previewEnabled = () => { try { return localStorage.getItem(PREVIEW_KEY) === '1'; } catch (_) { return false; } };
+  const LANGS = (REG ? REG.selectable(_previewEnabled()) : _builtinMeta).map(_entry);
 
   // ── Traductions ────────────────────────────────────────────────────────────
 
@@ -2273,30 +2304,80 @@ const I18n = (() => {
     return key.split('.').reduce((o, k) => (o != null && typeof o === 'object' ? o[k] : undefined), T[lang]);
   }
 
+  /** Langue acceptée : intégrée, ou active/preview du registre (jamais « planned »). */
+  function _known(lang) {
+    if (T[lang] && _builtinMeta.some(l => l.code === lang)) return true;
+    const m = _meta(lang);
+    return !!m && m.code === lang && (m.status === 'active' || m.status === 'preview');
+  }
+
+  // ── Chargement des langues non intégrées (js/locales/<code>.js) ───────────
+  const _loading = {};
+  function _loadLocale(lang) {
+    if (T[lang]) return Promise.resolve(true);
+    if (_loading[lang]) return _loading[lang];
+    if (typeof document === 'undefined' || !document.createElement) return Promise.resolve(false);
+    _loading[lang] = new Promise(resolve => {
+      const el = document.createElement('script');
+      el.src = `js/locales/${encodeURIComponent(lang)}.js`;
+      el.onload = () => resolve(!!T[lang]);
+      el.onerror = () => { delete _loading[lang]; resolve(false); }; // repli FR explicite
+      document.head.appendChild(el);
+    });
+    return _loading[lang];
+  }
+
+  /** Enregistre le dictionnaire d'une langue non intégrée (fichier généré par tools/i18n). */
+  function registerLocale(lang, dict) {
+    if (!_known(lang) || _builtinMeta.some(l => l.code === lang) || !dict || typeof dict !== 'object') return false;
+    T[lang] = dict;
+    return true;
+  }
+
+  function _plural(val, params, lang) {
+    const raw = params[val.$n || 'n'];
+    const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(/[^\d]/g, ''));
+    let cat = 'other';
+    try { cat = new Intl.PluralRules((_meta(lang) || {}).intl || lang).select(Number.isFinite(n) ? n : 0); } catch (_) { /* ancien navigateur */ }
+    return typeof val[cat] === 'string' ? val[cat] : val.other;
+  }
+
   // ── API publique ───────────────────────────────────────────────────────────
 
   function init() {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && T[saved]) _current = saved;
+    if (saved && _known(saved)) {
+      _current = saved;
+      if (!T[saved]) _loadLocale(saved).then(ok => { if (ok && _current === saved) _changed(); });
+    }
     _applyAttr();
   }
 
+  function _changed() {
+    _applyAttr();
+    applyTranslations();
+    _callbacks.forEach(fn => fn(_current));
+  }
+
   function setLang(lang) {
-    if (!T[lang]) return;
+    if (!_known(lang)) return;
     localStorage.setItem(STORAGE_KEY, lang); // toujours persister, même si déjà actif
     if (lang === _current) return;
     _current = lang;
-    _applyAttr();
-    applyTranslations();
-    _callbacks.forEach(fn => fn(lang));
+    if (!T[lang]) { _applyAttr(); _loadLocale(lang).then(ok => { if (ok && _current === lang) _changed(); }); return; }
+    _changed();
   }
 
   function getCurrent() { return _current; }
 
   /** Traduit une clé avec interpolation de variables.
-   *  Ex : t('ui.hp_text', { hp: 10, maxHp: 30 }) → "10 / 30 HP"  */
+   *  Ex : t('ui.hp_text', { hp: 10, maxHp: 30 }) → "10 / 30 HP"
+   *  Texte absent dans la langue → texte français (jamais de clé technique s'il existe en FR). */
   function t(key, params = {}) {
-    const str = _resolve(key, _current) ?? _resolve(key, 'fr') ?? key;
+    let str = _resolve(key, _current);
+    let lang = _current;
+    if (str == null || (typeof str === 'object' && typeof str.other !== 'string')) { str = _resolve(key, 'fr'); lang = 'fr'; }
+    if (str && typeof str === 'object' && typeof str.other === 'string') str = _plural(str, params, lang);
     if (typeof str !== 'string') return key;
     return str.replace(/\{(\w+)\}/g, (_, k) => (k in params ? params[k] : `{${k}}`));
   }
@@ -2337,9 +2418,14 @@ const I18n = (() => {
 
   function _applyAttr() {
     document.documentElement.lang = _current;
+    const m = _meta(_current);
+    if (m) document.documentElement.dir = m.dir || 'ltr';
   }
 
-  return { init, setLang, getCurrent, t, has, get, applyTranslations, onLangChange, LANGS, hasStoredLang };
+  /** Locale Intl de la langue courante (dates, nombres) : 'fr-BE', 'it-IT'… */
+  function intl() { return (_meta(_current) || {}).intl || _current; }
+
+  return { init, setLang, getCurrent, t, has, get, applyTranslations, onLangChange, LANGS, hasStoredLang, registerLocale, intl };
 
 })();
 

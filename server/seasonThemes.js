@@ -40,7 +40,7 @@ const path = require('path');
 const db   = require('./db');
 const cal  = require('./seasonCalendar');
 
-const LANGS = ['fr', 'en', 'nl', 'es'];
+const LANGS = [...require('./languages').CONTENT_LANGS];
 const PACKS_DIR = path.join(__dirname, 'content', 'seasons');
 const HISTORY_LIMIT = 6;
 

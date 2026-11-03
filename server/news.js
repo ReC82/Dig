@@ -35,8 +35,8 @@
 
 const db = require('./db');
 
-const LANGS = ['fr', 'en', 'nl', 'es'];
-const LANG_LABELS = { fr: 'French', en: 'English', nl: 'Dutch', es: 'Spanish' };
+const LANGS = [...require('./languages').CONTENT_LANGS];
+const LANG_LABELS = require('./languages').ENGLISH_NAMES;
 const CATEGORIES = ['news', 'season', 'event', 'update', 'maintenance', 'community', 'player'];
 const STATUSES = ['draft', 'published', 'archived'];
 const MAX = { title: 90, summary: 280, body: 2000, url: 300, label: 40, raw: 4000 };

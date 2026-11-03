@@ -25,7 +25,7 @@ const blockAi = require('./blockAi');
 const catalog = require('./collectionCatalog');
 
 const LANGS = catalog.LANGS;
-const LANG_LABELS = { fr: 'French', en: 'English', nl: 'Dutch', es: 'Spanish' };
+const LANG_LABELS = require('./languages').ENGLISH_NAMES;
 const CONCEPT_MAX = 800;
 const ITEMS_MIN = 3, ITEMS_MAX = 8;
 const ID_RE = /^[a-z][a-z0-9_]{1,39}$/;

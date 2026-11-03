@@ -67,7 +67,7 @@ const DigNews = (() => {
   function _fmtDate(isoStr) {
     const d = new Date(isoStr);
     if (Number.isNaN(d.getTime())) return '';
-    const locale = { fr: 'fr-BE', en: 'en-GB', nl: 'nl-BE', es: 'es-ES' }[I18n.getCurrent()] || undefined;
+    const locale = I18n.intl ? I18n.intl() : undefined; // registre des langues (#59)
     try { return d.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' }); }
     catch { return d.toLocaleString(); }
   }

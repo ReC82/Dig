@@ -27,7 +27,7 @@ const cal          = require('./seasonCalendar');
 const rewardPoints = require('./rewardPoints');
 
 const KINDS = ['virtual', 'real'];
-const LANGS = ['fr', 'en', 'nl', 'es'];
+const LANGS = [...require('./languages').CONTENT_LANGS];
 
 /** Transitions des commandes (admin). Le joueur ne peut qu'annuler une commande en attente. */
 const TRANSITIONS = {

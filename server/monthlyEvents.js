@@ -40,8 +40,8 @@ const db = require('./db');
 
 const conn = () => db.getDb();
 
-const LANGS = ['fr', 'en', 'nl', 'es'];
-const LANG_LABELS = { fr: 'French', en: 'English', nl: 'Dutch', es: 'Spanish' };
+const LANGS = [...require('./languages').CONTENT_LANGS];
+const LANG_LABELS = require('./languages').ENGLISH_NAMES;
 const TZ = 'Europe/Brussels';
 const RARITIES = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
 const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];

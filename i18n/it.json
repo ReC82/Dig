@@ -1,0 +1,4119 @@
+{
+ "lang": "it",
+ "source": "fr",
+ "entries": {
+  "account.btn_back_login": {
+   "text": "← Torna all’accesso",
+   "src": "c70f969db272",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_cancel": {
+   "text": "Annulla",
+   "src": "af12de10a27c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_change_email": {
+   "text": "Invia il link di conferma",
+   "src": "7ef14a267ed9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_change_password": {
+   "text": "Cambia la password",
+   "src": "1879cdbdea42",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_forgot": {
+   "text": "Password dimenticata?",
+   "src": "4d2df4051cfc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_forgot_send": {
+   "text": "Invia il link",
+   "src": "c88e92b1fcd6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_login": {
+   "text": "Accedi",
+   "src": "e00da1a2ef4d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_logout": {
+   "text": "Esci",
+   "src": "232a448dfaae",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_register": {
+   "text": "Crea l’account",
+   "src": "9ff60aa2ff1a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_reset": {
+   "text": "Salva la password",
+   "src": "4980996f6396",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_send_verify": {
+   "text": "Invia il link di conferma",
+   "src": "7ef14a267ed9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_social_confirm": {
+   "text": "Collega questo account Google",
+   "src": "e5ce7d65d9fd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_social_ignore": {
+   "text": "Ignora",
+   "src": "3c972d3df936",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_social_link": {
+   "text": "Continua su Google",
+   "src": "f4fc17b8f465",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.btn_social_unlink": {
+   "text": "Scollega Google",
+   "src": "0d701d068d80",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.change_email": {
+   "text": "Cambia indirizzo e-mail",
+   "src": "a6ddbc5108c7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.change_password": {
+   "text": "Cambia la password",
+   "src": "1879cdbdea42",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.email_change_sent": {
+   "text": "Link inviato a {email}: l’indirizzo cambierà dopo la conferma.",
+   "src": "f2f8ad2ff1be",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.email_unverified": {
+   "text": "Indirizzo non verificato",
+   "src": "eaf8ed4b6e66",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.email_verified": {
+   "text": "Indirizzo verificato",
+   "src": "1a13163fb64a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.err_email_taken": {
+   "text": "Questo indirizzo e-mail è già in uso.",
+   "src": "abd48af4bb4b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.err_generic": {
+   "text": "Si è verificato un errore.",
+   "src": "7bf7c47b796a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.err_taken": {
+   "text": "Nome utente già in uso.",
+   "src": "cddc7f7bba68",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.err_wrong": {
+   "text": "Credenziali errate.",
+   "src": "db8146271d82",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.forgot_intro": {
+   "text": "Inserisci il tuo nome utente o il tuo indirizzo e-mail: riceverai un link per scegliere una nuova password.",
+   "src": "437201bb4755",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.forgot_sent": {
+   "text": "Se esiste un account corrispondente, ti abbiamo appena inviato un’e-mail. Controlla anche lo spam.",
+   "src": "adad98ad221b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.header_aria": {
+   "text": "Profilo e account",
+   "src": "7545c2158bca",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.hint_change_email": {
+   "text": "Il nuovo indirizzo sostituisce il vecchio dopo la conferma tramite il link ricevuto.",
+   "src": "226d6a736477",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.hint_email": {
+   "text": "esempio@email.com",
+   "src": "465de8eb2e5d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.hint_password": {
+   "text": "Almeno 6 caratteri",
+   "src": "dae84f03a0bc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.hint_password_others": {
+   "text": "Almeno 6 caratteri. Gli altri tuoi dispositivi verranno disconnessi.",
+   "src": "af6f5b40b1a7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.hint_username": {
+   "text": "3-20 caratteri: lettere, numeri, _ o -",
+   "src": "467589895bf5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.label_current_password": {
+   "text": "Password attuale",
+   "src": "b0f460dacab4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.label_email": {
+   "text": "Indirizzo e-mail",
+   "src": "1a7d028283bf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.label_identifier": {
+   "text": "Nome utente o e-mail",
+   "src": "3fbd651c7136",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.label_new_email": {
+   "text": "Nuovo indirizzo e-mail",
+   "src": "290f21e723e9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.label_new_password": {
+   "text": "Nuova password",
+   "src": "b69138494758",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.label_password": {
+   "text": "Password",
+   "src": "87f992617eae",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.label_username": {
+   "text": "Nome utente",
+   "src": "27c6b954f977",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.logged_as": {
+   "text": "Connesso: {name}",
+   "src": "d8c13a10493b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.no_mail_forgot": {
+   "text": "Password dimenticata? Il recupero via e-mail non è ancora attivo: contatta l’organizzatore della beta, che può darti una password temporanea (da cambiare poi nelle Impostazioni).",
+   "src": "67572e80c232",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.no_mail_register": {
+   "text": "⚠️ Beta: il recupero della password via e-mail non è ancora attivo. Annota bene la tua password. Per ora il tuo indirizzo non viene verificato.",
+   "src": "1e49e8ba46b6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.password_changed": {
+   "text": "Password modificata.",
+   "src": "85c77e65d6cf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.reset_intro": {
+   "text": "Scegli una nuova password. Gli altri dispositivi connessi verranno disconnessi.",
+   "src": "3122d3d649a1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.reset_ok": {
+   "text": "Password modificata, sei connesso.",
+   "src": "79ca0d5696ae",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_confirm": {
+   "text": "Collegare l’account Google {email} a questo account DIG!? Poi potrai accedere con Google. I tuoi progressi non cambiano.",
+   "src": "2778de05bb17",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_continue": {
+   "text": "Continua con Google",
+   "src": "00f2a7ef9f73",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_link_hint": {
+   "text": "Conferma la tua password, poi accedi a Google. I tuoi progressi non cambiano.",
+   "src": "6701ae53c016",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_link_title": {
+   "text": "Collega un account Google",
+   "src": "f014ed9e5c0c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_linked_as": {
+   "text": "Google: {email}",
+   "src": "51c83ec8bf2e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_already": {
+   "text": "Un altro account Google è già collegato a questo account.",
+   "src": "ccd907aa18e7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_cancelled": {
+   "text": "Accesso con Google annullato.",
+   "src": "02c43f96d571",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_error": {
+   "text": "L’accesso con Google non è riuscito. Riprova.",
+   "src": "612fd79dfd48",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_linked": {
+   "text": "Account Google collegato al tuo account DIG!.",
+   "src": "a479621bda09",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_notallowed": {
+   "text": "L’accesso con Google non è ancora disponibile per questo account.",
+   "src": "049d8c6fa39f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_ok": {
+   "text": "Accesso effettuato con Google.",
+   "src": "0a8c9fc709f7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_pending": {
+   "text": "Account Google non collegato: accedi per collegarlo.",
+   "src": "7544f6614d5b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_taken": {
+   "text": "Questo account Google è già collegato a un altro account DIG!.",
+   "src": "e63616766e78",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_msg_unavailable": {
+   "text": "Accesso con Google non disponibile al momento.",
+   "src": "28d32aa71bff",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_pending_hint": {
+   "text": "Questo account Google non è collegato a nessun account DIG!. Accedi qui sopra con nome utente e password per collegarlo.",
+   "src": "8307b3a95541",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_unlink_hint": {
+   "text": "Poi accederai con la tua password. Gli altri dispositivi verranno disconnessi.",
+   "src": "085d068ac232",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_unlink_title": {
+   "text": "Scollega l’account Google",
+   "src": "2d0943bcc7e5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.social_unlinked": {
+   "text": "Account Google scollegato.",
+   "src": "63aa651e52cc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.tab_login": {
+   "text": "Accedi",
+   "src": "da8e94f0cbf5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.tab_register": {
+   "text": "Crea un account",
+   "src": "8f9ece5c1736",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.title": {
+   "text": "Account",
+   "src": "9a183d1564e3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.verify_fail": {
+   "text": "Link di conferma non valido o scaduto.",
+   "src": "b747ed49598e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.verify_ok": {
+   "text": "Indirizzo e-mail confermato!",
+   "src": "8c278fa2d379",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.verify_sent": {
+   "text": "E-mail inviata: clicca sul link che contiene.",
+   "src": "553ca1c8a182",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.accept": {
+   "text": "Accetto",
+   "src": "afe4d1deea5a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.consent_text": {
+   "text": "DIG! è gratuito. Per finanziarlo, in alto sullo schermo, lontano dalla zona di gioco, può comparire un piccolo banner. Accetti che la concessionaria pubblicitaria usi i cookie per mostrare e misurare i suoi annunci? Se rifiuti, la tua partita non cambia.",
+   "src": "60962a9ae135",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.consent_title": {
+   "text": "Pubblicità e privacy",
+   "src": "9ef5fdf977f2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.grant": {
+   "text": "Accetta i banner",
+   "src": "0623e9367c6c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.label": {
+   "text": "Pubblicità",
+   "src": "581778703c17",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.more": {
+   "text": "Scopri di più",
+   "src": "e2e0f10acedd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.privacy_link": {
+   "text": "Privacy, cookie e contatti",
+   "src": "087a3305e263",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.refuse": {
+   "text": "Rifiuto",
+   "src": "c349be92f262",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.settings_denied": {
+   "text": "Hai rifiutato i banner pubblicitari: non ne viene caricato nessuno.",
+   "src": "82a0b2992292",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.settings_granted": {
+   "text": "Hai accettato i banner pubblicitari.",
+   "src": "349bff9fd749",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.settings_title": {
+   "text": "📢 Pubblicità",
+   "src": "b492da617243",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.settings_unset": {
+   "text": "Non hai ancora fatto una scelta.",
+   "src": "119d04fc4fcd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ads.withdraw": {
+   "text": "Ritira il mio consenso",
+   "src": "3092d18807bc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.archived": {
+   "text": "Ritirato",
+   "src": "b7ec3a1ce2d2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.count": {
+   "text": "{n} / {total} ottenuti",
+   "src": "18b2c3a601d7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.earned_on": {
+   "text": "Ottenuto il {date}",
+   "src": "aecfff1956fb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.empty": {
+   "text": "Nessun badge per ora.",
+   "src": "d8175bfcf251",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.error": {
+   "text": "Badge non disponibili al momento.",
+   "src": "356127b18e42",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.event_until": {
+   "text": "Evento fino al {date}",
+   "src": "584195424916",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.hidden": {
+   "text": "Badge segreto",
+   "src": "4d465b232c18",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.hidden_desc": {
+   "text": "Continua a scavare per scoprirlo.",
+   "src": "2d2390b9594b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.intro": {
+   "text": "Badge onorifici: non danno né monete, né gemme, né punti. Registrati dal {date}.",
+   "src": "6a4d9e6977f6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.loading": {
+   "text": "Caricamento dei badge…",
+   "src": "e2b32f01136c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.login": {
+   "text": "Accedi per seguire i tuoi badge.",
+   "src": "946848c153c1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.progress": {
+   "text": "{value} / {target}",
+   "src": "438c789da091",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.section": {
+   "text": "🏅 Badge e traguardi",
+   "src": "70c32d516728",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.toast": {
+   "text": "Badge ottenuto: {name}",
+   "src": "c096c76f7664",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.banner": {
+   "text": "🧪 BETA — gioco in sviluppo",
+   "src": "11f622f75ce0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.banner_close": {
+   "text": "Nascondi il banner",
+   "src": "1732f551ce82",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.banner_report": {
+   "text": "🐞 Segnala un bug",
+   "src": "28e6acde9029",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.cancel": {
+   "text": "Chiudi",
+   "src": "50eadd29b11c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.copied": {
+   "text": "Copiato: incollalo in #bugs.",
+   "src": "8cb7936e5f89",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.copy": {
+   "text": "📋 Copia per Discord",
+   "src": "07ebed5d6943",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.diag_label": {
+   "text": "Allega le informazioni tecniche (versione, browser, dimensioni dello schermo, lingua, schermata del gioco)",
+   "src": "d401db01a167",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.diag_preview": {
+   "text": "Vedi esattamente cosa verrà inviato",
+   "src": "9b9a5fb6776c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.discord": {
+   "text": "💬 Unisciti al Discord della beta",
+   "src": "26b2fa1986ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.err_closed": {
+   "text": "Le iscrizioni sono chiuse al momento. Se hai già un account, accedi.",
+   "src": "e65c95acfec9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.err_invite_invalid": {
+   "text": "Questo codice d’invito non è valido (già usato o scaduto). Chiedi un nuovo link a chi ti ha invitato.",
+   "src": "2945f4180af8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.err_invite_required": {
+   "text": "Per ora ci si iscrive solo su invito: apri il link che hai ricevuto.",
+   "src": "5427c90b3b4a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.err_send": {
+   "text": "Invio impossibile al momento.",
+   "src": "9300079573c7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.err_short": {
+   "text": "Descrivi cosa è successo (almeno 5 caratteri).",
+   "src": "633bf540583c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.field_device": {
+   "text": "Dispositivo e browser",
+   "src": "89e5d7a160b2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.field_expected": {
+   "text": "Risultato atteso",
+   "src": "06b9c0b3af28",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.field_observed": {
+   "text": "Cosa è successo (obbligatorio)",
+   "src": "a55eb77feaea",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.field_step": {
+   "text": "Passaggio (dov’eri, cosa stavi facendo?)",
+   "src": "3f756b176744",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.have_account": {
+   "text": "Ho già un account: accedi",
+   "src": "1b5e83d22291",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.invite_dead": {
+   "text": "Questo link d’invito non è più valido (già usato o scaduto). Chiedi un nuovo link a chi ti ha invitato.",
+   "src": "f8b3154f0f85",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.invite_label": {
+   "text": "Codice d’invito",
+   "src": "51d7b36fcfc7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.invite_required": {
+   "text": "Iscrizione su invito: apri il link che hai ricevuto, oppure incolla qui il codice che contiene.",
+   "src": "7699bc0970f2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.invite_welcome": {
+   "text": "🎟️ Sei invitato alla beta di DIG! Scegli un nickname, la tua e-mail e una password: è tutto.",
+   "src": "ad2c90369331",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.issue_link": {
+   "text": "dettagli",
+   "src": "ac807b7311f3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.known_title": {
+   "text": "Bug noti",
+   "src": "c903169fa338",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.mine_empty": {
+   "text": "Nessuna segnalazione inviata.",
+   "src": "ff9734c5b1fb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.mine_title": {
+   "text": "Le mie segnalazioni",
+   "src": "ff4bb6ee8175",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.modal_intro": {
+   "text": "Descrivi cosa stavi facendo, cosa ti aspettavi e cosa è successo. Per uno screenshot, pubblicalo su Discord.",
+   "src": "345be7fd4846",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.modal_title": {
+   "text": "🐞 Segnala un bug",
+   "src": "28e6acde9029",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.policy_default": {
+   "text": "Gioco in sviluppo: durante la beta i progressi possono essere modificati o azzerati e non è promessa alcuna ricompensa reale.",
+   "src": "44660f8a92e4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.report": {
+   "text": "🐞 Segnala un bug",
+   "src": "28e6acde9029",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.section": {
+   "text": "🧪 Beta",
+   "src": "c16fdcad22b1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.send": {
+   "text": "Invia",
+   "src": "df1d6c001ecf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.sent": {
+   "text": "Grazie! Segnalazione n. {id} ricevuta.",
+   "src": "665fa340fe3d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.status_fixed": {
+   "text": "risolta",
+   "src": "5005c2d5de3a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.status_new": {
+   "text": "ricevuta",
+   "src": "5602d7f6c7d6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.status_seen": {
+   "text": "in analisi",
+   "src": "72da5c2ad0ad",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.status_wontfix": {
+   "text": "non accolta",
+   "src": "2633d64ab578",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.version": {
+   "text": "Versione: {v}",
+   "src": "ce7a072a646a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.amethyste": {
+   "text": "Ametista",
+   "src": "0af7c453c9d3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.argile": {
+   "text": "Argilla",
+   "src": "42e4ca25083b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.charbon": {
+   "text": "Carbone",
+   "src": "60e4369ed1c6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.coffre_bois": {
+   "text": "Forziere di legno",
+   "src": "e4c90e068944",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.coffre_fer": {
+   "text": "Forziere di ferro",
+   "src": "00ca904ade5f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.cristal_ancien": {
+   "text": "Cristallo antico",
+   "src": "9a67cc5a873d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.diamant": {
+   "text": "Diamante",
+   "src": "e648f7dd1e8e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.emeraude": {
+   "text": "Smeraldo",
+   "src": "01aa3bc84368",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.fer_meteorique": {
+   "text": "Ferro meteorico",
+   "src": "48ff55e94758",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.granite": {
+   "text": "Granito",
+   "src": "d0fca28cc77d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.gres": {
+   "text": "Arenaria",
+   "src": "65d3392a77de",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.minerai_argent": {
+   "text": "Minerale d’argento",
+   "src": "a42e0a65545b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.minerai_fer": {
+   "text": "Minerale di ferro",
+   "src": "ba598288e9a6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.minerai_or": {
+   "text": "Minerale d’oro",
+   "src": "dd7dbffd0995",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.minerai_platine": {
+   "text": "Minerale di platino",
+   "src": "6c365e79f6cf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.obsidienne": {
+   "text": "Ossidiana",
+   "src": "5044d2043fce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.pierre": {
+   "text": "Pietra",
+   "src": "dad08b9dd198",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.quartz": {
+   "text": "Quarzo",
+   "src": "d95d7660c08c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.rubis": {
+   "text": "Rubino",
+   "src": "ebe89a9adb52",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.saphir": {
+   "text": "Zaffiro",
+   "src": "5f88d3d55055",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.terre_meuble": {
+   "text": "Terra smossa",
+   "src": "bb747b160464",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "block.vieille_caisse": {
+   "text": "Vecchia cassa",
+   "src": "11ee6fa6ee85",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.boost": {
+   "text": "⚡ Boost ×{mult} delle monete dei blocchi — {minutes} min",
+   "src": "ae1e10b45c5f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.btn": {
+   "text": "ℹ️ Ricompense e probabilità",
+   "src": "e085c00572eb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.close": {
+   "text": "Chiudi",
+   "src": "50eadd29b11c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.coins": {
+   "text": "💰 {min} – {max} monete",
+   "src": "1ee237ce3e30",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.col_chance": {
+   "text": "Probabilità",
+   "src": "953ca0c9e6a3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.col_reward": {
+   "text": "Ricompensa",
+   "src": "fdbe698f0c50",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.collection": {
+   "text": "📿 1 oggetto da collezione",
+   "src": "a465f40969ff",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.error": {
+   "text": "Impossibile caricare le probabilità al momento. Riprova tra un attimo.",
+   "src": "0172fb1f7262",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.jackpot": {
+   "text": "jackpot",
+   "src": "0ea54a12804d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.limit": {
+   "text": "Massimo {max} aperture per stagione ({n}/{max} in questa stagione).",
+   "src": "88055eef648c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.loading": {
+   "text": "Caricamento…",
+   "src": "f1064fdbc651",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.price": {
+   "text": "Prezzo: 💰 {cost} monete",
+   "src": "c8d9e25d973a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.relics": {
+   "text": {
+    "$n": "n",
+    "one": "🔮 {n} frammento",
+    "other": "🔮 {n} frammenti"
+   },
+   "src": "f12818f263eb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.relics_you": {
+   "text": "ne ricevi {n}",
+   "src": "8f1fe64d09f6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.rule_boost": {
+   "text": "Boost: moltiplica le monete guadagnate sui blocchi per tutta la sua durata (non i forzieri).",
+   "src": "9407a6418606",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.rule_coins": {
+   "text": "Monete: importo estratto a caso nell’intervallo, con pari probabilità. Non vengono moltiplicate né dalla Sacca, né dalle reliquie, né dai boost.",
+   "src": "0acd289ad367",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.rule_collection": {
+   "text": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora ({missing} per te, cioè {pct} % ciascuno). Collezione completa: {n} frammenti al suo posto (senza bonus).",
+   "src": "791a3fb0b9a2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.rule_collection_full": {
+   "text": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora. La tua collezione è completa: riceveresti {n} frammenti al suo posto (senza bonus).",
+   "src": "efc0201c0d45",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.rule_draw": {
+   "text": "Un’apertura = una sola estrazione. La percentuale è la probabilità di ottenere quel tipo di ricompensa; la quantità ricevuta è indicata accanto.",
+   "src": "9d604d008638",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.rule_fragments": {
+   "text": "Frammenti ricevuti = (quantità + bonus della Calamita di schegge, da +1 a +5 secondo il livello){mult}, arrotondato, almeno 1.",
+   "src": "60a2c172b833",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.rule_fragments_mult": {
+   "text": " × {mult} (bonus frammenti del gioco)",
+   "src": "b40d2b9b91ee",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.title": {
+   "text": "{name} — ricompense e probabilità",
+   "src": "a31d15947804",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "chest_odds.unlimited": {
+   "text": "Aperture illimitate.",
+   "src": "3176d5016559",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.archives": {
+   "text": "🗄 Archivio delle stagioni passate",
+   "src": "a27457254ffe",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.close": {
+   "text": "Chiudi",
+   "src": "50eadd29b11c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.found_before": {
+   "text": "Trovato prima che si registrassero le date",
+   "src": "564eba33fc10",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.found_on": {
+   "text": "Trovato il {date}",
+   "src": "b3a414b9677f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.quantity": {
+   "text": "Quantità: {n}",
+   "src": "4c58b4b5accf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.series_origins": {
+   "text": "Collezione delle origini",
+   "src": "0914c3bc6091",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.unknown_archived": {
+   "text": "Questo oggetto apparteneva a una stagione conclusa: non è stato trovato in tempo.",
+   "src": "020e31338567",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.unknown_story": {
+   "text": "Nessuno sa ancora cosa si nasconda qui… Continua a scavare!",
+   "src": "efbe0654bc99",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "collection.unknown_title": {
+   "text": "Oggetto non scoperto",
+   "src": "7684b15957cb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.count": {
+   "text": "{n} / {total} trovati",
+   "src": "43b1701d7f04",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.found_on": {
+   "text": "Trovato il {date}",
+   "src": "b3a414b9677f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.keep": {
+   "text": "Gli oggetti trovati restano nella tua collezione anche dopo l’evento.",
+   "src": "b32dc39e9245",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.section": {
+   "text": "🎉 Eventi",
+   "src": "981308f1fdee",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.souvenirs": {
+   "text": "Ricordi degli eventi",
+   "src": "ef7a11f503bb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.test": {
+   "text": "TEST (visibile solo ai tester)",
+   "src": "d7f3b78f72a4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.toast": {
+   "text": "Oggetto dell’evento trovato: {name}",
+   "src": "d29bb1d6b7d2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.unknown": {
+   "text": "Oggetto misterioso: continua a scavare durante l’evento.",
+   "src": "dfa09f9565f3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.until": {
+   "text": "Fino al {date}",
+   "src": "c4ef95d9cf18",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.upcoming": {
+   "text": "Presto: {name} — dal {date}",
+   "src": "465dd48aa356",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.coin.desc": {
+   "text": "Una moneta di una civiltà dimenticata da tempo.",
+   "src": "f038d4a70723",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.coin.name": {
+   "text": "Moneta antica",
+   "src": "0d416a6e864f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.crown.desc": {
+   "text": "La corona di un re dimenticato da tempo.",
+   "src": "aebcdd93ec48",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.crown.name": {
+   "text": "Corona spezzata",
+   "src": "160f9b5c06cb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.crystal.desc": {
+   "text": "Un cristallo dai riflessi azzurri, nato sotto pressione.",
+   "src": "5084e6098a35",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.crystal.name": {
+   "text": "Cristallo blu",
+   "src": "3bf3c81e8e09",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.fossil.desc": {
+   "text": "Un osso pietrificato vecchio di millenni.",
+   "src": "b562a636e335",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.fossil.name": {
+   "text": "Fossile",
+   "src": "3498074b5e46",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.map.desc": {
+   "text": "Un pezzo di mappa che porta verso l’ignoto.",
+   "src": "ceaa67b63e9f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.map.name": {
+   "text": "Frammento di mappa",
+   "src": "4590f613cb92",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.orb.desc": {
+   "text": "Una sfera che sembra contenere un’intera galassia.",
+   "src": "9bc72b8c91af",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.orb.name": {
+   "text": "Sfera misteriosa",
+   "src": "b2341a142c73",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.relic.desc": {
+   "text": "Un vaso rotto di un’epoca passata.",
+   "src": "a47b9c580ba0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.relic.name": {
+   "text": "Reperto",
+   "src": "6598d6533e7b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.tooth.desc": {
+   "text": "Un dente affilato di una creatura sotterranea.",
+   "src": "ac1dc3a7da25",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "find.tooth.name": {
+   "text": "Dente di mostro",
+   "src": "729853906306",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.b_closed": {
+   "text": "Scambi chiusi",
+   "src": "984389ec9f87",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.b_expired": {
+   "text": "Scaduto",
+   "src": "54c8d7c5f492",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.b_not_started": {
+   "text": "Presto",
+   "src": "d46e442d68b7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.b_out_of_stock": {
+   "text": "Esaurito",
+   "src": "44ca1d228d24",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.b_real_locked": {
+   "text": "Presto",
+   "src": "d46e442d68b7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.b_short": {
+   "text": "Mancano {n} pt",
+   "src": "f54b59c1f8d4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.b_unavailable": {
+   "text": "Non disponibile",
+   "src": "81440a696f7f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.btn": {
+   "text": "Scambia",
+   "src": "cf432937fb98",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.cancel": {
+   "text": "Annulla",
+   "src": "af12de10a27c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.cancel_confirm": {
+   "text": "Annullare questo ordine? I punti verranno rimborsati.",
+   "src": "97a55deb05e5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.conditions": {
+   "text": "Condizioni",
+   "src": "4859ee3a5984",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.confirm": {
+   "text": "Scambiare {cost} con «{title}»?\n\nSaldo dopo lo scambio: {after}.\nPuoi annullare finché l’ordine è «in attesa» (punti rimborsati).",
+   "src": "07bff9059c64",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.cost": {
+   "text": "{n} pt",
+   "src": "963a5051cc8d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.done": {
+   "text": "Scambio registrato: «{title}». Segui il tuo ordine in «I miei scambi».",
+   "src": "6e938d7695e0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.empty": {
+   "text": "Ancora nessun regalo: il catalogo apre presto. I tuoi punti restano tuoi.",
+   "src": "fea0f01a3339",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.error": {
+   "text": "Scambio impossibile: {msg}",
+   "src": "980caab84e67",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.face_value": {
+   "text": "Valore: {v}",
+   "src": "978ce378b5c5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.help": {
+   "text": "Consegna: le ricompense virtuali vengono consegnate dal team DIG! entro pochi giorni. Un problema? Rispondi a un’e-mail del gioco o contatta l’assistenza indicando il numero dell’ordine.",
+   "src": "d5cf2ac53ac0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.intro": {
+   "text": "Scambia i tuoi punti premio con dei regali. Niente fortuna: scegli tu.",
+   "src": "08050160a242",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.min_age": {
+   "text": "Dai {n} anni",
+   "src": "47af2b64efb4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.network": {
+   "text": "Rete non disponibile: riprova tra un attimo (nessun doppio addebito possibile).",
+   "src": "c75bb395e9f3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.orders_empty": {
+   "text": "Nessuno scambio per ora.",
+   "src": "53b820de9376",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.orders_toggle": {
+   "text": "I miei scambi",
+   "src": "3f9909906446",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.per_user": {
+   "text": "Max. {n} per giocatore",
+   "src": "9df675b989be",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.real_note": {
+   "text": "Regali reali: presto. Gli scambi non sono ancora aperti.",
+   "src": "04a8344a5f55",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.s_cancelled": {
+   "text": "Annullato (rimborsato)",
+   "src": "5f75a3eb0b88",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.s_delivered": {
+   "text": "Consegnato",
+   "src": "4ffc16075abe",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.s_pending": {
+   "text": "In attesa",
+   "src": "692b22ea0471",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.s_processing": {
+   "text": "In preparazione",
+   "src": "013f08be0af4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.stock": {
+   "text": "Disponibili: {n}",
+   "src": "e18b2cbc1710",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.territories": {
+   "text": "Paesi: {list}",
+   "src": "8201d58b080a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.title": {
+   "text": "🎁 Negozio dei regali",
+   "src": "a0c09596d631",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.until": {
+   "text": "Fino al {d}",
+   "src": "e3aa8e81003f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.break_blocks.desc": {
+   "text": "Rompi {t} blocchi",
+   "src": "f463c526e562",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.break_blocks.name": {
+   "text": "Spaccatutto",
+   "src": "ea72087c8625",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.buy_upgrades.desc": {
+   "text": {
+    "$n": "t",
+    "one": "Compra {t} potenziamento",
+    "other": "Compra {t} potenziamenti"
+   },
+   "src": "eec6a230a9b5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.buy_upgrades.name": {
+   "text": "Fai-da-te",
+   "src": "ce8acaceac06",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.depth_gain.desc": {
+   "text": "Scava {t} m più a fondo",
+   "src": "ae3378ed350e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.depth_gain.name": {
+   "text": "Esploratore del giorno",
+   "src": "2dd3411a3758",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.earn_coins.desc": {
+   "text": "Guadagna {t} monete",
+   "src": "46ad16a40ab1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.earn_coins.name": {
+   "text": "Accumulatore",
+   "src": "9d5171b50ba6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.find_gems.desc": {
+   "text": {
+    "$n": "t",
+    "one": "Trova {t} gemma",
+    "other": "Trova {t} gemme"
+   },
+   "src": "db2b031bbe33",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.find_gems.name": {
+   "text": "Gemmologo",
+   "src": "fb7cca882e2d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.open_chests.desc": {
+   "text": {
+    "$n": "t",
+    "one": "Apri {t} forziere",
+    "other": "Apri {t} forzieri"
+   },
+   "src": "83556eb2c366",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "mission.open_chests.name": {
+   "text": "Cacciatore di tesori",
+   "src": "d2f65e310c69",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.collection": {
+   "text": "Collezione",
+   "src": "d29165c9d4bf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.collection_aria": {
+   "text": "Collezione",
+   "src": "d29165c9d4bf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.daily": {
+   "text": "Giornaliero",
+   "src": "11a9c31039b5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.daily_aria": {
+   "text": "Ricompensa giornaliera",
+   "src": "54f75af14ff2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.dig": {
+   "text": "Scava",
+   "src": "7476ff0a2bef",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.dig_aria": {
+   "text": "Scava",
+   "src": "2428670485b8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.main_aria": {
+   "text": "Navigazione principale",
+   "src": "feed8a7ce79c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.season_aria": {
+   "text": "Stagione",
+   "src": "db9cef872dd5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.shop": {
+   "text": "Negozio",
+   "src": "a2cd15505aed",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.shop_aria": {
+   "text": "Negozio",
+   "src": "a2cd15505aed",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.upgrades": {
+   "text": "Potenzia",
+   "src": "82b0832eb4ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "nav.upgrades_aria": {
+   "text": "Potenziamenti",
+   "src": "7e9771e728a7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.close": {
+   "text": "Chiudi le notizie",
+   "src": "da5ffecbf338",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.discord": {
+   "text": "💬 Unisciti al Discord",
+   "src": "df8499b090fe",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.empty_latest": {
+   "text": "Nessuna notizia al momento.",
+   "src": "980332ad7d58",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.empty_upcoming": {
+   "text": "Niente in programma per ora.",
+   "src": "77a059e99b03",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.latest": {
+   "text": "Ultime notizie",
+   "src": "8823f100b900",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.mentions": {
+   "text": "Accetto che il mio nickname compaia nelle notizie quando compio un’impresa (profondità, classifica finale). Non viene pubblicato nient’altro; posso togliere la spunta in qualsiasi momento.",
+   "src": "2d95257d2150",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.new": {
+   "text": "Novità",
+   "src": "24b761635c52",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.offline": {
+   "text": "Notizie non disponibili (sei offline?). Riprova più tardi.",
+   "src": "b2d72c7d1312",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.open_link": {
+   "text": "Scopri di più",
+   "src": "e2e0f10acedd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.read_more": {
+   "text": "Continua a leggere",
+   "src": "65b6a6db0a00",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.title": {
+   "text": "Notizie",
+   "src": "716f6bee84e3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.unread": {
+   "text": "{n} da leggere",
+   "src": "b68a9bb883f9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.upcoming": {
+   "text": "In arrivo",
+   "src": "c84dbc385ed0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.ad_bonus": {
+   "text": "+{amount} 💰 bonus pubblicità!",
+   "src": "ae5ff1e987a4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.boost_activated": {
+   "text": "Boost ×{mult} attivo!",
+   "src": "d6217a3a54d8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.chest_float": {
+   "text": "📦 FORZIERE!",
+   "src": "3b3ff3da2085",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.cloud_resumed": {
+   "text": "Progressi ripresi dal server (altro dispositivo o intervento admin).",
+   "src": "7d583d20b45b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.cloud_save_error": {
+   "text": "Salvataggio online impossibile per ora: i tuoi progressi restano salvati su questo dispositivo, nuovo tentativo automatico.",
+   "src": "e60e2757e4ee",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.cloud_save_restored": {
+   "text": "Salvataggio online ripristinato.",
+   "src": "7419e7b9c5c9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.coin_float": {
+   "text": "+{amount} 💰",
+   "src": "a0954d75625d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.daily_reward": {
+   "text": "Giorno {day}: {parts}!",
+   "src": "168bf9b603a3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.damage_float": {
+   "text": "-{amount}",
+   "src": "9e8f708a5675",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.find_drop": {
+   "text": "{name} trovato!",
+   "src": "0058c666d062",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.gem_float": {
+   "text": "✨ GEMMA!",
+   "src": "431171142133",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.gems_added": {
+   "text": "💎 +{amount}",
+   "src": "272523673d64",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.mission_done": {
+   "text": "Missione: {parts}!",
+   "src": "d9001537fe3b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.quest_done": {
+   "text": "{name} completato!",
+   "src": "466183519850",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.relic_unlocked": {
+   "text": "{name} sbloccata!",
+   "src": "dbbc3adbd822",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.relic_upgraded": {
+   "text": "{name} livello {n}!",
+   "src": "35b8d8043632",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.save_conflict": {
+   "text": "Progressi aggiornati dal server (altro dispositivo o intervento admin).",
+   "src": "8a397d28d0d6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "notif.skin_activated": {
+   "text": "Skin attivata!",
+   "src": "4416d441098f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.balance": {
+   "text": "Saldo:",
+   "src": "eac226b34604",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.history_empty": {
+   "text": "Nessun movimento per ora.",
+   "src": "0cbf2fb2c8ed",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.history_toggle": {
+   "text": "Cronologia",
+   "src": "58354f9996d1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.k_admin_credit": {
+   "text": "Rettifica",
+   "src": "de379c86296d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.k_admin_debit": {
+   "text": "Rettifica",
+   "src": "de379c86296d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.k_refund": {
+   "text": "Rimborso",
+   "src": "68a232e606d3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.k_season_award": {
+   "text": "Fine stagione",
+   "src": "3b9fe771dde7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.k_spend": {
+   "text": "Scambio",
+   "src": "705ca22afe6b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.league_note": {
+   "text": "Bonus lega: +{p} % per livello.",
+   "src": "22d2193fda79",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.live": {
+   "text": "Accredito reale attivo: i tuoi punti verranno aggiunti al saldo a fine stagione.",
+   "src": "337c763f00fd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.potential": {
+   "text": "Se la stagione finisse ora: posizione #{rank} su {n} → {tier}: +{pts} pt",
+   "src": "df7a160697d9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.potential_none": {
+   "text": "Rompi blocchi a mano e scendi in profondità per guadagnare punti a fine stagione.",
+   "src": "b5b4d18750af",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.pts": {
+   "text": "{n} pt",
+   "src": "963a5051cc8d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.rules": {
+   "text": "Punti conservati da una stagione all’altra. Non convertibili in monete, gemme o denaro, non trasferibili. Si scambiano nel negozio dei regali qui sotto.",
+   "src": "3d2c48495535",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.scale_toggle": {
+   "text": "Tabella di fine stagione",
+   "src": "45ffda5494c1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.shop_link": {
+   "text": "🎁 Apri il negozio dei regali ({n} articoli)",
+   "src": "299d376ba491",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.sim_award": {
+   "text": "simulazione",
+   "src": "f0a0647d000c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.simulation": {
+   "text": "Anteprima: la tabella non è ancora confermata. I punti vengono calcolati ma non ancora accreditati.",
+   "src": "d07747334fcc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.tied": {
+   "text": "pari merito",
+   "src": "b85b66fc7d2b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.tier_active": {
+   "text": "Altri partecipanti",
+   "src": "07e5b31948c7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.tier_min": {
+   "text": "da {n} partecipanti",
+   "src": "d0c66b17ecda",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.tier_pct": {
+   "text": "Top {p} %",
+   "src": "b63c12d09bd3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.tier_rank": {
+   "text": "{n}° in classifica",
+   "src": "a891d1e71036",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.tier_ranks": {
+   "text": "Top {n}",
+   "src": "0565a28b0d9d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.ties_note": {
+   "text": "Pari merito perfetto: la categoria migliore per tutti.",
+   "src": "55753eeb97ef",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "points.title": {
+   "text": "🏅 Punti premio",
+   "src": "6ddedf77eba2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.break10.desc": {
+   "text": "Rompi 10 blocchi",
+   "src": "30610ba0abeb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.break10.name": {
+   "text": "Primo colpo",
+   "src": "8e957651e2ec",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.coins100.desc": {
+   "text": "Guadagna 100 monete in totale",
+   "src": "a220741ce99f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.coins100.name": {
+   "text": "Primo tesoro",
+   "src": "982cd7f2c097",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.depth25.desc": {
+   "text": "Raggiungi la profondità di 25m",
+   "src": "0a92a5232f56",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.depth25.name": {
+   "text": "Esploratore",
+   "src": "cc68a34eed84",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.find_gem.desc": {
+   "text": "Trova un blocco gemma",
+   "src": "f58379e0c3af",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.find_gem.name": {
+   "text": "Una gemma!",
+   "src": "f1928573186b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.upgrade5.desc": {
+   "text": "Compra 5 potenziamenti",
+   "src": "b391be10a6a6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "quest.upgrade5.name": {
+   "text": "Artigiano",
+   "src": "638187fbe8fe",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "rarity.commun": {
+   "text": "Comune",
+   "src": "b508824eb19d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "rarity.epique": {
+   "text": "Epico",
+   "src": "ae3a626674df",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "rarity.legendaire": {
+   "text": "Leggendario",
+   "src": "6b9f22974331",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "rarity.peu_commun": {
+   "text": "Non comune",
+   "src": "f02f4b025a88",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "rarity.rare": {
+   "text": "Raro",
+   "src": "4930a3baf81c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.ancient_engine.bonus": {
+   "text": "+3 danni auto/sec",
+   "src": "c6c89025478a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.ancient_engine.desc": {
+   "text": "Una macchina vecchissima che scava senza sosta.",
+   "src": "793726b9d709",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.ancient_engine.name": {
+   "text": "Motore antico",
+   "src": "00ac163d0d36",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.bonus_types.autodig_bonus": {
+   "text": "+{n} danni auto/sec",
+   "src": "5d9e7aaf28d2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.bonus_types.coins_pct": {
+   "text": "+{n}% monete",
+   "src": "714e3382e88e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.bonus_types.damage_flat": {
+   "text": {
+    "$n": "n",
+    "one": "+{n} danno/clic",
+    "other": "+{n} danni/clic"
+   },
+   "src": "4e64ccc7bb5f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.bonus_types.hp_reduction": {
+   "text": "-{n}% HP blocchi",
+   "src": "503d31fd753f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.bonus_types.luck_pct": {
+   "text": "+{n}% blocchi rari",
+   "src": "18fdfb8263c4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.bonus_types.relic_fragment_bonus": {
+   "text": {
+    "$n": "n",
+    "one": "+{n} frammento/forziere",
+    "other": "+{n} frammenti/forziere"
+   },
+   "src": "f1a48f539c9d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.cracked_lens.bonus": {
+   "text": "+30% blocchi rari",
+   "src": "cc002a1948db",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.cracked_lens.desc": {
+   "text": "Anche rotta, rivela i minerali più rari.",
+   "src": "89f412a202dc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.cracked_lens.name": {
+   "text": "Lente incrinata",
+   "src": "140a1b9ef741",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.eye_of_miner.bonus": {
+   "text": "+2 danni per clic",
+   "src": "43f177217079",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.eye_of_miner.desc": {
+   "text": "Lo sguardo di un minatore leggendario. Ogni colpo è più forte.",
+   "src": "429d1a6146a8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.eye_of_miner.name": {
+   "text": "Occhio del minatore",
+   "src": "84b75174b3c4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.golden_heart.bonus": {
+   "text": "+25% monete",
+   "src": "245f82674476",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.golden_heart.desc": {
+   "text": "Un cuore forgiato in oro puro. Le monete arrivano più numerose.",
+   "src": "3ed504faaeac",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.golden_heart.name": {
+   "text": "Cuore d’oro",
+   "src": "379b0279cc7d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.level_label": {
+   "text": "Lv. {cur}/{max}",
+   "src": "21fca4506114",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.obsidian_claw.bonus": {
+   "text": "-15% HP dei blocchi",
+   "src": "801b12a9631a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.obsidian_claw.desc": {
+   "text": "Nato nelle profondità. I blocchi si sbriciolano sotto la sua pressione.",
+   "src": "1c440efc9133",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.obsidian_claw.name": {
+   "text": "Artiglio d’ossidiana",
+   "src": "86879713ae77",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.shard_magnet.bonus": {
+   "text": "+1 frammento per forziere",
+   "src": "675abba0787f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.shard_magnet.desc": {
+   "text": "Attira i frammenti dalle profondità. I forzieri ne danno di più.",
+   "src": "446190529476",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "relic.shard_magnet.name": {
+   "text": "Calamita di schegge",
+   "src": "12b6e728a87f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.blocks_label": {
+   "text": "Blocchi a mano",
+   "src": "2b065a3e597e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.collection": {
+   "text": "Collezione della stagione: {name} ({n} oggetti)",
+   "src": "e956c0ccc3d3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.depth_label": {
+   "text": "Prof. max",
+   "src": "46d23258f7c0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.empty": {
+   "text": "Nessun giocatore attivo per ora.",
+   "src": "54c969fe1a72",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.ends_at": {
+   "text": "Fine: {date}",
+   "src": "f8e8780bc8bb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.ends_in": {
+   "text": "Fine tra {d}g {h}h",
+   "src": "4e541e0fff41",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.ends_in_hm": {
+   "text": "Fine tra {h}h {m}min",
+   "src": "04c9686ac5f1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.error": {
+   "text": "Impossibile caricare la stagione per ora.",
+   "src": "5e971906646b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.history_title": {
+   "text": "Stagioni precedenti",
+   "src": "c2331098f623",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.intro": {
+   "text": "A fine stagione monete, profondità e potenziamenti vengono azzerati. Gemme, frammenti, reliquie e bonus permanenti si conservano sempre.",
+   "src": "6a1d930b0ea7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.k_bonuses": {
+   "text": "Bonus permanenti",
+   "src": "e84ffb5afa06",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.k_frags": {
+   "text": "Frammenti",
+   "src": "45df20871d7f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.k_gems": {
+   "text": "Gemme",
+   "src": "a8eae194f66c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.k_points": {
+   "text": "Punti premio",
+   "src": "4b0dc4a4e2cc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.k_relics": {
+   "text": "Reliquie",
+   "src": "fb214b3eef03",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.kept_title": {
+   "text": "✅ Conservato",
+   "src": "668cfc7cdb27",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.r_boosts": {
+   "text": "Boost temporanei",
+   "src": "aa41e7d0a257",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.r_coins": {
+   "text": "Monete",
+   "src": "e1a27e027cc8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.r_depth": {
+   "text": "Profondità",
+   "src": "dfe8cf20b9ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.r_rank": {
+   "text": "Classifica",
+   "src": "936810fc69cb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.r_upgrades": {
+   "text": "Potenziamenti",
+   "src": "7e9771e728a7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.reset_title": {
+   "text": "🔄 Azzerato",
+   "src": "7131680b805a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.info.toggle": {
+   "text": "ℹ️ Come funziona la stagione?",
+   "src": "82e2b6d2e9d7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.deleted": {
+   "text": "Account eliminato",
+   "src": "d4689c4ecadc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.depth": {
+   "text": "{n} m",
+   "src": "19aa8fab0582",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.frozen": {
+   "text": "Classifica congelata il {date} · partecipanti: {p} · classificati: {e}",
+   "src": "422fcea06ca4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.hash": {
+   "text": "Impronta SHA-256:",
+   "src": "9feed0155051",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.me_absent": {
+   "text": "Non hai partecipato a questa stagione.",
+   "src": "9197568606f6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.me_ineligible": {
+   "text": "Non eri in classifica (nessuna profondità convalidata).",
+   "src": "5726a617711d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.me_points": {
+   "text": "+{n} pt accreditati",
+   "src": "1f01a2bb1cd9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.me_points_sim": {
+   "text": "+{n} pt (simulazione, non accreditati)",
+   "src": "1497bbcc2d48",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.me_rank": {
+   "text": "Il tuo risultato: posizione #{rank} su {n} · {depth} m",
+   "src": "c5d75d2092eb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.nobody": {
+   "text": "Nessun partecipante classificato: niente vincitore né punti per questa stagione.",
+   "src": "91f80a9e896b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.podium": {
+   "text": "Podio della stagione precedente",
+   "src": "93b67931b200",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.proof_link": {
+   "text": "Vedi la classifica congelata completa",
+   "src": "e8ad11203f89",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.proof_text": {
+   "text": "Questa classifica è stata congelata alla chiusura e non può più essere modificata. Vengono pubblicati solo i nickname e i punteggi.",
+   "src": "c28730e29845",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.proof_toggle": {
+   "text": "Prova pubblica",
+   "src": "05a54f6528d1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.rank_sr": {
+   "text": "Posizione {n}:",
+   "src": "4484ff6db7ff",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.title": {
+   "text": "🏁 Risultato — {name}",
+   "src": "2bb980f9a910",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.leaderboard": {
+   "text": "Classifica",
+   "src": "936810fc69cb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.league_hint": {
+   "text": "La tua lega è un livello duraturo: si sale con la promozione a fine stagione. Il tema, invece, cambia ogni settimana.",
+   "src": "612a7e3fd603",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.league_label": {
+   "text": "Lega",
+   "src": "fd2cc7ce15a9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.league_level": {
+   "text": "livello {n}",
+   "src": "a6278d88d77e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.loading": {
+   "text": "Caricamento…",
+   "src": "f1064fdbc651",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.merit.freeze": {
+   "text": "Il {date} la classifica viene congelata e pubblicata con un’impronta di controllo: non cambia più.",
+   "src": "804834ab8aaa",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.merit.join": {
+   "text": "Per partecipare: essere connesso e rompere almeno un blocco a mano durante la stagione.",
+   "src": "1af98f0b4020",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.merit.order": {
+   "text": "Ordine per merito: profondità massima convalidata dal server, poi blocchi rotti a mano, poi chi è arrivato per primo a quella profondità. Nessuna estrazione a sorte.",
+   "src": "7363354bf0a9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.merit.points": {
+   "text": "I punti premio vengono assegnati secondo la tabella dei punti, poi si scambiano nel negozio dei regali.",
+   "src": "84250ea97f75",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.merit.title": {
+   "text": "🏆 Come si stabilisce la classifica?",
+   "src": "19fbb0665f21",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.new_season": {
+   "text": "Nuova stagione! Buona fortuna a tutti!",
+   "src": "9d379ec3b3ff",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.new_season_named": {
+   "text": "Nuova stagione: {name}! Buona fortuna a tutti!",
+   "src": "57d0c671e6a4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.next_collection": {
+   "text": "Da scoprire: {name} — {n} oggetti da trovare",
+   "src": "d59870aac5ad",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.next_starts": {
+   "text": "Inizio: {date}",
+   "src": "39355056d581",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.next_title": {
+   "text": "Prossima stagione: {name}",
+   "src": "be2018c6e790",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.no_league": {
+   "text": "Non classificato",
+   "src": "3fc22a4640bc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.not_active": {
+   "text": "Rompi almeno 1 blocco a mano per comparire in classifica.",
+   "src": "85bb5fbe0739",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.not_connected": {
+   "text": "Accedi per partecipare alla classifica, guadagnare punti premio e accedere al negozio dei regali!",
+   "src": "5835af4071f0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.period": {
+   "text": "Dal {start} al {end}",
+   "src": "c87cd19f9291",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.rank": {
+   "text": "Posizione #{n}",
+   "src": "d493f243c131",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.retry": {
+   "text": "Riprova",
+   "src": "e17b2b111ef4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.theme_label": {
+   "text": "Tema della settimana",
+   "src": "0dbeb1bccf71",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.title": {
+   "text": "Stagione",
+   "src": "db9cef872dd5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.your_stats": {
+   "text": "Le tue statistiche",
+   "src": "2e7b5aadf633",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.btn_back": {
+   "text": "← Indietro",
+   "src": "4cb4d7d142ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.lang_title": {
+   "text": "Lingua",
+   "src": "7a4d0b1d7232",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_clear": {
+   "text": "Cancella la cronologia",
+   "src": "39a87d0002c3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_clear_confirm": {
+   "text": "Cancellare la cronologia delle notifiche di questo dispositivo?",
+   "src": "1cebdbcbdd77",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_empty": {
+   "text": "Nessuna notifica per ora.",
+   "src": "9c8baf1ea3c5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_title": {
+   "text": "Cronologia delle notifiche",
+   "src": "e3adda925fce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_type_error": {
+   "text": "Errore",
+   "src": "cc4e5ca7a896",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_type_info": {
+   "text": "Informazione",
+   "src": "34b8b517511d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_type_success": {
+   "text": "Successo",
+   "src": "6c8a1434d21d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.notif_type_warning": {
+   "text": "Avviso",
+   "src": "3fa31e17aee6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.title": {
+   "text": "Impostazioni",
+   "src": "b8af7531fed1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.badge_best_value": {
+   "text": "Più conveniente",
+   "src": "b328cc17cca5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.badge_popular": {
+   "text": "Popolare",
+   "src": "9d907fb5715a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.balance_label": {
+   "text": "Saldo attuale",
+   "src": "fc08d5f3e154",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.boost_x3.label": {
+   "text": "Monete ×3 per 30 min",
+   "src": "f0d9831e06e5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.boost_x3.name": {
+   "text": "Boost ×3 monete",
+   "src": "943a036a4a4b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.btn_owned": {
+   "text": "✓ Posseduto",
+   "src": "14651adf03a5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.btn_soon": {
+   "text": "Presto",
+   "src": "d46e442d68b7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.disclaimer": {
+   "text": "Acquisti presto disponibili · Per ora non si può ottenere nessun articolo",
+   "src": "2d17e9d1ed36",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.disclaimer_live": {
+   "text": "Pagamento sicuro",
+   "src": "e0021a26c10b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.gems_20.label": {
+   "text": "Sacchetto di gemme",
+   "src": "8b806182094b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.gems_20.name": {
+   "text": "20 Gemme",
+   "src": "2b2cd5805c1f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.gems_5.label": {
+   "text": "Borsellino",
+   "src": "70798651ed6d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.gems_5.name": {
+   "text": "5 Gemme",
+   "src": "9d439398e982",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.gems_60.label": {
+   "text": "Forziere di gemme",
+   "src": "5fd0f5c6e5b6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.gems_60.name": {
+   "text": "60 Gemme",
+   "src": "da26e1e4883a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.section_boosts": {
+   "text": "⚡ Boost",
+   "src": "6045f703ed1f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.section_gems": {
+   "text": "💎 Gemme",
+   "src": "fcbbc6d4192d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.section_skins": {
+   "text": "⛏ Skin del piccone",
+   "src": "749b74903d97",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.skin_diamond.label": {
+   "text": "Aura blu sul blocco",
+   "src": "0b8c654d4aae",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.skin_diamond.name": {
+   "text": "Piccone di diamante",
+   "src": "6712dc3aa842",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.skin_golden.label": {
+   "text": "Aura dorata sul blocco",
+   "src": "a34095ec6559",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop.skin_golden.name": {
+   "text": "Piccone d’oro",
+   "src": "09b3e1e005f6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop_chest.antique.desc": {
+   "text": "Possibile jackpot di frammenti. Massimo 5 aperture per stagione.",
+   "src": "5f96da0df449",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop_chest.antique.name": {
+   "text": "Forziere antico",
+   "src": "d1d94a7b5ee4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop_chest.rare.desc": {
+   "text": "Più probabilità di ottenere frammenti e un oggetto da collezione.",
+   "src": "a89b66a6a233",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop_chest.rare.name": {
+   "text": "Forziere raro",
+   "src": "eb0b876b95e8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop_chest.simple.desc": {
+   "text": "Monete, frammenti o boost — piccole ricompense garantite.",
+   "src": "156abf54e272",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "shop_chest.simple.name": {
+   "text": "Forziere semplice",
+   "src": "d1c19ca6b1fe",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.coins": {
+   "text": "Monete",
+   "src": "e1a27e027cc8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.damage": {
+   "text": "Danni",
+   "src": "3e1ea85fe1e9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.depth": {
+   "text": "Prof.",
+   "src": "c68c8c2f454b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.depth_val": {
+   "text": "{n}m",
+   "src": "e8f4dc0b12fa",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.gems": {
+   "text": "Gemme",
+   "src": "3be328cf5d25",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.pickaxe": {
+   "text": "Piccone",
+   "src": "8c365a9e9e49",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.pickaxe_val": {
+   "text": "Lv.{n}",
+   "src": "c6657750cd41",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "stats.relics": {
+   "text": "🔮 Framm.",
+   "src": "65d1541e3657",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.ad_cooldown": {
+   "text": "Disponibile tra {min}:{sec}",
+   "src": "a93ad28920e7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.ad_mock_sub": {
+   "text": "Raddoppia tutti i guadagni!",
+   "src": "708b6e540999",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.ad_soon": {
+   "text": "Ricompensa presto disponibile",
+   "src": "1d038385a116",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.ad_used": {
+   "text": "Bonus già usato",
+   "src": "14b6ba7d0f3f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.block_aria": {
+   "text": "Scava il blocco (Invio o Spazio)",
+   "src": "6f5fe1640897",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.block_reward": {
+   "text": "Ricompensa: 💰 {amount}",
+   "src": "0bbbd0e03e9c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.boost_active": {
+   "text": "⚡ Bonus monete ×{mult} attivo",
+   "src": "58de163ec402",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.boost_remaining": {
+   "text": "— ancora {min}:{sec}",
+   "src": "4a66c0b239a5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_claim": {
+   "text": "Riscuoti la ricompensa",
+   "src": "a264fc609eac",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_close_ad": {
+   "text": "Prendi il bonus →",
+   "src": "0b0174dec674",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_collect": {
+   "text": "Raccogli!",
+   "src": "41fae82c085f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_max": {
+   "text": "MAX",
+   "src": "bb5c298ac330",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_mission_claim": {
+   "text": "Riscuoti",
+   "src": "17bf14b34cae",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_mission_claim_aria": {
+   "text": "Riscuoti {reward}",
+   "src": "db9eb32a82f7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_open_chest": {
+   "text": "Apri",
+   "src": "f5fd2a0626a0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_play_here": {
+   "text": "Gioca qui",
+   "src": "d13e69192689",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_reset": {
+   "text": "Ricomincia la partita",
+   "src": "b315ae9d72d9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_skip_ad": {
+   "text": "Salta ✕",
+   "src": "c0156718f27f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_unlock": {
+   "text": "Sblocca",
+   "src": "2e1585380404",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_upgrade": {
+   "text": "Potenzia",
+   "src": "5a873fbccb4b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.btn_watch_ad": {
+   "text": "Raddoppia la ricompensa",
+   "src": "8e575292ba92",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.chest_content_label": {
+   "text": "Contenuto",
+   "src": "8a5c05bb56c9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.chest_loot": {
+   "text": "Contenuto casuale",
+   "src": "c659264e678c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.chest_reward_boost": {
+   "text": "⚡ Boost monete ×{mult} — {minutes} min",
+   "src": "86e234141c14",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.chest_reward_coins": {
+   "text": "💰 {amount} monete",
+   "src": "da1899c55ae6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.chest_reward_relics": {
+   "text": {
+    "$n": "amount",
+    "one": "🔮 {amount} frammento di reliquia",
+    "other": "🔮 {amount} frammenti di reliquia"
+   },
+   "src": "a660fcfba2b6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.chest_title": {
+   "text": "{name} aperto!",
+   "src": "d9723bed6e8c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.collection_header": {
+   "text": {
+    "$n": "found",
+    "one": "{found} / {total} trovato",
+    "other": "{found} / {total} trovati"
+   },
+   "src": "ca212772595d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.confirm_reset": {
+   "text": "Ricominciare la partita?\nPerderai tutte le monete, le gemme, i potenziamenti, le reliquie, gli obiettivi, le scoperte e la serie giornaliera.",
+   "src": "bf73f120ab70",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_btn_claim": {
+   "text": "Riscuoti la ricompensa",
+   "src": "a264fc609eac",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_claimed_msg": {
+   "text": "✓ Ricompensa riscossa!",
+   "src": "31acf8344cd5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_next_msg": {
+   "text": "Torna domani per continuare la serie.",
+   "src": "c81fddab572d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_reward_boost": {
+   "text": "⚡ Monete ×{mult} per {minutes} min",
+   "src": "0d9b20a68f98",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_reward_coins": {
+   "text": {
+    "$n": "amount",
+    "one": "💰 {amount} moneta",
+    "other": "💰 {amount} monete"
+   },
+   "src": "994618562c6d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_reward_gems": {
+   "text": {
+    "$n": "amount",
+    "one": "💎 {amount} gemma",
+    "other": "💎 {amount} gemme"
+   },
+   "src": "66a774f89fa1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_streak_day": {
+   "text": "Giorno {n} di 7",
+   "src": "fdaff31f427d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.daily_title": {
+   "text": "Accesso giornaliero",
+   "src": "0aa462606e4c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.device_inactive_text": {
+   "text": "Il tuo account sta giocando altrove (altro dispositivo, browser o app). I tuoi progressi sono al sicuro: tocca «Gioca qui» per riprendere esattamente da dove eri rimasto.",
+   "src": "eb23371fe20e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.device_inactive_title": {
+   "text": "Partita aperta su un altro dispositivo",
+   "src": "daff65adb156",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.guest_warning": {
+   "text": "Accedi per salvare i tuoi progressi!",
+   "src": "817e34f02745",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.hp_text": {
+   "text": "{hp} / {maxHp} HP",
+   "src": "36f72224e7fe",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.mission_claimed": {
+   "text": "✓ Riscossa",
+   "src": "dd6f62d21a5f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.mission_progress": {
+   "text": "{done} / {target}",
+   "src": "3c5794bbc245",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.mission_reward": {
+   "text": "Ricompensa:",
+   "src": "5a03b0eed41b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.offline_duration": {
+   "text": "Assente {dur}",
+   "src": "432bbe5281a7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.offline_duration_cap": {
+   "text": "Assente {full} (limitato a {capped})",
+   "src": "680dcfd2857d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.offline_reward": {
+   "text": "💰 +{coins} monete",
+   "src": "122ff112b994",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.offline_title": {
+   "text": "Mentre eri via…",
+   "src": "822cbef3232f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.quest_claimed": {
+   "text": "✓ Riscosso",
+   "src": "dd6f62d21a5f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.relic_cost": {
+   "text": {
+    "$n": "n",
+    "one": "🔮 {n} frammento",
+    "other": "🔮 {n} frammenti"
+   },
+   "src": "bc861e66555a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.relic_header": {
+   "text": "{count} / {total} sbloccate — 🔮 frammenti: {frags}",
+   "src": "d5dd66ccfc9d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.relic_shortfall": {
+   "text": "(ne mancano {n})",
+   "src": "390492bd7eaa",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.relic_unlocked_badge": {
+   "text": "✓ Sbloccata",
+   "src": "c4782b7e8611",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.relic_upgrade_cost": {
+   "text": {
+    "$n": "n",
+    "one": "🔮 {n} frammento → Lv. {next}",
+    "other": "🔮 {n} frammenti → Lv. {next}"
+   },
+   "src": "1a21e8e72a9d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.reward_factor.bag": {
+   "text": "Sacca",
+   "src": "473516d6f25c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.reward_factor.boost": {
+   "text": "Bonus temporaneo",
+   "src": "122fbcd5ea57",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.reward_factor.event": {
+   "text": "Bonus monete del gioco",
+   "src": "59e7cab29652",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.reward_factor.relic": {
+   "text": "Reliquia (monete)",
+   "src": "3cd5a3d303fb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.reward_label": {
+   "text": "Ricompensa",
+   "src": "fdbe698f0c50",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.saved": {
+   "text": "Salvato ✓",
+   "src": "a2e6f5ed1099",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.section_missions": {
+   "text": "🎯 Missioni del giorno",
+   "src": "11fab66e7230",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.section_objectives": {
+   "text": "🎯 Obiettivi",
+   "src": "1759e65da75d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.section_relics": {
+   "text": "✨ Reliquie",
+   "src": "bca7071cf903",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.section_shop_chests": {
+   "text": "🏪 Negozio stagionale",
+   "src": "6186c7d96a10",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.shop_chest_bought": {
+   "text": "{n}/{max} aperti",
+   "src": "95ec84dd8b9d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.shop_chest_error": {
+   "text": "Errore durante l’apertura del forziere.",
+   "src": "090f3eec6fe8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.shop_chest_limit_reached": {
+   "text": "Limite raggiunto",
+   "src": "5d0fffc97ee5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.shop_chest_opened": {
+   "text": "{name} aperto!",
+   "src": "d9723bed6e8c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.tab_inactive_text": {
+   "text": "Per non mescolare i progressi, si può giocare in una sola scheda alla volta.",
+   "src": "cb0a27550cbc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.tab_inactive_title": {
+   "text": "Gioco aperto in un’altra scheda",
+   "src": "e31d35bbb4a6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.update_available": {
+   "text": "Aggiornamento disponibile",
+   "src": "73a7cc77643a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.update_reload": {
+   "text": "↻ Ricarica",
+   "src": "384cad195e02",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.view_collection": {
+   "text": "📦 Collezione",
+   "src": "22a624e54ead",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.view_daily": {
+   "text": "📅 Giornaliero",
+   "src": "25fce03883a2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.view_shop": {
+   "text": "🛒 Negozio",
+   "src": "5fa2f4a8ac49",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "ui.view_upgrades": {
+   "text": "⚙ Potenziamenti",
+   "src": "859776a2dede",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.autodig.desc": {
+   "text": {
+    "$n": "dmg",
+    "one": "{dmg} danno automatico/sec",
+    "other": "{dmg} danni automatici/sec"
+   },
+   "src": "7d9878f5b327",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.autodig.desc_off": {
+   "text": "Inattivo",
+   "src": "74ff44ab87d9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.autodig.effect": {
+   "text": "Danni auto/sec: {cur} → {next}",
+   "src": "ba7a4fe4496a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.autodig.name": {
+   "text": "Auto-Dig",
+   "src": "198d21e99b19",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.bag.desc": {
+   "text": "Ricompense ×{mult}",
+   "src": "ece093829c5f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.bag.desc_normal": {
+   "text": "Ricompense normali",
+   "src": "daa90cd5e23f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.bag.effect": {
+   "text": "Ricompense ×{cur} → ×{next}",
+   "src": "edea0d2a3eb7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.bag.name": {
+   "text": "Sacca",
+   "src": "473516d6f25c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.block_reroll.desc": {
+   "text": {
+    "$n": "n",
+    "one": "{n} cambio in questa stagione",
+    "other": "{n} cambi in questa stagione"
+   },
+   "src": "ff4103ad0a80",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.block_reroll.desc_none": {
+   "text": "Cambia il blocco attuale",
+   "src": "9823f2ca631c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.block_reroll.name": {
+   "text": "Cambia blocco",
+   "src": "a97ca8331d01",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.fragment_shop.desc": {
+   "text": "{n}/10 comprati in questa stagione",
+   "src": "0e52fad7ba25",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.fragment_shop.desc_none": {
+   "text": "Compra 1 frammento di reliquia",
+   "src": "566a4379216e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.fragment_shop.name": {
+   "text": "Frammenti",
+   "src": "45df20871d7f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.luck.desc": {
+   "text": "Più blocchi rari, senza rallentare",
+   "src": "705cdb1b57d7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.luck.name": {
+   "text": "Fortuna",
+   "src": "953ca0c9e6a3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.luck.preview": {
+   "text": "A {depth}m: {now}% di blocchi rari → {next}%",
+   "src": "9e0fff1605b1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.luck.preview_max": {
+   "text": "A {depth}m: {now}% di blocchi rari",
+   "src": "8fa80014061f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.luck.preview_none": {
+   "text": "Nessun blocco raro prima dei 5m",
+   "src": "1809834aac84",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.max_level": {
+   "text": "Livello massimo raggiunto",
+   "src": "569544c691fc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.next_level": {
+   "text": "Livello {cur} → {next}",
+   "src": "a318b5c5edf4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.pickaxe.desc": {
+   "text": {
+    "$n": "damage",
+    "one": "{damage} danno per clic",
+    "other": "{damage} danni per clic"
+   },
+   "src": "5b55fdc421c3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.pickaxe.effect": {
+   "text": "Danni per clic: {cur} → {next}",
+   "src": "06553138f80b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.pickaxe.name": {
+   "text": "Piccone",
+   "src": "8c365a9e9e49",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #59, relu)",
+   "at": "2026-11-03T05:30:00.000Z"
+  }
+ }
+}
