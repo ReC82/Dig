@@ -3484,6 +3484,76 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "shopguide.aria": {
+   "text": "I tre negozi di Dig",
+   "src": "7107bc1e3eb6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.chests": {
+   "text": "📦 Forzieri",
+   "src": "05dc5f8fa3cf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.chests_cur": {
+   "text": "💰 Monete",
+   "src": "ccd4d5ac8090",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.gems": {
+   "text": "💎 Gemme e cosmetici",
+   "src": "4a2b865f5206",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.gems_cur": {
+   "text": "💶 Denaro reale",
+   "src": "4c164ac92662",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.gems_cur_soon": {
+   "text": "💶 Denaro reale · presto",
+   "src": "2d84de92332a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.gifts": {
+   "text": "🎁 Regali",
+   "src": "c451e69d3ada",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.gifts_cur": {
+   "text": "🏅 Punti stagione",
+   "src": "beffe8d7e0fb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.here": {
+   "text": "✓ Sei qui",
+   "src": "47ea204b3887",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
+  "shopguide.title": {
+   "text": "Dove spendere cosa?",
+   "src": "43a4459bce74",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
+  },
   "stats.coins": {
    "text": "Monete",
    "src": "e1a27e027cc8",
@@ -4006,11 +4076,11 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "ui.section_shop_chests": {
-   "text": "🏪 Negozio stagionale",
-   "src": "6186c7d96a10",
+   "text": "📦 Forzieri di stagione",
+   "src": "90e40d85adac",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T15:20:38.364Z"
   },
   "ui.shop_chest_bought": {
    "text": "{n}/{max} aperti",
