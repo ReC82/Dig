@@ -2,6 +2,70 @@
 
 Lien : https://github.com/ReC82/Dig/issues/48 — session du 03/11/2026 (nuit).
 
+## Mise à jour du 03/11/2026 (fin de matinée) : recette du 03/11 10:04 — onglet Ligues & Saisons pleine largeur et centré
+
+### 1. État réel
+
+**Déployé en production (SHA `6fb4032`). En attente de recette.** Branche : `feature/48-saisons-thematiques` (commit `8702ffd`). Classement : **Après lancement** (ergonomie du panel admin, aucun effet joueur).
+
+### 2. Retour du propriétaire traité
+
+Recette du 03/11 à 10:04 : la refonte est « un peu mieux », mais l'onglet « 📊 Ligues & Saisons » restait plafonné à 960 px et **collé à gauche** sur un grand écran. Demande : utiliser la largeur, centrer, deux cartes équilibrées, élargir aussi les KPI, les réglages et les classements, empiler sur mobile sans défilement horizontal.
+
+**Cause** : le parent limitant était la règle commune `.tab-content { max-width: 960px }`, sans centrage. Les cartes elles-mêmes n'étaient pas en cause.
+
+### 3. Changements réalisés (CSS seul, `public/admin/admin.css`)
+
+- `#tab-season-overview` : `width: 100%`, `max-width: 1440px` (comme Blocs et Collections), **`margin-inline: auto`** (centré), marges latérales adaptées à l'écran (12 à 32 px).
+- Cartes « Saison en cours » / « Prochaine saison » : **grille 2 colonnes égales** (`minmax(0, 1fr)`, donc un texte long ne peut pas élargir une colonne), **empilées sous 900 px**.
+- Bandeau KPI « Saison en cours » : les 5 cases se répartissent sur toute la largeur (dates sur une ligne), 2 par ligne sur smartphone comme avant.
+- Paramètres saisonniers : 2 colonnes sur grand écran au lieu d'une liste étroite.
+- Paragraphes d'aide limités à une largeur de lecture (110 caractères). Le champ « Nouvelle fin » reste compact (260 px) au lieu de s'étirer sur 1 300 px.
+- Tableaux Ligues, Classement par ligue et Journal anti-autoclicker : à 100 % de la nouvelle largeur (rien d'autre à changer).
+- Aucun JavaScript, aucune donnée, aucun calendrier, nom, préparation, seuil, promotion ou collection n'a été modifié.
+
+### 4. Mesures avant / après (Chromium headless, copie de la base de production)
+
+| Écran | Avant : largeur, marge gauche / droite | Après : largeur, marge gauche / droite | Cartes de thème après |
+|---|---|---|---|
+| 1920×1080 | 960 px, 0 / **960** | **1440 px, 240 / 240** | 2 × 657 px, même hauteur de départ |
+| 1440×900 | 960 px, 0 / 480 | 1440 px, 0 / 0 | 2 × 657 px |
+| 1280×800 | 960 px, 0 / 320 | 1280 px, 0 / 0 | 2 × 577 px |
+| 390×844 | 390 px | 390 px | empilées, 324 px |
+
+Défilement horizontal de la page : 0 sur les 4 tailles, réglages avancés dépliés compris. Erreurs JavaScript : 0. Édition d'un paramètre saisonnier toujours possible (saisie puis rétablie, rien n'a été enregistré).
+Essai reproductible : `test/e2e/season-overview-width.e2e.js` (hors `npm test`, navigateur requis ; `BEFORE_CSS=` sert l'ancienne feuille de style pour la comparaison).
+
+### 5. Tests et déploiement
+
+- `npm test` **521/521** sur la branche et sur la release `6fb4032`.
+- Copie de la base de production démarrée en `NODE_ENV=production` : santé ok, version `1.0.0+6fb4032`, empreintes des 6 tables identiques avant et après. Copie supprimée.
+- Aucune génération IA en cours avant le redémarrage (dernier appel de l'atelier : 02/11 à 23:25 UTC).
+- `scripts/deploy.sh` : `3ba07c6 → 6fb4032`, sauvegarde vérifiée `~/backups/dig/dig-20261103-113938-pre-deploy-6fb4032.sqlite`, santé et version ok.
+- Après le déploiement : les 2 domaines répondent 200 avec `1.0.0+6fb4032` ; la nouvelle feuille de style est bien servie ; le journal est sans erreur ; `quick_check` = ok. Les empreintes sont identiques à la sauvegarde pour `users`, `seasons` et `leagues`. Pour `user_saves`, `season_rankings` et `player_click_tracking`, une partie était en cours : la sauvegarde d'un joueur est passée de la version 270 à 271, avec un horodatage plus récent. C'est une progression, pas une perte.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 3ba07c6` puis `sudo systemctl restart dig`. Il ne concerne que le code (CSS), pas la base.
+
+**Test fonctionnel à faire par le propriétaire (≈ 2 min, lecture seule)** : recharger le panel admin (Ctrl+F5) sur un grand écran → 📊 Ligues & Saisons.
+1. Attendu : le contenu est **centré**, environ 1 440 px de large, avec des marges égales à gauche et à droite sur un écran de 1 920 px.
+2. Les cartes « Saison en cours » et « Prochaine saison » sont côte à côte et de même largeur.
+3. Les 5 KPI tiennent sur une ligne ; les Paramètres saisonniers sont sur 2 colonnes.
+4. En réduisant la fenêtre sous environ 900 px, les cartes s'empilent. Sur smartphone, il n'y a pas de défilement horizontal de la page.
+
+### 6. Choix techniques faits seul
+
+- Correction ciblée sur `#tab-season-overview`, et non sur la règle commune `.tab-content` : les 16 autres onglets ne changent pas. **Écart signalé** : Blocs et Collections font déjà 1 440 px mais restent alignés à gauche. On peut les centrer de la même façon (une ligne CSS chacun), mais c'est hors du périmètre de ce ticket.
+- Le bouton « Rafraîchir » de l'onglet relève de l'audit transversal #60, comme demandé : il n'est pas modifié ici.
+
+### 7. Décisions demandées au propriétaire
+
+Inchangées (voir la section suivante) : 1) seuil de promotion en pré-bêta, recommandé (a) ; 2) illustrer et publier Saint-Martin avant le 09/11 ; 3) un 4ᵉ pack pour la S48.
+
+### 8. Restant à réaliser
+
+- Recette de cette mise en page par le propriétaire.
+- Recette de la bascule réelle du lundi 09/11 01:00 (Bruxelles).
+- Décisions 1 à 3.
+
 ## Mise à jour du 03/11/2026 (matin) : recettes #48-C, refonte de l'écran « Thèmes de saison » et promotions à petit effectif
 
 ### 1. État réel
