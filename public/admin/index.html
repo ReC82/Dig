@@ -981,7 +981,8 @@
       <h2>📿 Collections saisonnières</h2>
       <div class="adm-head-actions">
         <button class="btn btn-primary" id="btn-co-add" type="button">＋ Ajouter</button>
-        <button class="btn" id="btn-refresh-collections">↻ Rafraîchir</button>
+        <button class="btn" id="btn-refresh-collections" type="button">↻ Rafraîchir</button>
+        <span id="co-refresh-status" class="refresh-status" role="status" aria-live="polite"></span>
       </div>
     </div>
     <p id="co-banner" class="contest-banner"></p>
@@ -1038,26 +1039,34 @@
       <p id="co-draft-state" class="muted"></p>
       <ul id="co-draft-errors" class="error"></ul>
       <ul id="co-draft-warnings" class="muted"></ul>
-      <table>
-        <thead><tr><th>Élément</th><th>Changement</th></tr></thead>
-        <tbody id="co-changes-body"></tbody>
-      </table>
       <div id="co-ready-box" class="hidden" style="margin-top:10px">
         <h4 style="margin:4px 0">Publication ciblée — une série à la fois</h4>
-        <p class="muted" style="font-size:0.78rem;max-width:90ch">Publie <strong>uniquement</strong> la série choisie (et ses objets) : les autres séries du brouillon restent en brouillon, invisibles des joueurs. Refusée tant que la série n'est pas complète (illustrations, 4 langues, saison, drops validés).</p>
+        <p class="muted" style="font-size:0.78rem;max-width:90ch">Une ligne par série : saison, illustrations, drops et contrôles bloquants. Ouvrez une série pour le détail. Publie <strong>uniquement</strong> la série choisie (et ses objets) : les autres restent en brouillon, invisibles des joueurs. Refusée tant que la série n'est pas complète. La <strong>préparation</strong> (saison, illustrations, 4 langues) est distincte de la <strong>validation économique</strong> (activation des drops, case « barème validé »).</p>
         <div id="co-ready-list" class="co-ready-list"></div>
       </div>
+      <details id="co-changes-details" style="margin-top:8px">
+        <summary id="co-changes-summary">Détail des changements du brouillon</summary>
+        <table>
+          <thead><tr><th>Élément</th><th>Changement</th></tr></thead>
+          <tbody id="co-changes-body"></tbody>
+        </table>
+      </details>
       <div id="co-drops-box" class="hidden" style="margin-top:8px">
         <p class="error">Drops nouveaux ou modifiés (visibles en jeu dès la publication) :</p>
         <ul id="co-drops-list"></ul>
         <label><input type="checkbox" id="co-confirm-drops"> Barème validé : j'active ces drops</label>
       </div>
-      <label id="co-incomplete-box" class="hidden error" style="display:block;margin-top:6px"><input type="checkbox" id="co-confirm-incomplete"> Publier quand même des séries incomplètes (déconseillé)</label>
       <div class="form-actions" style="margin-top:8px">
         <input id="co-publish-note" type="text" maxlength="300" placeholder="Note de publication (facultatif)" style="flex:1">
-        <button class="btn" id="btn-co-publish" title="Publie TOUT le brouillon (toutes les séries). Préférez la publication ciblée ci-dessus.">Publier tout le brouillon</button>
-        <button class="btn btn-danger" id="btn-co-discard">Abandonner le brouillon</button>
       </div>
+      <details class="co-publish-all" style="margin-top:6px">
+        <summary class="muted">Publication globale et abandon du brouillon (déconseillé)</summary>
+        <label id="co-incomplete-box" class="hidden error" style="display:block;margin-top:6px"><input type="checkbox" id="co-confirm-incomplete"> Publier quand même des séries incomplètes (déconseillé)</label>
+        <div class="form-actions" style="margin-top:8px">
+          <button class="btn btn-outline" id="btn-co-publish" title="Publie TOUT le brouillon (toutes les séries). Préférez la publication ciblée ci-dessus.">Publier tout le brouillon</button>
+          <button class="btn btn-outline btn-danger" id="btn-co-discard">Abandonner le brouillon</button>
+        </div>
+      </details>
       <p id="co-publish-msg" class="hidden"></p>
     </div>
 
@@ -1167,7 +1176,7 @@
         <label>Icône (emoji)<input id="co-s-icon" type="text" maxlength="8" value="📦"></label>
         <label title="Indicateur de contenu, indépendant de la publication : une série désactivée ne fait plus tomber ses objets après publication."><input type="checkbox" id="co-s-active" checked> Série activée</label>
       </div>
-      <p class="muted" style="font-size:0.78rem;max-width:90ch">Saison vide = <strong>Permanente</strong> : une fois publiée, ses objets tombent chaque semaine, sans fin. Une série de saison ne tombe que pendant sa saison ; rattachée à une saison <em>programmée</em> (onglet Saisons), elle reste invisible jusqu'à son ouverture.</p>
+      <p class="muted" style="font-size:0.78rem;max-width:90ch"><strong>Permanente</strong> : une fois publiée, ses objets tombent chaque semaine, sans fin. Une série de saison ne tombe que pendant sa saison, puis passe en archives. <strong>Saison future</strong> (semaine, ex. 2026-W46) : la saison n'existe pas encore en base ; la série reste invisible et sans drop, puis se rattache seule à la saison créée cette semaine-là (thème préparé compris). Une saison <em>programmée</em> (onglet Saisons) se choisit directement.</p>
       <div class="form-actions">
         <button class="btn btn-primary" id="btn-co-s-save">Enregistrer la série dans le brouillon</button>
         <button class="btn btn-ghost" id="btn-co-s-remove">Retirer du brouillon (jamais publiée)</button>
