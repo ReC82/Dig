@@ -7354,16 +7354,167 @@ if (document.getElementById('news-dialog')) {
 }
 
 // ── Événements mensuels (#56) ─────────────────────────────────────────────────
-// Liste, fiche (brouillon), objets, simulation, planification, révisions, TEST, IA, calendrier.
+// Recettes #56-B/C/D (03/11) : liste compacte (clic sur une ligne → fiche modale), « ＋ Ajouter » →
+// manuel / TEST / IA, objets dans leur propre fiche (une langue à la fois, aperçu joueur), testeurs
+// choisis dans une liste (ID stable, jamais de saisie libre), dates JJ/MM/AAAA HH:mm (Bruxelles),
+// confirmations Dig (jamais la boîte native), période vérifiée avant planification, « Démarrer maintenant ».
 
 let _ev = null;          // vue admin (GET /api/admin/events)
-let _evEditing = null;   // identifiant en cours de modification (null = création)
+let _evCur = null;       // fiche ouverte : { ev (serveur ou null), draft, readOnly }
+let _evSnap = null;      // instantané de la fiche à l'ouverture / après enregistrement (#61)
+let _evLang = 'fr';
 const EV_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 const EV_STATES = { draft: '📝 Brouillon', planned: '🗓️ Planifié', active: '🟢 Actif', ended: '🏁 Terminé' };
+const EV_STATE_CHIP = { draft: 'muted', planned: 'info', active: 'ok', ended: 'muted' };
 const EV_RARITIES = { commun: 'Commun', 'peu-commun': 'Peu commun', rare: 'Rare', epique: 'Épique', legendaire: 'Légendaire' };
 const EV_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const EV_ITEM_ID_RE = /^[a-z][a-z0-9_]{2,39}$/;
 
-const evFmt = local => (local ? local.replace('T', ' ') : '—');
+/** « 2026-12-01T00:00 » (Bruxelles) → « 01/12/2026 00:00 ». */
+function evFmt(local) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(local ?? '');
+  return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : '—';
+}
+const evFmtRange = (a, b) => `${evFmt(a)} → ${evFmt(b)}`;
+function evDuration(ms) {
+  const min = Math.round(ms / 60000);
+  if (min < 120) return `${min} min`;
+  if (min < 48 * 60) return `${Math.round(min / 6) / 10} h`;
+  return `${Math.round(min / 144) / 10} j`;
+}
+const evChip = (text, kind) => aiEl('span', { class: `st-chip st-chip--${kind}` }, text);
+const evTesterNames = ev => ev.testers.map(t => t.username).join(', ') || 'aucun testeur';
+
+// Bruxelles ↔ UTC dans le navigateur (affichage des durées restantes ; le serveur reste la référence).
+function evTzOffset(ms) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Brussels', hourCycle: 'h23', year: 'numeric', month: '2-digit',
+    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+  return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(ms / 1000) * 1000;
+}
+function evLocalToMs(local) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local ?? '');
+  if (!m) return NaN;
+  const guess = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  return guess - evTzOffset(guess - evTzOffset(guess));
+}
+const evMsToLocal = ms => new Date(ms + evTzOffset(ms)).toISOString().slice(0, 16);
+
+/**
+ * Champs Début / Fin en clair (JJ/MM/AAAA + HH:mm, heure de Bruxelles), jamais le datetime-local
+ * natif (affiché MM/DD/YYYY selon le navigateur). get() → { startsAt, endsAt, error }.
+ */
+function evWhenField(box, { onChange } = {}) {
+  box.textContent = '';
+  const make = label => {
+    const row = aiEl('div', { class: 'ev-when-row' });
+    row.appendChild(aiEl('span', { class: 'ev-label' }, label));
+    const d = aiEl('input', { type: 'text', inputmode: 'numeric', placeholder: 'JJ/MM/AAAA', maxlength: '10', 'aria-label': `${label} : date (JJ/MM/AAAA)`, class: 'ev-date' });
+    const t = aiEl('input', { type: 'text', inputmode: 'numeric', placeholder: 'HH:mm', maxlength: '5', 'aria-label': `${label} : heure (HH:mm)`, class: 'ev-time' });
+    row.append(d, t);
+    box.appendChild(row);
+    return { d, t };
+  };
+  const s = make('Début'), e = make('Fin');
+  const info = aiEl('p', { class: 'muted ev-help', 'aria-live': 'polite' });
+  box.appendChild(info);
+  const parse = ({ d, t }, label) => {
+    const dm = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(d.value.trim());
+    const tm = /^(\d{1,2})[:hH](\d{2})$/.exec(t.value.trim() || '00:00');
+    if (!dm || !tm) return { error: `${label} : date JJ/MM/AAAA et heure HH:mm attendues.` };
+    const [day, mon, yr, hh, mm] = [+dm[1], +dm[2], +dm[3], +tm[1], +tm[2]];
+    const chk = new Date(Date.UTC(yr, mon - 1, day));
+    if (chk.getUTCDate() !== day || chk.getUTCMonth() !== mon - 1 || hh > 23 || mm > 59) return { error: `${label} : date ou heure inexistante.` };
+    return { local: `${yr}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}` };
+  };
+  const api_ = {
+    get() {
+      const a = parse(s, 'Début'), b = parse(e, 'Fin');
+      const error = a.error || b.error || (evLocalToMs(b.local) - evLocalToMs(a.local) < 10 * 60000 ? 'La fin doit suivre le début d\'au moins 10 minutes.' : '');
+      return { startsAt: a.local ?? '', endsAt: b.local ?? '', error };
+    },
+    set(start, end) {
+      for (const [f, v] of [[s, start], [e, end]]) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v ?? '');
+        f.d.value = m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+        f.t.value = m ? `${m[4]}:${m[5]}` : '';
+      }
+      refresh();
+    },
+    disable(on) { for (const f of [s.d, s.t, e.d, e.t]) f.disabled = on; },
+  };
+  function refresh() {
+    const v = api_.get();
+    info.classList.toggle('error', !!v.error && !!(s.d.value || e.d.value));
+    if (v.error) { info.textContent = s.d.value || e.d.value ? v.error : 'Heure de Bruxelles.'; return; }
+    const a = evLocalToMs(v.startsAt), b = evLocalToMs(v.endsAt), now = Date.now();
+    const when = b <= now ? '⚠ période déjà terminée' : a < now ? `⚠ déjà commencée : il reste ${evDuration(b - now)}` : `commence dans ${evDuration(a - now)}`;
+    info.textContent = `Durée ${evDuration(b - a)} · heure de Bruxelles · ${when}.`;
+  }
+  for (const f of [s.d, s.t, e.d, e.t]) f.addEventListener('input', () => { refresh(); onChange?.(); });
+  return api_;
+}
+
+/**
+ * Sélecteur de testeurs (recette #56-B) : recherche serveur par pseudo partiel (/api/admin/players/suggest :
+ * pseudo + ID, jamais d'e-mail), comptes bêta et testeurs déjà utilisés proposés d'un clic, pastilles
+ * retirables, multisélection. Valeur = [{ id, username }] : le serveur contrôle par ID stable.
+ */
+let _evPickerSeq = 0;
+function evTesterPicker(box, { onChange } = {}) {
+  const uid = `ev-pick-${++_evPickerSeq}`;
+  box.textContent = '';
+  box.classList.add('ev-picker');
+  let list = [], disabled = false;
+  const chips = aiEl('div', { class: 'ev-chips', 'aria-live': 'polite' });
+  const ac = aiEl('div', { class: 'player-ac' });
+  const input = aiEl('input', { type: 'text', id: `${uid}-input`, autocomplete: 'off', placeholder: 'Rechercher un pseudo (2 lettres ou plus)…',
+    role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': `${uid}-list`, 'aria-label': 'Ajouter un testeur' });
+  const ul = aiEl('ul', { id: `${uid}-list`, class: 'player-ac-list hidden', role: 'listbox', 'aria-label': 'Comptes trouvés' });
+  ac.append(input, ul);
+  const sugg = aiEl('div', { class: 'ev-sugg' });
+  const msg = aiEl('p', { class: 'muted ev-help', 'aria-live': 'polite' });
+  box.append(chips, ac, sugg, msg);
+  const add = u => {
+    if (!list.some(t => t.id === u.id)) list.push({ id: u.id, username: u.username });
+    input.value = '';
+    msg.textContent = '';
+    render(); onChange?.();
+  };
+  function render() {
+    chips.textContent = '';
+    if (!list.length) chips.appendChild(aiEl('span', { class: 'muted ev-help' }, 'Aucun testeur choisi : personne ne verrait cet événement.'));
+    for (const t of list) {
+      const c = aiEl('span', { class: `ev-chip${t.missing ? ' ev-chip--bad' : ''}`, title: t.missing ? 'Compte introuvable : retirez-le' : `ID ${t.id}` },
+        `${t.missing ? '⚠ ' : ''}${t.username}${t.id ? ` · ID ${t.id}` : ' (introuvable)'}`);
+      const x = aiEl('button', { type: 'button', class: 'ev-chip-x', 'aria-label': `Retirer ${t.username}` }, '✕');
+      x.disabled = disabled;
+      x.addEventListener('click', () => { list = list.filter(o => o !== t); render(); onChange?.(); input.focus(); });
+      c.appendChild(x);
+      chips.appendChild(c);
+    }
+    sugg.textContent = '';
+    const free = (_ev?.testerSuggestions ?? []).filter(u => !list.some(t => t.id === u.id));
+    if (free.length && !disabled) {
+      sugg.appendChild(aiEl('span', { class: 'muted ev-help' }, 'Proposés :'));
+      for (const u of free.slice(0, 12)) {
+        const b = aiEl('button', { type: 'button', class: 'btn-ghost ev-sugg-btn', title: `ID ${u.id} · ${u.why}` }, `＋ ${u.username}`);
+        b.addEventListener('click', () => add(u));
+        sugg.appendChild(b);
+      }
+    }
+    input.disabled = disabled;
+  }
+  attachPlayerAutocomplete(input, ul, {
+    onSelect: add,
+    onEnter: () => { if (input.value.trim()) msg.textContent = `Choisissez un compte dans la liste : « ${input.value.trim()} » n'est pas sélectionné.`; },
+  });
+  render();
+  return {
+    get: () => list.map(t => (t.id ? { id: t.id } : t.username)),
+    set: l => { list = (l ?? []).map(t => (typeof t === 'string' ? { id: null, username: t, missing: true } : { ...t })); msg.textContent = ''; render(); },
+    disable: on => { disabled = on; render(); },
+  };
+}
 
 async function loadEvents() {
   const { ok, data } = await api('GET', '/api/admin/events');
@@ -7372,40 +7523,46 @@ async function loadEvents() {
   renderEvents();
 }
 
+/** Avertissements groupés (« 5 illustrations absentes » plutôt que 5 lignes). */
+function evGroupedWarnings(ev) {
+  const img = ev.readiness.warnings.filter(w => /pas d'illustration/.test(w)).length;
+  const rest = ev.readiness.warnings.filter(w => !/pas d'illustration/.test(w));
+  return [...(img ? [`${img} illustration(s) absente(s)`] : []), ...rest];
+}
+
 function renderEvents() {
   const tb = document.getElementById('ev-list');
   tb.textContent = '';
   if (!_ev.events.length) {
     const tr = document.createElement('tr');
-    addCell(tr, 'Aucun événement. « ＋ Ajouter », le calendrier ou l\'IA pour en créer un (toujours en brouillon).').colSpan = 7;
+    addCell(tr, 'Aucun événement. « ＋ Ajouter » ou le calendrier pour en créer un (toujours en brouillon).').colSpan = 6;
     tb.appendChild(tr);
   }
   for (const ev of _ev.events) {
-    const tr = document.createElement('tr');
-    addCell(tr, EV_STATES[ev.state] ?? ev.state);
-    const name = addCell(tr, `${ev.icon} ${ev.names.fr}`);
-    name.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `${ev.id} · rév. ${ev.revision} · source ${ev.source}`));
-    if (ev.status === 'draft') {
-      for (const b of ev.readiness.blocking) name.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `❌ ${b}`));
+    const tr = aiEl('tr', { class: 'ev-row', tabindex: '0', 'data-adm-key': `ev:${ev.id}`, title: 'Ouvrir la fiche' });
+    addCell(tr, '').appendChild(evChip(EV_STATES[ev.state] ?? ev.state, EV_STATE_CHIP[ev.state] ?? 'muted'));
+    const name = addCell(tr, '');
+    name.appendChild(aiEl('strong', {}, `${ev.icon} ${ev.names.fr}`));
+    name.appendChild(aiEl('div', { class: 'muted ev-sub' }, `${ev.id} · rév. ${ev.revision}`));
+    const notes = [];
+    if (ev.status === 'draft' && ev.readiness.blocking.length) notes.push(`❌ ${ev.readiness.blocking.length} point(s) à régler`);
+    for (const w of evGroupedWarnings(ev)) notes.push(`⚠ ${w}`);
+    if (notes.length) name.appendChild(aiEl('div', { class: 'muted ev-sub', title: [...ev.readiness.blocking, ...ev.readiness.warnings].join('\n') }, notes.join(' · ')));
+    const aud = addCell(tr, '');
+    aud.appendChild(ev.audience === 'public' ? evChip('🌍 Public', 'warn') : evChip('🧪 TEST', 'info'));
+    if (ev.audience === 'test') aud.appendChild(aiEl('div', { class: 'muted ev-sub' }, evTesterNames(ev)));
+    addCell(tr, evFmtRange(ev.startsLocal, ev.endsLocal)).classList.add('ev-nowrap');
+    const it = addCell(tr, '');
+    const thumbs = aiEl('div', { class: 'ev-thumbs' });
+    for (const i of ev.items.slice(0, 6)) {
+      if (i.image) thumbs.appendChild(aiEl('img', { src: i.image, alt: '', width: '20', height: '20', loading: 'lazy' }));
+      else thumbs.appendChild(aiEl('span', { 'aria-hidden': 'true' }, i.icon));
     }
-    for (const w of ev.readiness.warnings) name.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `⚠️ ${w}`));
-    addCell(tr, ev.audience === 'public' ? '🌍 Public' : `🧪 TEST (${ev.testers.join(', ') || 'aucun testeur'})`);
-    addCell(tr, `${evFmt(ev.startsLocal)} → ${evFmt(ev.endsLocal)}`);
-    addCell(tr, `${ev.items.filter(i => i.enabled).length} actif(s) / ${ev.items.length}`);
+    it.append(thumbs, aiEl('div', { class: 'muted ev-sub' }, `${ev.items.filter(i => i.enabled).length} actif(s) / ${ev.items.length}`));
     const found = Object.values(ev.stats.finds).reduce((a, b) => a + b, 0);
-    addCell(tr, `${ev.stats.players} joueur(s) · ${found} objet(s) trouvé(s)`);
-    const act = addCell(tr, '');
-    const btn = (label, fn) => { const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, label); b.addEventListener('click', fn); act.appendChild(b); return b; };
-    if (ev.status === 'draft') {
-      btn('Modifier', () => evOpen(ev));
-      btn('Planifier', () => evSchedule(ev));
-    } else {
-      btn('Voir', () => evOpen(ev, true));
-      btn('Repasser en brouillon', () => {
-        if (confirm(`Repasser « ${ev.names.fr} » en brouillon ? Les drops s'arrêtent aussitôt ; les objets déjà trouvés restent acquis.`)) evAction(ev.id, 'unschedule', 'Événement repassé en brouillon : drops arrêtés.');
-      });
-    }
-    btn('Révisions', () => evRevisions(ev));
+    addCell(tr, `${ev.stats.players} joueur(s) · ${found} objet(s)`);
+    tr.addEventListener('click', () => evOpen(ev, tr));
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); evOpen(ev, tr); } });
     tb.appendChild(tr);
   }
   renderEvCalendar();
@@ -7413,7 +7570,7 @@ function renderEvents() {
   jobs.textContent = '';
   for (const j of _ev.ai) {
     const label = j.status === 'pending' ? '⏳ en cours…' : j.status === 'done' ? `✅ brouillon « ${j.eventId} » créé` : `❌ ${j.error}`;
-    jobs.appendChild(aiEl('li', {}, `#${j.id} « ${j.concept.slice(0, 60)} » : ${label}`));
+    jobs.appendChild(aiEl('li', {}, `IA #${j.id} « ${j.concept.slice(0, 60)} » : ${label}`));
   }
   if (_ev.ai.some(j => j.status === 'pending')) setTimeout(() => { if (!document.getElementById('tab-events').classList.contains('hidden')) loadEvents(); }, 4000);
   const lb = document.getElementById('ev-log');
@@ -7439,16 +7596,16 @@ function renderEvCalendar() {
     const tr = document.createElement('tr');
     addCell(tr, `${EV_MONTHS[m.month - 1]} ${m.year}`);
     const prop = addCell(tr, m.holiday ? `${m.holiday.name} (${m.holiday.date})` : `Idées : ${m.ideas.join(' · ')}`);
-    if (m.alternatives.length) prop.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `Autres : ${m.alternatives.map(a => `${a.name} (${a.date})`).join(', ')}`));
-    addCell(tr, m.suggested ? `${evFmt(m.suggested.startsAt)} → ${evFmt(m.suggested.endsAt)}` : 'à choisir');
+    if (m.alternatives.length) prop.appendChild(aiEl('div', { class: 'muted ev-sub' }, `Autres : ${m.alternatives.map(a => `${a.name} (${a.date})`).join(', ')}`));
+    addCell(tr, m.suggested ? evFmtRange(m.suggested.startsAt, m.suggested.endsAt) : 'à choisir');
     addCell(tr, m.prepareBy ? `${m.prepareBy}${m.late ? ' ⚠️ en retard' : ''}` : '—');
     addCell(tr, m.events.length ? m.events.map(e => `${e.icon} ${e.name} (${EV_STATES[e.state] ?? e.state})`).join(', ') : '—');
     const act = addCell(tr, '');
     if (!m.events.length) {
       const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, 'Préparer un brouillon');
-      b.addEventListener('click', () => evOpen(null, false, {
+      b.addEventListener('click', () => evOpen(null, b, {
         id: m.holiday ? `${m.holiday.key}_${m.year}` : '', icon: '🎉', audience: 'public', testers: [],
-        names: { fr: m.holiday ? m.holiday.name : '', en: '', nl: '', es: '' }, taglines: {},
+        names: { fr: m.holiday ? m.holiday.name : '' }, taglines: {},
         startsLocal: m.suggested?.startsAt ?? `${m.year}-${String(m.month).padStart(2, '0')}-01T00:00`,
         endsLocal: m.suggested?.endsAt ?? '', items: [],
       }));
@@ -7458,138 +7615,179 @@ function renderEvCalendar() {
   }
 }
 
-function evItemRow(it = {}) {
-  const box = aiEl('fieldset', { class: 'overview-card ev-item', style: 'margin:6px 0' });
-  box.appendChild(aiEl('legend', {}, it.names?.fr || 'Nouvel objet'));
-  const grid = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px' });
-  const field = (label, key, input) => { const l = aiEl('label', {}, label); input.dataset.k = key; l.appendChild(input); grid.appendChild(l); return input; };
-  field('Identifiant', 'id', aiEl('input', { maxlength: '40' })).value = it.id ?? '';
-  field('Icône', 'icon', aiEl('input', { maxlength: '8' })).value = it.icon ?? '🎁';
-  const rar = field('Rareté', 'rarity', aiEl('select'));
-  for (const [k, v] of Object.entries(EV_RARITIES)) rar.appendChild(aiEl('option', { value: k }, v));
-  rar.value = it.rarity ?? 'commun';
-  field('Chance par bloc éligible (%)', 'chancePct', aiEl('input', { type: 'number', step: '0.001', min: '0.001', max: '100' })).value = it.chancePct ?? 0.5;
-  field('Profondeur minimale (m)', 'minDepth', aiEl('input', { type: 'number', min: '0' })).value = it.minDepth ?? 0;
-  const en = field('Activé', 'enabled', aiEl('input', { type: 'checkbox' }));
-  en.checked = it.enabled !== false;
-  box.appendChild(grid);
-  const cats = aiEl('div', { class: 'form-actions', style: 'align-items:center' });
-  cats.appendChild(aiEl('span', { class: 'muted', style: 'font-size:0.8rem' }, 'Blocs (aucun coché = tous) :'));
-  for (const c of _ev.categories) {
-    const l = aiEl('label', { class: 'adm-check' });
-    const cb = aiEl('input', { type: 'checkbox', 'data-cat': c });
-    cb.checked = (it.dropFrom ?? []).includes(c);
-    l.append(cb, document.createTextNode(` ${c}`));
-    cats.appendChild(l);
-  }
-  box.appendChild(cats);
-  const texts = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px' });
+// ── Fiche événement ───────────────────────────────────────────────────────────
+
+let _evWhen = null, _evPicker = null;
+
+function evLangTabs(boxId, current, isDone, onPick) {
+  const box = document.getElementById(boxId);
+  box.textContent = '';
   for (const l of EV_LANGS) {
-    const n = aiEl('input', { maxlength: '60', 'data-k': `name-${l}`, placeholder: `Nom ${l.toUpperCase()}` });
-    n.value = it.names?.[l] ?? '';
-    const d = aiEl('textarea', { rows: '2', maxlength: '320', 'data-k': `desc-${l}`, placeholder: `Description humoristique ${l.toUpperCase()}` });
-    d.value = it.descs?.[l] ?? '';
-    const lab = aiEl('label', {}, l.toUpperCase());
-    lab.append(n, d);
-    texts.appendChild(lab);
+    const done = isDone(l);
+    const b = aiEl('button', { type: 'button', class: 'co-lang-btn', 'data-lang': l, 'aria-pressed': String(l === current),
+      title: done ? 'Traduction complète' : 'Traduction à compléter' }, `${l.toUpperCase()} ${done ? '✓' : '·'}`);
+    b.addEventListener('click', () => onPick(l));
+    box.appendChild(b);
   }
-  box.appendChild(texts);
-  const brief = aiEl('textarea', { rows: '2', maxlength: '600', 'data-k': 'brief', placeholder: 'Consigne d\'illustration (anglais) pour l\'atelier' });
-  brief.value = it.brief ?? '';
-  const bl = aiEl('label', {}, 'Consigne d\'illustration');
-  bl.appendChild(brief);
-  box.appendChild(bl);
-  const imgRow = aiEl('div', { class: 'form-actions', style: 'align-items:center' });
-  const img = aiEl('input', { 'data-k': 'image', placeholder: '/api/collections/images/… ou /media/icons/…', style: 'min-width:280px' });
-  img.value = it.image ?? '';
-  const file = aiEl('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
-  file.addEventListener('change', () => {
-    const f = file.files[0];
-    if (!f) return;
-    const r = new FileReader();
-    r.onload = async () => {
-      const { ok, data } = await api('POST', '/api/admin/collections/images', { data: r.result, label: `event ${it.id ?? ''}` });
-      if (!ok) return nwMessage('ev-editor-msg', data.error ?? 'Téléversement impossible.', true);
-      img.value = data.url;
-      admToast('Image téléversée : enregistrez la fiche pour l\'appliquer.');
-    };
-    r.readAsDataURL(f);
-  });
-  const del = aiEl('button', { class: 'btn-ghost', type: 'button' }, '🗑 Retirer l\'objet');
-  del.addEventListener('click', () => box.remove());
-  imgRow.append(aiEl('span', { class: 'muted', style: 'font-size:0.8rem' }, 'Image :'), img, file, del);
-  box.appendChild(imgRow);
-  document.getElementById('ev-items').appendChild(box);
 }
 
-function evOpen(ev, readOnly = false, preset = null) {
-  const src = ev ?? preset ?? { icon: '🎉', audience: 'test', testers: [], names: {}, taglines: {}, items: [] };
-  _evEditing = ev ? ev.id : null;
-  const v = (id, x) => { document.getElementById(id).value = x ?? ''; };
-  v('ev-id', src.id); v('ev-icon', src.icon); v('ev-audience', src.audience); v('ev-testers', (src.testers ?? []).join(', '));
-  v('ev-start', src.startsLocal); v('ev-end', src.endsLocal);
-  document.getElementById('ev-id').disabled = !!ev;
-  const texts = document.getElementById('ev-texts');
-  texts.textContent = '';
-  for (const l of EV_LANGS) {
-    const lab = aiEl('label', {}, `Nom et accroche ${l.toUpperCase()}`);
-    const n = aiEl('input', { id: `ev-name-${l}`, maxlength: '60' }); n.value = src.names?.[l] ?? '';
-    const t = aiEl('textarea', { id: `ev-tag-${l}`, rows: '2', maxlength: '240' }); t.value = src.taglines?.[l] ?? '';
-    lab.append(n, t);
-    texts.appendChild(lab);
+function evRenderTexts() {
+  const d = _evCur.draft;
+  evLangTabs('ev-langs', _evLang, l => !!(d.names[l] && d.taglines[l]), l => { _evLang = l; evRenderTexts(); document.querySelector(`#ev-langs [data-lang="${l}"]`).focus(); });
+  const L = _evLang.toUpperCase();
+  document.getElementById('ev-name-label').textContent = `Nom (${L})${_evLang === 'fr' ? ' — obligatoire' : ''}`;
+  document.getElementById('ev-tag-label').textContent = `Accroche (${L})`;
+  document.getElementById('ev-name').value = d.names[_evLang] ?? '';
+  document.getElementById('ev-tag').value = d.taglines[_evLang] ?? '';
+}
+
+function evRenderItems() {
+  const tb = document.getElementById('ev-items');
+  tb.textContent = '';
+  const items = _evCur.draft.items;
+  if (!items.length) {
+    const tr = document.createElement('tr');
+    addCell(tr, 'Aucun objet : « ＋ Objet » pour en ajouter.').colSpan = 7;
+    tb.appendChild(tr);
   }
-  document.getElementById('ev-items').textContent = '';
-  for (const it of src.items ?? []) evItemRow(it);
-  document.getElementById('ev-editor-title').textContent = ev ? `${readOnly ? 'Consultation' : 'Modification'} : ${ev.icon} ${ev.names.fr}${readOnly ? ' (planifié : repassez-le en brouillon pour le modifier)' : ''}` : 'Nouvel événement (brouillon)';
-  const rd = document.getElementById('ev-readiness');
-  rd.textContent = '';
-  if (ev) for (const b of ev.readiness.blocking) rd.appendChild(aiEl('li', {}, `❌ ${b}`));
-  document.getElementById('btn-ev-save').disabled = readOnly;
-  document.getElementById('ev-sim').textContent = '';
-  nwMessage('ev-editor-msg', '');
-  const card = document.getElementById('ev-editor');
-  card.classList.remove('hidden');
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  items.forEach((it, i) => {
+    const tr = aiEl('tr', { class: 'ev-row', tabindex: '0', 'data-adm-key': `evi:${i}`, title: _evCur.readOnly ? 'Consulter l\'objet' : 'Modifier l\'objet' });
+    const art = addCell(tr, '');
+    if (it.image) art.appendChild(aiEl('img', { src: it.image, alt: '', width: '28', height: '28', loading: 'lazy' }));
+    else art.textContent = it.icon;
+    const nm = addCell(tr, '');
+    nm.appendChild(aiEl('strong', {}, it.names.fr || '(sans nom)'));
+    nm.appendChild(aiEl('div', { class: 'muted ev-sub' }, it.id || '—'));
+    addCell(tr, EV_RARITIES[it.rarity] ?? it.rarity);
+    addCell(tr, it.dropFrom.length ? it.dropFrom.join(', ') : 'tous les blocs');
+    addCell(tr, `${it.chancePct} %${it.minDepth ? ` · ≥ ${it.minDepth} m` : ''}`);
+    const langs = addCell(tr, '');
+    for (const l of EV_LANGS) langs.appendChild(aiEl('span', { class: `co-lang co-lang--${it.names[l] && it.descs[l] ? 'ok' : it.names[l] ? 'name' : 'none'}` }, l.toUpperCase()));
+    addCell(tr, it.enabled ? '✅' : '—');
+    tr.addEventListener('click', () => eviOpen(i, tr));
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); eviOpen(i, tr); } });
+    tb.appendChild(tr);
+  });
 }
 
 function evCollect() {
-  const g = id => document.getElementById(id).value;
-  const items = [...document.querySelectorAll('#ev-items .ev-item')].map(box => {
-    const q = k => box.querySelector(`[data-k="${k}"]`);
-    return {
-      id: q('id').value.trim(), icon: q('icon').value.trim(), rarity: q('rarity').value, chancePct: Number(q('chancePct').value),
-      minDepth: Number(q('minDepth').value), enabled: q('enabled').checked, brief: q('brief').value.trim(), image: q('image').value.trim() || null,
-      dropFrom: [...box.querySelectorAll('[data-cat]')].filter(c => c.checked).map(c => c.dataset.cat),
-      names: Object.fromEntries(EV_LANGS.map(l => [l, q(`name-${l}`).value.trim()])),
-      descs: Object.fromEntries(EV_LANGS.map(l => [l, q(`desc-${l}`).value.trim()])),
-    };
-  });
+  const d = _evCur.draft;
+  const w = _evWhen.get();
   return {
-    id: g('ev-id').trim(), icon: g('ev-icon').trim(), audience: g('ev-audience'),
-    testers: g('ev-testers').split(',').map(x => x.trim()).filter(Boolean), startsAt: g('ev-start'), endsAt: g('ev-end'),
-    names: Object.fromEntries(EV_LANGS.map(l => [l, g(`ev-name-${l}`).trim()])),
-    taglines: Object.fromEntries(EV_LANGS.map(l => [l, g(`ev-tag-${l}`).trim()])),
-    items,
+    id: document.getElementById('ev-id').value.trim(), icon: document.getElementById('ev-icon').value.trim(),
+    audience: document.getElementById('ev-audience').value, testers: _evPicker.get(),
+    startsAt: w.startsAt, endsAt: w.endsAt,
+    names: Object.fromEntries(EV_LANGS.map(l => [l, (d.names[l] ?? '').trim()])),
+    taglines: Object.fromEntries(EV_LANGS.map(l => [l, (d.taglines[l] ?? '').trim()])),
+    items: d.items.map(it => ({ ...it })),
   };
+}
+const evDirty = () => document.getElementById('ev-dialog').open && _evCur && !_evCur.readOnly && _evSnap !== null && JSON.stringify(evCollect()) !== _evSnap;
+
+function evRenderState() {
+  const ev = _evCur.ev;
+  const st = document.getElementById('ev-dialog-state');
+  st.textContent = '';
+  if (ev) {
+    st.appendChild(evChip(EV_STATES[ev.state] ?? ev.state, EV_STATE_CHIP[ev.state] ?? 'muted'));
+    st.appendChild(ev.audience === 'public' ? evChip('🌍 Public', 'warn') : evChip(`🧪 TEST · ${evTesterNames(ev)}`, 'info'));
+    st.appendChild(aiEl('span', { class: 'muted ev-sub' }, `rév. ${ev.revision} · ${ev.stats.players} joueur(s), ${Object.values(ev.stats.finds).reduce((a, b) => a + b, 0)} objet(s) trouvé(s)`));
+    if (_evCur.readOnly) st.appendChild(aiEl('span', { class: 'muted ev-sub' }, 'Planifié : lecture seule. « Repasser en brouillon » pour modifier (les drops s\'arrêtent).'));
+  } else st.appendChild(evChip('Nouveau brouillon (non enregistré)', 'muted'));
+  const draft = !ev || ev.status === 'draft';
+  const isTest = document.getElementById('ev-audience').value === 'test';
+  document.getElementById('btn-ev-save').classList.toggle('hidden', !draft);
+  document.getElementById('btn-ev-schedule').classList.toggle('hidden', !ev || !draft);
+  document.getElementById('ev-now-box').classList.toggle('hidden', !ev || !draft || ev.audience !== 'test');
+  document.getElementById('btn-ev-unschedule').classList.toggle('hidden', !ev || draft);
+  document.getElementById('btn-ev-revisions').classList.toggle('hidden', !ev);
+  document.getElementById('ev-testers-box').classList.toggle('hidden', !isTest);
+  const rd = document.getElementById('ev-readiness');
+  rd.textContent = '';
+  if (ev && draft) for (const b of ev.readiness.blocking) rd.appendChild(aiEl('li', { class: 'ev-bad' }, `❌ ${b}`));
+  if (ev) for (const w of evGroupedWarnings(ev)) rd.appendChild(aiEl('li', {}, `⚠ ${w}`));
+}
+
+function evOpen(ev, opener, preset = null) {
+  const src = ev ?? preset ?? { icon: '🎉', audience: 'test', testers: [], names: {}, taglines: {}, items: [] };
+  const readOnly = !!ev && ev.status !== 'draft';
+  _evCur = { ev, readOnly, draft: {
+    names: { ...(src.names ?? {}) }, taglines: { ...(src.taglines ?? {}) },
+    items: (src.items ?? []).map(it => ({ ...it, names: { ...it.names }, descs: { ...it.descs }, dropFrom: [...(it.dropFrom ?? [])] })),
+  } };
+  _evLang = 'fr';
+  document.getElementById('ev-id').value = src.id ?? '';
+  document.getElementById('ev-id').disabled = !!ev;
+  document.getElementById('ev-icon').value = src.icon ?? '🎉';
+  document.getElementById('ev-audience').value = src.audience ?? 'test';
+  _evWhen = evWhenField(document.getElementById('ev-when'), { onChange: () => {} });
+  _evWhen.set(src.startsLocal, src.endsLocal);
+  _evPicker = evTesterPicker(document.getElementById('ev-testers'));
+  _evPicker.set(src.testers ?? []);
+  evRenderTexts();
+  evRenderItems();
+  document.getElementById('ev-dialog-title').textContent = ev ? `${ev.icon} ${ev.names.fr}` : 'Nouvel événement';
+  for (const el of document.querySelectorAll('#ev-dialog .ev-sheet input, #ev-dialog .ev-sheet select, #ev-dialog .ev-sheet textarea')) {
+    if (!el.closest('#ev-sim-box')) el.disabled = readOnly || (el.id === 'ev-id' && !!ev);
+  }
+  _evWhen.disable(readOnly);
+  _evPicker.disable(readOnly);
+  document.getElementById('btn-ev-item-add').classList.toggle('hidden', readOnly);
+  document.getElementById('ev-sim').textContent = '';
+  document.getElementById('ev-sim-box').open = false;
+  nwMessage('ev-editor-msg', '');
+  evRenderState();
+  _evSnap = JSON.stringify(evCollect());
+  admDialogOpen('ev-dialog', opener, ev ? null : 'ev-id');
+}
+
+async function evCanClose() {
+  if (evDirty() && !await admConfirm({
+    title: 'Modifications non enregistrées',
+    text: 'Cette fiche d\'événement contient des saisies qui ne sont pas enregistrées.',
+    impact: ['« Abandonner » ferme la fiche et perd ces saisies ; l\'événement enregistré ne change pas.', 'Pour les garder : « Continuer à modifier », puis « Enregistrer le brouillon ».'],
+    ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
+  })) return false;
+  _evSnap = null;
+  return true;
+}
+admDialogSetup('ev-dialog', { canClose: evCanClose });
+window.addEventListener('beforeunload', e => { if (evDirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+/** Recharge la liste et la fiche ouverte depuis le serveur (après enregistrement ou action). */
+async function evReloadOpen(id) {
+  await loadEvents();
+  const ev = _ev.events.find(e => e.id === id);
+  if (!ev || !document.getElementById('ev-dialog').open) return;
+  const opener = document.getElementById('ev-dialog')._admOpener;
+  _evSnap = null;
+  evOpen(ev, opener);
 }
 
 async function evSave() {
+  const w = _evWhen.get();
+  if (w.error) return nwMessage('ev-editor-msg', w.error, true);
   const body = evCollect();
-  const { ok, data } = _evEditing ? await api('PUT', `/api/admin/events/${encodeURIComponent(_evEditing)}`, body) : await api('POST', '/api/admin/events', body);
-  if (!ok) return nwMessage('ev-editor-msg', data.error ?? 'Enregistrement impossible.', true);
-  _evEditing = data.event.id;
-  document.getElementById('ev-id').disabled = true;
-  admToast(`« ${data.event.names.fr} » enregistré en brouillon (révision ${data.event.revision}). Rien n'est visible des joueurs.`);
-  nwMessage('ev-editor-msg', '');
-  await loadEvents();
-  const ev = _ev.events.find(e => e.id === data.event.id);
-  const rd = document.getElementById('ev-readiness');
-  rd.textContent = '';
-  if (ev) for (const b of ev.readiness.blocking) rd.appendChild(aiEl('li', {}, `❌ ${b}`));
+  const editing = _evCur.ev?.id;
+  const btn = document.getElementById('btn-ev-save');
+  btn.disabled = true;
+  try {
+    const { ok, data } = editing ? await api('PUT', `/api/admin/events/${encodeURIComponent(editing)}`, body) : await api('POST', '/api/admin/events', body);
+    if (!ok) return nwMessage('ev-editor-msg', data.error ?? 'Enregistrement impossible.', true);
+    admToast(`« ${data.event.names.fr} » enregistré en brouillon (révision ${data.event.revision}). Rien n'est visible des joueurs.`);
+    await evReloadOpen(data.event.id);
+  } finally { btn.disabled = false; }
 }
 
 async function evSimulate() {
-  const { ok, data } = await api('POST', '/api/admin/events/simulate', { event: evCollect(),
+  const w = _evWhen.get();
+  if (w.error) return nwMessage('ev-editor-msg', w.error, true);
+  const body = evCollect();
+  if (!body.id) body.id = 'simulation';
+  if (!body.names.fr) body.names.fr = 'Simulation';
+  body.testers = [];   // le public n'influe pas sur les chances
+
+  const { ok, data } = await api('POST', '/api/admin/events/simulate', { event: body,
     depth: Number(document.getElementById('ev-sim-depth').value), blocksPerDay: Number(document.getElementById('ev-sim-bpd').value) });
   const box = document.getElementById('ev-sim');
   box.textContent = '';
@@ -7604,31 +7802,79 @@ async function evSimulate() {
     table.appendChild(tr);
   }
   box.appendChild(table);
-  box.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.75rem' }, `Profondeur ${data.depth} m, poids du catalogue de blocs publié. Seuls les blocs validés par le serveur comptent.`));
+  box.appendChild(aiEl('p', { class: 'muted ev-help' }, `Profondeur ${data.depth} m, poids du catalogue de blocs publié. Seuls les blocs validés par le serveur comptent.`));
 }
 
 async function evAction(id, action, okText, body = {}) {
   const { ok, data } = await api('POST', `/api/admin/events/${encodeURIComponent(id)}/${action}`, body);
-  if (!ok) { nwMessage('ev-msg', data.error ?? 'Action impossible.', true); return false; }
+  if (!ok) { nwMessage(document.getElementById('ev-dialog').open ? 'ev-editor-msg' : 'ev-msg', data.error ?? 'Action impossible.', true); return null; }
   admToast(okText);
   nwMessage('ev-msg', '');
-  document.getElementById('ev-editor').classList.add('hidden');
-  loadEvents();
-  return true;
+  await evReloadOpen(id);
+  return data;
 }
 
-function evSchedule(ev) {
-  if (ev.audience === 'public') {
-    if (!confirm(`PUBLIER « ${ev.names.fr} » pour TOUS les joueurs du ${evFmt(ev.startsLocal)} au ${evFmt(ev.endsLocal)} (heure de Bruxelles) ?\n\nÀ faire seulement après validation du propriétaire.`)) return;
-    if (!confirm('Confirmez que le barème des drops (chances, profondeurs) est validé.')) return;
-    return evAction(ev.id, 'schedule', `« ${ev.names.fr} » planifié pour tous les joueurs.`, { confirmRates: true, confirmPublic: true });
+/** Lignes communes des confirmations : public, dates, objets. */
+function evImpactLines(ev, startLocal = ev.startsLocal, endLocal = ev.endsLocal) {
+  return [
+    ev.audience === 'public' ? '🌍 Public : TOUS les joueurs verront l\'événement et pourront trouver ses objets.' : `🧪 TEST : visible uniquement par ${evTesterNames(ev)}.`,
+    `📅 ${evFmtRange(startLocal, endLocal)} (heure de Bruxelles) — ${evDuration(evLocalToMs(endLocal) - evLocalToMs(startLocal))}.`,
+    `🎁 ${ev.items.filter(i => i.enabled).length} objet(s) : ${ev.items.filter(i => i.enabled).map(i => `${i.icon} ${i.names.fr} (${i.chancePct} %, ${i.dropFrom.length ? i.dropFrom.join('/') : 'tous blocs'})`).join(' · ')}.`,
+  ];
+}
+
+async function evSchedule() {
+  const ev = _evCur.ev;
+  if (evDirty()) return nwMessage('ev-editor-msg', 'Modifications non enregistrées : « Enregistrer le brouillon » d\'abord, puis planifiez.', true);
+  if (!ev.readiness.ready) return nwMessage('ev-editor-msg', `Planification impossible : ${ev.readiness.blocking.join(' ')}`, true);
+  const now = Date.now(), a = evLocalToMs(ev.startsLocal), b = evLocalToMs(ev.endsLocal);
+  if (b <= now) {
+    return nwMessage('ev-editor-msg', ev.audience === 'test'
+      ? 'Période expirée : utilisez « Démarrer le test maintenant » (les dates sont recalées), ou changez les dates puis enregistrez.'
+      : 'Période expirée : changez les dates puis enregistrez.', true);
   }
-  if (confirm(`Planifier l'événement TEST « ${ev.names.fr} » pour ${ev.testers.join(', ')} ?`)) evAction(ev.id, 'schedule', 'Événement TEST planifié : seuls les testeurs le voient.');
+  const elapsed = a < now;
+  const impact = [...evImpactLines(ev),
+    elapsed ? `⚠ La période a déjà commencé : il ne reste que ${evDuration(b - now)}.${ev.audience === 'test' ? ' Pour une durée complète : Annuler, puis « Démarrer le test maintenant ».' : ''}`
+      : `Début dans ${evDuration(a - now)} : rien ne change pour les joueurs avant.`,
+    'Réversible : « Repasser en brouillon » arrête les drops ; les objets trouvés restent acquis.'];
+  if (ev.audience === 'public') {
+    if (!await admConfirm({ title: `Publier « ${ev.names.fr} » pour tous les joueurs ?`, text: 'À faire seulement après validation du propriétaire (textes, barème, illustrations).',
+      impact, ok: 'Continuer', danger: true })) return;
+    if (!await admConfirm({ title: 'Barème des drops validé ?', text: 'Confirmez que les chances et profondeurs ont été simulées et validées.',
+      impact: evImpactLines(ev).slice(2), ok: '🗓️ Planifier pour tous', danger: true })) return;
+    return evAction(ev.id, 'schedule', `« ${ev.names.fr} » planifié pour tous les joueurs.`, { confirmRates: true, confirmPublic: true, confirmElapsed: elapsed });
+  }
+  if (!await admConfirm({ title: `Planifier l'événement TEST « ${ev.names.fr} » ?`, text: 'Les testeurs choisis pourront trouver ses objets en minant pendant la période.',
+    impact, ok: elapsed ? `Planifier (reste ${evDuration(b - now)})` : '🗓️ Planifier' })) return;
+  return evAction(ev.id, 'schedule', 'Événement TEST planifié : seuls les testeurs le voient.', { confirmElapsed: elapsed });
 }
 
-async function evRevisions(ev) {
+async function evStartNow() {
+  const ev = _evCur.ev;
+  if (evDirty()) return nwMessage('ev-editor-msg', 'Modifications non enregistrées : « Enregistrer le brouillon » d\'abord.', true);
+  const minutes = Math.round(Number(document.getElementById('ev-now-min').value));
+  if (!(minutes >= 10 && minutes <= 10080)) return nwMessage('ev-editor-msg', 'Durée : de 10 minutes à 7 jours (10080 min).', true);
+  if (!ev.readiness.ready) return nwMessage('ev-editor-msg', `Démarrage impossible : ${ev.readiness.blocking.join(' ')}`, true);
+  const now = Date.now(), s = evMsToLocal(now), e = evMsToLocal(now + minutes * 60000);
+  if (!await admConfirm({ title: `Démarrer le test « ${ev.names.fr} » maintenant ?`, text: 'Les dates sont recalées sur maintenant et l\'événement est planifié en une seule opération.',
+    impact: [...evImpactLines(ev, s, e), `Anciennes dates : ${evFmtRange(ev.startsLocal, ev.endsLocal)} (conservées dans les révisions).`, 'L\'audience reste TEST : aucun joueur public ne le voit.'],
+    ok: `▶ Démarrer pour ${minutes} min` })) return;
+  return evAction(ev.id, 'start-now', `Test démarré pour ${minutes} min : seuls les testeurs le voient.`, { minutes });
+}
+
+async function evUnschedule() {
+  const ev = _evCur.ev;
+  if (!await admConfirm({ title: `Repasser « ${ev.names.fr} » en brouillon ?`, text: 'Les drops s\'arrêtent aussitôt.',
+    impact: ['Les objets déjà trouvés restent acquis (souvenirs).', 'L\'événement redevient modifiable ; il faudra le planifier à nouveau.'],
+    ok: '⏸ Repasser en brouillon', danger: true })) return;
+  return evAction(ev.id, 'unschedule', 'Événement repassé en brouillon : drops arrêtés.');
+}
+
+async function evRevisions() {
+  const ev = _evCur.ev;
   const { ok, data } = await api('GET', `/api/admin/events/${encodeURIComponent(ev.id)}/revisions`);
-  if (!ok) return nwMessage('ev-msg', data.error ?? 'Révisions indisponibles.', true);
+  if (!ok) return nwMessage('ev-editor-msg', data.error ?? 'Révisions indisponibles.', true);
   document.getElementById('ev-revisions-title').textContent = `Révisions : ${ev.icon} ${ev.names.fr}`;
   const tb = document.getElementById('ev-revisions');
   tb.textContent = '';
@@ -7637,35 +7883,221 @@ async function evRevisions(ev) {
     [r.revision, r.at, r.action, r.status, r.items].forEach(x => addCell(tr, x));
     const act = addCell(tr, '');
     if (ev.status === 'draft' && r.revision !== ev.revision) {
-      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, 'Restaurer en brouillon');
-      b.addEventListener('click', () => { if (confirm(`Restaurer la révision ${r.revision} (en brouillon) ?`)) evAction(ev.id, 'restore', `Révision ${r.revision} restaurée en brouillon.`, { revision: r.revision }); });
+      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, 'Restaurer');
+      b.addEventListener('click', async () => {
+        if (evDirty()) return admToast('Enregistrez ou annulez d\'abord les modifications de la fiche.');
+        if (!await admConfirm({ title: `Restaurer la révision ${r.revision} ?`, text: 'Son contenu remplace la fiche, en brouillon (jamais planifié automatiquement).',
+          impact: ['La version actuelle reste dans les révisions.'], ok: 'Restaurer' })) return;
+        document.getElementById('ev-revisions-dialog').close();
+        evAction(ev.id, 'restore', `Révision ${r.revision} restaurée en brouillon.`, { revision: r.revision });
+      });
       act.appendChild(b);
     }
     tb.appendChild(tr);
   }
-  document.getElementById('ev-revisions-card').classList.remove('hidden');
+  admDialogOpen('ev-revisions-dialog', document.getElementById('btn-ev-revisions'));
 }
 
-document.getElementById('btn-ev-add')?.addEventListener('click', () => evOpen(null));
-document.getElementById('btn-ev-refresh')?.addEventListener('click', loadEvents);
-document.getElementById('btn-ev-item-add')?.addEventListener('click', () => evItemRow());
-document.getElementById('btn-ev-save')?.addEventListener('click', evSave);
-document.getElementById('btn-ev-sim')?.addEventListener('click', evSimulate);
-document.getElementById('btn-ev-cancel')?.addEventListener('click', () => document.getElementById('ev-editor').classList.add('hidden'));
-document.getElementById('ev-cal-year')?.addEventListener('change', renderEvCalendar);
+// ── Fiche objet (une à la fois, une langue à la fois, aperçu joueur) ──────────
+
+let _evi = null;         // { idx (-1 = nouveau), item }
+let _eviSnap = null;
+let _eviLang = 'fr';
+
+function eviRead() {
+  const it = _evi.item;
+  return { ...it, id: document.getElementById('evi-id').value.trim(), icon: document.getElementById('evi-icon').value.trim() || '🎁',
+    rarity: document.getElementById('evi-rarity').value, enabled: document.getElementById('evi-enabled').checked,
+    chancePct: Number(document.getElementById('evi-chance').value), minDepth: Number(document.getElementById('evi-depth').value) || 0,
+    image: document.getElementById('evi-image').value.trim() || null, brief: document.getElementById('evi-brief').value.trim(),
+    dropFrom: [...document.querySelectorAll('#evi-cats input:checked')].map(c => c.value),
+    names: { ...it.names }, descs: { ...it.descs } };
+}
+const eviDirty = () => document.getElementById('ev-item-dialog').open && _evi && !_evCur.readOnly && _eviSnap !== null && JSON.stringify(eviRead()) !== _eviSnap;
+
+function eviRenderLang() {
+  const it = _evi.item;
+  evLangTabs('evi-langs', _eviLang, l => !!(it.names[l] && it.descs[l]), l => { _eviLang = l; eviRenderLang(); document.querySelector(`#evi-langs [data-lang="${l}"]`).focus(); });
+  const L = _eviLang.toUpperCase();
+  document.getElementById('evi-name-label').textContent = `Nom (${L})${_eviLang === 'fr' ? ' — obligatoire' : ''}`;
+  document.getElementById('evi-desc-label').textContent = `Description humoristique (${L})`;
+  document.getElementById('evi-name').value = it.names[_eviLang] ?? '';
+  document.getElementById('evi-desc').value = it.descs[_eviLang] ?? '';
+  eviPreview();
+}
+
+function eviPreview() {
+  const it = eviRead();
+  const art = document.getElementById('evi-pv-art');
+  art.textContent = '';
+  if (it.image) art.appendChild(aiEl('img', { src: it.image, alt: '', width: '72', height: '72' }));
+  else art.textContent = it.icon;
+  document.getElementById('evi-pv-lang').textContent = _eviLang.toUpperCase();
+  document.getElementById('evi-pv-name').textContent = it.names[_eviLang] || it.names.fr || '(sans nom)';
+  document.getElementById('evi-pv-rarity').textContent = EV_RARITIES[it.rarity] ?? it.rarity;
+  document.getElementById('evi-pv-desc').textContent = it.descs[_eviLang] || '…';
+  const p = it.chancePct / 100;
+  document.getElementById('evi-chance-help').textContent = p > 0 && p <= 1
+    ? `≈ 1 chance sur ${Math.max(1, Math.round(1 / p))} par bloc éligible : ${Math.round((1 - Math.pow(1 - p, 100)) * 100)} % de l'avoir en 100 blocs éligibles, ${Math.round((1 - Math.pow(1 - p, 1000)) * 100)} % en 1 000. Le simulateur de la fiche tient compte de la part réelle des blocs.`
+    : 'Chance entre 0,001 et 100 %.';
+}
+
+function eviOpen(idx, opener) {
+  const src = idx >= 0 ? _evCur.draft.items[idx] : { id: '', icon: '🎁', rarity: 'commun', chancePct: 0.5, minDepth: 0, dropFrom: [], enabled: true, names: {}, descs: {}, image: null, brief: '' };
+  _evi = { idx, item: { ...src, names: { ...src.names }, descs: { ...src.descs }, dropFrom: [...src.dropFrom] } };
+  _eviLang = 'fr';
+  const ro = _evCur.readOnly;
+  const sel = document.getElementById('evi-rarity');
+  if (!sel.options.length) for (const [k, v] of Object.entries(EV_RARITIES)) sel.appendChild(aiEl('option', { value: k }, v));
+  const it = _evi.item;
+  document.getElementById('evi-id').value = it.id;
+  document.getElementById('evi-icon').value = it.icon;
+  sel.value = it.rarity;
+  document.getElementById('evi-enabled').checked = it.enabled !== false;
+  document.getElementById('evi-chance').value = it.chancePct;
+  document.getElementById('evi-depth').value = it.minDepth ?? 0;
+  document.getElementById('evi-image').value = it.image ?? '';
+  document.getElementById('evi-brief').value = it.brief ?? '';
+  document.getElementById('evi-upload').value = '';
+  const cats = document.getElementById('evi-cats');
+  cats.textContent = '';
+  for (const c of _ev.categories) {
+    const l = aiEl('label', { class: 'ev-cat' });
+    const cb = aiEl('input', { type: 'checkbox', value: c });
+    cb.checked = it.dropFrom.includes(c);
+    cb.addEventListener('change', eviPreview);
+    l.append(cb, aiEl('span', {}, c));
+    cats.appendChild(l);
+  }
+  const found = idx >= 0 ? (_evCur.ev?.stats.finds[it.id] ?? 0) : 0;
+  document.getElementById('evi-id').disabled = ro || found > 0;
+  for (const el of document.querySelectorAll('#ev-item-dialog .co-prop-fields input, #ev-item-dialog .co-prop-fields select, #ev-item-dialog .co-prop-fields textarea')) {
+    if (el.id !== 'evi-id') el.disabled = ro;
+  }
+  document.getElementById('btn-evi-apply').classList.toggle('hidden', ro);
+  document.getElementById('btn-evi-remove').classList.toggle('hidden', ro || idx < 0);
+  document.getElementById('ev-item-title').textContent = idx >= 0 ? `${it.icon} ${it.names.fr || it.id}${ro ? ' (consultation)' : ''}${found ? ` — trouvé ${found} fois` : ''}` : 'Nouvel objet';
+  nwMessage('evi-msg', '');
+  eviRenderLang();
+  _eviSnap = JSON.stringify(eviRead());
+  admDialogOpen('ev-item-dialog', opener, idx >= 0 ? null : 'evi-id');
+}
+
+async function eviCanClose() {
+  if (eviDirty() && !await admConfirm({
+    title: 'Modifications de l\'objet non appliquées',
+    text: 'Cette fiche d\'objet contient des saisies qui ne sont pas appliquées à l\'événement.',
+    impact: ['« Abandonner » ferme la fiche objet et perd ces saisies.', 'Pour les garder : « Continuer à modifier », puis « Appliquer à la fiche ».'],
+    ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
+  })) return false;
+  _eviSnap = null;
+  return true;
+}
+admDialogSetup('ev-item-dialog', { canClose: eviCanClose });
+
+function eviApply() {
+  const it = eviRead();
+  if (!EV_ITEM_ID_RE.test(it.id)) return nwMessage('evi-msg', 'Identifiant : minuscules, chiffres et _ (3 à 40 caractères, commence par une lettre).', true);
+  if (_evCur.draft.items.some((o, k) => o.id === it.id && k !== _evi.idx)) return nwMessage('evi-msg', `Un autre objet utilise déjà « ${it.id} ».`, true);
+  if (!it.names.fr) return nwMessage('evi-msg', 'Nom FR obligatoire.', true);
+  if (!(it.chancePct >= 0.001 && it.chancePct <= 100)) return nwMessage('evi-msg', 'Chance entre 0,001 et 100 %.', true);
+  if (_evi.idx >= 0) _evCur.draft.items[_evi.idx] = it; else _evCur.draft.items.push(it);
+  _eviSnap = null;
+  document.getElementById('ev-item-dialog').close();
+  evRenderItems();
+  nwMessage('ev-editor-msg', 'Objet appliqué : « Enregistrer le brouillon » pour l\'enregistrer.');
+}
+
+async function eviRemove() {
+  const it = _evi.item;
+  const found = _evCur.ev?.stats.finds[it.id] ?? 0;
+  if (found) return nwMessage('evi-msg', `Objet déjà trouvé ${found} fois : impossible de le retirer (décochez « Objet activé » à la place).`, true);
+  if (!await admConfirm({ title: `Retirer « ${it.names.fr || it.id} » ?`, text: 'L\'objet disparaît de la fiche.',
+    impact: ['Rien n\'est enregistré avant « Enregistrer le brouillon » ; les révisions conservent l\'ancienne version.'], ok: '🗑 Retirer', danger: true })) return;
+  _evCur.draft.items.splice(_evi.idx, 1);
+  _eviSnap = null;
+  document.getElementById('ev-item-dialog').close();
+  evRenderItems();
+}
+
+// ── Création : « ＋ Ajouter » → manuel / TEST / IA ─────────────────────────────
+
+let _evTestPicker = null, _evAiWhen = null;
+admDialogSetup('ev-add-dialog');
+admDialogSetup('ev-test-dialog');
+admDialogSetup('ev-ai-dialog');
+admDialogSetup('ev-revisions-dialog');
+
+document.getElementById('btn-ev-add')?.addEventListener('click', e => admDialogOpen('ev-add-dialog', e.currentTarget, 'btn-ev-add-manual'));
+document.getElementById('btn-ev-add-manual')?.addEventListener('click', () => {
+  const opener = document.getElementById('ev-add-dialog')._admOpener;
+  document.getElementById('ev-add-dialog').close();
+  evOpen(null, opener);
+});
+document.getElementById('btn-ev-add-test')?.addEventListener('click', () => {
+  const opener = document.getElementById('ev-add-dialog')._admOpener;
+  document.getElementById('ev-add-dialog').close();
+  _evTestPicker = evTesterPicker(document.getElementById('ev-test-testers'));
+  nwMessage('ev-test-msg', '');
+  admDialogOpen('ev-test-dialog', opener, document.querySelector('#ev-test-testers input'));
+});
+document.getElementById('btn-ev-add-ai')?.addEventListener('click', () => {
+  const opener = document.getElementById('ev-add-dialog')._admOpener;
+  document.getElementById('ev-add-dialog').close();
+  _evAiWhen = evWhenField(document.getElementById('ev-ai-when'));
+  nwMessage('ev-ai-msg', '');
+  admDialogOpen('ev-ai-dialog', opener, 'ev-ai-concept');
+});
 document.getElementById('btn-ev-test')?.addEventListener('click', async () => {
-  const testers = document.getElementById('ev-test-testers').value.split(',').map(x => x.trim()).filter(Boolean);
-  if (!testers.length) return nwMessage('ev-msg', 'Indiquez au moins un pseudo testeur.', true);
+  const testers = _evTestPicker.get();
+  if (!testers.length) return nwMessage('ev-test-msg', 'Choisissez au moins un compte testeur dans la liste.', true);
   const { ok, data } = await api('POST', '/api/admin/events/test', { testers, minutes: Number(document.getElementById('ev-test-minutes').value) });
-  if (!ok) return nwMessage('ev-msg', data.error ?? 'Création impossible.', true);
-  admToast(`Événement TEST « ${data.event.id} » créé en brouillon : « Planifier » pour l'activer.`);
-  loadEvents();
+  if (!ok) return nwMessage('ev-test-msg', data.error ?? 'Création impossible.', true);
+  const opener = document.getElementById('ev-test-dialog')._admOpener;
+  document.getElementById('ev-test-dialog').close();
+  admToast(`Brouillon TEST « ${data.event.id} » créé : « Démarrer le test maintenant » dans la fiche pour l'activer.`);
+  await loadEvents();
+  const ev = _ev.events.find(x => x.id === data.event.id);
+  if (ev) { evOpen(ev, opener); document.getElementById('ev-now-min').value = String(document.getElementById('ev-test-minutes').value); }
 });
 document.getElementById('btn-ev-ai')?.addEventListener('click', async () => {
+  const w = _evAiWhen.get();
+  if (w.error) return nwMessage('ev-ai-msg', w.error, true);
   const { ok, data } = await api('POST', '/api/admin/events-ai', { concept: document.getElementById('ev-ai-concept').value,
-    startsAt: document.getElementById('ev-ai-start').value, endsAt: document.getElementById('ev-ai-end').value,
-    itemCount: Number(document.getElementById('ev-ai-count').value) });
-  if (!ok) return nwMessage('ev-msg', data.error ?? 'Proposition impossible.', true);
-  admToast('Proposition IA lancée : le brouillon apparaîtra dans la liste.');
+    startsAt: w.startsAt, endsAt: w.endsAt, itemCount: Number(document.getElementById('ev-ai-count').value) });
+  if (!ok) return nwMessage('ev-ai-msg', data.error ?? 'Proposition impossible.', true);
+  document.getElementById('ev-ai-dialog').close();
+  admToast('Proposition IA lancée : le brouillon TEST apparaîtra dans la liste.');
   loadEvents();
+});
+
+document.getElementById('btn-ev-refresh')?.addEventListener('click', loadEvents);
+document.getElementById('btn-ev-item-add')?.addEventListener('click', e => eviOpen(-1, e.currentTarget));
+document.getElementById('btn-ev-save')?.addEventListener('click', evSave);
+document.getElementById('btn-ev-sim')?.addEventListener('click', evSimulate);
+document.getElementById('btn-ev-schedule')?.addEventListener('click', evSchedule);
+document.getElementById('btn-ev-start-now')?.addEventListener('click', evStartNow);
+document.getElementById('btn-ev-unschedule')?.addEventListener('click', evUnschedule);
+document.getElementById('btn-ev-revisions')?.addEventListener('click', evRevisions);
+document.getElementById('btn-evi-apply')?.addEventListener('click', eviApply);
+document.getElementById('btn-evi-remove')?.addEventListener('click', eviRemove);
+document.getElementById('ev-cal-year')?.addEventListener('change', renderEvCalendar);
+document.getElementById('ev-audience')?.addEventListener('change', evRenderState);
+document.getElementById('ev-name')?.addEventListener('input', e => { _evCur.draft.names[_evLang] = e.target.value; });
+document.getElementById('ev-tag')?.addEventListener('input', e => { _evCur.draft.taglines[_evLang] = e.target.value; });
+document.getElementById('evi-name')?.addEventListener('input', e => { _evi.item.names[_eviLang] = e.target.value; eviPreview(); });
+document.getElementById('evi-desc')?.addEventListener('input', e => { _evi.item.descs[_eviLang] = e.target.value; eviPreview(); });
+for (const id of ['evi-icon', 'evi-rarity', 'evi-chance', 'evi-image']) document.getElementById(id)?.addEventListener('input', eviPreview);
+document.getElementById('evi-upload')?.addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = async () => {
+    const { ok, data } = await api('POST', '/api/admin/collections/images', { data: r.result, label: `event ${_evi.item.id}` });
+    if (!ok) return nwMessage('evi-msg', data.error ?? 'Téléversement impossible.', true);
+    document.getElementById('evi-image').value = data.url;
+    eviPreview();
+    admToast('Image téléversée : « Appliquer à la fiche » puis « Enregistrer le brouillon ».');
+  };
+  r.readAsDataURL(f);
 });

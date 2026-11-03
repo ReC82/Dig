@@ -58,7 +58,7 @@ const iso = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 function scheduledTest(id, testers, items, { from = Date.now() - HOUR, to = Date.now() + HOUR } = {}) {
   ev.createEvent({ id, icon: '🧪', audience: 'test', testers, names: tx(`Test ${id}`), taglines: tx('t'), startsAt: iso(from), endsAt: iso(to), items });
-  return ev.scheduleEvent(id);
+  return ev.scheduleEvent(id, { confirmElapsed: true });
 }
 
 const ALWAYS = () => 0;   // tirage forcé : réussit dès que la probabilité est > 0
@@ -244,7 +244,7 @@ test('requêtes simultanées : INSERT OR IGNORE, un seul exemplaire', () => {
 
 test('révisions : chaque écriture tracée, restauration en brouillon uniquement', () => {
   const later = Date.now() + 40 * 86_400_000;
-  const base = { id: 'rev_a', names: tx('Rév'), startsAt: iso(later), endsAt: iso(later + HOUR), testers: ['x'], items: [item('ra_a', { chancePct: 1 })] };
+  const base = { id: 'rev_a', names: tx('Rév'), startsAt: iso(later), endsAt: iso(later + HOUR), testers: [newUser()], items: [item('ra_a', { chancePct: 1 })] };
   ev.createEvent(base);
   ev.updateEvent('rev_a', { ...base, items: [item('ra_a', { chancePct: 2 }), item('ra_b')] });
   const revs = ev.listRevisions('rev_a');
@@ -303,7 +303,7 @@ test('Noël 2026 : contenu préparé complet, humoristique, consignes d\'image d
 test('actualités : « Bientôt » à J-7 pour un événement public planifié, archivée s\'il repasse en brouillon', () => {
   const start = Date.now() + 3 * 86_400_000;
   ev.createEvent({ id: 'annonce_a', audience: 'public', icon: '🎊', names: tx('Fête'), taglines: tx('Accroche'), startsAt: iso(start), endsAt: iso(start + 5 * 86_400_000), items: [item('aa_a')] });
-  ev.createEvent({ id: 'annonce_test', audience: 'test', testers: ['x'], names: tx('Secret'), startsAt: iso(start), endsAt: iso(start + HOUR), items: [item('at_a')] });
+  ev.createEvent({ id: 'annonce_test', audience: 'test', testers: [newUser()], names: tx('Secret'), startsAt: iso(start), endsAt: iso(start + HOUR), items: [item('at_a')] });
   ev.scheduleEvent('annonce_a', { confirmRates: true, confirmPublic: true });
   ev.scheduleEvent('annonce_test');
   news.sync(new Date());
@@ -324,11 +324,12 @@ test('actualités : « Bientôt » à J-7 pour un événement public planifié, 
 // ── Événement TEST et IA ──────────────────────────────────────────────────────
 
 test('gabarit TEST : brouillon, 3 objets, testeurs ; IA factice : brouillon TEST, barème par défaut', async () => {
-  const t = ev.createTestEvent({ testers: ['proprio'], minutes: 60 });
+  const proprio = newUser('proprio');
+  const t = ev.createTestEvent({ testers: [{ id: proprio }], minutes: 60 });
   assert.strictEqual(t.status, 'draft');
   assert.strictEqual(t.audience, 'test');
   assert.strictEqual(t.items.length, 3);
-  assert.deepStrictEqual(t.testers, ['proprio']);
+  assert.deepStrictEqual(t.testers, [{ id: proprio, username: 'proprio', missing: false }]);
   assert.strictEqual(Date.parse(t.endsAt) - Date.parse(t.startsAt), 60 * 60_000);
 
   const { job, promise } = ev.startAiDraft({ concept: 'Carnaval de Binche', startsAt: '2027-01-28T00:00', endsAt: '2027-02-11T00:00', itemCount: 3 });
@@ -343,6 +344,80 @@ test('gabarit TEST : brouillon, 3 objets, testeurs ; IA factice : brouillon TEST
   assert.strictEqual(e.items.length, 3);
   assert.ok(e.items.every(i => i.chancePct > 0 && i.chancePct <= 1));
   assert.throws(() => ev.startAiDraft({ concept: 'x', startsAt: '2027-01-28T00:00', endsAt: '2027-02-11T00:00' }), /thème/);
+});
+
+// ── Testeurs par ID et « Démarrer maintenant » (recettes #56-B/C/D) ─────────────
+
+test('testeurs : ID stable (renommage), pseudo inconnu refusé, ancien format lu sans réécriture', () => {
+  const u = newUser('renomme_avant');
+  const other = newUser();
+  scheduledTest('tid_a', [{ id: u }], [item('tid_x', { chancePct: 100 })]);
+  db.getDb().prepare("UPDATE users SET username = 'renomme_apres' WHERE id = ?").run(u);
+  const e = ev.getEvent('tid_a');
+  assert.deepStrictEqual(e.testers.map(t => [t.id, t.username]), [[u, 'renomme_apres']]);
+  assert.deepStrictEqual(ev.activeFor(u).map(x => x.id), ['tid_a'], 'toujours testeur après renommage');
+  assert.deepStrictEqual(ev.activeFor(other).map(x => x.id), [], 'compte non autorisé : rien');
+  assert.deepStrictEqual(JSON.parse(db.getDb().prepare("SELECT testers FROM monthly_events WHERE id = 'tid_a'").get().testers), [{ id: u, username: 'renomme_avant' }]);
+  assert.throws(() => ev.createEvent({ id: 'tid_b', testers: ['personne_inconnue'], names: tx('B'), startsAt: iso(Date.now() + HOUR), endsAt: iso(Date.now() + 2 * HOUR), items: [item('tid_bx')] }),
+    e2 => e2.status === 400 && /introuvable/.test(e2.message));
+  assert.throws(() => ev.createEvent({ id: 'tid_c', testers: [{ id: 999999 }], names: tx('C'), startsAt: iso(Date.now() + HOUR), endsAt: iso(Date.now() + 2 * HOUR), items: [item('tid_cx')] }), /introuvable/);
+
+  // Ancien format (production du 03/11) : ["pseudo"] — lu et autorisé, la ligne n'est pas réécrite à la lecture
+  const legacy = newUser('ancien_testeur');
+  scheduledTest('tid_legacy', [{ id: legacy }], [item('tid_l', { chancePct: 100 })]);
+  db.getDb().prepare(`UPDATE monthly_events SET testers = '["ancien_testeur","fantome"]' WHERE id = 'tid_legacy'`).run();
+  const l = ev.getEvent('tid_legacy');
+  assert.deepStrictEqual(l.testers.map(t => [t.id, t.username, !!t.missing]), [[legacy, 'ancien_testeur', false], [null, 'fantome', true]]);
+  assert.deepStrictEqual(ev.activeFor(legacy).map(x => x.id), ['tid_legacy']);
+  assert.strictEqual(db.getDb().prepare("SELECT testers FROM monthly_events WHERE id = 'tid_legacy'").get().testers, '["ancien_testeur","fantome"]');
+  ev.unscheduleEvent('tid_legacy');   // action admin : enregistrée par ID (le compte fantôme reste signalé)
+  const saved = JSON.parse(db.getDb().prepare("SELECT testers FROM monthly_events WHERE id = 'tid_legacy'").get().testers);
+  assert.deepStrictEqual(saved, [{ id: legacy, username: 'ancien_testeur' }, 'fantome']);
+  assert.ok(ev.readiness(ev.getEvent('tid_legacy')).blocking.some(b => /fantome/.test(b)), 'testeur introuvable bloque la planification');
+});
+
+test('planification : période expirée refusée, période entamée confirmée, « Démarrer maintenant » TEST seulement', () => {
+  const u = newUser();
+  const now = Date.now();
+  ev.createEvent({ id: 'sn_a', audience: 'test', testers: [{ id: u }], names: tx('SN'), taglines: tx('t'), startsAt: iso(now - 3 * HOUR), endsAt: iso(now - HOUR), items: [item('sn_x')] });
+  assert.throws(() => ev.scheduleEvent('sn_a', { confirmElapsed: true }), e => e.status === 409 && e.code === 'expired');
+  assert.strictEqual(ev.getEvent('sn_a').status, 'draft', 'rien de changé');
+  const s = ev.startTestNow('sn_a', { minutes: 30, nowMs: now });
+  assert.strictEqual(s.status, 'scheduled');
+  assert.strictEqual(s.state, 'active');
+  assert.strictEqual(s.audience, 'test');
+  assert.deepStrictEqual(s.testers.map(t => t.id), [u], 'audience inchangée');
+  assert.strictEqual(Date.parse(s.endsAt) - Date.parse(s.startsAt), 30 * 60_000);
+  assert.strictEqual(s.startsAt, iso(now));
+  assert.throws(() => ev.startTestNow('sn_a', { minutes: 30 }), /déjà planifié/);
+  assert.deepStrictEqual(ev.listRevisions('sn_a').map(r => r.action), ['start_test_now', 'create']);
+  assert.ok(ev.listLog(10).some(l => l.eventId === 'sn_a' && l.action === 'start_test_now_dates' && l.details.previous.endsAt === iso(now - HOUR)));
+
+  ev.createEvent({ id: 'sn_b', audience: 'test', testers: [{ id: u }], names: tx('SN'), taglines: tx('t'), startsAt: iso(now - HOUR), endsAt: iso(now + HOUR), items: [item('sn_y')] });
+  assert.throws(() => ev.scheduleEvent('sn_b'), e => e.code === 'elapsed' && /60 min/.test(e.message));
+  assert.strictEqual(ev.scheduleEvent('sn_b', { confirmElapsed: true }).status, 'scheduled');
+  assert.throws(() => ev.startTestNow('sn_b', { minutes: 5 }), /déjà planifié|Durée/);
+
+  ev.createEvent({ id: 'sn_pub', audience: 'public', names: tx('Pub'), taglines: tx('t'), startsAt: iso(now - HOUR), endsAt: iso(now + HOUR), items: [item('sn_z')] });
+  assert.throws(() => ev.startTestNow('sn_pub', { minutes: 30 }), /TEST/);
+  assert.strictEqual(ev.getEvent('sn_pub').status, 'draft');
+  ev.createEvent({ id: 'sn_c', audience: 'test', testers: [{ id: u }], names: tx('SN'), taglines: tx('t'), startsAt: iso(now - 3 * HOUR), endsAt: iso(now - HOUR), items: [item('sn_w')] });
+  assert.throws(() => ev.startTestNow('sn_c', { minutes: 3 }), /Durée/);
+  assert.strictEqual(ev.getEvent('sn_c').status, 'draft');
+});
+
+test('suggestions de testeurs : comptes bêta et testeurs déjà utilisés, pseudo et ID seulement', () => {
+  const u = newUser('beta_inscrit');
+  try {
+    require('../server/beta').init?.();
+    const inv = db.getDb().prepare("INSERT INTO beta_invites (code, label, wave, max_uses) VALUES ('EVTSUGG1', 'x', 1, 1)").run().lastInsertRowid;
+    db.getDb().prepare('INSERT INTO beta_invite_uses (invite_id, user_id) VALUES (?, ?)').run(inv, u);
+  } catch (e) { assert.fail(`tables bêta : ${e.message}`); }
+  const list = ev.testerSuggestions();
+  const mine = list.find(x => x.id === u);
+  assert.deepStrictEqual(mine, { id: u, username: 'beta_inscrit', why: 'bêta' });
+  assert.ok(list.some(x => x.why === 'déjà testeur'));
+  assert.ok(list.every(x => Object.keys(x).sort().join() === 'id,username,why'), 'aucune autre donnée (e-mail…)');
 });
 
 // ── HTTP de bout en bout ──────────────────────────────────────────────────────
@@ -380,7 +455,10 @@ test('HTTP : admin protégé, événement TEST planifié, objet tiré à la sauv
     assert.strictEqual(cr.status, 200, await cr.clone().text());
     const sim = await (await fetch(`${BASE}/api/admin/events/simulate`, { method: 'POST', headers: admin, body: JSON.stringify({ event: body, depth: 10 }) })).json();
     assert.strictEqual(sim.items[0].perBlock, 1);
-    const sc = await fetch(`${BASE}/api/admin/events/http_test/schedule`, { method: 'POST', headers: admin, body: '{}' });
+    const late = await fetch(`${BASE}/api/admin/events/http_test/schedule`, { method: 'POST', headers: admin, body: '{}' });
+    assert.strictEqual(late.status, 409, 'période commencée : confirmation explicite exigée');
+    assert.strictEqual((await late.json()).code, 'elapsed');
+    const sc = await fetch(`${BASE}/api/admin/events/http_test/schedule`, { method: 'POST', headers: admin, body: '{"confirmElapsed":true}' });
     assert.strictEqual(sc.status, 200, await sc.clone().text());
     const view = await (await fetch(`${BASE}/api/admin/events`, { headers: admin })).json();
     assert.strictEqual(view.events.find(e => e.id === 'http_test').state, 'active');
@@ -415,6 +493,10 @@ test('HTTP : admin protégé, événement TEST planifié, objet tiré à la sauv
     assert.strictEqual(pv2.souvenirs[0].items[0].id, 'ht_sure');
     const revs = await (await fetch(`${BASE}/api/admin/events/http_test/revisions`, { headers: admin })).json();
     assert.deepStrictEqual(revs.revisions.map(r => r.action), ['unschedule', 'schedule_test', 'create']);
+    const sn = await fetch(`${BASE}/api/admin/events/http_test/start-now`, { method: 'POST', headers: admin, body: '{"minutes":20}' });
+    assert.strictEqual(sn.status, 200, await sn.clone().text());
+    assert.strictEqual((await sn.json()).event.state, 'active');
+    assert.strictEqual((await fetch(`${BASE}/api/admin/events/http_test/start-now`, { method: 'POST', body: '{}' })).status, 401);
   } finally {
     const done = new Promise(r => server.once('exit', r));
     server.kill();
@@ -432,5 +514,11 @@ test('client et admin : panneau Événements, toast, textes 4 langues, rendu éc
   assert.match(main, /escapeHtml\(_badgeText\(ev\.names\)\)|escapeHtml\(title\)/);
   assert.match(adminHtml, /data-tab="events"/);
   assert.match(adminJs, /loadEvents\(\)/);
-  assert.doesNotMatch(adminJs.slice(adminJs.indexOf('// ── Événements mensuels (#56)')), /innerHTML/, 'admin : DOM uniquement (#15)');
+  const evJs = adminJs.slice(adminJs.indexOf('// ── Événements mensuels (#56)'));
+  assert.doesNotMatch(evJs, /innerHTML/, 'admin : DOM uniquement (#15)');
+  assert.doesNotMatch(evJs, /(^|[^.\w])confirm\(/, 'recette #56-D : confirmations Dig (admConfirm), jamais confirm() natif');
+  assert.match(evJs, /attachPlayerAutocomplete\(/, 'recette #56-B : testeurs choisis par autocomplétion');
+  const evHtml = adminHtml.slice(adminHtml.indexOf('<section id="tab-events"'), adminHtml.indexOf('</section>', adminHtml.indexOf('<section id="tab-events"')));
+  assert.doesNotMatch(evHtml, /datetime-local/, 'recette #56-C : dates JJ/MM/AAAA, pas le champ natif');
+  for (const id of ['ev-add-dialog', 'ev-test-dialog', 'ev-ai-dialog', 'ev-dialog', 'ev-item-dialog']) assert.match(evHtml, new RegExp(`<dialog id="${id}"`));
 });
