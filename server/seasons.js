@@ -340,6 +340,8 @@ function startSeasonScheduler(intervalMs = SCHEDULER_INTERVAL_MS) {
     // Thèmes (#48) : après la rotation, jamais bloquant pour elle
     try { seasonThemes.sync(new Date()); }
     catch (err) { console.error('[seasons][scheduler] thèmes de saison', err.message); }
+    // Actualités (#50) : annonces de saison et classements finaux, après les thèmes (ne lève jamais)
+    require('./news').sync(new Date());
   };
   tick();
   _schedulerTimer = setInterval(tick, intervalMs);

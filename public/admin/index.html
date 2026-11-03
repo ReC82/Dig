@@ -40,6 +40,7 @@
     <button class="tab-btn" data-tab="badges">🏅 Badges</button>
     <button class="tab-btn" data-tab="ads">📢 Publicité</button>
     <button class="tab-btn" data-tab="beta">🧪 Bêta</button>
+    <button class="tab-btn" data-tab="news">📰 Actualités</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -1676,6 +1677,123 @@
         <button class="btn btn-outline" type="button" data-close>Annuler</button>
       </div>
       <p id="beta-settings-msg" class="error hidden"></p>
+    </dialog>
+  </section>
+
+  <section id="tab-news" class="tab-content hidden">
+    <!-- #50 : liste d'abord ; « ＋ Ajouter » ouvre la fiche (saisie manuelle ou mise en forme IA d'un texte brut).
+         Une annonce est toujours enregistrée en brouillon : la publication est une action séparée. -->
+    <div class="section-header">
+      <h2>📰 Centre d'actualités</h2>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-news-add" type="button">＋ Ajouter</button>
+        <button class="btn btn-outline" id="btn-news-refresh" type="button">↻ Rafraîchir</button>
+      </div>
+    </div>
+    <div class="overview-card">
+      <div class="form-actions" style="align-items:center">
+        <label>Afficher
+          <select id="news-filter">
+            <option value="all">Toutes</option>
+            <option value="draft">Brouillons</option>
+            <option value="published">Publiées / programmées</option>
+            <option value="archived">Archivées</option>
+          </select></label>
+        <span id="news-counts" class="muted" style="font-size:0.8rem"></span>
+      </div>
+      <div style="overflow-x:auto"><table><thead><tr><th>État</th><th>Annonce</th><th>Catégorie</th><th>Publication</th><th>Événement</th><th>Source</th><th>Actions</th></tr></thead><tbody id="news-list"></tbody></table></div>
+      <p id="news-msg" class="hidden"></p>
+    </div>
+
+    <details class="overview-card" id="news-settings-card">
+      <summary>Annonces automatiques, faits joueurs et Discord</summary>
+      <div class="adm-form">
+        <label class="adm-check"><input type="checkbox" id="news-auto-seasons"> <span>Annonces de saison automatiques : saison suivante (dès l'annonce J-1 du thème), début de saison, fin de saison (chiffres agrégés, après le classement figé)</span></label>
+        <label class="adm-check"><input type="checkbox" id="news-player-events"> <span>Faits joueurs (profondeur validée par le serveur, classement final) — <strong>uniquement</strong> les joueurs qui ont coché « J'accepte que mon pseudo apparaisse » dans le panneau Actualités ; jamais un joueur signalé par l'anti-bot</span></label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+          <label>Paliers de profondeur (m, séparés par des virgules)<input id="news-depths" type="text" maxlength="80"></label>
+          <label>Classement final : top N cité (0 = aucun)<input id="news-rank-top" type="number" min="0" max="10"></label>
+          <label>Faits joueurs publiés au plus par jour<input id="news-daily-max" type="number" min="0" max="50"></label>
+        </div>
+        <p id="news-discord-state" class="muted" style="font-size:0.8rem"></p>
+        <div class="form-actions"><button class="btn" id="btn-news-settings" type="button">Enregistrer les réglages</button></div>
+        <p id="news-settings-msg" class="hidden"></p>
+      </div>
+    </details>
+
+    <details class="overview-card">
+      <summary>Journal des actualités (40 dernières actions)</summary>
+      <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Annonce</th><th>Action</th><th>Détails</th></tr></thead><tbody id="news-log"></tbody></table></div>
+    </details>
+
+    <dialog id="news-dialog" class="bk-dialog adm-dialog" aria-labelledby="news-dialog-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="news-dialog-title">＋ Nouvelle annonce</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
+      <details id="nw-ai-box" class="overview-card" open>
+        <summary>✨ Mise en forme avec l'IA depuis un texte brut</summary>
+        <p class="muted" style="font-size:0.78rem">Colle tes notes telles quelles. L'IA rédige titre, résumé et texte en FR/EN/NL/ES <strong>sans rien ajouter</strong> :
+          ce qui manque (date, heure…) est listé ci-dessous, un lien absent de tes notes est retiré. Le résultat remplit la fiche ; rien n'est publié.</p>
+        <textarea id="nw-raw" rows="5" maxlength="4000" style="width:100%" placeholder="ex. Maintenance jeudi 20h-20h30 heure belge, le jeu sera indisponible, sauvegardez avant."></textarea>
+        <div class="form-actions"><button class="btn" id="btn-nw-ai" type="button">✨ Mettre en forme</button><span id="nw-ai-state" class="muted" style="font-size:0.8rem"></span></div>
+        <ul id="nw-ai-notes" class="beta-warnings"></ul>
+      </details>
+      <div class="adm-form">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
+          <label>Catégorie<select id="nw-category">
+            <option value="news">Annonce</option><option value="season">Saison</option><option value="event">Événement</option>
+            <option value="update">Mise à jour</option><option value="maintenance">Maintenance</option><option value="community">Communauté</option>
+          </select></label>
+          <label>Icône (un emoji)<input id="nw-icon" type="text" maxlength="8" value="📰"></label>
+          <label>Date de l'événement (heure locale, facultatif)<input id="nw-event" type="datetime-local"></label>
+          <label>Expiration (heure locale, facultatif)<input id="nw-expires" type="datetime-local"></label>
+        </div>
+        <label>Lien (https://…, facultatif)<input id="nw-link" type="text" inputmode="url" maxlength="300" placeholder="https://"></label>
+        <details class="nw-lang" open>
+          <summary>Français (obligatoire)</summary>
+          <label>Titre<input id="nw-title-fr" type="text" maxlength="90"></label>
+          <label>Résumé (une phrase)<input id="nw-summary-fr" type="text" maxlength="280"></label>
+          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-fr" rows="4" maxlength="2000"></textarea></label>
+          <label>Libellé du lien<input id="nw-linklabel-fr" type="text" maxlength="40" placeholder="En savoir plus"></label>
+        </details>
+        <details class="nw-lang">
+          <summary>English (vide = français affiché)</summary>
+          <label>Titre<input id="nw-title-en" type="text" maxlength="90"></label>
+          <label>Résumé (une phrase)<input id="nw-summary-en" type="text" maxlength="280"></label>
+          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-en" rows="4" maxlength="2000"></textarea></label>
+          <label>Libellé du lien<input id="nw-linklabel-en" type="text" maxlength="40" placeholder="En savoir plus"></label>
+        </details>
+        <details class="nw-lang">
+          <summary>Nederlands (vide = français affiché)</summary>
+          <label>Titre<input id="nw-title-nl" type="text" maxlength="90"></label>
+          <label>Résumé (une phrase)<input id="nw-summary-nl" type="text" maxlength="280"></label>
+          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-nl" rows="4" maxlength="2000"></textarea></label>
+          <label>Libellé du lien<input id="nw-linklabel-nl" type="text" maxlength="40" placeholder="En savoir plus"></label>
+        </details>
+        <details class="nw-lang">
+          <summary>Español (vide = français affiché)</summary>
+          <label>Titre<input id="nw-title-es" type="text" maxlength="90"></label>
+          <label>Résumé (une phrase)<input id="nw-summary-es" type="text" maxlength="280"></label>
+          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-es" rows="4" maxlength="2000"></textarea></label>
+          <label>Libellé du lien<input id="nw-linklabel-es" type="text" maxlength="40" placeholder="En savoir plus"></label>
+        </details>
+      </div>
+      <div class="beta-preview">
+        <strong>Aperçu (comme dans le jeu, en français) :</strong>
+        <ul id="nw-preview" class="news-admin-preview"></ul>
+      </div>
+      <p id="nw-warn" class="beta-warn hidden"></p>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-nw-save" type="button">Enregistrer le brouillon</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      </div>
+      <div class="form-actions" id="nw-publish-row">
+        <button class="btn" id="btn-nw-publish" type="button">📣 Publier maintenant</button>
+        <label>ou programmer le<input id="nw-publish-at" type="datetime-local"></label>
+        <button class="btn btn-outline" id="btn-nw-schedule" type="button">Programmer</button>
+      </div>
+      <p id="nw-error" class="error hidden"></p>
     </dialog>
   </section>
 

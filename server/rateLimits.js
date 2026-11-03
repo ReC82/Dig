@@ -39,12 +39,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function, feedback: Function, inviteCheck: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function, feedback: Function, inviteCheck: Function, news: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass, feedback: pass, inviteCheck: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass, feedback: pass, inviteCheck: pass, news: pass };
   }
 
   const common = {
@@ -144,6 +144,15 @@ function createRateLimiters(env = process.env) {
       ...common,
       windowMs: 15 * MINUTE,
       limit:    intFromEnv(env, 'RATE_INVITE_CHECK_MAX', 30),
+    }),
+
+    // Centre d'actualités (#50) : lecture à l'ouverture du jeu et du panneau, lu / préférences ;
+    // ≤ 30 / min / compte (à défaut, par IP).
+    news: rateLimit({
+      ...common,
+      windowMs:     MINUTE,
+      limit:        intFromEnv(env, 'RATE_NEWS_MAX', 30),
+      keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
     }),
 
     // Signalements de bugs de la bêta (#57) : ≤ 5 / 15 min / compte (à défaut, par IP).
