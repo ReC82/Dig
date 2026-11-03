@@ -23,6 +23,31 @@ Production au 30 octobre 2026 : une seule ligue (Mimosa) et un seul joueur actif
 seuil de 10 actifs, **aucune promotion n'aura lieu tant qu'il n'y aura pas 10 joueurs actifs dans la
 même semaine**.
 
+### 1.1 Audit du 03/11/2026 (demande du propriétaire, lié à #48)
+
+- **« Mimosa » = ligue, pas saison.** Mimosa 🌼 est la ligue de niveau 0 (table `leagues`, seule
+  ligue en production). Les saisons ont leur propre nom (« Saison 45-2026 »…), unique, qui change
+  chaque semaine. Mimosa reste affichée parce que **personne n'a jamais été promu** : les clôtures
+  du 30/10 et du 02/11 ont enregistré `1 actif < min=10 → pas de promotion`. Renommer la ligue
+  chaque semaine serait faux (une ligue est un palier durable). Ce qui manque est l'affichage
+  distinct de la saison (nom, bornes, temps restant) à côté de la ligue : périmètre #48.
+- **Minimum d'un promu** : garanti dans toute ligue qui atteint le seuil, quel que soit son
+  niveau (niveau 12 avec 10 actifs : la formule donne 0,78 → 1 promu). Sous le seuil, aucun promu :
+  c'est la règle actuelle, inchangée. Le seuil se règle dans le panel admin (Config,
+  « Joueurs actifs min dans une ligue pour qu'il y ait des promus », minimum 1) sans redéploiement.
+- **Correctif (sans changement de barème)** : une valeur illisible ou hors bornes de
+  `promotion_rate`, `difficulty_coefficient` ou `min_active_players_per_league` donnait un calcul
+  NaN et **0 promu en silence** ; elle reprend maintenant la valeur par défaut, le nombre de promus
+  est borné à l'effectif, et le panel admin refuse ces valeurs (taux 0–1, coefficient ≥ 0, seuil
+  entier ≥ 1).
+- **Égalités** : profondeur, puis blocs **manuels validés** (`effective_manual_blocks`), puis premier
+  arrivé, puis compte. L'auto-dig n'entre ni dans l'effectif ni dans le tri.
+- **Panne au moment de la clôture** : promotions, clôture, classement figé et saison suivante sont
+  dans une seule transaction ; une panne n'applique rien, la reprise promeut une seule fois.
+- **Relégation** : aucune (règle actuelle) ; personne ne descend.
+- Preuves : `test/leagues-audit.test.js` (7 tests) en plus de `test/leagues.test.js` (3 ligues × 30)
+  et `test/season-cycles-12.test.js` (12 transitions).
+
 ## 2. Classement MVP et recommandation post-lancement
 
 ### 2.1 Classement

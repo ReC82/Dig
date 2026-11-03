@@ -74,6 +74,7 @@ const {
   buildLeagueLeaderboard,
   buildActiveSeasonLeaderboard,
   startSeasonScheduler,
+  validateLeagueConfigValue,
 } = require('./seasons');
 const { normalizeDate, parseUtc, endBefore } = require('./seasonCalendar');
 const seasonEnd = require('./seasonEnd');
@@ -1464,8 +1465,8 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
   try {
     const { key, value } = req.body ?? {};
     if (!key || value == null) return res.status(400).json({ error: 'Champs key et value requis.' });
-    // Paramètres économiques bornés (#20) et interrupteurs anti-bot (#25) : appliqués sans redéploiement.
-    const checked = antibot.validateConfigValue(key, value) ?? validateEconomyValue(key, value);
+    // Paramètres économiques bornés (#20), interrupteurs anti-bot (#25) et paramètres de ligue (#19) : appliqués sans redéploiement.
+    const checked = antibot.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? validateEconomyValue(key, value);
     if (checked.error) return res.status(400).json({ error: checked.error });
     const previous = getAdminConfig()[key];
     setAdminConfig(key, checked.value);

@@ -376,7 +376,7 @@ const CONFIG_LABELS = {
   max_effective_cps:            'Clics/s max avant exclusion du classement',
   promotion_rate:               'Taux de promotion entre ligues (0–1)',
   difficulty_coefficient:       'Coefficient de difficulté par ligue',
-  min_active_players_per_league:'Joueurs actifs min pour créer une ligue',
+  min_active_players_per_league:'Joueurs actifs min dans une ligue pour qu\'il y ait des promus',
   anti_autoclick_enabled:       'Anti-autoclicker activé (true/false)',
   depth_validation_enabled:     'Validation serveur de la profondeur (true/false)',
   depth_max_cps:                'Clics/s max retenus pour la profondeur',
