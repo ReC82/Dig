@@ -90,6 +90,7 @@ const seasonThemes = require('./seasonThemes');
 const badges = require('./badges');
 const badgeAi = require('./badgeAi');
 const news    = require('./news');
+const monthlyEvents = require('./monthlyEvents');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
@@ -502,7 +503,11 @@ app.post('/api/me/save', limit.save, (req, res) => {
     // Actualités (#50) : palier de profondeur validée, seulement si activé et accepté par le joueur
     try { news.onSave(req.session.userId); }
     catch (err) { console.error('[POST /api/me/save] actualités', err.message); }
-    res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}) });
+    // Événements mensuels (#56) : tirage serveur sur les blocs validés ci-dessus (badges), objet unique par joueur
+    let eventFinds = [];
+    try { eventFinds = monthlyEvents.processSave(req.session.userId); }
+    catch (err) { console.error('[POST /api/me/save] événements', err.message); }
+    res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}), ...(eventFinds.length ? { eventFinds } : {}) });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -1669,6 +1674,45 @@ app.get('/api/admin/news-ai/:id', requireAdmin, newsRoute('GET /api/admin/news-a
 }));
 app.delete('/api/admin/news-ai/:id', requireAdmin, newsRoute('DELETE /api/admin/news-ai/:id', req => { news.discardProposal(newsId(req)); return { ok: true }; }));
 
+// ── Événements mensuels (#56) : objets exclusifs, calendrier, admin ──────────
+
+function eventRoute(label, fn) {
+  return (req, res) => {
+    try { res.setHeader('Cache-Control', 'no-store'); res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof monthlyEvents.EventError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+const eventId = req => String(req.params.id || '');
+
+// Jeu : événements en cours (objets trouvés ou « ? »), à venir (publics, J-7) et souvenirs du joueur.
+app.get('/api/events', limit.news, eventRoute('GET /api/events', req => monthlyEvents.publicView(req.session.userId || null)));
+
+// Panel : liste + calendrier + IA, création/édition en brouillon, planification, retour en brouillon, révisions.
+app.get('/api/admin/events', requireAdmin, eventRoute('GET /api/admin/events', () => monthlyEvents.adminView()));
+app.post('/api/admin/events', requireAdmin, eventRoute('POST /api/admin/events', req => ({ event: monthlyEvents.createEvent(req.body ?? {}) })));
+app.post('/api/admin/events/test', requireAdmin, eventRoute('POST /api/admin/events/test',
+  req => ({ event: monthlyEvents.createTestEvent({ testers: req.body?.testers, minutes: req.body?.minutes }) })));
+app.post('/api/admin/events/simulate', requireAdmin, eventRoute('POST /api/admin/events/simulate',
+  req => monthlyEvents.simulate(monthlyEvents.normalizeEvent(req.body?.event ?? {}),
+    { depth: intParam(req.body?.depth, { def: 50, min: 0, max: 100000 }), blocksPerDay: intParam(req.body?.blocksPerDay, { def: 300, min: 1, max: 100000 }) })));
+app.put('/api/admin/events/:id', requireAdmin, eventRoute('PUT /api/admin/events/:id', req => ({ event: monthlyEvents.updateEvent(eventId(req), req.body ?? {}) })));
+app.post('/api/admin/events/:id/schedule', requireAdmin, eventRoute('POST /api/admin/events/:id/schedule',
+  req => ({ event: monthlyEvents.scheduleEvent(eventId(req), { confirmRates: req.body?.confirmRates === true, confirmPublic: req.body?.confirmPublic === true }) })));
+app.post('/api/admin/events/:id/unschedule', requireAdmin, eventRoute('POST /api/admin/events/:id/unschedule', req => ({ event: monthlyEvents.unscheduleEvent(eventId(req)) })));
+app.get('/api/admin/events/:id/revisions', requireAdmin, eventRoute('GET /api/admin/events/:id/revisions', req => ({ revisions: monthlyEvents.listRevisions(eventId(req)) })));
+app.post('/api/admin/events/:id/restore', requireAdmin, eventRoute('POST /api/admin/events/:id/restore',
+  req => ({ event: monthlyEvents.restoreRevision(eventId(req), intParam(req.body?.revision, { def: 0, min: 1 })) })));
+app.post('/api/admin/events-ai', requireAdmin, eventRoute('POST /api/admin/events-ai',
+  req => ({ job: monthlyEvents.startAiDraft({ concept: req.body?.concept, startsAt: req.body?.startsAt, endsAt: req.body?.endsAt, itemCount: req.body?.itemCount }).job })));
+app.get('/api/admin/events-ai/:id', requireAdmin, eventRoute('GET /api/admin/events-ai/:id', req => {
+  const job = monthlyEvents.getAiJob(intParam(req.params.id, { def: 0, min: 1 }));
+  if (!job) throw new monthlyEvents.EventError(404, 'Génération introuvable.');
+  return { job };
+}));
+
 // ── Bêta fermée (#57) : bandeau, invitations, signalements ────────────────────
 
 function betaRoute(label, fn) {
@@ -1909,6 +1953,9 @@ seasonThemes.init();             // saisons thématiques : thèmes, noms réserv
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
 news.init();                     // centre d'actualités : annonces, lu par compte, IA, faits joueurs (#50)
+monthlyEvents.init();            // événements mensuels : objets exclusifs, souvenirs permanents, révisions (#56)
+// Événements préparés (server/content/events) → brouillon, une seule fois ; pas en test (bases neuves)
+if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importPrepared();
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 

@@ -240,6 +240,7 @@ function switchView(viewId) {
   }
   if (viewId === 'collection') {
     renderCollection();
+    renderEvents();
     renderRelics();
     renderBadges();
     // Badge : effacer seulement si aucune relique n'est désormais abordable/améliorable
@@ -870,6 +871,63 @@ function _onBadgesEarned(list) {
   if (isViewActive('collection')) renderBadges();
 }
 
+// ── Événements mensuels (#56) ─────────────────────────────────────────────────
+// Objets tirés par le serveur sur le minage validé ; souvenirs conservés après l'événement.
+
+function _onEventFinds(list) {
+  list.forEach((f, i) => {
+    setTimeout(() => showAchievement(f.icon || '🎁', t('events.toast', { name: _badgeText(f.names) }), 'success'), i * 600);
+  });
+  if (isViewActive('collection')) renderEvents();
+}
+
+let _eventsReq = 0;
+async function renderEvents() {
+  const el = document.getElementById('events-panel');
+  if (!el) return;
+  const req = ++_eventsReq;
+  let res;
+  try { res = await _apiFetch('GET', '/api/events'); } catch (_) { res = null; }
+  if (req !== _eventsReq) return;
+  const d = res && res.ok ? res.data : null;
+  if (!d || (!d.active.length && !d.upcoming.length && !d.souvenirs.length)) { el.innerHTML = ''; el.hidden = true; return; }
+  el.hidden = false;
+  const lang = I18n.getCurrent();
+  const fmtDate = iso => new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+  const card = (ev, it) => {
+    const icon = it.found ? (it.image ? `<img src="${escapeHtml(it.image)}" alt="" loading="lazy">` : escapeHtml(it.icon)) : '?';
+    const name = it.found ? _badgeText(it.names) : '???';
+    return `<button type="button" class="find-card${it.found ? ' found' : ''} find-rarity-${it.found ? escapeHtml(it.rarity) : 'unknown'}"`
+      + ` data-ev="${escapeHtml(ev.id)}" data-item="${escapeHtml(it.id)}" aria-label="${escapeHtml(it.found ? name : t('collection.unknown_title'))}">`
+      + `<div class="find-icon">${icon}</div><div class="find-name">${escapeHtml(name)}</div></button>`;
+  };
+  const section = (ev, title, sub) => `<section class="collection-series event-series" data-ev="${escapeHtml(ev.id)}">`
+    + `<h3 class="collection-series-title">${escapeHtml(title)}</h3>${sub ? `<p class="badges-note">${sub}</p>` : ''}`
+    + `<div class="collection-series-grid">${ev.items.map(it => card(ev, it)).join('')}</div><p class="badges-note event-item-desc" hidden></p></section>`;
+  let html = '';
+  for (const ev of d.active) {
+    const n = ev.items.filter(i => i.found).length;
+    html += section(ev, `${ev.icon} ${_badgeText(ev.names)} · ${t('events.count', { n, total: ev.items.length })}`,
+      escapeHtml(t('events.until', { date: fmtDate(ev.endsAt) })) + (ev.test ? ` · <strong>${escapeHtml(t('events.test'))}</strong>` : '')
+      + (_badgeText(ev.taglines) ? `<br>${escapeHtml(_badgeText(ev.taglines))}` : '') + `<br>${escapeHtml(t('events.keep'))}`);
+  }
+  for (const ev of d.upcoming) html += `<p class="badges-note">${escapeHtml(ev.icon)} ${escapeHtml(t('events.upcoming', { name: _badgeText(ev.names), date: fmtDate(ev.startsAt) }))}</p>`;
+  if (d.souvenirs.length) {
+    html += `<h3 class="collection-archives-title">${escapeHtml(t('events.souvenirs'))}</h3>`;
+    for (const ev of d.souvenirs) html += section(ev, `${ev.icon} ${_badgeText(ev.names)} · ${ev.items.length}`, '');
+  }
+  el.innerHTML = `<div class="section-divider"><span>${escapeHtml(t('events.section'))}</span></div>${html}`;
+  const all = [...d.active, ...d.souvenirs];
+  el.querySelectorAll('.find-card').forEach(b => b.addEventListener('click', () => {
+    const ev = all.find(e => e.id === b.dataset.ev);
+    const it = ev && ev.items.find(i => i.id === b.dataset.item);
+    const p = b.closest('section').querySelector('.event-item-desc');
+    if (!it || !p) return;
+    p.hidden = false;
+    p.textContent = it.found ? `${_badgeText(it.names)} — ${_badgeText(it.descs)} (${t('events.found_on', { date: fmtDate(it.foundAt) })})` : t('events.unknown');
+  }));
+}
+
 let _badgesReq = 0;
 async function renderBadges() {
   const el = document.getElementById('badges-panel');
@@ -1484,6 +1542,7 @@ async function _pushSave(retry) {
     _teleConsume(tele);
     _setCloudMeta(res.data.revision);
     if (Array.isArray(res.data.badgesEarned) && res.data.badgesEarned.length) _onBadgesEarned(res.data.badgesEarned);
+    if (Array.isArray(res.data.eventFinds) && res.data.eventFinds.length) _onEventFinds(res.data.eventFinds);
     _refreshSeasonView();   // onglet Saison ouvert : chiffres serveur à jour après la sauvegarde
     return 'ok';
   }

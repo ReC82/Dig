@@ -150,6 +150,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'ads')             loadAds();
     if (btn.dataset.tab === 'beta')            loadBeta();
     if (btn.dataset.tab === 'news')            loadNews();
+    if (btn.dataset.tab === 'events')          loadEvents();
   });
 });
 
@@ -5870,3 +5871,320 @@ if (document.getElementById('news-dialog')) {
   document.getElementById('btn-news-refresh').addEventListener('click', loadNews);
   document.getElementById('news-filter').addEventListener('change', loadNews);
 }
+
+// ── Événements mensuels (#56) ─────────────────────────────────────────────────
+// Liste, fiche (brouillon), objets, simulation, planification, révisions, TEST, IA, calendrier.
+
+let _ev = null;          // vue admin (GET /api/admin/events)
+let _evEditing = null;   // identifiant en cours de modification (null = création)
+const EV_LANGS = ['fr', 'en', 'nl', 'es'];
+const EV_STATES = { draft: '📝 Brouillon', planned: '🗓️ Planifié', active: '🟢 Actif', ended: '🏁 Terminé' };
+const EV_RARITIES = { commun: 'Commun', 'peu-commun': 'Peu commun', rare: 'Rare', epique: 'Épique', legendaire: 'Légendaire' };
+const EV_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+const evFmt = local => (local ? local.replace('T', ' ') : '—');
+
+async function loadEvents() {
+  const { ok, data } = await api('GET', '/api/admin/events');
+  if (!ok) return nwMessage('ev-msg', data.error ?? 'Chargement impossible.', true);
+  _ev = data;
+  renderEvents();
+}
+
+function renderEvents() {
+  const tb = document.getElementById('ev-list');
+  tb.textContent = '';
+  if (!_ev.events.length) {
+    const tr = document.createElement('tr');
+    addCell(tr, 'Aucun événement. « ＋ Ajouter », le calendrier ou l\'IA pour en créer un (toujours en brouillon).').colSpan = 7;
+    tb.appendChild(tr);
+  }
+  for (const ev of _ev.events) {
+    const tr = document.createElement('tr');
+    addCell(tr, EV_STATES[ev.state] ?? ev.state);
+    const name = addCell(tr, `${ev.icon} ${ev.names.fr}`);
+    name.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `${ev.id} · rév. ${ev.revision} · source ${ev.source}`));
+    if (ev.status === 'draft') {
+      for (const b of ev.readiness.blocking) name.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `❌ ${b}`));
+    }
+    for (const w of ev.readiness.warnings) name.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `⚠️ ${w}`));
+    addCell(tr, ev.audience === 'public' ? '🌍 Public' : `🧪 TEST (${ev.testers.join(', ') || 'aucun testeur'})`);
+    addCell(tr, `${evFmt(ev.startsLocal)} → ${evFmt(ev.endsLocal)}`);
+    addCell(tr, `${ev.items.filter(i => i.enabled).length} actif(s) / ${ev.items.length}`);
+    const found = Object.values(ev.stats.finds).reduce((a, b) => a + b, 0);
+    addCell(tr, `${ev.stats.players} joueur(s) · ${found} objet(s) trouvé(s)`);
+    const act = addCell(tr, '');
+    const btn = (label, fn) => { const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, label); b.addEventListener('click', fn); act.appendChild(b); return b; };
+    if (ev.status === 'draft') {
+      btn('Modifier', () => evOpen(ev));
+      btn('Planifier', () => evSchedule(ev));
+    } else {
+      btn('Voir', () => evOpen(ev, true));
+      btn('Repasser en brouillon', () => {
+        if (confirm(`Repasser « ${ev.names.fr} » en brouillon ? Les drops s'arrêtent aussitôt ; les objets déjà trouvés restent acquis.`)) evAction(ev.id, 'unschedule', 'Événement repassé en brouillon : drops arrêtés.');
+      });
+    }
+    btn('Révisions', () => evRevisions(ev));
+    tb.appendChild(tr);
+  }
+  renderEvCalendar();
+  const jobs = document.getElementById('ev-ai-jobs');
+  jobs.textContent = '';
+  for (const j of _ev.ai) {
+    const label = j.status === 'pending' ? '⏳ en cours…' : j.status === 'done' ? `✅ brouillon « ${j.eventId} » créé` : `❌ ${j.error}`;
+    jobs.appendChild(aiEl('li', {}, `#${j.id} « ${j.concept.slice(0, 60)} » : ${label}`));
+  }
+  if (_ev.ai.some(j => j.status === 'pending')) setTimeout(() => { if (!document.getElementById('tab-events').classList.contains('hidden')) loadEvents(); }, 4000);
+  const lb = document.getElementById('ev-log');
+  lb.textContent = '';
+  for (const l of _ev.log) {
+    const tr = document.createElement('tr');
+    [l.at, l.eventId ?? '—', l.action, l.details ? JSON.stringify(l.details) : ''].forEach(x => addCell(tr, x));
+    lb.appendChild(tr);
+  }
+}
+
+function renderEvCalendar() {
+  const sel = document.getElementById('ev-cal-year');
+  const years = _ev.calendar.map(c => c.year);
+  if (!sel.options.length || [...sel.options].map(o => +o.value).join() !== years.join()) {
+    sel.textContent = '';
+    for (const y of years) sel.appendChild(aiEl('option', { value: String(y) }, String(y)));
+  }
+  const cal = _ev.calendar.find(c => c.year === +sel.value) ?? _ev.calendar[0];
+  const tb = document.getElementById('ev-calendar');
+  tb.textContent = '';
+  for (const m of cal.months) {
+    const tr = document.createElement('tr');
+    addCell(tr, `${EV_MONTHS[m.month - 1]} ${m.year}`);
+    const prop = addCell(tr, m.holiday ? `${m.holiday.name} (${m.holiday.date})` : `Idées : ${m.ideas.join(' · ')}`);
+    if (m.alternatives.length) prop.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `Autres : ${m.alternatives.map(a => `${a.name} (${a.date})`).join(', ')}`));
+    addCell(tr, m.suggested ? `${evFmt(m.suggested.startsAt)} → ${evFmt(m.suggested.endsAt)}` : 'à choisir');
+    addCell(tr, m.prepareBy ? `${m.prepareBy}${m.late ? ' ⚠️ en retard' : ''}` : '—');
+    addCell(tr, m.events.length ? m.events.map(e => `${e.icon} ${e.name} (${EV_STATES[e.state] ?? e.state})`).join(', ') : '—');
+    const act = addCell(tr, '');
+    if (!m.events.length) {
+      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, 'Préparer un brouillon');
+      b.addEventListener('click', () => evOpen(null, false, {
+        id: m.holiday ? `${m.holiday.key}_${m.year}` : '', icon: '🎉', audience: 'public', testers: [],
+        names: { fr: m.holiday ? m.holiday.name : '', en: '', nl: '', es: '' }, taglines: {},
+        startsLocal: m.suggested?.startsAt ?? `${m.year}-${String(m.month).padStart(2, '0')}-01T00:00`,
+        endsLocal: m.suggested?.endsAt ?? '', items: [],
+      }));
+      act.appendChild(b);
+    }
+    tb.appendChild(tr);
+  }
+}
+
+function evItemRow(it = {}) {
+  const box = aiEl('fieldset', { class: 'overview-card ev-item', style: 'margin:6px 0' });
+  box.appendChild(aiEl('legend', {}, it.names?.fr || 'Nouvel objet'));
+  const grid = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px' });
+  const field = (label, key, input) => { const l = aiEl('label', {}, label); input.dataset.k = key; l.appendChild(input); grid.appendChild(l); return input; };
+  field('Identifiant', 'id', aiEl('input', { maxlength: '40' })).value = it.id ?? '';
+  field('Icône', 'icon', aiEl('input', { maxlength: '8' })).value = it.icon ?? '🎁';
+  const rar = field('Rareté', 'rarity', aiEl('select'));
+  for (const [k, v] of Object.entries(EV_RARITIES)) rar.appendChild(aiEl('option', { value: k }, v));
+  rar.value = it.rarity ?? 'commun';
+  field('Chance par bloc éligible (%)', 'chancePct', aiEl('input', { type: 'number', step: '0.001', min: '0.001', max: '100' })).value = it.chancePct ?? 0.5;
+  field('Profondeur minimale (m)', 'minDepth', aiEl('input', { type: 'number', min: '0' })).value = it.minDepth ?? 0;
+  const en = field('Activé', 'enabled', aiEl('input', { type: 'checkbox' }));
+  en.checked = it.enabled !== false;
+  box.appendChild(grid);
+  const cats = aiEl('div', { class: 'form-actions', style: 'align-items:center' });
+  cats.appendChild(aiEl('span', { class: 'muted', style: 'font-size:0.8rem' }, 'Blocs (aucun coché = tous) :'));
+  for (const c of _ev.categories) {
+    const l = aiEl('label', { class: 'adm-check' });
+    const cb = aiEl('input', { type: 'checkbox', 'data-cat': c });
+    cb.checked = (it.dropFrom ?? []).includes(c);
+    l.append(cb, document.createTextNode(` ${c}`));
+    cats.appendChild(l);
+  }
+  box.appendChild(cats);
+  const texts = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px' });
+  for (const l of EV_LANGS) {
+    const n = aiEl('input', { maxlength: '60', 'data-k': `name-${l}`, placeholder: `Nom ${l.toUpperCase()}` });
+    n.value = it.names?.[l] ?? '';
+    const d = aiEl('textarea', { rows: '2', maxlength: '320', 'data-k': `desc-${l}`, placeholder: `Description humoristique ${l.toUpperCase()}` });
+    d.value = it.descs?.[l] ?? '';
+    const lab = aiEl('label', {}, l.toUpperCase());
+    lab.append(n, d);
+    texts.appendChild(lab);
+  }
+  box.appendChild(texts);
+  const brief = aiEl('textarea', { rows: '2', maxlength: '600', 'data-k': 'brief', placeholder: 'Consigne d\'illustration (anglais) pour l\'atelier' });
+  brief.value = it.brief ?? '';
+  const bl = aiEl('label', {}, 'Consigne d\'illustration');
+  bl.appendChild(brief);
+  box.appendChild(bl);
+  const imgRow = aiEl('div', { class: 'form-actions', style: 'align-items:center' });
+  const img = aiEl('input', { 'data-k': 'image', placeholder: '/api/collections/images/… ou /media/icons/…', style: 'min-width:280px' });
+  img.value = it.image ?? '';
+  const file = aiEl('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
+  file.addEventListener('change', () => {
+    const f = file.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = async () => {
+      const { ok, data } = await api('POST', '/api/admin/collections/images', { data: r.result, label: `event ${it.id ?? ''}` });
+      if (!ok) return nwMessage('ev-editor-msg', data.error ?? 'Téléversement impossible.', true);
+      img.value = data.url;
+      admToast('Image téléversée : enregistrez la fiche pour l\'appliquer.');
+    };
+    r.readAsDataURL(f);
+  });
+  const del = aiEl('button', { class: 'btn-ghost', type: 'button' }, '🗑 Retirer l\'objet');
+  del.addEventListener('click', () => box.remove());
+  imgRow.append(aiEl('span', { class: 'muted', style: 'font-size:0.8rem' }, 'Image :'), img, file, del);
+  box.appendChild(imgRow);
+  document.getElementById('ev-items').appendChild(box);
+}
+
+function evOpen(ev, readOnly = false, preset = null) {
+  const src = ev ?? preset ?? { icon: '🎉', audience: 'test', testers: [], names: {}, taglines: {}, items: [] };
+  _evEditing = ev ? ev.id : null;
+  const v = (id, x) => { document.getElementById(id).value = x ?? ''; };
+  v('ev-id', src.id); v('ev-icon', src.icon); v('ev-audience', src.audience); v('ev-testers', (src.testers ?? []).join(', '));
+  v('ev-start', src.startsLocal); v('ev-end', src.endsLocal);
+  document.getElementById('ev-id').disabled = !!ev;
+  const texts = document.getElementById('ev-texts');
+  texts.textContent = '';
+  for (const l of EV_LANGS) {
+    const lab = aiEl('label', {}, `Nom et accroche ${l.toUpperCase()}`);
+    const n = aiEl('input', { id: `ev-name-${l}`, maxlength: '60' }); n.value = src.names?.[l] ?? '';
+    const t = aiEl('textarea', { id: `ev-tag-${l}`, rows: '2', maxlength: '240' }); t.value = src.taglines?.[l] ?? '';
+    lab.append(n, t);
+    texts.appendChild(lab);
+  }
+  document.getElementById('ev-items').textContent = '';
+  for (const it of src.items ?? []) evItemRow(it);
+  document.getElementById('ev-editor-title').textContent = ev ? `${readOnly ? 'Consultation' : 'Modification'} : ${ev.icon} ${ev.names.fr}${readOnly ? ' (planifié : repassez-le en brouillon pour le modifier)' : ''}` : 'Nouvel événement (brouillon)';
+  const rd = document.getElementById('ev-readiness');
+  rd.textContent = '';
+  if (ev) for (const b of ev.readiness.blocking) rd.appendChild(aiEl('li', {}, `❌ ${b}`));
+  document.getElementById('btn-ev-save').disabled = readOnly;
+  document.getElementById('ev-sim').textContent = '';
+  nwMessage('ev-editor-msg', '');
+  const card = document.getElementById('ev-editor');
+  card.classList.remove('hidden');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function evCollect() {
+  const g = id => document.getElementById(id).value;
+  const items = [...document.querySelectorAll('#ev-items .ev-item')].map(box => {
+    const q = k => box.querySelector(`[data-k="${k}"]`);
+    return {
+      id: q('id').value.trim(), icon: q('icon').value.trim(), rarity: q('rarity').value, chancePct: Number(q('chancePct').value),
+      minDepth: Number(q('minDepth').value), enabled: q('enabled').checked, brief: q('brief').value.trim(), image: q('image').value.trim() || null,
+      dropFrom: [...box.querySelectorAll('[data-cat]')].filter(c => c.checked).map(c => c.dataset.cat),
+      names: Object.fromEntries(EV_LANGS.map(l => [l, q(`name-${l}`).value.trim()])),
+      descs: Object.fromEntries(EV_LANGS.map(l => [l, q(`desc-${l}`).value.trim()])),
+    };
+  });
+  return {
+    id: g('ev-id').trim(), icon: g('ev-icon').trim(), audience: g('ev-audience'),
+    testers: g('ev-testers').split(',').map(x => x.trim()).filter(Boolean), startsAt: g('ev-start'), endsAt: g('ev-end'),
+    names: Object.fromEntries(EV_LANGS.map(l => [l, g(`ev-name-${l}`).trim()])),
+    taglines: Object.fromEntries(EV_LANGS.map(l => [l, g(`ev-tag-${l}`).trim()])),
+    items,
+  };
+}
+
+async function evSave() {
+  const body = evCollect();
+  const { ok, data } = _evEditing ? await api('PUT', `/api/admin/events/${encodeURIComponent(_evEditing)}`, body) : await api('POST', '/api/admin/events', body);
+  if (!ok) return nwMessage('ev-editor-msg', data.error ?? 'Enregistrement impossible.', true);
+  _evEditing = data.event.id;
+  document.getElementById('ev-id').disabled = true;
+  admToast(`« ${data.event.names.fr} » enregistré en brouillon (révision ${data.event.revision}). Rien n'est visible des joueurs.`);
+  nwMessage('ev-editor-msg', '');
+  await loadEvents();
+  const ev = _ev.events.find(e => e.id === data.event.id);
+  const rd = document.getElementById('ev-readiness');
+  rd.textContent = '';
+  if (ev) for (const b of ev.readiness.blocking) rd.appendChild(aiEl('li', {}, `❌ ${b}`));
+}
+
+async function evSimulate() {
+  const { ok, data } = await api('POST', '/api/admin/events/simulate', { event: evCollect(),
+    depth: Number(document.getElementById('ev-sim-depth').value), blocksPerDay: Number(document.getElementById('ev-sim-bpd').value) });
+  const box = document.getElementById('ev-sim');
+  box.textContent = '';
+  if (!ok) return nwMessage('ev-editor-msg', data.error ?? 'Simulation impossible.', true);
+  const table = aiEl('table');
+  const head = aiEl('tr');
+  ['Objet', 'Part des blocs éligibles', 'Chance réelle par bloc', 'Blocs (médiane)', 'Blocs (moyenne)', `Obtenu sur ${data.days} j à ${data.blocksPerDay} blocs/j`].forEach(h => head.appendChild(aiEl('th', {}, h)));
+  table.appendChild(head);
+  for (const it of data.items) {
+    const tr = document.createElement('tr');
+    [it.name, `${Math.round(it.eligibleShare * 1000) / 10} %`, `${Math.round(it.perBlock * 100000) / 1000} %`, it.medianBlocks ?? '—', it.meanBlocks ?? '—', `${it.chanceOverEvent} %`].forEach(x => addCell(tr, x));
+    table.appendChild(tr);
+  }
+  box.appendChild(table);
+  box.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.75rem' }, `Profondeur ${data.depth} m, poids du catalogue de blocs publié. Seuls les blocs validés par le serveur comptent.`));
+}
+
+async function evAction(id, action, okText, body = {}) {
+  const { ok, data } = await api('POST', `/api/admin/events/${encodeURIComponent(id)}/${action}`, body);
+  if (!ok) { nwMessage('ev-msg', data.error ?? 'Action impossible.', true); return false; }
+  admToast(okText);
+  nwMessage('ev-msg', '');
+  document.getElementById('ev-editor').classList.add('hidden');
+  loadEvents();
+  return true;
+}
+
+function evSchedule(ev) {
+  if (ev.audience === 'public') {
+    if (!confirm(`PUBLIER « ${ev.names.fr} » pour TOUS les joueurs du ${evFmt(ev.startsLocal)} au ${evFmt(ev.endsLocal)} (heure de Bruxelles) ?\n\nÀ faire seulement après validation du propriétaire.`)) return;
+    if (!confirm('Confirmez que le barème des drops (chances, profondeurs) est validé.')) return;
+    return evAction(ev.id, 'schedule', `« ${ev.names.fr} » planifié pour tous les joueurs.`, { confirmRates: true, confirmPublic: true });
+  }
+  if (confirm(`Planifier l'événement TEST « ${ev.names.fr} » pour ${ev.testers.join(', ')} ?`)) evAction(ev.id, 'schedule', 'Événement TEST planifié : seuls les testeurs le voient.');
+}
+
+async function evRevisions(ev) {
+  const { ok, data } = await api('GET', `/api/admin/events/${encodeURIComponent(ev.id)}/revisions`);
+  if (!ok) return nwMessage('ev-msg', data.error ?? 'Révisions indisponibles.', true);
+  document.getElementById('ev-revisions-title').textContent = `Révisions : ${ev.icon} ${ev.names.fr}`;
+  const tb = document.getElementById('ev-revisions');
+  tb.textContent = '';
+  for (const r of data.revisions) {
+    const tr = document.createElement('tr');
+    [r.revision, r.at, r.action, r.status, r.items].forEach(x => addCell(tr, x));
+    const act = addCell(tr, '');
+    if (ev.status === 'draft' && r.revision !== ev.revision) {
+      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, 'Restaurer en brouillon');
+      b.addEventListener('click', () => { if (confirm(`Restaurer la révision ${r.revision} (en brouillon) ?`)) evAction(ev.id, 'restore', `Révision ${r.revision} restaurée en brouillon.`, { revision: r.revision }); });
+      act.appendChild(b);
+    }
+    tb.appendChild(tr);
+  }
+  document.getElementById('ev-revisions-card').classList.remove('hidden');
+}
+
+document.getElementById('btn-ev-add')?.addEventListener('click', () => evOpen(null));
+document.getElementById('btn-ev-refresh')?.addEventListener('click', loadEvents);
+document.getElementById('btn-ev-item-add')?.addEventListener('click', () => evItemRow());
+document.getElementById('btn-ev-save')?.addEventListener('click', evSave);
+document.getElementById('btn-ev-sim')?.addEventListener('click', evSimulate);
+document.getElementById('btn-ev-cancel')?.addEventListener('click', () => document.getElementById('ev-editor').classList.add('hidden'));
+document.getElementById('ev-cal-year')?.addEventListener('change', renderEvCalendar);
+document.getElementById('btn-ev-test')?.addEventListener('click', async () => {
+  const testers = document.getElementById('ev-test-testers').value.split(',').map(x => x.trim()).filter(Boolean);
+  if (!testers.length) return nwMessage('ev-msg', 'Indiquez au moins un pseudo testeur.', true);
+  const { ok, data } = await api('POST', '/api/admin/events/test', { testers, minutes: Number(document.getElementById('ev-test-minutes').value) });
+  if (!ok) return nwMessage('ev-msg', data.error ?? 'Création impossible.', true);
+  admToast(`Événement TEST « ${data.event.id} » créé en brouillon : « Planifier » pour l'activer.`);
+  loadEvents();
+});
+document.getElementById('btn-ev-ai')?.addEventListener('click', async () => {
+  const { ok, data } = await api('POST', '/api/admin/events-ai', { concept: document.getElementById('ev-ai-concept').value,
+    startsAt: document.getElementById('ev-ai-start').value, endsAt: document.getElementById('ev-ai-end').value,
+    itemCount: Number(document.getElementById('ev-ai-count').value) });
+  if (!ok) return nwMessage('ev-msg', data.error ?? 'Proposition impossible.', true);
+  admToast('Proposition IA lancée : le brouillon apparaîtra dans la liste.');
+  loadEvents();
+});

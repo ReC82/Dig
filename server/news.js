@@ -534,6 +534,14 @@ const T = {
                   nl: 'Vastgelegd eindklassement: {d} m.', es: 'Clasificación final congelada: {d} m.' },
 };
 
+// Événements mensuels (#56)
+Object.assign(T, {
+  event_next_title:  { fr: 'Bientôt : {name}', en: 'Coming soon: {name}', nl: 'Binnenkort: {name}', es: 'Muy pronto: {name}' },
+  event_start_title: { fr: 'L\'événement {name} a commencé', en: 'The {name} event has begun', nl: 'Het evenement {name} is begonnen', es: 'Ha empezado el evento {name}' },
+  event_sum:         { fr: '{n} objets exclusifs à déterrer jusqu\'au {end}.', en: '{n} exclusive items to dig up until {end}.',
+                       nl: '{n} exclusieve voorwerpen op te graven tot {end}.', es: '{n} objetos exclusivos por desenterrar hasta el {end}.' },
+});
+
 const ORD = {
   fr: n => (n === 1 ? '1er' : `${n}e`),
   en: n => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] ?? 'th')}`,
@@ -621,6 +629,33 @@ function _seasonAnnouncements(now) {
   return created;
 }
 
+/**
+ * Événements mensuels publics planifiés (#56) : « Bientôt » dès J-7, « a commencé » au début.
+ * Événement repassé en brouillon : ses annonces automatiques sont archivées (rien n'est supprimé).
+ */
+function _eventAnnouncements(now) {
+  let created = 0;
+  const ev = require('./monthlyEvents');
+  const DAY_FMT = { fr: 'fr-BE', en: 'en-GB', nl: 'nl-BE', es: 'es-ES' };
+  const endFmt = e => l => new Date(e.endsAt).toLocaleDateString(DAY_FMT[l], { day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
+  for (const e of ev.listEvents(now.getTime())) {
+    const key = `event_next:${e.id}`, keyStart = `event_start:${e.id}`;
+    if (e.audience !== 'public' || e.status !== 'scheduled') {
+      const rows = conn().prepare("SELECT id FROM news_items WHERE auto_key IN (?, ?) AND status = 'published'").all(key, keyStart);
+      for (const r of rows) { conn().prepare("UPDATE news_items SET status = 'archived', updated_at = datetime('now') WHERE id = ?").run(r.id); _log(r.id, 'auto_archived', { reason: 'event_unscheduled', eventId: e.id }); }
+      continue;
+    }
+    const start = parse(e.startsAt), end = parse(e.endsAt);
+    const n = e.items.filter(i => i.enabled).length;
+    const fields = { category: 'event', icon: e.icon, summaries: _tpl('event_sum', { n, end: endFmt(e) }), bodies: _texts(e.taglines, MAX.body, true), expiresAt: fmt(end) };
+    if (now < start && start - now <= 7 * 86_400_000) {
+      created += _auto(key, { ...fields, titles: _tpl('event_next_title', { name: e.names }), eventAt: fmt(start), expiresAt: fmt(start) }, { publishAt: fmt(now) });
+    }
+    if (now >= start && now < end) created += _auto(keyStart, { ...fields, titles: _tpl('event_start_title', { name: e.names }) }, { publishAt: fmt(start) });
+  }
+  return created;
+}
+
 /** Fait joueur : accord donné, pas de risque anti-bot, plafond quotidien. Rend true si publié. */
 function _playerFact(key, userId, seasonId, fields, s, now) {
   if (!getPrefs(userId).publicMentions) return false;
@@ -667,6 +702,9 @@ function sync(now = new Date()) {
     const s = settings();
     let created = 0;
     if (s.autoSeasons) created += _seasonAnnouncements(now);
+    if (s.autoSeasons) {
+      try { created += _eventAnnouncements(now); } catch (err) { console.error('[news] événements', err.message); }
+    }
     created += _rankFacts(s, now);
     return { created };
   } catch (err) {

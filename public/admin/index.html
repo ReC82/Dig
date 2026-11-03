@@ -41,6 +41,7 @@
     <button class="tab-btn" data-tab="ads">📢 Publicité</button>
     <button class="tab-btn" data-tab="beta">🧪 Bêta</button>
     <button class="tab-btn" data-tab="news">📰 Actualités</button>
+    <button class="tab-btn" data-tab="events">🎉 Événements</button>
   </nav>
 
   <!-- Tab Saisons -->
@@ -1795,6 +1796,94 @@
       </div>
       <p id="nw-error" class="error hidden"></p>
     </dialog>
+  </section>
+
+  <section id="tab-events" class="tab-content hidden">
+    <!-- #56 : événements mensuels, distincts des saisons hebdomadaires. Tout est créé en brouillon ;
+         planifier un événement PUBLIC demande deux confirmations (barème + validation du propriétaire). -->
+    <div class="section-header">
+      <h2>🎉 Événements mensuels</h2>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-ev-add" type="button">＋ Ajouter</button>
+        <button class="btn btn-outline" id="btn-ev-refresh" type="button">↻ Rafraîchir</button>
+      </div>
+    </div>
+    <div class="overview-card">
+      <p class="muted" style="font-size:0.8rem">Un événement a ses propres dates (heure de Bruxelles) et des objets exclusifs tirés <strong>par le serveur</strong> sur les blocs dont le minage est validé (#38). Chaque objet s'obtient une fois par joueur et reste un souvenir permanent, même après la fin de l'événement ou une nouvelle saison. Aucun gain de pièces ni de gemmes. États : brouillon → planifié → actif → terminé. « Repasser en brouillon » arrête les drops aussitôt (objets trouvés conservés).</p>
+      <div style="overflow-x:auto"><table><thead><tr><th>État</th><th>Événement</th><th>Public</th><th>Dates (Bruxelles)</th><th>Objets</th><th>Joueurs / trouvailles</th><th>Actions</th></tr></thead><tbody id="ev-list"></tbody></table></div>
+      <p id="ev-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card hidden" id="ev-editor">
+      <h3 id="ev-editor-title">Événement</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+        <label>Identifiant <input id="ev-id" maxlength="40" placeholder="noel_2026"></label>
+        <label>Icône <input id="ev-icon" maxlength="8" value="🎉"></label>
+        <label>Début (Bruxelles) <input id="ev-start" type="datetime-local"></label>
+        <label>Fin (Bruxelles) <input id="ev-end" type="datetime-local"></label>
+        <label>Public
+          <select id="ev-audience"><option value="test">TEST — testeurs seulement</option><option value="public">Public — tous les joueurs</option></select></label>
+        <label>Testeurs (pseudos, séparés par des virgules) <input id="ev-testers" placeholder="pseudo1, pseudo2"></label>
+      </div>
+      <div id="ev-texts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px"></div>
+      <h4>Objets exclusifs</h4>
+      <div id="ev-items"></div>
+      <div class="form-actions"><button class="btn btn-outline" id="btn-ev-item-add" type="button">＋ Objet</button></div>
+      <div class="form-actions" style="align-items:center">
+        <label>Simulation à <input id="ev-sim-depth" type="number" min="0" value="50" style="width:80px"> m,</label>
+        <label><input id="ev-sim-bpd" type="number" min="1" value="300" style="width:80px"> blocs validés / jour</label>
+        <button class="btn btn-outline" id="btn-ev-sim" type="button">📊 Simuler</button>
+      </div>
+      <div id="ev-sim" style="overflow-x:auto"></div>
+      <ul id="ev-readiness" class="muted" style="font-size:0.8rem"></ul>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-ev-save" type="button">💾 Enregistrer (brouillon)</button>
+        <button class="btn btn-outline" id="btn-ev-cancel" type="button">Fermer</button>
+      </div>
+      <p id="ev-editor-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card hidden" id="ev-revisions-card">
+      <h3 id="ev-revisions-title">Révisions</h3>
+      <div style="overflow-x:auto"><table><thead><tr><th>Révision</th><th>Date</th><th>Action</th><th>Statut</th><th>Objets</th><th></th></tr></thead><tbody id="ev-revisions"></tbody></table></div>
+    </div>
+
+    <details class="overview-card" open>
+      <summary>🧪 Événement TEST (non public, probabilités augmentées)</summary>
+      <p class="muted" style="font-size:0.8rem">Crée en <strong>brouillon</strong> un événement réservé aux comptes indiqués : 3 objets (25 % tout bloc, 10 % pierre/minerai, 40 % coffre), de maintenant à maintenant + durée. Puis « Planifier » pour l'activer : seuls ces comptes le voient et peuvent trouver ses objets.</p>
+      <div class="form-actions" style="align-items:center">
+        <label>Testeurs <input id="ev-test-testers" placeholder="votre pseudo"></label>
+        <label>Durée <input id="ev-test-minutes" type="number" min="10" value="120" style="width:80px"> min</label>
+        <button class="btn btn-outline" id="btn-ev-test" type="button">🧪 Créer l'événement TEST</button>
+      </div>
+    </details>
+
+    <details class="overview-card">
+      <summary>✨ Proposer un événement avec l'IA (thème, objets, traductions)</summary>
+      <p class="muted" style="font-size:0.8rem">Un appel texte (budget IA de ⚙ Config). Le résultat est enregistré comme événement <strong>TEST en brouillon</strong> : relisez, ajustez le barème, illustrez, puis planifiez. Aucune image n'est générée ici.</p>
+      <div class="adm-form">
+        <label>Thème / consignes <textarea id="ev-ai-concept" rows="3" maxlength="600" placeholder="Carnaval de Binche : gilles, oranges, plumes d'autruche…"></textarea></label>
+        <div class="form-actions" style="align-items:center">
+          <label>Début <input id="ev-ai-start" type="datetime-local"></label>
+          <label>Fin <input id="ev-ai-end" type="datetime-local"></label>
+          <label>Objets <input id="ev-ai-count" type="number" min="2" max="8" value="4" style="width:60px"></label>
+          <button class="btn btn-outline" id="btn-ev-ai" type="button">✨ Proposer</button>
+        </div>
+      </div>
+      <ul id="ev-ai-jobs" class="muted" style="font-size:0.8rem"></ul>
+    </details>
+
+    <details class="overview-card" open>
+      <summary>📅 Calendrier proposé (un événement par mois)</summary>
+      <p class="muted" style="font-size:0.8rem">Fêtes calculées (Pâques, carnaval, Nouvel An chinois…) ; les mois sans fête proposent des idées à valider, jamais imposées. « À préparer avant » = début − 21 jours ; l'annonce « Bientôt » paraît dans les Actualités 7 jours avant (événements publics planifiés).</p>
+      <label>Année <select id="ev-cal-year"></select></label>
+      <div style="overflow-x:auto"><table><thead><tr><th>Mois</th><th>Proposition</th><th>Dates suggérées</th><th>À préparer avant</th><th>Événement</th><th></th></tr></thead><tbody id="ev-calendar"></tbody></table></div>
+    </details>
+
+    <details class="overview-card">
+      <summary>Journal</summary>
+      <div style="overflow-x:auto"><table><thead><tr><th>Date (UTC)</th><th>Événement</th><th>Action</th><th>Détails</th></tr></thead><tbody id="ev-log"></tbody></table></div>
+    </details>
   </section>
 
 </div>

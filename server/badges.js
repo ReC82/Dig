@@ -500,4 +500,5 @@ module.exports = {
   init, BadgeError, CONDITIONS, CATEGORIES, STATUSES, VISIBILITY, LANGS, SEED,
   normalizeBadge, listBadges, getBadgeRow, createBadge, updateBadge, setStatus, previewBadge, listAudit, adminSummary,
   sanitizeCounts, processSave, playerView, activatedAt,
+  validatedStats: _getStats,   // statistiques fiables (blocs validés par type) : drops des événements mensuels (#56)
 };
