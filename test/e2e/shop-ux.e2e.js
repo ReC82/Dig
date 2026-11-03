@@ -1,5 +1,5 @@
 /**
- * Essai navigateur de la boutique de cadeaux (#34, recettes E à K du 03/11) :
+ * Essai navigateur de la boutique de cadeaux (#34, recettes E à L du 03/11) :
  * - joueur : prix « 1 pt », fenêtre Dig d'échange (article, coût, solde avant/après, Échap = refus,
  *   un seul envoi), fenêtre Dig d'annulation (remboursement), aucun window.confirm natif ;
  * - admin : fiche article en sections, une langue à la fois, champs réels masqués si Virtuel (valeurs
@@ -117,6 +117,11 @@ const errors = [], dialogs = [];
     assert.ok(!(await vis('sh-face')), 'Virtuel : valeur faciale masquée');
     assert.ok(!(await vis('sh-from')), 'calendrier replié');
     assert.ok(await vis('sh-fr-title') && !(await vis('sh-en-title')), 'une langue à la fois');
+    // Recette #34-L : fiche vide → « Prix à définir » et « À compléter », jamais « Échanger »
+    const prev0 = (await page.locator('#sh-preview').innerText()).replace(/\s+/g, ' ');
+    assert.match(prev0, /Prix à définir.*À compléter/);
+    assert.doesNotMatch(prev0, /\? pts|Échanger/);
+    assert.match(await page.locator('#sh-prev-state').innerText(), /À compléter : prix, titre français/);
     await page.fill('#sh-fr-title', 'Brouillon E2E');
     await page.fill('#sh-cost', '2');
     // Emoji : recherche « couronne » → 👑
@@ -126,7 +131,11 @@ const errors = [], dialogs = [];
     assert.strictEqual(await page.inputValue('#sh-icon'), '👑');
     const prev = (await page.locator('#sh-preview').innerText()).replace(/\s+/g, ' ');
     console.log('admin', w, 'aperçu', prev);
-    assert.match(prev, /👑.*Brouillon E2E.*2 pts.*Échanger/);
+    // Nouvel article masqué par défaut : l'aperçu dit « Masqué » ; « Échanger » seulement une fois visible
+    assert.match(prev, /👑.*Brouillon E2E.*2 pts Masqué/);
+    await page.locator('#sh-visible').setChecked(true);
+    assert.match((await page.locator('#sh-preview').innerText()).replace(/\s+/g, ' '), /2 pts Échanger/);
+    await page.locator('#sh-visible').setChecked(false);
     // Réel : champs affichés ; retour Virtuel : masqués mais conservés
     await page.selectOption('#sh-kind', 'real');
     assert.ok(await vis('sh-face'));
@@ -154,6 +163,21 @@ const errors = [], dialogs = [];
     await dlg.waitFor({ state: 'hidden' });
     const items = (await (await adm('GET', '/api/admin/shop')).json()).items;
     assert.ok(!items.some(i => i.texts.fr.title === 'Brouillon E2E'), 'rien enregistré');
+    // Recette #34-L (prochain test du propriétaire) : seul l'emoji est changé → ✕ → confirmation Dig → Abandonner → aucun article créé
+    const before = (await (await adm('GET', '/api/admin/shop')).json()).items.length;
+    await page.click('#btn-sh-new');
+    await dlg.waitFor({ state: 'visible' });
+    await page.click('#btn-sh-emoji');
+    await page.fill('#sh-emoji-search', 'argent');
+    await page.locator('#sh-emoji-grid button', { hasText: '💰' }).click();
+    assert.strictEqual(await page.inputValue('#sh-icon'), '💰');
+    assert.ok(await vis('sh-dirty'), 'témoin de modifications');
+    await page.click('#sh-dialog .bk-dialog-head [data-close]');
+    await page.locator('#adm-confirm').waitFor({ state: 'visible' });
+    console.log('admin', w, 'perte emoji', (await page.locator('#adm-confirm').innerText()).replace(/\s+/g, ' '));
+    await page.click('#adm-confirm-yes');
+    await dlg.waitFor({ state: 'hidden' });
+    assert.strictEqual((await (await adm('GET', '/api/admin/shop')).json()).items.length, before, 'aucun article créé');
     // Fiche existante non modifiée : fermeture directe sans question
     await page.locator('#sh-items-body tr', { hasText: `Titre honorifique E2E ${user}` }).click();
     await dlg.waitFor({ state: 'visible' });
