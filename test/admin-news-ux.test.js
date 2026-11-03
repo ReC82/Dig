@@ -41,7 +41,7 @@ test('admConfirm : <dialog> natif stylé, focus sur Annuler, refus par défaut, 
   assert.match(c, /showModal\(\)/);
   assert.match(c, /querySelector\('#adm-confirm-no'\)\.focus\(\)/);
   assert.match(c, /resolve\(dlg\.returnValue === 'yes'\)/, 'Échap / fond / Annuler = false');
-  assert.match(c, /e\.target === dlg\) dlg\.close\('no'\)/);
+  assert.match(c, /admOnBackdrop\(dlg, e\)\) dlg\.close\('no'\)/);
   assert.match(c, /opener\.focus\(\)/);
   assert.match(c, /if \(dlg\.open\) return Promise\.resolve\(false\)/, 'pas de seconde confirmation empilée');
   assert.doesNotMatch(c, /innerHTML/);
@@ -75,11 +75,9 @@ test('fiche : notes → IA en tête, réglages repliés, publication séparée, 
 });
 
 test('fiche : fermeture protégée (✕, Annuler, fond, Échap, page) et fiche complète imprimable', () => {
-  assert.match(fn('nwRequestClose'), /nwDirty\(\) && !await admConfirm\(/);
-  assert.match(NEWS_JS, /dlg\.addEventListener\('cancel', e => \{ e\.preventDefault\(\); nwRequestClose\(\); \}\)/);
-  assert.match(NEWS_JS, /closest\('\[data-close\]'\)/);
-  assert.match(NEWS_JS, /e\.stopImmediatePropagation\(\)/);
-  assert.match(NEWS_JS, /beforeunload', e => \{ if \(nwDirty\(\)\)/);
+  // #61 : mécanisme commun (✕ / Annuler / fond hors cadre / Échap / départ de la page), voir admin-unsaved.test.js
+  assert.match(fn('nwCanClose'), /nwDirty\(\) && !await admConfirm\(/);
+  assert.match(NEWS_JS, /admDialogSetup\('news-dialog', \{ canClose: nwCanClose, dirty: \(\) => nwDirty\(\) \}\)/);
   assert.match(fn('nwOpen'), /_nwSnap = nwSnapshot\(\)/);
   assert.match(fn('nwSave'), /_nwSnap = nwSnapshot\(\)/);
   assert.match(DLG, /id="btn-nw-print"/);
@@ -109,6 +107,6 @@ test('onglet principal retenu après F5 (recette #50-F) : fragment d’URL, sans
 });
 
 test('fermeture protégée : le dialogue cite le vrai libellé du bouton d\'enregistrement (recette #50-G)', () => {
-  assert.match(fn('nwRequestClose'), /\$\{document\.getElementById\('btn-nw-save'\)\.textContent\}/);
-  assert.doesNotMatch(fn('nwRequestClose'), /puis « 💾 Enregistrer le brouillon »/);
+  assert.match(fn('nwCanClose'), /\$\{document\.getElementById\('btn-nw-save'\)\.textContent\}/);
+  assert.doesNotMatch(fn('nwCanClose'), /puis « 💾 Enregistrer le brouillon »/);
 });

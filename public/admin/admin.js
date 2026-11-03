@@ -21,17 +21,96 @@ function addCell(tr, value) {
 }
 
 /** Ajoute une cellule contenant un bouton « fantôme ». */
+// ── Saisies protégées (#61) ─────────────────────────────────────────────────────
+// Suivi générique des modifications d'une zone (fiche <dialog> ou formulaire de page) : la valeur d'un champ est
+// relevée juste avant la première action de l'utilisateur (focus, clic, touche), puis comparée à la valeur actuelle.
+// Un remplissage par le code (chargement, IA) n'est donc jamais pris pour une saisie ; revenir à la valeur
+// d'origine = plus de modification. Les champs de recherche et ceux marqués data-adm-noguard sont ignorés.
+const ADM_FIELD = 'input, select, textarea';
+function admFieldValue(el) {
+  if (el.type === 'checkbox' || el.type === 'radio') return el.checked ? '1' : '0';
+  if (el.type === 'file') return [...(el.files ?? [])].map(f => `${f.name}:${f.size}:${f.lastModified}`).join('|');
+  if (el.multiple && el.selectedOptions) return [...el.selectedOptions].map(o => o.value).join('|');
+  return el.value;
+}
+function admTrack(root) {
+  if (root._admTrack) return root._admTrack;
+  const base = new Map(), touched = new Set();
+  const field = e => {
+    const t = e.target instanceof Element ? e.target : null;
+    const f = t?.closest(ADM_FIELD) ?? t?.closest('label')?.control ?? null;
+    return f && root.contains(f) && f.type !== 'search' && !f.closest('[data-adm-noguard]') ? f : null;
+  };
+  const arm = e => { const f = field(e); if (f && !touched.has(f)) base.set(f, admFieldValue(f)); };
+  const mark = e => {
+    const f = field(e);
+    if (!f) return;
+    // Case cochée sans relevé préalable (Safari ne donne pas le focus) : l'état d'origine est l'inverse.
+    if (!base.has(f)) base.set(f, f.type === 'checkbox' ? (f.checked ? '0' : '1') : null);
+    touched.add(f);
+  };
+  for (const t of ['focusin', 'pointerdown', 'keydown', 'beforeinput']) root.addEventListener(t, arm, true);
+  for (const t of ['input', 'change']) root.addEventListener(t, mark, true);
+  root._admTrack = {
+    dirty: () => [...touched].some(f => f.isConnected && admFieldValue(f) !== base.get(f)),
+    clean: () => { base.clear(); touched.clear(); },
+  };
+  return root._admTrack;
+}
+
+/** Confirmation commune « Modifications non enregistrées » : Continuer à modifier (par défaut) / Abandonner. */
+function admConfirmDiscard({ text = 'Cette fiche contient des saisies qui ne sont pas enregistrées.', keep = '', effect = 'ferme la fiche et perd ces saisies ; rien n\'est enregistré ni publié.' } = {}) {
+  return admConfirm({
+    title: 'Modifications non enregistrées', text,
+    impact: [`« Abandonner les modifications » ${effect}`, `Pour les garder : « Continuer à modifier », puis ${keep ? `« ${keep} »` : 'enregistrez'}.`],
+    ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
+  });
+}
+
+/** Clic réellement sur le fond (hors du cadre de la fiche, marge intérieure comprise). */
+function admOnBackdrop(dlg, e) {
+  if (e.target !== dlg) return false;
+  const r = dlg.getBoundingClientRect();
+  return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+}
+
 // ── Fiches modales communes (UX du panel, 31/10) : la page montre d'abord les données ; « ＋ Ajouter »
 // ou un clic sur une ligne ouvre une fiche <dialog> (Échap, clic sur le fond, Annuler : fermeture sans
 // effet ; le focus revient à l'élément d'origine, retrouvé par data-adm-key si la liste a été re-rendue).
-// `canClose` (facultatif, #61) : fonction asynchrone appelée avant ✕ / Annuler / fond / Échap ; false = la fiche reste ouverte.
-function admDialogSetup(id, { canClose } = {}) {
+// #61 : toute fiche est protégée. ✕ / Annuler / [data-close] / fond / Échap passent par la même demande de fermeture :
+// fiche sans modification → fermeture ; sinon confirmation Dig (Continuer à modifier par défaut).
+// `dirty` (facultatif) : détection propre au module (instantané) ; à défaut, suivi générique des champs (admTrack).
+// `canClose` (facultatif) : fonction asynchrone appelée avant la fermeture ; false = la fiche reste ouverte.
+// Un clic commencé dans la fiche et relâché sur le fond (sélection de texte) ne ferme rien. Échap est intercepté dès
+// la touche (keydown) : Chrome rend sinon un second Échap non annulable. Les fermetures du code (après un
+// enregistrement réussi) appellent dlg.close() directement et ne demandent rien.
+function admDialogSetup(id, { canClose, dirty, keep } = {}) {
   const dlg = document.getElementById(id);
-  const request = async () => { if (!canClose || await canClose()) dlg.close(); };
+  const track = admTrack(dlg);
+  dlg._admDirty = () => dlg.open && (dirty ? dirty() : track.dirty());
+  const guard = canClose ?? (async () => !dlg._admDirty() || admConfirmDiscard({ keep: typeof keep === 'function' ? keep() : keep }));
+  let pending = null;
+  // Rend true si la fiche est fermée (ou l'était déjà).
+  dlg._admRequestClose = () => pending ?? (pending = (async () => {
+    try { if (dlg.open && await guard()) dlg.close(); return !dlg.open; } finally { pending = null; }
+  })());
+  const request = () => { dlg._admRequestClose(); };
   dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', request));
-  dlg.addEventListener('click', e => { if (e.target === dlg) request(); });
-  if (canClose) dlg.addEventListener('cancel', e => { e.preventDefault(); request(); });
+  let downOnBackdrop = false;
+  dlg.addEventListener('pointerdown', e => { downOnBackdrop = admOnBackdrop(dlg, e); });
+  dlg.addEventListener('click', e => {
+    const ok = downOnBackdrop && admOnBackdrop(dlg, e);
+    downOnBackdrop = false;
+    if (ok) request();
+  });
+  dlg.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+    e.preventDefault();
+    request();
+  });
+  dlg.addEventListener('cancel', e => { e.preventDefault(); request(); });
   dlg.addEventListener('close', () => {
+    track.clean();
     const o = dlg._admOpener;
     dlg._admOpener = null;
     if (!o) return;
@@ -42,9 +121,32 @@ function admDialogSetup(id, { canClose } = {}) {
   return dlg;
 }
 
+/** Fiche ouverte avec des modifications non enregistrées (ou zone de page, voir admZone). */
+function admAnyDirty() {
+  return [...document.querySelectorAll('dialog[open]')].some(d => d._admDirty?.()) || _admZones.some(z => z.dirty());
+}
+window.addEventListener('beforeunload', e => { if (admAnyDirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+// Formulaires de page (#61) : réglages hors fiche (Configuration, Économie, Boutique, Publicité, Actualités…).
+// Changer d'onglet ne perd rien (le contenu reste en place) ; le rechargement de l'onglet ou « Rafraîchir » ne
+// réécrit pas une zone en cours de saisie (admZoneDirty), et quitter la page avec des saisies demande confirmation.
+// Après un enregistrement réussi, admZoneClean() rend la zone de nouveau rechargeable.
+const _admZones = [];
+function admZone(el, { dirty } = {}) {
+  if (!el) return null;
+  const track = admTrack(el);
+  const z = { el, dirty: dirty ?? (() => track.dirty()), clean: () => track.clean() };
+  el._admZone = z;
+  _admZones.push(z);
+  return el;
+}
+function admZoneDirty(el) { return !!el?._admZone?.dirty(); }
+function admZoneClean(el) { el?._admZone?.clean(); }
+
 function admDialogOpen(id, opener, focusEl) {
   const dlg = document.getElementById(id);
   dlg._admOpener = opener ?? document.activeElement;
+  dlg._admTrack?.clean();   // valeurs chargées = état de référence (#61)
   if (!dlg.open) dlg.showModal();
   (typeof focusEl === 'string' ? document.getElementById(focusEl) : focusEl)?.focus();
   return dlg;
@@ -55,7 +157,8 @@ function admDialogOpen(id, opener, focusEl) {
  * des fiches, focus initial sur Annuler, Échap / fond / Annuler = refus, focus rendu à l'élément d'origine.
  * `impact` : lignes expliquant l'effet (réversible ou non, visible des joueurs…). Rend une promesse booléenne.
  */
-function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 'Annuler', danger = false }) {
+// #61 : `cancel: null` = simple information (un seul bouton) ; `field` = petite fiche de saisie (voir admPrompt).
+function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 'Annuler', danger = false, field = null }) {
   let dlg = document.getElementById('adm-confirm');
   if (!dlg) {
     dlg = document.createElement('dialog');
@@ -71,6 +174,18 @@ function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 
     const ul = document.createElement('ul');
     ul.id = 'adm-confirm-impact';
     ul.className = 'adm-confirm-impact';
+    const lab = document.createElement('label');
+    lab.id = 'adm-confirm-field';
+    lab.className = 'adm-confirm-field';
+    const labText = document.createElement('span');
+    const input = document.createElement('input');
+    input.id = 'adm-confirm-input';
+    input.autocomplete = 'off';
+    const area = document.createElement('textarea');
+    area.id = 'adm-confirm-area';
+    area.rows = 8;
+    lab.append(labText, input, area);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); dlg.close('yes'); } });
     const act = document.createElement('div');
     act.className = 'form-actions';
     const no = document.createElement('button');
@@ -78,11 +193,13 @@ function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 
     const yes = document.createElement('button');
     yes.type = 'button'; yes.id = 'adm-confirm-yes';
     act.append(no, yes);
-    dlg.append(h, p, ul, act);
+    dlg.append(h, p, ul, lab, act);
     document.body.appendChild(dlg);
     no.addEventListener('click', () => dlg.close('no'));
     yes.addEventListener('click', () => dlg.close('yes'));
-    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close('no'); });
+    let down = false;   // clic commencé dans la boîte et relâché dehors : ignoré
+    dlg.addEventListener('pointerdown', e => { down = admOnBackdrop(dlg, e); });
+    dlg.addEventListener('click', e => { if (down && admOnBackdrop(dlg, e)) dlg.close('no'); down = false; });
   }
   if (dlg.open) return Promise.resolve(false); // jamais deux confirmations à la fois (double clic)
   const opener = document.activeElement;
@@ -92,19 +209,48 @@ function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 
   ul.textContent = '';
   for (const line of impact) { const li = document.createElement('li'); li.textContent = line; ul.appendChild(li); }
   ul.classList.toggle('hidden', !impact.length);
-  dlg.querySelector('#adm-confirm-no').textContent = cancel;
+  dlg.querySelector('#adm-confirm-no').textContent = cancel ?? '';
+  dlg.querySelector('#adm-confirm-no').classList.toggle('hidden', cancel === null);
   const yes = dlg.querySelector('#adm-confirm-yes');
   yes.textContent = ok;
   yes.className = danger ? 'btn btn-danger' : 'btn btn-primary';
+  const lab = dlg.querySelector('#adm-confirm-field'), area = dlg.querySelector('#adm-confirm-area');
+  const multi = field?.type === 'textarea';
+  let input = dlg.querySelector('#adm-confirm-input');
+  lab.classList.toggle('hidden', !field);
+  lab.firstChild.textContent = field?.label ?? '';
+  input.classList.toggle('hidden', multi);
+  area.classList.toggle('hidden', !multi);
+  if (!multi) input.type = field?.type ?? 'text';
+  if (multi) input = area;
+  input.value = field?.value ?? '';
+  input.placeholder = field?.placeholder ?? '';
   dlg.returnValue = '';
   dlg.showModal();
-  dlg.querySelector('#adm-confirm-no').focus();
+  if (field) input.select();
+  else if (cancel === null) yes.focus();
+  else dlg.querySelector('#adm-confirm-no').focus();
   return new Promise(resolve => {
     dlg.addEventListener('close', () => {
       if (opener && document.contains(opener)) opener.focus();
       resolve(dlg.returnValue === 'yes');
     }, { once: true });
   });
+}
+
+/** Remplace confirm(message) (#61) : 1re ligne = titre, le reste = détail. Rend une promesse booléenne. */
+function admAsk(message, opts = {}) {
+  const [title, ...rest] = String(message).split('\n');
+  return admConfirm({ title, text: rest.join('\n').trim(), ...opts });
+}
+/** Remplace alert() (#61) : information Dig à un seul bouton, jamais bloquante pour le script. */
+function admAlert(message, title = 'Information') {
+  return admConfirm({ title, text: String(message), ok: 'OK', cancel: null });
+}
+/** Remplace prompt() (#61) : petite fiche de saisie Dig ; rend la valeur saisie, ou null si Annuler / Échap / fond. */
+async function admPrompt({ title, text = '', label = '', value = '', type = 'text', ok = 'Valider', placeholder = '' }) {
+  if (!await admConfirm({ title, text, ok, field: { label, value, type, placeholder } })) return null;
+  return document.getElementById(type === 'textarea' ? 'adm-confirm-area' : 'adm-confirm-input').value;
 }
 
 /** Ligne de liste cliquable (souris, Entrée, Espace) qui ouvre une fiche ; rien n'est modifié à l'ouverture. */
@@ -174,7 +320,11 @@ async function api(method, path, body) {
     credentials: 'same-origin',
   };
   if (body) opts.body = JSON.stringify(body);
-  const res  = await fetch(path, opts);
+  // Réseau coupé ou réponse interrompue (#61) : échec ordinaire (ok: false, status 0) ; l'appelant affiche l'erreur
+  // et laisse la fiche ouverte avec ses saisies, pour une nouvelle tentative.
+  let res;
+  try { res = await fetch(path, opts); }
+  catch { return { ok: false, status: 0, data: { error: 'Serveur injoignable ou réponse interrompue : rien n\'est perdu, la fiche reste ouverte ; réessayez.' } }; }
   const data = await res.json().catch(() => ({ error: `Réponse inattendue du serveur (${res.status}).` }));
   if (res.status === 401 && data.code === 'admin_auth') adminSessionLost();
   return { ok: res.ok, data, status: res.status };
@@ -247,9 +397,9 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('logout-all-btn').addEventListener('click', async () => {
-  if (!confirm('Fermer TOUTES les sessions admin (ce navigateur et tous les autres appareils) ?')) return;
+  if (!await admAsk('Fermer TOUTES les sessions admin (ce navigateur et tous les autres appareils) ?')) return;
   const { ok, data } = await api('POST', '/api/admin/session/revoke-all');
-  if (!ok) return alert(data.error || 'Erreur.');
+  if (!ok) return admAlert(data.error || 'Erreur.');
   adminShowLogin(`Toutes les sessions admin ont été fermées (${data.revoked}).`);
 });
 
@@ -399,7 +549,7 @@ document.getElementById('btn-create-season').addEventListener('click', async () 
 });
 
 async function endSeason(id) {
-  if (!confirm('Clore cette saison ?')) return false;
+  if (!await admAsk('Clore cette saison ?')) return false;
   const { ok, data } = await api('PUT', `/api/admin/seasons/${id}`, { status: 'closed' });
   if (!ok) admShowError(document.getElementById('season-form-error'), data.error ?? 'Erreur.');
   loadSeasons();
@@ -465,7 +615,7 @@ document.getElementById('btn-create-league').addEventListener('click', async () 
 });
 
 async function deleteLeague(id, name) {
-  if (!confirm(`Supprimer la ligue "${name}" ?`)) return false;
+  if (!await admAsk(`Supprimer la ligue "${name}" ?`)) return false;
   const { ok, data } = await api('DELETE', `/api/admin/leagues/${id}`);
   if (!ok) admShowError(document.getElementById('league-form-error'), data.error ?? 'Erreur.');
   loadLeagues();
@@ -505,17 +655,22 @@ async function loadLeaderboard() {
 
 /** Corrige une ligne du classement (profondeur retenue et/ou blocs effectifs). */
 async function correctRanking(r) {
-  const depthStr = prompt(`Profondeur retenue pour ${r.username} (actuelle : ${r.maxDepth}m, déclarée : ${r.reportedMaxDepth ?? '?'}m)`, String(r.maxDepth));
+  // Petites fiches Dig successives (#61) : Annuler / Échap à n'importe quelle étape = aucune correction.
+  const title = `Corriger le classement de ${r.username}`;
+  const depthStr = await admPrompt({ title, text: `Profondeur actuelle : ${r.maxDepth} m, déclarée : ${r.reportedMaxDepth ?? '?'} m.`,
+    label: 'Profondeur retenue (m)', type: 'number', value: String(r.maxDepth), ok: 'Suivant' });
   if (depthStr === null) return;
-  const blocksStr = prompt(`Blocs manuels effectifs pour ${r.username} (actuels : ${r.manualBlocks})`, String(r.manualBlocks));
+  const blocksStr = await admPrompt({ title, text: `Blocs manuels actuels : ${r.manualBlocks}.`,
+    label: 'Blocs manuels effectifs', type: 'number', value: String(r.manualBlocks), ok: 'Suivant' });
   if (blocksStr === null) return;
   const maxDepth = Number(depthStr), effectiveManualBlocks = Number(blocksStr);
   if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || !Number.isSafeInteger(effectiveManualBlocks) || effectiveManualBlocks < 0) {
-    alert('Valeurs invalides : entiers ≥ 0 attendus.'); return;
+    admAlert('Valeurs invalides : entiers ≥ 0 attendus. Rien n\'a été modifié.', 'Correction refusée'); return;
   }
-  const reason = prompt('Motif (journalisé)', '') ?? '';
+  const reason = await admPrompt({ title, text: `Profondeur ${maxDepth} m · blocs ${effectiveManualBlocks}.`, label: 'Motif (journalisé)', ok: 'Corriger le classement' });
+  if (reason === null) return;
   const { ok, data } = await api('PUT', `/api/admin/seasons/${_currentSeasonId}/rankings/${r.userId}`, { maxDepth, effectiveManualBlocks, reason });
-  if (!ok) { alert(data.error ?? 'Erreur.'); return; }
+  if (!ok) { admAlert(data.error ?? 'Erreur.'); return; }
   loadLeaderboard();
 }
 
@@ -544,9 +699,11 @@ const CONFIG_LABELS = {
   damage_budget_mode:           'Budget de dégâts (profondeur) : off, shadow ou enforce — #25',
 };
 
+// Saisies en cours conservées (#61) : un rechargement ne réécrit pas les valeurs modifiées et non enregistrées.
+const _cfgZone = admZone(document.getElementById('config-rows'));
 async function loadConfig() {
   const { ok, data } = await api('GET', '/api/admin/config');
-  if (!ok) return;
+  if (!ok || admZoneDirty(_cfgZone)) return;
   const container = document.getElementById('config-rows');
   container.innerHTML = '';
   Object.entries(data.config).forEach(([key, value]) => {
@@ -578,7 +735,9 @@ document.getElementById('btn-save-config').addEventListener('click', async () =>
     const { ok, data } = await api('PUT', '/api/admin/config', { key: input.dataset.key, value: input.value });
     if (!ok) errors.push(data.error ?? `Erreur pour "${input.dataset.key}".`);
   }
-  if (errors.length) { alert(errors.join('\n')); return; }
+  if (errors.length) { admShowError(document.getElementById('config-err'), errors.join(' · ')); return; }
+  admShowError(document.getElementById('config-err'), '');
+  admZoneClean(_cfgZone);
   msgEl.classList.remove('hidden');
   setTimeout(() => msgEl.classList.add('hidden'), 3000);
 });
@@ -796,7 +955,7 @@ document.getElementById('btn-se-apply').addEventListener('click', async () => {
 
 document.getElementById('btn-se-cancel').addEventListener('click', async () => {
   if (!_seState) return;
-  if (!confirm(`Annuler la fin exceptionnelle et revenir à la fin hebdomadaire (${_seBoth(_seState.weeklyEnd)}) ?`)) return;
+  if (!await admAsk(`Annuler la fin exceptionnelle et revenir à la fin hebdomadaire (${_seBoth(_seState.weeklyEnd)}) ?`)) return;
   const { ok, data } = await api('DELETE', '/api/admin/seasons/active/end', { seasonId: _seState.season.id, expectedEndAt: _seState.expectedEndAt });
   if (!ok) return _seMsg('se-err', data.error ?? 'Annulation impossible.');
   await loadSeasonOverview();
@@ -991,9 +1150,10 @@ const ECO_KEYS = [
   { key: 'chest_cost_antique',       inputId: 'eco-cost-antique' },
 ];
 
+const _ecoZone = admZone(document.getElementById('eco-upgrade-cost').closest('.overview-card'));
 async function loadEconomy() {
   const { ok, data } = await api('GET', '/api/admin/config');
-  if (!ok) return;
+  if (!ok || admZoneDirty(_ecoZone)) return;   // paramètres en cours de saisie conservés (#61)
   ECO_KEYS.forEach(({ key, inputId }) => {
     const input = document.getElementById(inputId);
     if (input && data.config[key] !== undefined) input.value = data.config[key];
@@ -1018,6 +1178,7 @@ document.getElementById('btn-save-economy').addEventListener('click', async () =
     }
   }
 
+  admZoneClean(_ecoZone);
   msgEl.classList.remove('hidden');
   setTimeout(() => msgEl.classList.add('hidden'), 3000);
 });
@@ -1368,6 +1529,7 @@ const ctPrize = p => (p && p.label ? `${p.label} ${(p.valueCents / 100).toFixed(
 
 let _ctSettings = null;
 let _ctDirty = false;
+admZone(document.getElementById('ct-form'), { dirty: () => _ctDirty });   // départ de la page protégé (#61)
 
 const ctRisk = v => (v === null || v === undefined ? 'aucune exclusion' : `≤ N${v}`);
 const ctWhen = v => (v ? `${v.slice(0, 16)} UTC` : null);
@@ -1450,8 +1612,8 @@ function ctShowForm(open) {
   }
 }
 
-function ctCancelEdit() {
-  if (_ctDirty && !confirm('Abandonner les modifications non enregistrées des réglages ?')) return;
+async function ctCancelEdit() {
+  if (_ctDirty && !await admConfirmDiscard({ text: 'Les réglages du concours contiennent des saisies non enregistrées.', keep: 'Enregistrer', effect: 'referme la fiche et revient aux réglages enregistrés.' })) return;
   if (_ctSettings) ctFillForm(_ctSettings);
   ctSetDirty(false);
   ctShowForm(false);
@@ -1685,7 +1847,7 @@ async function contestUnexclude(x) {
     ok: 'Réintégrer',
   })) return;
   const { ok, data } = await api('DELETE', `/api/admin/contest/seasons/${_ctPreview.season.id}/exclusions/${x.userId}`);
-  if (!ok) { alert(data.error || 'Erreur.'); return; }
+  if (!ok) { admAlert(data.error || 'Erreur.'); return; }
   loadContestPreview();
   loadContestAudit();
 }
@@ -1755,16 +1917,17 @@ async function loadContestWinners() {
 }
 
 async function contestTransition(w, to) {
-  const note = prompt(`${w.username ?? '#' + w.userId} : ${CT_STATUS[w.status]} → ${CT_STATUS[to]}\nNote facultative (jamais d'e-mail ni de code cadeau) :`, '');
+  const note = await admPrompt({ title: `${w.username ?? '#' + w.userId} : ${CT_STATUS[w.status]} → ${CT_STATUS[to]}`,
+    label: 'Note facultative (jamais d\'e-mail ni de code cadeau)', ok: 'Changer le statut' });
   if (note === null) return;
   const { ok, data } = await api('POST', `/api/admin/contest/winners/${w.id}/status`, { status: to, note });
-  if (!ok) { alert(data.error || 'Erreur.'); return; }
+  if (!ok) { admAlert(data.error || 'Erreur.'); return; }
   loadContestWinners();
   loadContestAudit();
 }
 
 async function contestContact(w) {
-  if (!confirm(`Afficher l'adresse e-mail de ${w.username ?? '#' + w.userId} ? La consultation est journalisée.`)) return;
+  if (!await admAsk(`Afficher l'adresse e-mail de ${w.username ?? '#' + w.userId} ? La consultation est journalisée.`)) return;
   const { ok, data } = await api('POST', `/api/admin/contest/winners/${w.id}/contact`, {});
   const el = document.getElementById('ct-contact');
   el.className = ok ? 'muted' : 'error';
@@ -1890,6 +2053,7 @@ document.getElementById('btn-refresh-points').addEventListener('click', () => {
   loadPoints();
 });
 document.getElementById('pt-scale').addEventListener('input', e => { e.target.dataset.dirty = '1'; });
+admZone(document.getElementById('pt-scale'), { dirty: () => !!document.getElementById('pt-scale').dataset.dirty });   // départ de la page (#61)
 
 document.getElementById('btn-pt-preview').addEventListener('click', async () => {
   const scale = ptScaleFromEditor();
@@ -1905,7 +2069,7 @@ document.getElementById('btn-pt-preview').addEventListener('click', async () => 
 document.getElementById('btn-pt-save-scale').addEventListener('click', async () => {
   const scale = ptScaleFromEditor();
   if (!scale) return;
-  if (!confirm('Enregistrer cette version du barème ? Elle s\'appliquera aux prochaines clôtures.')) return;
+  if (!await admAsk('Enregistrer cette version du barème ? Elle s\'appliquera aux prochaines clôtures.')) return;
   const note = document.getElementById('pt-scale-note').value;
   const { ok, data } = await api('PUT', '/api/admin/points/scale', { scale, note });
   ptMessage('pt-scale-msg', ok ? `Barème v${data.scaleVersion} enregistré.` : (data.error || 'Erreur.'), ok);
@@ -1916,7 +2080,7 @@ async function setPointsMode(mode) {
   const msg = mode === 'live'
     ? 'Activer le crédit réel des points ? Le barème en vigueur sera appliqué aux saisons qui se terminent à partir de maintenant.'
     : 'Revenir en simulation ? Les points déjà crédités restent acquis.';
-  if (!confirm(msg)) return;
+  if (!await admAsk(msg)) return;
   const { ok, data } = await api('PUT', '/api/admin/points/mode', { mode });
   ptMessage('pt-mode-msg', ok ? `Mode : ${data.mode}.` : (data.error || 'Erreur.'), ok);
   loadPoints();
@@ -1928,7 +2092,7 @@ document.getElementById('btn-pt-adjust').addEventListener('click', async () => {
   const userId = Number(document.getElementById('pt-adj-user').value);
   const amount = Number(document.getElementById('pt-adj-amount').value);
   const reason = document.getElementById('pt-adj-reason').value;
-  if (!confirm(`Ajuster de ${amount} point(s) le joueur #${userId} ?`)) return;
+  if (!await admAsk(`Ajuster de ${amount} point(s) le joueur #${userId} ?`)) return;
   const { ok, data } = await api('POST', '/api/admin/points/adjust', { userId, amount, reason });
   ptMessage('pt-adj-msg', ok ? `Nouveau solde : ${data.wallet.balance} pts.` : (data.error || 'Erreur.'), ok);
   if (ok) loadPoints();
@@ -2123,8 +2287,8 @@ async function shCanClose() {
   _shSnap = null;
   return true;
 }
-window.addEventListener('beforeunload', e => { if (shDirty()) { e.preventDefault(); e.returnValue = ''; } });
 
+const _shSetZone = admZone(document.getElementById('sh-open').closest('.overview-card'));
 async function loadShop() {
   const status = document.getElementById('sh-order-filter').value;
   const { ok, data } = await api('GET', `/api/admin/shop${status ? `?status=${encodeURIComponent(status)}` : ''}`);
@@ -2134,8 +2298,10 @@ async function loadShop() {
   banner.className = `contest-banner contest-banner--${s.exchangesOpen ? 'open' : 'locked'}`;
   banner.textContent = `${s.exchangesOpen ? '✅ Échanges ouverts' : '⛔ Échanges fermés'} — cadeaux réels : ${s.realEnabled ? 'DÉVERROUILLÉS' : 'verrouillés (#27)'}. `
     + `Registre des points : ${data.ledger.ok ? 'OK' : 'ÉCART'}.`;
-  document.getElementById('sh-open').checked = s.exchangesOpen;
-  document.getElementById('sh-notice').value = s.notice || '';
+  if (!admZoneDirty(_shSetZone)) {   // réglages en cours de saisie conservés (#61)
+    document.getElementById('sh-open').checked = s.exchangesOpen;
+    document.getElementById('sh-notice').value = s.notice || '';
+  }
 
   _shItems = data.items;
   const ib = document.getElementById('sh-items-body');
@@ -2206,7 +2372,7 @@ async function shopTransition(o, to) {
 
 document.getElementById('btn-refresh-shop').addEventListener('click', loadShop);
 document.getElementById('sh-order-filter').addEventListener('change', loadShop);
-admDialogSetup('sh-dialog', { canClose: shCanClose });
+admDialogSetup('sh-dialog', { canClose: shCanClose, dirty: () => shDirty() });
 document.getElementById('sh-dialog').addEventListener('input', shRefresh);
 document.getElementById('sh-dialog').addEventListener('change', shRefresh);
 document.getElementById('sh-kind').addEventListener('change', () => {
@@ -2226,7 +2392,7 @@ document.getElementById('btn-sh-settings').addEventListener('click', async () =>
   const body = { exchangesOpen: document.getElementById('sh-open').checked, notice: document.getElementById('sh-notice').value };
   const { ok, data } = await api('PUT', '/api/admin/shop/settings', body);
   shMessage('sh-settings-msg', ok ? 'Réglages enregistrés.' : (data.error || 'Erreur.'), ok);
-  if (ok) loadShop();
+  if (ok) { admZoneClean(_shSetZone); loadShop(); }
 });
 
 document.getElementById('btn-sh-save').addEventListener('click', async () => {
@@ -2851,12 +3017,14 @@ document.getElementById('btn-bk-leave-go').addEventListener('click', () => {
 document.getElementById('bk-leave-dialog').addEventListener('close', () => {
   if (document.getElementById('bk-dialog').open) document.getElementById('btn-bk-save').focus();
 });
-document.getElementById('bk-dialog').addEventListener('cancel', e => {
-  if (!bkDirty()) { _bkSnapshot = null; return; }
+// Échap : intercepté dès la touche (#61, sinon Chrome rend un second Échap non annulable) puis via « cancel ».
+document.getElementById('bk-dialog').addEventListener('cancel', e => { e.preventDefault(); bkRequestClose(); });
+document.getElementById('bk-dialog').addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
   e.preventDefault();
   bkRequestClose();
 });
-window.addEventListener('beforeunload', e => { if (bkDirty()) { e.preventDefault(); e.returnValue = ''; } });
+document.getElementById('bk-dialog')._admDirty = bkDirty;   // départ de la page : admAnyDirty
 document.getElementById('bk-dialog').addEventListener('input', e => {
   if (e.target.id?.startsWith('bk-name-') || e.target.id === 'bk-id') bkNamesSources();
   if (e.target.closest('.bk-sec') && e.target.id !== 'bk-ov-depth') bkEffective();
@@ -2873,7 +3041,13 @@ document.getElementById('bk-dialog').addEventListener('close', () => {
 });
 document.getElementById('btn-bk-close').addEventListener('click', () => bkRequestClose());
 // Clic sur le fond (hors du contenu) : fermeture, avec confirmation si des valeurs ne sont pas enregistrées.
-document.getElementById('bk-dialog').addEventListener('click', e => { if (e.target.id === 'bk-dialog') bkRequestClose(); });
+// Un clic commencé dans la fiche (sélection de texte) et relâché sur le fond ne compte pas (#61).
+{
+  const dlg = document.getElementById('bk-dialog');
+  let down = false;
+  dlg.addEventListener('pointerdown', e => { down = admOnBackdrop(dlg, e); });
+  dlg.addEventListener('click', e => { if (down && admOnBackdrop(dlg, e)) bkRequestClose(); down = false; });
+}
 // « ＋ Ajouter un bloc » : choix « Créer avec l'IA » / « Créer manuellement » (Annuler : aucun effet).
 admDialogSetup('bk-add-dialog');
 admDialogSetup('ai-dialog');
@@ -2961,7 +3135,7 @@ async function loadBlocksAudit() {
 }
 
 async function bkRollback(version) {
-  if (!confirm(`Revenir au contenu de la version v${version} ? Une nouvelle version sera publiée immédiatement pour tous les joueurs.`)) return;
+  if (!await admAsk(`Revenir au contenu de la version v${version} ? Une nouvelle version sera publiée immédiatement pour tous les joueurs.`)) return;
   const { ok, data } = await api('POST', '/api/admin/blocks/rollback', { version });
   ptMessage('bk-rollback-msg', ok ? `Version v${data.version} publiée (contenu de v${data.restored}).` : [data.error, ...(data.details ?? [])].join(' '), ok);
   if (ok) loadBlocks();
@@ -3144,7 +3318,7 @@ function aiRenderProposal(p, configured) {
       loadAi();
     }, { primary: true, disabled: state === 'pending' });
     button('Abandonner', async () => {
-      if (!confirm(`Abandonner la proposition #${p.id} ?`)) return;
+      if (!await admAsk(`Abandonner la proposition #${p.id} ?`)) return;
       const { ok, data } = await api('DELETE', `/api/admin/blocks/ai/proposals/${p.id}`);
       if (!ok) { msg.textContent = data.error || 'Erreur.'; return; }
       loadAi();
@@ -3229,7 +3403,7 @@ document.getElementById('btn-bk-revert').addEventListener('click', async () => {
   const change = (_bk.draft?.changes ?? []).find(c => c.id === id);
   if (!id || !change || change.kind !== 'changed') return;
   const what = change.fields.map(f => `${BK_FIELD_LABELS[f.field] ?? f.field} : ${bkShow(f.after)} → ${bkShow(f.before)}`).join('\n');
-  if (!confirm(`Annuler les modifications de « ${id} » et revenir à la version publiée v${_bk.published.version} ?\n\n${what}\n\nRien n'est publié ; les autres blocs du brouillon ne changent pas.`)) return;
+  if (!await admAsk(`Annuler les modifications de « ${id} » et revenir à la version publiée v${_bk.published.version} ?\n\n${what}\n\nRien n'est publié ; les autres blocs du brouillon ne changent pas.`)) return;
   const { ok, data } = await api('POST', `/api/admin/blocks/draft/types/${encodeURIComponent(id)}/revert`);
   if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur.', false); return; }
   await bkAfterUndo(id, `Modifications de « ${id} » annulées : version publiée rétablie, rien n'a été publié.`
@@ -3238,7 +3412,7 @@ document.getElementById('btn-bk-revert').addEventListener('click', async () => {
 
 document.getElementById('btn-bk-remove').addEventListener('click', async () => {
   const id = document.getElementById('bk-id').value.trim();
-  if (!id || !confirm(`Retirer le nouveau bloc « ${id} » du brouillon ? Il n'a jamais été publié.`)) return;
+  if (!id || !await admAsk(`Retirer le nouveau bloc « ${id} » du brouillon ? Il n'a jamais été publié.`)) return;
   const { ok, data } = await api('DELETE', `/api/admin/blocks/draft/types/${encodeURIComponent(id)}`);
   if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur.', false); return; }
   await bkAfterUndo(null, `« ${id} » retiré du brouillon.`);
@@ -3247,7 +3421,7 @@ document.getElementById('btn-bk-remove').addEventListener('click', async () => {
 async function bkDiscardAll() {
   if (!_bk?.draft) return false;
   const ids = [...new Set(_bk.draft.changes.map(c => c.id))];
-  if (!confirm(`Abandonner TOUT le brouillon ?\n\n${_bk.draft.changes.length} changement(s) non publié(s) seront perdus : ${ids.join(', ') || '—'}.\n`
+  if (!await admAsk(`Abandonner TOUT le brouillon ?\n\n${_bk.draft.changes.length} changement(s) non publié(s) seront perdus : ${ids.join(', ') || '—'}.\n`
     + 'La version publiée n\'est pas modifiée ; rien n\'est publié.')) return false;
   const { ok, data } = await api('DELETE', '/api/admin/blocks/draft');
   ptMessage('bk-publish-msg', ok ? 'Brouillon abandonné : le catalogue de travail est revenu à la version publiée.' : (data.error || 'Erreur.'), ok);
@@ -3288,7 +3462,7 @@ document.getElementById('btn-bk-translate').addEventListener('click', async () =
 
 document.getElementById('btn-bk-publish').addEventListener('click', async () => {
   if (!_bk?.draft) return;
-  if (!confirm(`Publier le brouillon (${_bk.draft.changes.length} changement(s)) ? Il s'appliquera aux prochains blocs de tous les joueurs.`)) return;
+  if (!await admAsk(`Publier le brouillon (${_bk.draft.changes.length} changement(s)) ? Il s'appliquera aux prochains blocs de tous les joueurs.`)) return;
   const note = document.getElementById('bk-publish-note').value;
   const { ok, data } = await api('POST', '/api/admin/blocks/publish', { note, basedOn: _bk.draft.basedOn });
   ptMessage('bk-publish-msg', ok ? `Version v${data.version} publiée.` : [data.error, ...(data.details ?? [])].join(' '), ok);
@@ -3454,7 +3628,7 @@ document.getElementById('co-items-body').closest('.bk-table-wrap').addEventListe
 function coNotice(text, ok = true) { ptMessage('co-notice', text, ok); }
 
 // Séries
-admDialogSetup('co-series-dialog');
+admDialogSetup('co-series-dialog', { keep: 'Enregistrer la série dans le brouillon' });
 function coFillSeriesForm(s) {
   document.getElementById('co-series-form-title').textContent = s ? `Série « ${s.names?.fr ?? s.id} »` : 'Nouvelle série';
   const idEl = document.getElementById('co-s-id');
@@ -3475,7 +3649,7 @@ function coOpenSeries(s, opener) {
 }
 
 // Objets
-admDialogSetup('co-item-dialog');
+admDialogSetup('co-item-dialog', { dirty: () => coItemDirty(), keep: 'Enregistrer l\'objet dans le brouillon' });
 function coFillItemForm(i) {
   document.getElementById('co-i-form-title').textContent = i ? `Objet « ${i.names?.fr ?? i.id} »` : 'Nouvel objet';
   const idEl = document.getElementById('co-i-id');
@@ -3535,16 +3709,8 @@ function coItemLang(l, focus = false) {
   coPreview();
   if (focus) document.querySelector(`#co-i-langs .co-lang-btn[data-lang="${l}"]`).focus();
 }
-// Modifications non enregistrées : confirmation avant de fermer (✕, Annuler, Échap, clic hors fiche)
-{
-  const dlg = document.getElementById('co-item-dialog');
-  const keep = () => coItemDirty() && !confirm('Des modifications de cet objet ne sont pas enregistrées. Fermer quand même (elles seront perdues) ?');
-  dlg.addEventListener('click', e => {
-    if ((e.target === dlg || e.target.closest('[data-close]')) && keep()) e.stopPropagation();
-  }, true);
-  dlg.addEventListener('cancel', e => { if (keep()) e.preventDefault(); });
-  dlg.addEventListener('close', () => { _coItemSnap = null; });
-}
+// Modifications non enregistrées : confirmation Dig avant de fermer (✕, Annuler, Échap, clic hors fiche), voir admDialogSetup.
+document.getElementById('co-item-dialog').addEventListener('close', () => { _coItemSnap = null; });
 document.querySelectorAll('#co-i-langs .co-lang-btn').forEach((b, k, all) => {
   b.addEventListener('click', () => coItemLang(b.dataset.lang));
   b.addEventListener('keydown', e => {
@@ -3849,7 +4015,7 @@ function coRenderReadiness(d) {
       if (cbDrops && !cbDrops.checked) { ptMessage('co-publish-msg', 'Cochez « barème validé » pour activer les drops de cette série.', false); return; }
       if (cbPerm && !cbPerm.checked) { ptMessage('co-publish-msg', 'Nouvelle série sans saison : confirmez qu\'elle doit être permanente, ou rattachez-la à une saison.', false); return; }
       const others = rows.filter(x => x.seriesId !== r.seriesId).map(x => x.seriesId);
-      if (!confirm(`Publier la série « ${s?.names?.fr ?? r.seriesId} » seule ?\n${r.info.join('\n')}`
+      if (!await admAsk(`Publier la série « ${s?.names?.fr ?? r.seriesId} » seule ?\n${r.info.join('\n')}`
         + (others.length ? `\nRestent en brouillon (non publiées) : ${others.join(', ')}.` : ''))) return;
       const { ok, data } = await api('POST', `/api/admin/collections/series/${encodeURIComponent(r.seriesId)}/publish`, {
         note: document.getElementById('co-publish-note').value, expectedBasedOn: d.basedOn,
@@ -3876,7 +4042,7 @@ async function loadCollectionsAudit() {
 }
 
 async function coRollback(version) {
-  if (!confirm(`Revenir au contenu de la version v${version} ? Une nouvelle version sera publiée immédiatement pour tous les joueurs.`)) return;
+  if (!await admAsk(`Revenir au contenu de la version v${version} ? Une nouvelle version sera publiée immédiatement pour tous les joueurs.`)) return;
   const { ok, data } = await api('POST', '/api/admin/collections/rollback', { version });
   ptMessage('co-rollback-msg', ok ? `Version v${data.version} publiée (contenu de v${data.restored}).` : [data.error, ...(data.details ?? [])].join(' '), ok);
   if (ok) loadCollections();
@@ -3929,7 +4095,7 @@ document.getElementById('btn-co-s-save').addEventListener('click', async () => {
 
 document.getElementById('btn-co-s-remove').addEventListener('click', async () => {
   const id = document.getElementById('co-s-id').value.trim();
-  if (!id || !confirm(`Retirer la série « ${id} » du brouillon ?`)) return;
+  if (!id || !await admAsk(`Retirer la série « ${id} » du brouillon ?`)) return;
   const { ok, data } = await api('DELETE', `/api/admin/collections/draft/series/${encodeURIComponent(id)}`);
   if (!ok) { ptMessage('co-s-msg', data.error || 'Erreur.', false); return; }
   document.getElementById('co-series-dialog').close();
@@ -3951,7 +4117,7 @@ document.getElementById('btn-co-i-save').addEventListener('click', async () => {
 
 document.getElementById('btn-co-i-remove').addEventListener('click', async () => {
   const id = document.getElementById('co-i-id').value.trim();
-  if (!id || !confirm(`Retirer « ${id} » du brouillon ?`)) return;
+  if (!id || !await admAsk(`Retirer « ${id} » du brouillon ?`)) return;
   const { ok, data } = await api('DELETE', `/api/admin/collections/draft/items/${encodeURIComponent(id)}`);
   if (!ok) { ptMessage('co-i-msg', data.error || 'Erreur.', false); return; }
   document.getElementById('co-item-dialog').close();
@@ -3959,9 +4125,9 @@ document.getElementById('btn-co-i-remove').addEventListener('click', async () =>
   loadCollections();
 });
 
-document.getElementById('btn-co-i-studio').addEventListener('click', () => {
+document.getElementById('btn-co-i-studio').addEventListener('click', async () => {
   const id = document.getElementById('co-i-id').value.trim();
-  if (coItemDirty() && !confirm('Modifications non enregistrées dans cette fiche : les abandonner pour ouvrir l\'atelier ?\n(Annuler, puis « Enregistrer l\'objet dans le brouillon » pour les garder.)')) return;
+  if (coItemDirty() && !await admConfirmDiscard({ keep: 'Enregistrer l\'objet dans le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
   _coItemSnap = null;
   document.getElementById('co-item-dialog').close();
   document.querySelector('.tab-btn[data-tab="icons"]').click();
@@ -3988,7 +4154,7 @@ document.getElementById('btn-co-publish').addEventListener('click', async () => 
   if (_co.draft.drops.length && !confirmDrops) { ptMessage('co-publish-msg', 'Cochez « barème validé » pour publier de nouveaux drops.', false); return; }
   const confirmIncomplete = document.getElementById('co-confirm-incomplete').checked;
   const touched = (_co.draft.readiness ?? []).map(r => r.seriesId);
-  if (!confirm(`Publier TOUT le brouillon (${_co.draft.changes.length} changement(s), série(s) : ${touched.join(', ') || '—'}) ? `
+  if (!await admAsk(`Publier TOUT le brouillon (${_co.draft.changes.length} changement(s), série(s) : ${touched.join(', ') || '—'}) ? `
     + 'Il sera visible de tous les joueurs au prochain chargement. Pour une seule série, utilisez « Publier cette série seule ».')) return;
   const note = document.getElementById('co-publish-note').value;
   const { ok, data } = await api('POST', '/api/admin/collections/publish', { note, expectedBasedOn: _co.draft.basedOn, confirmDrops, confirmIncomplete });
@@ -3998,7 +4164,7 @@ document.getElementById('btn-co-publish').addEventListener('click', async () => 
 
 document.getElementById('btn-co-discard').addEventListener('click', async () => {
   const lost = (_co?.draft?.items ?? []).filter(i => i.image && !(_co.published.items.find(p => p.id === i.id)?.image === i.image)).length;
-  if (!confirm('Abandonner le brouillon ? Les modifications non publiées seront perdues'
+  if (!await admAsk('Abandonner le brouillon ? Les modifications non publiées seront perdues'
     + (lost ? ` (dont ${lost} illustration(s) appliquée(s) à des objets non publiés — les images restent dans l'atelier).` : '.'))) return;
   const { ok, data } = await api('DELETE', '/api/admin/collections/draft');
   ptMessage('co-publish-msg', ok ? 'Brouillon abandonné.' : (data.error || 'Erreur.'), ok);
@@ -4082,17 +4248,9 @@ document.getElementById('btn-co-ai-generate').addEventListener('click', async e 
 });
 
 // Fiche de relecture d'une proposition
-admDialogSetup('co-prop-dialog');
+// Corrections non enregistrées : confirmation Dig avant de fermer (✕, Fermer, Échap, clic hors fiche), voir admDialogSetup.
+admDialogSetup('co-prop-dialog', { dirty: () => !!_coPropWork?.dirty, keep: 'Enregistrer les corrections' });
 document.getElementById('co-prop-dialog').addEventListener('close', () => { _coProp = null; _coPropWork = null; });
-// Corrections non enregistrées : confirmation avant de fermer (✕, Fermer, Échap, clic hors fiche)
-{
-  const dlg = document.getElementById('co-prop-dialog');
-  const keep = () => _coPropWork?.dirty && !confirm('Des corrections ne sont pas enregistrées. Fermer quand même (elles seront perdues) ?');
-  dlg.addEventListener('click', e => {
-    if ((e.target === dlg || e.target.closest('[data-close]')) && keep()) e.stopPropagation();
-  }, true);
-  dlg.addEventListener('cancel', e => { if (keep()) e.preventDefault(); });
-}
 
 async function coPropOpen(id, opener) {
   const { ok, data } = await api('GET', `/api/admin/collections/ai/proposals/${id}`);
@@ -4419,8 +4577,8 @@ function coPropDrawItem(body, focus) {
   if (w.editable && n > 1) {
     const rm = document.createElement('button');
     rm.type = 'button'; rm.className = 'btn btn-ghost'; rm.textContent = 'Retirer cet objet de la proposition';
-    rm.addEventListener('click', () => {
-      if (!confirm(`Retirer « ${it.names.fr || it.id} » de la proposition ? (effectif à l'enregistrement)`)) return;
+    rm.addEventListener('click', async () => {
+      if (!await admAsk(`Retirer « ${it.names.fr || it.id} » de la proposition ? (effectif à l'enregistrement)`)) return;
       w.items.splice(k, 1);
       coPropTouch();
       w.idx = null;
@@ -4512,7 +4670,7 @@ document.getElementById('btn-co-prop-draft').addEventListener('click', async () 
     return;
   }
   const miss = w.items.filter(it => CO_LANGS.some(l => coLangState(it, l) !== 'ok')).length;
-  if (miss && !confirm(`${miss} objet(s) ont un nom ou une histoire manquant dans une langue (pastilles jaunes ou —). Enregistrer quand même dans le brouillon ? Vous pourrez compléter avant de publier.`)) return;
+  if (miss && !await admAsk(`${miss} objet(s) ont un nom ou une histoire manquant dans une langue (pastilles jaunes ou —). Enregistrer quand même dans le brouillon ? Vous pourrez compléter avant de publier.`)) return;
   const p = await coPropSave();
   if (!p) return;
   const { ok, data } = await api('POST', `/api/admin/collections/ai/proposals/${p.id}/draft`);
@@ -4524,7 +4682,7 @@ document.getElementById('btn-co-prop-draft').addEventListener('click', async () 
 });
 
 document.getElementById('btn-co-prop-discard').addEventListener('click', async () => {
-  if (!_coProp || !confirm('Abandonner cette proposition ? Elle disparaîtra de la liste (le catalogue n\'est pas modifié).')) return;
+  if (!_coProp || !await admAsk('Abandonner cette proposition ? Elle disparaîtra de la liste (le catalogue n\'est pas modifié).')) return;
   const { ok, data } = await api('DELETE', `/api/admin/collections/ai/proposals/${_coProp.id}`);
   if (!ok) { ptMessage('co-prop-msg', data.error || 'Erreur.', false); return; }
   document.getElementById('co-prop-dialog').close();
@@ -4823,7 +4981,7 @@ async function icSeriesStart(seriesId) {
     `• Reste sous le plafond (⚙ Config) : ${icUsd(p.remainingUsd)} → ${p.affordable >= todo.length ? 'suffisant' : `au moins ${p.affordable} image(s) ; la génération s'arrêtera d'elle-même au plafond, qui n'est jamais relevé automatiquement`}.`,
     `• Durée : ${p.measuredSeconds ? `≈ ${p.measuredSeconds} s` : 'environ 40 s'} par image, l'une après l'autre ; vous pouvez quitter la page.`,
     '• Chaque image est contrôlée automatiquement (objet reconnu ?). Rien n\'est conservé ni publié sans vous.'].filter(Boolean).join('\n');
-  if (!confirm(msg)) return;
+  if (!await admAsk(msg)) return;
   const r = await api('POST', `/api/admin/icons/series/${icEnc(seriesId)}/generate`, { target: `series:${seriesId}` });
   if (!r.ok) {
     if (r.data.details?.code === 'stale_client') admStaleBanner(r.data.details.version);
@@ -5284,7 +5442,7 @@ function icOptions(t, sel) {
   up.appendChild(file);
   acts.appendChild(up);
   if (sel && sel.status !== 'validated') icButton(acts, '🔒 Verrouiller cette image (validée)', async () => {
-    if (!confirm('Verrouiller cette image comme VALIDÉE ? Elle ne pourra ensuite être remplacée qu\'avec votre accord explicite.')) return;
+    if (!await admAsk('Verrouiller cette image comme VALIDÉE ? Elle ne pourra ensuite être remplacée qu\'avec votre accord explicite.')) return;
     await icMark(t, sel.sha, 'validated', 'Image verrouillée.');
   });
   if (sel && sel.status !== 'rejected' && !sel.inDraft) icButton(acts, 'Écarter cette proposition', () => icMark(t, sel.sha, 'rejected', 'Proposition écartée (conservée dans l\'historique).'));
@@ -5356,15 +5514,15 @@ async function icMark(t, sha, status, text) {
 
 /** « Conserver » : écrit dans le BROUILLON du catalogue (jamais publié ici). */
 async function icApply(t, sha, { doubtful = false } = {}) {
-  if (doubtful && !confirm(`Cette proposition est douteuse (sa demande citait un autre objet). La conserver quand même pour « ${t.name} » ?`)) return;
+  if (doubtful && !await admAsk(`Cette proposition est douteuse (sa demande citait un autre objet). La conserver quand même pour « ${t.name} » ?`)) return;
   let override = false;
   if (t.validated) {
-    if (!confirm(`L'icône de « ${t.name} » est VALIDÉE. La remplacer quand même (accord explicite, tracé) ?`)) return;
+    if (!await admAsk(`L'icône de « ${t.name} » est VALIDÉE. La remplacer quand même (accord explicite, tracé) ?`)) return;
     override = true;
   }
   // Badge (#38) : pas de brouillon ; sur un badge actif, l'image est visible tout de suite → confirmation
   const live = t.kind === 'badge' && / active$/.test(String(t.extra ?? ''));
-  if (live && !confirm(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
+  if (live && !await admAsk(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
   const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live, doubtful });
   const where = data.catalog === 'blocks' ? '🧱 Blocs' : '📿 Collections';
   const done = data.catalog === 'badges'
@@ -5436,6 +5594,7 @@ document.getElementById('ic-sheet').addEventListener('keydown', e => {
 
 // ── Budget IA (⚙ Config) : dépenses journalisées, plafond facultatif (désactivé par défaut, décision du 03/11) ──
 
+const _aibZone = admZone(document.getElementById('ai-budget-card'));
 async function loadAiBudget() {
   const { ok, data } = await api('GET', '/api/admin/icons/job');
   const state = document.getElementById('aib-cap-state');
@@ -5445,8 +5604,10 @@ async function loadAiBudget() {
   const reached = document.getElementById('aib-reached');
   const input = document.getElementById('ic-budget');
   const on = document.getElementById('aib-cap-on');
-  if (document.activeElement !== input) input.value = s.capUsd ?? '';
-  if (document.activeElement !== on) on.checked = !!s.capEnabled;
+  if (!admZoneDirty(_aibZone)) {   // plafond en cours de saisie conservé (#61)
+    if (document.activeElement !== input) input.value = s.capUsd ?? '';
+    if (document.activeElement !== on) on.checked = !!s.capEnabled;
+  }
   dl.textContent = '';
   const meter = document.getElementById('aib-meter-wrap');
   if (!s.configured) {
@@ -5477,7 +5638,7 @@ document.getElementById('btn-ic-budget').addEventListener('click', async () => {
   const enabled = document.getElementById('aib-cap-on').checked;
   const { ok, data } = await api('PUT', '/api/admin/icons/budget', { enabled, ...(v === '' ? {} : { capUsd: Number(v) }) });
   ptMessage('aib-msg', ok ? (enabled ? 'Plafond activé.' : 'Plafond désactivé : aucun appel n\'est bloqué par le montant.') : (data.error || 'Erreur.'), ok);
-  if (ok) loadAiBudget();
+  if (ok) { admZoneClean(_aibZone); loadAiBudget(); }
 });
 
 // ── Badges et succès honorifiques (#38) ───────────────────────────────────────
@@ -5757,7 +5918,7 @@ document.getElementById('btn-bg-save').addEventListener('click', async () => {
     return;
   }
   if (sheet.mode === 'edit' && sheet.badge.status === 'active'
-    && !confirm('Ce badge est ACTIF : les modifications seront visibles immédiatement par les joueurs. Enregistrer ?')) return;
+    && !await admAsk('Ce badge est ACTIF : les modifications seront visibles immédiatement par les joueurs. Enregistrer ?')) return;
   const r = sheet.mode === 'edit'
     ? await api('PUT', `/api/admin/badges/${encodeURIComponent(sheet.badge.id)}`, body)
     : await api('POST', '/api/admin/badges', { ...body, status: 'inactive' });
@@ -5769,7 +5930,7 @@ document.getElementById('btn-bg-save').addEventListener('click', async () => {
 
 async function bgSetStatus(status, warn) {
   const b = _bgSheet?.badge;
-  if (!b || (warn && !confirm(warn))) return;
+  if (!b || (warn && !await admAsk(warn))) return;
   const r = await api('POST', `/api/admin/badges/${encodeURIComponent(b.id)}/status`, { status });
   if (!r.ok) { ptMessage('bg-form-msg', bgError(r.data), false); return; }
   document.getElementById('bg-dialog').close();
@@ -5786,15 +5947,15 @@ document.getElementById('btn-bg-archive').addEventListener('click', () => {
   const b = _bgSheet?.badge;
   if (b) bgSetStatus('archived', `Archiver « ${b.id} » ? Il ne pourra plus être obtenu ; ceux qui l'ont le gardent.`);
 });
-document.getElementById('btn-bg-studio').addEventListener('click', () => {
+document.getElementById('btn-bg-studio').addEventListener('click', async () => {
   const id = _bgSheet?.badge?.id;
-  document.getElementById('bg-dialog').close();
+  if (!await document.getElementById('bg-dialog')._admRequestClose()) return;   // saisies non enregistrées : confirmation (#61)
   document.querySelector('.tab-btn[data-tab="icons"]').click();
   if (id) icOpen(`badge:${id}`);
 });
 document.getElementById('btn-bg-prop-discard').addEventListener('click', async () => {
   const p = _bgSheet?.proposal;
-  if (!p || !confirm('Abandonner cette proposition ? Aucun badge n\'est créé.')) return;
+  if (!p || !await admAsk('Abandonner cette proposition ? Aucun badge n\'est créé.')) return;
   const r = await api('DELETE', `/api/admin/badges/ai/proposals/${p.id}`);
   if (!r.ok) { ptMessage('bg-form-msg', bgError(r.data), false); return; }
   document.getElementById('bg-dialog').close();
@@ -5990,7 +6151,7 @@ document.getElementById('btn-bg-rv-redo').addEventListener('click', async e => {
 
 document.getElementById('btn-bg-rv-cancel').addEventListener('click', async () => {
   const p = _bgReview;
-  if (!p || !confirm('Annuler cette proposition ? Aucun badge n\'est créé.')) return;
+  if (!p || !await admAsk('Annuler cette proposition ? Aucun badge n\'est créé.')) return;
   const r = await api('DELETE', `/api/admin/badges/ai/proposals/${p.id}`);
   if (!r.ok) { ptMessage('bg-rv-msg', bgError(r.data), false); return; }
   document.getElementById('bg-review-dialog').close();
@@ -6038,7 +6199,12 @@ function adMessage(id, text, ok) {
   el.className = ok ? 'success' : 'error';
 }
 
-function renderAds(data) {
+// Réglages et codes collés non enregistrés conservés au rechargement (#61) ; interrupteur général hors suivi.
+const _adSetZone = admZone(document.getElementById('ad-provider').closest('.overview-card'));
+const _adSlotsZone = admZone(document.getElementById('ad-slots'), {
+  dirty: () => [...document.querySelectorAll('#ad-slots textarea')].some(t => t.value.trim()),
+});
+function renderAds(data, savedSlot = null) {
   const s = data.settings;
   const banner = document.getElementById('ad-banner');
   const live = data.effective.filter(e => e.enabled).map(e => e.host);
@@ -6047,19 +6213,23 @@ function renderAds(data) {
     : live.length ? `📢 Publicité ACTIVE sur : ${live.join(', ')} (après consentement du joueur).`
     : '🔒 Aucune publicité diffusée.';
 
-  const sel = document.getElementById('ad-provider');
-  sel.textContent = '';
-  sel.appendChild(new Option('— aucune —', ''));
-  for (const p of data.providers) sel.appendChild(new Option(p.label, p.id));
-  sel.value = s.provider;
-  document.getElementById('ad-hosts').value = s.allowedHosts.join(', ');
-  document.getElementById('ad-contact').value = s.legalContact;
-  document.getElementById('ad-adstxt').value = s.adsTxt;
-  document.getElementById('ad-bump').checked = false;
+  if (!admZoneDirty(_adSetZone)) {
+    const sel = document.getElementById('ad-provider');
+    sel.textContent = '';
+    sel.appendChild(new Option('— aucune —', ''));
+    for (const p of data.providers) sel.appendChild(new Option(p.label, p.id));
+    sel.value = s.provider;
+    document.getElementById('ad-hosts').value = s.allowedHosts.join(', ');
+    document.getElementById('ad-contact').value = s.legalContact;
+    document.getElementById('ad-adstxt').value = s.adsTxt;
+    document.getElementById('ad-bump').checked = false;
+  }
   document.getElementById('ad-enabled').checked = s.enabled;
   document.getElementById('ad-confirm').value = '';
 
   const box = document.getElementById('ad-slots');
+  // Code collé dans un autre emplacement (jamais réaffiché par le serveur) : conservé au re-rendu.
+  const pasted = Object.fromEntries([...box.querySelectorAll('textarea[data-slot]')].map(t => [t.dataset.slot, t.value]));
   box.textContent = '';
   for (const slot of data.slots) {
     const card = document.createElement('div');
@@ -6070,6 +6240,8 @@ function renderAds(data) {
     const ta = document.createElement('textarea');
     ta.rows = 4; ta.style.width = '100%'; ta.style.fontFamily = 'monospace';
     ta.placeholder = 'Coller ici le code « GET CODE » de l\u2019unité (atOptions + script). Il est analysé, jamais exécuté dans le panel.';
+    ta.dataset.slot = slot.slot;
+    if (String(slot.slot) !== String(savedSlot) && pasted[slot.slot]) ta.value = pasted[slot.slot];
     card.appendChild(ta);
     const row = document.createElement('div');
     row.className = 'form-actions';
@@ -6085,15 +6257,15 @@ function renderAds(data) {
       const { ok, data: d } = await api('PUT', `/api/admin/ads/slots/${slot.slot}`, { snippet: ta.value, enabled: en.checked, hideOnDig: hide.checked });
       if (!ok) return adMessage('ad-slot-msg', d.error || 'Erreur.', false);
       adMessage('ad-slot-msg', 'Emplacement enregistré.', true);
-      renderAds(d);
+      renderAds(d, slot.slot);
     });
     const clear = document.createElement('button');
     clear.className = 'btn-ghost'; clear.textContent = 'Effacer le code';
     clear.addEventListener('click', async () => {
-      if (!confirm('Effacer le code de cet emplacement (il sera désactivé) ?')) return;
+      if (!await admAsk('Effacer le code de cet emplacement (il sera désactivé) ?')) return;
       const { ok, data: d } = await api('PUT', `/api/admin/ads/slots/${slot.slot}`, { clearCode: true, enabled: false });
       if (!ok) return adMessage('ad-slot-msg', d.error || 'Erreur.', false);
-      renderAds(d);
+      renderAds(d, slot.slot);
     });
     row.append(save, clear);
     card.appendChild(row);
@@ -6136,6 +6308,7 @@ document.getElementById('btn-ad-settings').addEventListener('click', async () =>
   });
   if (!ok) return adMessage('ad-settings-msg', data.error || 'Erreur.', false);
   adMessage('ad-settings-msg', 'Réglages enregistrés.', true);
+  admZoneClean(_adSetZone);
   renderAds(data);
 });
 
@@ -6180,7 +6353,7 @@ function betaInviteMessage(link, name) {
 
 async function betaCopy(text, btn, label) {
   try { await navigator.clipboard.writeText(text); }
-  catch { prompt('À copier :', text); return; }
+  catch { admPrompt({ title: 'Copie impossible ici', text: 'Sélectionnez le texte ci-dessous puis copiez-le (Ctrl+C).', label: 'À copier', value: text, type: 'textarea', ok: 'Fermer' }); return; }
   btn.textContent = '✓ Copié';
   setTimeout(() => { btn.textContent = label; }, 1800);
   admToast('Copié dans le presse-papiers.');
@@ -6256,7 +6429,7 @@ function renderBeta(data) {
       const rev = document.createElement('button');
       rev.className = 'btn-ghost'; rev.textContent = 'Révoquer';
       rev.addEventListener('click', async () => {
-        if (!confirm(`Révoquer ${inv.code} ? Le lien ne marchera plus. Les comptes déjà créés avec ce lien ne sont pas touchés.`)) return;
+        if (!await admAsk(`Révoquer ${inv.code} ? Le lien ne marchera plus. Les comptes déjà créés avec ce lien ne sont pas touchés.`)) return;
         const { ok, data: d } = await api('POST', `/api/admin/beta/invites/${inv.id}/revoke`);
         if (!ok) return adMessage('beta-invite-msg', d.error || 'Erreur.', false);
         admToast(`Lien ${inv.code} révoqué.`);
@@ -6494,7 +6667,7 @@ document.getElementById('btn-beta-settings').addEventListener('click', async () 
   const changes = betaConfigDiff();
   if (!changes.length) return;
   const next = betaConfigForm();
-  if (next.registrationMode === 'closed' && !confirm('Fermer les inscriptions ? Plus personne ne pourra créer de compte, même avec un lien d’invitation (les joueurs existants continuent de jouer).')) return;
+  if (next.registrationMode === 'closed' && !await admAsk('Fermer les inscriptions ? Plus personne ne pourra créer de compte, même avec un lien d’invitation (les joueurs existants continuent de jouer).')) return;
   const { ok, data } = await api('PUT', '/api/admin/beta/settings', next);
   if (!ok) return admShowError(document.getElementById('beta-settings-msg'), data.error || 'Erreur.');
   document.getElementById('beta-config-dialog').close();
@@ -6528,7 +6701,8 @@ document.getElementById('btn-beta-pw').addEventListener('click', async () => {
   const { ok, data } = await api('GET', `/api/admin/players/search?q=${encodeURIComponent(name)}`);
   const user = ok && data.users.find(u => u.username.toLowerCase() === name.toLowerCase());
   if (!user) return adMessage('beta-pw-msg', 'Joueur introuvable (nom exact attendu).', false);
-  const confirmName = prompt(`Remplacer le mot de passe de « ${user.username} » et fermer ses sessions ?\nSaisir son nom exact pour confirmer :`);
+  const confirmName = await admPrompt({ title: `Remplacer le mot de passe de « ${user.username} » et fermer ses sessions ?`,
+    label: 'Saisir son nom exact pour confirmer', ok: 'Remplacer le mot de passe' });
   if (confirmName === null) return;
   const r = await api('POST', `/api/admin/players/${user.id}/temp-password`, { confirm: confirmName.trim() });
   if (!r.ok) return adMessage('beta-pw-msg', r.data.error || 'Erreur.', false);
@@ -6734,7 +6908,7 @@ function stThemeFolds(parent, theme, { canReroll }) {
       ['🚫 Autre nom et exclure celui-ci', true, `Remplacer « ${theme.names.fr} » et exclure durablement ses mots des futurs noms ?`],
     ]) {
       stButton(row, label, async () => {
-        if (!confirm(confirmText)) return;
+        if (!await admAsk(confirmText)) return;
         const { ok, data } = await api('POST', `/api/admin/season-themes/${theme.id}/reroll`, { exclude });
         if (!ok) return stMessage('st-err', data.error ?? 'Refusé.');
         stMessage('st-msg', `Nouveau nom : « ${data.theme.names.fr} » (l'ancien reste réservé, il ne sera jamais réutilisé).`);
@@ -6806,7 +6980,7 @@ function stNextCard(data) {
   const row = aiEl('div', { class: 'form-actions st-main' });
   if (!t) {
     stButton(row, 'Préparer maintenant', async () => {
-      if (!confirm(`Préparer dès maintenant la saison du ${stDate(n.startAt)} ?\n\nUn nom inédit est réservé et, si un pack rédigé est disponible, sa collection est importée en BROUILLON (non publiée, drops inactifs). Rien n'est illustré, publié ni annoncé. Sans cette action, la préparation est ${stPrepWhen(n.prepareAt)}.`)) return;
+      if (!await admAsk(`Préparer dès maintenant la saison du ${stDate(n.startAt)} ?\n\nUn nom inédit est réservé et, si un pack rédigé est disponible, sa collection est importée en BROUILLON (non publiée, drops inactifs). Rien n'est illustré, publié ni annoncé. Sans cette action, la préparation est ${stPrepWhen(n.prepareAt)}.`)) return;
       const { ok, data: d } = await api('POST', '/api/admin/season-themes/prepare');
       if (!ok) return stMessage('st-err', d.error ?? 'Préparation impossible.');
       stMessage('st-msg', d.next?.theme ? `Saison suivante préparée : « ${d.next.theme.names.fr} ».` : 'Rien à préparer pour l\'instant.');
@@ -7011,11 +7185,13 @@ function renderNews() {
   }
 
   const s = d.settings;
-  document.getElementById('news-auto-seasons').checked = s.autoSeasons;
-  document.getElementById('news-player-events').checked = s.playerEvents;
-  document.getElementById('news-depths').value = s.depthMilestones.join(', ');
-  document.getElementById('news-rank-top').value = s.rankTop;
-  document.getElementById('news-daily-max').value = s.playerDailyMax;
+  if (!admZoneDirty(document.getElementById('news-settings-card'))) {   // réglages en cours de saisie conservés (#61)
+    document.getElementById('news-auto-seasons').checked = s.autoSeasons;
+    document.getElementById('news-player-events').checked = s.playerEvents;
+    document.getElementById('news-depths').value = s.depthMilestones.join(', ');
+    document.getElementById('news-rank-top').value = s.rankTop;
+    document.getElementById('news-daily-max').value = s.playerDailyMax;
+  }
   document.getElementById('news-discord-state').textContent = d.discordUrl
     ? `Discord : le panneau du jeu affiche « Rejoindre le Discord » vers ${d.discordUrl} (lien réglé dans l'onglet 🧪 Bêta → Configurer la bêta).`
     : 'Discord : aucun lien configuré, le panneau du jeu n\'en affiche pas. Pour l\'ajouter : onglet 🧪 Bêta → Configurer la bêta → « Lien d\'invitation Discord ».';
@@ -7160,16 +7336,15 @@ const nwSnapshot = () => JSON.stringify([nwCollect(), document.getElementById('n
 const nwDirty = () => document.getElementById('news-dialog').open && _nwSnap !== null && nwSnapshot() !== _nwSnap;
 function nwDirtyUpdate() { document.getElementById('nw-dirty').classList.toggle('hidden', !nwDirty()); }
 
-async function nwRequestClose() {
-  const dlg = document.getElementById('news-dialog');
+async function nwCanClose() {
   if (nwDirty() && !await admConfirm({
     title: 'Modifications non enregistrées',
     text: 'Cette fiche contient des saisies qui ne sont pas enregistrées (notes, textes ou réglages).',
     impact: ['« Abandonner » ferme la fiche et perd ces saisies (une mise en forme IA non enregistrée serait à refaire).', `Pour les garder : « Continuer à modifier », puis « ${document.getElementById('btn-nw-save').textContent} ».`],
     ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
-  })) return;
+  })) return false;
   _nwSnap = null;
-  dlg.close();
+  return true;
 }
 
 function nwOpen(item, opener) {
@@ -7305,6 +7480,7 @@ document.getElementById('btn-nw-schedule')?.addEventListener('click', async () =
   if (it && await nwAction(it.id, 'publish', `Publication programmée le ${nwDate(at)}.`, { at })) { _nwSnap = null; document.getElementById('news-dialog').close(); }
 });
 
+admZone(document.getElementById('news-settings-card'));
 document.getElementById('btn-news-settings')?.addEventListener('click', async () => {
   const { ok, data } = await api('PUT', '/api/admin/news/settings', {
     autoSeasons: document.getElementById('news-auto-seasons').checked,
@@ -7315,30 +7491,14 @@ document.getElementById('btn-news-settings')?.addEventListener('click', async ()
   });
   if (!ok) return nwMessage('news-settings-msg', data.error ?? 'Réglages refusés.', true);
   nwMessage('news-settings-msg', 'Réglages enregistrés.');
+  admZoneClean(document.getElementById('news-settings-card'));
   loadNews();
 });
 
 if (document.getElementById('news-dialog')) {
-  const dlg = admDialogSetup('news-dialog');
-  // Fermeture protégée : ✕ / Annuler / fond interceptés avant admDialogSetup, Échap via « cancel ».
-  dlg.addEventListener('click', e => {
-    const closeBtn = e.target.closest('[data-close]');
-    if (e.target === dlg) {
-      // Clic dans la marge intérieure de la fiche : ignoré ; seul un clic sur le fond (hors cadre) demande la fermeture.
-      const r = dlg.getBoundingClientRect();
-      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-      e.stopImmediatePropagation();
-      if (!inside) nwRequestClose();
-      return;
-    }
-    if (!closeBtn) return;
-    e.stopImmediatePropagation();
-    e.preventDefault();
-    nwRequestClose();
-  }, true);
-  dlg.addEventListener('cancel', e => { e.preventDefault(); nwRequestClose(); });
+  // Fermeture protégée (✕ / Annuler / fond hors cadre / Échap / page) : mécanisme commun admDialogSetup (#61).
+  const dlg = admDialogSetup('news-dialog', { canClose: nwCanClose, dirty: () => nwDirty() });
   dlg.addEventListener('close', () => { _nwSnap = null; });
-  window.addEventListener('beforeunload', e => { if (nwDirty()) { e.preventDefault(); e.returnValue = ''; } });
   dlg.addEventListener('input', () => nwPreview());
   dlg.addEventListener('change', () => nwPreview());
   document.querySelectorAll('#nw-langs .co-lang-btn').forEach((b, k, all) => {
@@ -7754,8 +7914,7 @@ async function evCanClose() {
   _evSnap = null;
   return true;
 }
-admDialogSetup('ev-dialog', { canClose: evCanClose });
-window.addEventListener('beforeunload', e => { if (evDirty()) { e.preventDefault(); e.returnValue = ''; } });
+admDialogSetup('ev-dialog', { canClose: evCanClose, dirty: () => evDirty() });
 
 /** Recharge la liste et la fiche ouverte depuis le serveur (après enregistrement ou action). */
 async function evReloadOpen(id) {
@@ -7996,7 +8155,7 @@ async function eviCanClose() {
   _eviSnap = null;
   return true;
 }
-admDialogSetup('ev-item-dialog', { canClose: eviCanClose });
+admDialogSetup('ev-item-dialog', { canClose: eviCanClose, dirty: () => eviDirty() });
 
 function eviApply() {
   const it = eviRead();
