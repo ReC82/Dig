@@ -1,5 +1,59 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 03/11/2026, 12 h 55 (Bruxelles) — aperçu de la fiche objet : saison future au lieu de « Permanente »
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite la recette du propriétaire du [03/11 à 11:21 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6602490144), qui porte sur la fiche de « La lanterne en betterave ». La recette croisée #39/#40 de [11:30 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6602662639) valide l'illustration enregistrée dans le brouillon et ne demande aucun changement.
+
+## A (03/11 midi). État réel
+
+**Déployé en production (SHA `6b54ba7`) — en attente de recette.** Classement : **Après lancement**. C'est un défaut d'affichage dans l'admin, sans effet sur le jeu, mais il pouvait faire croire qu'une série future tomberait chaque semaine.
+
+## B (03/11 midi). Cause et correction
+
+- **Cause.** L'aperçu latéral de la fiche objet (`#co-preview-series`) appelait `coSeasonLabel(s.seasonId)` sans transmettre `seasonWeek`. Une série rattachée à une semaine future a `seasonId = null` : l'aperçu la présentait donc comme « Permanente (aucune saison) ». Les autres écrans (liste des séries, relecture, contrôle de publication) transmettaient déjà la semaine.
+- **Correction** (`public/admin/admin.js`, une ligne) : l'aperçu transmet `seasonWeek`. Pour la Saint-Martin, il affiche maintenant « 🗓️ Saison future 2026-W46 … « La Saison des Lanternes » ».
+- **Test de non-régression** (`test/collection-season-week.test.js`) :
+  - le libellé d'une série future ne contient jamais « Permanente » ;
+  - aucun appel de `coSeasonLabel` dans `admin.js` ne se fait sans la semaine.
+  
+  Ce test échoue sur l'ancien code et passe sur le nouveau.
+- **Aucune donnée modifiée** : pas de saison créée, rien publié, aucun drop activé, aucune donnée joueur touchée. Vérification en lecture seule en production : la série `tresors_saint_martin` a toujours `seasonId = null` et `seasonWeek = 2026-W46` dans le brouillon, avec ses 6 objets.
+
+## C (03/11 midi). SHA, tests, déploiement
+
+- Branche `feature/39-collections-saisonnieres`, commit `e389fe5`. Intégration dans `develop` : `6b54ba7`.
+- `npm test` : **528/528** sur la branche, sur `develop` et sur la release `6b54ba7`.
+- **Copie de la base de production** :
+  - empreintes identiques avant et après démarrage pour `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` ;
+  - `/health` ok et `/api/version` = `1.0.0+6b54ba7` ;
+  - copie supprimée ensuite.
+- **Avant le déploiement** : aucune génération IA en cours (dernier appel à 11:23 UTC).
+- **Déploiement** : `d37b478 → 6b54ba7` par `scripts/deploy.sh`.
+  - Sauvegarde vérifiée : `~/backups/dig/dig-20261103-125314-pre-deploy-6b54ba7.sqlite`.
+  - dig.lodygames.com et dig.lodylands.com répondent 200, `/api/version` = `1.0.0+6b54ba7`.
+  - Journal sans erreur, `quick_check` = ok, nombres de lignes joueurs inchangés.
+  - Le fichier `admin.js` servi contient bien la correction.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep d37b478`, puis `sudo systemctl restart dig`.
+- **Non vérifié** : pas d'essai navigateur connecté à l'admin (cela demande une session admin). La correction est couverte par le test.
+
+## D (03/11 midi). Test fonctionnel à faire par le propriétaire
+
+1. Ouvrir Admin → 📿 Collections et faire Ctrl+F5.
+2. Ouvrir la fiche de « La lanterne en betterave ».
+3. Résultat attendu : l'aperçu latéral affiche « 🎃… Les Trésors de la Saint-Martin · 🗓️ Saison future 2026-W46 … « La Saison des Lanternes » », et non plus « Permanente (aucune saison) ».
+4. Le compteur d'illustrations 1/6 évoqué dans la recette croisée pourra être relevé lors de la même visite (facultatif).
+
+## E (03/11 midi). Choix techniques, décisions, restant
+
+- Correction minimale, dans le périmètre de la recette : affichage uniquement.
+- Le point UX sur les prompts très longs relève de #40 et n'est pas traité ici.
+- **Décisions demandées** : les questions 1 à 4 des sections précédentes restent ouvertes, sans changement :
+  1. rattacher « Objets trouvés de la Légende » à W47 ;
+  2. reporter « Trésors de la vieille mine » sur une semaine future ;
+  3. valider le barème des drops ;
+  4. exclusivité des objets d'une saison terminée et affichage en grisé.
+- **Restant** : publication de la série Saint-Martin avant le 09/11, sur décision du propriétaire. Les drops restent inactifs d'ici là.
+
 # Mise à jour du 03/11/2026, 11 h 25 (Bruxelles) — rattachement à une saison future (2026-W46), Rafraîchir visible
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite les deux recettes du propriétaire du 03/11 : [#39 (09:35 UTC)](https://github.com/ReC82/Dig/issues/39#issuecomment-6600141959) (lecture du brouillon ; « Saint-Martin » est « Permanente » alors qu'elle est prévue pour la prochaine saison ; améliorations UX) et [#39-B (09:42 UTC)](https://github.com/ReC82/Dig/issues/39#issuecomment-6600264412) (saison future introuvable dans le choix de saison ; bouton Rafraîchir sans retour visible).
