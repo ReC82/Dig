@@ -5666,6 +5666,8 @@ let _bgData = null;
 let _bgAi = null;
 let _bgAiTimer = null;
 let _bgSheet = null;     // { mode: 'new' | 'edit' | 'proposal', badge?, proposal? }
+let _bgLang = 'fr';      // langue éditée dans la fiche (une seule visible à la fois, recette #38-A)
+let _bgRO = false;       // fiche en lecture seule (proposition déjà traitée)
 
 function bgCondLabel(b) {
   if (!b.condition) return '⚠ critère non pris en charge';
@@ -5720,18 +5722,47 @@ function bgFillForm(b) {
 
 function bgToggleBlock() {
   const cond = document.getElementById('bg-condition').value;
-  document.getElementById('bg-block').disabled = cond !== 'blocks_of_type' || !!document.getElementById('bg-form').inert;
+  document.getElementById('bg-block').disabled = cond !== 'blocks_of_type' || _bgRO;
+  document.getElementById('bg-block-label').classList.toggle('hidden', cond !== 'blocks_of_type');
   document.getElementById('bg-metric-help').textContent = BG_METRIC_FR[cond] ?? '';
   bgLivePreview();
 }
 
-/** Aperçu tel que le joueur le verra (FR), mis à jour à chaque saisie. */
+/** Langue éditée : une seule visible à la fois (comme la fiche Actualités #50) ; les autres gardent leurs saisies. */
+function bgLang(l, focus = false) {
+  _bgLang = l;
+  for (const b of document.querySelectorAll('#bg-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const d of document.querySelectorAll('#bg-dialog .nw-lang-fields')) d.classList.toggle('hidden', d.dataset.lang !== l);
+  bgLivePreview();
+  if (focus) document.querySelector(`#bg-langs .co-lang-btn[data-lang="${l}"]`).focus();
+}
+
+/** Aperçu tel que le joueur le verra dans la langue éditée (repli sur le français, comme dans le jeu). */
 function bgLivePreview() {
   const f = bgReadForm();
+  const l = _bgLang;
   bgArt(document.getElementById('bg-pv-art'), f.image, f.icon || '🏅', 56);
-  document.getElementById('bg-pv-name').textContent = f.names.fr || '(nom FR obligatoire)';
-  document.getElementById('bg-pv-desc').textContent = f.descriptions.fr || '(description FR obligatoire)';
+  document.getElementById('bg-pv-h').textContent = `Aperçu joueur (${l.toUpperCase()})${l !== 'fr' && !f.names[l] ? ' — texte français affiché' : ''}`;
+  document.getElementById('bg-pv-name').textContent = f.names[l] || f.names.fr || '(nom FR obligatoire)';
+  document.getElementById('bg-pv-desc').textContent = f.descriptions[l] || f.descriptions.fr || '(description FR obligatoire)';
   document.getElementById('bg-pv-cond').textContent = `${bgCondLabel(f)}${f.visibility === 'hidden' ? ' · secret' : ''}${f.startsAt || f.endsAt ? ` · événement ${f.startsAt || '…'} → ${f.endsAt || '…'}` : ''}`;
+  // Pastilles des langues
+  for (const b of document.querySelectorAll('#bg-langs .co-lang-btn')) {
+    const x = b.dataset.lang;
+    const st = !f.names[x] ? 'none' : f.descriptions[x] ? 'ok' : 'name';
+    b.className = `co-lang-btn co-lang--${st}`;
+    b.textContent = `${{ ok: '●', name: '◐', none: '○' }[st]} ${x.toUpperCase()}`;
+    b.title = { ok: 'nom et description', name: 'nom seul : description manquante', none: 'à traduire (le français sera affiché)' }[st];
+  }
+  // Référence française quand on traduit
+  const ref = [f.names.fr, f.descriptions.fr].filter(Boolean).join(' — ');
+  document.getElementById('bg-fr-ref').classList.toggle('hidden', l === 'fr' || !ref);
+  document.getElementById('bg-fr-ref-text').textContent = ref;
+  // Résumé des options avancées, lisible sans les déplier
+  document.getElementById('bg-adv-sum').textContent = `— ${f.visibility === 'hidden' ? 'secret' : 'visible'} · ordre ${f.sort}`
+    + ` · ${f.startsAt || f.endsAt ? `période ${f.startsAt || '…'} → ${f.endsAt || '…'}` : 'permanent'}`;
+  const dlg = document.getElementById('bg-dialog');
+  document.getElementById('bg-dirty').classList.toggle('hidden', !dlg._admDirty?.());
 }
 
 function bgError(data) {
@@ -5753,8 +5784,10 @@ function bgOpenSheet(sheet, opener) {
   const src = mode === 'proposal' ? (p.data?.badge ?? null) : b;
   bgFillForm(src);
   if (mode === 'proposal' && src && !src.condition) document.getElementById('bg-condition').value = '';
-  document.getElementById('bg-form').inert = !editable;
+  _bgRO = !editable;
+  for (const el of document.querySelectorAll('#bg-dialog .bg-ro')) el.inert = _bgRO;
   document.getElementById('bg-id').disabled = mode === 'edit';
+  bgLang('fr');
   bgToggleBlock();
   document.getElementById('bg-form-title').textContent = mode === 'edit' ? `${b.icon} ${b.names.fr} — fiche du badge`
     : mode === 'new' ? 'Nouveau badge (manuel)' : '✨ Modifier la proposition IA';
@@ -5784,12 +5817,14 @@ function bgOpenSheet(sheet, opener) {
   save.textContent = mode === 'proposal' ? 'Enregistrer comme badge désactivé' : mode === 'new' ? 'Enregistrer (désactivé)' : 'Enregistrer les modifications';
   show('btn-bg-save', editable);
   show('btn-bg-preview', editable);
+  show('bg-status-sec', mode === 'edit' || (mode === 'proposal' && ['open', 'error'].includes(p.status)));
   show('btn-bg-toggle', mode === 'edit');
   show('btn-bg-archive', mode === 'edit' && b.status !== 'archived');
   show('btn-bg-studio', mode === 'edit' && b.status !== 'archived');
   show('btn-bg-prop-discard', mode === 'proposal' && ['open', 'error'].includes(p.status));
-  if (mode === 'edit') document.getElementById('btn-bg-toggle').textContent = b.status === 'active' ? 'Désactiver' : 'Activer';
+  if (mode === 'edit') document.getElementById('btn-bg-toggle').textContent = b.status === 'active' ? 'Désactiver' : 'Activer…';
   ptMessage('bg-form-msg', '', true);
+  document.getElementById('bg-dirty').classList.add('hidden');
   admDialogOpen('bg-dialog', opener, editable ? (mode === 'new' ? 'bg-id' : 'bg-fr-name') : document.querySelector('#bg-dialog [data-close]'));
 }
 
@@ -5866,9 +5901,17 @@ admDialogSetup('bg-ai-dialog');
 admDialogSetup('bg-review-dialog');
 document.getElementById('bg-dialog').addEventListener('close', () => { _bgSheet = null; });
 document.getElementById('bg-condition').addEventListener('change', bgToggleBlock);
-for (const id of ['bg-icon', 'bg-image', 'bg-threshold', 'bg-block', 'bg-visibility', 'bg-starts', 'bg-ends', 'bg-fr-name', 'bg-fr-desc']) {
-  document.getElementById(id).addEventListener('input', bgLivePreview);
-}
+document.getElementById('bg-dialog').addEventListener('input', bgLivePreview);
+document.getElementById('bg-dialog').addEventListener('change', bgLivePreview);
+document.querySelectorAll('#bg-langs .co-lang-btn').forEach((b, k, all) => {
+  b.addEventListener('click', () => bgLang(b.dataset.lang));
+  b.addEventListener('keydown', e => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    bgLang(all[(k + step + all.length) % all.length].dataset.lang, true);
+  });
+});
 for (const id of ['bg-filter-text', 'bg-filter-category', 'bg-filter-status']) document.getElementById(id).addEventListener('input', bgRenderList);
 document.getElementById('btn-refresh-badges').addEventListener('click', loadBadges);
 
@@ -5901,6 +5944,7 @@ document.getElementById('btn-bg-save').addEventListener('click', async () => {
   const sheet = _bgSheet;
   if (!sheet) return;
   const body = bgReadForm();
+  if (!body.names.fr || !body.descriptions.fr) bgLang('fr');
   if (sheet.mode === 'proposal') {
     const image = Object.fromEntries(['subject', 'details', 'palette'].map(k => [k, document.getElementById(`bg-brief-${k}`).value.trim()]));
     const put = await api('PUT', `/api/admin/badges/ai/proposals/${sheet.proposal.id}`, { badge: body, image });

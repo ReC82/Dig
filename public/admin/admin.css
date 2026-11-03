@@ -1078,3 +1078,11 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
   #ev-dialog .bk-sheet-actions, #ev-item-dialog .bk-sheet-actions { position: static; }
   #ev-dialog .bk-sheet-actions .btn, #ev-item-dialog .bk-sheet-actions .btn { width: auto; flex: 1 1 auto; }
 }
+
+/* Fiche badge (recette #38-A du 03/11) : même structure que la fiche Actualités (.nw-*), un peu plus étroite. */
+@media (min-width: 481px) { .nw-dialog.bg-sheet[open] { width: min(1000px, calc(100vw - 24px)); } }
+.bg-sheet .nw-lang-fields textarea { width: 100%; }
+.bg-sheet #bg-adv-sum { font-weight: 400; font-size: 0.78rem; }
+/* Petits écrans : l'aperçu (compact) passe au-dessus des champs ; « non enregistrées » sur sa propre ligne. */
+@media (max-width: 860px) { .bg-sheet .nw-preview-col { order: -1; } }
+@media (max-width: 480px) { .bg-sheet .nw-foot #bg-dirty { flex-basis: 100%; } }
