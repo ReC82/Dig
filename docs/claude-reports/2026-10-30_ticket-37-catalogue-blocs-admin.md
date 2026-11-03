@@ -4,6 +4,82 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 03/11/2026, 16 h 20 (Bruxelles) — fiche d'un bloc simplifiée, déployé 13af375
+
+Ce lot répond à la recette du propriétaire sur la fiche `minerai_fer` (commentaire du 03/11 14:49 UTC). Les données ont été validées, mais la fiche a été jugée « encore un peu trop surchargée ». Le commentaire de 14:39 UTC acceptait la livraison `7c0b521` (debug joueur) sans rien demander de plus.
+
+## A. État réel
+
+**Déployé en production (SHA `13af375`) — en attente de recette.** Seule la présentation de la fiche change. Aucune donnée, aucun calcul de probabilité, aucune valeur économique ni aucun réglage n'est supprimé ou modifié.
+
+## B. Changements (Admin → 🧱 Blocs → clic sur une ligne)
+
+- **Synthèse en tête, toujours visible** : visuel, nom, identifiant et état (actif, modifié dans le brouillon, nouveau), catégorie, rareté, profondeur minimale, **probabilité à une profondeur choisie** (champ « Probabilité à … m », 250 m par défaut, repris de la liste, avec la valeur sans Chance et avec Chance 10), PV de base, récompense, source du visuel. La synthèse se met à jour pendant la saisie.
+- **Sections en accordéons**, chacune avec un résumé d'une ligne :
+  - « Apparition et probabilités » (dès 20 m · poids 15 · 6.59 % à 250 m) : catégorie, rareté, profondeur et poids, une phrase de probabilité, puis un repli « Tableau détaillé par profondeur et atténuation en profondeur » qui contient le tableau 1/25/100/250/400 m et les deux champs d'atténuation ;
+  - « Points de vie et récompense » (55 PV · 50 pièces) : PV, pièces et case gemme ;
+  - « Identifiant et traductions » (✓ FR ✓ EN ✓ NL ✓ ES) : **une langue à la fois**, comme dans les Actualités #50. Boutons FR/EN/NL/ES (← → au clavier), avec ● pour un nom personnalisé, ✓ pour une traduction intégrée et ○ pour une langue manquante. Après une proposition IA, la première langue remplie s'affiche ;
+  - « Visuel » (aperçu, atelier d'icônes) ;
+  - « Avancé » (emoji de secours, image, couleurs, activation).
+  Une fiche existante s'ouvre repliée, pour une consultation rapide. Un nouveau bloc s'ouvre avec les trois sections à remplir dépliées. Après un enregistrement, les sections ouvertes le restent.
+- **Aides** : le bouton ⓘ n'ouvre **qu'une explication à la fois** (en ouvrir une referme les autres). Les quatre paragraphes fixes (traductions, visuel, brouillon, enregistrement) deviennent des ⓘ ou sont regroupés, sans doublon, dans « ❔ Aide complète de la fiche (facultatif) », repliée en bas.
+- **Pied d'action fixe**, visible même en faisant défiler : « Enregistrer dans le brouillon », **« Annuler »** (avec confirmation si des valeurs ont changé, comme ✕ et Échap), l'indicateur « ● modifications non enregistrées » et le message de résultat. Si le serveur refuse l'enregistrement, les sections se déplient pour montrer le champ en cause. Si l'identifiant manque (nouveau bloc), la section Identifiant s'ouvre et le champ prend le focus.
+- Fichiers : `public/admin/index.html`, `public/admin/admin.js`, `public/admin/admin.css` et le test `test/admin-block-sheet.test.js`. Le nouveau test vérifie la synthèse en tête, le tableau repliable avec l'atténuation, une seule langue visible, l'absence de paragraphe fixe, le pied fixe et l'**existence de tous les champs lus par l'enregistrement** (aucun réglage perdu).
+
+## C. Vérifications
+
+- `npm test` : 548/548 sur la branche, puis 548/548 dans le worktree de release au SHA exact `13af375`, réussis au premier passage.
+- Navigateur headless sur un serveur de test (port 3101, base de test), fiche `minerai_fer` :
+  - **ordinateur 1280×900** : la fiche repliée tient entièrement à l'écran, sans défilement ;
+  - les chiffres sont identiques à la recette du propriétaire : 6.59 % / 5.97 % à 250 m, 7.64 % / 6.84 % à 100 m ;
+  - une seule aide reste ouverte après deux clics sur ⓘ, et une seule langue est visible (NL) ;
+  - modification du poids → indicateur affiché → Annuler → confirmation → abandon ;
+  - enregistrement (récompense 51), puis tableau du brouillon, puis « Annuler les modifications de ce bloc » → retour à 50 ;
+  - nouveau bloc : trois sections dépliées ; « Identifiant requis » met le focus sur le champ ;
+  - **smartphone 390×844** : mêmes résultats, pied fixe visible, boutons empilés ;
+  - aucune erreur JavaScript. Le seul 401 vient de la vérification de session avant connexion (normal). Un 404 sur une ressource secondaire avant connexion est sans rapport avec ce lot.
+  - Serveur et base de test supprimés.
+- Copie de la base de production démarrée (`NODE_ENV=production`, port 3122) : `/health` ok, version `1.0.0+13af375`, empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` identiques avant et après le démarrage. Copie supprimée.
+- Aucune migration, aucune écriture de données joueur.
+
+## D. Déploiement
+
+- Passage de `2babc99` à `13af375` par `scripts/deploy.sh` de la release, avec la sauvegarde vérifiée `~/backups/dig/dig-20261103-161418-pre-deploy-13af375.sqlite`. Aucune génération IA n'était en cours avant le déploiement (dernière activité à 12:56 UTC).
+- Après le déploiement :
+  - dig.lodygames.com et dig.lodylands.com → 200, `/api/version` = `1.0.0+13af375` ;
+  - journal sans erreur, `quick_check` ok ;
+  - `/admin/admin.js` sert le nouveau code, et `/api/admin/blocks` renvoie 401 sans session.
+- Empreintes comparées à la sauvegarde pré-déploiement : `users`, `seasons` et `leagues` sont identiques. `user_saves`, `season_rankings` et `player_click_tracking` ont avancé parce qu'un joueur jouait pendant le déploiement : révision de sauvegarde 720 → 721, horodatage plus récent, aucun compteur en baisse. C'est une progression, pas une perte.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 2babc99` puis `sudo systemctl restart dig`. Les dépendances n'ont pas changé.
+
+**Test fonctionnel à faire par le propriétaire** (Admin → 🧱 Blocs) :
+1. Cliquer la ligne « Minerai de fer ». Sans défiler, la synthèse indique minerai · Peu commun · 20 m · 6.59 % (Chance 10 : 5.97 %) à 250 m · 55 PV · 50 pièces · icône v1, avec en dessous cinq sections repliées, chacune résumée sur une ligne.
+2. Taper 100 dans « Probabilité à … m » : 7.64 % (Chance 10 : 6.84 %). Rien n'est marqué comme modifié.
+3. Déplier « Apparition et probabilités », puis « Tableau détaillé… » : on retrouve le tableau et l'atténuation. Cliquer deux ⓘ : une seule explication reste ouverte.
+4. Déplier « Identifiant et traductions » et cliquer NL : seul le nom NL s'affiche.
+5. Modifier une valeur, puis cliquer « Annuler » dans le pied fixe : la confirmation apparaît. Choisir « Abandonner les modifications » : rien n'est enregistré.
+
+Classement : **Après lancement** (ergonomie d'administration, pas bloquant pour le MVP public).
+
+## E. Choix techniques faits seul
+
+- **Section « Points de vie et récompense » séparée**. Le propriétaire citait quatre sections (Apparition, Traductions, Visuel, Avancé). PV et pièces apparaissent déjà dans la synthèse, mais ils devaient rester modifiables quelque part : les mettre dans « Avancé » les aurait cachés.
+- **Champs d'atténuation déplacés dans le repli « Tableau détaillé »**, à côté du tableau qu'ils modifient. Ils restent ouverts d'un clic, et le résumé de la section affiche « atténué > N m » quand une atténuation existe.
+- **Profondeur de la synthèse locale à la fiche** : elle n'est ni enregistrée ni comptée comme modification. Elle reprend à l'ouverture la profondeur « Probabilités à … m » de la liste.
+- La largeur et le centrage du panel ne sont pas traités ici (ticket #62). La fiche garde sa largeur actuelle, jusqu'à 980 px.
+
+## F. Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Les questions en cours restent valables (voir la section du 02/11 ci-dessous) : chance × quantité pour les gemmes, rareté « custom », plafond IA et illustrations des 8 nouveaux minerais.
+
+## G. Restant à réaliser
+
+- Largeur et centrage communs : ticket #62.
+- `attachPlayerAutocomplete` pour les événements TEST : ticket #56.
+- Le même modèle (synthèse + accordéons) pourrait servir aux autres fiches admin (Collections, Boutique) : c'est seulement une suggestion, non implémentée.
+
+---
+
 # Mise à jour du 03/11/2026, 14 h 40 (Bruxelles) — debug joueur : autocomplétion, coffres et sauvegarde explicités, déployé 7c0b521
 
 Réponse à la recette « Économie & Joueurs » du propriétaire (commentaire du 03/11 12:27 UTC). Valeurs de la fiche `testeur` jugées cohérentes ; aucun reset effectué (et aucun dans cette session).
