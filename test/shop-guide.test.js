@@ -50,10 +50,10 @@ test('textes du guide en fr, en, nl, es et section « Coffres de saison »', () 
   assert.ok(!/Boutique de saison/.test(i18n + html), 'plus de troisième « boutique » ambiguë');
 });
 
-test('téléphone : une ligne par boutique, carte cadeaux révélée sans défilement animé (recette #34-A/C)', () => {
+test('une ligne par boutique, carte cadeaux révélée sans défilement animé (recette #34-A/C)', () => {
   const css = read('public/css/style.css');
-  const m = css.match(/@media \(max-width: 499px\) \{\s*\.shop-guide-row \{ grid-template-columns: 1fr;/);
-  assert.ok(m, 'sous 500 px, les trois cartes passent en lignes pleine largeur');
+  assert.match(css, /\.shop-guide-row \{ display: grid; grid-template-columns: 1fr;/, 'une ligne pleine largeur par boutique');
+  assert.ok(!/repeat\(3, minmax\(0, 1fr\)\)/.test(css.slice(css.indexOf('.shop-guide {'))), 'plus de trois colonnes étroites');
   // Un défilement « smooth » était annulé par le re-rendu de la vue Saison (scrollTop restauré)
   assert.ok(!/smooth/.test(body('_revealGiftShop')));
   assert.match(body('_revealGiftShop'), /scrollIntoView\(\{ block: 'start' \}\)/);
