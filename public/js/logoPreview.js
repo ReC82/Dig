@@ -1,9 +1,8 @@
 /**
  * logoPreview.js — aperçu des propositions de logo DIG! dans le véritable en-tête (#41).
  *
- * Rien ne change pour les joueurs : le titre texte « ⛏ DIG! » reste le logo par défaut
- * tant que le propriétaire n'a pas choisi. L'aperçu ne s'active que par l'URL et n'est
- * pas mémorisé :
+ * Logo par défaut : A « Lingot », choisi par le propriétaire le 03/11/2026 (index.html).
+ * L'aperçu d'une autre proposition ne s'active que par l'URL et n'est pas mémorisé :
  *   ?logo=a | b | c | d      → propositions SVG de public/assets/logo/
  *   ?logo=media:<sha16>      → proposition générée dans l'atelier d'icônes (#40, cible « logo »)
  */
@@ -37,6 +36,7 @@ const LogoPreview = (() => {
     img.alt = 'DIG!';
     // Emblème carré de l'atelier : accompagné du mot « DIG! » pour comparer à encombrement égal.
     h1.textContent = '';
+    h1.classList.remove('logo-img');
     h1.classList.add('logo-preview');
     if (media) {
       h1.classList.add('logo-preview-emblem');
