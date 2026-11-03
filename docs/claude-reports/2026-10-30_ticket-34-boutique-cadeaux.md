@@ -237,3 +237,123 @@ bloque pas le MVP (carte propre même vide).
   (`/api/admin/*`). Le risque est faible avec un secret long et aléatoire, mais une limite
   (type `login`, échecs seuls comptés) serait une défense en profondeur ; hors périmètre de #34.
 - Le reste est inchangé (voir § 9).
+
+## Mise à jour du 03/11/2026 — recette UX croisée : trois boutiques peu compréhensibles
+
+**Ticket** : #34 — [P1] Boutique de cadeaux — https://github.com/ReC82/Dig/issues/34
+(retour du propriétaire : https://github.com/ReC82/Dig/issues/34#issuecomment-6607533151)
+
+**État réel** : **déployé en production (SHA `0c66821`) le 03/11/2026 à 16:35 (Bruxelles) — en attente de recette.** Classement : **Bloquant MVP public (léger)** — la confusion entre les trois offres gêne un premier joueur ; l'étape 2 (regroupement) est « Après lancement ».
+
+### Retour du propriétaire
+
+« Il y a 3 boutiques si on compte celle de saison » : onglet **Boutique** (gemmes, skins, boosts,
+tous « Bientôt »), **Amélios → Boutique de saison** (trois coffres payés en pièces) et **Saison →
+Boutique de cadeaux** (points de saison). L'assistant lui-même s'était trompé de destination.
+Demande : cartographier la navigation et présenter un point d'entrée cohérent qui dit quelle
+monnaie est utilisée et si l'offre est disponible ; **ne pas fusionner les monnaies ni le backend,
+ne pas déplacer les actions sensibles avant étude et validation**, vérifier PC/mobile, aucune
+vente ni prix réel ouvert.
+
+### Cartographie (avant)
+
+| Offre | Où | Monnaie | Disponible ? | Action d'achat |
+|---|---|---|---|---|
+| Coffres simple / rare / antique | Amélios → section « 🏪 Boutique de saison » | 💰 pièces | oui | « Ouvrir » (serveur, `/api/shop/chests`) |
+| Gemmes, skins de pioche, boosts | onglet 🛒 Boutique | 💶 argent réel | non (« Bientôt », paiements coupés #11) | aucune |
+| Cadeaux (récompenses virtuelles) | 🏆 Saison → carte « 🎁 Boutique de cadeaux » (repliée) | 🏅 points de saison | oui (catalogue vide) | « Échanger » (`/api/shop/exchange`) |
+
+Trois endroits nommés « boutique », trois monnaies, aucun lien entre eux.
+
+### Ce qui change (étape 1, sans rien déplacer)
+
+- **Bandeau « Où dépenser quoi ? »** identique en tête des trois offres : trois cases
+  **📦 Coffres · 💰 Pièces**, **💎 Gemmes et cosmétiques · 💶 Argent réel · bientôt**,
+  **🎁 Cadeaux · 🏅 Points de saison**. La case de l'offre affichée est encadrée d'or et marquée
+  « ✓ Tu es ici » ; les deux autres sont des boutons « Amélios › », « Boutique › », « Saison › »
+  qui ouvrent le bon onglet (défilement jusqu'aux coffres ; carte cadeaux **dépliée** et amenée en
+  haut). Texte ≥ 12 px, contraste clair (retour #20 sur les textes gris illisibles).
+- Section d'Amélios renommée **« 📦 Coffres de saison »** (au lieu de « 🏪 Boutique de saison ») :
+  il n'y a plus trois « boutiques ».
+- « bientôt » disparaît tout seul de la case Gemmes le jour où les paiements seront activés.
+- FR/EN/NL/ES + pilote italien (`i18n/it.json`, état : 0 manquante, 0 périmée).
+- **Inchangé** : emplacements et boutons d'achat, prix, probabilités, monnaies, API, base de données.
+
+Fichiers : `public/js/main.js` (`_shopGuideHtml`, `_goToShop`, `_revealGiftShop`),
+`public/index.html`, `public/css/style.css`, `public/js/i18n.js`, `i18n/it.json`,
+`public/js/locales/it.js`, tests `test/shop-guide.test.js` et `test/e2e/shop-guide.e2e.js`.
+
+### Vérifications
+
+- `npm test` complet : **551/551** sur la branche (`dd27d37`) puis sur la release `0c66821` (arbre identique).
+- Test automatique `test/shop-guide.test.js` (3 tests) : bandeau dans les trois offres, case courante
+  marquée, liens vers les onglets existants, **aucune action d'achat dans le guide**, textes 4 langues.
+- Essai navigateur (Chromium headless, serveur de test port 3101, base de test jetable, compte de
+  test) en **1280×900 et 390×844** : Amélios → bandeau « Coffres · Pièces · Tu es ici » ; lien
+  Gemmes → onglet Boutique actif ; lien Cadeaux → onglet Saison, carte cadeaux ouverte en haut de
+  l'écran ; lien Coffres → Amélios, section coffres visible ; aucun défilement horizontal ;
+  0 erreur JS. Défaut trouvé et corrigé pendant l'essai : sur téléphone, le compte se charge après
+  le clic ; l'ouverture de la carte cadeaux reste donc en attente jusqu'à son affichage (et est
+  abandonnée si l'on change d'onglet).
+- Données joueurs : client seul, aucune migration.
+
+### Étape 2 proposée (à valider avant de toucher aux achats)
+
+Un **seul onglet « Boutique »** à trois sous-onglets **Coffres | Gemmes et cosmétiques | Cadeaux**,
+chacun avec sa monnaie et son état, les coffres et la carte cadeaux y étant **déplacés** (avec un
+lien de rappel depuis Amélios et Saison). C'est un déplacement d'actions d'achat : à faire seulement
+après ta validation de l'étape 1 et de cette organisation (voir décision 2).
+
+### SHA et branche
+
+Branche `feature/34-boutique-cadeaux`, commit `dd27d37` ; **develop `0c66821`** (fusion `--no-ff`).
+
+### Déploiement
+
+- **Déployé `0c66821`** le 03/11 à 16:35 (précédent `13af375`, 4 commits, sans `npm ci`).
+- Avant : release `npm test` 551/551 ; copie de la base de production démarrée en mode production
+  (port 3122) : `/health` ok, version `1.0.0+0c66821`, empreintes de `users`, `user_saves`,
+  `season_rankings`, `seasons`, `leagues`, `player_click_tracking` **identiques** avant/après ;
+  copie supprimée. Aucune génération IA en cours (dernière activité 13:56 Bruxelles).
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261103-163517-pre-deploy-0c66821.sqlite`.
+- Après : 2 domaines 200, `/api/version` = `1.0.0+0c66821`, nouveau `main.js` servi, journal sans
+  erreur, `pragma quick_check` = ok, empreintes production = sauvegarde. Essai Chromium sur
+  https://dig.lodygames.com (1280×900 et 390×844, sans compte) : bandeau « Coffres · Pièces · Tu es
+  ici » dans Amélios, liens vers Boutique puis Saison fonctionnels, 0 défilement horizontal, 0 erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 13af375` + `sudo systemctl restart dig`
+  (client seul, aucune donnée à reprendre).
+
+### Test fonctionnel à faire par le propriétaire (téléphone puis PC, ~2 min, sans achat)
+
+1. Jeu (Ctrl+F5 / actualiser si bandeau de mise à jour), connecté → **⚙ Amélios** : sous
+   « 📦 COFFRES DE SAISON », bandeau **« Où dépenser quoi ? »** — case **📦 Coffres · 💰 Pièces ·
+   ✓ Tu es ici** encadrée d'or, puis **💎 Gemmes et cosmétiques · 💶 Argent réel · bientôt** et
+   **🎁 Cadeaux · 🏅 Points de saison**.
+2. Toucher **« Boutique › »** → onglet 🛒 Boutique, même bandeau, case Gemmes marquée « Tu es ici ».
+3. Toucher **« Saison › »** → onglet 🏆 Saison, la carte « 🎁 Boutique de cadeaux » s'ouvre seule en
+   haut de l'écran avec le même bandeau.
+4. Toucher **« Amélios › »** → retour aux coffres.
+Attendu : textes lisibles sans zoom, aucun achat déclenché, prix et coffres inchangés.
+
+### Choix techniques faits seul
+
+- Bandeau commun plutôt que regroupement immédiat : la consigne interdit de déplacer les achats
+  avant validation ; le bandeau répond à « où suis-je, quelle monnaie, est-ce disponible ».
+- « Coffres de saison » : le mot « boutique » est réservé à l'onglet Boutique et à la boutique de
+  cadeaux, déjà validée sous ce nom.
+- Libellés « Amélios », « Boutique », « Saison » repris de la barre de navigation (mêmes mots que
+  ce que le joueur voit en bas).
+
+### Décisions demandées au propriétaire
+
+1. (inchangée) Premiers articles virtuels et prix — reco : « Titre honorifique de la saison » à
+   20 pts, 1 par joueur, remise manuelle ; ou attendre #38.
+2. **Après ta recette de l'étape 1 : faut-il regrouper (étape 2) ?** Options : A) garder ce bandeau
+   seul (reco pour le MVP : rien de sensible ne bouge) ; B) un onglet Boutique à trois sous-onglets
+   Coffres | Gemmes et cosmétiques | Cadeaux, avec déplacement des coffres et de la carte cadeaux
+   (après lancement).
+
+### Reste à réaliser
+
+- Étape 2 selon la décision 2 (après lancement).
+- #20 (fenêtre des chances illisible sur mobile) est traitée dans son propre ticket.
