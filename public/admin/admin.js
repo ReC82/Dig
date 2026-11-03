@@ -2613,7 +2613,7 @@ function coWorking() {
 }
 
 function coSeasonLabel(id) {
-  if (id == null) return 'Permanente';
+  if (id == null) return 'Permanente (aucune saison)';
   const s = _co.seasons.find(x => x.id === id);
   return s ? `#${s.id} ${s.name} (${s.status})` : `#${id}`;
 }
@@ -2965,6 +2965,10 @@ async function loadCollections() {
   bkFillList(document.getElementById('co-drops-list'), drops.map(x =>
     `${x.id} : ${x.drop.from.join('/')} dès ${x.drop.minDepth} m, ${+(x.drop.chance * 100).toFixed(3)} % par bloc — ${coSeasonLabel(x.seasonId)}`));
   document.getElementById('co-confirm-drops').checked = false;
+  coRenderReadiness(d);
+  const incomplete = (d?.readiness ?? []).filter(r => r.blocking.length);
+  document.getElementById('co-incomplete-box').classList.toggle('hidden', !incomplete.length);
+  document.getElementById('co-confirm-incomplete').checked = false;
   document.getElementById('btn-co-publish').disabled = !d || d.errors.length > 0 || !d.changes.length;
   document.getElementById('btn-co-discard').disabled = !d;
 
@@ -2994,6 +2998,71 @@ async function loadCollections() {
   if (!data.images.length) ib.textContent = 'Aucune image téléversée.';
   loadCollectionsAudit();
   coAiLoad();
+}
+
+// Publication ciblée (03/11) : état de chaque série touchée par le brouillon, publiable seule si complète.
+const CO_SCHEDULE = { permanent: '♾️ Permanente', scheduled: '🗓️ Saison programmée', live: '🟢 Saison en cours', over: '⏹️ Saison terminée', unknown: '❔ Saison inconnue' };
+function coRenderReadiness(d) {
+  const list = document.getElementById('co-ready-list');
+  list.textContent = '';
+  const rows = d?.readiness ?? [];
+  document.getElementById('co-ready-box').classList.toggle('hidden', !rows.length);
+  for (const r of rows) {
+    const s = d.series.find(x => x.id === r.seriesId);
+    const ready = !r.blocking.filter(b => !(r.needsPermanent && b.startsWith('Permanente'))).length;
+    const box = document.createElement('details');
+    box.className = `co-ready co-ready--${r.blocking.length ? 'blocked' : 'ok'}`;
+    box.open = true;
+    const sum = document.createElement('summary');
+    sum.textContent = `${s?.icon ?? ''} ${s?.names?.fr ?? r.seriesId} — ${CO_SCHEDULE[r.schedule] ?? r.schedule} · `
+      + `${r.illustrated}/${r.active} illustré(s) · ${r.dropping}/${r.active} drop(s) actif(s) · `
+      + (r.blocking.length ? `❌ ${r.blocking.length} point(s) à régler` : '✅ prête à publier seule');
+    box.appendChild(sum);
+    const ul = (items, cls) => {
+      if (!items.length) return;
+      const u = document.createElement('ul');
+      u.className = cls;
+      for (const x of items) { const li = document.createElement('li'); li.textContent = x; u.appendChild(li); }
+      box.appendChild(u);
+    };
+    ul(r.blocking, 'error');
+    ul(r.warnings, 'co-ready-warn');
+    ul(r.info, 'muted');
+    const actions = document.createElement('div');
+    actions.className = 'form-actions';
+    const drops = d.drops.filter(x => d.items.find(i => i.id === x.id)?.seriesId === r.seriesId);
+    const check = (label) => {
+      const l = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      l.append(cb, ` ${label}`);
+      actions.appendChild(l);
+      return cb;
+    };
+    const cbDrops = drops.length ? check(`Barème validé : j'active ${drops.length} drop(s) de cette série`) : null;
+    const cbPerm = r.needsPermanent && ready ? check('Série permanente voulue (décision métier)') : null;
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.type = 'button';
+    btn.textContent = 'Publier cette série seule';
+    btn.disabled = !ready || d.errors.length > 0;
+    btn.title = ready ? '' : 'Série incomplète : réglez d\'abord les points en rouge.';
+    btn.addEventListener('click', async () => {
+      if (cbDrops && !cbDrops.checked) { ptMessage('co-publish-msg', 'Cochez « barème validé » pour activer les drops de cette série.', false); return; }
+      if (cbPerm && !cbPerm.checked) { ptMessage('co-publish-msg', 'Nouvelle série sans saison : confirmez qu\'elle doit être permanente, ou rattachez-la à une saison.', false); return; }
+      const others = rows.filter(x => x.seriesId !== r.seriesId).map(x => x.seriesId);
+      if (!confirm(`Publier la série « ${s?.names?.fr ?? r.seriesId} » seule ?\n${r.info.join('\n')}`
+        + (others.length ? `\nRestent en brouillon (non publiées) : ${others.join(', ')}.` : ''))) return;
+      const { ok, data } = await api('POST', `/api/admin/collections/series/${encodeURIComponent(r.seriesId)}/publish`, {
+        note: document.getElementById('co-publish-note').value, expectedBasedOn: d.basedOn,
+        confirmDrops: !!cbDrops?.checked, confirmPermanent: !!cbPerm?.checked });
+      ptMessage('co-publish-msg', ok ? `Version v${data.version} publiée : série « ${r.seriesId} » seule.` : [data.error, ...(data.details ?? [])].join(' '), ok);
+      if (ok) { document.getElementById('co-publish-note').value = ''; loadCollections(); }
+    });
+    actions.appendChild(btn);
+    box.appendChild(actions);
+    list.appendChild(box);
+  }
 }
 
 async function loadCollectionsAudit() {
@@ -3120,15 +3189,20 @@ document.getElementById('btn-co-publish').addEventListener('click', async () => 
   if (!_co?.draft) return;
   const confirmDrops = document.getElementById('co-confirm-drops').checked;
   if (_co.draft.drops.length && !confirmDrops) { ptMessage('co-publish-msg', 'Cochez « barème validé » pour publier de nouveaux drops.', false); return; }
-  if (!confirm(`Publier le brouillon (${_co.draft.changes.length} changement(s)) ? Il sera visible de tous les joueurs au prochain chargement.`)) return;
+  const confirmIncomplete = document.getElementById('co-confirm-incomplete').checked;
+  const touched = (_co.draft.readiness ?? []).map(r => r.seriesId);
+  if (!confirm(`Publier TOUT le brouillon (${_co.draft.changes.length} changement(s), série(s) : ${touched.join(', ') || '—'}) ? `
+    + 'Il sera visible de tous les joueurs au prochain chargement. Pour une seule série, utilisez « Publier cette série seule ».')) return;
   const note = document.getElementById('co-publish-note').value;
-  const { ok, data } = await api('POST', '/api/admin/collections/publish', { note, expectedBasedOn: _co.draft.basedOn, confirmDrops });
+  const { ok, data } = await api('POST', '/api/admin/collections/publish', { note, expectedBasedOn: _co.draft.basedOn, confirmDrops, confirmIncomplete });
   ptMessage('co-publish-msg', ok ? `Version v${data.version} publiée.` : [data.error, ...(data.details ?? [])].join(' '), ok);
   if (ok) { document.getElementById('co-publish-note').value = ''; loadCollections(); }
 });
 
 document.getElementById('btn-co-discard').addEventListener('click', async () => {
-  if (!confirm('Abandonner le brouillon ? Les modifications non publiées seront perdues.')) return;
+  const lost = (_co?.draft?.items ?? []).filter(i => i.image && !(_co.published.items.find(p => p.id === i.id)?.image === i.image)).length;
+  if (!confirm('Abandonner le brouillon ? Les modifications non publiées seront perdues'
+    + (lost ? ` (dont ${lost} illustration(s) appliquée(s) à des objets non publiés — les images restent dans l'atelier).` : '.'))) return;
   const { ok, data } = await api('DELETE', '/api/admin/collections/draft');
   ptMessage('co-publish-msg', ok ? 'Brouillon abandonné.' : (data.error || 'Erreur.'), ok);
   if (ok) loadCollections();

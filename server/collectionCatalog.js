@@ -9,6 +9,10 @@
  *     enrichies de noms FR/EN/NL/ES, d'une rareté et d'une petite histoire ;
  *   - brouillon unique → publication atomique (refusée si invalide ou si la version a changé) ;
  *     journal `collection_catalog_audit` en ajout seul ;
+ *   - publication ciblée d'UNE série (03/11) : la nouvelle version = version en vigueur + cette
+ *     série et ses objets tirés du brouillon ; le reste du brouillon (autres séries) reste en
+ *     brouillon. Refusée tant que la série n'est pas complète (`seriesReadiness`). La publication
+ *     globale refuse aussi une série incomplète, sauf acceptation explicite (`confirmIncomplete`) ;
  *   - une série ou un objet publié n'est jamais supprimé (les sauvegardes y font référence) : il se
  *     désactive. Les objets acquis restent dans la sauvegarde du joueur (aucune réécriture) ;
  *   - une série est permanente (seasonId null) ou rattachée à une saison : ses objets ne tombent que
@@ -438,7 +442,7 @@ function discardDraft() {
   return r.changes > 0;
 }
 
-function publishDraft({ note, expectedBasedOn, confirmDrops } = {}) {
+function publishDraft({ note, expectedBasedOn, confirmDrops, confirmIncomplete } = {}) {
   const result = conn().transaction(() => {
     const draft = getDraft();
     if (!draft) throw new CatalogError(409, 'Aucun brouillon à publier.');
@@ -450,6 +454,12 @@ function publishDraft({ note, expectedBasedOn, confirmDrops } = {}) {
     if (v.errors.length) throw new CatalogError(400, 'Brouillon invalide.', v.errors);
     const changes = diff(current, v);
     if (!changes.length) throw new CatalogError(409, 'Aucun changement par rapport à la version en vigueur.');
+    const incomplete = _touchedSeries(changes, v).map(id => seriesReadiness(v, id, { published: current }))
+      .filter(r => r && r.blocking.length);
+    if (incomplete.length && confirmIncomplete !== true) {
+      throw new CatalogError(409, 'Le brouillon contient des séries incomplètes : publiez la série prête seule (publication ciblée), ou acceptez explicitement de publier des éléments incomplets.',
+        incomplete.flatMap(r => r.blocking.map(b => `${r.seriesId} : ${b}`)));
+    }
     const drops = dropChanges(current, v);
     if (drops.length && confirmDrops !== true) {
       throw new CatalogError(409, 'Nouveaux drops ou barème modifié : cochez « barème validé » pour publier.', drops.map(d => `${d.id} : ${JSON.stringify(d.drop)}`));
@@ -458,8 +468,140 @@ function publishDraft({ note, expectedBasedOn, confirmDrops } = {}) {
     conn().prepare("INSERT INTO collection_catalog_versions (version, content, source, note, from_version) VALUES (?, ?, 'publish', ?, ?)")
       .run(version, JSON.stringify({ series: v.series, items: v.items }), String(note ?? '').trim().slice(0, 300) || null, current.version);
     conn().prepare('DELETE FROM collection_catalog_draft WHERE id = 1').run();
-    _audit('publish', version, { changes, dropsConfirmed: drops.length ? drops : undefined });
+    _audit('publish', version, { changes, dropsConfirmed: drops.length ? drops : undefined,
+      incompleteConfirmed: incomplete.length ? incomplete.map(r => r.seriesId) : undefined });
     return { version, changes, drops, warnings: v.warnings };
+  })();
+  _invalidate();
+  return result;
+}
+
+// ── Complétude d'une série et publication ciblée (03/11) ──────────────────────
+
+const _fmtDate = v => String(v ?? '').slice(0, 16);
+
+/**
+ * État de publication d'une série dans un contenu (brouillon ou version cible), par rapport à ce
+ * qui a déjà été publié. `blocking` vide = la série peut être publiée seule sans exposer de contenu
+ * incomplet. `needsPermanent` : nouvelle série sans saison → la rendre permanente est une décision
+ * métier (confirmation `confirmPermanent`).
+ */
+function seriesReadiness(content, seriesId, { published = getPublished(), ids = _publishedIds() } = {}) {
+  const s = (content.series ?? []).find(x => x.id === seriesId);
+  if (!s) return null;
+  const isNew = !ids.series.has(s.id);
+  const blocking = [], warnings = [], info = [];
+  let season = null, schedule, needsPermanent = false;
+  if (s.seasonId == null) {
+    schedule = 'permanent';
+    if (isNew) {
+      needsPermanent = true;
+      blocking.push('Permanente : aucune saison choisie. Publiée ainsi, ses objets tomberaient chaque semaine, sans fin (comme la collection des origines). '
+        + 'Rattachez-la à une saison (en cours ou programmée), ou confirmez qu\'elle doit être permanente.');
+    } else {
+      info.push('Série permanente : ses objets tombent quelle que soit la saison.');
+    }
+  } else {
+    season = _seasonInfo([s.seasonId])[s.seasonId] ?? null;
+    if (!season) {
+      schedule = 'unknown';
+      blocking.push(`Saison ${s.seasonId} introuvable.`);
+    } else if (season.status === 'closed' || season.status === 'archived') {
+      schedule = 'over';
+      (isNew ? blocking : warnings).push(`Saison « ${season.name} » terminée : ses objets ne tomberont plus (archives seulement).`);
+    } else if (season.status === 'scheduled') {
+      schedule = 'scheduled';
+      info.push(`Saison programmée « ${season.name} » : série invisible des joueurs et sans drop jusqu'au ${_fmtDate(season.startAt)} UTC, puis drops jusqu'au ${_fmtDate(season.endAt)} UTC.`);
+    } else {
+      schedule = 'live';
+      info.push(`Saison en cours « ${season.name} » : visible dès la publication, drops jusqu'au ${_fmtDate(season.endAt)} UTC.`);
+    }
+  }
+  if (!s.active) warnings.push('Série désactivée : ses objets ne tombent pas.');
+  const items = (content.items ?? []).filter(i => i.seriesId === s.id);
+  const active = items.filter(i => i.active);
+  if (!active.length) blocking.push('Aucun objet activé.');
+  const pubItems = new Map((published.items ?? []).map(i => [i.id, i]));
+  const missing = { image: [], names: [], stories: [] };
+  for (const i of active) {
+    if (ids.items.has(i.id)) continue;   // déjà publié : ses manques éventuels existent déjà en jeu
+    if (!i.image) missing.image.push(i.id);
+    if (LANGS.some(l => !i.names?.[l])) missing.names.push(i.id);
+    if (LANGS.some(l => !i.stories?.[l])) missing.stories.push(i.id);
+  }
+  if (missing.image.length) blocking.push(`Sans illustration : ${missing.image.join(', ')}.`);
+  if (missing.names.length) blocking.push(`Nom manquant dans une langue (${LANGS.join('/').toUpperCase()}) : ${missing.names.join(', ')}.`);
+  if (missing.stories.length) blocking.push(`Histoire manquante dans une langue (${LANGS.join('/').toUpperCase()}) : ${missing.stories.join(', ')}.`);
+  for (const i of items) {
+    const p = pubItems.get(i.id);
+    if (p?.image && p.image !== i.image) warnings.push(`Objet « ${i.id} » : l'illustration publiée serait ${i.image ? 'remplacée' : 'retirée'}.`);
+  }
+  const dropping = active.filter(i => i.dropEnabled);
+  if (active.length && !dropping.length) {
+    blocking.push('Aucun drop activé : les objets seraient visibles mais introuvables. Activez les drops après validation du barème.');
+  } else if (dropping.length < active.length) {
+    warnings.push(`Drop inactif : ${active.filter(i => !i.dropEnabled).map(i => i.id).join(', ')}.`);
+  }
+  return { seriesId: s.id, isNew, schedule, season, needsPermanent, blocking, warnings, info,
+    items: items.length, active: active.length, illustrated: active.filter(i => i.image).length, dropping: dropping.length };
+}
+
+/** Séries touchées par des changements (série modifiée/ajoutée ou objet modifié/ajouté). */
+function _touchedSeries(changes, content) {
+  const out = new Set();
+  for (const c of changes) {
+    if (c.kind === 'series') out.add(c.id);
+    else out.add(content.items.find(i => i.id === c.id)?.seriesId);
+  }
+  out.delete(undefined);
+  return [...out];
+}
+
+/**
+ * Publication ciblée : nouvelle version = version en vigueur + la série `seriesId` et ses objets tels
+ * qu'ils sont dans le brouillon. Les autres changements restent en brouillon (rebasé sur la nouvelle
+ * version). Refusée si la série n'est pas complète, si la version a changé, ou sans confirmation des
+ * drops nouveaux (`confirmDrops`) et du statut permanent d'une nouvelle série (`confirmPermanent`).
+ */
+function publishSeries(seriesId, { note, expectedBasedOn, confirmDrops, confirmPermanent } = {}) {
+  const result = conn().transaction(() => {
+    const draft = getDraft();
+    if (!draft) throw new CatalogError(409, 'Aucun brouillon à publier.');
+    const current = getPublished();
+    if (draft.basedOn !== current.version || (expectedBasedOn != null && expectedBasedOn !== current.version)) {
+      throw new CatalogError(409, `Le brouillon part de la version ${draft.basedOn}, la version en vigueur est la ${current.version} : rechargez.`);
+    }
+    const ds = draft.series.find(s => s.id === seriesId);
+    if (!ds) throw new CatalogError(404, `Série « ${seriesId} » absente du brouillon.`);
+    const draftItems = draft.items.filter(i => i.seriesId === seriesId);
+    const byId = new Map(draftItems.map(i => [i.id, i]));
+    const curIds = new Set(current.items.map(i => i.id));
+    const target = {
+      series: current.series.some(s => s.id === seriesId)
+        ? current.series.map(s => (s.id === seriesId ? ds : s)) : [...current.series, ds],
+      items: [...current.items.map(i => byId.get(i.id) ?? i), ...draftItems.filter(i => !curIds.has(i.id))],
+    };
+    const v = validateContent(target);
+    if (v.errors.length) throw new CatalogError(400, 'Série invalide.', v.errors);
+    const changes = diff(current, v);
+    if (!changes.length) throw new CatalogError(409, `Aucun changement de la série « ${seriesId} » par rapport à la version en vigueur.`);
+    const ready = seriesReadiness(v, seriesId, { published: current });
+    const blocking = ready.blocking.filter(b => !(ready.needsPermanent && confirmPermanent === true && b.startsWith('Permanente')));
+    if (blocking.length) throw new CatalogError(409, `Série « ${seriesId} » incomplète : publication refusée (rien n'a changé en jeu).`, blocking);
+    const drops = dropChanges(current, v);
+    if (drops.length && confirmDrops !== true) {
+      throw new CatalogError(409, 'Nouveaux drops ou barème modifié : cochez « barème validé » pour publier.', drops.map(d => `${d.id} : ${JSON.stringify(d.drop)}`));
+    }
+    const version = current.version + 1;
+    conn().prepare("INSERT INTO collection_catalog_versions (version, content, source, note, from_version) VALUES (?, ?, 'publish', ?, ?)")
+      .run(version, JSON.stringify({ series: v.series, items: v.items }),
+        String(note ?? '').trim().slice(0, 300) || `Publication ciblée : série ${seriesId}`, current.version);
+    // Le reste du brouillon reste en brouillon, rebasé ; supprimé s'il ne contient plus aucun écart
+    if (diff(v, { series: draft.series, items: draft.items }).length) _saveDraft(draft, version);
+    else conn().prepare('DELETE FROM collection_catalog_draft WHERE id = 1').run();
+    _audit('publish_series', version, { seriesId, changes, dropsConfirmed: drops.length ? drops : undefined,
+      permanentConfirmed: ready.needsPermanent || undefined });
+    return { version, seriesId, changes, drops, warnings: ready.warnings, info: ready.info };
   })();
   _invalidate();
   return result;
@@ -542,8 +684,11 @@ function buildAdminView() {
   const ids = _publishedIds();
   return {
     published,
-    draft: draft && { ...draft, errors: validation.errors, warnings: validation.warnings,
-      changes: diff(published, validation), drops: dropChanges(published, validation) },
+    draft: draft && (() => {
+      const changes = diff(published, validation);
+      return { ...draft, errors: validation.errors, warnings: validation.warnings, changes, drops: dropChanges(published, validation),
+        readiness: _touchedSeries(changes, validation).map(id => seriesReadiness(validation, id, { published, ids })).filter(Boolean) };
+    })(),
     publishedIds: { series: [...ids.series], items: [...ids.items] },
     versions: listVersions(),
     seasons: conn().prepare('SELECT id, name, status, start_at, end_at FROM seasons ORDER BY id DESC LIMIT 60').all(),
@@ -558,6 +703,6 @@ module.exports = {
   CatalogError, CATEGORIES, RARITIES, LANGS, ORIGIN_ITEMS,
   init, originContent, getPublished, getVersion, getDraft, listVersions, publicCatalog,
   normalizeSeries, normalizeItem, validateContent, diff, dropChanges,
-  upsertDraftSeries, upsertDraftItem, removeDraftEntry, discardDraft, publishDraft, rollbackTo, listAudit,
+  upsertDraftSeries, upsertDraftItem, removeDraftEntry, discardDraft, publishDraft, publishSeries, seriesReadiness, rollbackTo, listAudit,
   storeImage, getImage, listImages, buildAdminView,
 };

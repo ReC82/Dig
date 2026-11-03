@@ -1023,14 +1023,20 @@
         <thead><tr><th>Élément</th><th>Changement</th></tr></thead>
         <tbody id="co-changes-body"></tbody>
       </table>
+      <div id="co-ready-box" class="hidden" style="margin-top:10px">
+        <h4 style="margin:4px 0">Publication ciblée — une série à la fois</h4>
+        <p class="muted" style="font-size:0.78rem;max-width:90ch">Publie <strong>uniquement</strong> la série choisie (et ses objets) : les autres séries du brouillon restent en brouillon, invisibles des joueurs. Refusée tant que la série n'est pas complète (illustrations, 4 langues, saison, drops validés).</p>
+        <div id="co-ready-list" class="co-ready-list"></div>
+      </div>
       <div id="co-drops-box" class="hidden" style="margin-top:8px">
         <p class="error">Drops nouveaux ou modifiés (visibles en jeu dès la publication) :</p>
         <ul id="co-drops-list"></ul>
         <label><input type="checkbox" id="co-confirm-drops"> Barème validé : j'active ces drops</label>
       </div>
+      <label id="co-incomplete-box" class="hidden error" style="display:block;margin-top:6px"><input type="checkbox" id="co-confirm-incomplete"> Publier quand même des séries incomplètes (déconseillé)</label>
       <div class="form-actions" style="margin-top:8px">
         <input id="co-publish-note" type="text" maxlength="300" placeholder="Note de publication (facultatif)" style="flex:1">
-        <button class="btn" id="btn-co-publish">Publier</button>
+        <button class="btn" id="btn-co-publish" title="Publie TOUT le brouillon (toutes les séries). Préférez la publication ciblée ci-dessus.">Publier tout le brouillon</button>
         <button class="btn btn-danger" id="btn-co-discard">Abandonner le brouillon</button>
       </div>
       <p id="co-publish-msg" class="hidden"></p>
@@ -1142,6 +1148,7 @@
         <label>Icône (emoji)<input id="co-s-icon" type="text" maxlength="8" value="📦"></label>
         <label title="Indicateur de contenu, indépendant de la publication : une série désactivée ne fait plus tomber ses objets après publication."><input type="checkbox" id="co-s-active" checked> Série activée</label>
       </div>
+      <p class="muted" style="font-size:0.78rem;max-width:90ch">Saison vide = <strong>Permanente</strong> : une fois publiée, ses objets tombent chaque semaine, sans fin. Une série de saison ne tombe que pendant sa saison ; rattachée à une saison <em>programmée</em> (onglet Saisons), elle reste invisible jusqu'à son ouverture.</p>
       <div class="form-actions">
         <button class="btn btn-primary" id="btn-co-s-save">Enregistrer la série dans le brouillon</button>
         <button class="btn btn-ghost" id="btn-co-s-remove">Retirer du brouillon (jamais publiée)</button>

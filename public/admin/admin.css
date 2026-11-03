@@ -634,6 +634,13 @@ table:has(.visually-hidden) { position: relative; }
 .co-pub--changed { color: #93c5fd; }
 .co-pub--live { color: #86efac; }
 .co-flag-off { color: #fca5a5; }
+/* Publication ciblée (03/11) */
+.co-ready-list { display: flex; flex-direction: column; gap: 8px; }
+.co-ready { border: 1px solid #334155; border-left: 4px solid #f87171; border-radius: 6px; padding: 6px 10px; }
+.co-ready--ok { border-left-color: #4ade80; }
+.co-ready summary { cursor: pointer; font-weight: 600; }
+.co-ready ul { margin: 4px 0; padding-left: 20px; font-size: 0.82rem; }
+.co-ready-warn { color: #fcd34d; }
 .ic-item-brief { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
 .ic-item-brief h4 { margin: 0; font-size: 0.9rem; }
 .ic-item-brief .ic-hint { margin: 0; font-size: 0.78rem; }
