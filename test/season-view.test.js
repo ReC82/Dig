@@ -107,7 +107,11 @@ test('traductions EN/NL du résultat figé', () => {
 
 test('onglet Saison branché : carte du résultat, règles du mérite, accès boutique, erreur', () => {
   const main = read('public/js/main.js');
-  assert.match(main, /<div id="season-last">\$\{_lastResultHtml\(\)\}<\/div>\s*<div id="season-points">/);
+  // Recette #48-D : synthèse (points, classement) en haut ; résultat archivé et boutique repliés dessous
+  assert.match(main, /<div id="season-points">[\s\S]*?id="\$\{lbId\}"[\s\S]*?<div id="season-last">\$\{_lastResultHtml\(\)\}<\/div>\s*<div id="season-shop">/);
+  assert.match(main, /<details class="points-card last-card season-fold"\$\{foldOpen\}>/);
+  assert.match(main, /<details class="points-card shop-card season-fold"\$\{foldOpen\}>/);
+  assert.match(main, /if \(sh\) sh\.open = true;/);
   for (const k of ['season.merit.join', 'season.merit.order', 'season.merit.freeze', 'season.merit.points'])
     assert.ok(main.includes(`t('${k}'`), k);
   assert.match(main, /data-scroll-shop/);
