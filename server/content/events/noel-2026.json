@@ -1,0 +1,72 @@
+{
+  "id": "noel_2026",
+  "icon": "🎄",
+  "audience": "public",
+  "testers": [],
+  "startsAt": "2026-12-01T00:00",
+  "endsAt": "2027-01-01T00:00",
+  "names": { "fr": "Noël sous la mine", "en": "Christmas Down the Mine", "nl": "Kerst in de mijn", "es": "Navidad en la mina" },
+  "taglines": {
+    "fr": "Tout le mois de décembre, le Père Noël a perdu des affaires sous terre. Creuse pour les retrouver avant qu'il ne s'en rende compte !",
+    "en": "All December long, Santa has been losing things underground. Dig them up before he notices!",
+    "nl": "De hele maand december verliest de Kerstman spullen onder de grond. Graaf ze op voor hij het merkt!",
+    "es": "Durante todo diciembre, Papá Noel ha ido perdiendo cosas bajo tierra. ¡Desentiérralas antes de que se dé cuenta!"
+  },
+  "items": [
+    {
+      "id": "noel26_charbon", "icon": "🪨", "rarity": "commun", "chancePct": 0.8, "minDepth": 0, "dropFrom": ["minerai"], "enabled": true,
+      "names": { "fr": "Charbon du Père Noël", "en": "Santa's Lump of Coal", "nl": "Steenkool van de Kerstman", "es": "Carbón de Papá Noel" },
+      "descs": {
+        "fr": "Réservé aux enfants pas sages. Celui-ci porte une étiquette : « Pour le mineur qui a cliqué pendant le repas de famille ».",
+        "en": "Reserved for naughty children. This one has a tag: \"For the miner who kept clicking during family dinner\".",
+        "nl": "Bestemd voor stoute kinderen. Dit stuk heeft een label: \"Voor de mijnwerker die bleef klikken tijdens het kerstdiner\".",
+        "es": "Reservado a los niños traviesos. Este lleva una etiqueta: «Para el minero que no paró de hacer clic durante la cena familiar»."
+      },
+      "brief": "A single glossy lump of black coal tied with a small red ribbon bow and a tiny paper gift tag, a faint sparkle on one facet."
+    },
+    {
+      "id": "noel26_guirlande", "icon": "🎀", "rarity": "peu-commun", "chancePct": 0.4, "minDepth": 10, "dropFrom": [], "enabled": true,
+      "names": { "fr": "Bout de guirlande souterraine", "en": "Bit of Underground Tinsel", "nl": "Stukje ondergrondse slinger", "es": "Trozo de espumillón subterráneo" },
+      "descs": {
+        "fr": "On raconte que les taupes décorent aussi leurs galeries. Celle-ci a renoncé : trop de nœuds, et toujours une ampoule qui grille.",
+        "en": "Legend says moles decorate their tunnels too. This one gave up: too many knots, and there's always one bulb that blows.",
+        "nl": "Volgens de legende versieren mollen ook hun gangen. Deze gaf het op: te veel knopen, en er is altijd één lampje dat springt.",
+        "es": "Cuentan que los topos también decoran sus galerías. Este se rindió: demasiados nudos y siempre hay una bombilla fundida."
+      },
+      "brief": "A short tangled length of shiny gold tinsel garland with three tiny colored bulbs, one bulb dark and cracked, a few crumbs of soil."
+    },
+    {
+      "id": "noel26_clochette", "icon": "🔔", "rarity": "rare", "chancePct": 0.25, "minDepth": 25, "dropFrom": ["pierre"], "enabled": true,
+      "names": { "fr": "Clochette fêlée de renne", "en": "Cracked Reindeer Bell", "nl": "Gebarsten rendierbelletje", "es": "Cascabel rajado de reno" },
+      "descs": {
+        "fr": "Tombée d'un harnais lors d'un atterrissage un peu brusque. Depuis, elle ne fait plus « ding » mais « dong… pardon ».",
+        "en": "Fell off a harness during a rather bumpy landing. Ever since, it no longer goes \"ding\" but \"dong… sorry\".",
+        "nl": "Van een tuig gevallen bij een nogal ruwe landing. Sindsdien klinkt hij niet meer \"ting\" maar \"tong… sorry\".",
+        "es": "Se cayó de un arnés durante un aterrizaje algo brusco. Desde entonces ya no hace «din» sino «don… perdón»."
+      },
+      "brief": "A small round brass sleigh bell with a visible crack across it, attached to a scrap of red leather strap, slightly dented."
+    },
+    {
+      "id": "noel26_boule_neige", "icon": "🔮", "rarity": "epique", "chancePct": 3, "minDepth": 40, "dropFrom": ["coffre"], "enabled": true,
+      "names": { "fr": "Boule à neige fossilisée", "en": "Fossilised Snow Globe", "nl": "Versteende sneeuwbol", "es": "Bola de nieve fosilizada" },
+      "descs": {
+        "fr": "Secouée pendant des millénaires par les tremblements de terre, la neige a fini par prendre. Le petit sapin à l'intérieur n'a toujours pas de cadeaux.",
+        "en": "Shaken by earthquakes for millennia, the snow finally set. The little tree inside still has no presents.",
+        "nl": "Duizenden jaren door aardbevingen geschud, en de sneeuw is uiteindelijk versteend. Het boompje binnenin heeft nog steeds geen cadeaus.",
+        "es": "Agitada durante milenios por los terremotos, la nieve acabó por fraguar. El arbolito de dentro sigue sin regalos."
+      },
+      "brief": "A small snow globe made of stone-colored fossilized glass on a rocky base, a tiny pine tree inside frozen in solid white snow, ammonite spiral pattern on the base."
+    },
+    {
+      "id": "noel26_carte_traineau", "icon": "🗺️", "rarity": "legendaire", "chancePct": 0.05, "minDepth": 80, "dropFrom": [], "enabled": true,
+      "names": { "fr": "Itinéraire du traîneau (raturé)", "en": "Sleigh Route Map (Scribbled)", "nl": "Routekaart van de slee (doorgekrast)", "es": "Ruta del trineo (tachada)" },
+      "descs": {
+        "fr": "La tournée complète de la nuit de Noël, corrigée à la main : « éviter cheminée n° 3 427, chat méchant ». Le Père Noël la cherche encore.",
+        "en": "The full Christmas Eve round, corrected by hand: \"avoid chimney no. 3,427, grumpy cat\". Santa is still looking for it.",
+        "nl": "De volledige kerstnachtronde, met de hand verbeterd: \"schoorsteen nr. 3.427 vermijden, boze kat\". De Kerstman zoekt hem nog steeds.",
+        "es": "El recorrido completo de Nochebuena, corregido a mano: «evitar chimenea n.º 3.427, gato gruñón». Papá Noel todavía la busca."
+      },
+      "brief": "A rolled-up old parchment map partly unrolled, red dotted route lines with crossed-out stops and a tiny drawn chimney, tied with a green ribbon."
+    }
+  ]
+}

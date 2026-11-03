@@ -50,6 +50,18 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     fr: {
+      events: {
+        section:    '🎉 Événements',
+        until:      'Jusqu\u2019au {date}',
+        upcoming:   'Bientôt : {name} — à partir du {date}',
+        souvenirs:  'Souvenirs d\u2019événements',
+        test:       'TEST (visible par les testeurs seulement)',
+        count:      '{n} / {total} trouvé(s)',
+        unknown:    'Objet mystère : continue à creuser pendant l\u2019événement.',
+        found_on:   'Trouvé le {date}',
+        toast:      'Objet d\u2019événement trouvé : {name}',
+        keep:       'Les objets trouvés restent dans ta collection après l\u2019événement.',
+      },
       badges: {
         section: '🏅 Badges et succès',
         intro: 'Badges honorifiques : ils ne donnent ni pièces, ni gemmes, ni points. Suivi depuis le {date}.',
@@ -593,6 +605,18 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     en: {
+      events: {
+        section:    '🎉 Events',
+        until:      'Until {date}',
+        upcoming:   'Coming soon: {name} — from {date}',
+        souvenirs:  'Event souvenirs',
+        test:       'TEST (visible to testers only)',
+        count:      '{n} / {total} found',
+        unknown:    'Mystery item: keep digging during the event.',
+        found_on:   'Found on {date}',
+        toast:      'Event item found: {name}',
+        keep:       'Items you find stay in your collection after the event.',
+      },
       badges: {
         section: '🏅 Badges & achievements',
         intro: 'Honorary badges: they give no coins, gems or points. Tracked since {date}.',
@@ -1135,6 +1159,18 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     nl: {
+      events: {
+        section:    '🎉 Evenementen',
+        until:      'Tot {date}',
+        upcoming:   'Binnenkort: {name} — vanaf {date}',
+        souvenirs:  'Souvenirs van evenementen',
+        test:       'TEST (alleen zichtbaar voor testers)',
+        count:      '{n} / {total} gevonden',
+        unknown:    'Mysterieus voorwerp: blijf graven tijdens het evenement.',
+        found_on:   'Gevonden op {date}',
+        toast:      'Evenementvoorwerp gevonden: {name}',
+        keep:       'Gevonden voorwerpen blijven na het evenement in je collectie.',
+      },
       badges: {
         section: '🏅 Badges en prestaties',
         intro: 'Erebadges: ze geven geen munten, edelstenen of punten. Bijgehouden sinds {date}.',
@@ -1677,6 +1713,18 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     es: {
+      events: {
+        section:    '🎉 Eventos',
+        until:      'Hasta el {date}',
+        upcoming:   'Muy pronto: {name} — desde el {date}',
+        souvenirs:  'Recuerdos de eventos',
+        test:       'PRUEBA (solo visible para los testers)',
+        count:      '{n} / {total} encontrados',
+        unknown:    'Objeto misterioso: sigue excavando durante el evento.',
+        found_on:   'Encontrado el {date}',
+        toast:      'Objeto de evento encontrado: {name}',
+        keep:       'Los objetos encontrados se quedan en tu colección tras el evento.',
+      },
       badges: {
         section: '🏅 Insignias y logros',
         intro: 'Insignias honoríficas: no dan monedas, ni gemas, ni puntos. Seguimiento desde el {date}.',
