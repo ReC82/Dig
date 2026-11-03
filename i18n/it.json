@@ -835,6 +835,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "beta.confirm_close": {
+   "text": "Chiudere senza inviare? Quello che hai scritto andrà perso.",
+   "src": "f828d51d4430",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #57, relu)",
+   "at": "2026-11-03T09:06:51.412Z"
+  },
   "beta.copied": {
    "text": "Copiato: incollalo in #bugs.",
    "src": "8cb7936e5f89",
@@ -862,6 +869,13 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.discard": {
+   "text": "Abbandona",
+   "src": "d9a3e1e5f7fe",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #57, relu)",
+   "at": "2026-11-03T09:06:51.413Z"
   },
   "beta.discord": {
    "text": "💬 Unisciti al Discord della beta",
@@ -974,6 +988,13 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "beta.keep_writing": {
+   "text": "Continua a scrivere",
+   "src": "73d14f1f33bd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #57, relu)",
+   "at": "2026-11-03T09:06:51.413Z"
   },
   "beta.known_title": {
    "text": "Bug noti",

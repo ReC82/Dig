@@ -1,9 +1,10 @@
 /**
  * admin.js — Panel admin DIG!
- * Auth : ADMIN_SECRET envoyé comme Bearer token dans chaque requête.
+ * Auth (#57, recette du 03/11) : la clé admin saisie est envoyée UNE fois (POST /api/admin/session)
+ * puis oubliée ; le serveur pose un cookie de session admin HttpOnly à durée limitée, qui survit au
+ * rechargement (F5). La clé n'est jamais gardée (ni variable, ni localStorage/sessionStorage, ni URL).
  */
 
-let _secret = null;
 let _currentSeasonId = null;
 
 // ── Rendu sûr (ticket #15) ────────────────────────────────────────────────────
@@ -93,39 +94,96 @@ const ADMIN_BUILD = window.APP_VERSION ?? '';
 async function api(method, path, body) {
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_secret}`, 'X-Dig-Admin-Build': ADMIN_BUILD },
+    headers: { 'Content-Type': 'application/json', 'X-Dig-Admin': '1', 'X-Dig-Admin-Build': ADMIN_BUILD },
+    credentials: 'same-origin',
   };
   if (body) opts.body = JSON.stringify(body);
   const res  = await fetch(path, opts);
-  const data = await res.json();
-  return { ok: res.ok, data };
+  const data = await res.json().catch(() => ({ error: `Réponse inattendue du serveur (${res.status}).` }));
+  if (res.status === 401 && data.code === 'admin_auth') adminSessionLost();
+  return { ok: res.ok, data, status: res.status };
 }
 
-document.getElementById('secret-btn').addEventListener('click', async () => {
-  const val = document.getElementById('secret-input').value.trim();
-  if (!val) return;
-  _secret = val;
-  const { ok } = await api('GET', '/api/admin/config');
-  if (ok) {
-    document.getElementById('auth-screen').classList.add('hidden');
-    document.getElementById('admin-app').classList.remove('hidden');
-    loadAll();
-  } else {
-    document.getElementById('auth-error').textContent = 'Clé incorrecte ou serveur inaccessible.';
-    document.getElementById('auth-error').classList.remove('hidden');
-    _secret = null;
-  }
-});
+function adminShowApp(info) {
+  document.getElementById('auth-screen').classList.add('hidden');
+  document.getElementById('admin-app').classList.remove('hidden');
+  adminSessionInfo(info);
+}
 
-document.getElementById('secret-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('secret-btn').click();
-});
-
-document.getElementById('logout-btn').addEventListener('click', () => {
-  _secret = null;
+function adminShowLogin(message) {
   document.getElementById('admin-app').classList.add('hidden');
   document.getElementById('auth-screen').classList.remove('hidden');
+  const err = document.getElementById('auth-error');
+  err.textContent = message || '';
+  err.classList.toggle('hidden', !message);
+  document.getElementById('secret-input').focus();
+}
+
+function adminSessionInfo(info) {
+  const el = document.getElementById('admin-session-info');
+  if (!info?.idleMinutes) { el.textContent = ''; return; }
+  el.textContent = `Session admin : fermée après ${Math.round(info.idleMinutes / 60)} h sans activité (12 h au plus)`;
+}
+
+// Session expirée ou révoquée pendant l'utilisation : retour à l'écran de connexion, une seule fois.
+let _adminLostShown = false;
+function adminSessionLost() {
+  if (_adminLostShown || document.getElementById('admin-app').classList.contains('hidden')) return;
+  _adminLostShown = true;
+  adminShowLogin('Session admin expirée ou fermée : saisissez à nouveau la clé.');
+}
+
+async function adminLogin() {
+  const input = document.getElementById('secret-input');
+  const val = input.value.trim();
+  if (!val) return;
+  const btn = document.getElementById('secret-btn');
+  btn.disabled = true;
+  let res, data;
+  try {
+    res  = await fetch('/api/admin/session', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Authorization': `Bearer ${val}`, 'X-Dig-Admin-Build': ADMIN_BUILD },
+    });
+    data = await res.json().catch(() => ({}));
+  } catch { res = null; data = {}; }
+  btn.disabled = false;
+  input.value = '';   // la clé n'est conservée nulle part
+  if (res?.ok) {
+    _adminLostShown = false;
+    adminShowApp(data);
+    loadAll();
+  } else {
+    adminShowLogin(res?.status === 429 ? (data.error || 'Trop de tentatives.') : res ? 'Clé incorrecte.' : 'Serveur inaccessible.');
+  }
+}
+
+document.getElementById('secret-btn').addEventListener('click', adminLogin);
+
+document.getElementById('secret-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') adminLogin();
 });
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  try { await fetch('/api/admin/session', { method: 'DELETE', credentials: 'same-origin' }); } catch { /* hors ligne : le cookie expirera seul */ }
+  adminShowLogin('Déconnecté.');
+});
+
+document.getElementById('logout-all-btn').addEventListener('click', async () => {
+  if (!confirm('Fermer TOUTES les sessions admin (ce navigateur et tous les autres appareils) ?')) return;
+  const { ok, data } = await api('POST', '/api/admin/session/revoke-all');
+  if (!ok) return alert(data.error || 'Erreur.');
+  adminShowLogin(`Toutes les sessions admin ont été fermées (${data.revoked}).`);
+});
+
+// Au chargement (F5) : reprise de la session admin si elle est encore valable.
+(async () => {
+  try {
+    const res = await fetch('/api/admin/session', { headers: { 'X-Dig-Admin': '1' }, credentials: 'same-origin', cache: 'no-store' });
+    if (res.ok) { adminShowApp(await res.json()); loadAll(); return; }
+  } catch { /* serveur inaccessible : écran de connexion */ }
+  adminShowLogin('');
+})();
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -5330,8 +5388,8 @@ function renderBeta(data) {
   for (const w of warns) { const li = document.createElement('li'); li.textContent = `⚠️ ${w}`; wl.appendChild(li); }
   document.getElementById('btn-beta-feedback').textContent = `💬 Voir les retours${newReports ? ` (${newReports} nouveau${newReports > 1 ? 'x' : ''})` : ''}`;
 
-  document.getElementById('beta-known').value = s.knownIssues;
-  document.getElementById('beta-inv-wave').value = data.currentWave;
+  betaSetUnlessEdited(document.getElementById('beta-known'), s.knownIssues);
+  betaSetUnlessEdited(document.getElementById('beta-inv-wave'), data.currentWave);
   document.getElementById('beta-invite-wave').textContent = data.currentWave;
 
   const ib = document.getElementById('beta-invites');
@@ -5381,6 +5439,12 @@ function renderBeta(data) {
   const c = data.reports.counts;
   document.getElementById('beta-reports-counts').textContent = Object.entries(BETA_STATUS).map(([k, l]) => `${l} : ${c[k] || 0}`).join(' · ');
   const list = document.getElementById('beta-reports-list');
+  // Rafraîchir ne doit rien faire perdre : fiches ouvertes/fermées et saisies non enregistrées
+  // (statut, lien, note) sont reportées sur la nouvelle liste.
+  const before = new Map([...list.querySelectorAll('details.beta-report')].map(card => [card.dataset.reportId, {
+    open: card.open,
+    edits: [...card.querySelectorAll('[data-field]')].filter(el => el.value !== el.dataset.saved).map(el => [el.dataset.field, el.value]),
+  }]));
   list.textContent = '';
   if (!data.reports.reports.length) {
     const p = document.createElement('p'); p.className = 'muted';
@@ -5390,7 +5454,9 @@ function renderBeta(data) {
   for (const r of data.reports.reports) {
     const card = document.createElement('details');
     card.className = 'beta-report';
-    if (r.status === 'new') card.open = true;
+    card.dataset.reportId = r.id;
+    const prev = before.get(String(r.id));
+    card.open = prev ? prev.open : r.status === 'new';
     const h = document.createElement('summary');
     h.textContent = `n°${r.id} — ${r.username || 'invité'} — ${BETA_STATUS[r.status]} — ${r.createdAt} UTC — ${(r.observed || '').slice(0, 80)}`;
     card.appendChild(h);
@@ -5423,19 +5489,57 @@ function renderBeta(data) {
       admToast(`Retour n°${r.id} enregistré (${BETA_STATUS[sel.value]}).`);
       loadBeta();
     });
+    for (const [el, field] of [[sel, 'status'], [gh, 'githubUrl'], [note, 'adminNote']]) { el.dataset.field = field; el.dataset.saved = el.value; }
+    for (const [field, value] of prev?.edits || []) ({ status: sel, githubUrl: gh, adminNote: note })[field].value = value;
     row.append(sel, gh, note, save);
     card.appendChild(row);
     list.appendChild(card);
   }
 }
 
-async function loadBeta() {
-  const { ok, data } = await api('GET', '/api/admin/beta');
-  if (!ok) return adMessage('beta-invite-msg', data.error || 'Erreur lors du chargement.', false);
-  renderBeta(data);
+/** Met à jour un champ avec la valeur enregistrée, sauf si l'admin l'a modifié sans l'enregistrer. */
+function betaSetUnlessEdited(el, value) {
+  const edited = el.dataset.saved !== undefined && el.value !== el.dataset.saved;
+  if (!edited) el.value = value;
+  el.dataset.saved = String(value);
 }
 
-document.getElementById('btn-refresh-beta').addEventListener('click', loadBeta);
+const betaClock = d => d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+let _betaLoadedAt = null;
+
+// Chaque chargement relit l'état depuis la base (GET /api/admin/beta, sans cache). « Rafraîchir »
+// montre l'attente (bouton désactivé), puis l'heure de mise à jour ou l'erreur (recette du 03/11).
+async function loadBeta({ manual = false } = {}) {
+  const btn = document.getElementById('btn-refresh-beta');
+  const st  = document.getElementById('beta-refresh-status');
+  if (manual) {
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = '↻ Actualisation…';
+    st.className = 'refresh-status';
+    st.textContent = 'Chargement…';
+  }
+  let res;
+  try { res = await api('GET', '/api/admin/beta'); }
+  catch { res = { ok: false, data: { error: 'serveur inaccessible' } }; }
+  if (manual) {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.textContent = '↻ Rafraîchir';
+  }
+  if (!res.ok) {
+    st.className = 'refresh-status is-err';
+    st.textContent = `⚠️ Échec de l’actualisation (${res.data.error || 'erreur'})${_betaLoadedAt ? ` — données affichées : ${betaClock(_betaLoadedAt)}` : ''}`;
+    return;
+  }
+  renderBeta(res.data);
+  _betaLoadedAt = new Date();
+  st.className = 'refresh-status';
+  st.textContent = `✓ Données à jour à ${betaClock(_betaLoadedAt)}`;
+  if (manual) admToast(`Données à jour à ${betaClock(_betaLoadedAt)}.`);
+}
+
+document.getElementById('btn-refresh-beta').addEventListener('click', () => loadBeta({ manual: true }));
 document.getElementById('btn-beta-feedback').addEventListener('click', () => {
   const card = document.getElementById('beta-feedback-card');
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5559,6 +5663,7 @@ document.getElementById('btn-beta-known').addEventListener('click', async () => 
   adMessage('beta-known-msg', 'Bugs connus enregistrés.', true);
   admToast('Bugs connus enregistrés.');
   _beta.settings = data.settings;
+  document.getElementById('beta-known').dataset.saved = document.getElementById('beta-known').value;
 });
 
 document.getElementById('btn-beta-invite').addEventListener('click', async () => {

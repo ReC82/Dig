@@ -3338,6 +3338,11 @@ body.has-ad-top.ad-top-collapsed header { padding-top: calc(14px + env(safe-area
   gap: 8px;
 }
 #beta-report-inner h2 { font-size: 1rem; margin: 0; }
+.beta-report-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.beta-report-x { background: none; border: none; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 6px 8px; cursor: pointer; border-radius: 8px; touch-action: manipulation; }
+.beta-report-x:hover, .beta-report-x:focus-visible { color: var(--text); background: rgba(255, 255, 255, 0.08); }
+.beta-confirm { border: 1px solid rgba(250, 204, 21, 0.5); background: rgba(250, 204, 21, 0.08); border-radius: 12px; padding: 10px 12px; }
+.beta-confirm p { margin: 0; font-size: 0.8rem; font-weight: 600; }
 #beta-report-inner .beta-text { font-size: 0.75rem; color: var(--muted); margin: 0; }
 .beta-field { display: flex; flex-direction: column; gap: 3px; font-size: 0.75rem; font-weight: 600; }
 .beta-field textarea, .beta-field input {

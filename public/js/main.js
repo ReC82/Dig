@@ -1462,6 +1462,7 @@ async function _doLogout() {
   _clearCloudMeta();
   Save.purge();
   NotifLog.clear();   // appareil partagé : le joueur suivant ne voit pas l'historique (#26)
+  DigBeta.clearDraft();   // brouillon de signalement : jamais transmis au joueur suivant (#57)
   _refreshAllAfterReset();
   _pollSeason();
 }

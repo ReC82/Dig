@@ -208,6 +208,11 @@ const DigBeta = (() => {
     ].join('\n');
   }
 
+  // Brouillon du signalement en cours : en mémoire de la page seulement (rien dans le stockage du
+  // navigateur ni sur le serveur), effacé à l'envoi réussi ou sur « Abandonner » (recette du 03/11).
+  let _draft = null;
+  const DRAFT_FIELDS = ['beta-step', 'beta-expected', 'beta-observed', 'beta-device'];
+
   function openReport() {
     if (!_config?.reports) return;
     document.getElementById('beta-report-modal')?.remove();
@@ -220,13 +225,16 @@ const DigBeta = (() => {
     const field = (id, key, rows) => `<label class="beta-field" for="${id}">${escapeHtml(t(key))}
         <textarea id="${id}" rows="${rows}" maxlength="1000"></textarea></label>`;
     modal.innerHTML = `<form id="beta-report-inner" novalidate>
-      <h2 id="beta-report-title">${escapeHtml(t('beta.modal_title'))}</h2>
+      <div class="beta-report-head">
+        <h2 id="beta-report-title">${escapeHtml(t('beta.modal_title'))}</h2>
+        <button type="button" class="beta-report-x" id="btn-beta-x" aria-label="${escapeHtml(t('beta.cancel'))}" title="${escapeHtml(t('beta.cancel'))}">✕</button>
+      </div>
       <p class="beta-text">${escapeHtml(t('beta.modal_intro'))}</p>
       ${field('beta-step', 'beta.field_step', 2)}
       ${field('beta-expected', 'beta.field_expected', 2)}
       ${field('beta-observed', 'beta.field_observed', 3)}
       <label class="beta-field" for="beta-device">${escapeHtml(t('beta.field_device'))}
-        <input id="beta-device" type="text" maxlength="200" value="${escapeHtml(_deviceGuess())}"></label>
+        <input id="beta-device" type="text" maxlength="200"></label>
       <label class="beta-check"><input type="checkbox" id="beta-diag"> ${escapeHtml(t('beta.diag_label'))}</label>
       <details class="beta-diag-preview"><summary>${escapeHtml(t('beta.diag_preview'))}</summary>
         <pre>${escapeHtml(JSON.stringify(diag, null, 2))}</pre></details>
@@ -237,13 +245,52 @@ const DigBeta = (() => {
         ${_config.discordUrl ? `<a class="beta-discord-btn" href="${escapeHtml(_config.discordUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('beta.discord'))}</a>` : ''}
         <button type="button" class="beta-ghost-btn" id="btn-beta-cancel">${escapeHtml(t('beta.cancel'))}</button>
       </div>
+      <div class="beta-confirm" id="beta-confirm" role="alertdialog" aria-labelledby="beta-confirm-text" hidden>
+        <p id="beta-confirm-text">${escapeHtml(t('beta.confirm_close'))}</p>
+        <div class="beta-actions">
+          <button type="button" class="beta-report-btn" id="btn-beta-keep">${escapeHtml(t('beta.keep_writing'))}</button>
+          <button type="button" class="beta-ghost-btn" id="btn-beta-discard">${escapeHtml(t('beta.discard'))}</button>
+        </div>
+      </div>
     </form>`;
     document.body.appendChild(modal);
     const $ = id => modal.querySelector(`#${id}`);
-    const close = () => modal.remove();
-    $('btn-beta-cancel').addEventListener('click', close);
-    modal.addEventListener('click', e => { if (e.target === modal) close(); });
-    modal.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+    // Reprise du brouillon (même onglet) ; sinon formulaire vide avec l'appareil deviné.
+    const initialDevice = _deviceGuess();
+    for (const id of DRAFT_FIELDS) $(id).value = _draft?.[id] ?? (id === 'beta-device' ? initialDevice : '');
+    $('beta-diag').checked = !!_draft?.diag;
+    let sent = false;
+    const dirty = () => !sent && DRAFT_FIELDS.some(id => $(id).value.trim() !== (id === 'beta-device' ? initialDevice : ''));
+    const saveDraft = () => {
+      if (sent) return;
+      _draft = dirty() ? Object.fromEntries([...DRAFT_FIELDS.map(id => [id, $(id).value]), ['diag', $('beta-diag').checked]]) : null;
+    };
+    modal.addEventListener('input', saveDraft);
+    modal.addEventListener('change', saveDraft);
+
+    const confirmBox = $('beta-confirm');
+    const askClose = () => {
+      if (!dirty()) { _draft = null; modal.remove(); return; }
+      if (!confirmBox.hidden) return;
+      confirmBox.hidden = false;
+      $('btn-beta-keep').focus();
+    };
+    const keepWriting = () => { confirmBox.hidden = true; ($('beta-observed').value ? $('beta-observed') : $('beta-step')).focus(); };
+    $('btn-beta-keep').addEventListener('click', keepWriting);
+    $('btn-beta-discard').addEventListener('click', () => { _draft = null; modal.remove(); });
+    $('btn-beta-cancel').addEventListener('click', askClose);
+    $('btn-beta-x').addEventListener('click', askClose);
+    // Fond : seul un clic commencé ET terminé sur le fond compte (une sélection de texte qui
+    // déborde de la fenêtre ne ferme rien).
+    let downOnBackdrop = false;
+    modal.addEventListener('pointerdown', e => { downOnBackdrop = e.target === modal; });
+    modal.addEventListener('click', e => { if (e.target === modal && downOnBackdrop) askClose(); downOnBackdrop = false; });
+    modal.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (!confirmBox.hidden) keepWriting(); else askClose();
+    });
     $('beta-step').focus();
 
     const msg = (text, ok) => { const m = $('beta-report-msg'); m.textContent = text; m.className = `beta-msg ${ok ? 'is-ok' : 'is-err'}`; };
@@ -267,6 +314,8 @@ const DigBeta = (() => {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) { send.disabled = false; return msg(data.error || t('beta.err_send'), false); }
+        sent = true;
+        _draft = null;
         _lastReport = _discordText(f, data.report.id);
         msg(t('beta.sent', { id: data.report.id }), true);
         send.hidden = true;
@@ -294,6 +343,7 @@ const DigBeta = (() => {
   return {
     init, pendingInvite, inviteAccepted, inviteBlocked, clearInvite, showInviteField, inviteNoticeHtml, registerError,
     registrationMode, settingsSectionHtml, bindSettings, openReport,
+    clearDraft: () => { _draft = null; document.getElementById('beta-report-modal')?.remove(); },
     discordUrl: () => _config?.discordUrl || null,
   };
 })();
