@@ -455,3 +455,141 @@ trois sous-onglets (après lancement).
 ### Reste à réaliser
 
 - Étape 2 selon la décision 2 (après lancement).
+
+## Mise à jour du 03/11/2026, 18 h 45 (Bruxelles) — recettes #34-D à K : « 1 pt », confirmations Dig, fiche article admin
+
+**Ticket** : #34 — [P1] Boutique de cadeaux — https://github.com/ReC82/Dig/issues/34
+(recettes du propriétaire : [#34-D](https://github.com/ReC82/Dig/issues/34#issuecomment-6609393644),
+[#34-E](https://github.com/ReC82/Dig/issues/34#issuecomment-6609684097),
+[#34-F](https://github.com/ReC82/Dig/issues/34#issuecomment-6609972343),
+[#34-G](https://github.com/ReC82/Dig/issues/34#issuecomment-6610037601),
+[#34-H/I](https://github.com/ReC82/Dig/issues/34#issuecomment-6610178619),
+[#34-J](https://github.com/ReC82/Dig/issues/34#issuecomment-6610230324),
+[#34-K](https://github.com/ReC82/Dig/issues/34#issuecomment-6610463219))
+
+**État réel** : **déployé en production (SHA `c04748e`) le 03/11/2026 à 18:42 (Bruxelles) — en attente de recette.**
+Classement : **Après lancement** (confort et finition ; le cycle d'échange est déjà validé en conditions réelles).
+
+### Retour du propriétaire (pris en compte)
+
+- **Validé, à ne plus retester** : navigation Coffres → Boutique → Cadeaux → Coffres (#34-A à D) ;
+  cycle complet article virtuel TEST → solde insuffisant → +1 pt → échange → annulation/remboursement
+  → article masqué, historique conservé (#34-F à K). Le point de test reste sur `testeur` (non retiré).
+- **À corriger** : « 1 pts » → « 1 pt » ; `confirm()` natif à l'échange et à l'annulation → fenêtre
+  Dig ; fiche « Nouvel article » surchargée (langues toutes ouvertes, champs du cadeau réel toujours
+  visibles, pas de sélecteur d'emoji, pas de protection des saisies).
+
+### Ce qui change
+
+**Côté joueur** (`public/js/main.js`, `public/js/i18n.js`, `public/index.html`, `public/css/style.css`)
+- **« 1 pt » / « n pts »** dans les prix, le bouton « Il manque … », le solde, la ligne « Si la
+  saison finissait maintenant » et les gains de fin de saison, en FR/EN/NL/ES (NL : « 1 pt » /
+  « 2 ptn ») et dans l'italien pilote. En français, 0 s'écrit « 0 pt » (règle française).
+- **Échanger** ouvre une **fenêtre Dig** : article (icône + titre), **Coût**, **Solde actuel**,
+  **Solde après l'échange** (en or), rappel « tu peux annuler tant que la commande est En attente »,
+  boutons **Annuler** / **Confirmer l'échange**. Focus initial sur Annuler, Tab reste dans la fenêtre,
+  Échap ou clic à côté = refus, un seul envoi possible (bouton désactivé au premier clic ; le
+  serveur était déjà idempotent).
+- **Annuler** une commande ouvre la même fenêtre : « Annuler la commande #N ? », **Remboursement +x pt**,
+  **Solde après remboursement**, boutons **Garder la commande** / **Annuler la commande**.
+- Plus aucun `window.confirm` dans la boutique.
+
+**Côté admin** (`public/admin/index.html`, `admin.js`, `admin.css`) — fiche « Nouvel article / Modifier »
+1. **Article** : sorte (Virtuel par défaut) + icône avec **sélecteur d'emoji** « 😀 Choisir… » :
+   6 catégories (Cadeaux, Honneur, Trésor, Mine, Étoiles, Objets ; 60 emojis), recherche sans accents
+   (« couronne » → 👑), choix au clic, aperçu immédiat ; saisie ou collage libre toujours possibles ;
+   renvoi vers l'onglet 🎨 Icônes pour une illustration sur mesure (rien n'est généré automatiquement).
+2. **Prix et disponibilité** : coût, stock, max. par joueur, Visible, Indisponible.
+3. **Textes** : onglets **FR / EN / NL / ES, une langue à la fois** (● titre saisi, ○ à traduire),
+   rappel du texte français quand on édite une autre langue.
+4. **Cadeau réel** (valeur, devise, pays, âge) : **affiché seulement si la sorte est Réel** ; repasser
+   en Virtuel masque ces champs **sans effacer** les valeurs (petite mention « réglages conservés »).
+5. **Calendrier et options avancées** (dates, ordre, image) : **replié par défaut**, avec un résumé
+   (« toujours valable · ordre 0 »).
+6. **Aperçu joueur** à droite sur PC, au-dessus sur téléphone : icône, titre/description dans la
+   langue éditée (repli FR), coût en « pt/pts », stock, état (Échanger / Épuisé / Indisponible /
+   Bientôt) et visibilité.
+7. **Protection des saisies (#61)** : ✕, Annuler, Échap ou clic hors fenêtre sur une fiche modifiée →
+   confirmation Dig « Abandonner les modifications / Continuer à modifier » ; fermeture directe si rien
+   n'a changé ; avertissement du navigateur en quittant la page.
+- Les changements de statut d'une commande (→ En préparation, → Remis, Annuler + rembourser) passent
+  aussi par une confirmation Dig (article, joueur, montant, effet).
+
+Aucun prix, stock, solde, article ni commande modifié ; aucune migration ; catalogue de production
+intact (l'article TEST #1 reste masqué).
+
+### SHA, branche et procédure de test
+
+- Branche `feature/34-boutique-cadeaux`, commit `9ce5b57` ; **`develop` = `c04748e`** (fusion).
+- `npm test` : **560/560** (ticket, `develop` et release `c04748e`). Nouveau `test/shop-ux.test.js`
+  (5 tests : pluriels dans 4 langues, fenêtre Dig sans `confirm`, fiche admin structurée, sélecteur
+  d'emoji, protection des saisies) ; `test/robustness.test.js` compte désormais une forme plurielle
+  comme une seule clé (comme `tools/i18n`).
+- Essai navigateur `test/e2e/shop-ux.e2e.js` (Chromium, serveur de test port 3101, base de test) :
+  joueur 1280×900 et 390×844 — prix « 1 pt », fenêtre d'échange (solde avant/après), Échap = refus,
+  double clic = **une seule** commande, fenêtre d'annulation (garder = rien ne change ; confirmer =
+  remboursé) ; admin 1280 et 390 — champs réels masqués/conservés, une langue visible, emoji 👑 par
+  recherche, aperçu « 👑 … 2 pts Échanger », Échap → confirmation, « Continuer » garde la saisie,
+  « Abandonner » ne crée rien, fiche non modifiée fermée sans question. **0 erreur JS, 0 popup native.**
+  Défaut trouvé et corrigé pendant l'essai : sur téléphone, l'aperçu collant recouvrait le formulaire
+  au défilement → collant seulement sur grand écran.
+
+### Déploiement
+
+- Copie de la base de production démarrée en `NODE_ENV=production` (port 3122) : santé OK, version
+  `1.0.0+c04748e`, **empreintes identiques** des 6 tables joueurs ; copie supprimée.
+- `main` avancé `8ac3c77 → c04748e` (avance rapide) ; `scripts/deploy.sh` de la release :
+  sauvegarde vérifiée `~/backups/dig/dig-20261103-184256-pre-deploy-c04748e.sqlite`, pas de
+  `npm ci` (lock inchangé), santé et version vérifiées.
+- Après déploiement : 2 domaines **200**, `/admin/` 200, version `1.0.0+c04748e`, journal sans erreur,
+  `quick_check` ok, **empreintes production = sauvegarde**, Chromium production PC + mobile (jeu et
+  admin) : 0 erreur JS, 0 débordement.
+- Aucune génération IA en cours au moment du redémarrage (dernier appel Atelier terminé à 18:16).
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 8ac3c77` + `sudo systemctl restart dig`
+  (client seul, aucune donnée touchée).
+
+### Test fonctionnel à faire par le propriétaire (~3 min, sans nouvel échange)
+
+1. **Téléphone, compte `testeur`** → Saison → Boutique de cadeaux : le solde affiche **« 1 pt »**
+   (et non « 1 pts »). Si un article visible existe, son prix s'écrit « 1 pt » / « 20 pts ».
+2. **Admin → 🛍 Boutique → ＋ Ajouter un article** : la fiche montre 1. Article, 2. Prix et
+   disponibilité, 3. Textes avec **une seule langue** (onglets FR/EN/NL/ES) ; pas de valeur faciale ni
+   de pays tant que la sorte est Virtuel ; « Calendrier et options avancées » fermé.
+3. Cliquer **😀 Choisir…**, taper « trophée » ou « couronne », cliquer un emoji : il remplit le champ
+   et l'aperçu joueur à droite (au-dessus sur téléphone) se met à jour.
+4. Taper un titre puis appuyer sur **Échap** : une fenêtre propose « Continuer à modifier » /
+   « Abandonner les modifications ». Choisir **Abandonner** → **aucun article créé**.
+5. (Facultatif, uniquement si tu veux revoir la fenêtre d'échange) : les fenêtres « Confirmer
+   l'échange » et « Annuler la commande #N ? » ont été vérifiées par l'essai automatique ; ne refais
+   pas le cycle avec de vrais points sans le décider.
+Attendu : aucune popup grise du navigateur, aucun article ni point modifié.
+
+### Choix techniques faits seul
+
+- Pluriels par le mécanisme existant `{ one, other }` (Intl.PluralRules) plutôt que des « pt(s) » :
+  règle correcte par langue (FR : 0 et 1 au singulier ; EN/ES : 0 au pluriel).
+- Fenêtre joueur dédiée (`#shop-confirm-modal`) au style des fenêtres « coffres » existantes ; la
+  fenêtre admin réutilise `admConfirm` (#50-E) ; `admDialogSetup` reçoit une option `canClose` réutilisable
+  par les autres fiches (#61) sans changer leur comportement.
+- Sélecteur d'emoji local (liste choisie, mots-clés FR) : aucune dépendance, aucun appel externe.
+- Traduction automatique des textes d'article **non ajoutée** : elle demanderait un appel IA payant
+  (hors périmètre sans accord) ; les onglets indiquent les langues à traduire, le français est affiché
+  à défaut.
+- Italien pilote complété à la main (17 textes, « relu ») : aucun appel payant ; le contrôle `tools/i18n`
+  est à 100 %.
+
+### Décisions demandées au propriétaire
+
+1. Étape 2 des boutiques (inchangée) : A) garder le bandeau seul (**reco MVP**) ou B) un onglet
+   Boutique à trois sous-onglets (après lancement). Aucun achat n'a été déplacé.
+2. Premiers vrais articles virtuels et prix (inchangée ; reco : « Titre honorifique de la saison »,
+   20 pts, 1 par joueur, remise manuelle).
+3. Point de test sur `testeur` : le garder (reco, aucun impact) ou le retirer par Admin → Points
+   (ajustement −1, motif « fin de test »).
+
+### Reste à réaliser
+
+- Parcours admin « En préparation → Remis » non testé par le propriétaire (à faire sur une vraie
+  commande, sans en recréer exprès).
+- Traduction automatique facultative des textes d'article (après lancement, avec accord sur la dépense).
+- Étape 2 selon la décision 1 (après lancement).
