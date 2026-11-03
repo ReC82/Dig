@@ -14,6 +14,7 @@
  *   RATE_SHOP_MAX        échanges/annulations boutique par compte / minute (défaut 10, #34)
  *   RATE_PLAY_MAX        prises de contrôle + signaux de présence par compte / minute (défaut 30, #35)
  *   RATE_ICONS_MAX       actions de l'atelier d'icônes (génération, téléversement, application) par IP / 15 min (défaut 60, #40)
+ *   RATE_INVITE_CHECK_MAX vérifications de lien d'invitation par IP / 15 min (défaut 30, #57)
  *   RATE_LIMIT           « off » désactive toutes les limites (diagnostic uniquement)
  */
 
@@ -38,12 +39,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function, feedback: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function, feedback: Function, inviteCheck: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass, feedback: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass, feedback: pass, inviteCheck: pass };
   }
 
   const common = {
@@ -136,6 +137,13 @@ function createRateLimiters(env = process.env) {
       ...common,
       windowMs: 15 * MINUTE,
       limit:    intFromEnv(env, 'RATE_ICONS_MAX', 60),
+    }),
+
+    // Vérification d'un lien d'invitation (#57) : ≤ 30 / 15 min / IP (aucune énumération des codes).
+    inviteCheck: rateLimit({
+      ...common,
+      windowMs: 15 * MINUTE,
+      limit:    intFromEnv(env, 'RATE_INVITE_CHECK_MAX', 30),
     }),
 
     // Signalements de bugs de la bêta (#57) : ≤ 5 / 15 min / compte (à défaut, par IP).

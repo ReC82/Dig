@@ -1601,6 +1601,10 @@ app.get('/api/beta/config', (req, res) => {
 });
 
 // Signalement de bug (joueur connecté ou invité) : diagnostic seulement si la case est cochée.
+// État d'un lien d'invitation (#57) : l'invité est accueilli, ou sait tout de suite que le lien a expiré.
+app.get('/api/beta/invite/:code', limit.inviteCheck,
+  betaRoute('GET /api/beta/invite/:code', req => beta.inviteStatus(req.params.code)));
+
 app.post('/api/beta/reports', limit.feedback,
   betaRoute('POST /api/beta/reports', req => ({ report: beta.createReport(req.session.userId, req.body) })));
 
