@@ -7,7 +7,7 @@
 
 ## 1. État réel
 
-**Déployé en production (SHA `6e6f58a`) — en attente de recette.** Première livraison : `bee0df4`, mise en ligne le 30/10/2026 à 22:02 (Bruxelles). Lot du 31/10 (UX commune et création par IA) : `6e6f58a`, mis en ligne le 31/10/2026 à 22:55. Voir la section datée du 31/10 en fin de document.
+**Déployé en production (SHA `a7919e6`) — en attente de recette.** Dernier lot : correction de l'ergonomie de création IA demandée lors de la recette du 02/11, mise en ligne le 03/11/2026 à 06:51 (Bruxelles) ; voir la section du 03/11 en fin de document. Première livraison : `bee0df4`, mise en ligne le 30/10/2026 à 22:02 (Bruxelles). Lot du 31/10 (UX commune et création par IA) : `6e6f58a`, mis en ligne le 31/10/2026 à 22:55. Voir la section datée du 31/10 en fin de document.
 
 ## 2. Résultat
 
@@ -257,3 +257,114 @@ Les questions du 30/10 restent ouvertes (aucune n'empêche ce lot) :
 ### Restes à faire (Après lancement)
 - Nouvelles métriques, si vous le souhaitez : jours consécutifs, collection complétée (#39). Elles demandent un suivi serveur supplémentaire et ne sont pas inventées ici.
 - Dans l'atelier, la mention « Actuelle en jeu » s'affiche aussi pour un badge désactivé. C'est cosmétique.
+
+
+---
+
+## Mise à jour du 03/11/2026 — recette du 02/11 : ergonomie de la création de badge par IA
+
+### État réel
+
+**Déployé en production (SHA `a7919e6`) — en attente de recette.** Mis en ligne le 03/11/2026 à 06:51 (Bruxelles). Classement : **Après lancement** (outil d'administration ; n'affecte pas les joueurs).
+
+### Retour du propriétaire (02/11)
+
+Recette partiellement validée : le choix IA/manuel fonctionne et la proposition remplit les traductions et le critère. En revanche, la création par IA ouvrait tout de suite un long formulaire technique presque vide (« Proposition IA n° 1 ») avec le bandeau « Génération en cours ». Les champs se remplissaient ensuite d'un coup. Le passage de « n° 1 » à « n° 2 » n'était pas expliqué, et des dates d'événement semblaient préremplies.
+
+### Constats
+
+- **Dates 2026-10-31 → 2026-11-02** : ce n'étaient **pas des valeurs**, mais des textes d'exemple grisés dans les champs vides. En production, les deux propositions du 02/11 n'ont ni début ni fin. Ces exemples prêtaient à confusion : ils sont supprimés.
+- **N° 1 puis n° 2** : ce sont deux propositions distinctes, demandées à une minute d'intervalle avec la même description. Chaque clic sur « Proposer » crée une nouvelle proposition numérotée. Ce n'était pas un changement de fiche, mais rien ne l'expliquait.
+
+### Ce qui change (panel → 🏅 Badges)
+
+1. **Après « ✨ Proposer un badge »**, une **vue d'attente légère** s'ouvre, sans aucun champ. Elle affiche la demande, le n° de proposition, « Génération en cours… », le temps écoulé (« Demandée il y a 12 s, en général 20 à 60 s ») et un bouton « Fermer (la génération continue) ». Fermer ne perd rien : la proposition reste dans « ✨ Propositions IA ».
+2. **À la fin**, la même fenêtre passe d'elle-même en **fiche de relecture synthétique**, avec l'annonce « Proposition prête ». Elle montre :
+   - l'aperçu du badge (emoji ou image), son nom et sa description ;
+   - la condition exacte (par exemple « Profondeur ≥ 100 m — profondeur maximale retenue par le serveur ») ;
+   - la visibilité ;
+   - la période (« Permanent (aucune période) » par défaut) ;
+   - l'état (« Sera enregistré désactivé ») ;
+   - la catégorie et l'identifiant ;
+   - les problèmes et les avertissements ;
+   - la raison du critère.
+
+   Les **traductions** et la **consigne d'illustration** sont dans des sections repliées.
+3. **Boutons** : **« Conserver en brouillon »** (bouton principal : crée le badge désactivé), « Modifier », « ↻ Refaire la proposition », « Annuler la proposition » et « Fermer ». Le **formulaire complet n'apparaît qu'après « Modifier »**.
+4. **Aucun changement impromptu** : le suivi automatique ne met à jour que la vue de relecture, qui n'a aucun champ de saisie. La fiche « Modifier » n'est jamais remplacée, même pendant un cycle de suivi (vérifié en navigateur : les saisies restent).
+5. **Numérotation expliquée** : la relecture indique « proposition n° X ». Si la même demande a déjà été proposée, elle l'affiche (« Même demande déjà proposée : n° 1 »). La liste « ✨ Propositions IA » montre le n° de chaque proposition.
+6. **« Refaire la proposition »** : nouvelle route `POST /api/admin/badges/ai/proposals/:id/redo`. Une nouvelle proposition est lancée sur la même description, et l'ancienne n'est abandonnée que si la nouvelle a pu démarrer : un quota atteint ou un appel déjà en cours la laisse intacte. Cette action est refusée pendant une génération ou sur une proposition déjà conservée.
+7. **Période d'événement** : dans le formulaire complet, elle est repliée sous « Options avancées : période d'événement (vide = badge permanent) » et s'ouvre seulement si une date est déjà renseignée. Les champs ne contiennent plus d'exemple de date. Si l'IA propose quand même une période, un **avertissement explicite** s'affiche (« Période d'événement proposée (…) : videz-la s'il doit être permanent »).
+8. **Panel (hors badges, correction minimale)** : avec 17 onglets depuis #56/#59, la barre d'onglets débordait et toute la page défilait horizontalement à 1280 px. Les onglets passent maintenant à la ligne (une ligne de CSS).
+
+Ce qui reste en place :
+- la liste est affichée par défaut ;
+- le formulaire d'ajout ne s'ouvre qu'après une action ;
+- l'image se génère séparément dans 🎨 Atelier d'icônes, jamais automatiquement ;
+- aucun badge n'est activé ni publié automatiquement.
+
+Fichiers : `public/admin/index.html` (fiche `bg-review-dialog`, période repliée), `public/admin/admin.js` (vue d'attente/relecture, suivi, Refaire), `public/admin/admin.css`, `server/badgeAi.js` (`redoProposal`, avertissement de période), `server/index.js` (route `redo`), `test/badge-ai.test.js` (+3 tests).
+
+### SHA et tests
+
+- Branche `feature/38-badges-succes` : `695f3e8` ; **`develop` : `a7919e6`** (fusion), déployé.
+- `npm test` : **503/503** sur la branche, sur `develop` et sur la release `a7919e6`. Les 3 nouveaux tests couvrent :
+  - « Refaire » : nouvelle proposition, ancienne abandonnée, refus pendant une génération, ancienne intacte si le lancement échoue ;
+  - les périodes : aucune par défaut, avertissement sinon, plus d'exemple de date ;
+  - la relecture : aucun champ de saisie, sections repliées, quatre boutons, « Proposer » n'ouvre jamais le formulaire complet, le suivi ne remplace pas la fiche « Modifier ».
+
+  Lors d'un premier passage de la suite complète, `antibot.test.js` (non modifié) a dépassé son délai. Un serveur de test orphelin de ce passage occupait le port 3131. Il a été arrêté, puis la suite complète est passée.
+- Chromium sur un serveur de test (port 3101, base de test, IA factice, aucun appel payant), PC 1280×900 et smartphone 390×844, avec de vrais clics et le clavier :
+  - pendant la génération : vue d'attente sans aucun champ, formulaire complet fermé ;
+  - fermeture puis réouverture depuis la liste : relecture (période « Permanent », traductions repliées, focus sur « Conserver en brouillon ») ;
+  - « Refaire » : vue d'attente, puis passage automatique en relecture ;
+  - « Modifier » : formulaire complet (période repliée et vide), saisies conservées après un cycle de suivi, enregistrement en badge désactivé ;
+  - « Conserver en brouillon » au clavier (Entrée) : badge désactivé créé ;
+  - identifiant déjà pris : bouton désactivé et problème affiché ;
+  - « Annuler la proposition » : aucun badge créé ;
+  - aucun défilement horizontal et aucune erreur JS.
+
+### Données et déploiement
+
+- Aucun changement de schéma. Une copie de la base de production a été démarrée 2 fois en `NODE_ENV=production` : `/health` 200, version `a7919e6`. Les empreintes de users, user_saves, season_rankings, seasons, leagues, player_click_tracking, badges, player_badges et badge_ai_proposals sont identiques, `quick_check` ok. Copie supprimée.
+- Aucune génération IA n'était en cours avant le déploiement (dernier appel : 02/11 23:25 UTC).
+- `deploy.sh` : 7d1cda6 → a7919e6, sauvegarde vérifiée `dig-20261103-065106-pre-deploy-a7919e6.sqlite`.
+- Après le déploiement :
+  - les 2 domaines répondent 200 avec la version `1.0.0+a7919e6` ;
+  - la nouvelle route `redo` répond 401 sans clé ;
+  - `journalctl` est propre et `quick_check` ok ;
+  - les empreintes de la production sont identiques à celles de la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 7d1cda6` puis `sudo systemctl restart dig` (aucune migration à défaire).
+
+### Test fonctionnel à faire par le propriétaire
+
+1. Panel → 🏅 Badges (rechargez la page : la version a changé) → « ＋ Ajouter un badge » → « ✨ Créer avec l'IA ». Décrivez « Mineur débutant, profondeur 100 m » → « ✨ Proposer un badge ».
+   **Attendu** : petite fenêtre « Génération en cours… » avec votre demande et le temps écoulé, **sans aucun champ**.
+2. Fermez-la, puis rouvrez la proposition depuis « ✨ Propositions IA ».
+   **Attendu** : rien n'est perdu ; selon l'avancement, vous voyez l'attente ou la relecture.
+3. À la fin (20 à 60 s) :
+   **Attendu** : la fenêtre devient une fiche courte (aperçu, nom, description, « Profondeur ≥ 100 m », « Permanent (aucune période) », « Sera enregistré désactivé »). Traductions et visuel sont repliés ; les boutons sont « Conserver en brouillon », « Modifier », « ↻ Refaire la proposition » et « Annuler la proposition ».
+4. « Modifier » :
+   **Attendu** : le formulaire complet apparaît maintenant seulement. La période est repliée sous « Options avancées » et ne contient aucune date.
+5. « Conserver en brouillon » (depuis la relecture) :
+   **Attendu** : le badge apparaît dans la liste, **désactivé** ; rien ne change pour les joueurs.
+6. Facultatif : « ↻ Refaire la proposition ».
+   **Attendu** : nouvelle attente, puis une nouvelle relecture ; l'ancienne proposition disparaît de la liste.
+
+Les deux propositions « Mineur débutant » du 02/11 (n° 1 et n° 2) sont encore « à relire » en production. Vous pouvez en conserver une et annuler l'autre depuis la nouvelle fiche.
+
+### Choix techniques faits seul
+
+- **Une fenêtre unique d'attente puis de relecture**, sans champ de saisie. C'est la seule que le suivi automatique met à jour, ce qui garantit l'absence d'écrasement de saisie.
+- **« Refaire » côté serveur.** Faire l'opération en une seule étape garantit que l'ancienne proposition reste disponible si la nouvelle ne peut pas démarrer (quota, appel en cours). La route est protégée comme les autres.
+- **« Annuler la proposition » distinct de « Fermer ».** Annuler abandonne la proposition, après confirmation. Fermer la garde pour plus tard. Pendant la génération, seul « Fermer » est proposé : le serveur refuse d'abandonner un appel en cours.
+- **Barre d'onglets du panel** : retour à la ligne (une ligne de CSS), parce que le défilement horizontal gênait la recette elle-même.
+
+### Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Les 3 questions de la section 8 restent ouvertes, sans être bloquantes (paliers à activer, badges mis en avant, coffres de boutique).
+
+### Reste à réaliser (Après lancement)
+
+- Les éléments de la section 9, inchangés.
+- Piste non réalisée (hors périmètre) : empêcher une seconde demande identique pendant qu'une génération est en cours. Aujourd'hui, le serveur n'autorise de toute façon qu'un appel IA à la fois.
