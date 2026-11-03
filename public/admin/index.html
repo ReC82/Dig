@@ -129,15 +129,24 @@
   <!-- Tab Config -->
   <section id="tab-config" class="tab-content hidden">
     <div class="section-header"><h2>Configuration</h2></div>
+    <!-- #62 : réglages groupés par thème, libellés en clair, clé technique en petit ; recherche par nom, description ou clé -->
+    <div class="cfg-toolbar">
+      <input type="search" id="cfg-search" placeholder="Rechercher un réglage (nom, description ou clé technique)" aria-label="Rechercher un réglage" aria-controls="config-rows">
+      <nav class="cfg-jump" aria-label="Catégories" id="cfg-jump"></nav>
+    </div>
+    <p id="cfg-empty" class="muted hidden" role="status">Aucun réglage ne correspond à cette recherche.</p>
     <div id="config-rows"></div>
-    <p id="config-err" class="error hidden" role="alert"></p>
-    <button class="btn" id="btn-save-config">Enregistrer</button>
-    <p id="config-msg" class="success hidden">Sauvegardé !</p>
+    <div class="cfg-save">
+      <button class="btn" id="btn-save-config">Enregistrer</button>
+      <span id="cfg-pending" class="muted" role="status"></span>
+      <p id="config-err" class="error hidden" role="alert"></p>
+      <p id="config-msg" class="success hidden">Sauvegardé !</p>
+    </div>
 
     <!-- Budget IA (#40) : dépenses réelles journalisées ; plafond désactivé par défaut (décision du 03/11) -->
     <div class="overview-card ic-budget-card" id="ai-budget-card">
       <h3 class="overview-card-title">🤖 Budget IA</h3>
-      <p id="aib-cap-state">—</p>
+      <p id="aib-cap-state" class="aib-state" role="status">—</p>
       <dl id="aib-totals" class="ic-summary"></dl>
       <div class="ic-meter hidden" aria-hidden="true" id="aib-meter-wrap"><span id="aib-meter"></span></div>
       <p id="aib-reached" class="ic-notice hidden" role="status"></p>
@@ -1191,10 +1200,13 @@
     <p id="co-notice" class="hidden" role="status"></p>
     <details class="muted co-help" style="font-size:0.78rem">
       <summary>Comment ça marche ?</summary>
-      <p>Séries d'objets à collectionner (permanentes ou rattachées à une saison) et leurs fiches (nom, rareté, image, histoire FR/EN/NL/ES).
-      Tout va dans un <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier ». Une série ou un objet publié ne se supprime pas, il se désactive ; les objets déjà trouvés restent dans les collections des joueurs.
-      Les objets d'une série de saison ne tombent que pendant cette saison, puis restent visibles dans les <strong>archives</strong>.
-      <strong>Nouveau drop ou barème modifié : publication seulement après confirmation explicite « barème validé ».</strong></p>
+      <ul class="co-help-steps">
+        <li><strong>📿 Séries et fiches</strong>Séries d'objets à collectionner, permanentes ou rattachées à une saison ; chaque objet a sa fiche (nom, rareté, image, histoire FR/EN/NL/ES).</li>
+        <li><strong>📝 Brouillon d'abord</strong>Tout va dans un brouillon : rien ne change pour les joueurs avant « Publier ».</li>
+        <li><strong>🔒 Rien ne se perd</strong>Une série ou un objet publié ne se supprime pas, il se désactive ; les objets déjà trouvés restent dans les collections des joueurs.</li>
+        <li><strong>🗓 Séries de saison</strong>Leurs objets ne tombent que pendant cette saison, puis restent visibles dans les archives.</li>
+        <li class="co-help-key"><strong>⚖ Barème validé</strong>Nouveau drop ou barème modifié : publication seulement après confirmation explicite « barème validé ».</li>
+      </ul>
     </details>
 
     <div class="overview-card">

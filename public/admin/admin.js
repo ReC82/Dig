@@ -776,26 +776,103 @@ admRefreshButton('btn-refresh-lb', loadLeaderboard, 'Classement');
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const CONFIG_LABELS = {
-  gems_cap:                     'Plafond de gems en fin de saison',
-  cps_limit:                    'CPS max (alias, voir max_effective_cps)',
-  season_duration:              'Inutilisé — saisons hebdomadaires lundi → dimanche UTC (#16)',
-  upgrade_cost_multiplier:      '× coût en pièces des améliorations (0.1–10)',
-  coin_gain_multiplier:         '× pièces gagnées par bloc et hors ligne (0.1–10)',
-  fragment_drop_multiplier:     '× fragments des coffres de la boutique (0.1–10)',
-  chest_cost_simple:            'Coût du coffre simple (pièces)',
-  chest_cost_rare:              'Coût du coffre rare (pièces)',
-  chest_cost_antique:           'Coût du coffre antique (pièces)',
-  max_effective_cps:            'Clics/s max avant exclusion du classement',
-  promotion_rate:               'Taux de promotion entre ligues (0–1)',
-  difficulty_coefficient:       'Coefficient de difficulté par ligue',
-  min_active_players_per_league:'Joueurs actifs min dans une ligue pour qu\'il y ait des promus',
-  anti_autoclick_enabled:       'Anti-autoclicker activé (true/false)',
-  depth_validation_enabled:     'Validation serveur de la profondeur (true/false)',
-  depth_max_cps:                'Clics/s max retenus pour la profondeur',
-  antibot_mode:                 'Anti-bot : off ou shadow (observation, aucune sanction) — #25',
-  damage_budget_mode:           'Budget de dégâts (profondeur) : off, shadow ou enforce — #25',
+// #62 : réglages groupés par thème, libellé en clair + explication, clé technique en petit (et en infobulle).
+// La présentation ne change aucune valeur : seuls les champs modifiés sont envoyés à l'enregistrement.
+// `type` : 'bool' (true/false), 'enum' (options), 'number' (bornes = celles du serveur, pour guider la saisie).
+const CONFIG_GROUPS = [
+  { id: 'leagues', title: '🏅 Saisons et ligues', fields: {
+    promotion_rate:                { label: 'Taux de promotion entre ligues', hint: 'Part des joueurs actifs promus à la clôture (0 à 1 ; 0,5 = la moitié).', type: 'number', min: 0, max: 1, step: 0.01 },
+    difficulty_coefficient:        { label: 'Coefficient de difficulté par ligue', hint: 'Difficulté ajoutée à chaque ligue supérieure (0 ou plus).', type: 'number', min: 0, step: 0.01 },
+    min_active_players_per_league: { label: 'Joueurs actifs minimum pour promouvoir', hint: 'En dessous de ce nombre de joueurs actifs, une ligue n\'a pas de promus (entier ≥ 1).', type: 'number', min: 1, step: 1 },
+    gems_cap:                      { label: 'Plafond de gemmes en fin de saison', hint: 'Gemmes conservées au maximum par joueur à la clôture.', type: 'number', min: 0, step: 1 },
+  } },
+  { id: 'themes', title: '🎭 Thèmes de saison', fields: {
+    season_themes_public:  { label: 'Thèmes visibles des joueurs', hint: 'Affiche le nom et le thème de la saison dans le jeu.', type: 'bool' },
+    season_prep_days:      { label: 'Préparation du thème (jours avant)', hint: 'Le thème de la saison suivante est préparé ce nombre de jours avant son début (3 à 14).', type: 'number', min: 3, max: 14, step: 1 },
+    season_announce_hours: { label: 'Annonce aux joueurs (heures avant)', hint: 'Délai d\'annonce de la saison suivante (0 à 168 ; 0 = pas d\'annonce).', type: 'number', min: 0, max: 168, step: 1 },
+  } },
+  { id: 'economy', title: '💰 Progression et économie', fields: {
+    upgrade_cost_multiplier:  { label: 'Coût des améliorations', hint: 'Multiplie le coût en pièces des améliorations (0,1 à 10 ; 1 = normal).', type: 'number', min: 0.1, max: 10, step: 0.1 },
+    coin_gain_multiplier:     { label: 'Pièces gagnées', hint: 'Multiplie les pièces gagnées par bloc et hors ligne (0,1 à 10).', type: 'number', min: 0.1, max: 10, step: 0.1 },
+    fragment_drop_multiplier: { label: 'Fragments des coffres', hint: 'Multiplie les fragments des coffres de la boutique (0,1 à 10).', type: 'number', min: 0.1, max: 10, step: 0.1 },
+    chest_cost_simple:        { label: 'Prix du coffre simple', hint: 'En pièces (entier ≥ 1).', type: 'number', min: 1, step: 1 },
+    chest_cost_rare:          { label: 'Prix du coffre rare', hint: 'En pièces (entier ≥ 1).', type: 'number', min: 1, step: 1 },
+    chest_cost_antique:       { label: 'Prix du coffre antique', hint: 'En pièces (entier ≥ 1).', type: 'number', min: 1, step: 1 },
+  } },
+  { id: 'protection', title: '🛡 Protections (anti-triche)', fields: {
+    anti_autoclick_enabled:   { label: 'Anti-autoclicker', hint: 'Contrôle la cadence de clics des sauvegardes.', type: 'bool' },
+    max_effective_cps:        { label: 'Clics/s max avant exclusion du classement', hint: 'Au-delà, le joueur est retiré du classement de la saison.', type: 'number', min: 1, step: 1 },
+    depth_validation_enabled: { label: 'Validation serveur de la profondeur', hint: 'Le serveur recalcule la profondeur atteignable.', type: 'bool' },
+    depth_max_cps:            { label: 'Clics/s max retenus pour la profondeur', hint: 'Cadence maximale prise en compte par la validation de profondeur.', type: 'number', min: 1, step: 1 },
+    antibot_mode:             { label: 'Mode anti-bot', hint: 'off = arrêt ; shadow = observation seule, aucune sanction (#25).', type: 'enum', options: ['off', 'shadow'] },
+    damage_budget_mode:       { label: 'Budget de dégâts (profondeur)', hint: 'off = arrêt ; shadow = observation ; enforce = profondeur plafonnée (#25).', type: 'enum', options: ['off', 'shadow', 'enforce'] },
+  } },
+];
+// Paramètres obsolètes : affichés en lecture seule dans « Avancé », valeur et comportement inchangés.
+const CONFIG_LEGACY = {
+  cps_limit:       { label: 'Ancien nom de « Clics/s max avant exclusion »', hint: 'Alias conservé pour compatibilité : il n\'est lu que si max_effective_cps est absent. Modifiez max_effective_cps (Protections).' },
+  season_duration: { label: 'Durée de saison (inutilisé)', hint: 'Les saisons sont hebdomadaires, du lundi au dimanche UTC (#16). Ce réglage n\'a plus d\'effet.' },
 };
+
+function cfgField(key, value, def, readOnly) {
+  const row = document.createElement('div');
+  row.className = 'config-row';
+  const id = `cfg-${key}`;
+  const text = document.createElement('div');
+  text.className = 'config-text';
+  const label = document.createElement('label');
+  label.className = 'config-label';
+  label.htmlFor = id;
+  label.textContent = def?.label ?? key;
+  text.appendChild(label);
+  if (def?.hint) {
+    const hint = document.createElement('span');
+    hint.className = 'muted config-hint';
+    hint.id = `${id}-hint`;
+    hint.textContent = def.hint;
+    text.appendChild(hint);
+  }
+  const keyEl = document.createElement('code');
+  keyEl.className = 'config-key';
+  keyEl.title = 'Clé technique';
+  keyEl.textContent = key;
+  text.appendChild(keyEl);
+  const v = value ?? '';
+  let input;
+  if (def?.type === 'bool' || def?.type === 'enum') {
+    input = document.createElement('select');
+    const opts = def.type === 'bool' ? [['true', 'Activé'], ['false', 'Désactivé']] : def.options.map(o => [o, o]);
+    if (!opts.some(([o]) => o === v)) opts.unshift([v, `${v} (valeur actuelle)`]);   // valeur inattendue conservée telle quelle
+    for (const [o, t] of opts) input.appendChild(new Option(t, o));
+    input.value = v;
+  } else {
+    input = document.createElement('input');
+    input.type = def?.type === 'number' && v !== '' && Number.isFinite(Number(v)) ? 'number' : 'text';
+    if (input.type === 'number') for (const a of ['min', 'max', 'step']) if (def[a] != null) input[a] = String(def[a]);
+    input.value = v;
+  }
+  input.id = id;
+  input.className = 'config-value';
+  if (def?.hint) input.setAttribute('aria-describedby', `${id}-hint`);
+  if (readOnly) input.disabled = true;
+  else { input.dataset.key = key; input.dataset.orig = v; }
+  row.dataset.search = `${def?.label ?? ''} ${def?.hint ?? ''} ${key}`.toLowerCase();
+  row.append(text, input);
+  return row;
+}
+
+function cfgGroup(id, title, rows, intro) {
+  const sec = document.createElement('section');
+  sec.className = 'overview-card cfg-group';
+  sec.id = `cfg-g-${id}`;
+  const h = document.createElement('h3');
+  h.className = 'overview-card-title';
+  h.textContent = title;
+  sec.appendChild(h);
+  if (intro) { const p = document.createElement('p'); p.className = 'muted config-hint'; p.textContent = intro; sec.appendChild(p); }
+  sec.append(...rows);
+  return sec;
+}
 
 // Saisies en cours conservées (#61) : un rechargement ne réécrit pas les valeurs modifiées et non enregistrées.
 const _cfgZone = admZone(document.getElementById('config-rows'));
@@ -803,36 +880,95 @@ async function loadConfig() {
   const { ok, data } = await api('GET', '/api/admin/config');
   if (!ok || admZoneDirty(_cfgZone)) return;
   const container = document.getElementById('config-rows');
-  container.innerHTML = '';
-  Object.entries(data.config).forEach(([key, value]) => {
-    const div = document.createElement('div');
-    div.className = 'config-row';
-    const keyEl = document.createElement('span');
-    keyEl.className   = 'config-key';
-    keyEl.textContent = key;
-    const labelEl = document.createElement('span');
-    labelEl.className   = 'muted config-label';
-    labelEl.style.flex  = '2';
-    labelEl.textContent = CONFIG_LABELS[key] ?? '';
-    const input = document.createElement('input');
-    input.className   = 'config-value';
-    input.dataset.key = key;
-    input.type        = 'text';
-    input.value       = value ?? '';
-    div.append(keyEl, labelEl, input);
-    container.appendChild(div);
+  const jump = document.getElementById('cfg-jump');
+  container.textContent = '';
+  jump.textContent = '';
+  const cfg = data.config, known = new Set(Object.keys(CONFIG_LEGACY));
+  const groups = CONFIG_GROUPS.map(g => {
+    Object.keys(g.fields).forEach(k => known.add(k));
+    return { id: g.id, title: g.title, rows: Object.entries(g.fields).filter(([k]) => cfg[k] !== undefined).map(([k, def]) => cfgField(k, cfg[k], def)) };
   });
+  // Clé absente de la liste (ajoutée par un futur ticket) : modifiable comme avant, en texte libre.
+  groups.push({ id: 'other', title: '🔧 Autres réglages', rows: Object.keys(cfg).filter(k => !known.has(k)).map(k => cfgField(k, cfg[k], null)) });
+  for (const g of groups) if (g.rows.length) container.appendChild(cfgGroup(g.id, g.title, g.rows));
+  const legacy = Object.entries(CONFIG_LEGACY).filter(([k]) => cfg[k] !== undefined);
+  if (legacy.length) {
+    const det = document.createElement('details');
+    det.className = 'overview-card cfg-group cfg-advanced';
+    det.id = 'cfg-g-advanced';
+    const sum = document.createElement('summary');
+    sum.className = 'overview-card-title';
+    sum.textContent = `⚙ Avancé — paramètres obsolètes (${legacy.length}, lecture seule)`;
+    const p = document.createElement('p');
+    p.className = 'muted config-hint';
+    p.textContent = 'Conservés pour compatibilité, non modifiables ici : leur valeur n\'est ni changée ni envoyée à l\'enregistrement.';
+    det.append(sum, p, ...legacy.map(([k, def]) => cfgField(k, cfg[k], def, true)));
+    container.appendChild(det);
+  }
+  for (const sec of container.querySelectorAll('.cfg-group')) {
+    const a = document.createElement('a');
+    a.href = `#${sec.id}`;
+    a.className = 'btn-ghost';
+    a.textContent = sec.querySelector('.overview-card-title').textContent.replace(/ —.*$/, '');
+    jump.appendChild(a);
+  }
+  const ai = document.createElement('a');
+  ai.href = '#ai-budget-card'; ai.className = 'btn-ghost'; ai.textContent = '🤖 Budget IA';
+  jump.appendChild(ai);
+  cfgFilter();
+  cfgPending();
 }
 
+/** Liens de catégorie : défilement dans la page sans modifier le fragment d'URL (onglet retenu, #50-F). */
+document.getElementById('cfg-jump').addEventListener('click', e => {
+  const a = e.target.closest('a[href^="#"]');
+  if (!a) return;
+  e.preventDefault();
+  const t = document.getElementById(a.getAttribute('href').slice(1));
+  if (t?.tagName === 'DETAILS') t.open = true;
+  t?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+/** Recherche : masque les réglages et catégories sans correspondance (les valeurs restent en place). */
+function cfgFilter() {
+  const q = document.getElementById('cfg-search').value.trim().toLowerCase();
+  let shown = 0;
+  for (const sec of document.querySelectorAll('#config-rows .cfg-group')) {
+    let n = 0;
+    for (const row of sec.querySelectorAll('.config-row')) {
+      const hit = !q || row.dataset.search.includes(q);
+      row.classList.toggle('hidden', !hit);
+      if (hit) n++;
+    }
+    sec.classList.toggle('hidden', !n);
+    if (q && n && sec.tagName === 'DETAILS') sec.open = true;
+    shown += n;
+  }
+  document.getElementById('cfg-empty').classList.toggle('hidden', shown > 0);
+}
+document.getElementById('cfg-search').addEventListener('input', cfgFilter);
+
+const cfgChanged = () => [...document.querySelectorAll('#config-rows .config-value[data-key]')].filter(i => i.value !== i.dataset.orig);
+/** Modifications en attente : ligne marquée + compteur à côté du bouton Enregistrer. */
+function cfgPending() {
+  const changed = new Set(cfgChanged());
+  for (const i of document.querySelectorAll('#config-rows .config-value[data-key]')) i.closest('.config-row').classList.toggle('is-changed', changed.has(i));
+  document.getElementById('cfg-pending').textContent = changed.size
+    ? `${changed.size} modification${changed.size > 1 ? 's' : ''} non enregistrée${changed.size > 1 ? 's' : ''}` : '';
+}
+document.getElementById('config-rows').addEventListener('input', cfgPending);
+document.getElementById('config-rows').addEventListener('change', cfgPending);
+
 document.getElementById('btn-save-config').addEventListener('click', async () => {
-  const inputs = document.querySelectorAll('.config-value[data-key]');
   const msgEl  = document.getElementById('config-msg');
   msgEl.classList.add('hidden');
   const errors = [];
-  for (const input of inputs) {
+  for (const input of cfgChanged()) {   // seuls les réglages modifiés sont envoyés (#62)
     const { ok, data } = await api('PUT', '/api/admin/config', { key: input.dataset.key, value: input.value });
     if (!ok) errors.push(data.error ?? `Erreur pour "${input.dataset.key}".`);
+    else input.dataset.orig = input.value;
   }
+  cfgPending();
   if (errors.length) { admShowError(document.getElementById('config-err'), errors.join(' · ')); return; }
   admShowError(document.getElementById('config-err'), '');
   admZoneClean(_cfgZone);
@@ -5691,22 +5827,28 @@ async function loadAiBudget() {
   const meter = document.getElementById('aib-meter-wrap');
   if (!s.configured) {
     state.textContent = 'API IA non configurée sur le serveur : aucune dépense possible.';
+    state.className = 'aib-state aib-state--blocked';
     meter.classList.add('hidden');
     icNotice(reached, '');
     return;
   }
+  // #62 : d'abord l'état (ce qui bloque ou non), puis les coûts observés avec leur période et leur périmètre.
   const usd = v => `${Number(v).toFixed(4)} USD`;
   const tt = s.totals ?? {};
   const month = tt.month ? new Date(`${tt.month}-15T00:00:00Z`).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
-  state.textContent = s.capEnabled
-    ? `Plafond bloquant actif : ${Number(s.capUsd).toFixed(2)} USD sur le cumul de tout Dig — il reste ${usd(s.remainingUsd)}.`
-    : 'Aucun plafond bloquant. Rien ne part sans votre clic : une image par clic, un appel à la fois, aucune génération en lot.';
+  const quotaFull = s.imagesToday >= s.maxImagesPerDay;
+  const [kind, text] = data.job?.status === 'running' ? ['busy', `⏳ Une génération est en cours (${data.job.name ?? 'image'}) : une seule à la fois.`]
+    : s.budgetReached ? ['blocked', '⛔ Génération bloquée par le plafond de dépense (détail ci-dessous).']
+    : quotaFull ? ['blocked', `⛔ Images bloquées jusqu'à demain : quota de ${s.maxImagesPerDay} images sur 24 h atteint.`]
+    : ['ok', '✅ Génération possible. Rien ne part sans votre clic : une image par clic, un appel à la fois, aucune génération en lot.'];
+  state.textContent = text;
+  state.className = `aib-state aib-state--${kind}`;
   const row = (k, v) => { dl.appendChild(aiEl('dt', {}, k)); dl.appendChild(aiEl('dd', {}, v)); };
-  row(`Ce mois-ci (${month}, UTC)`, `${usd(tt.monthUsd ?? 0)} — ${tt.monthCalls ?? 0} appel(s)`);
-  row('Cumul de tout Dig', `${usd(tt.totalUsd ?? s.globalSpentUsd)} — ${tt.calls ?? 0} appel(s)${tt.since ? ` depuis le ${icWhen(tt.since)}` : ''} (images ${usd(tt.imagesUsd ?? 0)}, textes ${usd(tt.textUsd ?? 0)})`);
-  row('Atelier d\'icônes seul', usd(s.studioSpentUsd));
-  row('Dernière image', s.lastImage ? `${usd(s.lastImage.cost_usd)} (coût calculé après l'appel)` : 'aucune');
-  row('Avant chaque image', icReserveText(s) || '—');
+  row(`Coût observé — ${month || 'ce mois-ci'} (mois UTC, tout Dig)`, `${usd(tt.monthUsd ?? 0)} — ${tt.monthCalls ?? 0} appel(s)`);
+  row('Cumul journalisé', `${usd(tt.totalUsd ?? s.globalSpentUsd)} — ${tt.calls ?? 0} appel(s)${tt.since ? ` depuis le ${icWhen(tt.since)}` : ''} · images ${usd(tt.imagesUsd ?? 0)}, textes ${usd(tt.textUsd ?? 0)}, dont atelier d'icônes ${usd(s.studioSpentUsd)}`);
+  row('Dernière image', s.lastImage ? `${usd(s.lastImage.cost_usd)} (calculé après l'appel)` : 'aucune');
+  row('Limites', `${s.capEnabled ? `plafond bloquant ${Number(s.capUsd).toFixed(2)} USD (il reste ${usd(s.remainingUsd)})` : 'aucun plafond bloquant'} · ${s.imagesToday}/${s.maxImagesPerDay} images sur 24 h`);
+  if (s.capEnabled) row('Avant chaque image', icReserveText(s) || '—');
   meter.classList.toggle('hidden', !s.capEnabled);
   document.getElementById('aib-meter').style.width = `${Math.min(100, s.capEnabled && s.capUsd ? (s.globalSpentUsd / s.capUsd) * 100 : 0)}%`;
   icNotice(reached, s.budgetReached ? icBudgetHelp(s) : '', 'warn');

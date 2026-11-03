@@ -89,7 +89,7 @@ test('fiche : fermeture protégée (✕, Annuler, fond, Échap, page) et fiche c
 
 test('liste : pleine largeur, colonnes dimensionnées, cartes sur mobile', () => {
   assert.match(HTML, /<table class="news-table">/);
-  assert.match(CSS, /#tab-news\.tab-content \{[^}]*max-width: 1440px/);
+  assert.match(CSS, /\n\.tab-content \{ width: 100%; max-width: 1440px; margin-inline: auto;/);   // conteneur commun (#62)
   assert.match(CSS, /\.news-table td\[data-label\]::before \{ content: attr\(data-label\)/);
   assert.match(fn('renderNews'), /td\.dataset\.label = label/);
 });

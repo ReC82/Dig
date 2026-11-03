@@ -63,7 +63,11 @@ header { gap: 8px; flex-wrap: wrap; }
   border-bottom: 1px solid var(--border);
 }
 
-.tab-content { padding: 20px; max-width: 960px; }
+/* Conteneur commun de TOUS les onglets (#62) : largeur utile centrée (1440 px max) sur grand écran, marges latérales
+   proportionnelles ; tableaux et grilles profitent de la largeur, les paragraphes gardent une largeur de lecture.
+   Un onglet ne fixe plus sa propre largeur (anciennement 960 px aligné à gauche, puis exceptions #37/#39/#48/#50). */
+.tab-content { width: 100%; max-width: 1440px; margin-inline: auto; padding: 20px clamp(12px, 2.5vw, 32px); min-width: 0; }
+.tab-content > p, .tab-content .overview-card > p, .tab-content details > p { max-width: 110ch; }
 
 /* ── Buttons ── */
 .btn {
@@ -164,19 +168,30 @@ th, td {
 th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
 tr:hover td { background: rgba(255,255,255,0.02); }
 
-/* ── Config ── */
-#config-rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
-.config-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-}
-.config-key { width: 180px; font-family: monospace; color: var(--gold); }
-.config-value { flex: 1; }
+/* ── Config (#62) : catégories en cartes (2 colonnes sur grand écran), une ligne par réglage :
+   libellé + explication + clé technique en petit à gauche, champ à droite ; tout passe à la ligne (min-width: 0),
+   rien ne se chevauche ni n'est tronqué. Empilé sous 760 px. ── */
+.cfg-toolbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 14px; }
+.cfg-toolbar input[type=search] { flex: 1 1 320px; min-width: 0; max-width: 560px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; font-size: 0.85rem; }
+.cfg-jump { display: flex; flex-wrap: wrap; gap: 6px; }
+.cfg-jump a { text-decoration: none; }
+#config-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; align-items: start; margin-bottom: 14px; }
+#config-rows .cfg-group { min-width: 0; margin: 0; scroll-margin-top: 12px; }
+#config-rows .cfg-advanced { grid-column: 1 / -1; }
+.config-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 200px); gap: 6px 16px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--border); }
+.config-row.is-changed { box-shadow: inset 3px 0 0 var(--gold); padding-left: 10px; }
+.config-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.config-label { font-weight: 600; color: var(--text); font-size: 0.88rem; }
+select.config-value { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 0.85rem; }
+.config-hint { font-size: 0.78rem; line-height: 1.35; }
+.config-key { font-family: monospace; font-size: 0.72rem; color: var(--muted); opacity: 0.85; }
+.config-value { width: 100%; min-width: 0; }
+.config-value:disabled { opacity: 0.6; cursor: not-allowed; }
+.cfg-save { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 20px; }
+.cfg-save p { flex-basis: 100%; }
+@media (max-width: 760px) { .config-row { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── Misc ── */
 .error   { color: var(--red);   font-size: 0.82rem; }
@@ -326,9 +341,6 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   table { display: block; overflow-x: auto; white-space: nowrap; }
   th, td { padding: 7px 8px; font-size: 0.78rem; }
 
-  /* Config : empiler la clé et la valeur */
-  .config-row { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .config-key { width: 100%; }
 
   /* Formulaires : pleine largeur */
   .auth-card { width: 94vw; padding: 20px; }
@@ -409,7 +421,6 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Catalogue de blocs (#37) : pleine largeur, filtres compacts, tableau lisible ── */
-#tab-blocks.tab-content { max-width: 1440px; }
 .bk-filters { flex-wrap: wrap; align-items: center; }
 .bk-filters input[type=search], .bk-filters select {
   background: var(--bg);
@@ -644,8 +655,13 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .ic-help > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
 .ic-help p { font-size: 0.8rem; margin: 8px 0; }
 .ic-budget-card { margin-top: 18px; }
+.aib-state { font-weight: 600; margin: 4px 0 10px; padding: 8px 12px; border-radius: var(--radius); border-left: 3px solid var(--border); background: var(--bg); }
+.aib-state--ok { border-left-color: var(--green); }
+.aib-state--busy { border-left-color: var(--gold); }
+.aib-state--blocked { border-left-color: var(--red); }
 .ic-budget-card .form-actions { flex-wrap: wrap; align-items: flex-end; margin: 10px 0 4px; }
 .ic-budget-card input[type=number] { width: 9rem; }
+.ic-budget-card .contest-check { flex-direction: row; align-items: center; gap: 6px; align-self: center; }
 .ic-meter { height: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin: 8px 0; max-width: 420px; }
 .ic-meter span { display: block; height: 100%; background: var(--gold); width: 0; }
 @media (max-width: 480px) {
@@ -686,8 +702,15 @@ table:has(.visually-hidden) { position: relative; }
 .co-thumb img { display: block; margin: auto; }
 /* Listes Séries / Objets (recette du 02/11) : même gabarit que les blocs (#37) — largeur disponible,
    miniatures 56 px + aperçu 256 px au survol/focus, libellés courts sur une ligne ; textes limités à une largeur de lecture. */
-#tab-collections.tab-content { max-width: 1440px; }
 #tab-collections .co-help p, #tab-collections .overview-card > p { max-width: 90ch; }
+/* Aide « Comment ça marche ? » (#62, commentaire du 03/11) : carte repliable, points courts en 2 colonnes sur grand écran. */
+#tab-collections .co-help { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 16px; margin-bottom: 16px; }
+#tab-collections .co-help > summary { cursor: pointer; font-weight: 600; color: var(--text); }
+#tab-collections .co-help-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 10px 20px;
+  list-style: none; margin: 12px 0 4px; padding: 0; }
+#tab-collections .co-help-steps li { display: flex; flex-direction: column; gap: 2px; padding-left: 10px; border-left: 2px solid var(--border); line-height: 1.4; }
+#tab-collections .co-help-steps strong { color: var(--text); }
+#tab-collections .co-help-key { border-left-color: var(--gold); }
 .co-series-table td.co-series-icon { font-size: 1.8rem; width: 56px; text-align: center; }
 .co-items-table td.co-series-cell { white-space: nowrap; }
 .co-items-table td.bk-range { min-width: 150px; }
@@ -875,7 +898,6 @@ table:has(.visually-hidden) { position: relative; }
 .st-journal code { color: var(--muted); word-break: break-all; }
 /* Recette #48 du 03/11 : l'onglet Ligues & Saisons occupe la largeur utile (1440 px max, comme Blocs/Collections),
    centré ; cartes de thème en 2 colonnes égales sur grand écran, empilées en dessous de 900 px ; textes à largeur de lecture. */
-#tab-season-overview.tab-content { width: 100%; max-width: 1440px; margin-inline: auto; padding-inline: clamp(12px, 2.5vw, 32px); }
 #tab-season-overview .overview-card { min-width: 0; }
 #tab-season-overview .overview-card > p, #tab-season-overview #st-more p { max-width: 110ch; }
 #tab-season-overview #season-stats { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
@@ -893,7 +915,6 @@ table:has(.visually-hidden) { position: relative; }
 /* ── Centre d'actualités (#50) ── */
 /* Recette #50-A du 03/11 : liste pleine largeur (1440 px max, comme Blocs/Collections), colonnes dimensionnées,
    cartes empilées sur mobile. */
-#tab-news.tab-content { width: 100%; max-width: 1440px; margin-inline: auto; }
 .news-table { width: 100%; }
 .news-table td.nw-c-state, .news-table td.nw-c-nowrap { white-space: nowrap; }
 .news-table td.nw-c-title { min-width: 260px; width: 40%; overflow-wrap: anywhere; }
