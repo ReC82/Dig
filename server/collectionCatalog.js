@@ -17,6 +17,13 @@
  *     désactive. Les objets acquis restent dans la sauvegarde du joueur (aucune réécriture) ;
  *   - une série est permanente (seasonId null) ou rattachée à une saison : ses objets ne tombent que
  *     pendant cette saison, puis passent en « archives » consultables ;
+ *   - saison future pas encore créée (03/11) : `seasonWeek` (« 2026-W46 », semaine ISO) rattache la
+ *     série à la saison qui commencera cette semaine-là. Tant que cette saison n'existe pas en base, la
+ *     série et ses objets sont RETIRÉS du catalogue public (ni visibles ni obtenables : aucun client,
+ *     même ancien, ne peut les traiter comme permanents) ; dès qu'elle existe, le catalogue public
+ *     expose `seasonId` = cette saison (résolution à la lecture, sans réécrire les versions publiées).
+ *     Résolution : saison attachée au thème #48 de cette semaine, sinon la première saison qui commence
+ *     dans la semaine (lundi 00:00 → dimanche 23:59:59 UTC). Un `seasonId` explicite l'emporte ;
  *   - aucun nouveau drop sans validation du barème : publier un objet dont le drop est activé ou
  *     modifié exige une confirmation explicite (`confirmDrops`) — tracée au journal ;
  *   - images téléversées stockées dans la base (`collection_images`, couvertes par les sauvegardes),
@@ -27,6 +34,7 @@
 
 const crypto = require('crypto');
 const db     = require('./db');
+const cal    = require('./seasonCalendar');
 
 const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];
 const RARITIES   = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
@@ -37,6 +45,7 @@ const MAX_IMAGE_BYTES = 350 * 1024;
 const MAX_CHANCE = 0.5;
 
 const ID_RE    = /^[a-z][a-z0-9_]{1,39}$/;
+const WEEK_RE  = /^(\d{4})-W(\d{2})$/;
 const IMAGE_RE = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp)|\/media\/icons\/[a-f0-9]{16}\.webp)$/;
 
 class CatalogError extends Error {
@@ -235,11 +244,62 @@ function _seasonInfo(ids) {
   return out;
 }
 
-/** Catalogue public (jeu) : version en vigueur + saisons référencées (nom, statut). */
+// ── Saison future par semaine ISO (03/11) ─────────────────────────────────────
+
+/** Lundi 00:00:00 UTC de la semaine ISO « 2026-W46 », ou null si la clé est invalide. */
+function weekMonday(weekKey) {
+  const m = WEEK_RE.exec(String(weekKey ?? ''));
+  if (!m) return null;
+  const year = +m[1], week = +m[2];
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const monday = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 864e5 + (week - 1) * 7 * 864e5);
+  // Semaine 53 inexistante (ex. 2026-W53) : le lundi calculé tombe dans l'année ISO suivante
+  const thu = new Date(monday.getTime() + 3 * 864e5);
+  return week >= 1 && thu.getUTCFullYear() === year ? monday : null;
+}
+
+const _sqlUtc = d => d.toISOString().slice(0, 19).replace('T', ' ');
+
+/**
+ * Saison réelle d'une semaine ISO (lecture seule) : celle du thème #48 de cette semaine si elle lui
+ * est attachée, sinon la première saison qui commence dans la semaine. null tant qu'elle n'existe pas.
+ */
+function weekSeasonId(weekKey) {
+  const monday = weekMonday(weekKey);
+  if (!monday) return null;
+  try {
+    const t = conn().prepare('SELECT season_id FROM season_themes WHERE week_key = ? AND season_id IS NOT NULL ORDER BY id LIMIT 1').get(weekKey);
+    if (t?.season_id != null && conn().prepare('SELECT 1 FROM seasons WHERE id = ?').get(t.season_id)) return t.season_id;
+  } catch (_) { /* table des thèmes absente (bases de test) */ }
+  const s = conn().prepare('SELECT id FROM seasons WHERE start_at >= ? AND start_at < ? ORDER BY start_at, id LIMIT 1')
+    .get(_sqlUtc(monday), _sqlUtc(new Date(monday.getTime() + 7 * 864e5)));
+  return s?.id ?? null;
+}
+
+/** Saison effective : `seasonId` explicite, sinon saison résolue de `seasonWeek` ; `pending` = semaine sans saison réelle. */
+function effectiveSeason(series) {
+  if (series.seasonId != null) return { seasonId: series.seasonId, pending: false };
+  if (!series.seasonWeek) return { seasonId: null, pending: false };
+  const id = weekSeasonId(series.seasonWeek);
+  return { seasonId: id, pending: id == null };
+}
+
+/**
+ * Catalogue public (jeu) : version en vigueur + saisons référencées (nom, statut). Une série en
+ * attente de sa saison future (et ses objets) n'y figure pas ; une série résolue y porte `seasonId`.
+ */
 function publicCatalog() {
   const p = getPublished();
-  const seasonIds = [...new Set(p.series.map(s => s.seasonId).filter(id => id != null))];
-  return { version: p.version, series: p.series, items: p.items, seasons: _seasonInfo(seasonIds) };
+  const pending = new Set();
+  const series = [];
+  for (const s of p.series) {
+    const eff = effectiveSeason(s);
+    if (eff.pending) { pending.add(s.id); continue; }
+    series.push(eff.seasonId === s.seasonId ? s : { ...s, seasonId: eff.seasonId });
+  }
+  const items = pending.size ? p.items.filter(i => !pending.has(i.seriesId)) : p.items;
+  const seasonIds = [...new Set(series.map(s => s.seasonId).filter(id => id != null))];
+  return { version: p.version, series, items, seasons: _seasonInfo(seasonIds) };
 }
 
 function _publishedIds() {
@@ -285,7 +345,10 @@ function normalizeSeries(input) {
     if (!_int(seasonId, 1, 1e9)) throw new CatalogError(400, `${where} : saison invalide.`);
     if (!conn().prepare('SELECT 1 FROM seasons WHERE id = ?').get(seasonId)) throw new CatalogError(400, `${where} : saison ${seasonId} introuvable.`);
   }
-  return { id, names, seasonId, icon: _icon(input.icon, where), active: input.active !== false };
+  // Semaine d'une saison future : seulement sans saison explicite (le seasonId l'emporte et la remplace)
+  const week = seasonId === null && input.seasonWeek ? String(input.seasonWeek).trim() : null;
+  if (week && !weekMonday(week)) throw new CatalogError(400, `${where} : semaine de saison invalide (format 2026-W46 attendu).`);
+  return { id, names, seasonId, ...(week ? { seasonWeek: week } : {}), icon: _icon(input.icon, where), active: input.active !== false };
 }
 
 function normalizeItem(input) {
@@ -382,8 +445,8 @@ function dropChanges(from, to) {
     const b = before.get(i.id);
     const sA = seriesAfter.get(i.seriesId), sB = b && seriesBefore.get(b.seriesId);
     if (!live(b, seriesBefore) || JSON.stringify(b.drop) !== JSON.stringify(i.drop) || b.seriesId !== i.seriesId
-        || (sB?.seasonId ?? null) !== (sA?.seasonId ?? null)) {
-      out.push({ id: i.id, drop: i.drop, seasonId: sA?.seasonId ?? null });
+        || (sB?.seasonId ?? null) !== (sA?.seasonId ?? null) || (sB?.seasonWeek ?? null) !== (sA?.seasonWeek ?? null)) {
+      out.push({ id: i.id, drop: i.drop, seasonId: sA?.seasonId ?? null, seasonWeek: sA?.seasonWeek ?? null });
     }
   }
   return out;
@@ -480,32 +543,81 @@ function publishDraft({ note, expectedBasedOn, confirmDrops, confirmIncomplete }
 
 const _fmtDate = v => String(v ?? '').slice(0, 16);
 
+/** « 2026-W46 (semaine du 09/11/2026) » */
+function _weekLabel(week) {
+  const m = weekMonday(week);
+  return m ? `${week} (semaine du ${m.toISOString().slice(0, 10).split('-').reverse().join('/')})` : week;
+}
+
+/**
+ * Semaines futures proposées dans le choix de saison (admin) : thèmes #48 préparés et semaines à
+ * venir sans saison créée, jusqu'à `weeks` semaines. Une semaine dont la saison existe déjà n'y
+ * figure pas (la saison elle-même est proposée).
+ */
+function futureWeeks(now = new Date(), weeks = 8) {
+  let themes = [];
+  try {
+    themes = conn().prepare("SELECT week_key, planned_start, names, series_id FROM season_themes WHERE status = 'prepared' AND season_id IS NULL").all();
+  } catch (_) { /* table des thèmes absente */ }
+  const byWeek = new Map(themes.map(t => [t.week_key, t]));
+  const out = [];
+  const keys = new Set(themes.map(t => t.week_key));
+  for (let k = 0; k <= weeks; k++) {
+    const { year, week } = cal.isoWeek(new Date(now.getTime() + k * 7 * 864e5));
+    keys.add(`${year}-W${String(week).padStart(2, '0')}`);
+  }
+  for (const key of [...keys].sort()) {
+    const monday = weekMonday(key);
+    if (!monday || monday.getTime() <= now.getTime() || weekSeasonId(key) != null) continue;   // semaines à venir seulement
+    const t = byWeek.get(key);
+    let name = null;
+    try { name = t ? JSON.parse(t.names).fr : null; } catch (_) { /* thème illisible */ }
+    out.push({ week: key, monday: _sqlUtc(monday), label: _weekLabel(key), themeName: name, themeSeriesId: t?.series_id ?? null });
+  }
+  return out;
+}
+
 /**
  * État de publication d'une série dans un contenu (brouillon ou version cible), par rapport à ce
  * qui a déjà été publié. `blocking` vide = la série peut être publiée seule sans exposer de contenu
  * incomplet. `needsPermanent` : nouvelle série sans saison → la rendre permanente est une décision
  * métier (confirmation `confirmPermanent`).
  */
-function seriesReadiness(content, seriesId, { published = getPublished(), ids = _publishedIds() } = {}) {
+function seriesReadiness(content, seriesId, { published = getPublished(), ids = _publishedIds(), now = new Date() } = {}) {
   const s = (content.series ?? []).find(x => x.id === seriesId);
   if (!s) return null;
   const isNew = !ids.series.has(s.id);
   const blocking = [], warnings = [], info = [];
   let season = null, schedule, needsPermanent = false;
-  if (s.seasonId == null) {
+  const eff = effectiveSeason(s);
+  const week = s.seasonId == null && s.seasonWeek ? s.seasonWeek : null;
+  const weekLabel = week ? _weekLabel(week) : null;
+  if (week && eff.pending) {
+    const monday = weekMonday(week);
+    if (monday.getTime() + 7 * 864e5 <= now.getTime()) {
+      schedule = 'unknown';
+      blocking.push(`Semaine ${weekLabel} passée sans saison créée : rattachez la série à une saison existante ou à une semaine future.`);
+    } else {
+      schedule = 'future';
+      if (monday.getTime() <= now.getTime()) warnings.push(`Semaine ${weekLabel} commencée mais saison pas encore créée (rotation en attente) : la série reste invisible et sans drop.`);
+      info.push(`Saison future ${weekLabel} : pas encore créée. Série invisible des joueurs et sans drop jusqu'à la création de cette saison `
+        + '(rotation automatique), puis rattachement automatique : drops pendant cette saison seulement, archives ensuite.');
+    }
+  } else if (eff.seasonId == null) {
     schedule = 'permanent';
     if (isNew) {
       needsPermanent = true;
       blocking.push('Permanente : aucune saison choisie. Publiée ainsi, ses objets tomberaient chaque semaine, sans fin (comme la collection des origines). '
-        + 'Rattachez-la à une saison (en cours ou programmée), ou confirmez qu\'elle doit être permanente.');
+        + 'Rattachez-la à une saison (en cours, programmée ou future — semaine), ou confirmez qu\'elle doit être permanente.');
     } else {
       info.push('Série permanente : ses objets tombent quelle que soit la saison.');
     }
   } else {
-    season = _seasonInfo([s.seasonId])[s.seasonId] ?? null;
+    season = _seasonInfo([eff.seasonId])[eff.seasonId] ?? null;
+    if (week) info.push(`Semaine ${weekLabel} : saison créée (n° ${eff.seasonId}), rattachement automatique effectif.`);
     if (!season) {
       schedule = 'unknown';
-      blocking.push(`Saison ${s.seasonId} introuvable.`);
+      blocking.push(`Saison ${eff.seasonId} introuvable.`);
     } else if (season.status === 'closed' || season.status === 'archived') {
       schedule = 'over';
       (isNew ? blocking : warnings).push(`Saison « ${season.name} » terminée : ses objets ne tomberont plus (archives seulement).`);
@@ -692,6 +804,7 @@ function buildAdminView() {
     publishedIds: { series: [...ids.series], items: [...ids.items] },
     versions: listVersions(),
     seasons: conn().prepare('SELECT id, name, status, start_at, end_at FROM seasons ORDER BY id DESC LIMIT 60').all(),
+    futureWeeks: futureWeeks(),
     images: listImages(),
     categories: CATEGORIES,
     rarities: RARITIES,
@@ -701,7 +814,7 @@ function buildAdminView() {
 
 module.exports = {
   CatalogError, CATEGORIES, RARITIES, LANGS, ORIGIN_ITEMS,
-  init, originContent, getPublished, getVersion, getDraft, listVersions, publicCatalog,
+  init, originContent, getPublished, weekMonday, weekSeasonId, effectiveSeason, futureWeeks, getVersion, getDraft, listVersions, publicCatalog,
   normalizeSeries, normalizeItem, validateContent, diff, dropChanges,
   upsertDraftSeries, upsertDraftItem, removeDraftEntry, discardDraft, publishDraft, publishSeries, seriesReadiness, rollbackTo, listAudit,
   storeImage, getImage, listImages, buildAdminView,

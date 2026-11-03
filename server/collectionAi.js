@@ -180,13 +180,16 @@ function _drop(rarity, d) {
 }
 
 /** Proposition normalisée : identifiants uniques et propres, textes bornés, drops inactifs. */
-function _normalize(raw, { seasonId = null } = {}) {
+function _normalize(raw, { seasonId = null, seasonWeek = null } = {}) {
   const s = raw?.series ?? {};
   const series = {
     id: _slug(s.id ?? s.idSuggestion) || 'nouvelle_serie',
     names: _texts(s.names, 60), icon: _emoji(s.icon, '📦'), theme: _clean(s.theme, 300),
     seasonId: seasonId ?? (s.seasonId === undefined || s.seasonId === null || s.seasonId === '' ? null : Number(s.seasonId)),
   };
+  // Saison future pas encore créée (semaine ISO, 03/11) : seulement sans saison explicite
+  const week = series.seasonId == null ? _clean(seasonWeek ?? s.seasonWeek, 8) : '';
+  if (week && catalog.weekMonday(week)) series.seasonWeek = week;
   const seen = new Set();
   const items = (Array.isArray(raw?.items) ? raw.items : []).slice(0, ITEMS_MAX).map((i, k) => {
     let id = _slug(i.id ?? i.idSuggestion) || `objet_${k + 1}`;
@@ -358,8 +361,9 @@ function _open(id) {
 function updateProposal(id, input = {}) {
   const p = _open(id);
   const sid = input.series && 'seasonId' in input.series ? input.series.seasonId : p.data.series.seasonId;
-  const next = _normalize({ series: { ...p.data.series, ...(input.series ?? {}) }, items: Array.isArray(input.items) ? input.items : p.data.items,
-    rationale: p.data.rationale, review: p.data.review }, { seasonId: sid === '' || sid == null ? null : Number(sid) });
+  const week = input.series && 'seasonWeek' in input.series ? input.series.seasonWeek : p.data.series.seasonWeek;
+  const next = _normalize({ series: { ...p.data.series, ...(input.series ?? {}), seasonWeek: undefined }, items: Array.isArray(input.items) ? input.items : p.data.items,
+    rationale: p.data.rationale, review: p.data.review }, { seasonId: sid === '' || sid == null ? null : Number(sid), seasonWeek: week || null });
   if (next.series.seasonId != null) _seasonName(next.series.seasonId);
   if (!next.items.length) throw new CollectionAiError(400, 'Gardez au moins un objet.');
   conn().prepare("UPDATE collection_ai_proposals SET data = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(next), id);
@@ -378,7 +382,7 @@ function addToDraft(id) {
   if (c.series.some(s => s.id === series.id)) throw new CollectionAiError(409, `La série « ${series.id} » existe déjà : changez l'identifiant.`);
   const taken = items.filter(i => c.items.some(x => x.id === i.id)).map(i => i.id);
   if (taken.length) throw new CollectionAiError(409, `Identifiant(s) déjà utilisé(s) : ${taken.join(', ')}.`);
-  const toSeries = { id: series.id, names: series.names, seasonId: series.seasonId, icon: series.icon, active: true };
+  const toSeries = { id: series.id, names: series.names, seasonId: series.seasonId, seasonWeek: series.seasonWeek ?? null, icon: series.icon, active: true };
   const toItems = items.map(i => ({ id: i.id, seriesId: series.id, names: i.names, stories: i.stories, rarity: i.rarity, icon: i.icon,
     image: null, drop: i.drop, dropEnabled: false, active: true }));
   // Validation complète d'abord (mêmes règles que les fiches manuelles), puis écriture
@@ -425,14 +429,14 @@ const PREPARED_DIR = require('path').join(__dirname, 'content', 'collections');
  * → `{ status: 'already', proposal, seriesId }` sans rien réécrire. Aussi utilisé par les saisons
  * thématiques (#48), qui préparent la collection de la saison à partir d'un pack de saison.
  */
-function importPack(pack, { key = pack?.pack, seasonId = null } = {}) {
+function importPack(pack, { key = pack?.pack, seasonId = null, seasonWeek = null } = {}) {
   key = String(key ?? '');
   if (!/^[a-z0-9_]{3,60}$/.test(key)) throw new Error('identifiant de pack invalide');
   const prev = conn().prepare("SELECT id, status, series_id FROM collection_ai_proposals WHERE json_extract(params, '$.pack') = ?").get(key);
   if (prev) return { pack: key, proposal: prev.id, status: 'already', seriesId: prev.series_id };
-  const data = _normalize(pack, { seasonId });
+  const data = _normalize(pack, { seasonId, seasonWeek });
   if (!data.items.length) throw new Error('aucun objet');
-  const params = { pack: key, prepared: true, itemCount: data.items.length, seasonId: data.series.seasonId };
+  const params = { pack: key, prepared: true, itemCount: data.items.length, seasonId: data.series.seasonId, seasonWeek: data.series.seasonWeek ?? null };
   const id = conn().prepare("INSERT INTO collection_ai_proposals (concept, params, status, data) VALUES (?, ?, 'open', ?)")
     .run(_clean(pack.concept, CONCEPT_MAX) || `Collection préparée ${key}`, JSON.stringify(params), JSON.stringify(data)).lastInsertRowid;
   try {

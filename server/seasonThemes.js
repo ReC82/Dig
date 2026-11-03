@@ -322,11 +322,12 @@ function _insertTheme({ weekKey, plannedStart, seasonId = null, texts, source, p
 }
 
 /** Collection du pack dans le brouillon du catalogue (#39), consignes d'illustration dans l'atelier (#40). */
-function _importCollection(themeId, pack, seasonId) {
+function _importCollection(themeId, pack, seasonId, weekKey) {
   if (!pack.collection) return;
   let note = null, seriesId = null;
   try {
-    const r = require('./collectionAi').importPack(pack.collection, { seasonId });
+    // Saison pas encore créée : la série est rattachée à sa semaine (résolue à la création de la saison)
+    const r = require('./collectionAi').importPack(pack.collection, { seasonId, seasonWeek: seasonId == null ? weekKey : null });
     seriesId = r.seriesId ?? pack.collection.series?.id ?? null;
     if (r.status === 'open') note = `Collection laissée en proposition IA n° ${r.proposal} : ${r.error}`;
     if (r.status === 'already') note = `Collection déjà importée auparavant (proposition n° ${r.proposal}).`;
@@ -357,7 +358,7 @@ function _create({ weekKey, plannedStart, seasonId = null, allowPack, dir }) {
   });
   const r = run.immediate();
   if (r.created) {
-    if (r.pack) _importCollection(r.theme.id, r.pack, seasonId);
+    if (r.pack) _importCollection(r.theme.id, r.pack, seasonId, weekKey);
     console.log(`[seasonThemes] Thème ${r.theme.status === 'active' ? 'attribué' : 'préparé'} : « ${r.theme.names.fr} » (${r.theme.source}, ${weekKey})`);
   }
   return getTheme(r.theme.id);
@@ -370,10 +371,41 @@ function _linkSeries(theme, seasonId) {
     const catalog = require('./collectionCatalog');
     if (catalog.getPublished().series.some(s => s.id === theme.seriesId)) return;
     const s = catalog.getDraft()?.series.find(x => x.id === theme.seriesId);
-    if (s && s.seasonId == null) catalog.upsertDraftSeries({ ...s, seasonId });
+    // Une semaine choisie par l'admin pour une AUTRE saison est respectée (résolue à sa propre création)
+    if (s && s.seasonId == null && (!s.seasonWeek || s.seasonWeek === theme.weekKey)) catalog.upsertDraftSeries({ ...s, seasonId });
   } catch (err) {
     console.warn(`[seasonThemes] série ${theme.seriesId} non rattachée à la saison ${seasonId} : ${err.message}`);
   }
+}
+
+/**
+ * Série d'un thème préparé AVANT le 03/11 : importée « Permanente » (sans saison, faute de saison
+ * future en base). Rattachée une seule fois à la semaine du thème dans le brouillon (jamais publiée
+ * ici, drops inchangés) ; un choix ultérieur de l'admin n'est jamais écrasé (repère au journal).
+ */
+function _linkPreparedWeeks() {
+  const rows = conn().prepare(`SELECT * FROM season_themes t WHERE status = 'prepared' AND season_id IS NULL AND series_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM season_theme_events e WHERE e.theme_id = t.id AND e.action = 'series_week')`).all();
+  if (!rows.length) return 0;
+  let linked = 0;
+  const catalog = require('./collectionCatalog');
+  for (const theme of rows.map(_row)) {
+    let result = 'unchanged';
+    try {
+      const s = catalog.getDraft()?.series.find(x => x.id === theme.seriesId);
+      const published = catalog.getPublished().series.some(x => x.id === theme.seriesId);
+      if (s && !published && s.seasonId == null && !s.seasonWeek) {
+        catalog.upsertDraftSeries({ ...s, seasonWeek: theme.weekKey });
+        result = 'linked'; linked++;
+        console.log(`[seasonThemes] série ${theme.seriesId} rattachée à la semaine ${theme.weekKey} (brouillon)`);
+      }
+    } catch (err) {
+      result = `error: ${err.message}`;
+      console.warn(`[seasonThemes] série ${theme.seriesId} non rattachée à ${theme.weekKey} : ${err.message}`);
+    }
+    _event(theme.id, 'series_week', { seriesId: theme.seriesId, weekKey: theme.weekKey, result });
+  }
+  return linked;
 }
 
 /** Thème de la saison active : le thème préparé pour sa semaine, sinon un nom de repli (sans collection). */
@@ -418,6 +450,7 @@ function sync(now = new Date(), { force = false, dir = defaultPacksDir() } = {})
   const stale = "status = 'active' AND season_id IN (SELECT id FROM seasons WHERE status != 'active')";
   const archived = conn().prepare(`SELECT 1 FROM season_themes WHERE ${stale} LIMIT 1`).get()
     ? conn().prepare(`UPDATE season_themes SET status = 'archived', updated_at = datetime('now') WHERE ${stale}`).run().changes : 0;
+  _linkPreparedWeeks();
   if (!active) return { active: null, next: null, archived };
   const current = _attach(active, dir);
   const start = nextStart(active, now);

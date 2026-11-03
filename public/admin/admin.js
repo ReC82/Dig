@@ -2697,10 +2697,50 @@ function coWorking() {
   return _co.draft ? { series: _co.draft.series, items: _co.draft.items } : { series: _co.published.series, items: _co.published.items };
 }
 
-function coSeasonLabel(id) {
+function coSeasonLabel(id, week = null) {
+  if (id == null && week) {
+    const f = (_co.futureWeeks ?? []).find(x => x.week === week);
+    return f ? `🗓️ Saison future ${f.label}${f.themeName ? ` « ${f.themeName} »` : ''}` : `🗓️ Semaine ${week}`;
+  }
   if (id == null) return 'Permanente (aucune saison)';
   const s = _co.seasons.find(x => x.id === id);
   return s ? `#${s.id} ${s.name} (${s.status})` : `#${id}`;
+}
+
+// Choix de saison (03/11) : '' = permanente, '<id>' = saison existante, 'week:2026-W46' = saison future
+// pas encore créée (rattachement automatique à sa création, aucun drop avant).
+const coSeasonValue = s => (s?.seasonId != null ? String(s.seasonId) : s?.seasonWeek ? `week:${s.seasonWeek}` : '');
+function coSeasonFromValue(v) {
+  if (v.startsWith('week:')) return { seasonId: null, seasonWeek: v.slice(5) };
+  return { seasonId: v === '' ? null : Number(v), seasonWeek: null };
+}
+/** Options du choix de saison : permanente, saisons futures (semaines), saisons existantes. */
+function coSeasonOptions(sel, { weeks = true } = {}) {
+  const value = sel.value;
+  sel.textContent = '';
+  const opt = (parent, v, label) => { const o = document.createElement('option'); o.value = v; o.textContent = label; parent.appendChild(o); };
+  opt(sel, '', 'Permanente (hors saison) — tombe chaque semaine, sans fin');
+  if (weeks && _co.futureWeeks?.length) {
+    const g = document.createElement('optgroup');
+    g.label = 'Saisons futures (pas encore créées : rattachement automatique)';
+    for (const f of _co.futureWeeks) opt(g, `week:${f.week}`, `🗓️ ${f.label}${f.themeName ? ` — « ${f.themeName} » (thème préparé)` : ''}`);
+    sel.appendChild(g);
+  }
+  const g = document.createElement('optgroup');
+  g.label = 'Saisons existantes';
+  for (const x of _co.seasons) opt(g, String(x.id), `#${x.id} ${x.name} (${x.status})`);
+  sel.appendChild(g);
+  if ([...sel.options].some(o => o.value === value)) sel.value = value;
+}
+/** Sélectionne la valeur d'une série ; une semaine absente de la liste (passée ou déjà créée) est ajoutée. */
+function coSeasonSet(sel, s) {
+  const v = coSeasonValue(s);
+  if (![...sel.options].some(o => o.value === v)) {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = coSeasonLabel(s.seasonId ?? null, s.seasonWeek ?? null);
+    sel.appendChild(o);
+  }
+  sel.value = v;
 }
 
 function coSelect(id, entries, keepFirst = 0) {
@@ -2784,7 +2824,8 @@ function coFillSeriesForm(s) {
   idEl.value = s ? s.id : '';
   idEl.readOnly = !!s;
   for (const l of CO_LANGS) document.getElementById(`co-s-name-${l}`).value = s?.names?.[l] ?? '';
-  document.getElementById('co-s-season').value = s?.seasonId == null ? '' : String(s.seasonId);
+  coSeasonOptions(document.getElementById('co-s-season'));
+  coSeasonSet(document.getElementById('co-s-season'), s);
   document.getElementById('co-s-icon').value = s ? s.icon : '📦';
   document.getElementById('co-s-active').checked = s ? s.active : true;
   const rm = document.getElementById('btn-co-s-remove');
@@ -2986,17 +3027,47 @@ function coRenderItems() {
   document.getElementById('co-items-count').textContent = `— ${shown} / ${items.length}`;
 }
 
-async function loadCollections() {
-  const { ok, data } = await api('GET', '/api/admin/collections');
-  if (!ok) { coNotice(data.error || 'Erreur lors du chargement.', false); return; }
+const coClock = d => d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+let _coLoadedAt = null;
+
+// Chaque chargement relit la base (GET /api/admin/collections, sans cache). « Rafraîchir » montre
+// l'attente, puis l'heure de mise à jour ou l'erreur ; filtres, recherche et fiche ouverte sont
+// conservés (même retour que la bêta #57, recette du 03/11).
+async function loadCollections({ manual = false } = {}) {
+  const btn = document.getElementById('btn-refresh-collections');
+  const st  = document.getElementById('co-refresh-status');
+  if (manual) {
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.textContent = '↻ Actualisation…';
+    st.className = 'refresh-status';
+    st.textContent = 'Chargement…';
+  }
+  let res;
+  try { res = await api('GET', '/api/admin/collections'); }
+  catch { res = { ok: false, data: { error: 'serveur inaccessible' } }; }
+  if (manual) {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.textContent = '↻ Rafraîchir';
+  }
+  const { ok, data } = res;
+  if (!ok) {
+    st.className = 'refresh-status is-err';
+    st.textContent = `⚠️ Échec de l’actualisation (${data.error || 'erreur'})${_coLoadedAt ? ` — données affichées : ${coClock(_coLoadedAt)}` : ''}`;
+    if (!manual) coNotice(data.error || 'Erreur lors du chargement.', false);
+    return;
+  }
   _co = data;
+  _coLoadedAt = new Date();
+  st.className = 'refresh-status';
+  st.textContent = `✓ Données à jour à ${coClock(_coLoadedAt)}`;
+  if (manual) admToast(`Collections : données à jour à ${coClock(_coLoadedAt)}.`);
   const w = coWorking();
   const p = data.published;
 
-  // Sélecteurs
-  const seasonOpts = [['', 'Permanente (hors saison)'], ...data.seasons.map(s => [String(s.id), `#${s.id} ${s.name} (${s.status})`])];
-  coSelect('co-s-season', seasonOpts);
-  coSelect('co-ai-season', seasonOpts);
+  // Sélecteurs (le choix de la fiche Série est reconstruit à son ouverture : saisie en cours conservée)
+  coSeasonOptions(document.getElementById('co-ai-season'), { weeks: false });
   coSelect('co-i-series', w.series.map(s => [s.id, `${s.icon} ${s.names.fr}`]));
   coSelect('co-filter-series', w.series.map(s => [s.id, `${s.icon} ${s.names.fr}`]), 1);
   coSelect('co-i-rarity', data.rarities.map(r => [r, BK_RARITY[r] ?? r]));
@@ -3024,7 +3095,7 @@ async function loadCollections() {
   const seriesChanged = new Set((data.draft?.changes ?? []).filter(c => c.kind === 'series').map(c => c.id));
   for (const s of w.series) {
     const tr = document.createElement('tr');
-    [s.icon, s.id, s.names.fr, coSeasonLabel(s.seasonId), w.items.filter(i => i.seriesId === s.id).length].forEach(x => addCell(tr, x));
+    [s.icon, s.id, s.names.fr, coSeasonLabel(s.seasonId, s.seasonWeek), w.items.filter(i => i.seriesId === s.id).length].forEach(x => addCell(tr, x));
     ['co-series-icon', 'bk-id', '', 'nowrap', 'num'].forEach((c, k) => { if (c) tr.children[k].className = c; });
     coStateCell(tr, data.publishedIds.series.includes(s.id), seriesChanged.has(s.id), s.active, 'Série');
     admRowOpen(tr, `co-series:${s.id}`, s.names.fr, row => coOpenSeries(coWorking().series.find(x => x.id === s.id) ?? s, row));
@@ -3039,6 +3110,8 @@ async function loadCollections() {
   bkFillList(document.getElementById('co-draft-warnings'), d ? d.warnings : []);
   const cb = document.getElementById('co-changes-body');
   cb.textContent = '';
+  document.getElementById('co-changes-details').classList.toggle('hidden', !d?.changes.length);
+  document.getElementById('co-changes-summary').textContent = `Détail des ${d?.changes.length ?? 0} changement(s) du brouillon`;
   for (const c of d ? d.changes : []) {
     const tr = document.createElement('tr');
     addCell(tr, `${c.kind === 'series' ? 'Série' : 'Objet'} ${c.id}`);
@@ -3048,7 +3121,7 @@ async function loadCollections() {
   const drops = d ? d.drops : [];
   document.getElementById('co-drops-box').classList.toggle('hidden', !drops.length);
   bkFillList(document.getElementById('co-drops-list'), drops.map(x =>
-    `${x.id} : ${x.drop.from.join('/')} dès ${x.drop.minDepth} m, ${+(x.drop.chance * 100).toFixed(3)} % par bloc — ${coSeasonLabel(x.seasonId)}`));
+    `${x.id} : ${x.drop.from.join('/')} dès ${x.drop.minDepth} m, ${+(x.drop.chance * 100).toFixed(3)} % par bloc — ${coSeasonLabel(x.seasonId, x.seasonWeek)}`));
   document.getElementById('co-confirm-drops').checked = false;
   coRenderReadiness(d);
   const incomplete = (d?.readiness ?? []).filter(r => r.blocking.length);
@@ -3086,7 +3159,8 @@ async function loadCollections() {
 }
 
 // Publication ciblée (03/11) : état de chaque série touchée par le brouillon, publiable seule si complète.
-const CO_SCHEDULE = { permanent: '♾️ Permanente', scheduled: '🗓️ Saison programmée', live: '🟢 Saison en cours', over: '⏹️ Saison terminée', unknown: '❔ Saison inconnue' };
+const _coReadyOpen = new Set();
+const CO_SCHEDULE = { permanent: '♾️ Permanente', future: '🗓️ Saison future (pas encore créée)', scheduled: '🗓️ Saison programmée', live: '🟢 Saison en cours', over: '⏹️ Saison terminée', unknown: '❔ Saison inconnue' };
 function coRenderReadiness(d) {
   const list = document.getElementById('co-ready-list');
   list.textContent = '';
@@ -3097,9 +3171,11 @@ function coRenderReadiness(d) {
     const ready = !r.blocking.filter(b => !(r.needsPermanent && b.startsWith('Permanente'))).length;
     const box = document.createElement('details');
     box.className = `co-ready co-ready--${r.blocking.length ? 'blocked' : 'ok'}`;
-    box.open = true;
+    box.open = _coReadyOpen.has(r.seriesId);   // replié par défaut (résumé sur une ligne), état conservé
+    box.addEventListener('toggle', () => { if (box.open) _coReadyOpen.add(r.seriesId); else _coReadyOpen.delete(r.seriesId); });
     const sum = document.createElement('summary');
-    sum.textContent = `${s?.icon ?? ''} ${s?.names?.fr ?? r.seriesId} — ${CO_SCHEDULE[r.schedule] ?? r.schedule} · `
+    sum.textContent = `${s?.icon ?? ''} ${s?.names?.fr ?? r.seriesId} — ${CO_SCHEDULE[r.schedule] ?? r.schedule}`
+      + `${r.season ? ` ${r.season.name}` : s?.seasonWeek ? ` ${s.seasonWeek}` : ''} · `
       + `${r.illustrated}/${r.active} illustré(s) · ${r.dropping}/${r.active} drop(s) actif(s) · `
       + (r.blocking.length ? `❌ ${r.blocking.length} point(s) à régler` : '✅ prête à publier seule');
     box.appendChild(sum);
@@ -3169,7 +3245,7 @@ async function coRollback(version) {
   if (ok) loadCollections();
 }
 
-document.getElementById('btn-refresh-collections').addEventListener('click', loadCollections);
+document.getElementById('btn-refresh-collections').addEventListener('click', () => loadCollections({ manual: true }));
 document.getElementById('co-filter-text').addEventListener('input', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-series').addEventListener('change', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-state').addEventListener('change', () => { if (_co) coRenderItems(); });
@@ -3203,9 +3279,8 @@ document.getElementById('btn-co-add-ai').addEventListener('click', () => {
 });
 
 document.getElementById('btn-co-s-save').addEventListener('click', async () => {
-  const seasonVal = document.getElementById('co-s-season').value;
   const series = { id: document.getElementById('co-s-id').value.trim(), names: coTexts('co-s-name'),
-    seasonId: seasonVal === '' ? null : Number(seasonVal), icon: document.getElementById('co-s-icon').value.trim(),
+    ...coSeasonFromValue(document.getElementById('co-s-season').value), icon: document.getElementById('co-s-icon').value.trim(),
     active: document.getElementById('co-s-active').checked };
   if (!series.id) { ptMessage('co-s-msg', 'Identifiant requis.', false); return; }
   const { ok, data } = await api('PUT', `/api/admin/collections/draft/series/${encodeURIComponent(series.id)}`, { series });
@@ -3525,11 +3600,11 @@ function coPropDrawList(body, focus) {
   coBind(g, 'Icône', s, 'icon', { max: 8 });
   const sl = document.createElement('label');
   sl.append('Saison');
-  const sel = document.getElementById('co-ai-season').cloneNode(true);
-  sel.removeAttribute('id');
-  sel.value = s.seasonId == null ? '' : String(s.seasonId);
+  const sel = document.createElement('select');
+  coSeasonOptions(sel);
+  coSeasonSet(sel, s);
   sel.disabled = !w.editable;
-  sel.addEventListener('change', () => { s.seasonId = sel.value === '' ? null : Number(sel.value); coPropTouch(); });
+  sel.addEventListener('change', () => { Object.assign(s, coSeasonFromValue(sel.value)); coPropTouch(); });
   sl.appendChild(sel);
   g.appendChild(sl);
   const nameRow = document.createElement('div');
@@ -3754,7 +3829,7 @@ function coPropRead() {
   const t = (o, l) => String(o?.[l] ?? '').trim();
   const texts = o => Object.fromEntries(CO_LANGS.map(l => [l, t(o, l)]));
   return {
-    series: { id: t(s, 'id'), icon: t(s, 'icon'), names: texts(s.names), seasonId: s.seasonId ?? null },
+    series: { id: t(s, 'id'), icon: t(s, 'icon'), names: texts(s.names), seasonId: s.seasonId ?? null, seasonWeek: s.seasonWeek ?? null },
     items: w.items.map(it => {
       const orig = _coProp.data.items[it._k];
       return { id: t(it, 'id'), rarity: it.rarity, icon: t(it, 'icon'), names: texts(it.names), stories: texts(it.stories),
