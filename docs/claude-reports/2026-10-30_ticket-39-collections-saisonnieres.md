@@ -1,5 +1,112 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 03/11/2026, 11 h 25 (Bruxelles) — rattachement à une saison future (2026-W46), Rafraîchir visible
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite les deux recettes du propriétaire du 03/11 : [#39 (09:35 UTC)](https://github.com/ReC82/Dig/issues/39#issuecomment-6600141959) (lecture du brouillon ; « Saint-Martin » est « Permanente » alors qu'elle est prévue pour la prochaine saison ; améliorations UX) et [#39-B (09:42 UTC)](https://github.com/ReC82/Dig/issues/39#issuecomment-6600264412) (saison future introuvable dans le choix de saison ; bouton Rafraîchir sans retour visible).
+
+## A (03/11 matin). État réel
+
+**Déployé en production (SHA `3ba07c6`) — en attente de recette.** Classement : **Bloquant MVP** pour le rattachement, à faire avant la rotation du 09/11 (sans lui, la collection de la saison des Lanternes ne pouvait pas être publiée correctement). L'UX de Rafraîchir et l'allègement de la section relèvent de **Après lancement**.
+- **Rien n'a été publié** : le catalogue en jeu est toujours la v1 (1 série, 8 objets). Aucun drop n'a été activé, aucune saison n'a été créée, aucune illustration n'a été touchée.
+- **Une seule écriture en production**, dans le brouillon admin et non dans les données joueurs : au démarrage, la série « Les Trésors de la Saint-Martin » a été rattachée à la semaine **2026-W46**, celle de son thème préparé « La Saison des Lanternes ». L'écriture est tracée dans le journal des collections (`draft_update_series`) et dans le journal des thèmes (`series_week`). Elle n'est faite qu'une fois : si l'admin choisit ensuite autre chose, ce choix n'est jamais écrasé.
+- « Les Objets trouvés de la Légende » n'a pas été modifiée (question 1 toujours en attente). Elle peut maintenant être rattachée à 2026-W46 ou 2026-W47 sans programmer de saison.
+
+## B (03/11 matin). Changements
+
+Fichiers modifiés : `server/collectionCatalog.js`, `server/collectionAi.js`, `server/seasonThemes.js`, `public/admin/admin.js`, `public/admin/index.html`, ainsi que le nouveau test `test/collection-season-week.test.js`.
+
+**Rattachement à une saison future par clé de semaine** (`seasonWeek`, semaine ISO « 2026-W46 ») :
+- **Identité stable.** Une série porte soit `seasonId` (saison existante, comme avant), soit `seasonWeek` (saison pas encore créée). Si les deux sont présents, `seasonId` l'emporte. La semaine est validée : format, et existence de la semaine 53 selon l'année. Les séries existantes et les versions publiées ne changent pas : le champ est absent quand il n'est pas utilisé.
+- **Résolution automatique, à la lecture.** La saison réelle d'une semaine est d'abord celle à laquelle le thème #48 de cette semaine a été attaché, sinon la première saison qui commence dans la semaine (lundi 00:00 → dimanche 23:59:59 UTC). Les versions publiées ne sont jamais réécrites. Le rattachement reste stable ensuite.
+- **Aucun drop hors fenêtre.**
+  - Tant que la saison n'existe pas, la série et ses objets sont **retirés du catalogue public**. Ils ne sont ni visibles ni obtenables, même pour un client ancien ou mis en cache. Cela évite qu'un tel client les prenne pour des objets « permanents ».
+  - Dès que la saison existe, le catalogue public expose `seasonId` = cette saison. Le jeu applique alors sa règle habituelle : drops pendant cette saison seulement, archives ensuite.
+- **Interopérabilité avec #48.**
+  - Les nouveaux packs de saison importent leur collection directement rattachée à la semaine de leur thème.
+  - À l'ouverture de la saison, le rattachement de #48 (`_linkSeries`) transforme la semaine en `seasonId` dans le brouillon, si la série n'est pas publiée. Une semaine choisie par l'admin pour une autre saison est respectée.
+  - Les thèmes préparés avant ce changement, comme celui de Saint-Martin, sont corrigés une seule fois.
+- **Publication ciblée.** Une série rattachée à une semaine future n'est plus « Permanente » : il n'y a pas de confirmation de permanence à donner. Elle peut être publiée **à l'avance** une fois complète : illustrations, 4 langues, et drops activés avec la case « barème validé ». Elle reste invisible jusqu'au lundi.
+  - Si la semaine est passée sans qu'une saison ait été créée, la publication est bloquée.
+  - Si la semaine a commencé mais que la rotation n'est pas encore passée, un simple avertissement s'affiche.
+- **Admin, choix de la saison** (fiche Série et fiche de relecture IA) : trois groupes sont proposés.
+  - « Permanente » ;
+  - « **Saisons futures (pas encore créées)** » : les 8 prochaines semaines, avec le nom du thème préparé (ex. « 🗓️ 2026-W46 (semaine du 09/11/2026) — « La Saison des Lanternes » (thème préparé) ») ;
+  - « Saisons existantes ».
+- **Admin, liste des séries et contrôles** : la carte affiche « 🗓️ Saison future (pas encore créée) 2026-W46 » et explique ce qui se passera.
+
+**Rafraîchir (Collections)** : le bouton reprend le comportement de la bêta #57.
+- Pendant le chargement : « ↻ Actualisation… », bouton désactivé.
+- Ensuite : « ✓ Données à jour à HH:MM:SS » et un toast, ou « ⚠️ Échec de l'actualisation (…) » avec l'heure des données affichées.
+- Les données sont relues depuis la base (requête sans cache).
+- Recherche, filtres et état des cartes sont conservés. Il n'y a aucune fenêtre native.
+
+**Section « Brouillon et publication » allégée** :
+- Une ligne repliée par série résume la saison, les illustrations x/6, les drops x/6 et le nombre de points bloquants.
+- Le détail des 21 changements est replié.
+- « Publier tout le brouillon », « Abandonner » et « Publier quand même des séries incomplètes » sont rangés dans un bloc replié « Publication globale et abandon (déconseillé) ».
+- Le texte d'aide distingue la **préparation** (saison, illustrations, langues) de la **validation économique** (drops, « barème validé »).
+
+## C (03/11 matin). SHA, branche, procédure de test
+
+- Branche `feature/39-collections-saisonnieres` : commit `bcd0c9b`. Sur `develop` : merge `3ba07c6`, **déployé**.
+- Tests automatisés : `npm test` → **521/521** sur la branche, sur develop `3ba07c6` et sur la release. Le nouveau test `test/collection-season-week.test.js` rejoue la production du 03/11 :
+  1. la série du thème W46 est rattachée à sa semaine, une seule fois, sans écraser un choix de l'admin ;
+  2. la semaine est proposée avec le nom de son thème ;
+  3. la série complète est publiée seule **avant** le 09/11 : absente du catalogue public et sans drop ;
+  4. rotation du 09/11 : résolue en saison 46, sans nouvelle version publiée ; drops en saison 46 et aucun pour un joueur encore en saison 45 ;
+  5. rotation du 16/11 : la série passe en archives, sans drop, et son rattachement reste stable ;
+  6. semaine sans thème, semaine passée bloquante, priorité du `seasonId`, semaine 53.
+- Serveur de test (port 3101, copie de la base de production) :
+  - Saint-Martin est rattachée à W46 au démarrage ;
+  - contrôles : Saint-Martin « future » avec 2 manques (illustrations, drops), plus de blocage « Permanente » ;
+  - le choix de saison est pré-rempli sur W46 ;
+  - un PUT avec `2026-W47` est accepté et un PUT avec `2026-W60` est refusé (400) ;
+  - le catalogue public est resté v1.
+- Chromium 1280×900 et 390×844 tactile, sur le même serveur : Rafraîchir affiche « Actualisation… », puis « ✓ Données à jour à … » et le toast. Le filtre saisi est conservé. Aucune écriture, aucune fenêtre native, 0 erreur JS.
+  - Limite : la console signale une ressource 404 sur ordinateur, sans requête réseau correspondante. Elle n'est pas liée à ce lot.
+
+## D (03/11 matin). Déploiement
+
+- Copie de la base de production démarrée en `NODE_ENV=production` : santé ok, version `1.0.0+3ba07c6`, catalogue public v1. Les empreintes des tables `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` sont identiques, ainsi que la dernière version publiée. `quick_check` ok. Copie supprimée.
+- Aucune génération IA en cours avant le déploiement (dernier appel de l'atelier le 02/11 23:25 UTC).
+- `scripts/deploy.sh` de la release : d2a49fc → `3ba07c6`, sauvegarde vérifiée `dig-20261103-112109-pre-deploy-3ba07c6.sqlite`, santé et version ok.
+- Après le déploiement :
+  - les 2 domaines répondent 200 avec `1.0.0+3ba07c6` ;
+  - l'admin sans clé répond 401 ;
+  - le journal est propre (seule ligne : rattachement de Saint-Martin) ;
+  - `quick_check` ok ;
+  - les empreintes joueurs sont **identiques** à la sauvegarde ;
+  - le catalogue public est v1 ;
+  - Chromium sur la production (jeu 1280 et 390, page admin) : 0 erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep d2a49fc` puis `sudo systemctl restart dig`. Il n'y a pas de migration de schéma. Le champ `seasonWeek` est ignoré par l'ancien code ; Saint-Martin y redeviendrait « Permanente » non publiée, ce qui est sans risque puisque rien n'est publié.
+
+**Test fonctionnel à faire par le propriétaire (3 min, sans rien publier)**
+1. Admin → 📿 Collections → **↻ Rafraîchir**. **Attendu** : « Actualisation… », puis « ✓ Données à jour à HH:MM:SS » et un toast ; la recherche saisie reste en place.
+2. « Brouillon et publication ». **Attendu** : 3 lignes repliées. Saint-Martin affiche « 🗓️ Saison future (pas encore créée) 2026-W46 · 0/6 illustré(s) · 0/6 drop(s) actif(s) · ❌ 2 point(s) » ; elle n'est plus « Permanente ». Le détail des 21 changements et la publication globale sont repliés.
+3. Ouvrir la série Saint-Martin **sans enregistrer**. **Attendu** : Saison = « 🗓️ 2026-W46 (semaine du 09/11/2026) — « La Saison des Lanternes » (thème préparé) », dans le groupe « Saisons futures ».
+4. Le lundi 09/11 après 00:00 UTC (01:00 à Bruxelles) : la carte Saint-Martin passe en « 🟢 Saison en cours Saison 46-2026 ». Si les objets ne sont pas publiés, rien ne change en jeu.
+
+## E (03/11 matin). Choix techniques faits seul
+
+- **Résolution à la lecture plutôt que réécriture.** Les versions publiées sont en ajout seul (garantie #39). Réécrire `seasonId` dans une version publiée aurait obligé à publier automatiquement une nouvelle version. La résolution est déterministe : thème #48 d'abord, puis première saison de la semaine.
+- **Retrait du catalogue public tant que la saison n'existe pas**, plutôt qu'un marqueur : les anciens clients traitent `seasonId: null` comme « permanent ». Le retrait est la seule garantie de zéro drop hors fenêtre, quel que soit le client.
+- **Correction de Saint-Martin** : appliquée automatiquement, car la série appartient au thème W46 (#48) et le propriétaire a demandé de « corriger le rattachement avant toute activation ». Elle reste dans le brouillon, est tracée et n'est faite qu'une fois.
+- **Boîtes de confirmation natives** : celles des autres actions de Collections (publier, retirer) ne sont pas remplacées ici. C'est l'objet du ticket #60 (uniformisation de l'admin).
+
+## F (03/11 matin). Décisions demandées au propriétaire
+
+1. Rattacher « Les Objets trouvés de la Légende » à une semaine future (choix désormais direct dans la fiche Série, sans programmer de saison) ? Recommandation : **2026-W47** (semaine du 16/11), puisque W46 revient à Saint-Martin, la collection de son thème.
+2. « Trésors de la vieille mine » (saison en cours, fin le 08/11, 4 illustrations manquantes, drops inactifs) : la reporter sur une semaine future ? Recommandation : **oui**, par exemple 2026-W48.
+3. Barème des drops saisonniers (proposé précédemment : 2 communs à 3 % dès 5 m, 2 rares à 1,5 % dès 40 m, 1 épique à 8 % sur coffre dès 60 m, 1 légendaire à 5 % sur gemme dès 100 m) ? Recommandation : **oui**.
+4. Objets d'une saison terminée : obtenables plus tard ? Recommandation : **non** (exclusivité). Les non trouvés révélés en grisé ? Recommandation : **oui**.
+
+## G (03/11 matin). Restant à réaliser
+
+- Illustrer les 6 objets de Saint-Martin (atelier #40), puis activer les drops et publier la série seule avant ou pendant la semaine 46. Cela reste à l'initiative du propriétaire.
+- Ticket #60 (après lancement) : remplacer les confirmations natives restantes et uniformiser les autres boutons Rafraîchir.
+
+---
+
 # Mise à jour du 03/11/2026, 02 h 25 (Bruxelles) — cohérence des collections : publication ciblée par série, statut « Permanente » expliqué
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite le commentaire du propriétaire du [02/11 à 23:32 UTC « Nuit 03/11 — cohérence des collections »](https://github.com/ReC82/Dig/issues/39#issuecomment-6591199266) : ne pas publier le brouillon global ni activer de drops, ne pas effacer les illustrations validées, expliquer le statut « Permanente » des « Objets trouvés de la Légende », proposer un rattachement à une future saison (sans le faire), et préparer une publication atomique ciblée pour la saison sans exposer les séries incomplètes.
