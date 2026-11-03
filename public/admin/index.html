@@ -1653,98 +1653,128 @@
       </details>
     </dialog>
 
-    <!-- Fiche d'un badge : consultation/modification, création manuelle, ou relecture d'une proposition IA. -->
-    <dialog id="bg-dialog" class="bk-dialog adm-dialog" aria-labelledby="bg-form-title">
+    <!-- Fiche d'un badge : consultation/modification, création manuelle, ou relecture d'une proposition IA.
+         Recette #38-A du 03/11 (même structure que la fiche Actualités #50) : en-tête et pied fixes, UNE seule zone
+         défilante, sections Identité / Critère / Visuel, une langue visible à la fois (onglets FR/EN/NL/ES avec
+         pastilles), aperçu joueur dans la langue choisie, options avancées repliées, statut et actions à part. -->
+    <dialog id="bg-dialog" class="bk-dialog adm-dialog nw-dialog bg-sheet" aria-labelledby="bg-form-title">
       <div class="section-header bk-dialog-head">
         <h3 class="overview-card-title" id="bg-form-title">Nouveau badge</h3>
         <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
       </div>
-      <p id="bg-state" class="ic-notice hidden" role="status"></p>
-      <ul id="bg-issues" class="error hidden"></ul>
-      <ul id="bg-warnings" class="muted hidden"></ul>
-      <div id="bg-form" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-        <div style="flex:2;min-width:260px;display:flex;flex-direction:column;gap:10px">
-          <fieldset class="co-fs"><legend>Identité</legend>
-            <div class="co-grid">
-              <label>Identifiant stable<input id="bg-id" type="text" maxlength="40" placeholder="profondeur_100" title="Ne change jamais après l'enregistrement"></label>
-              <label>Catégorie<select id="bg-category"></select></label>
-              <label>Visibilité<select id="bg-visibility"><option value="visible">Visible</option><option value="hidden">Secret (révélé une fois obtenu)</option></select></label>
-              <label>Ordre d'affichage<input id="bg-sort" type="number" value="0"></label>
-            </div>
-          </fieldset>
-          <fieldset class="co-fs"><legend>Critère de déblocage</legend>
-            <div class="co-grid">
-              <label>Condition<select id="bg-condition">
-                <option value="max_depth">Profondeur maximale (m)</option>
-                <option value="blocks_of_type">Blocs d'un type minés</option>
-                <option value="blocks_total">Blocs minés (total)</option>
-                <option value="distinct_types">Types de blocs différents minés</option>
-                <option value="chests_opened">Coffres ouverts en minant</option>
-                <option value="play_days">Jours de jeu distincts</option>
-              </select></label>
-              <label>Type de bloc<select id="bg-block"></select></label>
-              <label>Seuil<input id="bg-threshold" type="number" min="1" value="100"></label>
-            </div>
-            <p id="bg-metric-help" class="muted" style="font-size:0.75rem;margin:6px 0 0"></p>
-          </fieldset>
-          <fieldset class="co-fs"><legend>Textes (FR obligatoire)</legend>
-            <div class="co-grid">
-              <label>Nom FR<input id="bg-fr-name" type="text" maxlength="60"></label>
-              <label>Nom EN<input id="bg-en-name" type="text" maxlength="60"></label>
-              <label>Nom NL<input id="bg-nl-name" type="text" maxlength="60"></label>
-              <label>Nom ES<input id="bg-es-name" type="text" maxlength="60"></label>
-              <label class="co-span">Description FR<textarea id="bg-fr-desc" rows="2" maxlength="200"></textarea></label>
-              <label class="co-span">Description EN<textarea id="bg-en-desc" rows="2" maxlength="200"></textarea></label>
-              <label class="co-span">Description NL<textarea id="bg-nl-desc" rows="2" maxlength="200"></textarea></label>
-              <label class="co-span">Description ES<textarea id="bg-es-desc" rows="2" maxlength="200"></textarea></label>
-            </div>
-          </fieldset>
-          <fieldset class="co-fs"><legend>Visuel</legend>
-            <div class="co-grid">
-              <label>Icône (emoji)<input id="bg-icon" type="text" maxlength="16" placeholder="🏅"></label>
-              <label class="co-span" title="/media/icons/… (atelier), /media/blocks/…, /assets/…">Image (facultative)<input id="bg-image" type="text" maxlength="200" placeholder="/media/icons/….webp"></label>
-            </div>
-            <div id="bg-brief-box" class="hidden">
-              <p class="muted" style="font-size:0.75rem;margin:6px 0">Consigne d'illustration proposée (anglais), reprise par 🎨 Atelier d'icônes à l'enregistrement :</p>
-              <div class="co-grid">
-                <label class="co-span">Sujet<input id="bg-brief-subject" type="text" maxlength="300"></label>
-                <label class="co-span">Détails<input id="bg-brief-details" type="text" maxlength="600"></label>
-                <label class="co-span">Palette<input id="bg-brief-palette" type="text" maxlength="300"></label>
+      <div class="nw-scroll">
+        <p id="bg-state" class="ic-notice hidden" role="status"></p>
+        <ul id="bg-issues" class="error hidden"></ul>
+        <ul id="bg-warnings" class="muted hidden"></ul>
+        <div class="nw-text-wrap">
+          <div class="nw-text-fields" id="bg-form">
+            <div role="group" class="nw-sec" aria-labelledby="bg-sec-id">
+              <h4 id="bg-sec-id">1. Identité</h4>
+              <div class="co-lang-switch" id="bg-langs" role="group" aria-label="Langue éditée">
+                <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true">FR</button>
+                <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false">EN</button>
+                <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false">NL</button>
+                <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false">ES</button>
+              </div>
+              <p class="muted nw-lang-legend">● nom et description · ◐ nom seul · ○ à traduire (le français est alors affiché)</p>
+              <p id="bg-fr-ref" class="muted co-prop-ref hidden"><strong>Français :</strong> <span id="bg-fr-ref-text"></span></p>
+              <div class="nw-lang-fields bg-ro" data-lang="fr">
+                <label>Nom (FR) — obligatoire<input id="bg-fr-name" type="text" maxlength="60"></label>
+                <label>Description (FR) — obligatoire<textarea id="bg-fr-desc" rows="2" maxlength="200"></textarea></label>
+              </div>
+              <div class="nw-lang-fields bg-ro hidden" data-lang="en">
+                <label>Nom (EN)<input id="bg-en-name" type="text" maxlength="60"></label>
+                <label>Description (EN)<textarea id="bg-en-desc" rows="2" maxlength="200"></textarea></label>
+              </div>
+              <div class="nw-lang-fields bg-ro hidden" data-lang="nl">
+                <label>Nom (NL)<input id="bg-nl-name" type="text" maxlength="60"></label>
+                <label>Description (NL)<textarea id="bg-nl-desc" rows="2" maxlength="200"></textarea></label>
+              </div>
+              <div class="nw-lang-fields bg-ro hidden" data-lang="es">
+                <label>Nom (ES)<input id="bg-es-name" type="text" maxlength="60"></label>
+                <label>Description (ES)<textarea id="bg-es-desc" rows="2" maxlength="200"></textarea></label>
+              </div>
+              <div class="nw-opts-grid bg-ro">
+                <label>Identifiant stable<input id="bg-id" type="text" maxlength="40" placeholder="profondeur_100" title="Ne change jamais après l'enregistrement"></label>
+                <label>Catégorie<select id="bg-category"></select></label>
               </div>
             </div>
-          </fieldset>
-          <details class="co-fs" id="bg-period-box"><summary class="muted" style="font-size:0.78rem">Options avancées : période d'événement (vide = badge permanent)</summary>
-            <div class="co-grid">
-              <label>Début (UTC)<input id="bg-starts" type="text" placeholder="vide = permanent (ex. AAAA-MM-JJT00:00:00Z)"></label>
-              <label>Fin (UTC)<input id="bg-ends" type="text" placeholder="vide = permanent"></label>
+            <div role="group" class="nw-sec" aria-labelledby="bg-sec-cond">
+              <h4 id="bg-sec-cond">2. Critère de déblocage</h4>
+              <div class="nw-opts-grid bg-ro">
+                <label>Condition<select id="bg-condition">
+                  <option value="max_depth">Profondeur maximale (m)</option>
+                  <option value="blocks_of_type">Blocs d'un type minés</option>
+                  <option value="blocks_total">Blocs minés (total)</option>
+                  <option value="distinct_types">Types de blocs différents minés</option>
+                  <option value="chests_opened">Coffres ouverts en minant</option>
+                  <option value="play_days">Jours de jeu distincts</option>
+                </select></label>
+                <label id="bg-block-label">Type de bloc<select id="bg-block"></select></label>
+                <label>Seuil<input id="bg-threshold" type="number" min="1" value="100"></label>
+              </div>
+              <p id="bg-metric-help" class="muted" style="font-size:0.75rem;margin:6px 0 0"></p>
+              <div class="form-actions" style="margin-top:6px">
+                <button class="btn btn-outline" id="btn-bg-preview" type="button">Vérifier (qui l'obtiendrait ?)</button>
+              </div>
+              <p id="bg-preview" class="muted" role="status" style="font-size:0.8rem;margin:4px 0 0"></p>
             </div>
-            <p class="muted" style="font-size:0.75rem;margin:6px 0 0">Seulement pour un badge limité dans le temps : il ne s'obtient qu'entre le début et la fin, avec la progression faite pendant la période ; une fois obtenu, il reste dans la collection.</p>
-          </details>
-        </div>
-        <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px">
-          <div class="co-fs" aria-live="polite">
-            <p class="muted" style="font-size:0.75rem;margin:0 0 6px">Aperçu joueur</p>
-            <div style="display:flex;gap:10px;align-items:center">
-              <span id="bg-pv-art" class="co-thumb" style="font-size:2.2rem;width:64px"></span>
-              <div><strong id="bg-pv-name"></strong><br><span id="bg-pv-desc" class="muted" style="font-size:0.8rem"></span></div>
+            <div role="group" class="nw-sec" aria-labelledby="bg-sec-art">
+              <h4 id="bg-sec-art">3. Visuel</h4>
+              <div class="nw-opts-grid bg-ro">
+                <label>Icône (emoji)<input id="bg-icon" type="text" maxlength="16" placeholder="🏅"></label>
+                <label class="nw-span" title="/media/icons/… (atelier), /media/blocks/…, /assets/…">Image (facultative)<input id="bg-image" type="text" maxlength="200" placeholder="/media/icons/….webp"></label>
+              </div>
+              <details id="bg-brief-box" class="nw-help bg-ro hidden"><summary class="muted" style="font-size:0.78rem">Consigne d'illustration proposée (anglais, reprise par 🎨 Atelier d'icônes)</summary>
+                <div class="nw-opts-grid">
+                  <label class="nw-span">Sujet<input id="bg-brief-subject" type="text" maxlength="300"></label>
+                  <label class="nw-span">Détails<input id="bg-brief-details" type="text" maxlength="600"></label>
+                  <label class="nw-span">Palette<input id="bg-brief-palette" type="text" maxlength="300"></label>
+                </div>
+              </details>
             </div>
-            <p id="bg-pv-cond" class="muted" style="font-size:0.75rem;margin:6px 0 0"></p>
+            <details class="nw-sec" id="bg-period-box">
+              <summary>⚙️ Options avancées <span id="bg-adv-sum" class="muted"></span></summary>
+              <div class="nw-opts-grid bg-ro">
+                <label>Visibilité<select id="bg-visibility"><option value="visible">Visible</option><option value="hidden">Secret (révélé une fois obtenu)</option></select></label>
+                <label>Ordre d'affichage<input id="bg-sort" type="number" value="0"></label>
+                <label>Début (UTC, vide = permanent)<input id="bg-starts" type="text" placeholder="vide = permanent (ex. AAAA-MM-JJT00:00:00Z)"></label>
+                <label>Fin (UTC, vide = permanent)<input id="bg-ends" type="text" placeholder="vide = permanent"></label>
+              </div>
+              <p class="muted" style="font-size:0.75rem;margin:6px 0 0">Période : seulement pour un badge limité dans le temps. Il ne s'obtient qu'entre le début et la fin, avec la progression faite pendant la période ; une fois obtenu, il reste dans la collection.</p>
+            </details>
+            <div role="group" class="nw-sec nw-publish hidden" id="bg-status-sec" aria-labelledby="bg-sec-status">
+              <h4 id="bg-sec-status">Statut et actions</h4>
+              <p id="bg-meta" class="muted" style="font-size:0.75rem;margin:0 0 6px"></p>
+              <div class="form-actions" id="bg-actions">
+                <button class="btn btn-outline" id="btn-bg-toggle" type="button">Activer…</button>
+                <button class="btn btn-outline" id="btn-bg-studio" type="button">🎨 Illustrer dans l'atelier</button>
+                <button class="btn btn-ghost" id="btn-bg-archive" type="button">Archiver…</button>
+                <button class="btn btn-danger hidden" id="btn-bg-prop-discard" type="button">Abandonner la proposition…</button>
+              </div>
+            </div>
           </div>
-          <p id="bg-meta" class="muted" style="font-size:0.75rem"></p>
-          <div id="bg-preview" class="muted" style="font-size:0.8rem"></div>
-          <p id="bg-rationale" class="muted hidden" style="font-size:0.75rem"></p>
+          <div class="nw-preview-col" aria-live="polite">
+            <strong id="bg-pv-h">Aperçu joueur (FR)</strong>
+            <div class="news-admin-item" style="margin-top:6px">
+              <div style="display:flex;gap:10px;align-items:center">
+                <span id="bg-pv-art" class="co-thumb" style="font-size:2.2rem;width:64px"></span>
+                <div><strong id="bg-pv-name"></strong><br><span id="bg-pv-desc" class="muted" style="font-size:0.8rem"></span></div>
+              </div>
+              <p id="bg-pv-cond" class="muted" style="font-size:0.75rem;margin:6px 0 0"></p>
+            </div>
+            <p id="bg-rationale" class="muted hidden" style="font-size:0.75rem"></p>
+          </div>
         </div>
       </div>
-      <div class="form-actions" id="bg-actions">
-        <button class="btn" id="btn-bg-preview" type="button">Vérifier (qui l'obtiendrait ?)</button>
-        <button class="btn btn-primary" id="btn-bg-save" type="button">Enregistrer</button>
-        <button class="btn" id="btn-bg-toggle" type="button">Activer</button>
-        <button class="btn btn-ghost" id="btn-bg-archive" type="button">Archiver</button>
-        <button class="btn btn-ghost" id="btn-bg-studio" type="button">🎨 Illustrer dans l'atelier</button>
-        <button class="btn btn-danger hidden" id="btn-bg-prop-discard" type="button">Abandonner la proposition</button>
-        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      <div class="nw-foot">
+        <p id="bg-form-msg" class="hidden" role="status"></p>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-bg-save" type="button">Enregistrer</button>
+          <button class="btn btn-outline" type="button" data-close>Annuler</button>
+          <span id="bg-dirty" class="bk-dirty hidden">● modifications non enregistrées</span>
+        </div>
       </div>
-      <p id="bg-form-msg" class="hidden"></p>
     </dialog>
   </section>
 

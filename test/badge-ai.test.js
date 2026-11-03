@@ -261,7 +261,7 @@ test('période d\'événement : aucune par défaut ; si l\'IA en propose une, av
   answer = null;
   assert.ok(q.warnings.some(w => /Période d'événement proposée \(2026-10-31T00:00:00Z → 2026-11-02T00:00:00Z\)/.test(w)));
   assert.doesNotMatch(HTML, /placeholder="20\d\d-\d\d-\d\dT/, 'pas de date fictive en placeholder');
-  assert.match(dialog('bg-dialog'), /<details class="co-fs" id="bg-period-box"><summary[^>]*>Options avancées : période/);
+  assert.match(dialog('bg-dialog'), /<details class="nw-sec" id="bg-period-box">\s*<summary>⚙️ Options avancées[\s\S]*id="bg-starts"[\s\S]*id="bg-ends"/);
   ai.discardProposal(p.id); ai.discardProposal(q.id);
 });
 
@@ -284,4 +284,27 @@ test('création IA : vue d\'attente puis relecture synthétique ; formulaire com
   assert.match(JS, /async function bgPropOpen[\s\S]{0,250}bgReviewOpen\(data\.proposal, opener\)/);
   assert.match(JS, /api\('POST', `\/api\/admin\/badges\/ai\/proposals\/\$\{p\.id\}\/redo`\)/);
   assert.doesNotMatch(JS, /Proposition IA n° \$\{p\.id\}/, 'titre sans compteur ambigu');
+});
+
+test('fiche badge (recette #38-A) : une langue à la fois, sections, options repliées, pied fixe, une seule zone défilante', () => {
+  const d = dialog('bg-dialog');
+  assert.match(d, /class="bk-dialog adm-dialog nw-dialog bg-sheet"/);
+  assert.equal((d.match(/class="nw-scroll"/g) || []).length, 1, 'une seule zone défilante');
+  // Pied fixe : Enregistrer / Annuler et message d'erreur, hors de la zone défilante
+  const foot = d.slice(d.indexOf('class="nw-foot"'));
+  assert.ok(d.indexOf('class="nw-foot"') > d.lastIndexOf('</div>', d.indexOf('class="nw-foot"')) - 20);
+  for (const id of ['btn-bg-save', 'bg-form-msg', 'bg-dirty']) assert.match(foot, new RegExp(`id="${id}"`));
+  assert.match(foot, /data-close>Annuler</);
+  // Sections Identité / Critère / Visuel, options avancées repliées (details sans open)
+  assert.match(d, /1\. Identité[\s\S]*2\. Critère de déblocage[\s\S]*3\. Visuel[\s\S]*<details class="nw-sec" id="bg-period-box">/);
+  // Onglets FR/EN/NL/ES : seule la langue FR est visible à l'ouverture
+  for (const l of ['fr', 'en', 'nl', 'es']) {
+    assert.match(d, new RegExp(`id="bg-langs"[\\s\\S]*data-lang="${l}"`));
+    assert.match(d, new RegExp(`<div class="nw-lang-fields bg-ro${l === 'fr' ? '' : ' hidden'}" data-lang="${l}">[\\s\\S]*?id="bg-${l}-name"[\\s\\S]*?id="bg-${l}-desc"`));
+  }
+  assert.match(JS, /function bgLang\(l, focus = false\)/);
+  assert.match(JS, /names\[l\] \|\| f\.names\.fr/, 'aperçu dans la langue éditée, repli sur le français');
+  // Aucune popup native dans le module badges
+  const mod = JS.slice(JS.indexOf('const BG_LANGS'), JS.indexOf('const ST_LANGS'));
+  assert.doesNotMatch(mod, /\b(window\.)?(confirm|alert|prompt)\(/);
 });
