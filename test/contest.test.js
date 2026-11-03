@@ -385,3 +385,28 @@ test('routes admin du concours (auth, aperçu, attribution, statut, coordonnées
 
   assert.doesNotMatch(log, /@example\.com/, 'aucune adresse dans les journaux du serveur');
 });
+
+test('panel admin : synthèse d\'abord, « Modifier » ouvre la fiche en accordéons, aucun réglage perdu (recette du 03/11)', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public/admin/index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
+  const card = html.slice(html.indexOf('id="ct-settings-card"'), html.indexOf('Saison : aperçu et attribution'));
+  assert.match(card, /<dl class="ct-summary" id="ct-summary">/);
+  assert.match(card, /id="btn-ct-edit"/);
+  assert.match(card, /<div id="ct-form" class="hidden">/, 'fiche fermée par défaut');
+  const form = card.slice(card.indexOf('id="ct-form"'));
+  assert.match(form, /<details class="bk-acc ct-acc" id="ct-acc-main" open>/);
+  for (const acc of ['ct-acc-rules', 'ct-acc-real']) {
+    assert.match(form, new RegExp(`<details class="bk-acc ct-acc" id="${acc}">`), `${acc} replié`);
+  }
+  // Tous les champs envoyés à PUT /api/admin/contest/settings restent dans la fiche.
+  const ids = [...js.slice(js.indexOf('async function saveContestSettings'), js.indexOf('async function loadContestPreview'))
+    .matchAll(/num\('(ct-[\w-]+)'\)|getElementById\('(ct-[\w-]+)'\)\.(?:value|checked)/g)].map(m => m[1] || m[2]);
+  assert.ok(ids.length >= 20);
+  for (const id of new Set(ids)) assert.match(form, new RegExp(`id="${id}"`), `${id} dans la fiche`);
+  // Stock et éligibilité des cadeaux réels regroupés dans l'accordéon verrouillé.
+  const real = form.slice(form.indexOf('id="ct-acc-real"'));
+  for (const id of ['ct-prize-stock', 'ct-re-countries', 'ct-re-min-age', 'ct-re-parental']) assert.match(real, new RegExp(`id="${id}"`));
+  assert.match(form, /id="btn-ct-cancel"/);
+  assert.match(js, /if \(!_ctDirty\) ctFillForm\(s\)/, 'un rafraîchissement n\'écrase pas une saisie en cours');
+  assert.match(html, /Simulation : inscrit le ou les gagnants fictifs[^<]*aucun stock consommé, aucun message au joueur, aucun point ni cadeau/);
+});

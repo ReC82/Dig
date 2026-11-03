@@ -359,6 +359,15 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .contest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
 .contest-wide { grid-column: 1 / -1; }
 .contest-check { flex-direction: row; align-items: center; gap: 8px; }
+/* Réglages du concours : synthèse d'abord, fiche en accordéons sur « Modifier » (recette du 03/11). */
+.ct-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 16px; margin: 0; }
+.ct-summary > div { min-width: 0; }
+.ct-summary dt { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; }
+.ct-summary dd { margin: 0; font-weight: 600; font-size: 0.88rem; overflow-wrap: anywhere; }
+#ct-form { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 6px; }
+.ct-acc { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
+.ct-form-actions { align-items: center; gap: 10px 12px; flex-wrap: wrap; margin-top: 10px; }
+@media (max-width: 560px) { .ct-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .contest-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .badge-designated, .badge-contacted, .badge-identity_verified { color: var(--gold); font-weight: 600; font-size: 0.78rem; }
 .badge-sent, .badge-confirmed { color: var(--green); font-weight: 600; font-size: 0.78rem; }
