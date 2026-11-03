@@ -121,9 +121,9 @@ test('admin : sélecteur d\'emoji (catégories, recherche, choix au clic, saisie
 });
 
 test('admin : saisies protégées à la fermeture (#61), confirmations Dig des commandes', () => {
-  assert.match(adminJs, /admDialogSetup\('sh-dialog', \{ canClose: shCanClose \}\)/);
+  assert.match(adminJs, /admDialogSetup\('sh-dialog', \{ canClose: shCanClose, dirty: \(\) => shDirty\(\) \}\)/);
   const setup = body(adminJs, 'admDialogSetup');
-  assert.match(setup, /if \(canClose\) dlg\.addEventListener\('cancel', e => \{ e\.preventDefault\(\); request\(\); \}\)/);
+  assert.match(setup, /dlg\.addEventListener\('cancel', e => \{ e\.preventDefault\(\); request\(\); \}\)/);
   assert.match(body(adminJs, 'shCanClose'), /admConfirm\(\{/);
   assert.match(body(adminJs, 'shOpenSheet'), /_shSnap = JSON\.stringify\(shReadForm\(\)\)/);
   assert.doesNotMatch(body(adminJs, 'shopTransition'), /\bconfirm\(/);

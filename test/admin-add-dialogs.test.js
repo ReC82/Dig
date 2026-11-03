@@ -58,11 +58,11 @@ test('chaque fiche se ferme sans effet (✕ et Annuler data-close, Échap natif)
     const d = dialog(id);
     assert.match(d, new RegExp(`<dialog id="${id}" class="bk-dialog adm-dialog[^"]*" aria-labelledby="[^"]+">`));
     assert.ok((d.match(/data-close/g) || []).length >= 2, `${id} : ✕ et Annuler`);
-    assert.match(JS, new RegExp(`admDialogSetup\\('${id}'(, \\{ canClose: \\w+ \\})?\\)`));
+    assert.match(JS, new RegExp(`admDialogSetup\\('${id}'(, \\{[^}]*\\})?\\)`));
   }
   const setup = JS.slice(JS.indexOf('function admDialogSetup('), JS.indexOf('function admDialogOpen('));
   assert.match(setup, /\[data-close\]/);
-  assert.match(setup, /e\.target === dlg/);
+  assert.match(setup, /admOnBackdrop\(dlg, e\)/);
   assert.match(setup, /data-adm-key/);
 });
 
@@ -94,6 +94,6 @@ test('saison active : pas d\'édition de date dans la fiche (procédure #44 cons
   const sheet = JS.slice(JS.indexOf('function openSeasonSheet('), JS.indexOf("document.getElementById('btn-new-season')"));
   assert.match(sheet, /btn-season-close'\)\.classList\.toggle\('hidden', isNew \|\| s\.status !== 'active'\)/);
   assert.doesNotMatch(sheet, /api\('PUT'/);
-  assert.match(JS, /if \(!confirm\('Clore cette saison \?'\)\) return false;/);
-  assert.match(JS, /if \(!confirm\(`Supprimer la ligue "\$\{name\}" \?`\)\) return false;/);
+  assert.match(JS, /if \(!await admAsk\('Clore cette saison \?'\)\) return false;/);
+  assert.match(JS, /if \(!await admAsk\(`Supprimer la ligue "\$\{name\}" \?`\)\) return false;/);
 });

@@ -284,7 +284,7 @@ test('fiches Collections : fermeture sans effet, choix IA / manuel, IA grisée s
     const d = dialog(id);
     assert.match(d, new RegExp(`<dialog id="${id}" class="bk-dialog adm-dialog[^"]*" aria-labelledby="[^"]+">`));
     assert.ok((d.match(/data-close/g) || []).length >= 2, `${id} : ✕ et Annuler/Fermer`);
-    assert.match(JS, new RegExp(`admDialogSetup\\('${id}'\\)`));
+    assert.match(JS, new RegExp(`admDialogSetup\\('${id}'(, \\{[^\\n]*\\})?\\);`));
   }
   const add = dialog('co-add-dialog');
   assert.match(add, /id="btn-co-add-ai"[\s\S]*Créer une collection avec l'IA/);
@@ -312,7 +312,7 @@ test('recette du 02/11 : relecture IA en synthèse puis fiche d\'un objet, une l
   assert.match(JS, /admRowOpen\(tr, `co-prop-item:\$\{k\}`/, 'ligne d\'objet ouvrable à la souris et au clavier');
   assert.match(JS, /lang: _coPropWork\?\.lang \?\? 'fr'/, 'FR par défaut');
   assert.match(JS, /_coProp = null; _coPropWork = null;/, 'langue remise à FR à la fermeture');
-  assert.match(JS, /addEventListener\('cancel', e => \{ if \(keep\(\)\) e\.preventDefault\(\); \}\)/, 'Échap ne perd pas les corrections sans confirmation');
+  assert.match(JS, /admDialogSetup\('co-prop-dialog', \{ dirty: \(\) => !!_coPropWork\?\.dirty/, 'Échap ne perd pas les corrections sans confirmation (#61)');
   // Un seul nom et une seule histoire éditables à l'écran : les quatre langues restent dans la copie de travail
   const item = JS.slice(JS.indexOf('function coPropDrawItem('), JS.indexOf('/** Corrections de la copie de travail'));
   assert.doesNotMatch(item, /for \(const l of CO_LANGS\) coField/);

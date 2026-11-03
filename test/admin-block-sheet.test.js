@@ -149,8 +149,9 @@ test('balisage de la fiche : sections, aide, annulation par bloc / tout le broui
   for (const [, id] of sheet.matchAll(/class="bk-info"[^>]*aria-controls="([^"]+)"/g)) assert.ok(sheet.includes(`id="${id}"`), id);
   assert.match(html, /id="bk-leave-dialog"[\s\S]*Continuer à modifier[\s\S]*Abandonner les modifications/);
   const js = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
-  assert.match(js, /addEventListener\('cancel'[\s\S]{0,80}bkDirty\(\)/, 'Échap passe par la confirmation');
-  assert.match(js, /e\.target\.id === 'bk-dialog'\) bkRequestClose\(\)/, 'clic sur le fond passe par la confirmation');
+  assert.match(js, /getElementById\('bk-dialog'\)\.addEventListener\('cancel', e => \{ e\.preventDefault\(\); bkRequestClose\(\); \}\)/, 'Échap passe par la confirmation');
+  assert.match(js, /e\.key !== 'Escape'[\s\S]{0,120}bkRequestClose\(\)/, 'Échap intercepté dès la touche (#61)');
+  assert.match(js, /if \(down && admOnBackdrop\(dlg, e\)\) bkRequestClose\(\)/, 'clic sur le fond passe par la confirmation');
   assert.match(js, /'beforeunload'/);
 });
 

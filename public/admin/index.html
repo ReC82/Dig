@@ -130,6 +130,7 @@
   <section id="tab-config" class="tab-content hidden">
     <div class="section-header"><h2>Configuration</h2></div>
     <div id="config-rows"></div>
+    <p id="config-err" class="error hidden" role="alert"></p>
     <button class="btn" id="btn-save-config">Enregistrer</button>
     <p id="config-msg" class="success hidden">Sauvegardé !</p>
 
@@ -1773,8 +1774,8 @@
         <button class="btn" id="btn-ad-settings">Enregistrer</button>
       </div>
       <div class="form-actions">
-        <label><input type="checkbox" id="ad-enabled"> Interrupteur général</label>
-        <input id="ad-confirm" type="text" maxlength="10" placeholder="Saisir ACTIVER pour activer">
+        <label><input type="checkbox" id="ad-enabled" data-adm-noguard> Interrupteur général</label>
+        <input id="ad-confirm" data-adm-noguard type="text" maxlength="10" placeholder="Saisir ACTIVER pour activer">
         <button class="btn" id="btn-ad-toggle">Appliquer l'interrupteur</button>
       </div>
       <p id="ad-settings-msg" class="hidden"></p>
