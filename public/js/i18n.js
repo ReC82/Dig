@@ -92,6 +92,7 @@ const I18n = (() => {
         found_on:   'Trouvé le {date}',
         toast:      'Objet d\u2019événement trouvé : {name}',
         keep:       'Les objets trouvés restent dans ta collection après l\u2019événement.',
+        ended:      'Terminé le {date}',
       },
       badges: {
         section: '🏅 Badges et succès',
@@ -669,6 +670,7 @@ const I18n = (() => {
         found_on:   'Found on {date}',
         toast:      'Event item found: {name}',
         keep:       'Items you find stay in your collection after the event.',
+        ended:      'Ended on {date}',
       },
       badges: {
         section: '🏅 Badges & achievements',
@@ -1245,6 +1247,7 @@ const I18n = (() => {
         found_on:   'Gevonden op {date}',
         toast:      'Evenementvoorwerp gevonden: {name}',
         keep:       'Gevonden voorwerpen blijven na het evenement in je collectie.',
+        ended:      'Afgelopen op {date}',
       },
       badges: {
         section: '🏅 Badges en prestaties',
@@ -1821,6 +1824,7 @@ const I18n = (() => {
         found_on:   'Encontrado el {date}',
         toast:      'Objeto de evento encontrado: {name}',
         keep:       'Los objetos encontrados se quedan en tu colección tras el evento.',
+        ended:      'Terminado el {date}',
       },
       badges: {
         section: '🏅 Insignias y logros',

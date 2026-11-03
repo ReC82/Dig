@@ -323,6 +323,7 @@ function mine(p, s, rules, o, random, { seconds, cps, now, chestWait, ad, played
     t += dt + BREAK_ANIM_S;
     if (t > end) break;                              // bloc non terminé à la fin de la séance
     s.depth++; s.stats.blocks++;
+    if (o.onBlock) o.onBlock(type, s.depth - 1, t);   // outils dérivés (#39 drops saisonniers), sans effet ici
     if (s.depth > s.m.maxDepth) s.m.maxDepth = s.depth;
     const id = G.Blocks.idOf(type);
     if (type.isChest) {
