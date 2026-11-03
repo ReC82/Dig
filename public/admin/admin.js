@@ -1006,9 +1006,89 @@ let _currentPlayerId   = null;
 let _currentPlayerName = null;
 
 document.getElementById('btn-player-search').addEventListener('click', searchPlayers);
-document.getElementById('player-search-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') searchPlayers();
-});
+
+/**
+ * Autocomplétion des pseudos (#37, recette du 03/11), réutilisable par d'autres écrans
+ * (ex. événements TEST #56) : suggestions « pseudo · ID » sans e-mail, sélection par
+ * identifiant stable. ↑/↓ pour parcourir, Entrée pour choisir, Échap pour fermer.
+ * onEnter() est appelé sur Entrée quand aucune suggestion n'est surlignée.
+ */
+function attachPlayerAutocomplete(input, list, { onSelect, onEnter, minChars = 2 } = {}) {
+  let items = [], active = -1, timer = null, seqNo = 0;
+  const close = () => {
+    list.classList.add('hidden'); list.innerHTML = ''; items = []; active = -1;
+    input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
+  };
+  const highlight = i => {
+    active = i;
+    [...list.children].forEach((li, k) => li.setAttribute('aria-selected', String(k === i)));
+    if (i >= 0) { input.setAttribute('aria-activedescendant', list.children[i].id); list.children[i].scrollIntoView({ block: 'nearest' }); }
+    else input.removeAttribute('aria-activedescendant');
+  };
+  const choose = u => { close(); input.value = u.username; onSelect(u); };
+  const render = (users, q) => {
+    list.innerHTML = ''; items = users; active = -1;
+    if (!users.length) {
+      const li = document.createElement('li');
+      li.className = 'player-ac-empty muted';
+      li.textContent = `Aucun pseudo ne contient « ${q} ».`;
+      list.appendChild(li);
+    }
+    users.forEach((u, i) => {
+      const li = document.createElement('li');
+      li.id = `${list.id}-opt-${i}`;
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', 'false');
+      li.dataset.userId = String(u.id);
+      const name = document.createElement('strong'); name.textContent = u.username;
+      const id   = document.createElement('span');   id.className = 'muted'; id.textContent = ` · ID ${u.id}`;
+      li.append(name, id);
+      li.addEventListener('mousedown', e => { e.preventDefault(); choose(u); });
+      list.appendChild(li);
+    });
+    list.classList.remove('hidden');
+    input.setAttribute('aria-expanded', 'true');
+  };
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < minChars) { close(); return; }
+    timer = setTimeout(async () => {
+      const mine = ++seqNo;
+      const { ok, data } = await api('GET', `/api/admin/players/suggest?q=${encodeURIComponent(q)}`);
+      if (mine !== seqNo || input.value.trim() !== q) return; // réponse périmée
+      if (ok) render(data.users ?? [], q); else close();
+    }, 200);
+  });
+  input.addEventListener('keydown', e => {
+    const open = !list.classList.contains('hidden') && items.length > 0;
+    if (e.key === 'ArrowDown' && open) { e.preventDefault(); highlight((active + 1) % items.length); }
+    else if (e.key === 'ArrowUp' && open) { e.preventDefault(); highlight(active <= 0 ? items.length - 1 : active - 1); }
+    else if (e.key === 'Escape' && !list.classList.contains('hidden')) { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (open && active >= 0) choose(items[active]);
+      else { close(); onEnter?.(); }
+    }
+  });
+  input.addEventListener('blur', () => setTimeout(close, 150));
+  return { close };
+}
+
+attachPlayerAutocomplete(
+  document.getElementById('player-search-input'),
+  document.getElementById('player-search-suggest'),
+  { onSelect: u => viewPlayerSave(u.id, u.username), onEnter: searchPlayers },
+);
+
+/** Date SQLite UTC (« AAAA-MM-JJ HH:MM:SS ») → « JJ/MM/AAAA HH:MM (Bruxelles) — HH:MM UTC ». */
+function pdSavedAt(s) {
+  if (!s) return '—';
+  const d = new Date(`${String(s).replace(' ', 'T')}${/Z|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z'}`);
+  if (isNaN(d)) return String(s);
+  const local = d.toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', dateStyle: 'short', timeStyle: 'short' });
+  return `${local} (${d.toISOString().slice(11, 16)} UTC)`;
+}
 
 async function searchPlayers() {
   const q = document.getElementById('player-search-input').value.trim();
@@ -1062,9 +1142,12 @@ async function viewPlayerSave(userId, username) {
   document.getElementById('pd-bag').textContent     = s.upgrades?.bag     ?? 0;
   document.getElementById('pd-autodig').textContent = s.upgrades?.autodig ?? 0;
   const cb = s.shopChestsBought ?? {};
-  document.getElementById('pd-chests').textContent  = `📦${cb.simple ?? 0} 💎${cb.rare ?? 0} 🏺${cb.antique ?? 0}`;
-  document.getElementById('pd-updated').textContent = (s.updatedAt ?? '—').substring(0, 19);
-  document.getElementById('pd-version').textContent = s.saveVersion ?? '—';
+  document.getElementById('pd-chest-simple').textContent  = cb.simple  ?? 0;
+  document.getElementById('pd-chest-rare').textContent    = cb.rare    ?? 0;
+  document.getElementById('pd-chest-antique').textContent = cb.antique ?? 0;
+  document.getElementById('pd-updated').textContent  = pdSavedAt(s.updatedAt);
+  document.getElementById('pd-revision').textContent = s.revision != null ? `n° ${s.revision}` : '—';
+  document.getElementById('pd-version').textContent  = s.saveVersion != null ? `v${s.saveVersion}` : '—';
 
   // Reset UI de confirmation
   document.getElementById('player-reset-confirm').classList.add('hidden');
