@@ -2463,15 +2463,27 @@ function _accountSectionHtml() {
       ${tab === 'register'
         ? `<p class="account-hint">${t('account.hint_username')}<br>${t('account.hint_email')}<br>${t('account.hint_password')}</p>`
         : ''}
+      ${(tab === 'register' && !_mailEnabled) ? `<p class="account-hint" id="acc-no-mail-register">${t('account.no_mail_register')}</p>` : ''}
       <button type="submit" class="account-submit-btn" id="btn-account-submit">
         ${tab === 'login' ? t('account.btn_login') : t('account.btn_register')}
       </button>
       ${(tab === 'login' && _mailEnabled)
         ? `<button type="button" class="account-link-btn" data-tab="forgot">${t('account.btn_forgot')}</button>` : ''}
+      ${(tab === 'login' && !_mailEnabled) ? _noMailForgotHtml() : ''}
       <p class="account-error" id="acc-error" role="alert"></p>
     </form>
     ${tab === 'login' ? _socialLoginHtml() : ''}
   </div>`;
+}
+
+/**
+ * E-mails inactifs (#43) : pas de lien « Mot de passe oublié » automatique. Le joueur sait quoi faire :
+ * l'organisateur de la bêta peut lui donner un mot de passe temporaire depuis le panel (#57).
+ */
+function _noMailForgotHtml() {
+  const discord = (typeof DigBeta !== 'undefined') ? DigBeta.discordUrl() : null;
+  return `<p class="account-hint" id="acc-no-mail-forgot">${t('account.no_mail_forgot')}${discord
+    ? ` <a href="${escapeHtml(discord)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('beta.discord'))}</a>` : ''}</p>`;
 }
 
 /**
