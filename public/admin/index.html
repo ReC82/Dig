@@ -366,9 +366,15 @@
     <div class="overview-card">
       <h3 class="overview-card-title">Debug joueur</h3>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-        <input type="text" id="player-search-input" placeholder="Rechercher un joueur..." style="flex:1;min-width:180px">
+        <div class="player-ac" style="flex:1;min-width:180px">
+          <input type="text" id="player-search-input" placeholder="Pseudo (2 lettres ou plus : suggestions)…" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="player-search-suggest"
+                 aria-label="Rechercher un joueur par pseudo">
+          <ul id="player-search-suggest" class="player-ac-list hidden" role="listbox" aria-label="Joueurs suggérés"></ul>
+        </div>
         <button class="btn" id="btn-player-search">Rechercher</button>
       </div>
+      <p class="muted" style="margin:-8px 0 12px;font-size:0.85rem">Choisir une suggestion ouvre directement la fiche du joueur (sélection par identifiant, sans e-mail). « Rechercher » affiche le tableau complet.</p>
       <div id="player-search-results" class="hidden">
         <table id="player-results-table">
           <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Ligue</th><th>Depuis</th><th>Action</th></tr></thead>
@@ -393,14 +399,17 @@
         <div class="stat-item"><span class="stat-label">⬆ Chance</span><span class="stat-value" id="pd-luck">—</span></div>
         <div class="stat-item"><span class="stat-label">⬆ Sac</span><span class="stat-value" id="pd-bag">—</span></div>
         <div class="stat-item"><span class="stat-label">⬆ Auto-dig</span><span class="stat-value" id="pd-autodig">—</span></div>
-        <div class="stat-item"><span class="stat-label">📦 Coffres</span><span class="stat-value" id="pd-chests">—</span></div>
-        <div class="stat-item"><span class="stat-label">⏱ Sauvegardé</span><span class="stat-value" id="pd-updated">—</span></div>
-        <div class="stat-item"><span class="stat-label">🔢 Save v.</span><span class="stat-value" id="pd-version">—</span></div>
+        <div class="stat-item"><span class="stat-label">📦 Coffres simples achetés (saison)</span><span class="stat-value" id="pd-chest-simple">—</span></div>
+        <div class="stat-item"><span class="stat-label">💎 Coffres rares achetés (saison)</span><span class="stat-value" id="pd-chest-rare">—</span></div>
+        <div class="stat-item"><span class="stat-label">🏺 Coffres antiques achetés (saison)</span><span class="stat-value" id="pd-chest-antique">—</span></div>
+        <div class="stat-item" title="Date et heure de la dernière sauvegarde reçue par le serveur (heure de Bruxelles, UTC entre parenthèses)."><span class="stat-label">⏱ Dernière sauvegarde</span><span class="stat-value" id="pd-updated">—</span></div>
+        <div class="stat-item" title="Nombre d'enregistrements de cette sauvegarde sur le serveur (augmente à chaque sauvegarde acceptée)."><span class="stat-label">🔁 Révision serveur</span><span class="stat-value" id="pd-revision">—</span></div>
+        <div class="stat-item" title="Version du FORMAT de la sauvegarde (structure des données du jeu), et non le nombre de sauvegardes."><span class="stat-label">🔢 Format de sauvegarde</span><span class="stat-value" id="pd-version">—</span></div>
       </div>
 
       <!-- Reset saisonnier -->
       <div class="danger-zone" style="margin-top:16px;padding:12px;border-radius:8px">
-        <p class="muted" style="margin-bottom:10px">Reset saisonnier : remet coins, profondeur, upgrades et coffres à zéro. Gems plafonnées. Reliques et fragments conservés.</p>
+        <p class="muted" style="margin-bottom:10px">Les compteurs de coffres sont les achats en boutique pendant la saison. Reset saisonnier : remet coins, profondeur, upgrades et coffres à zéro. Gems plafonnées. Reliques et fragments conservés.</p>
         <button class="btn btn-danger btn-sm" id="btn-season-reset-player">⚠ Reset saisonnier</button>
         <div id="player-reset-confirm" class="confirm-dialog hidden" style="margin-top:10px">
           <p>Confirmer le reset saisonnier pour <strong id="pr-confirm-name"></strong> ?</p>

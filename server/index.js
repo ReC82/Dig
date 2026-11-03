@@ -44,6 +44,7 @@ const {
   getUserSave,
   upsertUserSave,
   searchUsers,
+  suggestUsers,
   getAllSeasons,
   createSeason,
   updateSeason,
@@ -1889,6 +1890,21 @@ app.get('/api/admin/players/search', requireAdmin, (req, res) => {
     res.json({ users });
   } catch (err) {
     console.error('[GET /api/admin/players/search]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+/**
+ * GET /api/admin/players/suggest?q=<début ou partie du pseudo>
+ * Autocomplétion (#37) : identifiant stable + pseudo uniquement, sans e-mail, 10 au plus.
+ * Réutilisable par d'autres écrans admin (ex. événements TEST #56).
+ */
+app.get('/api/admin/players/suggest', requireAdmin, (req, res) => {
+  try {
+    const q = String(req.query.q ?? '').trim().slice(0, 64);
+    res.json({ users: q ? suggestUsers(q, 10) : [] });
+  } catch (err) {
+    console.error('[GET /api/admin/players/suggest]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });

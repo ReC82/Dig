@@ -1723,6 +1723,27 @@ function searchUsers(q) {
     .all(pattern);
 }
 
+/**
+ * Suggestions de pseudos pour l'autocomplétion admin (#37, recette du 03/11).
+ * Ne renvoie que l'identifiant stable et le pseudo (jamais l'e-mail). Les jokers LIKE saisis
+ * (% et _) sont pris au pied de la lettre. Les pseudos qui commencent par la saisie passent
+ * en premier, puis ordre alphabétique.
+ * @param {string} q
+ * @param {number} [limit=10]
+ * @returns {Array<{id:number, username:string}>}
+ */
+function suggestUsers(q, limit = 10) {
+  const term = String(q ?? '').toLowerCase().trim().replace(/[\\%_]/g, c => '\\' + c);
+  if (!term) return [];
+  const n = Math.max(1, Math.min(20, parseInt(limit, 10) || 10));
+  return getDb().prepare(
+    `SELECT id, username FROM users
+      WHERE LOWER(username) LIKE ? ESCAPE '\\'
+      ORDER BY (LOWER(username) LIKE ? ESCAPE '\\') DESC, LOWER(username), id
+      LIMIT ?`
+  ).all(`%${term}%`, `${term}%`, n);
+}
+
 function setAdminConfig(key, value) {
   getDb().prepare(
     `INSERT INTO admin_config (key, value, updated_at) VALUES (?,?,datetime('now'))
@@ -1758,7 +1779,7 @@ module.exports = {
   getSeasonLeaderboard, countSeasonActivePlayers, getPlayerSeasonRank,
   getLeagueLeaderboard, countLeaguePlayers, getPlayerLeagueRank,
   getPlayerSeasonEntry, getOrCreateSeasonEntry, updateAutoBlocksOnly,
-  getAdminConfig, setAdminConfig, searchUsers,
+  getAdminConfig, setAdminConfig, searchUsers, suggestUsers,
   getAllLeaguesWithStats,
   getClickTracking, upsertClickTracking,
   insertAntiCheatLog, getAntiCheatLogs, countAntiCheatLogs, getAntiCheatCoverage,
