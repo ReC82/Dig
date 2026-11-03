@@ -9,10 +9,11 @@
 
 ## 1. État réel
 
-**Déployé en production (SHA `a49c604`, 03/11/2026 17:15 Bruxelles) — en attente de recette.**
-Dernière évolution (§ 11) : retour UX de la recette du propriétaire du 03/11 (#30-A) — synthèse des
-réglages d'abord, « Modifier » ouvre la fiche en accordéons, simulation explicitée. Le panel est
-actif et protégé par `ADMIN_SECRET` depuis le 30/10 (§ 10). Aucun changement visible pour les joueurs.
+**Déployé en production (SHA `8ac3c77`, 03/11/2026 18:16 Bruxelles) — en attente de recette.**
+Dernière évolution (§ 12) : retour UX de la recette #30-D — aperçu de saison en cartes, preuve
+technique repliée, attribution simulée séparée et confirmée, exclusion protégée. Les réglages en
+synthèse + accordéons (§ 11) ont été validés visuellement (#30-B) et « Annuler » validé (#30-C).
+Le panel est protégé par `ADMIN_SECRET` depuis le 30/10 (§ 10). Aucun changement visible pour les joueurs.
 
 ## 2. Périmètre retenu
 
@@ -313,6 +314,112 @@ Classement : **Après lancement** (le MVP se partage sans concours).
 - Largeur/centrage communs (#62), protection générale des formulaires (#61) et bouton Rafraîchir
   avec état (#60) ne sont **pas** traités ici : ce sont des tickets dédiés, transverses à tout
   l'admin ; le panel Concours en bénéficiera automatiquement.
+
+### Décisions demandées au propriétaire
+
+Inchangées (§ 8, questions 1 et 2), non bloquantes : délai entre deux gains ; sort d'un lot expiré.
+
+### Restant à réaliser
+
+Inchangé (§ 9), plus #60/#61/#62 pour l'harmonisation transverse de l'admin.
+
+## 12. Mise à jour du 03/11/2026 (session 4) — aperçu de saison en cartes, action persistante séparée
+
+**Retours du propriétaire pris en compte** :
+- #30-B (16:25 UTC) : synthèse et accordéons des réglages **conformes visuellement** ; rien à changer.
+- #30-C (16:26 UTC) : **Annuler** referme la fiche sans changement — **validé** ; le cas « saisie non
+  enregistrée » relève de #61.
+- #30-D (16:29 UTC) : lecture de l'aperçu d'une saison figée **validée**, mais « l'UX pas top ».
+  Refonte demandée en 6 points (synthèse en cartes, technique replié, tableau lisible, action
+  persistante séparée et confirmée, exclusion protégée, texte gris réduit), **sans changer les
+  règles, les bénéficiaires ni les données**.
+
+**État réel : déployé en production (`8ac3c77`) — en attente de recette.**
+
+### Déploiement
+
+- SHA sur `develop` et déployé : `8ac3c77` (fusion de la branche `feature/30-admin-concours`, commit
+  `afebb0e`) ; `main` avancé de `de365b3` à `8ac3c77` (avance rapide).
+- Copie de la base de production avec la release (`NODE_ENV=production`, port 3122) : `/health` ok,
+  version `1.0.0+8ac3c77`, `/admin/` 200, nouveau `admin.js` servi, empreintes des 6 tables
+  identiques avant/après démarrage ; copie supprimée.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261103-181641-pre-deploy-8ac3c77.sqlite`.
+- Après déploiement : les deux domaines 200, `/admin/` 200, `/api/version` = `1.0.0+8ac3c77`,
+  journal sans erreur, `quick_check` ok ; `users`, `seasons`, `leagues` identiques ; `user_saves`
+  (versions +1), `season_rankings` et `player_click_tracking` en progression (parties en cours), aucune perte.
+- Aucune migration, aucune donnée modifiée, aucun réglage du concours touché, aucune attribution.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep de365b3` + `sudo systemctl restart dig`
+  (verrou npm inchangé).
+
+### Changements (`public/admin/index.html`, `admin.js`, `admin.css`, `test/contest.test.js`) — interface seule
+
+1. **Synthèse humaine en cartes** en tête de « Saison : aperçu et attribution » : *Saison figée / non
+   figée* (nom et dates **heure de Bruxelles**), *N participants · N éligibles* (critères en petit),
+   *Bénéficiaire potentiel* (pseudo, carte dorée, « selon cet aperçu, rien n'est attribué »),
+   *N lot(s) simulable(s)* (prévus par saison, déjà enregistrés), *Source du classement* (figé,
+   empreinte vérifiée / vivant, indicatif). Mention « 👁 Aperçu sans effet » au-dessus. Les blocages
+   (saison non figée, déjà attribuée…) restent affichés en rouge sous les cartes.
+2. **« Preuve et détails techniques »**, replié par défaut : période UTC, source, empreinte SHA-256,
+   date de gel (UTC), critères appliqués, identifiant de saison.
+3. **Tableau lisible** : colonnes Place (1er, 2e…), Joueur, Profondeur max., Blocs minés, Risque
+   anti-bot, Concours, Lot (aperçu), Action ; la ligne du **bénéficiaire potentiel** est surlignée
+   (« 🎁 lot 1 — potentiel ») ; les non-éligibles sont grisés. Sur téléphone, chaque joueur devient
+   une carte libellée (plus de défilement horizontal).
+4. **Bloc « Action persistante »** distinct (cadre pointillé), placé après le tableau : explication
+   courte juste avant le bouton, bouton renommé **« Enregistrer une attribution simulée »** (rouge
+   « Attribuer les lots RÉELS » en mode réel, toujours verrouillé). Le clic ouvre la **confirmation
+   Dig** (fiche commune `admConfirm`, focus sur Annuler) qui liste l'effet : ligne « simulation » dans
+   l'historique et le journal ; aucun cadeau, message, point ni stock ; une seule fois par saison,
+   non supprimable.
+5. **« Exclure… »** n'agit plus directement : il ouvre une fiche qui explique l'effet (pas de lot de
+   ce concours pour cette saison, classement et progression inchangés, réversible par
+   « Réintégrer », attribution déjà enregistrée non modifiée), exige un **motif** (bouton désactivé
+   tant que le motif fait moins de 3 caractères) ; Annuler/Échap = aucun effet. « Réintégrer » passe
+   aussi par la confirmation Dig. Plus aucun `confirm()`/`prompt()` natif dans cette carte.
+6. Le long texte gris est remplacé par une **aide facultative repliée** (« Aide : que fait exactement
+   la simulation ? »), qui décrit aussi l'exclusion.
+
+Aucune route, règle d'attribution, critère ni donnée modifiés ; largeur/centrage (#62) et protection
+générale des formulaires (#61) non dupliqués.
+
+### Vérifications
+
+- `npm test` complet : **555/555** sur la branche, sur `develop` après fusion et sur le SHA de release.
+- Nouveau test de balisage (`test/contest.test.js`) : cartes, preuve repliée, bloc d'action après le
+  tableau avec son explication avant le bouton, aide repliée, fiche d'exclusion à bouton désactivé,
+  aucun `confirm()`/`prompt()` natif, confirmation Dig avant attribution, dates de Bruxelles.
+- Chromium headless sur une base de test (port 3101, 2 saisons closes et figées, 4 joueurs fictifs)
+  en 1280×900 et 390×844 : cartes correctes (« Saison figée », « 3 participants · 3 éligibles »,
+  « lody », « 1 lot simulable », « Classement figé · empreinte vérifiée »), preuve repliée puis
+  dépliable ; Exclure → fiche ouverte, bouton désactivé, Annuler sans effet ; exclusion avec motif →
+  ligne grisée « exclu par l'admin : … » et « Réintégrer » ; Réintégrer annulé puis confirmé ;
+  « Enregistrer une attribution simulée » → confirmation Dig avec les 3 lignes d'effet, Annuler →
+  « Aucun gagnant ». Aucune erreur JavaScript (seuls les 401 attendus avant connexion). Serveur
+  arrêté, base de test supprimée.
+
+### Test fonctionnel à faire par le propriétaire (non destructif)
+
+1. Admin → 🎁 Concours (Ctrl+F5). Choisir « Saison 44-2026 · 2 (closed, figée) », mode Simulation,
+   **Aperçu**. Attendu : 5 cartes (Saison figée, 1 participant · 1 éligible, Bénéficiaire potentiel
+   lody, 1 lot simulable, Classement figé · empreinte vérifiée), dates en heure de Bruxelles, ligne
+   de lody surlignée « 🎁 lot 1 — potentiel ».
+2. Déplier « Preuve et détails techniques » : empreinte SHA-256 et période UTC.
+3. Cliquer **Exclure…** sur la ligne, lire la fiche, puis **Annuler**. Attendu : rien ne change.
+4. Cliquer **Enregistrer une attribution simulée**, lire la confirmation, puis **Annuler**. Attendu :
+   aucune ligne dans « Gagnants et remise des lots ». (Ne pas confirmer sans le vouloir : la ligne
+   simulée est définitive pour la saison.)
+5. Sur téléphone : le tableau s'affiche en cartes libellées, sans défilement horizontal.
+
+Classement : **Après lancement**.
+
+### Choix techniques faits seul
+
+- Confirmation Dig commune `admConfirm` (#50-E) pour l'attribution et la réintégration ; fiche
+  `<dialog>` dédiée pour l'exclusion, car elle demande un motif (la confirmation commune n'a pas de
+  champ de saisie).
+- « Place » affiche le rang du classement figé (la position brute reste en info-bulle).
+- Le libellé « Enregistrer une attribution simulée » remplace « Attribuer les lots (simulation) »
+  pour lever l'ambiguïté avec une remise réelle (demande #30-D).
 
 ### Décisions demandées au propriétaire
 
