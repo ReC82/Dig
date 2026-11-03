@@ -1,5 +1,99 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 03/11/2026, 17 h (Bruxelles) — fiche des souvenirs validée ; deux barèmes Saint-Martin plus accessibles aux joueurs lents (simulation seule)
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite le commentaire du propriétaire de [14:23 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6606311481) :
+
+- la fiche des souvenirs d'événements est **validée** sur PC et téléphone : rien à faire de plus pour ce point ;
+- le barème « Progressif » (légendaire 3 %) est **refusé en l'état**, car il fait passer la série complète d'un joueur lent de 26 % à 16 %. Le propriétaire demande une variante chiffrée qui aide les joueurs lents **sans banaliser le légendaire**, avec la même méthode, et sans rien activer.
+
+## A (03/11 soir). État réel
+
+**Intégré dans `develop` (`c7b6436`), non déployé : aucun changement du jeu.** Le lot ne modifie que l'outil de simulation, son test et des documents. La production reste à `0c66821`, qui contient déjà toute l'interface #39 validée. **Aucun taux modifié, aucun drop activé, rien publié.**
+
+Classement : choix du barème = **bloquant pour la publication de la Saint-Martin (W46, 09/11)**, pas pour le reste du MVP public.
+
+## B (03/11 soir). Méthode
+
+C'est le même outil que la simulation précédente (`tools/balance/collection-drop-sim.js`, sur le simulateur économique #49 qui exécute le vrai code du jeu). Il simule 2 000 joueurs par profil, avec le même flux de blocs pour tous les barèmes. Les résultats sont reproductibles. Deux ajouts :
+
+- **colonne « Légendaire fin J1 »** : part des joueurs qui ont déjà le légendaire à la fin du premier jour. C'est l'indicateur retenu pour « ne pas banaliser » : un légendaire trouvé dès la première séance par la plupart des joueurs actifs est banalisé ;
+- **option `pityStep`** (simulation seulement) : la chance d'un objet augmente de N points à chaque tirage raté de cet objet.
+
+Résultat complet : [`2026-11-03_ticket-39-simulation-drops-saint-martin.md`](2026-11-03_ticket-39-simulation-drops-saint-martin.md), régénéré avec les deux nouvelles variantes. Les chiffres des trois barèmes précédents sont inchangés (vérifié par diff).
+
+## C (03/11 soir). Ce qui bloque les joueurs lents
+
+Avec le brouillon actuel, le joueur lent (20 min/j, 4 j/7, compte neuf) trouve les communs et les peu communs à plus de 99 %. Deux objets le bloquent :
+
+- **le rare** (fer à cheval, 1,5 % par minerai dès 40 m) : **67 %** ;
+- **le légendaire** (manteau, 5 % par gemme dès 100 m) : **40 %**.
+
+**Limite structurelle.** En une semaine, le joueur lent rencontre une médiane de **11 gemmes** au-delà de 100 m. C'est à peu près ce qu'un joueur régulier rencontre en **un seul jour** : avec le brouillon, 40 % des lents ont le légendaire en fin de semaine, et 38 % des réguliers l'ont dès le premier jour.
+
+Avec une chance fixe par gemme, toute hausse pour les lents rend donc le légendaire plus fréquent au premier jour des actifs. Seule une chance qui **augmente avec les échecs** évite ce compromis : elle ne change presque rien aux premiers tirages, mais elle rattrape les malchanceux.
+
+## D (03/11 soir). Les deux variantes proposées
+
+| Variante | Communs | Peu communs | Rare | Légendaire |
+|---|---|---|---|---|
+| Brouillon actuel | 3 % | 2 % dès 20 m | 1,5 % dès 40 m | 5 % par gemme dès 100 m |
+| Progressif (refusé) | 4 % | 2 % | 1,5 % | 3 % |
+| **Accessible** (valeurs seules) | 4 % | 2 % | **3 %** | **6 %** |
+| **Chance croissante** | 4 % | 2 % | **2 % + 0,1 pt par minerai raté** | **3 % + 0,3 pt par gemme ratée** |
+
+**Série complète en 7 jours (légendaire dès la fin du 1er jour)** — 2 000 joueurs par profil ; saison 1 = compte neuf, saison 4 = joueur installé :
+
+| Profil | Brouillon | Progressif | **Accessible** | **Chance croissante** |
+|---|---|---|---|---|
+| Lent, saison 1 | 26 % | 16 % | **38 %** | **37 %** |
+| Lent, saison 4 | 48 % | 31 % | **62 %** | **64 %** |
+| Nouvel entrant (vendredi → dimanche) | 76 % | 57 % | **86 %** | **91 %** |
+| Auto-Dig, saison 1 | 83 % | 65 % | **91 %** | **96 %** |
+| Régulier, saison 1 · saison 4 | 96 % · 99 % | 85 % · 98 % | **98 % · 100 %** | **> 99 % · 100 %** |
+| *Légendaire dès la fin du J1 — régulier, saison 1* | *38 %* | *26 %* | ***45 %*** | ***38 %*** |
+| *Légendaire dès la fin du J1 — assidu, saison 1* | *74 %* | *52 %* | ***79 %*** | ***82 %*** |
+
+Lecture des deux variantes :
+
+- **Accessible** : uniquement des valeurs. Elle peut être saisie telle quelle dans la fiche de la série (Admin → Collections), sans développement. Le rare passe de 67 % à 88 % chez le joueur lent, et la série complète des lents gagne 12 à 14 points. Contrepartie : le légendaire est un peu plus souvent trouvé dès le premier jour par un régulier (45 % au lieu de 38 %).
+- **Chance croissante** : départ plus bas que le brouillon (légendaire 3 %), puis +0,3 point par gemme éligible ratée. Le premier jour d'un régulier reste au niveau du brouillon (**38 %**) : le légendaire n'est pas banalisé. Les joueurs lents gagnent autant qu'avec « Accessible », les nouveaux entrants et les profils Auto-Dig davantage. Tout joueur suffisamment actif finit la série. **Limite :** cette mécanique n'existe pas dans le jeu. Il faudrait une petite évolution : un compteur de tirages ratés par joueur et par objet, conservé dans la sauvegarde, et un champ « hausse par échec » dans l'admin. À faire seulement après votre accord, avant le 09/11.
+- Aucune variante ne dépasse durablement environ 40 % pour un joueur lent sur un **compte neuf** sans rendre le légendaire courant dès le premier jour des actifs (voir C).
+
+## E (03/11 soir). SHA, tests
+
+- Branche `feature/39-collections-saisonnieres`, commit `9c733b9` ; `develop` **`c7b6436`**.
+- `npm test` : **546/546** sur la branche, **552/552** sur `develop` après intégration (les tests en plus viennent des autres tickets). Nouveau test : le barème « Accessible » ne contient que des valeurs, la chance croissante ne peut qu'augmenter les trouvailles, et la part par jour est cumulative.
+- Reproduire : `node tools/balance/collection-drop-sim.js --runs 2000` (ou `--scale CROISSANT`).
+- **Non déployé** : aucun fichier servi aux joueurs ni à l'admin n'a changé (écart avec `main` : outil, test, documents). Production inchangée : `0c66821`. Aucune donnée joueur touchée.
+
+## F (03/11 soir). Test fonctionnel
+
+Aucun test en jeu pour ce lot. Il faut seulement lire les chiffres et choisir un barème (question 3 ci-dessous).
+
+## G (03/11 soir). Choix techniques faits seul
+
+- **« Banaliser » mesuré par la part des joueurs qui ont le légendaire dès la fin du premier jour**, comparée au brouillon. Ce critère est lisible et ne dépend pas d'un seuil arbitraire.
+- **La proposition à 3 % n'est plus recommandée**, conformément à votre commentaire. Elle reste dans l'outil comme référence.
+
+## H (03/11 soir). Décisions demandées au propriétaire
+
+1. Rattacher « Les Objets trouvés de la Légende » à 2026-W47 ? Recommandation : **oui** (W46 = Saint-Martin).
+2. « Trésors de la vieille mine » (fin 08/11, incomplète) : la reporter sur une semaine future, par exemple 2026-W48 ? Recommandation : **oui**.
+3. **Barème Saint-Martin** :
+   - (a) **Chance croissante** — **recommandé** : le légendaire n'est pas plus facile au premier jour, et les lents et nouveaux entrants sont rattrapés. Demande une petite évolution du jeu, faisable avant le 09/11.
+   - (b) **Accessible** : valeurs seules, applicables immédiatement dans l'admin.
+   - (c) Brouillon actuel.
+4. Objets d'une saison terminée exclusifs ? Recommandation : **oui**. Objets non trouvés affichés en grisé ? Recommandation : **oui**.
+
+Après votre choix, une session applique le barème (et, pour (a), développe le compteur), active les drops et prépare la publication ciblée. **Rien n'est publié sans votre feu vert.**
+
+## I (03/11 soir). Restant à réaliser
+
+- Appliquer le barème choisi, activer les drops de la Saint-Martin et publier sur votre feu vert (avant le 09/11).
+- Après lancement : tirage des objets de collection contrôlé par le serveur, comme pour les événements #56.
+
+
 # Mise à jour du 03/11/2026, 15 h 10 (Bruxelles) — fiche dédiée des souvenirs d'événements et simulation chiffrée des drops Saint-Martin
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite deux commentaires du propriétaire :
