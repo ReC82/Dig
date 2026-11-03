@@ -18,7 +18,7 @@
  *     garde la même date dans le navigateur.
  *   - Annonces automatiques de saison (#48), réglage `news_auto_seasons` (activé) : saison suivante
  *     dès l'annonce J-1 du thème, début de saison, fin de saison (après le classement figé #29,
- *     chiffres agrégés uniquement). Clé `auto_key` unique : jamais de doublon, rejouable après un
+ *     chiffres agrégés uniquement, et seulement à partir de 3 classés). Clé `auto_key` unique : jamais de doublon, rejouable après un
  *     redémarrage. Seuls les événements des 48 dernières heures sont annoncés (pas de rattrapage
  *     de l'historique au déploiement).
  *   - Faits joueurs, réglage `news_player_events` (DÉSACTIVÉ par défaut) : profondeur validée par le
@@ -42,6 +42,7 @@ const STATUSES = ['draft', 'published', 'archived'];
 const MAX = { title: 90, summary: 280, body: 2000, url: 300, label: 40, raw: 4000 };
 const AUTO_WINDOW_MS = 48 * 3_600_000;
 const PUBLIC_LIMIT = 30;
+const END_MIN_RANKED = 3;   // fin de saison : chiffres agrégés seulement à partir de 3 classés
 const URL_RE = /^https:\/\/[^\s<>"']{3,290}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?(\.\d+)?Z?$/;
 
@@ -522,6 +523,8 @@ const T = {
   end_title:    { fr: 'Fin de la saison {name}', en: 'Season {name} is over', nl: 'Seizoen {name} is afgelopen', es: 'Fin de la temporada {name}' },
   end_sum:      { fr: '{n} mineurs classés · record de la saison : {d} m.', en: '{n} ranked miners · season record: {d} m.',
                   nl: '{n} mijnwerkers in het klassement · seizoensrecord: {d} m.', es: '{n} mineros clasificados · récord de la temporada: {d} m.' },
+  end_few:      { fr: 'Le classement final est consultable dans l\'onglet Saison.', en: 'The final ranking is available in the Season tab.',
+                  nl: 'Het eindklassement staat in het tabblad Seizoen.', es: 'La clasificación final está en la pestaña Temporada.' },
   depth_title:  { fr: '{user} a atteint {d} m', en: '{user} reached {d} m', nl: '{user} bereikte {d} m', es: '{user} ha llegado a {d} m' },
   depth_sum:    { fr: 'Profondeur validée par le serveur pendant la saison {name}.', en: 'Depth validated by the server during season {name}.',
                   nl: 'Diepte bevestigd door de server tijdens seizoen {name}.', es: 'Profundidad validada por el servidor durante la temporada {name}.' },
@@ -609,7 +612,9 @@ function _seasonAnnouncements(now) {
     const agg = conn().prepare('SELECT COUNT(*) AS n, MAX(max_depth) AS d FROM season_standings WHERE season_id = ? AND eligible = 1').get(s.id);
     if (!agg.n) continue;
     created += _auto(`season_end:${s.id}`, {
-      icon: '🏁', titles: _tpl('end_title', { name: _seasonNames(s) }), summaries: _tpl('end_sum', { n: agg.n, d: agg.d }),
+      icon: '🏁', titles: _tpl('end_title', { name: _seasonNames(s) }),
+      // Moins de 3 classés : un agrégat révélerait le résultat d'un joueur sans son accord
+      summaries: agg.n >= END_MIN_RANKED ? _tpl('end_sum', { n: agg.n, d: agg.d }) : _tpl('end_few'),
       expiresAt: fmt(new Date(end.getTime() + 7 * 86_400_000)),
     }, { publishAt: fmt(now) });
   }
