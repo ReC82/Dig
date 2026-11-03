@@ -1242,6 +1242,11 @@ app.post('/api/admin/icons/targets/:key/generate', requireAdmin, limit.icons, ic
     // Version du panel qui envoie la demande (en-tête) et fiche visée (corps) : refus d'un onglet obsolète
     client: { build: req.get('x-dig-admin-build') ?? null, target: req.body?.target ?? null } }) })));
 
+// Lecture du sujet pendant la saisie (recettes des 02 et 03/11) : aucun appel IA, aucune écriture.
+app.post('/api/admin/icons/targets/:key/subject-check', requireAdmin, iconRoute('POST /api/admin/icons/targets/:key/subject-check',
+  req => iconStudio.subjectCheck(String(req.params.key), { instruction: req.body?.instruction ?? '',
+    subject: req.body?.subject ?? null, details: req.body?.details ?? null })));
+
 // Collection entière (demande du 02/11) : une image par objet sans image, enchaînées en arrière-plan.
 app.get('/api/admin/icons/series/:id', requireAdmin, iconRoute('GET /api/admin/icons/series/:id',
   req => ({ plan: iconStudio.seriesPlan(String(req.params.id)) })));

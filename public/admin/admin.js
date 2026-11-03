@@ -3750,6 +3750,7 @@ let _icPoll = null;      // minuterie de suivi de la génération
 let _icNote = null;      // message de la fiche { text, ok }
 let _icFrom = null;      // fiche d'origine quand l'atelier est ouvert depuis Collections { kind: 'item', id }
 const _icTyped = {};     // saisies non envoyées, rangées par clé d'icône : chaque fiche ne retrouve que les siennes
+const IC_INSTRUCTION_MAX = 1000;   // = serveur (INSTRUCTION_MAX, iconStudio.js)
 let _icConflict = null;  // génération refusée pour conflit de sujet { key, instruction, basedOn, conflicts }
 let _icBriefEls = null;  // champs de la consigne d'illustration de la fiche affichée (objets)
 const IC_ACTIONS = { generated: 'Image générée', uploaded: 'Image téléversée', chosen: 'Retenue', rejected: 'Écartée', restored: 'Remise en proposition',
@@ -3830,10 +3831,21 @@ function icRenderNotice() {
   icNotice(el, '');
 }
 
+/** Trois chiffres distincts (retour du 03/11) : coût réel d'une image, cumul de toutes les générations, plafond. */
+function icReserveText(s) {
+  const r = s.reserve;
+  if (!r) return '';
+  return r.basis === 'measured'
+    ? `réservation ${r.usd.toFixed(2)} USD par image (coût réel le plus élevé des ${r.samples} dernières : ${r.measuredMaxUsd.toFixed(3)} USD, + 25 %)`
+    : `réservation ${r.usd.toFixed(2)} USD par image (estimation configurée, en attendant 2 coûts réels mesurés)`;
+}
 function icBudgetHelp(s) {
-  return s.limitedBy === 'studio'
-    ? `Budget IA atteint (limite de l'atelier : ${s.studioSpentUsd.toFixed(2)} / ${s.studioCapUsd} USD). Pour continuer, relevez cette limite dans ⚙ Config → Budget IA.`
-    : `Budget IA atteint (${s.globalSpentUsd.toFixed(2)} / ${s.globalCapUsd} USD). Pour continuer, relevez le plafond du serveur : DIG_IMAGE_BUDGET_USD dans ~/.config/dig/openai.env (voir ⚙ Config → Budget IA).`;
+  const last = s.lastImage ? ` Coût réel de la dernière image : ${Number(s.lastImage.cost_usd).toFixed(3)} USD.` : '';
+  const head = `Plafond atteint : la prochaine image n'est pas lancée (${icReserveText(s)}, il reste ${s.remainingUsd.toFixed(2)} USD).${last} `;
+  return head + (s.limitedBy === 'studio'
+    ? `Limite de l'atelier : ${s.studioSpentUsd.toFixed(2)} / ${s.studioCapUsd} USD cumulés. Pour continuer, relevez cette limite dans ⚙ Config → Budget IA.`
+    : `Plafond du serveur : ${s.globalSpentUsd.toFixed(2)} / ${s.globalCapUsd} USD cumulés depuis le début (toutes les générations, scripts et blocs compris ; ce n'est pas le coût d'une image). `
+      + 'Pour continuer, relevez DIG_IMAGE_BUDGET_USD dans ~/.config/dig/openai.env (pris en compte sans redémarrage).');
 }
 
 async function loadIcons() {
@@ -3844,7 +3856,7 @@ async function loadIcons() {
   icRenderGrid();
   const s = data.status;
   document.getElementById('ic-tech').textContent = s.configured
-    ? `Modèle ${s.imageModel}${s.fake ? ' (mode test)' : ''} · ≈ ${s.estImageUsd} USD par image · ${s.imagesToday}/${s.maxImagesPerDay} images sur 24 h · référence de style : ${s.reference ?? 'aucune'}.`
+    ? `Modèle ${s.imageModel}${s.fake ? ' (mode test)' : ''} · ${s.lastImage ? `dernière image : ${Number(s.lastImage.cost_usd).toFixed(3)} USD · ` : ''}${icReserveText(s)} · ${s.imagesToday}/${s.maxImagesPerDay} images sur 24 h · référence de style : ${s.reference ?? 'aucune'}.`
     : `API non configurée : ${s.reason}.`;
   const cb = document.getElementById('ic-calls-body');
   cb.textContent = '';
@@ -3974,8 +3986,8 @@ async function icSeriesStart(seriesId) {
   const msg = [`Générer UNE image pour chacun des ${todo.length} objets de « ${p.name} » ?`, '',
     `• Objets : ${todo.map(i => i.name).join(', ')}.`,
     skipped.length ? `• Ignorés : ${skipped.join(' ; ')}.` : '',
-    `• Coût : ${measured} (estimation prudente du serveur : ${icUsd(p.estTotalUsd)}).`,
-    `• Budget restant : ${icUsd(p.remainingUsd)} → ${p.affordable >= todo.length ? 'suffisant' : `au plus ${p.affordable} image(s) selon l'estimation prudente ; la génération s'arrêtera d'elle-même au plafond, qui n'est jamais relevé automatiquement`}.`,
+    `• Coût : ${measured} (réservé avant chaque image : ${icUsd(p.estPerImageUsd)}, contrôle compris).`,
+    `• Budget restant sous le plafond : ${icUsd(p.remainingUsd)} → ${p.affordable >= todo.length ? 'suffisant' : `au moins ${p.affordable} image(s) ; la génération s'arrêtera d'elle-même au plafond, qui n'est jamais relevé automatiquement`}.`,
     `• Durée : ${p.measuredSeconds ? `≈ ${p.measuredSeconds} s` : 'environ 40 s'} par image, l'une après l'autre ; vous pouvez quitter la page.`,
     '• Chaque image est contrôlée automatiquement (objet reconnu ?). Rien n\'est conservé ni publié sans vous.'].filter(Boolean).join('\n');
   if (!confirm(msg)) return;
@@ -4135,25 +4147,38 @@ async function icSaveItemBrief(t, els) {
   return true;
 }
 
-/** Aperçu immédiat (le serveur reste seul juge) : la saisie cite-t-elle un autre objet du catalogue ? */
-const IC_GENERIC_HEADS = new Set(['fragment', 'piece', 'relic', 'relique', 'objet', 'object']);   // = serveur (iconStudio.js)
-const _icNorm = v => ` ${String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+/**
+ * Lecture du sujet pendant la saisie (recettes des 02 et 03/11) : le serveur applique la même règle qu'à
+ * la génération (référence de style et motif autorisés, demande de dessiner un autre objet refusée).
+ * Aucun appel IA ; le serveur reste seul juge au clic sur « Générer ».
+ */
+let _icLiveTimer = null, _icLiveSeq = 0;
 function icLiveConflict() {
+  clearTimeout(_icLiveTimer);
+  _icLiveTimer = setTimeout(icLiveConflictNow, 350);
+}
+async function icLiveConflictNow() {
   const out = document.getElementById('ic-live-conflict');
   const t = _icTarget;
-  if (!out || !t?.peerNames?.length) return;
-  const own = _icNorm(`${t.name} ${t.identity?.name ?? ''}`);
-  const has = (hay, w) => hay.includes(` ${w} `) || hay.includes(` ${w}s `);
-  const hay = _icNorm([document.getElementById('ic-instruction')?.value, ...Object.values(_icBriefEls ?? {}).map(el => el.value)].join(' | '));
-  const hits = [];
-  for (const p of t.peerNames) {
-    const terms = p.terms.map(n => _icNorm(n).trim());
-    const heads = [terms[0]?.split(' ')[0], terms[1]?.split(' ').pop()].filter(w => w && w.length >= 5 && !IC_GENERIC_HEADS.has(w));
-    const term = [...terms.filter(n => n.length >= 3), ...heads].find(w => !has(own, w) && has(hay, w));
-    if (term) hits.push(`« ${term} » (objet « ${p.name} »)`);
+  if (!out || !t?.identity) return;
+  const key = t.key, seq = ++_icLiveSeq;
+  const instruction = document.getElementById('ic-instruction')?.value ?? '';
+  const els = _icBriefEls ?? {};
+  const body = { instruction, ...(els.subject ? { subject: els.subject.value, details: els.details?.value ?? '' } : {}) };
+  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(key)}/subject-check`, body);
+  if (!ok || seq !== _icLiveSeq || _icTarget?.key !== key || !document.body.contains(out)) return;
+  const lines = [];
+  if (data.conflicts?.length) {
+    lines.push(`⚠ ${data.conflicts.map(c => `« ${c.term} » (objet « ${c.name} »)${c.context === 'replace' ? ' : demande de dessiner un autre objet' : ''}`).join(', ')}. `
+      + `Cette fiche est « ${t.name} » : la génération sera refusée sans dépense${data.conflicts.every(c => !c.strict) ? ' (sauf confirmation)' : ''}.`);
   }
-  out.textContent = hits.length ? `⚠ Votre saisie cite un autre objet : ${hits.join(', ')}. Cette fiche est « ${t.name} » : la génération sera refusée sans dépense.` : '';
-  out.classList.toggle('hidden', !hits.length);
+  if (data.references?.length) {
+    lines.push(`✓ Autorisé : ${data.references.map(r => `« ${r.term} » lu comme ${r.reason}`).join(', ')}.`);
+  }
+  out.textContent = lines.join(' ');
+  out.classList.toggle('hidden', !lines.length);
+  out.classList.toggle('ic-notice--warn', !!data.conflicts?.length);
+  out.classList.toggle('ic-notice--info', !data.conflicts?.length);
 }
 
 function icButton(parent, label, fn, cls = 'btn btn-outline') {
@@ -4228,13 +4253,23 @@ function icRenderSheet() {
   // Étape en cours : une seule action principale
   const step = aiEl('div', { class: 'ic-step' });
   const note = aiEl('p', { class: _icNote ? (_icNote.ok ? 'success' : 'error') : 'form-msg', role: 'status' }, _icNote?.text ?? '');
+  // Consigne multiligne qui s'agrandit avec le texte, compteur visible (recette du 02/11 : une ligne trop étroite)
   const field = (label, placeholder) => {
     const l = aiEl('label', { class: 'ic-field' }, label);
-    const i = aiEl('input', { type: 'text', id: 'ic-instruction', maxlength: '300', placeholder });
+    const i = aiEl('textarea', { id: 'ic-instruction', class: 'ic-textarea', rows: '3', maxlength: String(IC_INSTRUCTION_MAX), placeholder });
     i.value = _icTyped[t.key]?.instruction ?? typed;
-    i.addEventListener('input', () => { (_icTyped[t.key] ??= {}).instruction = i.value; icLiveConflict(); });
+    const count = aiEl('span', { class: 'muted ic-charcount', 'aria-live': 'polite' });
+    const grow = () => {
+      i.style.height = 'auto';
+      i.style.height = `${Math.min(i.scrollHeight + 2, 420)}px`;
+      count.textContent = `${i.value.length} / ${IC_INSTRUCTION_MAX} caractères · Ctrl+Entrée pour lancer`;
+      count.classList.toggle('is-full', i.value.length >= IC_INSTRUCTION_MAX);
+    };
+    i.addEventListener('input', () => { (_icTyped[t.key] ??= {}).instruction = i.value; grow(); icLiveConflict(); });
     l.appendChild(i);
+    l.appendChild(count);
     step.appendChild(l);
+    requestAnimationFrame(grow);
     return i;
   };
   const why = running && !mine ? `Une autre icône est en cours de génération (« ${_icJob.name} »).`
@@ -4284,6 +4319,8 @@ function icRenderSheet() {
     icButton(step, `Ce n'est pas un autre objet : générer « ${t.name} » quand même`,
       () => icGenerate(t.key, cf.instruction, cf.basedOn, cf.conflicts.map(c => c.id)));
   }
+  if (t.subjectReferences?.length && !t.subjectConflicts?.length) step.appendChild(aiEl('p', { class: 'muted ic-hint' },
+    `✓ La consigne enregistrée cite ${t.subjectReferences.map(r => `« ${r.term} » (${r.reason})`).join(', ')} : autorisé, ce n'est pas un changement de sujet.`));
   if (t.subjectConflicts?.length) step.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' },
     `⚠ La consigne d'illustration enregistrée mentionne ${t.subjectConflicts.map(c => `« ${c.term} » (objet « ${c.name} »)`).join(', ')} : corrigez-la avant de générer.`));
   box.appendChild(step);
@@ -4495,11 +4532,13 @@ async function loadIconsQuiet() {
 ['ic-kind', 'ic-state'].forEach(id => document.getElementById(id).addEventListener('change', icRenderGrid));
 document.getElementById('ic-search').addEventListener('input', icRenderGrid);
 document.getElementById('btn-refresh-icons').addEventListener('click', loadIcons);
-// Entrée dans le champ de consigne = action principale de l'étape
+// Ctrl+Entrée (ou ⌘+Entrée) dans le champ de consigne = action principale ; Entrée seule = retour à la ligne
 document.getElementById('ic-sheet').addEventListener('keydown', e => {
-  if (e.key !== 'Enter' || e.target.id !== 'ic-instruction') return;
+  if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.target.id !== 'ic-instruction') return;
   e.preventDefault();
-  e.target.closest('.ic-step')?.querySelector('.ic-redo .btn, .ic-main')?.click();
+  // « Refaire » quand il existe (jamais « Conserver cette image », placé avant dans la page), sinon « Générer »
+  const step = e.target.closest('.ic-step');
+  (step?.querySelector('.ic-redo .btn') ?? step?.querySelector('.ic-main'))?.click();
 });
 
 // ── Budget IA (⚙ Config) : consommé, plafond du serveur, limite facultative de l'atelier ──
@@ -4521,7 +4560,9 @@ async function loadAiBudget() {
   const usd = v => `${Number(v).toFixed(2)} USD`;
   sum.textContent = `Dépensé : ${usd(s.globalSpentUsd)} sur ${usd(s.globalCapUsd)} (plafond du serveur)`
     + (s.studioCapUsd != null ? ` · atelier d'icônes : ${usd(s.studioSpentUsd)} sur ${usd(s.studioCapUsd)}` : '')
-    + ` · reste ${usd(s.remainingUsd)}, soit environ ${Math.floor(s.remainingUsd / s.estImageUsd + 1e-9)} image(s).`;
+    + ` · reste ${usd(s.remainingUsd)}, soit au moins ${Math.floor(s.remainingUsd / (s.perImageUsd || s.estImageUsd) + 1e-9)} image(s).`
+    + ` Le montant dépensé est le cumul de toutes les générations depuis le début, pas le coût d'une image`
+    + `${s.lastImage ? ` (dernière image : ${Number(s.lastImage.cost_usd).toFixed(3)} USD)` : ''} ; ${icReserveText(s)}.`;
   document.getElementById('aib-meter').style.width = `${Math.min(100, s.globalCapUsd ? (s.globalSpentUsd / s.globalCapUsd) * 100 : 100)}%`;
   icNotice(reached, s.budgetReached ? icBudgetHelp(s) : '', 'warn');
 }
