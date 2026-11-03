@@ -282,10 +282,10 @@
     <!-- Journal anti-autoclicker -->
     <div class="overview-card">
       <div class="section-header" style="margin-bottom:12px">
-        <h3 class="overview-card-title" style="margin:0">🛡 Journal anti-autoclicker</h3>
+        <h3 class="overview-card-title" style="margin:0">🛡 Journal des anomalies anti-autoclicker</h3>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <select id="ac-filter-action" class="league-select">
-            <option value="">Tous les événements</option>
+            <option value="">Toutes les anomalies</option>
             <option value="flagged">⚠ Flagged seulement</option>
             <option value="reduced">↓ Reduced seulement</option>
             <option value="rejected">✖ Rejected seulement</option>
@@ -297,6 +297,8 @@
           <button class="btn" id="btn-refresh-ac">↻ Rafraîchir</button>
         </div>
       </div>
+      <p class="muted" style="font-size:0.78rem;margin-bottom:6px">Seules les <strong>anomalies</strong> sont consignées (réductions, signalements, rejets, profondeur plafonnée ou rejetée, budget de dégâts) ainsi que les corrections admin. <strong>Les clics et sauvegardes normaux ne sont pas affichés</strong> : la date de la dernière ligne n'est pas celle du dernier contrôle.</p>
+      <p id="ac-coverage" class="muted" style="font-size:0.78rem;margin-bottom:6px"></p>
       <p id="ac-log-total" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
       <div style="overflow-x:auto">
         <table id="ac-log-table">
@@ -304,7 +306,7 @@
             <tr><th>Date (UTC)</th><th>Joueur</th><th>CPS inféré</th><th>Régularité</th><th>Ratio eff.</th><th>Action</th></tr>
           </thead>
           <tbody id="ac-log-body">
-            <tr><td colspan="6" class="muted">Aucun événement enregistré.</td></tr>
+            <tr><td colspan="6" class="muted">Aucune anomalie consignée.</td></tr>
           </tbody>
         </table>
       </div>
@@ -422,9 +424,20 @@
       <button class="btn" id="btn-refresh-sec">↻ Rafraîchir</button>
     </div>
     <div class="overview-card">
-      <h3 class="overview-card-title">État</h3>
+      <h3 class="overview-card-title">Synthèse</h3>
       <p class="muted" style="font-size:0.8rem">Observation (shadow) : les scores et niveaux sont calculés et journalisés, <strong>aucune sanction n'est appliquée</strong>. Le budget de dégâts borne la profondeur classée (preuve physique). Modifier les modes dans l'onglet Config (<code>antibot_mode</code>, <code>damage_budget_mode</code>).</p>
+      <p class="muted" style="font-size:0.8rem">Chaque sauvegarde cloud d'un joueur est contrôlée (profondeur, budget de dégâts, anti-autoclic, télémétrie). <strong>Une sauvegarde normale ne crée aucune entrée de journal</strong> : seules les anomalies sont consignées. Le dernier contrôle de chaque joueur est affiché ci-dessous sans rien journaliser. Zéro anomalie signifie qu'aucun seuil n'a été franchi, pas que chaque détecteur a été éprouvé.</p>
       <div id="sec-status"></div>
+    </div>
+    <div class="overview-card">
+      <h3 class="overview-card-title">Derniers contrôles des joueurs (saison active)</h3>
+      <p class="muted" style="font-size:0.78rem;margin-bottom:8px">État lu dans les données de validation, mis à jour à chaque sauvegarde. Écart de profondeur = déclarée − retenue (un petit écart temporaire est normal le temps que le crédit couvre la progression).</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Joueur</th><th>Dernier contrôle (UTC)</th><th>Profondeur retenue</th><th>Écart profondeur</th><th>Écart budget</th><th>Clics / blocs validés</th><th>Score</th><th>Résultat</th></tr></thead>
+          <tbody id="sec-checks-body"><tr><td colspan="8" class="muted">Aucun joueur contrôlé dans la saison active.</td></tr></tbody>
+        </table>
+      </div>
     </div>
     <div class="overview-card">
       <h3 class="overview-card-title">Comptes de la saison par score de risque</h3>
@@ -436,21 +449,42 @@
     <div class="overview-card">
       <div class="section-header" style="margin-bottom:12px">
         <h3 class="overview-card-title" style="margin:0">Journal de sécurité</h3>
-        <select id="sec-filter-type" class="league-select">
-          <option value="">Tous les événements</option>
-          <option value="damage_budget">Budget de dégâts dépassé</option>
-          <option value="depth_rejected">Profondeur rejetée</option>
-          <option value="forged_counters">Compteurs falsifiés</option>
-          <option value="blocks_gt_clicks">Blocs &gt; clics</option>
-          <option value="cps_flagged">CPS très élevé</option>
-          <option value="cps_reduced">CPS au-dessus du seuil</option>
-          <option value="untrusted_clicks">Clics par script</option>
-          <option value="burst_clicks">Rafales</option>
-          <option value="regular_clicks">Rythme régulier</option>
-          <option value="risk_level">Changement de niveau</option>
-          <option value="admin_config">Config admin</option>
-          <option value="admin_action">Actions admin</option>
-        </select>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="sec-filter-type" class="league-select">
+            <option value="">Tous les événements</option>
+            <optgroup label="Anomalies joueur">
+              <option value="group:player">Toutes les anomalies joueur</option>
+              <option value="damage_budget">Budget de dégâts dépassé</option>
+              <option value="depth_rejected">Profondeur rejetée</option>
+              <option value="forged_counters">Compteurs falsifiés</option>
+              <option value="blocks_gt_clicks">Blocs &gt; clics</option>
+              <option value="cps_flagged">CPS très élevé</option>
+              <option value="cps_reduced">CPS au-dessus du seuil</option>
+              <option value="untrusted_clicks">Clics par script</option>
+              <option value="burst_clicks">Rafales</option>
+              <option value="regular_clicks">Rythme régulier</option>
+              <option value="risk_level">Changement de niveau</option>
+            </optgroup>
+            <optgroup label="Audit admin">
+              <option value="group:admin">Tout l'audit admin</option>
+              <option value="admin_config">Config admin</option>
+              <option value="admin_action">Actions admin</option>
+              <option value="admin_login">Connexions admin</option>
+              <option value="admin_login_failed">Connexions admin refusées</option>
+            </optgroup>
+            <optgroup label="Système">
+              <option value="group:system">Tous les événements système</option>
+              <option value="standings_frozen">Classement figé</option>
+              <option value="standings_freeze_failed">Échec du gel du classement</option>
+            </optgroup>
+          </select>
+          <select id="sec-filter-days" class="league-select">
+            <option value="">Tout l'historique (90 j)</option>
+            <option value="1">24 dernières heures</option>
+            <option value="7">7 derniers jours</option>
+            <option value="30">30 derniers jours</option>
+          </select>
+        </div>
       </div>
       <p id="sec-events-total" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
       <div style="overflow-x:auto">

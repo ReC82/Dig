@@ -555,6 +555,21 @@ test('HTTP : télémétrie, résumé admin, audit de config, interrupteurs, limi
     assert.deepStrictEqual(JSON.parse(audit.events[0].details), { key: 'damage_budget_mode', old: 'enforce', new: 'shadow' });
     const actions = await (await fetch(`${BASE}/api/admin/security/events?type=admin_action`, { headers: admin })).json();
     assert.ok(actions.events.length >= 3);
+    // Filtres par famille et période (recette 03/11) ; valeurs inconnues ignorées
+    const grp = await (await fetch(`${BASE}/api/admin/security/events?group=admin&days=1`, { headers: admin })).json();
+    assert.ok(grp.total >= 4 && grp.events.every(e => e.type.startsWith('admin_')));
+    const ply = await (await fetch(`${BASE}/api/admin/security/events?group=player&days=7`, { headers: admin })).json();
+    assert.ok(ply.events.length >= 1 && ply.events.every(e => !e.type.startsWith('admin_')));
+    const bad = await (await fetch(`${BASE}/api/admin/security/events?group=nope&days=999`, { headers: admin })).json();
+    assert.ok(bad.total >= grp.total + ply.total);
+    const sum2 = await (await fetch(`${BASE}/api/admin/security/summary`, { headers: admin })).json();
+    assert.strictEqual(sum2.checks[0].username, 'scripted');
+    assert.ok(sum2.eventsByGroup.player.d1 >= 1 && sum2.eventsByGroup.admin.d1 >= 1);
+    const ac = await (await fetch(`${BASE}/api/admin/anticheat/logs?action=flagged`, { headers: admin })).json();
+    assert.strictEqual(ac.action, 'flagged');
+    assert.strictEqual(ac.matching, ac.logs.length);
+    assert.strictEqual(ac.coverage.seasonId, season.id);
+    assert.strictEqual(ac.coverage.players, 1);
     // Requête admin non authentifiée : pas d'entrée d'audit
     await fetch(`${BASE}/api/admin/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     const actions2 = await (await fetch(`${BASE}/api/admin/security/events?type=admin_action`, { headers: admin })).json();

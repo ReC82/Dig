@@ -1643,16 +1643,38 @@ function correctSeasonRanking(seasonId, userId, fields) {
   })();
 }
 
-/** Retourne les derniers événements anti-autoclicker (tri chrono inverse). */
-function getAntiCheatLogs(limit = 100, offset = 0) {
-  return getDb().prepare(
-    `SELECT * FROM anticheat_logs ORDER BY logged_at DESC LIMIT ? OFFSET ?`
-  ).all(limit, offset);
+/**
+ * Retourne les derniers événements anti-autoclicker (tri chrono inverse), filtrés en SQL par
+ * action si demandé (avant #25 recette 03/11, le filtre ne portait que sur les 100 dernières lignes).
+ */
+function getAntiCheatLogs(limit = 100, offset = 0, action = null) {
+  return action
+    ? getDb().prepare(`SELECT * FROM anticheat_logs WHERE action_taken = ? ORDER BY logged_at DESC, id DESC LIMIT ? OFFSET ?`)
+      .all(action, limit, offset)
+    : getDb().prepare(`SELECT * FROM anticheat_logs ORDER BY logged_at DESC, id DESC LIMIT ? OFFSET ?`).all(limit, offset);
 }
 
-/** Compte total des événements journalisés. */
-function countAntiCheatLogs() {
-  return getDb().prepare('SELECT COUNT(*) AS n FROM anticheat_logs').get().n;
+/** Compte des événements journalisés (pour une action donnée, ou tous). */
+function countAntiCheatLogs(action = null) {
+  return action
+    ? getDb().prepare('SELECT COUNT(*) AS n FROM anticheat_logs WHERE action_taken = ?').get(action).n
+    : getDb().prepare('SELECT COUNT(*) AS n FROM anticheat_logs').get().n;
+}
+
+/**
+ * Couverture du contrôle anti-autoclic sur une saison : les sauvegardes normales ne sont pas
+ * journalisées, mais chaque contrôle met à jour player_click_tracking.last_save_at.
+ * @returns {{ players: number, checkedLast24h: number, lastCheckAt: string|null }}
+ */
+function getAntiCheatCoverage(seasonId) {
+  if (seasonId == null) return { players: 0, checkedLast24h: 0, lastCheckAt: null };
+  const r = getDb().prepare(`
+    SELECT COUNT(*) AS players,
+           SUM(last_save_at >= datetime('now', '-1 days')) AS recent,
+           MAX(last_save_at) AS last
+    FROM player_click_tracking WHERE season_id = ?
+  `).get(seasonId);
+  return { players: r.players, checkedLast24h: r.recent ?? 0, lastCheckAt: r.last ?? null };
 }
 
 /** Met à jour le compteur de blocs effectifs (validés serveur) pour une entrée de classement. */
@@ -1739,7 +1761,7 @@ module.exports = {
   getAdminConfig, setAdminConfig, searchUsers,
   getAllLeaguesWithStats,
   getClickTracking, upsertClickTracking,
-  insertAntiCheatLog, getAntiCheatLogs, countAntiCheatLogs,
+  insertAntiCheatLog, getAntiCheatLogs, countAntiCheatLogs, getAntiCheatCoverage,
   updateEffectiveBlocks,
   getDepthTracking, upsertDepthTracking, correctSeasonRanking,
 };
