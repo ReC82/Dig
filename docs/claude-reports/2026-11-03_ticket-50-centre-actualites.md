@@ -222,3 +222,68 @@ Aucune décision nécessaire pour cette mise à jour. Les questions précédente
 - Remplacer les popups natives des autres onglets (inventaire ci-dessus).
 - Faits « découverte importante » et « collection terminée ».
 - Annonces en direct : aujourd'hui elles arrivent au chargement ou toutes les 10 min.
+
+## Mise à jour du 03/11/2026 (après-midi) — recettes #50-F, #50-G et #50-H
+
+### 1. État réel
+**Déployé en production (SHA `2babc99`), en attente de recette** (≈ 1 min). Classement : **Après lancement**, confort de l'administration, rien ne bloque le MVP.
+
+Recettes du propriétaire prises en compte :
+- **#50-F** : nouvelle fiche acceptée (« Oui c'est beaucoup mieux »). Défaut signalé : après **F5**, le panel revenait sur l'onglet **Saisons**. → **corrigé**.
+- **#50-G** : fermeture protégée et abandon validés. Incohérence de texte signalée : le dialogue citait toujours « 💾 Enregistrer le brouillon », alors que le bouton d'une annonce publiée ou archivée s'appelle « 💾 Enregistrer les modifications ». → **corrigé**.
+- **#50-H** : fiche complète et impression validées. Rien à faire.
+
+### 2. Changements (`public/admin/admin.js`, `test/admin-news-ux.test.js`)
+- **Onglet retenu après F5.** Cliquer sur un onglet inscrit son identifiant dans l'adresse (`/admin/#news`, `#collections`, `#icons`…). Après F5, ou après une reconnexion par clé, le panel rouvre cet onglet et sa liste.
+  - **Lien direct** : `/admin/#icons` ouvre l'onglet Icônes.
+  - **Saisie manuelle du fragment** : elle change d'onglet.
+  - **Fragment inconnu ou malformé** : retour à l'onglet Saisons (le fragment est filtré avant de servir de sélecteur).
+- **Pas d'onglets dans l'historique.** L'adresse est mise à jour avec `history.replaceState` : le retour navigateur quitte le panel comme avant, au lieu de sauter d'onglet en onglet. Il ne peut donc pas contourner une fiche protégée, et la page reste protégée par la confirmation de sortie.
+- **Rien d'autre n'est restauré.** Aucune fiche rouverte, aucune action relancée, aucune publication. Un changement de fragment est ignoré tant qu'une fiche ou une confirmation est ouverte.
+- **Libellé du dialogue.** « Modifications non enregistrées » cite le vrai libellé du bouton d'enregistrement : « Enregistrer le brouillon » ou « Enregistrer les modifications ». Il en va de même pour le message affiché après la mise en forme par l'IA.
+
+### 3. SHA, branche et tests
+- Branche `feature/50-centre-actualites` : commit `9950ca2`. Sur `develop` : merge `2babc99`.
+- `npm test` : **547/547** sur la branche, sur `develop` `2babc99` et dans la release. Les 2 nouveaux tests sont dans `test/admin-news-ux.test.js`.
+- Le test existant « aucun stockage navigateur dans le panel » (sécurité #12) reste respecté : ni sessionStorage ni localStorage, seulement le fragment d'URL.
+- **Chromium local** (serveur de test, port 3101, base de test supprimée ensuite), en 1280×900 et 390×844 :
+  - Actualités → F5 → Actualités ; Collections → F5 → Collections ;
+  - lien `#icons` ouvert directement ; `#nope` et `#"]bad` → Saisons ;
+  - 3 changements d'onglet → longueur d'historique inchangée ;
+  - fragment modifié pendant une fiche ouverte → fiche conservée, onglet inchangé ;
+  - après connexion par clé avec `#news` → Actualités ;
+  - dialogue : « Enregistrer le brouillon » pour une nouvelle annonce, « Enregistrer les modifications » pour une annonce archivée ;
+  - 0 erreur JavaScript, 0 popup native.
+
+### 4. Données et déploiement
+- Aucune migration, aucune route serveur modifiée, aucune annonce publiée ni modifiée.
+- **Copie de la base de production démarrée avec la release** : empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` identiques, copie supprimée.
+- Aucune génération IA en cours avant le déploiement : dernier appel à 12:55 UTC.
+- `deploy.sh` (script de la release) : `7e7c885` → `2babc99`, sauvegarde vérifiée `dig-20261103-155223-pre-deploy-2babc99.sqlite`.
+- **Après le déploiement** :
+  - les 2 domaines répondent 200 avec la version `1.0.0+2babc99` ;
+  - journal sans erreur ; `quick_check` ok ;
+  - empreintes joueurs identiques à la sauvegarde ;
+  - `news_items` inchangées (2 publiées, 1 archivée) ;
+  - Chromium prod, jeu et admin, en 1280 et 390 : 0 erreur.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 7e7c885` puis redémarrage. Le changement ne touche que le panel.
+
+### 5. Test à faire (≈ 1 min, sans rien publier)
+1. /admin/ (Ctrl+F5) → 📰 Actualités. L'adresse se termine par `#news`.
+2. **F5** → tu restes sur Actualités (plus de retour à Saisons). Même essai sur 📿 Collections ou 🎨 Icônes.
+3. Facultatif : sur une annonce publiée ou archivée, « Modifier », change une lettre, puis Échap. Le dialogue doit dire « puis « 💾 Enregistrer les modifications » ». Termine par « Abandonner les modifications ».
+
+### 6. Choix techniques
+- **Fragment d'URL plutôt que sessionStorage.** Le panel interdit tout stockage navigateur (test de sécurité #12), et le fragment survit à F5 tout en permettant un lien direct.
+- **`replaceState` plutôt que `pushState`.** Un historique d'onglets ferait sauter le retour navigateur d'onglet en onglet. Il contournerait aussi les protections de fiche que #61 généralisera.
+- **Correction pour tout le panel.** Le défaut concernait tous les onglets, et aucun autre ticket ne le couvrait. Les filtres de liste et l'état des boutons Rafraîchir restent dans #60 et #61.
+
+### 7. Décisions demandées au propriétaire
+Aucune nouvelle décision. Les questions précédentes restent ouvertes et ne bloquent rien :
+1. Faits joueurs (profondeur, classement final) : je recommande de les activer après la bêta ouverte.
+2. Lien Discord : à saisir dans 🧪 Bêta quand il existera.
+3. Remplacement des ~58 confirm/alert/prompt des autres onglets : je recommande de le faire dans #61, en commençant par Collections, Blocs et Badges.
+
+### 8. Reste à réaliser
+- Observer les annonces automatiques J-1 à leur échéance du 08/11 (Après lancement).
+- Le cas « Continuer à modifier garde la saisie » n'a pas été rapporté explicitement par le propriétaire. Il est couvert par l'essai Chromium local du 03/11 (midi).
