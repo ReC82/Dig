@@ -357,3 +357,101 @@ Attendu : textes lisibles sans zoom, aucun achat déclenché, prix et coffres in
 
 - Étape 2 selon la décision 2 (après lancement).
 - #20 (fenêtre des chances illisible sur mobile) est traitée dans son propre ticket.
+
+## Mise à jour du 03/11/2026, 18 h (Bruxelles) — recettes #34-A/B/C : bandeau lisible, lien Cadeaux fiabilisé
+
+**Ticket** : #34 — [P1] Boutique de cadeaux — https://github.com/ReC82/Dig/issues/34
+(recettes du propriétaire : [#34-A](https://github.com/ReC82/Dig/issues/34#issuecomment-6608619541),
+[#34-B](https://github.com/ReC82/Dig/issues/34#issuecomment-6609115686),
+[#34-C](https://github.com/ReC82/Dig/issues/34#issuecomment-6609227705))
+
+**État réel** : **déployé en production (SHA `de365b3`) le 03/11/2026 à 17:52 (Bruxelles) — en attente de recette.**
+Classement : **Après lancement** (confort visuel ; l'étape 1 est acceptée sur le parcours testé).
+
+### Retour du propriétaire
+
+- #34-A : bandeau présent et conforme sur téléphone ; **réserve** : cartes très étroites,
+  « Gemmes et cosmétiques » sur plusieurs lignes, « Argent réel · bientôt » serré — garder un texte
+  lisible et aligné (libellés plus courts ou grille moins dense), sans déplacer ni fusionner.
+- #34-B : Coffres → Boutique **validé** sur téléphone.
+- #34-C : Boutique → Saison/Cadeaux **validé** (carte dépliée seule) ; retour Cadeaux → Coffres non
+  testé ; étape 2 (onglet unique) reste une décision du propriétaire, non autorisée.
+
+### Ce qui change
+
+1. **Une ligne par boutique** au lieu de trois colonnes : nom et monnaie à gauche,
+   « ✓ Tu es ici » ou « Amélios › / Boutique › / Saison › » à droite. **Mêmes textes** (rien
+   raccourci : « cosmétiques » et « bientôt » restent des informations utiles). L'application est
+   limitée à 440 px de large, **aussi sur ordinateur** : le défaut existait donc partout, la
+   disposition en lignes s'applique sur PC comme sur téléphone. Hauteur du bandeau ≈ 3 × 44 px
+   (zone tactile ≥ 44 px conservée).
+2. **Lien « Saison › » fiabilisé** : l'essai navigateur (nouvelle largeur 360 px) a montré que la
+   carte cadeaux restait parfois hors écran — le défilement animé était annulé quand la vue Saison
+   se re-rendait pendant l'animation (position mémorisée à mi-course puis restaurée). Défilement
+   désormais immédiat : 0/3 → 3/3 réussites sur le même scénario.
+
+Fichiers : `public/css/style.css` (bloc `.shop-guide-*`), `public/js/main.js` (`_revealGiftShop`),
+`test/shop-guide.test.js` (+1 test), `test/e2e/shop-guide.e2e.js` (largeur 360×740 ajoutée,
+contrôle « chaque libellé tient sur une ligne »). Aucun achat, prix, texte, backend ni donnée modifié.
+
+### SHA et branche
+
+Branche `feature/34-boutique-cadeaux` (`457a3a6`, `a9c9fcb`) ; **develop `de365b3`**
+(fusions `--no-ff` `67b160d` puis `de365b3`).
+
+### Vérifications
+
+- `npm test` complet : **554/554** sur develop `67b160d`, sur `de365b3` et sur chaque release.
+- `test/shop-guide.test.js` : 4/4 (nouveau : une colonne pleine largeur, plus de trois colonnes
+  étroites, pas de défilement animé dans `_revealGiftShop`).
+- Essai Chromium (serveur de test port 3101, base jetable, compte de test) en **1280×900, 390×844 et
+  360×740**, deux passages : chaque libellé tient sur **une ligne** dans Amélios et Boutique, liens
+  Coffres → Boutique → Cadeaux → Coffres, carte cadeaux ouverte en haut, 0 débordement, 0 erreur JS.
+  Le même contrôle « une ligne » **échoue avec l'ancien CSS** (3 lignes) : il détecte bien le défaut.
+  Limite : dans la carte cadeaux (plus étroite) à **360 px**, « Gemmes et cosmétiques » passe encore
+  sur 2 lignes, aligné et lisible ; à 390 px et sur PC, une ligne.
+- Données joueurs : client seul, aucune migration.
+
+### Déploiement
+
+- Deux déploiements successifs le même soir : **`67b160d`** (17:40, ligne par boutique sur
+  téléphone seulement) puis **`de365b3`** (17:52, la même disposition sur PC, constatée trop
+  serrée en vérifiant la production). Précédent : `a49c604`.
+- Avant chacun : release `npm test` 554/554 ; copie de la base de production démarrée en mode
+  production (port 3122) : santé ok, version attendue, empreintes de `users`, `user_saves`,
+  `season_rankings`, `seasons`, `leagues`, `player_click_tracking` **identiques** ; copie supprimée ;
+  aucune génération IA en cours.
+- Sauvegardes vérifiées : `~/backups/dig/dig-20261103-173958-pre-deploy-67b160d.sqlite` et
+  `~/backups/dig/dig-20261103-175157-pre-deploy-de365b3.sqlite`.
+- Après : 2 domaines 200, `/api/version` = `1.0.0+de365b3`, journal sans erreur,
+  `quick_check` ok, empreintes production = sauvegarde ; Chromium sur https://dig.lodygames.com
+  (1280×900 et 390×844, sans compte) : bandeau en une colonne, chaque libellé sur une ligne,
+  0 débordement, 0 erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep a49c604` + `sudo systemctl restart dig`
+  (client seul).
+
+### Test fonctionnel à faire par le propriétaire (téléphone, ~1 min, sans achat)
+
+1. Actualiser le jeu → **⚙ Amélios** → « 📦 Coffres de saison » : le bandeau montre **trois
+   lignes** pleine largeur ; « 💎 Gemmes et cosmétiques » et « 💶 Argent réel · bientôt » chacun
+   sur **une seule ligne**, « Boutique › » aligné à droite.
+2. **Saison ›** → la carte cadeaux s'ouvre en haut de l'écran.
+3. Dans la carte cadeaux, **Amélios ›** → retour aux coffres (le seul trajet pas encore testé).
+Attendu : textes lisibles, rien d'autre de changé, aucun achat.
+
+### Choix techniques faits seul
+
+- Lignes plutôt que libellés raccourcis : garder « cosmétiques » et « bientôt » (information
+  utile) et aucune traduction à reprendre dans 5 langues.
+- Disposition appliquée aussi sur PC : l'appli fait 440 px max, le défaut y était identique.
+- Défilement immédiat plutôt qu'animé : seule façon simple de ne pas être annulé par un re-rendu.
+
+### Décisions demandées au propriétaire
+
+Inchangées : 1) premiers articles virtuels et prix (reco : « Titre honorifique de la saison »,
+20 pts, 1 par joueur) ; 2) étape 2 — A) garder le bandeau seul (reco MVP) ou B) onglet Boutique à
+trois sous-onglets (après lancement).
+
+### Reste à réaliser
+
+- Étape 2 selon la décision 2 (après lancement).
