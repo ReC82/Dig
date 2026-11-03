@@ -1972,10 +1972,16 @@ function _pointsHtml() {
     .filter(Boolean).map(x => `<p class="points-note">${x}</p>`).join('');
 
   // Historique : mouvements du portefeuille, puis attributions simulées (non créditées)
+  // Crédit de saison : rang au classement figé à côté du montant (attribution réelle de la même saison)
+  const liveRank = Object.fromEntries((d.awards ?? []).filter(a => a.mode === 'live').map(a => [a.seasonId, a]));
   const items = [
-    ...(d.history ?? []).map(h => ({
-      label: t(`points.k_${h.kind}`) + (h.seasonName ? ` — ${escapeHtml(h.seasonName)}` : ''),
-      delta: h.delta, sim: false })),
+    ...(d.history ?? []).map(h => {
+      const a = h.kind === 'season_award' ? liveRank[h.seasonId] : null;
+      return {
+        label: t(`points.k_${h.kind}`) + (h.seasonName ? ` — ${escapeHtml(h.seasonName)}` : '')
+          + (a ? ` — #${n(a.rank)}/${n(a.eligibleCount)}` : ''),
+        delta: h.delta, sim: false };
+    }),
     ...(d.awards ?? []).filter(a => a.mode === 'simulation' && d.mode !== 'live').map(a => ({
       label: `${escapeHtml(a.seasonName ?? '')} — #${n(a.rank)}/${n(a.eligibleCount)}`,
       delta: a.points, sim: true })),

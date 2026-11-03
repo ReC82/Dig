@@ -393,6 +393,12 @@ function awardSeason(seasonId, { now = new Date() } = {}) {
   if (!snap) throw new PointsError(409, `Saison ${seasonId} non figée : attribution impossible.`);
   const settings = getSettings();
   if (!settings.scale) throw new PointsError(409, 'Aucun barème défini.');
+  // Garde d'intégrité : on n'attribue que depuis un classement figé dont les empreintes
+  // correspondent encore aux lignes stockées (sinon rien n'est écrit, le planificateur retente).
+  const integrity = standings.verifySnapshot(seasonId);
+  if (!integrity.rowsHashOk || !integrity.snapshotHashOk) {
+    throw new PointsError(409, `Saison ${seasonId} : empreinte du classement figé invalide, attribution refusée.`);
+  }
   const liveAllowed = settings.mode === 'live' && settings.liveSince && snap.season_end >= settings.liveSince;
   const result = { simulation: null, live: null };
 
@@ -445,6 +451,83 @@ function awardMissingSeasons(now = new Date()) {
     catch (err) { console.error(`[points] Saison ${season_id} non attribuée : ${err.message}`); }
   }
   return done;
+}
+
+// ── Contrôle des clôtures ─────────────────────────────────────────────────────
+
+/**
+ * Contrôle (lecture seule) d'une saison close : classement figé intact, chaque exécution porte
+ * sur l'empreinte figée, attributions = recalcul depuis le classement figé avec le barème de
+ * l'exécution, crédits réels = registre (un seul mouvement par joueur, montant identique).
+ * Le bonus de ligue est recalculé avec les niveaux actuels des ligues (bonus 0 % aujourd'hui).
+ * @returns {{ seasonId, ok, frozen, snapshotOk, runs: object[], problems: string[] }}
+ */
+function auditSeason(seasonId) {
+  const c = conn();
+  const problems = [];
+  const snap = standings.getSnapshot(seasonId);
+  if (!snap) return { seasonId, ok: false, frozen: false, snapshotOk: false, runs: [], problems: ['classement non figé'] };
+  const v = standings.verifySnapshot(seasonId);
+  const snapshotOk = v.rowsHashOk && v.snapshotHashOk;
+  if (!snapshotOk) problems.push('empreinte du classement figé invalide');
+  const rows = c.prepare('SELECT * FROM season_standings WHERE season_id = ? ORDER BY position').all(seasonId);
+  const levels = _leagueLevels();
+  const runs = [];
+
+  for (const mode of MODES) {
+    const run = _run(seasonId, mode);
+    if (!run) continue;
+    const tag = `${mode} :`;
+    if (run.snapshot_hash !== snap.snapshot_hash) problems.push(`${tag} exécution sur une autre empreinte`);
+    const scaleRow = _scaleRow(run.scale_version);
+    const stored = c.prepare('SELECT * FROM reward_point_awards WHERE season_id = ? AND mode = ?').all(seasonId, mode);
+    if (!scaleRow) { problems.push(`${tag} barème v${run.scale_version} introuvable`); continue; }
+    const expected = computeAwards(JSON.parse(scaleRow.scale), rows, levels);
+    const byUser = new Map(stored.map(a => [a.user_id, a]));
+    let differ = 0;
+    for (const e of expected.awards) {
+      const a = byUser.get(e.user_id);
+      if (!a || a.rank !== e.rank || a.points !== e.points || a.tier !== (e.tier?.id ?? null) || a.eligible_count !== expected.eligible) differ++;
+    }
+    if (differ || stored.length !== expected.awards.length) {
+      problems.push(`${tag} ${differ + Math.max(0, stored.length - expected.awards.length)} attribution(s) différente(s) du recalcul`);
+    }
+    const sum = stored.reduce((s, a) => s + a.points, 0);
+    const recipients = stored.filter(a => a.points > 0).length;
+    if (sum !== run.total_points || recipients !== run.recipients || run.eligible !== expected.eligible) {
+      problems.push(`${tag} totaux de l'exécution incohérents`);
+    }
+
+    let credited = 0;
+    if (mode === 'live') {
+      const ledger = c.prepare("SELECT * FROM reward_point_ledger WHERE season_id = ? AND kind = 'season_award'").all(seasonId);
+      const perUser = new Map();
+      for (const l of ledger) perUser.set(l.user_id, (perUser.get(l.user_id) ?? 0) + 1);
+      const doubles = [...perUser.values()].filter(n => n > 1).length;
+      if (doubles) problems.push(`${tag} ${doubles} joueur(s) crédité(s) plusieurs fois`);
+      const byId = new Map(ledger.map(l => [l.id, l]));
+      let bad = 0;
+      for (const a of stored) {
+        const l = a.ledger_id != null ? byId.get(a.ledger_id) : null;
+        if (a.points > 0 ? !(l && l.user_id === a.user_id && l.delta === a.points) : a.ledger_id != null) bad++;
+      }
+      if (bad) problems.push(`${tag} ${bad} crédit(s) sans correspondance dans le registre`);
+      const linked = new Set(stored.map(a => a.ledger_id).filter(x => x != null));
+      const stray = ledger.filter(l => !linked.has(l.id)).length;
+      if (stray) problems.push(`${tag} ${stray} crédit(s) du registre sans attribution`);
+      credited = ledger.reduce((s, l) => s + l.delta, 0);
+    }
+    runs.push({ mode, scaleVersion: run.scale_version, eligible: run.eligible, recipients: run.recipients,
+                totalPoints: run.total_points, credited: mode === 'live' ? credited : 0 });
+  }
+  return { seasonId, ok: problems.length === 0, frozen: true, snapshotOk, runs, problems };
+}
+
+/** Contrôle de toutes les saisons figées (les plus récentes d'abord). */
+function auditAllSeasons(limit = 60) {
+  const ids = conn().prepare('SELECT season_id FROM season_snapshots ORDER BY seq DESC LIMIT ?').all(limit).map(r => r.season_id);
+  const seasons = ids.map(auditSeason);
+  return { ok: seasons.every(s => s.ok), checked: seasons.length, seasons };
 }
 
 // ── Vues ──────────────────────────────────────────────────────────────────────
@@ -530,6 +613,8 @@ function buildAdminSummary() {
     })),
     totals,
     verification: verifyLedger(),
+    audit: (({ ok, checked, seasons }) => ({ ok, checked, problems: seasons.filter(x => !x.ok)
+      .map(x => ({ seasonId: x.seasonId, problems: x.problems })) }))(auditAllSeasons()),
   };
 }
 
@@ -559,6 +644,6 @@ module.exports = {
   validateScale, percentCutoff, tierForRank, computeAwards,
   ensureDefaults, applyOwnerDecision, getSettings, setScale, setMode, listScales,
   getWallet, spend, refund, adminAdjust, getHistory, verifyLedger,
-  awardSeason, awardMissingSeasons,
+  awardSeason, awardMissingSeasons, auditSeason, auditAllSeasons,
   publicScale, potentialFor, buildPlayerSummary, buildAdminSummary, seasonAwards, previewScale,
 };
