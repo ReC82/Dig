@@ -58,7 +58,7 @@ const conn = () => db.getDb();
 
 const ORIGIN_SERIES = [{
   id: 'origines',
-  names: { fr: 'Collection des origines', en: 'Origins collection', nl: 'Collectie van de oorsprong', es: 'Colección de los orígenes' },
+  names: { fr: 'Collection des origines', en: 'Origins collection', nl: 'Oorsprongscollectie', es: 'Colección de los orígenes' },
   seasonId: null,
   icon: '📦',
   active: true,

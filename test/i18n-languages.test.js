@@ -298,3 +298,33 @@ test('textes oubliés : toute clé littérale du code existe en français', () =
   assert.ok(r.used > 300);
   assert.deepStrictEqual(r.missing, []);
 });
+
+test('recettes #59-A/C/D : pluriels NL/ES, formulations EN/NL/ES de la page Collection', () => {
+  const { ctx } = browser();
+  const tr = (lang, key, params) => { ctx.I18n.setLang(lang); return ctx.t(key, params); };
+  const NNBSP = ' ', NBSP = ' ';
+  // Néerlandais : vrai pluriel « scherven », jamais « scherfs »
+  assert.strictEqual(tr('nl', 'ui.relic_cost', { n: 5, s: 's' }), `🔮${NNBSP}5 scherven`);
+  assert.strictEqual(tr('nl', 'ui.relic_cost', { n: 1, s: '' }), `🔮${NNBSP}1 scherf`);
+  assert.strictEqual(tr('nl', 'ui.relic_shortfall', { n: 3 }), `(nog 3${NBSP}nodig)`);
+  assert.strictEqual(tr('nl', 'relic.bonus_types.autodig_bonus', { n: 2 }), '+2 automatische schade per seconde');
+  assert.strictEqual(tr('nl', 'events.souvenirs'), 'Evenementherinneringen');
+  assert.strictEqual(tr('nl', 'ui.daily_reward_gems', { amount: 3, s: 's' }), '💎 3 edelstenen');
+  // Anglais : « damage » indénombrable, « more needed »
+  assert.strictEqual(tr('en', 'relic.bonus_types.damage_flat', { n: 2, s: 's' }), '+2 damage per click');
+  assert.strictEqual(tr('en', 'relic.bonus_types.relic_fragment_bonus', { n: 1, s: '' }), '+1 fragment per chest');
+  assert.strictEqual(tr('en', 'ui.relic_shortfall', { n: 3 }), `(3${NBSP}more needed)`);
+  assert.strictEqual(tr('en', 'events.souvenirs'), 'Event keepsakes');
+  // Espagnol : « por clic », « falta/faltan »
+  assert.strictEqual(tr('es', 'relic.bonus_types.damage_flat', { n: 2 }), '+2 de daño por clic');
+  assert.strictEqual(tr('es', 'relic.bonus_types.relic_fragment_bonus', { n: 1, s: '' }), '+1 fragmento por cofre');
+  assert.strictEqual(tr('es', 'ui.relic_shortfall', { n: 1 }), `(falta${NNBSP}1)`);
+  assert.strictEqual(tr('es', 'ui.relic_shortfall', { n: 3 }), `(faltan${NNBSP}3)`);
+  // Aucun « {s} » ne reste dans les textes néerlandais (le pluriel NL n'est pas un simple « s »)
+  const flat = lib.flatten(lib.builtinDictionaries().nl);
+  for (const [k, v] of Object.entries(flat)) {
+    for (const s of typeof v === 'string' ? [v] : Object.values(v)) assert.ok(!/\{s\d?\}/.test(s), `nl ${k} : ${s}`);
+  }
+  // Le coût et le manque restent séparés par un vrai espace (plus de flex qui l'avale)
+  assert.doesNotMatch(read('public/css/style.css').match(/\.relic-cost \{[^}]*\}/)[0], /display:\s*flex/);
+});
