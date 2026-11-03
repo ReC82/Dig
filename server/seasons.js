@@ -23,6 +23,7 @@ const cal = require('./seasonCalendar');
 const antibot = require('./antibot');
 const standings = require('./standings');
 const rewardPoints = require('./rewardPoints');
+const seasonThemes = require('./seasonThemes');
 const { fmtUtc } = cal;
 
 /** Limite de rattrapage : nombre maximal de saisons enchaînées en une passe (serveur arrêté longtemps). */
@@ -336,6 +337,9 @@ function startSeasonScheduler(intervalMs = SCHEDULER_INTERVAL_MS) {
     catch (err) { console.error('[seasons][scheduler] classement figé', err.message); }
     try { rewardPoints.awardMissingSeasons(new Date()); }
     catch (err) { console.error('[seasons][scheduler] points de récompense', err.message); }
+    // Thèmes (#48) : après la rotation, jamais bloquant pour elle
+    try { seasonThemes.sync(new Date()); }
+    catch (err) { console.error('[seasons][scheduler] thèmes de saison', err.message); }
   };
   tick();
   _schedulerTimer = setInterval(tick, intervalMs);
@@ -825,6 +829,10 @@ function _formatRow(r, leagueMap, admin = false) {
  */
 function buildCurrentSeasonResponse(userId = null) {
   const season = checkAndRotateSeason();
+  // Thème, collection publiée, annonce J-1 et historique (#48) : une panne n'empêche pas la réponse
+  let themed = { theme: null, collection: null, next: null, history: [] };
+  try { seasonThemes.sync(); themed = seasonThemes.publicView(season); }
+  catch (err) { console.error('[seasons] thèmes de saison', err.message); }
   const config = getAdminConfig();
   const leagues = getAllLeagues();
   const leagueMap = Object.fromEntries(leagues.map(l => [l.id, l]));
@@ -851,7 +859,7 @@ function buildCurrentSeasonResponse(userId = null) {
         rankGlobal,
         rankInLeague:  rankLeague,
         rank:          rankLeague ?? rankGlobal, // rétrocompat — préférer rankInLeague
-        league:        league ? { id: league.id, name: league.name, icon: league.icon } : null,
+        league:        league ? { id: league.id, name: league.name, icon: league.icon, level: league.level } : null,
       };
     }
   }
@@ -863,7 +871,11 @@ function buildCurrentSeasonResponse(userId = null) {
       startAt: season.start_at,
       endAt:   season.end_at,
       status:  season.status,
+      theme:   themed.theme,
+      collection: themed.collection,
     },
+    next:    themed.next,
+    history: themed.history,
     config: {
       gemsCap:              parseInt(config.gems_cap          ?? '100',  10),
       cpsLimit:             parseInt(config.max_effective_cps ?? config.cps_limit ?? '8', 10),

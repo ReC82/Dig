@@ -1,0 +1,141 @@
+{
+  "pack": "saison_geants_v1",
+  "icon": "🎭",
+  "names": {
+    "fr": "La Saison des Géants",
+    "en": "The Season of Giants",
+    "nl": "Het Seizoen van de Reuzen",
+    "es": "La Temporada de los Gigantes"
+  },
+  "taglines": {
+    "fr": "En Belgique et dans le Nord de la France, des géants de procession dansent dans les rues. Ils ont égaré quelques affaires sous terre…",
+    "en": "In Belgium and northern France, processional giants dance through the streets. They have mislaid a few things underground…",
+    "nl": "In België en Noord-Frankrijk dansen processiereuzen door de straten. Ze zijn ondergronds een paar spullen kwijtgeraakt…",
+    "es": "En Bélgica y el norte de Francia, los gigantes de procesión bailan por las calles. Han perdido algunas cosas bajo tierra…"
+  },
+  "collection": {
+    "pack": "saison_geants_collection_v1",
+    "concept": "Collection de la saison des géants (#48) : les géants de procession de Belgique et du Nord de la France (patrimoine reconnu par l'UNESCO) — costumes, noces de Gouyasse, David et Goliath, cheval Bayard — un clin d'œil différent par objet.",
+    "series": {
+      "id": "affaires_des_geants",
+      "names": {
+        "fr": "Les Affaires des Géants",
+        "en": "The Giants' Belongings",
+        "nl": "De spullen van de reuzen",
+        "es": "Las cosas de los gigantes"
+      },
+      "icon": "🎭",
+      "theme": "Les géants de procession et leurs ducasses, racontés par les objets trop grands qu'ils ont perdus en dansant."
+    },
+    "items": [
+      {
+        "id": "bouton_veste_geant",
+        "rarity": "commun",
+        "icon": "🔘",
+        "reference": "Géants de procession : leurs costumes géants sont portés et dansés par des porteurs cachés dessous.",
+        "names": { "fr": "Le bouton de veste d'un géant", "en": "A giant's coat button", "nl": "De jasknoop van een reus", "es": "El botón de chaqueta de un gigante" },
+        "stories": {
+          "fr": "Un bouton de la veste d'un géant de procession, large comme une assiette. Le géant l'a perdu en tournoyant un peu trop fort. Depuis, il défile avec une épingle à nourrice et fait croire que c'est la dernière mode.",
+          "en": "A button from a processional giant's coat, as wide as a dinner plate. The giant lost it while spinning a little too hard. Ever since, it parades with a safety pin and pretends it's the latest fashion.",
+          "nl": "Een knoop van de jas van een processiereus, zo breed als een bord. De reus verloor hem tijdens een iets te wilde draai. Sindsdien loopt hij mee met een veiligheidsspeld en doet hij alsof dat de nieuwste mode is.",
+          "es": "Un botón de la chaqueta de un gigante de procesión, ancho como un plato. El gigante lo perdió girando con demasiado entusiasmo. Desde entonces desfila con un imperdible y finge que es la última moda."
+        },
+        "image": {
+          "subject": "One enormous wooden coat button the size of a dinner plate",
+          "details": "Thick round varnished wooden button with four large holes, a loop of thick red thread still hanging from one hole, a painted gold rim, a chipped notch on one edge.",
+          "palette": "Palette: honey wood, glossy varnish, bright red thread, gold rim."
+        }
+      },
+      {
+        "id": "peigne_geante",
+        "rarity": "commun",
+        "icon": "🪮",
+        "reference": "Les géants défilent souvent en couple ou en famille (par exemple la famille Gayant à Douai) ; la coquetterie de la géante est une invention comique.",
+        "names": { "fr": "Le peigne de la Géante", "en": "The Giantess's comb", "nl": "De kam van de reuzin", "es": "El peine de la Giganta" },
+        "stories": {
+          "fr": "On raconte que la Géante passait tant de temps à se coiffer avant chaque sortie que le cortège partait sans elle. Son mari a enterré ce peigne en cachette. Elle le cherche encore, en dansant pour ne pas éveiller les soupçons.",
+          "en": "They say the Giantess spent so long doing her hair before each parade that the procession left without her. Her husband secretly buried this comb. She is still looking for it, dancing so as not to raise suspicion.",
+          "nl": "Men zegt dat de reuzin zo lang haar haar deed voor elke stoet dat de optocht zonder haar vertrok. Haar man begroef deze kam in het geheim. Ze zoekt hem nog altijd, al dansend om niets te laten merken.",
+          "es": "Dicen que la Giganta tardaba tanto en peinarse antes de cada desfile que la comitiva se iba sin ella. Su marido enterró este peine a escondidas. Ella todavía lo busca, bailando para no levantar sospechas."
+        },
+        "image": {
+          "subject": "An oversized hand-carved wooden comb with very long teeth",
+          "details": "Light oak comb with long widely spaced teeth, two teeth missing, a few curly brown strands caught between the teeth, a small carved flower on the handle.",
+          "palette": "Palette: light oak, chestnut brown strands, pink carved flower."
+        }
+      },
+      {
+        "id": "ruban_noces_gouyasse",
+        "rarity": "peu-commun",
+        "icon": "🎀",
+        "reference": "Ducasse d'Ath : le géant Goliath (Gouyasse) se marie la veille de son combat contre David, lors des vêpres de Gouyasse.",
+        "names": { "fr": "Le ruban des noces de Gouyasse", "en": "Gouyasse's wedding ribbon", "nl": "Het trouwlint van Gouyasse", "es": "La cinta de la boda de Gouyasse" },
+        "stories": {
+          "fr": "À Ath, le géant Goliath se marie la veille de son combat contre David : ce sont les vêpres de Gouyasse. Ce ruban de noces s'est envolé pendant la fête. Le marié n'a rien remarqué, il pensait déjà au lendemain.",
+          "en": "In Ath, Belgium, the giant Goliath gets married the day before his fight with David: these are the Vespers of Gouyasse. This wedding ribbon flew away during the party. The groom didn't notice; he was already thinking about the next day.",
+          "nl": "In Aat trouwt de reus Goliath de dag vóór zijn gevecht met David: dat zijn de vespers van Gouyasse. Dit trouwlint waaide weg tijdens het feest. De bruidegom merkte er niets van, hij dacht al aan de volgende dag.",
+          "es": "En Ath, en Bélgica, el gigante Goliat se casa la víspera de su combate contra David: son las vísperas de Gouyasse. Esta cinta de boda salió volando durante la fiesta. El novio ni se dio cuenta: ya estaba pensando en el día siguiente."
+        },
+        "image": {
+          "subject": "A long ivory satin wedding ribbon tied in a big floppy bow",
+          "details": "Wide shiny satin ribbon knotted into a large bow with two long tails curling in the air, a small embroidered blue flower near the knot, a light muddy smudge on one tail.",
+          "palette": "Palette: ivory satin, sky blue embroidery, soft brown smudge."
+        }
+      },
+      {
+        "id": "fronde_david_ath",
+        "rarity": "rare",
+        "icon": "🪨",
+        "reference": "Ducasse d'Ath : chaque année, le petit David affronte le géant Goliath sur la place ; l'histoire de la fronde perdue est une légende inventée.",
+        "names": { "fr": "La fronde de David", "en": "David's sling", "nl": "De slinger van David", "es": "La honda de David" },
+        "stories": {
+          "fr": "Chaque année à Ath, le petit David affronte le géant Goliath devant la foule. Cette fronde aurait servi un jour de répétition… et atterri dans le jardin du voisin, puis bien plus bas. Elle vise toujours le géant le plus proche : prudence.",
+          "en": "Every year in Ath, little David takes on the giant Goliath in front of the crowd. Rumour has it this sling was used at a rehearsal… and landed in the neighbour's garden, then much deeper. It still aims at the nearest giant: careful.",
+          "nl": "Elk jaar neemt kleine David het in Aat op tegen de reus Goliath, voor het oog van de massa. Volgens de geruchten werd deze slinger ooit tijdens een repetitie gebruikt… en belandde hij in de tuin van de buren, en daarna veel dieper. Hij mikt nog steeds op de dichtstbijzijnde reus: opgepast.",
+          "es": "Cada año en Ath, el pequeño David se enfrenta al gigante Goliat ante el público. Se rumorea que esta honda se usó en un ensayo… y aterrizó en el jardín del vecino, y luego mucho más abajo. Sigue apuntando al gigante más cercano: cuidado."
+        },
+        "image": {
+          "subject": "A simple braided leather sling holding one smooth pebble",
+          "details": "Two long braided brown cords joined by a small worn leather pouch cradling one round grey pebble, one cord ending in a finger loop, laid out in a lively S-curve.",
+          "palette": "Palette: warm leather brown, tan braids, cool pebble grey."
+        }
+      },
+      {
+        "id": "osier_fatigue_geant",
+        "rarity": "peu-commun",
+        "icon": "🧺",
+        "reference": "Géants de procession : une structure en osier ou en bois, parfois de plus de cent kilos, portée par des porteurs cachés sous la jupe.",
+        "names": { "fr": "L'osier fatigué d'un géant", "en": "A giant's tired wicker", "nl": "Het vermoeide riet van een reus", "es": "El mimbre cansado de un gigante" },
+        "stories": {
+          "fr": "Certains géants pèsent plus de cent kilos, et des porteurs cachés dessous les font danser. Ce morceau d'osier tressé faisait partie de la jupe de l'un d'eux. Il a pris sa retraite après une ducasse de trop et fait désormais la sieste à quinze mètres de profondeur.",
+          "en": "Some giants weigh more than a hundred kilos, and porters hidden underneath make them dance. This piece of woven wicker was part of one giant's skirt. It retired after one fair too many and now naps fifteen metres underground.",
+          "nl": "Sommige reuzen wegen meer dan honderd kilo, en verborgen dragers laten ze dansen. Dit stuk gevlochten riet hoorde bij de rok van een van hen. Het ging met pensioen na één kermis te veel en houdt nu zijn middagdutje op vijftien meter diepte.",
+          "es": "Algunos gigantes pesan más de cien kilos, y unos porteadores escondidos debajo los hacen bailar. Este trozo de mimbre trenzado era parte de la falda de uno de ellos. Se jubiló tras una feria de más y ahora duerme la siesta a quince metros bajo tierra."
+        },
+        "image": {
+          "subject": "An arched section of woven wicker frame",
+          "details": "Curved piece of tightly woven pale wicker with a few broken strands sticking out, a small faded patch of blue fabric still pinned on it, a frayed rope tied at one end, sagging slightly as if exhausted.",
+          "palette": "Palette: pale straw wicker, faded blue fabric, beige rope."
+        }
+      },
+      {
+        "id": "criniere_bayard",
+        "rarity": "legendaire",
+        "icon": "🐎",
+        "reference": "Légende du cheval Bayard, qui portait les quatre fils Aymon ; il défile encore en géant, notamment à Termonde (Ros Beiaard).",
+        "names": { "fr": "La crinière du cheval Bayard", "en": "Bayard the horse's mane", "nl": "De manen van het Ros Beiaard", "es": "La crin del caballo Bayardo" },
+        "stories": {
+          "fr": "Le cheval Bayard, assez grand pour porter les quatre fils Aymon à la fois, défile encore en géant à Termonde et ailleurs. La légende dit qu'il ne meurt jamais. Cette mèche de crinière semble le confirmer : elle hennit doucement quand on la brosse.",
+          "en": "Bayard the horse, big enough to carry all four Aymon brothers at once, still parades as a giant in Dendermonde and elsewhere. Legend says he never dies. This lock of mane seems to agree: it neighs softly when you brush it.",
+          "nl": "Het Ros Beiaard, groot genoeg om de vier Heemskinderen tegelijk te dragen, trekt nog steeds als reus door Dendermonde en elders. De legende zegt dat het nooit sterft. Deze lok manen lijkt dat te bevestigen: hij hinnikt zachtjes als je hem borstelt.",
+          "es": "El caballo Bayardo, tan grande que llevaba a la vez a los cuatro hijos Aymon, todavía desfila como gigante en Dendermonde y otros lugares. La leyenda dice que nunca muere. Este mechón de crin parece confirmarlo: relincha bajito cuando lo cepillas."
+        },
+        "image": {
+          "subject": "A thick lock of glossy chestnut horse mane tied at the top",
+          "details": "Long wavy strands of chestnut-brown horse hair gathered by a small gold cord knot, flowing in an elegant S shape, with a faint magical sparkle at the tips.",
+          "palette": "Palette: glossy chestnut brown, gold cord, tiny white sparkles."
+        }
+      }
+    ]
+  }
+}

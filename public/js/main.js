@@ -1675,7 +1675,7 @@ async function _playHeartbeat(force = false) {
 // ── Saisons ───────────────────────────────────────────────────────────────────
 
 /** Applique le reset de début de saison (côté client). */
-function _applySeasonReset(newSeasonId, gemsCap) {
+function _applySeasonReset(newSeasonId, gemsCap, seasonLabel = null) {
   GameState.coins           = 0;
   GameState.gems            = Math.min(GameState.gems, gemsCap);
   GameState.coinBoost       = { multiplier: 1, expiresAt: 0 };
@@ -1699,7 +1699,7 @@ function _applySeasonReset(newSeasonId, gemsCap) {
   blockAnimating = false;
   Blocks.spawn(GameState.depth);
   renderBlock();
-  showAchievement('🏆', t('season.new_season'));
+  showAchievement('🏆', seasonLabel ? t('season.new_season_named', { name: seasonLabel }) : t('season.new_season'));
 }
 
 /** Paramètres économiques de l'admin (#20) : redessine ce qui affiche un coût ou un gain. */
@@ -1730,12 +1730,13 @@ async function _pollSeason() {
     _seasonCpsLimit = data.config?.cpsLimit ?? 8;
     _applyServerEconomy(data.config?.economy);
     if (data.season.id !== GameState.seasonStats.seasonId && GameState.seasonStats.seasonId !== 0) {
-      _applySeasonReset(data.season.id, data.config?.gemsCap ?? 100);
+      _applySeasonReset(data.season.id, data.config?.gemsCap ?? 100, _seasonFullName(data.season.name, data.season.theme));
     } else if (GameState.seasonStats.seasonId === 0 && data.season.id) {
       // Premier sync : on enregistre juste l'ID sans reset
       GameState.seasonStats.seasonId = data.season.id;
     }
     if (isViewActive('season')) renderSeasonView(data);
+    else _updateSeasonNavDot(data.next);
   } catch (err) { console.warn('[saison] synchronisation impossible', err); }
 }
 
@@ -1756,7 +1757,7 @@ function renderSeasonView(apiData, lbData) {
   }
 
   const { season, config, player } = apiData;
-  const endDate  = new Date(season.endAt + (season.endAt.includes('Z') ? '' : 'Z'));
+  const endDate  = new Date(String(season.endAt).replace(' ', 'T') + (season.endAt.includes('Z') ? '' : 'Z'));
   const diffMs   = endDate - Date.now();
   const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
   const diffHrs  = Math.max(0, Math.floor((diffMs % 86_400_000) / 3_600_000));
@@ -1772,9 +1773,11 @@ function renderSeasonView(apiData, lbData) {
   } else if (!player || !player.isActive) {
     playerHtml = `<p class="season-hint">${t('season.not_active')}</p>`;
   } else {
+    // Ligue = palier durable (promotions #19), à ne pas confondre avec le thème de la saison (#48)
     const leagueBadge = player.league
-      ? `<span class="season-league-badge">${escapeHtml(player.league.icon)} ${escapeHtml(player.league.name)}</span>`
-      : `<span class="season-league-badge muted">${t('season.no_league')}</span>`;
+      ? `<span class="season-league-badge" title="${escapeHtml(t('season.league_hint'))}">${t('season.league_label')} : ${escapeHtml(player.league.icon)} ${escapeHtml(player.league.name)}`
+        + `${player.league.level != null ? ` <span class="muted">· ${t('season.league_level', { n: escapeHtml(player.league.level + 1) })}</span>` : ''}</span>`
+      : `<span class="season-league-badge muted">${t('season.league_label')} : ${t('season.no_league')}</span>`;
     playerHtml = `
       <div class="season-player-card">
         <div class="season-player-card-top">
@@ -1830,9 +1833,12 @@ function renderSeasonView(apiData, lbData) {
   // Charger le leaderboard
   const lbId = 'season-lb-body';
   const scrollTop = el.scrollTop;
+  const historyOpen = !!el.querySelector('.season-history')?.open;
   el.innerHTML = `
     <div class="view-title-bar">${t('season.title')} — ${escapeHtml(season.name)}</div>
+    ${_seasonThemeHtml(season)}
     <p class="season-ends-in">${endsIn}</p>
+    ${_nextSeasonHtml(apiData.next)}
     ${playerHtml}
     <div id="season-last">${_lastResultHtml()}</div>
     <div id="season-points">${_pointsHtml()}</div>
@@ -1841,12 +1847,90 @@ function renderSeasonView(apiData, lbData) {
     <h3 class="season-section-title">${t('season.leaderboard')}</h3>
     <div class="season-leaderboard" id="${lbId}">
       ${lbData ? _leaderboardHtml(lbData) : `<p class="season-loading">${t('season.loading')}</p>`}
-    </div>`;
+    </div>
+    ${_seasonHistoryHtml(apiData.history, historyOpen)}`;
   el.scrollTop = scrollTop;
+  _markSeasonAnnouncementSeen(apiData.next);
 
   if (!lbData) _loadLeaderboard(season.id, lbId);
   if (!_pointsData && _account) _loadPoints();
   if (!_lastResult) _loadLastResult();
+}
+
+// ── Thème de la saison, annonce de la suivante, historique (#48) ─────────────
+
+/** Texte d'un objet { fr, en, nl, es } dans la langue courante (français à défaut). */
+function _loc(texts) {
+  return texts?.[I18n.getCurrent()] || texts?.fr || '';
+}
+
+/** Nom public d'une saison : « Saison 46-2026 · La Saison des Lanternes » (numéro toujours visible). */
+function _seasonFullName(name, theme) {
+  const themeName = _loc(theme?.names);
+  return themeName ? `${name} · ${themeName}` : name;
+}
+
+/** Carte du thème de la semaine : icône, nom, accroche, bornes en heure locale, collection publiée. */
+function _seasonThemeHtml(season) {
+  const dt = { dateStyle: 'medium', timeStyle: 'short' };
+  const period = t('season.period', { start: escapeHtml(_fmtUtc(season.startAt, dt)), end: escapeHtml(_fmtUtc(season.endAt, dt)) });
+  const col = season.collection
+    ? `<p class="season-theme-collection">${escapeHtml(season.collection.icon ?? '')} ${t('season.collection', { name: escapeHtml(_loc(season.collection.names)), n: escapeHtml(season.collection.count) })}</p>`
+    : '';
+  if (!season.theme) return `<div class="season-theme-card season-theme-card--plain"><p class="season-theme-period">${period}</p>${col}</div>`;
+  return `
+    <div class="season-theme-card">
+      <div class="season-theme-head">
+        <span class="season-theme-icon" aria-hidden="true">${escapeHtml(season.theme.icon ?? '')}</span>
+        <div>
+          <div class="season-theme-label">${t('season.theme_label')}</div>
+          <div class="season-theme-name">${escapeHtml(_loc(season.theme.names))}</div>
+        </div>
+      </div>
+      <p class="season-theme-tagline">${escapeHtml(_loc(season.theme.taglines))}</p>
+      <p class="season-theme-period">${period}</p>
+      ${col}
+    </div>`;
+}
+
+/** Annonce de la saison suivante (J-1 par défaut, réglable dans le panel) : nom, accroche, date. */
+function _nextSeasonHtml(next) {
+  if (!next?.theme) return '';
+  const col = next.collection
+    ? `<p class="season-next-collection">${escapeHtml(next.collection.icon ?? '')} ${t('season.next_collection', { name: escapeHtml(_loc(next.collection.names)), n: escapeHtml(next.collection.count) })}</p>`
+    : '';
+  return `
+    <div class="season-next-card" role="note">
+      <div class="season-next-title"><span aria-hidden="true">${escapeHtml(next.theme.icon ?? '')}</span> ${t('season.next_title', { name: escapeHtml(_loc(next.theme.names)) })}</div>
+      <p class="season-next-tagline">${escapeHtml(_loc(next.theme.taglines))}</p>
+      <p class="season-next-date">${t('season.next_starts', { date: escapeHtml(_fmtUtc(next.startAt, { dateStyle: 'full', timeStyle: 'short' })) })}</p>
+      ${col}
+    </div>`;
+}
+
+/** Historique replié : dernières saisons closes, numéro + thème + dates. */
+function _seasonHistoryHtml(history, open) {
+  if (!history?.length) return '';
+  const rows = history.map(h => `<li><strong>${escapeHtml(h.name)}</strong>${h.theme ? ` · ${escapeHtml(h.theme.icon ?? '')} ${escapeHtml(_loc(h.theme.names))}` : ''}
+      <span class="muted">— ${escapeHtml(_fmtUtc(h.startAt))} → ${escapeHtml(_fmtUtc(h.endAt))}</span></li>`).join('');
+  return `<details class="season-history"${open ? ' open' : ''}><summary>${t('season.history_title')}</summary><ul>${rows}</ul></details>`;
+}
+
+/** Point discret sur l'onglet Saison tant qu'une annonce n'a pas été vue (aucune fenêtre surgissante). */
+const SEASON_SEEN_KEY = 'dig_season_announce_seen';
+function _announceKey(next) { return next?.theme ? `${next.startAt}|${next.theme.names?.fr ?? ''}` : null; }
+function _updateSeasonNavDot(next) {
+  const btn = document.querySelector('.nav-btn[data-view="season"]');
+  if (!btn) return;
+  const key = _announceKey(next);
+  let seen = null;
+  try { seen = localStorage.getItem(SEASON_SEEN_KEY); } catch (_) { /* stockage indisponible */ }
+  btn.classList.toggle('has-news', !!key && key !== seen);
+}
+function _markSeasonAnnouncementSeen(next) {
+  const key = _announceKey(next);
+  if (key) { try { localStorage.setItem(SEASON_SEEN_KEY, key); } catch (_) { /* stockage indisponible */ } }
+  _updateSeasonNavDot(next);
 }
 
 /** Date UTC du serveur (« AAAA-MM-JJ hh:mm:ss[.mmm] ») affichée en heure locale. */

@@ -2575,6 +2575,48 @@ h1 {
   margin: 4px 0 12px;
 }
 
+/* ── Thème de la semaine, annonce, historique (#48) ── */
+.season-theme-card {
+  background: linear-gradient(135deg, rgba(96,165,250,0.14), rgba(96,165,250,0.04));
+  border: 1px solid rgba(96,165,250,0.3);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 4px 0 8px;
+}
+.season-theme-card--plain { background: none; border: none; padding: 0; margin: 4px 0 0; text-align: center; }
+.season-theme-head { display: flex; align-items: center; gap: 10px; }
+.season-theme-icon { font-size: 1.8rem; line-height: 1; }
+.season-theme-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.season-theme-name { font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+.season-theme-tagline { font-size: 0.82rem; margin: 6px 0 4px; }
+.season-theme-period, .season-theme-collection { font-size: 0.78rem; color: var(--muted); margin: 2px 0 0; }
+.season-next-card {
+  border: 1px dashed rgba(251,191,36,0.55);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  background: rgba(251,191,36,0.06);
+}
+.season-next-title { font-weight: 700; color: var(--gold); overflow-wrap: anywhere; }
+.season-next-tagline { font-size: 0.82rem; margin: 4px 0; }
+.season-next-date, .season-next-collection { font-size: 0.78rem; color: var(--muted); margin: 2px 0 0; }
+.season-history { margin: 14px 0 6px; font-size: 0.82rem; }
+.season-history summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
+.season-history ul { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.season-history li { overflow-wrap: anywhere; }
+.nav-btn.has-news { position: relative; }
+.nav-btn.has-news::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 16px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--bg, #111);
+}
+
 .season-hint {
   text-align: center;
   color: var(--muted);

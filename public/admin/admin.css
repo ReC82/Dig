@@ -710,3 +710,14 @@ table:has(.visually-hidden) { position: relative; }
   max-width: calc(100vw - 32px); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); transition: opacity 0.2s, transform 0.2s; }
 .adm-toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
 
+
+/* Saisons thématiques (#48) */
+.st-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.st-col { border: 1px solid var(--border, #333); border-radius: 8px; padding: 10px 12px; }
+.st-col h4 { margin: 0 0 6px; }
+.st-line { margin: 2px 0; font-size: 0.9rem; overflow-wrap: anywhere; }
+.st-theme-name { font-size: 1.1rem; font-weight: 700; margin: 6px 0 4px; }
+.st-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 6px 12px; margin-top: 8px; }
+.st-edit label, .st-settings label { display: flex; flex-direction: column; font-size: 0.85rem; gap: 2px; }
+.st-settings { display: grid; gap: 6px; max-width: 520px; }
+.st-list { margin: 4px 0 8px; padding-left: 18px; font-size: 0.85rem; }

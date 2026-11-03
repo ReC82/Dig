@@ -438,6 +438,7 @@ const SEASON_PARAMS = [
 ];
 
 async function loadSeasonOverview() {
+  loadSeasonThemes();   // thème actuel / suivant (#48), indépendant du résumé
   const { ok, data } = await api('GET', '/api/admin/seasons/active/summary');
 
   const noSeasonEl = document.getElementById('no-active-season');
@@ -5427,4 +5428,205 @@ document.getElementById('btn-beta-pw').addEventListener('click', async () => {
   const r = await api('POST', `/api/admin/players/${user.id}/temp-password`, { confirm: confirmName.trim() });
   if (!r.ok) return adMessage('beta-pw-msg', r.data.error || 'Erreur.', false);
   adMessage('beta-pw-msg', `Mot de passe temporaire de ${r.data.username} : ${r.data.tempPassword} — affiché une seule fois, à transmettre en privé.`, true);
+});
+
+// ── Saisons thématiques (#48) : saison actuelle / suivante ───────────────────
+// Écran léger : préparation automatique (serveur), édition facultative. Rendu par textContent uniquement.
+
+const _stFmt = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+function stDate(utc) {
+  if (!utc) return '—';
+  const d = new Date(String(utc).replace(' ', 'T') + 'Z');
+  return isNaN(d) ? String(utc) : `${_stFmt.format(d)} (Bruxelles)`;
+}
+const ST_LANGS = ['fr', 'en', 'nl', 'es'];
+const ST_SOURCE = { pack: 'pack de saison rédigé', fallback: 'nom de repli automatique (sans collection)' };
+const ST_STATUS = { prepared: 'préparé', active: 'en cours', archived: 'archivé', rejected: 'rejeté (nom réservé)' };
+
+function stMessage(id, text) {
+  for (const k of ['st-msg', 'st-err']) document.getElementById(k).classList.add('hidden');
+  if (!text) return;
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.classList.remove('hidden');
+}
+
+function stLine(parent, label, value) {
+  const p = aiEl('p', { class: 'st-line' });
+  p.appendChild(aiEl('span', { class: 'muted' }, `${label} : `));
+  p.appendChild(document.createTextNode(value ?? '—'));
+  parent.appendChild(p);
+  return p;
+}
+
+function stCollection(parent, col) {
+  if (!col) { stLine(parent, 'Collection', 'aucune (à préparer dans l\'onglet Collections si souhaité)'); return; }
+  const state = col.published ? 'publiée' : col.inDraft ? 'en brouillon (non publiée, drops inactifs)' : 'introuvable';
+  stLine(parent, 'Collection', `${col.icon ?? ''} ${col.names?.fr ?? col.id} — ${state}${col.seasonId ? `, rattachée à la saison n° ${col.seasonId}` : ''}`);
+  stLine(parent, 'Images', `${col.withImage}/${col.items} objets illustrés`
+    + (col.proposals ? ` · ${col.proposals} proposition(s) à examiner` : '')
+    + (col.toGenerate != null ? ` · ${col.toGenerate} à générer` : '')
+    + (col.estTotalUsd != null && col.toGenerate ? ` (≈ ${col.estTotalUsd} $)` : ''));
+  if (col.missing?.length) stLine(parent, 'Sans image', col.missing.map(m => m.name).join(', '));
+  if (col.problem) parent.appendChild(aiEl('p', { class: 'error' }, col.problem));
+  if (col.toGenerate) {
+    const b = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, '🎨 Illustrer la collection (atelier d\'icônes, une image par objet)');
+    b.addEventListener('click', () => document.querySelector('.tab-btn[data-tab="icons"]')?.click());
+    parent.appendChild(b);
+  }
+}
+
+function stEditForm(theme, box) {
+  const form = aiEl('div', { class: 'st-edit' });
+  const inputs = { names: {}, taglines: {} };
+  for (const l of ST_LANGS) {
+    const [ln, n] = aiInput(`Nom ${l.toUpperCase()}`, theme.names[l], { maxlength: '40' });
+    const [lt, tg] = aiInput(`Accroche ${l.toUpperCase()}`, theme.taglines[l], { maxlength: '160' });
+    inputs.names[l] = n; inputs.taglines[l] = tg;
+    form.append(ln, lt);
+  }
+  const [li, icon] = aiInput('Icône (emoji)', theme.icon, { maxlength: '8' });
+  form.appendChild(li);
+  const save = aiEl('button', { class: 'btn btn-sm', type: 'button' }, 'Enregistrer');
+  save.addEventListener('click', async () => {
+    const body = { names: {}, taglines: {}, icon: icon.value };
+    for (const l of ST_LANGS) { body.names[l] = inputs.names[l].value; body.taglines[l] = inputs.taglines[l].value; }
+    const { ok, data } = await api('PUT', `/api/admin/season-themes/${theme.id}`, body);
+    if (!ok) return stMessage('st-err', data.error ?? 'Enregistrement refusé.');
+    stMessage('st-msg', `Thème enregistré : « ${data.theme.names.fr} ».`);
+    loadSeasonThemes();
+  });
+  form.appendChild(save);
+  box.appendChild(form);
+}
+
+function stThemeBlock(parent, theme, { canReroll }) {
+  if (!theme) { parent.appendChild(aiEl('p', { class: 'muted' }, 'Pas encore de thème : il sera préparé automatiquement.')); return; }
+  const title = aiEl('p', { class: 'st-theme-name' }, `${theme.icon} ${theme.names.fr}`);
+  parent.appendChild(title);
+  stLine(parent, 'EN / NL / ES', `${theme.names.en} · ${theme.names.nl} · ${theme.names.es}`);
+  stLine(parent, 'Accroche', theme.taglines.fr);
+  stLine(parent, 'Origine', `${ST_SOURCE[theme.source] ?? theme.source}${theme.pack ? ` (${theme.pack})` : ''} — ${ST_STATUS[theme.status] ?? theme.status}`);
+  if (theme.notes) parent.appendChild(aiEl('p', { class: 'muted' }, theme.notes));
+  stCollection(parent, theme.collection);
+  const actions = aiEl('div', { class: 'form-actions' });
+  const edit = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, '✏️ Modifier (facultatif)');
+  edit.addEventListener('click', () => { edit.disabled = true; stEditForm(theme, parent); });
+  actions.appendChild(edit);
+  if (canReroll) {
+    for (const [label, exclude] of [['🎲 Autre nom', false], ['🚫 Autre nom et exclure celui-ci', true]]) {
+      const b = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, label);
+      b.addEventListener('click', async () => {
+        const { ok, data } = await api('POST', `/api/admin/season-themes/${theme.id}/reroll`, { exclude });
+        if (!ok) return stMessage('st-err', data.error ?? 'Refusé.');
+        stMessage('st-msg', `Nouveau nom : « ${data.theme.names.fr} » (l'ancien reste réservé, il ne sera jamais réutilisé).`);
+        loadSeasonThemes();
+      });
+      actions.appendChild(b);
+    }
+  }
+  parent.appendChild(actions);
+}
+
+function stMore(data) {
+  const box = document.getElementById('st-more');
+  box.textContent = '';
+  // Réglages (admin_config, validés côté serveur)
+  const cfg = aiEl('div', { class: 'st-settings' });
+  const fields = [
+    ['season_themes_public', 'Afficher thèmes et annonces aux joueurs (true/false)', String(data.settings.public)],
+    ['season_prep_days', 'Préparer la saison suivante N jours avant son début (3–14)', String(data.settings.prepDays)],
+    ['season_announce_hours', 'Annoncer la saison suivante N heures avant (0–168, 0 = pas d\'annonce)', String(data.settings.announceHours)],
+  ];
+  const inputs = fields.map(([key, label, value]) => { const [l, i] = aiInput(label, value); i.dataset.key = key; cfg.appendChild(l); return i; });
+  const save = aiEl('button', { class: 'btn btn-sm', type: 'button' }, 'Enregistrer les réglages');
+  save.addEventListener('click', async () => {
+    for (const i of inputs) {
+      const { ok, data: d } = await api('PUT', '/api/admin/config', { key: i.dataset.key, value: i.value });
+      if (!ok) return stMessage('st-err', d.error ?? 'Réglage refusé.');
+    }
+    stMessage('st-msg', 'Réglages enregistrés.');
+    loadSeasonThemes();
+  });
+  cfg.appendChild(save);
+  box.appendChild(aiEl('h4', {}, 'Réglages'));
+  box.appendChild(cfg);
+  // Mots exclus
+  box.appendChild(aiEl('h4', {}, 'Mots ou noms exclus'));
+  box.appendChild(aiEl('p', { class: 'muted' }, 'Un nom contenant tous les mots d\'une exclusion n\'est jamais proposé. Les noms déjà attribués restent réservés à vie (non listés ici).'));
+  const ul = aiEl('ul', { class: 'st-list' });
+  for (const ex of data.exclusions) {
+    const li = aiEl('li', {}, `${ex.label} `);
+    const rm = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, 'Retirer');
+    rm.addEventListener('click', async () => {
+      const { ok, data: d } = await api('DELETE', `/api/admin/season-themes/exclusions/${encodeURIComponent(ex.key)}`);
+      if (!ok) return stMessage('st-err', d.error ?? 'Refusé.');
+      loadSeasonThemes();
+    });
+    li.appendChild(rm);
+    ul.appendChild(li);
+  }
+  if (!data.exclusions.length) ul.appendChild(aiEl('li', { class: 'muted' }, 'Aucune exclusion.'));
+  box.appendChild(ul);
+  const [lx, ix] = aiInput('Exclure un mot ou un nom', '', { maxlength: '60' });
+  const add = aiEl('button', { class: 'btn btn-sm', type: 'button' }, 'Exclure');
+  add.addEventListener('click', async () => {
+    const { ok, data: d } = await api('POST', '/api/admin/season-themes/exclusions', { label: ix.value });
+    if (!ok) return stMessage('st-err', d.error ?? 'Refusé.');
+    loadSeasonThemes();
+  });
+  box.append(lx, add);
+  // Packs de saison
+  box.appendChild(aiEl('h4', {}, 'Packs de saison rédigés (server/content/seasons)'));
+  const pk = aiEl('ul', { class: 'st-list' });
+  for (const p of data.packs) {
+    pk.appendChild(aiEl('li', {}, `${p.icon} ${p.name} — ${p.items} objets${p.preferredWeek ? ` — semaine ${p.preferredWeek}` : ''} — ${p.used ? 'utilisé' : 'disponible'}`));
+  }
+  if (!data.packs.length) pk.appendChild(aiEl('li', { class: 'muted' }, 'Aucun pack : les prochaines saisons recevront un nom de repli (sans collection).'));
+  box.appendChild(pk);
+  // Dépense images (#40)
+  const b = data.imageBudget;
+  box.appendChild(aiEl('h4', {}, 'Images (atelier d\'icônes)'));
+  box.appendChild(aiEl('p', { class: 'muted' }, !b ? 'Atelier indisponible.' : b.configured === false ? `API d'images non configurée : ${b.reason ?? ''}`
+    : `Dépensé atelier : ${b.studioSpentUsd ?? 0} $${b.studioCapUsd != null ? ` / plafond ${b.studioCapUsd} $` : ''} · reste ${b.remainingUsd ?? '—'} $ · aujourd'hui ${b.imagesToday ?? 0}/${b.maxImagesPerDay ?? '—'} images. Aucune image n'est générée automatiquement : lancement par « Illustrer la collection ».`));
+  // Journal
+  box.appendChild(aiEl('h4', {}, 'Journal'));
+  const jl = aiEl('ul', { class: 'st-list' });
+  for (const e of data.events) jl.appendChild(aiEl('li', {}, `${stDate(e.createdAt)} — ${e.action}${e.themeId ? ` (thème n° ${e.themeId})` : ''}${e.details ? ` — ${JSON.stringify(e.details).slice(0, 160)}` : ''}`));
+  if (!data.events.length) jl.appendChild(aiEl('li', { class: 'muted' }, 'Rien pour l\'instant.'));
+  box.appendChild(jl);
+}
+
+async function loadSeasonThemes() {
+  const body = document.getElementById('st-body');
+  if (!body) return;
+  const { ok, data } = await api('GET', '/api/admin/season-themes');
+  body.textContent = '';
+  if (!ok) { stMessage('st-err', data.error ?? 'Thèmes indisponibles.'); return; }
+  const cur = aiEl('div', { class: 'st-col' });
+  cur.appendChild(aiEl('h4', {}, 'Saison actuelle'));
+  if (data.current) {
+    stLine(cur, 'Saison', data.current.season.name);
+    stLine(cur, 'Bornes', `${stDate(data.current.season.startAt)} → ${stDate(data.current.season.endAt)}`);
+    stThemeBlock(cur, data.current.theme, { canReroll: false });
+  } else cur.appendChild(aiEl('p', { class: 'muted' }, 'Aucune saison active.'));
+  const nxt = aiEl('div', { class: 'st-col' });
+  nxt.appendChild(aiEl('h4', {}, 'Saison suivante'));
+  if (data.next) {
+    stLine(nxt, 'Début prévu', `${stDate(data.next.startAt)} (semaine ${data.next.weekKey})`);
+    stLine(nxt, 'Préparation', data.next.theme ? 'faite' : `prévue à partir du ${stDate(data.next.prepareAt)}`);
+    stLine(nxt, 'Annonce aux joueurs', !data.settings.public ? 'désactivée (réglage)' : data.next.announceAt
+      ? `${data.next.announced ? 'visible depuis' : 'à partir du'} ${stDate(data.next.announceAt)}` : 'désactivée (0 h)');
+    stThemeBlock(nxt, data.next.theme, { canReroll: true });
+  } else nxt.appendChild(aiEl('p', { class: 'muted' }, 'Date de la saison suivante indisponible.'));
+  body.append(cur, nxt);
+  stMore(data);
+}
+
+document.getElementById('btn-st-refresh')?.addEventListener('click', loadSeasonThemes);
+document.getElementById('btn-st-prepare')?.addEventListener('click', async () => {
+  const { ok, data } = await api('POST', '/api/admin/season-themes/prepare');
+  if (!ok) return stMessage('st-err', data.error ?? 'Préparation impossible.');
+  stMessage('st-msg', data.next?.theme ? `Saison suivante préparée : « ${data.next.theme.names.fr} ».` : 'Rien à préparer pour l\'instant.');
+  loadSeasonThemes();
 });

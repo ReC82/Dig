@@ -171,6 +171,22 @@
       </div>
     </div>
 
+    <!-- Saisons thématiques (#48) -->
+    <div class="overview-card" id="st-card">
+      <h3 class="overview-card-title">🎭 Thème — saison actuelle / saison suivante</h3>
+      <p class="muted">Nom inédit, accroche FR/EN/NL/ES et collection préparés automatiquement (pack de saison rédigé à l'avance, sinon nom de repli sans IA ni dépense), annoncés aux joueurs avant le début. La <strong>ligue</strong> (ex. Mimosa) est un palier durable, distinct du thème. Les collections restent en brouillon : leur publication et leurs drops se décident dans l'onglet Collections.</p>
+      <div id="st-body" class="st-grid"></div>
+      <div class="form-actions" style="margin-top:8px">
+        <button class="btn" id="btn-st-prepare" type="button">Préparer la saison suivante maintenant</button>
+        <button class="btn btn-outline" id="btn-st-refresh" type="button">↻ Rafraîchir</button>
+      </div>
+      <p id="st-msg" class="success hidden"></p>
+      <p id="st-err" class="error hidden"></p>
+      <details style="margin-top:8px"><summary>Réglages, mots exclus, packs et journal</summary>
+        <div id="st-more"></div>
+      </details>
+    </div>
+
     <!-- Date de fin de la saison active (#44) -->
     <div class="overview-card" id="season-end-card">
       <h3 class="overview-card-title">Date de fin de la saison active</h3>
