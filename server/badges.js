@@ -56,7 +56,7 @@ const conn = () => db.getDb();
 
 const SEED = [
   { id: 'profondeur_100', status: 'active', category: 'profondeur', icon: '🕳️', condition: 'max_depth', threshold: 100,
-    names: { fr: 'Cent mètres sous terre', en: 'A hundred metres down', nl: 'Honderd meter diep', es: 'Cien metros bajo tierra' },
+    names: { fr: 'Cent mètres sous terre', en: '100 metres deep', nl: 'Honderd meter diep', es: 'Cien metros bajo tierra' },
     descriptions: { fr: 'Atteindre 100 m de profondeur.', en: 'Reach a depth of 100 m.', nl: 'Bereik een diepte van 100 m.', es: 'Alcanza 100 m de profundidad.' } },
   { id: 'pierre_100', status: 'active', category: 'minage', icon: '🪨', condition: 'blocks_of_type', blockId: 'pierre', threshold: 100,
     names: { fr: 'Tailleur de pierre', en: 'Stonecutter', nl: 'Steenhouwer', es: 'Cantero' },

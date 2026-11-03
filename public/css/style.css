@@ -1938,16 +1938,16 @@ h1 {
 .relic-cost {
   font-size: 0.7rem;
   color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: center;
+  /* Bloc en ligne (et non flex) : l'espace entre le coût et « (manque n) » reste un vrai espace,
+     visible au copier-coller et dans les lecteurs d'écran. */
+  text-align: center;
+  line-height: 1.5;
 }
 
 .relic-cost.can-afford { color: #22d3ee; font-weight: 700; }
 
 .relic-shortfall {
+  white-space: nowrap; /* « (nog 10 nodig) » passe à la ligne d'un bloc */
   font-size: 0.58rem;
   color: var(--muted);
   opacity: 0.7;

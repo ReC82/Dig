@@ -104,7 +104,7 @@ test('client : nom et histoire dans la langue du joueur, repli FR et noms intég
   assert.strictEqual(c.Collection.displayName(fossil), 'Fósil');
   assert.match(c.Collection.story(fossil), /dinosaurio/);
   assert.strictEqual(c.Collection.displayName({ id: 'x', names: { fr: 'Truc' } }), 'Truc');
-  assert.strictEqual(c.Collection.seriesName(c.Collection.SERIES[0], 'nl'), 'Collectie van de oorsprong');
+  assert.strictEqual(c.Collection.seriesName(c.Collection.SERIES[0], 'nl'), 'Oorsprongscollectie');
 });
 
 test('date et quantité trouvées : enregistrées à la trouvaille, jamais inventées', () => {

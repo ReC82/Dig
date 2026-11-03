@@ -39,7 +39,8 @@ function loadI18n(stored) {
 const flat = (o, p = '', out = {}) => {
   for (const [k, v] of Object.entries(o)) {
     const key = p ? `${p}.${k}` : k;
-    if (v && typeof v === 'object') flat(v, key, out); else out[key] = v;
+    // Un pluriel { one, other } (grammaire propre à la langue, #59) reste une seule clé
+    if (v && typeof v === 'object' && typeof v.other !== 'string') flat(v, key, out); else out[key] = v;
   }
   return out;
 };
@@ -53,10 +54,14 @@ test('i18n : fr, en, nl et es ont les mêmes clés et les mêmes variables', () 
   for (const lang of ['en', 'nl', 'es']) {
     assert.deepStrictEqual(Object.keys(F.fr).filter(k => !(k in F[lang])), [], `clés absentes en ${lang}`);
     assert.deepStrictEqual(Object.keys(F[lang]).filter(k => !(k in F.fr)), [], `clés en trop en ${lang}`);
-    for (const [k, v] of Object.entries(F[lang])) {
-      assert.strictEqual(typeof v, 'string', `${lang}.${k}`);
-      assert.ok(v.trim(), `${lang}.${k} vide`);
-      assert.strictEqual(vars(v), vars(F.fr[k]), `${lang}.${k} : variables différentes du français`);
+    for (const [k, val] of Object.entries(F[lang])) {
+      const forms = typeof val === 'string' ? [val] : Object.entries(val).filter(([c]) => c !== '$n').map(([, f]) => f);
+      const frForm = typeof F.fr[k] === 'string' ? F.fr[k] : F.fr[k].other;
+      for (const v of forms) {
+        assert.strictEqual(typeof v, 'string', `${lang}.${k}`);
+        assert.ok(v.trim(), `${lang}.${k} vide`);
+        assert.strictEqual(vars(v), vars(frForm), `${lang}.${k} : variables différentes du français`);
+      }
     }
   }
 });
