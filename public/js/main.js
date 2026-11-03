@@ -306,7 +306,9 @@ function _revealGiftShop() {
   if (!sh) return;
   _goGiftShop = false;
   sh.open = true;
-  sh.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Défilement immédiat : un défilement animé était annulé quand la vue Saison se re-rendait pendant
+  // l'animation (scrollTop mémorisé à mi-course puis restauré) — carte restée hors écran sur téléphone.
+  sh.scrollIntoView({ block: 'start' });
   sh.querySelector('summary')?.focus({ preventScroll: true });
 }
 
