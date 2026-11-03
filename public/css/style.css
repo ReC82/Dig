@@ -231,9 +231,9 @@ h1 {
   .header-btns button { width: 40px; }
 }
 
-/* Aperçu de logo (#41, ?logo=…) : même encombrement que le titre texte. */
-#game-logo.logo-preview { line-height: 0; text-shadow: none; letter-spacing: 0; }
-#game-logo.logo-preview img { height: 40px; width: auto; max-width: calc(100vw - 120px); display: block; }
+/* Logo image (#41) : A « Lingot » par défaut, ou aperçu ?logo=… ; même encombrement que l'ancien titre. */
+#game-logo.logo-img, #game-logo.logo-preview { line-height: 0; text-shadow: none; letter-spacing: 0; }
+#game-logo.logo-img img, #game-logo.logo-preview img { height: 40px; width: auto; max-width: calc(100vw - 120px); display: block; }
 
 /* ── Vue Paramètres ──────────────────────────── */
 .settings-section {

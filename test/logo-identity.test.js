@@ -1,6 +1,6 @@
 'use strict';
 /**
- * #41 — Identité DIG! : propositions de logo compactes (aperçu ?logo=…, rien d'activé par défaut)
+ * #41 — Identité DIG! : logo A « Lingot » par défaut (aperçu ?logo=… des autres propositions)
  * et icônes Profil / Paramètres différenciées dans l'en-tête.
  */
 const test = require('node:test');
@@ -32,9 +32,11 @@ test('propositions SVG : fichiers sûrs et encombrement compact (≤ 150 px de l
   }
 });
 
-test('logo par défaut inchangé : titre texte, aperçu chargé mais inactif sans ?logo=', () => {
+test('logo par défaut : A « Lingot » (choix du propriétaire), texte alternatif DIG!, aperçu ?logo= conservé', () => {
   const html = read('public/index.html');
-  assert.match(html, /<h1 id="game-logo">⛏ DIG!<\/h1>/);
+  const h1 = html.match(/<h1 id="game-logo"[\s\S]*?<\/h1>/)[0];
+  assert.match(h1, /<img src="assets\/logo\/a-lingot\.svg" alt="DIG!" width="102" height="40">/);
+  assert.match(read('public/css/style.css'), /#game-logo\.logo-img img[^{]*\{[^}]*height: 40px;/, 'hauteur compacte : en-tête inchangé');
   assert.match(html, /<script src="js\/logoPreview\.js"><\/script>/);
 });
 
