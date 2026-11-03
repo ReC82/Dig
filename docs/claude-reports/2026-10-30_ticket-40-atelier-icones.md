@@ -1,6 +1,142 @@
 # Ticket #40 — Atelier d'icônes IA dans le panel : objets, reliques, blocs et cohérence graphique
 
-Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch ; dernière mise à jour le 02/11/2026, 23 h 10.
+Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch ; dernière mise à jour le 03/11/2026, 03 h 00.
+
+---
+
+# Mise à jour du 03/11/2026, 03 h 00 (Bruxelles) — faux positifs « boussole » et « crown », consigne multiligne, budget clarifié
+
+**État réel : Déployé en production (SHA `fbc83f7`) — en attente de recette.** Classement : **Après lancement** (outil d'administration, sans effet sur les joueurs).
+
+Demandes traitées (commentaires du propriétaire sur #40) :
+- [02/11, 21:41 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6589162978) : champ « Refaire » trop étroit ; faux positif « boussole » citée comme référence de style ;
+- [02/11, 23:23 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6591044915) : faux positif « crown » (couronne brodée) sur *La culotte du roi Dagobert* ;
+- [02/11, 23:28 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6591132498) : affichage du budget trompeur, réservation de 0,25 USD par image qui bloque les lots ;
+- [02/11, 22:11 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6589761290) et [02/11, 23:32 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6591197333) : génération des images manquantes (voir § 1.4 : non lancée par cette session, et pourquoi).
+
+## 1. Résultat
+
+### 1.1 Conflit de sujet lu en contexte (serveur, `server/iconStudio.js`)
+
+Avant, tout nom d'un autre objet bloquait la génération. Désormais, chaque mention est lue **dans sa proposition**, c'est-à-dire le morceau de phrase entre deux ponctuations. La raison est affichée dans l'atelier.
+
+| Contexte de la mention | Exemple | Décision |
+|---|---|---|
+| Référence de style (« cohérent avec », « comme la », « même style que », « consistent with », « matching »…) | « relief 3D stylisé, cohérent avec la boussole et la lanterne » | ✓ **autorisé** (« lu comme référence de style ») |
+| Motif, décor, ornement à 3 mots ou moins (« brodé », « embroidered », « motif », « gravé », « emblème », « monogramme »…) | « ornate embroidered royal crown », « une couronne brodée sur la ceinture » | ✓ **autorisé** (« lu comme motif ou décor ») |
+| Demande de dessiner un autre objet (« dessine », « draw », « show »… juste avant le nom) | « Dessine une boussole », « draw a broken crown » | ✗ **refusé, jamais contournable** |
+| Nouveau sujet d'un remplacement (après « remplace … par », « transforme en », « devient » ; avant « au lieu de », « instead of ») | « draw a broken crown instead of breeches », « remplace par un fossile », « la culotte devient une couronne » | ✗ **refusé, jamais contournable** |
+| Objet à retirer (« remplace la lanterne par un crayon » sur la fiche du crayon) | — | ⚠ conflit probable : « Ce n'est pas un autre objet » permet de confirmer |
+| Mention nue (règle d'avant, inchangée) | « une couronne posée à côté » | ⚠ nom principal : confirmable ; nom complet : refusé |
+
+Les protections restent en place : refus **avant tout appel** et sans dépense, panel obsolète (`stale_client`), fiche différente (`target_mismatch`), saisie jamais reportée d'un objet à l'autre. Le contrôle automatique de l'image (le modèle avec vision dit ce qu'il voit) reste le second filet. Une description de l'ancienne image (« L'image précédente représente une lanterne ») n'est pas lue comme une demande.
+
+### 1.2 Consigne « Refaire » et « Précision » (panel)
+
+- Le champ d'une ligne devient un **champ de texte multiligne**. Il fait 3 lignes au départ, s'agrandit avec le texte jusqu'à environ 18 lignes, puis défile ; on peut aussi le redimensionner à la main.
+- Compteur visible : « 207 / 1000 caractères · Ctrl+Entrée pour lancer ». La limite passe de 300 à **1000 caractères**, et le texte intégral est transmis à l'IA (vérifié par un test).
+- **Entrée** ajoute un retour à la ligne ; **Ctrl+Entrée** (⌘+Entrée sur Mac) lance « Refaire » ou « Générer ».
+- La saisie est conservée par objet pendant la navigation, jamais reportée sur un autre objet ; elle est vide après un rechargement.
+- Pendant la saisie, le **serveur** lit le texte avec la même règle qu'à la génération (nouvelle route `POST /api/admin/icons/targets/:key/subject-check`, protégée, sans appel IA ni écriture). Il affiche « ✓ Autorisé : « boussole » lu comme référence de style » ou « ⚠ … demande de dessiner un autre objet : la génération sera refusée sans dépense ».
+
+**Défaut corrigé au passage**, trouvé par l'essai navigateur et présent en production depuis l'ajout du raccourci : Entrée dans le champ « Refaire » cliquait le premier bouton principal de la fiche, c'est-à-dire **« ✓ Conserver cette image »**. Cela pouvait mettre au brouillon une proposition qu'on voulait refaire. La production a été vérifiée en lecture seule : seules la boussole, la lanterne et la culotte ont été conservées, toutes par un clic voulu. Le jeton n'a pas été touché.
+
+![Référence de style autorisée (ordinateur)](img/2026-11-03_ticket-40-style-autorise-pc.png)
+![Changement de sujet refusé sans dépense (ordinateur)](img/2026-11-03_ticket-40-changement-sujet-refuse-pc.png)
+![Couronne brodée autorisée, « Refaire » multiligne (smartphone 390 px)](img/2026-11-03_ticket-40-couronne-brodee-mobile.png)
+
+### 1.3 Budget : trois chiffres distincts, réservation au coût réel
+
+**Audit du cumul** (journal de dépense partagé, lecture seule) : **2,7961 USD** au total, soit exactement le chiffre affiché.
+
+| Origine | Appels | Coût |
+|---|---|---|
+| Scripts #22 (bibliothèque v1, avant l'atelier) | 28 | 1,934 USD |
+| Atelier d'icônes : images | 8 | 0,656 USD (≈ 0,082 USD par image) |
+| Atelier d'icônes : contrôles du sujet | 20 | 0,012 USD |
+| Blocs (#37) : images et textes | 4 | 0,174 USD |
+| Collections et badges : textes | 3 | 0,020 USD |
+
+Le cumul était juste, mais l'affichage « Budget IA atteint (2,80 / 3 USD) » laissait croire au coût d'une image. Le vrai blocage venait de la réservation : l'atelier réservait l'estimation configurée (0,25 USD) avant chaque image. Il restait 0,20 USD, donc aucune image ne passait, alors qu'une image coûte 0,082 USD.
+
+**Nouveau mécanisme** (simple, visible, plafond intact) :
+- **Réservation par image = coût réel le plus élevé des 5 dernières images + 25 %, arrondi au cent supérieur**, dès 2 images réellement facturées. Elle ne dépasse **jamais** l'estimation configurée. Avec les coûts actuels (0,0818 à 0,0823 USD), la réservation est de **0,11 USD au lieu de 0,25 USD**.
+- Le plafond ne change pas et n'est jamais relevé : une image n'est lancée que si « dépensé + réservation + contrôle ≤ plafond ». Après chaque image, c'est le coût réel qui est compté.
+- L'atelier affiche séparément le **coût réel de la dernière image** (« dernière image : 0,082 USD »), le **cumul de toutes les générations depuis le début** (« ce n'est pas le coût d'une image ») et le **plafond**. La réservation est affichée avec son origine.
+- Le message de refus devient : « la prochaine image n'est pas lancée. Il reste 0,20 USD sous le plafond, il faut 0,12 USD (0,11 USD réservés par image : plus cher des derniers coûts réels, 0,082 USD, + 25 %, contrôle du sujet compris). Ce n'est pas le coût d'une image : le cumul (2,80 USD) additionne toutes les générations depuis le début… ».
+
+Conséquence immédiate : avec le plafond actuel de 3 USD, **2 images** peuvent encore être générées, au lieu de 0. La 3e est refusée proprement.
+
+### 1.4 Images manquantes des collections : non générées par cette session
+
+Inventaire de la production (lecture seule) : **17 objets sans image**.
+- Trésors de la vieille mine : Crayon de mineur, Jeton doré, Tasse ébréchée, Clé des galeries. La lanterne et la boussole ont une image.
+- Les Objets trouvés de la Légende : L'orange perdue d'un Gille, Le menhir de poche, Les noix de coco du chevalier, Le vase de Soissons recollé, La tour Eiffel en allumettes. La culotte a une image.
+- Collection des origines : ses 8 objets.
+
+Cette session n'a lancé **aucune génération réelle**, pour deux raisons :
+1. **Plafond** : il reste 0,20 USD sous les 3 USD, soit 2 images sur 17. Il faut environ 17 × 0,083 = 1,41 USD de plus ; le plafond n'est pas relevé sans instruction.
+2. Une session autonome n'a **pas d'accès administrateur à la production** (aucun secret lu) : ses générations ne peuvent se faire que sur une copie de la base. Ces images ne seraient pas dans l'atelier en production. Dépenser les 0,20 USD restants ainsi priverait le propriétaire de 2 images réelles.
+
+La génération se fait donc par le bouton **🎨 Icônes → Collections → « Générer les N images manquantes »**, déjà en production. Il enchaîne une image par objet, avec contrôle du sujet, et s'arrête proprement au plafond. Il ignore sans dépense les objets déjà illustrés, ceux qui ont une proposition v1.3 et ceux en conflit. Rien n'est conservé ni publié automatiquement.
+
+**Coût réel de cette session : 0 USD** (aucun appel payant ; essais avec l'IA simulée).
+
+## 2. SHA, branche, procédure de test
+
+- Branche `feature/40-atelier-icones` : `a2c10c3`, puis `1fa3320` (sens du remplacement).
+- **`develop` : `fbc83f7`** (fusion `--no-ff`), **déployé en production**.
+- Tests automatisés : `npm test`, **453/453** sur la branche, sur `develop` et sur la release `fbc83f7` ; `npm run check` OK.
+  - `test/icon-studio.test.js`, nouveaux tests : boussole et lanterne citées comme style (acceptées, génération faite, consigne de plus de 400 caractères transmise entière) ; couronne brodée dans la consigne enregistrée (acceptée, proposition non marquée douteuse) ; « draw a broken crown instead of breeches », « Dessine une couronne », « remplace par un fossile… », « show a crown » (refusés, stricts, jamais contournables, 0 appel) ; sens du remplacement ; description de l'ancienne image ; mention nue (inchangée) ; réservation (0,0818 à 0,0823 → 0,11 USD ; une seule mesure → estimation configurée ; jamais au-delà ; 2 images possibles à 2,7961/3) ; route `subject-check` (401 sans clé, style accepté, « dessine un cristal bleu » refusé).
+- Essai navigateur `test/e2e/icon-studio-context.e2e.js` (Chromium, **IA simulée, 0 USD**, copie de la base de production supprimée ensuite), **réussi à 1280 × 900 et 390 × 844** :
+  - textarea 73 → 92 px (ordinateur) et 73 → 130 px (mobile), compteur ;
+  - « boussole » autorisée, « Dessine une boussole » signalée puis refusée (0 appel) ;
+  - « Refaire » multiligne de la culotte avec « couronne brodée » autorisé ;
+  - texte intégral du jeton retrouvé après navigation, rien sur la culotte ;
+  - génération du jeton acceptée avec la consigne complète, rien conservé automatiquement ;
+  - aucun défilement horizontal, aucune erreur JS.
+- L'ancien essai `test/e2e/icon-studio-subject.e2e.js` (scénario du 02/11) est conservé mais n'a pas été relancé : il dépend de l'état de la base du 02/11.
+
+## 3. Données, limites
+
+- Aucune migration ni table nouvelle. Aucune donnée joueur lue ni modifiée. Aucun réglage ni plafond modifié.
+- Limites de la lecture en contexte : elle repose sur des listes de mots français et anglais. Une formulation inhabituelle peut encore donner un conflit « probable » (confirmable) ; c'est voulu, par prudence. Une demande de remplacement mal tournée peut passer en « probable » au lieu de « refusé » ; le contrôle automatique de l'image la signale alors après coup.
+
+## 4. Déploiement
+
+- Copie de la base de production démarrée par la release sur le port 3122 : `/health` ok, `/api/version` = `1.0.0+fbc83f7`. Les empreintes (lignes + hachage) de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` sont identiques avant et après ; la copie a été supprimée.
+- Aucune génération IA en cours avant le déploiement (dernière à 00:25, heure de Bruxelles).
+- `main` avancé de `abd53af` à `fbc83f7` par avance rapide, puis `scripts/deploy.sh` de la release. **Sauvegarde vérifiée : `dig-20261103-025254-pre-deploy-fbc83f7.sqlite`**.
+- Vérifications : les 2 domaines répondent 200 avec `1.0.0+fbc83f7` ; `admin.js?v=1.0.0+fbc83f7` contient la nouvelle route ; journal sans erreur ; `quick_check` ok ; empreintes joueurs identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep abd53af` puis `sudo systemctl restart dig`, sans changement de dépendances.
+
+## 5. Test fonctionnel à faire par le propriétaire (≈ 3 min, sans dépense jusqu'à l'étape 4)
+
+1. **Ctrl+F5** sur le panel, puis 🎨 Icônes → fiche **Jeton doré**.
+2. Dans le champ « Refaire » (ou « Précision »), coller la consigne complète, par exemple : « vue de trois quarts, relief 3D stylisé, cohérent avec la boussole et la lanterne ». **Attendu** : le champ s'agrandit, le compteur s'affiche et l'atelier indique « ✓ Autorisé : « boussole » lu comme référence de style… ».
+3. Remplacer par « Dessine une boussole ». **Attendu** : avertissement immédiat ; Ctrl+Entrée affiche « Conflit de sujet… rien n'a été dépensé ».
+4. Fiche **La culotte du roi Dagobert** : remettre « crown » dans la consigne (« ornate embroidered royal crown »). **Attendu** : « ✓ La consigne enregistrée cite « crown » (motif ou décor) : autorisé ». Facultatif : « Refaire » génère une image (≈ 0,08 USD).
+5. ⚙ Config → Budget IA, et l'en-tête de l'atelier. **Attendu** : le coût de la dernière image (≈ 0,082 USD), le cumul « depuis le début, pas le coût d'une image », la réservation « 0,11 USD par image (coût réel…) » et « au moins 1 image(s) » restante(s).
+6. Facultatif : 🎨 Icônes → Collections → « Trésors de la vieille mine » → **Générer les 4 images manquantes**. **Attendu**, au plafond actuel : 2 images, puis un arrêt propre (« Plafond… la prochaine image n'est pas lancée »).
+
+## 6. Choix techniques faits seul
+
+- **Lecture par proposition** (morceau entre ponctuations) plutôt qu'une IA de classement : gratuite, instantanée, explicable, testable. Elle reste prudente : l'inconnu reste « probable » (confirmable), et le nouveau sujet d'un remplacement est toujours refusé.
+- **Vérification pendant la saisie par le serveur** : la copie de la règle côté navigateur est supprimée, pour qu'une seule règle existe.
+- **Réservation au coût réel** : c'est la réponse à « proposer un mécanisme simple, sans contournement silencieux ». Le plafond est intact, la réservation reste plafonnée par l'estimation configurée, et son origine est affichée. `DIG_IMAGE_EST_COST_USD` n'a pas été modifié.
+- Limite de la précision portée à 1000 caractères (le prompt complet reste très en deçà des limites de l'API).
+- Aucune génération réelle sur une copie (voir § 1.4).
+
+## 7. Décisions demandées au propriétaire
+
+1. **Plafond du serveur `DIG_IMAGE_BUDGET_USD`** (`~/.config/dig/openai.env`) : 2,80/3 USD utilisés, assez pour 2 images. Les 17 images manquantes demandent environ 1,41 USD. **Recommandé : le passer à 5 USD**, ce qui couvre les 17 images et laisse une marge pour quelques reprises.
+2. Ensuite, lancer « Générer les N images manquantes » par collection : Trésors, puis Objets trouvés, puis Origines. **Recommandé : oui.** Les échecs sont seuls à corriger dans leur fiche.
+3. Limite propre à l'atelier (⚙ Config → Budget IA) : 0,49/1 USD utilisés. Même avec un plafond serveur relevé, elle arrêterait la série après environ 4 images. La vider ou la passer à 2 USD (**recommandé : 2 USD**, qui couvre les 17 images).
+
+## 8. Reste à faire
+
+- Génération des 17 images manquantes, par le propriétaire, après la décision 1.
+- (Après lancement) Relancer et mettre à jour l'ancien essai navigateur du 02/11 avec l'état actuel de la base.
 
 ---
 
