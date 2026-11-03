@@ -593,3 +593,94 @@ Attendu : aucune popup grise du navigateur, aucun article ni point modifié.
   commande, sans en recréer exprès).
 - Traduction automatique facultative des textes d'article (après lancement, avec accord sur la dépense).
 - Étape 2 selon la décision 1 (après lancement).
+
+## Mise à jour du 03/11/2026, 19 h 55 (Bruxelles) — recette #34-L : aperçu « Prix à définir », « Masqué », « À compléter »
+
+**État réel : déployé en production (SHA `0c44cf9`) le 03/11/2026 à 19:51 (Bruxelles) — en attente de recette.**
+Classement : **Après lancement** (confort admin, aucun impact joueur).
+
+### Retour du propriétaire (pris en compte)
+
+[Recette #34-L](https://github.com/ReC82/Dig/issues/34#issuecomment-6611603248) : nouvelle fiche
+article, sélecteur d'emoji, synchronisation de l'aperçu et témoin « ● Modifications non enregistrées »
+**validés visuellement** (ne plus les redemander). Deux réserves mineures :
+1. l'aperçu affichait « ? pts » tant qu'aucun prix n'était saisi ;
+2. l'aperçu montrait un bouton « Échanger » même pour un article masqué et incomplet.
+
+### Ce qui change (Admin → 🛍 Boutique → fiche article, aperçu joueur uniquement)
+
+- Sans prix : « **Prix à définir** » (en gris italique) au lieu de « ? pts ».
+- Le bouton de l'aperçu n'affiche « Échanger » que si le joueur pourrait réellement échanger.
+  Sinon, dans cet ordre : « **À compléter** » (prix ou titre français manquant, les deux champs que
+  le serveur exige), « **Masqué** » (case Visible décochée, cas de tout nouvel article), puis les
+  états existants « Bientôt », « Indisponible » et « Épuisé ».
+- Sous l'aperçu, une ligne « ✏️ À compléter : prix, titre français » liste ce qui manque.
+- Rien d'autre n'a changé : ni le jeu, ni l'API, ni la base, ni les articles, ni les points.
+
+Fichiers : `public/admin/admin.js` (`shPreview`), `public/admin/admin.css` (`.sh-prev-cost.unset`),
+`test/shop-ux.test.js`, `test/e2e/shop-ux.e2e.js`.
+
+### SHA, branche et procédure de test
+
+- Branche `feature/34-boutique-cadeaux` : `75b4ff6`. **`develop` : `0c44cf9`** (merge `--no-ff`).
+- `npm test` : 563/563 sur la branche, sur `develop` et sur la release. Un premier passage avait
+  échoué sur `ranking-depth` (409) : un serveur de test orphelin de mon propre premier lancement
+  occupait le port 3110. Après son arrêt, tout est passé, sans modifier le test.
+- Essai Chromium `test/e2e/shop-ux.e2e.js` (serveur de test 3101, base `test-34.sqlite` supprimée
+  ensuite), en 1280×900 et 390×844 :
+  - fiche vide → « Prix à définir » et « À compléter », jamais « ? pts » ni « Échanger » ;
+  - titre et prix saisis → « 2 pts Masqué » ; case Visible cochée → « 2 pts Échanger » ;
+  - **ton prochain test** : seul l'emoji 💰 est modifié, puis ✕ → fenêtre Dig « Modifications non
+    enregistrées » → « Abandonner les modifications » → la fiche se ferme et **le nombre d'articles
+    est inchangé** ;
+  - 0 erreur JS, 0 popup native du navigateur.
+
+### Déploiement
+
+- Copie de la base de production (port 3122) : `/health` ok, version `1.0.0+0c44cf9`, empreintes des
+  six tables identiques avant et après le démarrage. La copie a été supprimée.
+- Aucune génération IA en cours avant le déploiement (dernier appel : 17:16 UTC).
+- `main` avancé de `db38cc0` à `0c44cf9` en avance rapide. `scripts/deploy.sh` : sauvegarde vérifiée
+  `~/backups/dig/dig-20261103-195125-pre-deploy-0c44cf9.sqlite`, santé et version OK.
+- Après le déploiement : les deux domaines répondent 200 avec `1.0.0+0c44cf9` ; journal sans erreur ;
+  `quick_check` ok. Les empreintes sont identiques à la sauvegarde, sauf `user_saves` : une partie en
+  cours a sauvegardé (version 1144 → 1145), c'est une progression, pas une perte. `admin.js` servi
+  contient le nouveau texte. Chromium sur la production (jeu et admin, PC et mobile) : 0 erreur JS.
+- Retour arrière possible : `git -C /home/ubuntu/Dig reset --keep db38cc0` + redémarrage
+  (pas de migration ; `package-lock.json` inchangé).
+
+### Test fonctionnel à faire par le propriétaire (~1 min, rien n'est enregistré)
+
+1. Admin → 🛍 Boutique → **＋ Ajouter un article**. L'aperçu à droite (en haut sur téléphone)
+   affiche « **Prix à définir** » et « **À compléter** », plus la ligne « ✏️ À compléter : prix,
+   titre français ».
+2. Tape un titre et un coût (ex. 20) : l'aperçu passe à « 20 pts » et « **Masqué** ». Coche
+   **Visible** : il passe à « Échanger ». Décoche-la ensuite.
+3. Ton test prévu : change seulement l'emoji (😀 Choisir… → 💰), clique ✕. La fenêtre Dig
+   « Modifications non enregistrées » apparaît. Choisis « **Abandonner les modifications** » :
+   la fiche se ferme et la liste des articles est inchangée.
+
+Inutile de refaire le cycle d'échange et d'annulation, il est déjà validé.
+
+### Choix techniques faits seul
+
+- « À compléter » prime sur « Masqué ». Un article sans prix ni titre ne pourra jamais être échangé,
+  même rendu visible ; c'est donc l'information la plus utile. Les deux champs testés sont ceux que
+  le serveur refuse à l'enregistrement (`cost` de 1 à 1 000 000, titre FR).
+- Aucun texte joueur ni traduction ajoutés : ces libellés n'existent que dans l'admin (en français).
+
+### Décisions demandées au propriétaire
+
+Les trois questions précédentes sont inchangées :
+1. Étape 2 des boutiques : A) garder le bandeau seul (**reco MVP**) ou B) un onglet Boutique à trois
+   sous-onglets (après lancement).
+2. Premiers vrais articles virtuels et prix. Reco : « Titre honorifique de la saison » à 20 pts,
+   1 par joueur, remise manuelle.
+3. Point de test sur `testeur` : le garder (reco, aucun impact) ou le retirer par Admin → Points
+   (−1, motif « fin de test »).
+
+### Reste à réaliser
+
+- Parcours admin « En préparation → Remis », à tester sur une vraie commande (après lancement).
+- Traduction automatique facultative des textes d'article (après lancement, avec accord sur la dépense).
+- Étape 2 selon la décision 1 (après lancement).
