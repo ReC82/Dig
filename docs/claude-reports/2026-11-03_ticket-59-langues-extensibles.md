@@ -1,8 +1,83 @@
 # Ticket #59 — [P1] Langues extensibles : traductions IA automatiques et pilote italien
 
 - Ticket : https://github.com/ReC82/Dig/issues/59
-- Branche : `feature/59-langues-extensibles` (commit `9fd83a2`)
+- Branche : `feature/59-langues-extensibles` (dernier commit de correction `83e6f70`, develop `ba5ccfb`, déployé `ba5ccfb`)
 - Date : 03/11/2026
+
+## Mise à jour du 03/11/2026 (soir) — corrections des recettes #59-A à #59-D
+
+**État réel : déployé en production (SHA `ba5ccfb`) le 03/11/2026 à 20:16 — en attente de recette.**
+Classement : **Après lancement** (qualité linguistique, aucune fonction bloquée).
+
+### Résultat
+Le propriétaire a testé la page Collection en anglais, néerlandais et espagnol (commentaires #59-A, B, C, D). Le basculement de langue et le souvenir d'événement (nom, description, date) sont validés dans les trois langues. Les défauts de rédaction et de mise en forme qu'il a relevés sont corrigés. **Aucun coût ni bonus n'a changé** : seuls les textes ont été modifiés.
+
+| Langue | Avant | Après |
+|---|---|---|
+| EN | `+2 damages/click` | `+2 damage per click` |
+| EN | `5 fragments(missing 3)` | `5 fragments (3 more needed)` |
+| EN | `Event souvenirs` | `Event keepsakes` |
+| EN | `+1 fragments/chest`, `+3 auto damage/sec` | `+1 fragment per chest`, `+3 automatic damage per second` |
+| NL | `2 scherfs`, `5 scherfs(tekort 3)` | `2 scherven`, `5 scherven (nog 3 nodig)` |
+| NL | `Souvenirs van evenementen` | `Evenementherinneringen` |
+| NL | `Collectie van de oorsprong` (texte du jeu) | `Oorsprongscollectie` |
+| NL | `+2 auto schade/sec`, `-10% blok HP` | `+2 automatische schade per seconde`, `-10% levenspunten van blokken` |
+| NL | `Schervenagneet` (coquille) | `Schervenmagneet` |
+| ES | `5 fragmentos(faltan 3)` ; `(faltan 1)` | `5 fragmentos (faltan 3)` ; `(falta 1)` |
+| ES | `+2 de daño/clic`, `+2 de daño auto/s` | `+2 de daño por clic`, `+2 de daño automático por segundo` |
+| ES | `-10% PV de bloques`, `+1 fragmento/cofre` | `−10 % de vida de los bloques`, `+1 fragmento por cofre` |
+
+Autres corrections du même type :
+- **Pluriels néerlandais.** Le « s » ajouté au français ne marche pas en néerlandais. Tous les pluriels NL sont maintenant de vrais pluriels : scherven, kisten, verbeteringen, edelstenen, munten, wissels. Un test interdit désormais tout `{s}` dans les textes NL.
+- **Compteurs.** `0 / 2 earned` et `0 / 8 found` utilisent le même espacement que l'en-tête de collection (espace fine insécable autour de `/`), dans les trois langues.
+- **Carte relique.** Le coût et le manque (`(3 more needed)`) étaient deux éléments « flex » : l'espace entre eux disparaissait au copier-coller et pour les lecteurs d'écran. C'est maintenant du texte centré avec un vrai espace. Le manque ne se coupe plus en deux lignes.
+
+**Contenus enregistrés en base.** Le badge `100 metres deep` et le nom NL de la série `Oorsprongscollectie` sont des contenus modifiables dans l'admin et déjà enregistrés en base. Le texte de départ a été corrigé dans le code (`server/badges.js`, `server/collectionCatalog.js`), mais **la base de production n'est pas réécrite**. Pour voir le nouveau texte en jeu, modifiez-le dans l'admin (voir le test ci-dessous).
+
+### Fichiers
+- `public/js/i18n.js` : textes EN, NL et ES ; pluriels `{ one, other }` en NL, en EN (fragments par coffre) et en ES (falta/faltan).
+- `public/css/style.css` : `.relic-cost` sans flex ; `.relic-shortfall` insécable.
+- `server/badges.js` et `server/collectionCatalog.js` : textes de départ.
+- Tests :
+  - `test/i18n-languages.test.js` : nouveau test des recettes #59-A/C/D ;
+  - `test/i18n-es.test.js` : la comparaison des clés accepte les pluriels propres à une langue ;
+  - `test/collection-catalog.test.js` : nouveau nom NL de la série.
+
+### SHA, tests et déploiement
+- Branche : `feature/59-langues-extensibles`, commit `83e6f70`.
+- `develop` : `ba5ccfb`. Déployé : **`ba5ccfb`** (précédent `0c44cf9`).
+- `npm test` : 564/564 sur la branche et sur le SHA exact de la release.
+- Copie de la base de production démarrée en mode production : empreintes identiques avant et après le démarrage (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`).
+- Avant le déploiement : aucune génération IA en cours (dernier appel à 17:16 UTC).
+- Sauvegarde vérifiée : `dig-20261103-201635-pre-deploy-ba5ccfb.sqlite`.
+- Après le déploiement :
+  - les deux domaines répondent 200 avec la version `1.0.0+ba5ccfb` ;
+  - aucune erreur dans le journal ; `quick_check` ok ;
+  - empreintes des données joueurs identiques à la sauvegarde ;
+  - navigateur sans compte (390×844) en NL, EN et ES : cartes reliques conformes au tableau ci-dessus, 0 erreur JavaScript.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 0c44cf9` puis `sudo systemctl restart dig`. Aucune migration, aucune donnée joueur touchée.
+
+### Test fonctionnel à faire par le propriétaire (3 min, nouveaux points seulement)
+1. Compte `testeur`, langue **Nederlands** → Collectie → Relikwieën. Attendu : `5 scherven (nog 3 nodig)`, `+1 scherf per kist`, `Schervenmagneet`, section `Evenementherinneringen`.
+2. Langue **English** → Collection → Relics. Attendu : `+2 damage per click`, `5 fragments (3 more needed)`, section `Event keepsakes`.
+3. Langue **Español** → Colección → Reliquias. Attendu : `+2 de daño por clic`, `−10 % de vida de los bloques`, `5 fragmentos (faltan 3)`.
+4. Facultatif, pour les contenus déjà en base :
+   - Admin → Badges → `profondeur_100` → nom EN `100 metres deep` → Enregistrer ;
+   - Admin → Collections → série « origines » → nom NL `Oorsprongscollectie` → Publier.
+
+   Attendu : nouveau nom visible en jeu après rechargement.
+
+À tester ensuite, sur d'autres écrans comme le propriétaire l'a demandé : Améliorations, Quotidien (missions NL `3 kisten openen`, récompenses `💰 … munten`) et Coffres.
+
+### Choix techniques faits seul
+- J'ai utilisé des pluriels `{ one, other }`, déjà gérés par `t()` via `Intl.PluralRules` depuis le pilote italien. Je n'ai pas modifié le code appelant, qui passe toujours `s` : aucun risque pour le français.
+- J'ai gardé `keepsakes` plutôt que `collectibles` : ces objets sont des souvenirs conservés après l'événement, pas des objets à collectionner en série.
+- Je n'ai pas réécrit les contenus en base (badge, série) : ce sont des données éditées dans l'admin. Le propriétaire garde la main.
+
+### Décisions demandées
+Aucune nouvelle décision. Les trois questions du § 8 restent ouvertes.
+
+---
 
 ## 1. État réel
 
