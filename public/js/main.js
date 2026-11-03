@@ -2368,12 +2368,69 @@ async function _shopAction(fn) {
   }
 }
 
+/**
+ * Fenêtre de confirmation Dig (recettes #34-H/J du 03/11) — remplace window.confirm() pour
+ * l'échange et l'annulation : article, montants exacts, solde après, deux boutons.
+ * Échap, clic hors fenêtre et « Annuler » = refus ; Tab reste dans la fenêtre ; un seul « oui »
+ * possible (bouton désactivé dès le premier clic). Résout true / false.
+ */
+function _shopConfirm({ title, item, itemTitle, rows, note, okLabel, backLabel }) {
+  const modal = document.getElementById('shop-confirm-modal');
+  if (!modal || !modal.hidden) return Promise.resolve(false);
+  const $ = id => document.getElementById(id);
+  const ok = $('btn-shop-confirm-ok'), back = $('btn-shop-confirm-back');
+  const opener = document.activeElement;
+  const visual = item.imageUrl
+    ? `<img class="shop-item-img" src="${escapeHtml(item.imageUrl)}" alt="">`
+    : `<span class="shop-item-icon" aria-hidden="true">${escapeHtml(item.icon || '🎁')}</span>`;
+  $('shop-confirm-title').textContent = title;
+  $('shop-confirm-body').innerHTML = `
+    <div class="shop-confirm-item">${visual}<span>${escapeHtml(itemTitle)}</span></div>
+    <table class="shop-confirm-rows"><tbody>${rows.map(([k, v, key]) =>
+      `<tr${key ? ' class="shop-confirm-key"' : ''}><th scope="row">${escapeHtml(k)}</th><td>${escapeHtml(v)}</td></tr>`).join('')}</tbody></table>
+    <p class="shop-confirm-note">${escapeHtml(note)}</p>`;
+  ok.textContent = okLabel;
+  back.textContent = backLabel;
+  ok.disabled = false;
+  return new Promise(resolve => {
+    const done = (answer) => {
+      if (modal.hidden) return;
+      if (answer) ok.disabled = true;
+      modal.hidden = true;
+      modal.onclick = modal.onkeydown = ok.onclick = back.onclick = null;
+      if (opener && opener.isConnected) opener.focus();
+      resolve(answer);
+    };
+    ok.onclick   = () => done(true);
+    back.onclick = () => done(false);
+    modal.onclick = e => { if (e.target === modal) done(false); };
+    modal.onkeydown = e => {
+      if (e.key === 'Escape') { e.preventDefault(); done(false); return; }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        (document.activeElement === ok ? back : ok).focus();
+      }
+    };
+    modal.hidden = false;
+    back.focus();
+  });
+}
+
 async function _shopExchange(itemId) {
   const it = _shopData?.items.find(i => i.id === itemId);
   if (!it) return;
   const title = _shopText(it.texts, 'title');
   const n = v => Number(v).toLocaleString(I18n.getCurrent());
-  if (!confirm(t('giftshop.confirm', { cost: t('giftshop.cost', { n: n(it.cost) }), title, after: t('points.pts', { n: n(_shopData.balance - it.cost) }) }))) return;
+  const ok = await _shopConfirm({
+    title: t('giftshop.m_title'), item: it, itemTitle: title,
+    rows: [
+      [t('giftshop.m_cost'), t('giftshop.cost', { n: n(it.cost) })],
+      [t('giftshop.m_before'), t('points.pts', { n: n(_shopData.balance) })],
+      [t('giftshop.m_after'), t('points.pts', { n: n(_shopData.balance - it.cost) }), true],
+    ],
+    note: t('giftshop.m_note'), okLabel: t('giftshop.m_ok'), backLabel: t('giftshop.m_back'),
+  });
+  if (!ok) return;
   const requestId = _shopRequestId();
   await _shopAction(async () => {
     // Même requestId en cas de nouvel essai réseau : le serveur ne débite qu'une fois.
@@ -2385,7 +2442,18 @@ async function _shopExchange(itemId) {
 }
 
 async function _shopCancel(orderId) {
-  if (!confirm(t('giftshop.cancel_confirm'))) return;
+  const o = _shopData?.orders.find(x => x.id === orderId);
+  if (!o) return;
+  const n = v => Number(v).toLocaleString(I18n.getCurrent());
+  const ok = await _shopConfirm({
+    title: t('giftshop.c_title', { id: o.id }), item: o, itemTitle: _shopText(o.texts, 'title'),
+    rows: [
+      [t('giftshop.c_refund'), '+' + t('giftshop.cost', { n: n(o.cost) })],
+      [t('giftshop.c_after'), t('points.pts', { n: n(_shopData.balance + o.cost) }), true],
+    ],
+    note: t('giftshop.c_note'), okLabel: t('giftshop.c_ok'), backLabel: t('giftshop.c_back'),
+  });
+  if (!ok) return;
   await _shopAction(async () => {
     const res = await _apiFetch('POST', `/api/shop/orders/${orderId}/cancel`, {});
     _shopMsg = res.ok ? null : { ok: false, text: t('giftshop.error', { msg: res.data?.error ?? res.status }) };

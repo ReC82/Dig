@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 612/612 textes. Absents → français. */
+/* Italian (preview) : 623/623 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -286,10 +286,14 @@ I18n.registerLocale("it", {
   "b_short": "Mancano {n} pt",
   "b_unavailable": "Non disponibile",
   "btn": "Scambia",
+  "c_after": "Saldo dopo il rimborso",
+  "c_back": "Tieni l’ordine",
+  "c_note": "L’articolo torna disponibile e l’ordine resta nel tuo storico («Annullato»).",
+  "c_ok": "Annulla l’ordine",
+  "c_refund": "Rimborso",
+  "c_title": "Annullare l’ordine #{id}?",
   "cancel": "Annulla",
-  "cancel_confirm": "Annullare questo ordine? I punti verranno rimborsati.",
   "conditions": "Condizioni",
-  "confirm": "Scambiare {cost} con «{title}»?\n\nSaldo dopo lo scambio: {after}.\nPuoi annullare finché l’ordine è «in attesa» (punti rimborsati).",
   "cost": "{n} pt",
   "done": "Scambio registrato: «{title}». Segui il tuo ordine in «I miei scambi».",
   "empty": "Ancora nessun regalo: il catalogo apre presto. I tuoi punti restano tuoi.",
@@ -297,6 +301,13 @@ I18n.registerLocale("it", {
   "face_value": "Valore: {v}",
   "help": "Consegna: le ricompense virtuali vengono consegnate dal team DIG! entro pochi giorni. Un problema? Rispondi a un’e-mail del gioco o contatta l’assistenza indicando il numero dell’ordine.",
   "intro": "Scambia i tuoi punti premio con dei regali. Niente fortuna: scegli tu.",
+  "m_after": "Saldo dopo lo scambio",
+  "m_back": "Annulla",
+  "m_before": "Saldo attuale",
+  "m_cost": "Costo",
+  "m_note": "Puoi annullare finché l’ordine è «In attesa»: i tuoi punti vengono allora rimborsati.",
+  "m_ok": "Conferma lo scambio",
+  "m_title": "Conferma lo scambio",
   "min_age": "Dai {n} anni",
   "network": "Rete non disponibile: riprova tra un attimo (nessun doppio addebito possibile).",
   "orders_empty": "Nessuno scambio per ora.",
@@ -538,8 +549,14 @@ I18n.registerLocale("it", {
    "hash": "Impronta SHA-256:",
    "me_absent": "Non hai partecipato a questa stagione.",
    "me_ineligible": "Non eri in classifica (nessuna profondità convalidata).",
-   "me_points": "+{n} pt accreditati",
-   "me_points_sim": "+{n} pt (simulazione, non accreditati)",
+   "me_points": {
+    "one": "+{n} pt accreditato",
+    "other": "+{n} pt accreditati"
+   },
+   "me_points_sim": {
+    "one": "+{n} pt (simulazione, non accreditato)",
+    "other": "+{n} pt (simulazione, non accreditati)"
+   },
    "me_rank": "Il tuo risultato: posizione #{rank} su {n} · {depth} m",
    "nobody": "Nessun partecipante classificato: niente vincitore né punti per questa stagione.",
    "podium": "Podio della stagione precedente",
