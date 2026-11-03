@@ -294,5 +294,6 @@ const DigBeta = (() => {
   return {
     init, pendingInvite, inviteAccepted, inviteBlocked, clearInvite, showInviteField, inviteNoticeHtml, registerError,
     registrationMode, settingsSectionHtml, bindSettings, openReport,
+    discordUrl: () => _config?.discordUrl || null,
   };
 })();

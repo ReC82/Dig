@@ -71,3 +71,15 @@ test('_onAccountSubmit : preventDefault, un seul envoi à la fois, focus sur err
   const focus = main.slice(main.indexOf('function _accFocusError('));
   assert.ok(focus.includes("setAttribute('aria-describedby', msgId)"), 'message relié aux champs');
 });
+
+test('e-mails inactifs (#43) : avertissements à l\'inscription et à la connexion, dans toutes les langues', () => {
+  const login = formHtml('form-account-login');
+  assert.match(login, /tab === 'register' && !_mailEnabled\) \? `<p class="account-hint" id="acc-no-mail-register">/);
+  assert.match(login, /tab === 'login' && !_mailEnabled\) \? _noMailForgotHtml\(\)/);
+  // Le lien « Mot de passe oublié » automatique reste réservé aux e-mails actifs.
+  assert.match(login, /tab === 'login' && _mailEnabled\)\s*\? `<button type="button" class="account-link-btn" data-tab="forgot">/);
+  const i18n = fs.readFileSync(path.join(__dirname, '..', 'public/js/i18n.js'), 'utf8');
+  for (const key of ['no_mail_register', 'no_mail_forgot']) {
+    assert.strictEqual((i18n.match(new RegExp(`\\b${key}:`, 'g')) || []).length, 4, `${key} : fr, en, nl, es`);
+  }
+});
