@@ -2,6 +2,84 @@
 
 Lien : https://github.com/ReC82/Dig/issues/57
 
+## Session du 03/11/2026 (3) — recette #57-F : signalement protégé, session admin au F5, « Rafraîchir » explicite
+
+Réponse au commentaire du propriétaire « Recette réelle #57-F » (03/11, 09:00 UTC) : parcours de signalement validé, trois défauts UX à corriger.
+
+### 1. État réel
+
+**Déployé en production (SHA `feecf11`), en attente de recette.** Réglages bêta de production inchangés (inscription ouverte, bandeau masqué, aucun lien Discord). Aucune issue GitHub créée à partir des signalements : ils restent dans la base du jeu, Discord n'est qu'une copie manuelle.
+
+### 2. Changements réalisés
+
+**1. (P1) Signalement : plus de perte de saisie** (`public/js/beta.js`, `public/css/style.css`, textes FR/EN/NL/ES + IT)
+- Fermer une fenêtre qui contient du texte demande toujours une confirmation : « Fermer sans envoyer ? Ce que tu as écrit sera perdu. ». Cela vaut pour un clic sur le fond, la croix ✕ (ajoutée en haut à droite), la touche Échap et le bouton « Fermer ». Deux choix : **Continuer la rédaction**, qui a le focus et que la touche Échap choisit aussi, ou **Abandonner**.
+- Un clic sur le fond ne compte que s'il commence **et** se termine sur le fond. Avant, sélectionner du texte et relâcher la souris hors de la fenêtre la fermait : c'est la cause probable du « clic involontaire ».
+- **Brouillon en mémoire** de la page : si la fenêtre se ferme ou se rouvre, les champs sont repris. Le brouillon n'est écrit ni dans le stockage du navigateur ni sur le serveur. Il est effacé après un envoi réussi, sur « Abandonner » et à la déconnexion du compte (appareil partagé). Il ne survit pas à un rechargement de la page.
+- Une fenêtre vide ou déjà envoyée se ferme directement, sans question.
+
+**2. (P1) Panel admin : la session survit au F5** (`server/adminSession.js` nouveau, `server/index.js`, `server/db.js`, `public/admin/*`)
+- La clé saisie est envoyée **une seule fois** (`POST /api/admin/session`), puis le champ est vidé. Le serveur répond avec un cookie de session admin :
+  - jeton aléatoire de 256 bits, sans lien avec `ADMIN_SECRET` ; seule son empreinte SHA-256 est stockée (nouvelle table `admin_sessions`) ;
+  - cookie **HttpOnly** (illisible par le JavaScript), **Secure**, **SameSite=Strict**, limité au chemin `/api/admin` ;
+  - durée **limitée** : fermeture après **2 h sans activité**, et **12 h au plus** même en restant actif ;
+  - validé par le serveur à chaque requête. Il n'est accepté qu'avec l'en-tête `X-Dig-Admin`, que seul le panel envoie, ce qui protège contre une action déclenchée depuis un autre site (CSRF).
+- La clé n'est **jamais** conservée : ni dans une variable, ni dans `localStorage`/`sessionStorage`, ni dans l'URL, ni dans un cookie (vérifié par test et dans le navigateur).
+- **Déconnexion** : la session est révoquée côté serveur, donc un cookie recopié ne sert plus. Nouveau bouton **Déconnecter partout**, qui ferme toutes les sessions admin. Changer `ADMIN_SECRET` ou `SESSION_SECRET` invalide aussi toutes les sessions.
+- Une session expirée pendant l'utilisation ramène à l'écran de connexion avec un message clair.
+- Le journal de sécurité trace les connexions (`admin_login`), les échecs (`admin_login_failed`, limités en débit comme la connexion joueur) et la voie de chaque action (`via: key|session`), sans clé ni jeton.
+- Les réponses `/api/admin/*` portent désormais `Cache-Control: no-store`.
+- L'accès par en-tête `Authorization: Bearer` reste valable (scripts, tests). Un onglet admin ouvert avant le déploiement continue donc de fonctionner.
+
+**3. (P2) « Rafraîchir » (onglet 🧪 Bêta) explicite** (`public/admin/admin.js`, `index.html`, `admin.css`)
+- Pendant la requête, le bouton est désactivé et affiche « ↻ Actualisation… », avec « Chargement… » à côté.
+- En cas de réussite : « ✓ Données à jour à HH:MM:SS » et un toast.
+- En cas d'échec : « ⚠️ Échec de l'actualisation (raison) — données affichées : HH:MM:SS ». Les données déjà affichées restent visibles.
+- Rien n'est réinitialisé : les notes, statuts et liens GitHub en cours de saisie dans les retours, les bugs connus et la vague en cours de saisie, ainsi que les fiches et sections ouvertes, sont conservés.
+- **Les compteurs sont bien relus côté serveur.** `GET /api/admin/beta` interroge la base à chaque appel, sans cache serveur ni navigateur (`no-store`). Vérifié dans le navigateur : un nouveau signalement envoyé par un joueur fait passer le compteur de 3 à 4 après « Rafraîchir ».
+
+### 3. SHA, branche, procédure de test
+
+- Branche `feature/57-beta-fermee`, commit `61a600e` ; **`develop` = `feecf11`** (merge).
+- `npm test` : **519/519** (worktree du ticket, intégration `develop` et release `feecf11`). Nouveau `test/admin-session.test.js` (7 tests) : jeton aléatoire et empreinte seule en base, inactivité 2 h, durée maximale 12 h, révocation unitaire et globale, clé changée = session refusée, attributs du cookie, F5 sans clé, refus sans en-tête `X-Dig-Admin`, Bearer faux non rattrapé par le cookie, déconnexion côté serveur, journal sans secret, panel sans stockage de la clé.
+- Essai Chromium `test/e2e/beta-recette-f.e2e.js` (7 étapes, 0 erreur JS) : signalement sur smartphone (fond, ✕, Échap, Fermer, glisser depuis un champ, brouillon repris, abandon, envoi) ; admin sur ordinateur (mauvaise clé, connexion, F5, cookie illisible, clé absente des cookies, du stockage et de l'URL) ; Rafraîchir (attente, heure, échec simulé, saisies conservées, compteur relu) ; déconnexion puis F5.
+- Non-régression : `test/e2e/beta-invite.e2e.js` (8 étapes) repasse : invitation en 2 clics, invité en navigation privée, lien réutilisé, mode fermé.
+
+### 4. Déploiement
+
+- SHA déployé : **`feecf11`** (précédent : `2c77dfa`). Sauvegarde pré-déploiement vérifiée : `~/backups/dig/dig-20261103-102806-pre-deploy-feecf11.sqlite`.
+- Avant : release démarrée en `NODE_ENV=production` sur une copie de la base de production. Empreintes identiques ; seule la table `admin_sessions` est ajoutée ; la session admin fonctionne. Copie supprimée.
+- Avant le redémarrage, vérification qu'aucune génération IA n'était en cours. Une mise en forme d'actualité s'était terminée à 09:25:45 UTC et la proposition était « utilisée ».
+- Après : les 2 domaines répondent 200, version `1.0.0+feecf11`, `/health` db:true, `quick_check` ok, journal sans erreur. Empreintes : `users`, `seasons`, `leagues` identiques ; `user_saves`, `season_rankings` et `player_click_tracking` ont progressé à cause d'une partie en cours (sauvegarde version 113 → 114, aucune perte). Chromium en production 1280 et 390 : 0 erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 2c77dfa` + `sudo systemctl restart dig`. La table `admin_sessions` peut rester ; l'ancien code l'ignore.
+
+### 5. Test fonctionnel à faire (3 étapes, ~3 min)
+
+1. **Signalement** : dans le jeu, « Signaler un bug », écris quelques mots, puis clique à côté de la fenêtre. **Attendu** : la question « Fermer sans envoyer ? » apparaît, le focus est sur « Continuer la rédaction » et rien n'est perdu. Essaie aussi ✕ et Échap.
+2. **Admin et F5** : connecte-toi au panel (la clé une dernière fois), puis appuie sur F5. **Attendu** : le panel reste ouvert, sans nouvelle saisie. « Déconnexion » puis F5 : la clé est redemandée.
+3. **Rafraîchir** : onglet 🧪 Bêta → « ↻ Rafraîchir ». **Attendu** : le bouton passe brièvement en « Actualisation… », puis « ✓ Données à jour à HH:MM:SS » s'affiche. Une note en cours de saisie dans un retour n'est pas effacée.
+
+Classement : **Bloquant MVP (bêta 3–5 proches)** pour le point 1 (perte de retour testeur) ; **Après lancement** pour les points 2 et 3 (confort admin), livrés quand même.
+
+### 6. Choix techniques faits seul
+
+- Jeton de session en base plutôt que dans la mémoire du serveur : il survit aux déploiements (sinon chaque déploiement déconnecterait l'admin) et la révocation reste effective.
+- Durées 2 h d'inactivité / 12 h au maximum : compromis entre confort (F5, demi-journée de travail) et exposition d'un poste laissé ouvert. Ce sont des constantes de `server/adminSession.js`, faciles à ajuster.
+- `SameSite=Strict` + en-tête `X-Dig-Admin` obligatoire avec le cookie : double protection CSRF sans jeton à gérer côté panel.
+- Bearer conservé : compatibilité avec les scripts, les tests et un onglet ouvert avant le déploiement.
+- Brouillon gardé en mémoire de la page seulement, sans persistance : le propriétaire demandait « sans fuite de contenu ».
+
+### 7. Décisions demandées au propriétaire
+
+Aucune nouvelle décision nécessaire pour ces correctifs. Les questions précédentes restent ouvertes (voir sessions plus bas) : points en simulation ou réels, formulation de la politique de reset, badge « Testeur fondateur », fournisseur e-mail #43.
+
+### 8. Reste à faire
+
+- Recette des 3 étapes ci-dessus.
+- Repérés hors périmètre (non faits) : les autres boutons « ↻ Rafraîchir » du panel (Classement, Anti-bot, Boutique…) n'ont toujours pas de retour visible. Le même motif pourra être généralisé dans un ticket « Après lancement ».
+
+---
+
 ## Session du 03/11/2026 (2) — panneau Bêta simplifié, invitation en 2 clics, verdict par audience
 
 Réponse aux deux commentaires du propriétaire du 03/11 : « NUIT 03/11 — verdict pré-bêta » et « Retour de recette — UX bêta trop nébuleuse ».
