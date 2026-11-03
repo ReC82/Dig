@@ -6,7 +6,7 @@ Lien : https://github.com/ReC82/Dig/issues/48 — session du 03/11/2026 (nuit).
 
 ### 1. État réel
 
-**Intégré dans `develop` et déployé en production (SHA indiqué en section 6). En attente de recette.**
+**Déployé en production (SHA `d2a49fc`). En attente de recette.**
 Branche : `feature/48-saisons-thematiques`. La lisibilité est un lot UX à part, **classé « Après lancement »** et non bloquant pour la pré-bêta. La recette de la bascule réelle (lundi 09/11 à 01:00, Bruxelles) reste à faire.
 
 ### 2. Ce que les recettes du propriétaire ont validé (03/11, 09:07 et 09:11)
@@ -84,7 +84,12 @@ La formule est conforme à la règle #19 : `max(1, floor(actifs × 0,50 / (1 + n
 
 ### 6. Déploiement
 
-Voir la section « Déploiement du 03/11 (matin) » ajoutée en fin de mise à jour.
+- Commit de la branche : `cdc7668`. Fusion dans `develop` : **`d2a49fc`**, avec un arbre identique à celui de la branche testée. **SHA déployé : `d2a49fc`** (03/11/2026, 10:53, Bruxelles). Version précédente : `feecf11`.
+- Release `d2a49fc` : `npm test` **519/519**. Une copie de la base de production a été démarrée en `NODE_ENV=production` : `/health` ok, version `1.0.0+d2a49fc`, empreintes (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`) identiques avant et après le démarrage. La copie a été supprimée.
+- Avant le déploiement, aucune génération IA n'était en cours (dernier appel de l'atelier : 02/11 à 23:25 UTC).
+- `scripts/deploy.sh` : sauvegarde vérifiée `~/backups/dig/dig-20261103-105336-pre-deploy-d2a49fc.sqlite`, sans `npm ci` (dépendances inchangées), santé et version contrôlées.
+- Après le déploiement : les 2 domaines répondent 200 avec `1.0.0+d2a49fc` ; le panel sert bien la nouvelle carte ; le journal ne contient aucune erreur ; `quick_check` = ok ; les empreintes de la production sont identiques à celles de la sauvegarde.
+- Retour arrière immédiat possible : `git -C /home/ubuntu/Dig reset --keep feecf11` puis `sudo systemctl restart dig`. Il ne concerne que le code : aucune migration, et la base n'est pas touchée.
 
 **Test fonctionnel à faire par le propriétaire (lecture seule, ≈ 3 min)** :
 1. Admin → 📊 Ligues & Saisons → « 🎭 Thèmes de saison ». Attendu : deux cartes. À gauche, « En cours » et « 🧭 Boussoles et dés », fin lun. 09/11/2026 00:59 avec un compte à rebours. À droite, « Préparée » et « 🏮 La Saison des Lanternes », début lun. 09/11/2026 01:00, collection « Brouillon — non distribuée », 0/6, étapes Préparer ✓ / Illustrer / Publier / Annoncer (automatique le dim. 08/11 01:00).
