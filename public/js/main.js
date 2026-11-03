@@ -213,7 +213,10 @@ function screenFlash(color) {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
+let _goGiftShop = false;   // guide des boutiques (#34) : ouvrir la carte cadeaux dès qu'elle est rendue
+
 function switchView(viewId) {
+  if (viewId !== 'season') _goGiftShop = false;   // guide des boutiques : intention abandonnée
   // La vue settings ne touche pas la nav — on la gère à part
   if (viewId !== 'settings') {
     document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -261,6 +264,56 @@ function switchView(viewId) {
     renderSettings();
   }
 }
+
+// ── Guide des trois boutiques (#34, recette UX du 03/11) ──────────────────────
+// Trois offres distinctes, trois monnaies : coffres (pièces, onglet Amélios), gemmes et cosmétiques
+// (argent réel, onglet Boutique), cadeaux (points de saison, onglet Saison). Le même bandeau, en tête
+// de chacune, dit où l'on est et mène aux deux autres ; aucun achat n'est déplacé ni fusionné.
+
+function _shopGuideHtml(current) {
+  const entries = [
+    { id: 'chests', cur: t('shopguide.chests_cur'), where: t('nav.upgrades') },
+    { id: 'gems',   cur: t(Monetization.PAYMENTS_ENABLED ? 'shopguide.gems_cur' : 'shopguide.gems_cur_soon'), where: t('nav.shop') },
+    { id: 'gifts',  cur: t('shopguide.gifts_cur'), where: t('season.title') },
+  ];
+  const inner = e => `<span class="shop-guide-name">${t(`shopguide.${e.id}`)}</span>
+      <span class="shop-guide-cur">${e.cur}</span>
+      <span class="shop-guide-where">${e.id === current ? t('shopguide.here') : `${e.where} ›`}</span>`;
+  return `<nav class="shop-guide" aria-label="${t('shopguide.aria')}">
+    <p class="shop-guide-title">${t('shopguide.title')}</p>
+    <div class="shop-guide-row">${entries.map(e => e.id === current
+      ? `<span class="shop-guide-item is-current" aria-current="page">${inner(e)}</span>`
+      : `<button type="button" class="shop-guide-item" data-shop-guide="${e.id}">${inner(e)}</button>`).join('')}</div>
+  </nav>`;
+}
+
+function _goToShop(id) {
+  if (id === 'chests') {
+    switchView('upgrades');
+    document.getElementById('shop-chests-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (id === 'gems') {
+    switchView('shop');
+  } else {
+    _goGiftShop = true;   // tenu jusqu'au rendu de la carte (compte et catalogue chargés en asynchrone)
+    switchView('season');
+    _revealGiftShop();
+  }
+}
+
+function _revealGiftShop() {
+  if (!_goGiftShop) return;
+  const sh = document.querySelector('#season-shop .shop-card');
+  if (!sh) return;
+  _goGiftShop = false;
+  sh.open = true;
+  sh.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  sh.querySelector('summary')?.focus({ preventScroll: true });
+}
+
+document.addEventListener('click', e => {
+  const go = e.target.closest?.('[data-shop-guide]');
+  if (go) _goToShop(go.dataset.shopGuide);
+});
 
 function setNavBadge(name) {
   const el = document.getElementById(`badge-${name}`);
@@ -551,6 +604,8 @@ function renderShopChests() {
   const container = document.getElementById('shop-chests-list');
   if (!container) return;
   container.innerHTML = '';
+  const guide = document.getElementById('shop-guide-chests');
+  if (guide) guide.innerHTML = _shopGuideHtml('chests');
 
   for (const def of Balance.SHOP_CHESTS) {
     const bought    = GameState.shopChestsBought[def.id] ?? 0;
@@ -1958,6 +2013,7 @@ function renderSeasonView(apiData, lbData) {
     ${infoHtml}
     ${_seasonHistoryHtml(apiData.history, historyOpen)}`;
   el.scrollTop = scrollTop;
+  _revealGiftShop();
   _markSeasonAnnouncementSeen(apiData.next);
 
   if (!lbData) _loadLeaderboard(season.id, lbId);
@@ -2132,6 +2188,7 @@ async function _loadPoints() {
     if (el) el.innerHTML = _pointsHtml();
     const sh = document.getElementById('season-shop');
     if (sh) sh.innerHTML = _shopHtml();
+    _revealGiftShop();
     const last = document.getElementById('season-last');
     if (last) last.innerHTML = _lastResultHtml();
   } catch (_) {}
@@ -2279,6 +2336,7 @@ function _shopHtml() {
       </summary>
       <div class="season-fold-body">
       <p class="points-note">${t('giftshop.intro')}</p>
+      ${_shopGuideHtml('gifts')}
       ${d.notice ? `<p class="points-sim-banner">${escapeHtml(d.notice)}</p>` : ''}
       ${_shopMsg ? `<p class="${_shopMsg.ok ? 'points-live-banner' : 'points-sim-banner'}" role="status">${escapeHtml(_shopMsg.text)}</p>` : ''}
       ${d.items.length ? `<ul class="shop-list">${items}</ul>` : `<p class="points-empty">${t('giftshop.empty')}</p>`}
@@ -3022,6 +3080,7 @@ function renderShop() {
       <div class="shop-balance">💎 ${GameState.gems} ${t('stats.gems')}</div>
       <div class="shop-balance-sub">${t('shop.balance_label')}</div>
     </div>
+    ${_shopGuideHtml('gems')}
     <div class="section-divider"><span>${t('shop.section_gems')}</span></div>
     <div class="shop-grid" id="shop-grid-gems"></div>
     <div class="section-divider"><span>${t('shop.section_skins')}</span></div>

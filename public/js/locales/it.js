@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 602/602 textes. Absents → français. */
+/* Italian (preview) : 612/612 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -639,6 +639,18 @@ I18n.registerLocale("it", {
    "name": "Forziere semplice"
   }
  },
+ "shopguide": {
+  "aria": "I tre negozi di Dig",
+  "chests": "📦 Forzieri",
+  "chests_cur": "💰 Monete",
+  "gems": "💎 Gemme e cosmetici",
+  "gems_cur": "💶 Denaro reale",
+  "gems_cur_soon": "💶 Denaro reale · presto",
+  "gifts": "🎁 Regali",
+  "gifts_cur": "🏅 Punti stagione",
+  "here": "✓ Sei qui",
+  "title": "Dove spendere cosa?"
+ },
  "stats": {
   "coins": "Monete",
   "damage": "Danni",
@@ -739,7 +751,7 @@ I18n.registerLocale("it", {
   "section_missions": "🎯 Missioni del giorno",
   "section_objectives": "🎯 Obiettivi",
   "section_relics": "✨ Reliquie",
-  "section_shop_chests": "🏪 Negozio stagionale",
+  "section_shop_chests": "📦 Forzieri di stagione",
   "shop_chest_bought": "{n}/{max} aperti",
   "shop_chest_error": "Errore durante l’apertura del forziere.",
   "shop_chest_limit_reached": "Limite raggiunto",
