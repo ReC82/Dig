@@ -599,7 +599,16 @@ function removeExclusion(key) {
   _event(null, 'exclusion_removed', { key });
 }
 
+/** Thème (nom FR + icône) de chaque saison qui en a un, pour la liste admin des saisons (lecture seule). */
+function themesBySeason() {
+  const out = {};
+  for (const r of conn().prepare('SELECT season_id, names, icon FROM season_themes WHERE season_id IS NOT NULL').all()) {
+    out[r.season_id] = { name: JSON.parse(r.names).fr ?? null, icon: r.icon };
+  }
+  return out;
+}
+
 module.exports = {
-  ThemeError, LANGS, LEXICON, PACKS_DIR, defaultPacksDir, init, settings, validateConfigValue, nameKey, weekKeyOf, fallbackTheme, loadPacks,
+  ThemeError, themesBySeason, LANGS, LEXICON, PACKS_DIR, defaultPacksDir, init, settings, validateConfigValue, nameKey, weekKeyOf, fallbackTheme, loadPacks,
   sync, nextStart, publicView, adminView, getTheme, themeForSeason, updateTheme, rerollTheme, addExclusion, removeExclusion,
 };

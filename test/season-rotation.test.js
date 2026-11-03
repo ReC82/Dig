@@ -268,7 +268,10 @@ test('routes admin : dates normalisées, statut programmé, une seule saison act
   assert.ok(seasons.isWithinSeason({ start_at: cur.startAt, end_at: cur.endAt }, Date.now()), 'saison courante en cours');
   assert.match(cur.name, /^Saison \d{1,2}-\d{4}$/);
 
-  let r = await call('POST', '/api/admin/seasons', { name: 'X', start_at: 'demain', end_at: '2030-01-01' });
+  let r = await call('GET', '/api/admin/seasons');
+  assert.strictEqual(r.status, 200);
+  assert.ok(r.body.seasons.length && r.body.seasons.every(s => 'theme' in s), 'thème joint à chaque saison (#48), null si aucun');
+  r = await call('POST', '/api/admin/seasons', { name: 'X', start_at: 'demain', end_at: '2030-01-01' });
   assert.strictEqual(r.status, 400);
   r = await call('POST', '/api/admin/seasons', { name: 'X', start_at: '2020-01-01 00:00:00', end_at: '2030-01-01 00:00:00' });
   assert.strictEqual(r.status, 409, 'deuxième saison active refusée');

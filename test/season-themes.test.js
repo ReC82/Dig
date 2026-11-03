@@ -132,6 +132,10 @@ test('production simulée : saison en cours, préparation J-7, annonce J-1, 52 r
   const plan = studio.seriesPlan('tresors_saint_martin');
   assert.deepStrictEqual(plan.items.map(i => i.state), Array(6).fill('todo'), 'aucun conflit de sujet entre objets');
   assert.strictEqual(n46.collection.toGenerate, 6);
+  // Liste admin des saisons : thème de la saison active seulement (la saison préparée n'existe pas encore)
+  const bySeason = themes.themesBySeason();
+  assert.deepStrictEqual(bySeason[s45.id], { name: cur.names.fr, icon: cur.icon });
+  assert.deepStrictEqual(Object.keys(bySeason), [String(s45.id)]);
 
   // Annonce : 24 h avant le début, pas avant ; jamais la collection non publiée
   const pv = now => themes.publicView(db.getActiveSeason(), now);

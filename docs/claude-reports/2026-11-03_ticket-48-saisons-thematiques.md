@@ -2,6 +2,122 @@
 
 Lien : https://github.com/ReC82/Dig/issues/48 — session du 03/11/2026 (nuit).
 
+## Mise à jour du 03/11/2026 (matin) : recettes #48-C, refonte de l'écran « Thèmes de saison » et promotions à petit effectif
+
+### 1. État réel
+
+**Intégré dans `develop` et déployé en production (SHA indiqué en section 6). En attente de recette.**
+Branche : `feature/48-saisons-thematiques`. La lisibilité est un lot UX à part, **classé « Après lancement »** et non bloquant pour la pré-bêta. La recette de la bascule réelle (lundi 09/11 à 01:00, Bruxelles) reste à faire.
+
+### 2. Ce que les recettes du propriétaire ont validé (03/11, 09:07 et 09:11)
+
+Validé visuellement : saison actuelle 45-2026 « Boussoles et dés » ; saison suivante 2026-W46 « La Saison des Lanternes » préparée pour le lundi 09/11 à 01:00 ; collection Saint-Martin en brouillon, 0/6 images, drops inactifs ; classement de la ligue Mimosa correct (2 joueurs actifs).
+Pas encore validé : la bascule, les drops, une promotion et une clôture.
+
+### 3. Changements réalisés
+
+**Panel admin, onglet 📊 Ligues & Saisons, carte « 🎭 Thèmes de saison »** : refonte complète de l'affichage. Aucune règle n'a changé.
+- **Deux cartes, « Saison en cours » et « Prochaine saison »**. Chacune affiche une pastille d'état (En cours / À préparer / Préparée / Annoncée aux joueurs), le **thème en grand** avec son accroche, et des dates compactes en heure de Bruxelles (l'heure UTC du serveur apparaît au survol). Un **compte à rebours** se met à jour chaque minute.
+- **Collection** : nom et pastille d'état **« Brouillon — non distribuée »**, « Publiée » ou « Aucune collection ». S'y ajoutent le nombre d'images (n/m) avec une jauge, la phrase « Invisible pour les joueurs, aucun drop actif tant qu'elle n'est pas publiée », et la liste repliée des objets sans image.
+- **Les quatre étapes de la prochaine saison sont distinctes** : ✓ Préparer, • Illustrer (n images manquantes, coût estimé, lancement manuel), • Publier (décision manuelle dans Collections), • Annoncer (automatique à telle date). Aucune étape n'en déclenche une autre.
+- **Action principale** : « 📚 Voir / préparer la collection ». Elle ouvre l'onglet Collections filtré sur la série, sans rien modifier. À côté, « 🎨 Illustrer (6 images) » ouvre l'atelier sans lancer de génération.
+- **« Préparer maintenant »** n'apparaît que si la prochaine saison n'est **pas encore** préparée, avec une confirmation qui explique ce qui se passe (nom réservé, collection en brouillon, rien d'illustré, publié ni annoncé). Une saison déjà préparée affiche « Déjà préparée : une nouvelle préparation ne la remplacerait pas » (le serveur était déjà idempotent). L'ancien bouton permanent est supprimé.
+- **Repliés par défaut** :
+  - **Traductions** : tableau FR/EN/NL/ES, nom et accroche.
+  - **Actions secondaires** : « Modifier les textes », plus, pour la prochaine saison seulement, « Tirer un autre nom » et « Autre nom et exclure celui-ci ». Une **confirmation** est demandée et le texte rappelle que l'ancien nom reste réservé.
+  - **Détails techniques** : origine (« nom de repli », pack), numéro, semaine, série.
+- **Réglages et détails avancés** (bloc replié) :
+  - un **vrai commutateur** pour « Afficher thèmes et annonces aux joueurs » ;
+  - des champs numériques bornés (3–14 jours, 0–168 h), chacun avec une aide courte et une **validation explicite** avant l'envoi ; seules les valeurs modifiées sont enregistrées ;
+  - les mots exclus, les packs, le budget images et un **journal en clair** (« Saison suivante préparée », « Collection importée en brouillon »…).
+- **Mobile 390 px** : cartes empilées, sans débordement horizontal.
+
+**Onglet 🗓 Saisons** : nouvelle colonne **Thème** (ex. « 🧭 Boussoles et dés »). Les dates s'affichent **en heure de Bruxelles**, avec l'UTC en petit dessous (masqué sur smartphone) et au survol. La fiche d'une saison montre le thème et les deux heures. Les saisons antérieures au 02/11 n'ont pas de thème (« — »). Le bloc « Saison en cours » de Ligues & Saisons affiche aussi ses dates en Bruxelles (l'UTC au survol) : les deux onglets sont maintenant cohérents.
+
+**Serveur** : `GET /api/admin/seasons` joint à chaque saison son thème (nom FR et icône, `null` s'il n'y en a pas). C'est une lecture seule (`seasonThemes.themesBySeason()`) ; une panne du module des thèmes ne masque pas la liste.
+
+Fichiers : `public/admin/admin.js`, `public/admin/index.html`, `public/admin/admin.css`, `server/seasonThemes.js`, `server/index.js`, `test/season-themes.test.js`, `test/season-rotation.test.js`.
+
+Avant :
+![Avant, PC](img/2026-11-03_ticket-48-ux-avant-pc-theme.png)
+Après, PC (détails repliés) :
+![Après, PC](img/2026-11-03_ticket-48-ux-apres-pc-theme.png)
+Après, smartphone 390 px :
+![Après, mobile](img/2026-11-03_ticket-48-ux-apres-mobile-theme.png)
+Prochaine saison pas encore préparée (état simulé sur une copie) :
+![Non préparée](img/2026-11-03_ticket-48-ux-apres-pc-non-preparee.png)
+Onglet Saisons, avant et après :
+![Saisons avant](img/2026-11-03_ticket-48-ux-avant-pc-saisons.png)
+![Saisons après](img/2026-11-03_ticket-48-ux-apres-pc-saisons.png)
+
+### 4. Promotions à petit effectif : stratégie de recette (rien n'a été modifié en production)
+
+**Constat** : le seuil « Joueurs actifs min par ligue » (`min_active_players_per_league`) vaut **10**, et Mimosa compte **2** joueurs actifs. À la clôture du 09/11, il n'y aura donc **aucun promu**. C'est le comportement attendu avec ce réglage, pas un défaut.
+
+**Simulation isolée** : copie de la base de production en `/tmp`, vrai code de clôture (`closeActiveSeason`), copie supprimée ensuite.
+
+| Seuil simulé | Joueurs éligibles dans Mimosa | Résultat |
+|---|---|---|
+| 10 (actuel) | 2 | aucun promu (2 < 10) |
+| 3 | 2 | aucun promu (2 < 3) |
+| 3 | 3 (2 réels + 1 joueur fictif) | 1/3 promu (50 %) vers Bronze, créée automatiquement : le 1ᵉʳ du classement |
+| 2 | 2 | 1/2 promu (50 %) vers Bronze : le 1ᵉʳ du classement |
+
+La formule est conforme à la règle #19 : `max(1, floor(actifs × 0,50 / (1 + niveau × 0,45)))`, donc au moins 1 promu par ligue éligible. Avec 3 joueurs : 1 promu en Mimosa, 1 promu en Bronze (34 %).
+
+**Compromis** : un seuil bas permet de tester la promotion dès la pré-bêta, mais avec 2 ou 3 joueurs, monter en Bronze revient presque à « être premier d'une poignée de testeurs ». La ligue Bronze serait créée pour un seul joueur, qui s'y retrouverait seul la semaine suivante. Un seuil haut (10) protège la logique de ligue pour le lancement public, mais aucune promotion n'est testée avant.
+
+**Stratégie proposée (au choix du propriétaire)** :
+1. **Recommandé** : garder 10 en production. La promotion est déjà vérifiée par les tests automatisés et par cette simulation sur une copie. Si une recette en jeu est souhaitée, la faire **délibérément** : baisser le seuil à 3 la veille d'une clôture (onglet Config), avec 3 comptes éligibles (au moins un bloc manuel dans la saison), noter le rapport de clôture, puis **remettre 10** juste après. Une ligue Bronze créée ainsi reste en place : c'est un effet durable à accepter.
+2. Baisser le seuil à 2 ou 3 jusqu'au lancement public. Les promotions ont alors lieu chaque semaine pendant la pré-bêta, et il faut penser à le remonter.
+3. Ne rien tester en jeu avant d'avoir au moins 10 joueurs actifs.
+
+### 5. SHA, procédure de test, vérifications
+
+- Tests : `npm test` **519/519** sur la branche (dont 2 nouveaux contrôles : thème joint à chaque saison, `themesBySeason` limité aux saisons qui ont un thème).
+- Navigateur (Chromium headless, copie de la base de production, port de test), en 1280×900 et 390×844 : 0 erreur JavaScript, 0 débordement horizontal. Parcours vérifiés :
+  - « Voir / préparer la collection » ouvre Collections filtré sur `tresors_saint_martin` ;
+  - un réglage hors bornes est refusé avec un message, « Aucun changement » s'affiche si rien n'a changé ;
+  - « Tirer un autre nom » annulé ne change rien ;
+  - prochaine saison non préparée : le bouton « Préparer maintenant » apparaît ; s'il est annulé, rien ne change ; s'il est confirmé, la saison est préparée.
+- Données joueurs : aucune modification. Pas de migration ni de nouveau réglage, et aucun contenu publié n'a changé.
+
+### 6. Déploiement
+
+Voir la section « Déploiement du 03/11 (matin) » ajoutée en fin de mise à jour.
+
+**Test fonctionnel à faire par le propriétaire (lecture seule, ≈ 3 min)** :
+1. Admin → 📊 Ligues & Saisons → « 🎭 Thèmes de saison ». Attendu : deux cartes. À gauche, « En cours » et « 🧭 Boussoles et dés », fin lun. 09/11/2026 00:59 avec un compte à rebours. À droite, « Préparée » et « 🏮 La Saison des Lanternes », début lun. 09/11/2026 01:00, collection « Brouillon — non distribuée », 0/6, étapes Préparer ✓ / Illustrer / Publier / Annoncer (automatique le dim. 08/11 01:00).
+2. Survoler une date : l'heure UTC s'affiche.
+3. Ouvrir « Traductions », puis « Détails techniques » : FR/EN/NL/ES, puis l'origine « pack de saison rédigé ».
+4. Cliquer « 📚 Voir / préparer la collection » : l'onglet Collections s'ouvre, filtré sur la série Saint-Martin. Ne rien publier.
+5. Onglet 🗓 Saisons : colonne Thème (« 🧭 Boussoles et dés » sur la saison 45) et dates en Bruxelles, avec l'UTC dessous.
+6. Sur smartphone : mêmes écrans, sans défilement horizontal de la carte.
+À éviter en recette de consultation : « Préparer maintenant » (absent tant que la saison est préparée), « Tirer un autre nom », « Clore la saison ».
+
+### 7. Choix techniques faits seul
+
+- Repli par `<details>` natifs plutôt que par onglets : aucune dépendance, accessibles au clavier, cohérents avec le reste du panel.
+- Le bouton « Préparer maintenant » n'est affiché que s'il a un effet. Les « Autre nom » demandent une confirmation, parce qu'ils consomment un nom à vie.
+- Le thème de l'onglet Saisons est joint côté serveur, dans une lecture seule protégée par `try`, plutôt que par un second appel du navigateur.
+- Aucune donnée, règle, calendrier, seuil ou barème n'a été touché, comme demandé.
+
+### 8. Décisions demandées au propriétaire
+
+1. **Seuil de promotion en pré-bêta** : (a) garder 10 et, si souhaité, faire une recette délibérée à 3 puis remettre 10 ; (b) 2–3 jusqu'au lancement ; (c) ne rien tester avant 10 actifs. **Recommandé : (a).** Aucun changement sans votre écrit.
+2. (Reprise) **Illustrer, puis publier, la collection Saint-Martin avant le 09/11 ?** Coût : ≈ 0,72 $, une image par objet. Sans réponse, le thème s'affiche seul et la collection reste en brouillon.
+3. (Reprise) **Un 4ᵉ pack rédigé pour la S48 (23–29/11) ?** Sinon, nom de repli sans collection. Recommandé : un pack de plus.
+
+### 9. Restant à réaliser
+
+- Recette réelle de la bascule du lundi 09/11 01:00 (Bruxelles) : nouveau thème, annonce J-1, saison suivante préparée dès J-7. *Bloquant MVP : non, mais à vérifier.*
+- Illustration et publication des collections : décision du propriétaire (question 2).
+- Recette de promotion en jeu : selon la décision 1.
+
+---
+
+## Session de la nuit du 03/11/2026 (livraison initiale, 61a5cbc)
+
 ## 1. État réel
 
 **Déployé en production (SHA `61a5cbc`). En attente de recette.**

@@ -940,8 +940,12 @@ app.post('/api/admin/session/revoke-all', requireAdmin, (req, res) => {
 // ── Routes admin ──────────────────────────────────────────────────────────────
 
 app.get('/api/admin/seasons', requireAdmin, (req, res) => {
-  try { res.json({ seasons: getAllSeasons() }); }
-  catch (err) { console.error('[GET /api/admin/seasons]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+  try {
+    // Thème affiché aux joueurs (#48) : facultatif, une panne du module ne masque pas la liste
+    let themes = {};
+    try { themes = seasonThemes.themesBySeason(); } catch (err) { console.error('[GET /api/admin/seasons] thèmes', err.message); }
+    res.json({ seasons: getAllSeasons().map(s => ({ ...s, theme: themes[s.id] ?? null })) });
+  } catch (err) { console.error('[GET /api/admin/seasons]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 /**
