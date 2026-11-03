@@ -3002,7 +3002,7 @@ function coPreview() {
   document.getElementById('co-preview-rarity').textContent = BK_RARITY[document.getElementById('co-i-rarity').value] ?? '';
   document.getElementById('co-preview-name').textContent = pick('co-i-name') || '(nom FR obligatoire)';
   const s = coWorking().series.find(x => x.id === document.getElementById('co-i-series').value);
-  document.getElementById('co-preview-series').textContent = s ? `${s.icon} ${s.names?.[lang] || s.names?.fr || s.id} · ${coSeasonLabel(s.seasonId)}` : '';
+  document.getElementById('co-preview-series').textContent = s ? `${s.icon} ${s.names?.[lang] || s.names?.fr || s.id} · ${coSeasonLabel(s.seasonId, s.seasonWeek)}` : '';
   document.getElementById('co-preview-story').textContent = pick('co-i-story') || '(pas encore d\'histoire)';
 }
 

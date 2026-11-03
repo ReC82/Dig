@@ -193,3 +193,21 @@ test('semaine sans thème, semaine passée, priorité du seasonId, format', () =
   assert.strictEqual(r10.season.id, s.id);
   for (const id of ['semaine_id', 'semaine_passee', 'semaine_future', 'semaine_w10']) catalog.removeDraftEntry('series', id);
 });
+
+// Recette du 03/11 (11:21 UTC) : l'aperçu latéral de la fiche objet affichait « Permanente » pour une
+// série rattachée à une semaine future (seasonId null, seasonWeek 2026-W46).
+test('admin : libellé de saison — une série future n\'est jamais présentée comme permanente', () => {
+  const JS = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
+  const src = JS.match(/function coSeasonLabel\([\s\S]*?\n}\n/)[0];
+  const ctx = vm.createContext({ _co: { futureWeeks: [{ week: '2026-W46', label: '2026-W46 (09/11 → 15/11)', themeName: 'La Saison des Lanternes' }], seasons: [] } });
+  vm.runInContext(`${src};this.coSeasonLabel = coSeasonLabel;`, ctx);
+  const label = ctx.coSeasonLabel(null, '2026-W46');
+  assert.match(label, /Saison future/);
+  assert.doesNotMatch(label, /Permanente/);
+  assert.match(ctx.coSeasonLabel(null, null), /Permanente/);
+  // Tous les appels transmettent la semaine (aucun appel à un seul argument, cause de l'anomalie).
+  const calls = [...JS.matchAll(/coSeasonLabel\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g)].map(m => m[1]).filter(a => !a.startsWith('id,'));
+  assert.ok(calls.length >= 4);
+  for (const a of calls) assert.ok(a.includes(','), `appel sans semaine : coSeasonLabel(${a})`);
+  assert.match(JS, /co-preview-series'\)\.textContent = [^\n]*coSeasonLabel\(s\.seasonId, s\.seasonWeek\)/);
+});
