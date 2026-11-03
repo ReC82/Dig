@@ -149,6 +149,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'badges')          loadBadges();
     if (btn.dataset.tab === 'ads')             loadAds();
     if (btn.dataset.tab === 'beta')            loadBeta();
+    if (btn.dataset.tab === 'news')            loadNews();
   });
 });
 
@@ -5630,3 +5631,242 @@ document.getElementById('btn-st-prepare')?.addEventListener('click', async () =>
   stMessage('st-msg', data.next?.theme ? `Saison suivante préparée : « ${data.next.theme.names.fr} ».` : 'Rien à préparer pour l\'instant.');
   loadSeasonThemes();
 });
+
+// ── Centre d'actualités (#50) ─────────────────────────────────────────────────
+// Liste d'abord ; « ＋ Ajouter » ouvre la fiche. Toute annonce est enregistrée en BROUILLON (y compris
+// celles mises en forme par l'IA) ; « Publier » / « Programmer » sont des actions séparées.
+
+const NW_LANGS = ['fr', 'en', 'nl', 'es'];
+const NW_STATES = { draft: '📝 Brouillon', scheduled: '⏰ Programmée', live: '✅ En ligne', expired: '⌛ Expirée', archived: '🗄 Archivée' };
+const NW_CATS = { news: 'Annonce', season: 'Saison', event: 'Événement', update: 'Mise à jour', maintenance: 'Maintenance', community: 'Communauté', player: 'Fait joueur' };
+const NW_SOURCES = { manual: 'Manuelle', ai: 'Mise en forme IA', auto: 'Automatique' };
+let _news = null;
+let _nwEditing = null;      // annonce ouverte dans la fiche (null = nouvelle)
+let _nwProposal = null;     // proposition IA appliquée à la fiche (consommée à l'enregistrement)
+
+/** ISO UTC → valeur d'un champ datetime-local (heure locale du navigateur). */
+function nwToLocal(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const nwToUtc = v => (v ? new Date(v).toISOString().replace(/\.\d+Z$/, 'Z') : null);
+const nwDate = isoStr => (isoStr ? new Date(isoStr).toLocaleString('fr-BE', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+
+function nwMessage(id, text, isError = false) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = isError ? 'error' : 'success';
+  el.classList.toggle('hidden', !text);
+}
+
+async function loadNews() {
+  const status = document.getElementById('news-filter').value;
+  const { ok, data } = await api('GET', `/api/admin/news?status=${encodeURIComponent(status)}`);
+  if (!ok) return nwMessage('news-msg', data.error ?? 'Chargement impossible.', true);
+  _news = data;
+  renderNews();
+}
+
+function renderNews() {
+  const d = _news;
+  document.getElementById('news-counts').textContent =
+    `${d.counts.draft} brouillon(s) · ${d.counts.published} publiée(s) ou programmée(s) · ${d.counts.archived} archivée(s)`;
+  const tb = document.getElementById('news-list');
+  tb.textContent = '';
+  if (!d.items.length) {
+    const tr = document.createElement('tr');
+    addCell(tr, 'Aucune annonce. « ＋ Ajouter » pour en créer une (enregistrée en brouillon).').colSpan = 7;
+    tb.appendChild(tr);
+  }
+  for (const it of d.items) {
+    const tr = document.createElement('tr');
+    addCell(tr, NW_STATES[it.state] ?? it.state);
+    const t = addCell(tr, `${it.icon} ${it.titles.fr}`);
+    if (it.subject) t.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `joueur cité : ${it.subject}`));
+    for (const w of it.warnings) t.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `⚠️ ${w}`));
+    addCell(tr, NW_CATS[it.category] ?? it.category);
+    addCell(tr, it.status === 'draft' ? '—' : nwDate(it.publishAt));
+    addCell(tr, nwDate(it.eventAt));
+    addCell(tr, NW_SOURCES[it.source] ?? it.source);
+    const act = addCell(tr, '');
+    const btn = (label, fn) => { const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, label); b.addEventListener('click', fn); act.appendChild(b); return b; };
+    if (it.source !== 'auto' || it.status === 'draft') btn('Modifier', e => nwOpen(it, e.currentTarget));
+    if (it.status === 'draft') btn('Publier', () => nwAction(it.id, 'publish', `« ${it.titles.fr} » est publiée : visible tout de suite dans le jeu.`));
+    if (it.status === 'published') btn('Dépublier', () => nwAction(it.id, 'unpublish', 'Annonce repassée en brouillon (retirée du jeu).'));
+    if (it.status !== 'archived') btn('Archiver', () => { if (confirm(`Archiver « ${it.titles.fr} » ? Elle disparaît du jeu (rien n'est supprimé).`)) nwAction(it.id, 'archive', 'Annonce archivée.'); });
+    else btn('Restaurer en brouillon', () => nwAction(it.id, 'unpublish', 'Annonce restaurée en brouillon.'));
+    tb.appendChild(tr);
+  }
+
+  const s = d.settings;
+  document.getElementById('news-auto-seasons').checked = s.autoSeasons;
+  document.getElementById('news-player-events').checked = s.playerEvents;
+  document.getElementById('news-depths').value = s.depthMilestones.join(', ');
+  document.getElementById('news-rank-top').value = s.rankTop;
+  document.getElementById('news-daily-max').value = s.playerDailyMax;
+  document.getElementById('news-discord-state').textContent = d.discordUrl
+    ? `Discord : le panneau du jeu affiche « Rejoindre le Discord » vers ${d.discordUrl} (lien réglé dans l'onglet 🧪 Bêta → Configurer la bêta).`
+    : 'Discord : aucun lien configuré, le panneau du jeu n\'en affiche pas. Pour l\'ajouter : onglet 🧪 Bêta → Configurer la bêta → « Lien d\'invitation Discord ».';
+
+  const lb = document.getElementById('news-log');
+  lb.textContent = '';
+  for (const l of d.log) {
+    const tr = document.createElement('tr');
+    [nwDate(l.at), l.news_id ?? '—', l.action, l.details ? JSON.stringify(l.details) : ''].forEach(x => addCell(tr, x));
+    lb.appendChild(tr);
+  }
+}
+
+async function nwAction(id, action, okText, body = {}) {
+  const { ok, data } = await api('POST', `/api/admin/news/${id}/${action}`, body);
+  if (!ok) { nwMessage('news-msg', data.error ?? 'Action impossible.', true); return false; }
+  admToast(okText);
+  nwMessage('news-msg', '');
+  loadNews();
+  return true;
+}
+
+function nwFill(item) {
+  const v = (id, x) => { document.getElementById(id).value = x ?? ''; };
+  v('nw-category', item?.category && NW_CATS[item.category] && item.category !== 'player' ? item.category : 'news');
+  v('nw-icon', item?.icon ?? '📰');
+  v('nw-event', nwToLocal(item?.eventAt));
+  v('nw-expires', nwToLocal(item?.expiresAt));
+  v('nw-link', item?.linkUrl ?? '');
+  for (const l of NW_LANGS) {
+    v(`nw-title-${l}`, item?.titles?.[l]);
+    v(`nw-summary-${l}`, item?.summaries?.[l]);
+    v(`nw-body-${l}`, item?.bodies?.[l]);
+    v(`nw-linklabel-${l}`, item?.linkLabels?.[l]);
+  }
+  nwPreview();
+}
+
+function nwCollect() {
+  const g = id => document.getElementById(id).value;
+  const texts = prefix => Object.fromEntries(NW_LANGS.map(l => [l, g(`${prefix}-${l}`).trim()]));
+  return {
+    category: g('nw-category'), icon: g('nw-icon').trim(), linkUrl: g('nw-link').trim() || null,
+    eventAt: nwToUtc(g('nw-event')), expiresAt: nwToUtc(g('nw-expires')),
+    titles: texts('nw-title'), summaries: texts('nw-summary'), bodies: texts('nw-body'), linkLabels: texts('nw-linklabel'),
+  };
+}
+
+function nwPreview() {
+  const it = nwCollect();
+  const ul = document.getElementById('nw-preview');
+  ul.textContent = '';
+  const li = aiEl('li', { class: 'news-admin-item' });
+  li.appendChild(aiEl('strong', {}, `${it.icon || '📰'} ${it.titles.fr || '(titre français manquant)'}`));
+  if (it.eventAt) li.appendChild(aiEl('div', { class: 'muted' }, `📅 ${nwDate(it.eventAt)} — rangée dans « À venir » jusqu'à cette date`));
+  if (it.summaries.fr) li.appendChild(aiEl('div', {}, it.summaries.fr));
+  for (const p of it.bodies.fr.split(/\n{2,}/)) if (p.trim()) li.appendChild(aiEl('p', { style: 'margin:4px 0 0;white-space:pre-line' }, p.trim()));
+  if (it.linkUrl) li.appendChild(aiEl('div', { class: 'muted' }, `🔗 ${it.linkLabels.fr || 'En savoir plus'} → ${it.linkUrl}`));
+  ul.appendChild(li);
+  const miss = NW_LANGS.filter(l => l !== 'fr' && !it.titles[l]);
+  const w = document.getElementById('nw-warn');
+  w.textContent = miss.length ? `Titre manquant en ${miss.join(', ').toUpperCase()} : le français sera affiché à ces joueurs.` : '';
+  w.classList.toggle('hidden', !miss.length);
+}
+
+function nwOpen(item, opener) {
+  _nwEditing = item ?? null;
+  _nwProposal = null;
+  document.getElementById('news-dialog-title').textContent = item ? `Modifier l'annonce n° ${item.id}` : '＋ Nouvelle annonce';
+  document.getElementById('nw-ai-box').open = !item;
+  document.getElementById('nw-raw').value = '';
+  document.getElementById('nw-ai-state').textContent = '';
+  document.getElementById('nw-ai-notes').textContent = '';
+  document.getElementById('nw-publish-at').value = '';
+  document.getElementById('nw-publish-row').classList.toggle('hidden', !item || item.status === 'archived');
+  document.getElementById('btn-nw-save').textContent = item && item.status !== 'draft' ? 'Enregistrer les modifications' : 'Enregistrer le brouillon';
+  nwMessage('nw-error', '');
+  nwFill(item);
+  admDialogOpen('news-dialog', opener, item ? 'nw-title-fr' : 'nw-raw');
+}
+
+/** Enregistre la fiche ; rend l'annonce enregistrée ou null. */
+async function nwSave() {
+  const body = nwCollect();
+  if (_nwProposal && !_nwEditing) body.aiProposalId = _nwProposal;
+  const { ok, data } = _nwEditing
+    ? await api('PUT', `/api/admin/news/${_nwEditing.id}`, body)
+    : await api('POST', '/api/admin/news', body);
+  if (!ok) { nwMessage('nw-error', (data.details ?? [data.error ?? 'Enregistrement impossible.']).join(' '), true); return null; }
+  _nwEditing = data.item;
+  _nwProposal = null;
+  document.getElementById('news-dialog-title').textContent = `Modifier l'annonce n° ${data.item.id}`;
+  document.getElementById('nw-publish-row').classList.toggle('hidden', data.item.status === 'archived');
+  nwMessage('nw-error', '');
+  loadNews();
+  return data.item;
+}
+
+async function nwPoll(id) {
+  for (let i = 0; i < 90; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const { ok, data } = await api('GET', `/api/admin/news-ai/${id}`);
+    if (!ok) return { status: 'error', error: data.error };
+    if (data.proposal.status !== 'pending') return data.proposal;
+  }
+  return { status: 'error', error: 'Toujours en cours après 3 minutes : rouvre la fiche plus tard.' };
+}
+
+document.getElementById('btn-nw-ai')?.addEventListener('click', async e => {
+  const b = e.currentTarget;
+  const state = document.getElementById('nw-ai-state');
+  const notes = document.getElementById('nw-ai-notes');
+  notes.textContent = '';
+  b.disabled = true;
+  state.textContent = '⏳ Mise en forme en cours (10 à 40 s)…';
+  try {
+    const { ok, data } = await api('POST', '/api/admin/news-ai', { text: document.getElementById('nw-raw').value });
+    if (!ok) { state.textContent = `❌ ${data.error ?? 'Impossible de lancer la mise en forme.'}`; return; }
+    const p = await nwPoll(data.proposal.id);
+    if (p.status !== 'open') { state.textContent = `❌ ${p.error ?? 'Échec de la mise en forme.'}`; return; }
+    nwFill({ ...nwCollect(), ...p.data.item });
+    _nwProposal = _nwEditing ? null : p.id;
+    state.textContent = '✅ Fiche remplie : relis chaque langue, corrige si besoin, puis « Enregistrer le brouillon ».';
+    for (const m of p.data.missing) notes.appendChild(aiEl('li', {}, `❓ À compléter : ${m}`));
+    for (const m of p.data.doubts) notes.appendChild(aiEl('li', {}, `⚠️ À vérifier : ${m}`));
+  } finally { b.disabled = false; }
+});
+
+document.getElementById('btn-nw-save')?.addEventListener('click', async () => {
+  const it = await nwSave();
+  if (it) admToast(it.status === 'draft' ? 'Brouillon enregistré (invisible dans le jeu).' : 'Modifications enregistrées.');
+});
+document.getElementById('btn-nw-publish')?.addEventListener('click', async () => {
+  const it = await nwSave();
+  if (it && await nwAction(it.id, 'publish', `« ${it.titles.fr} » est publiée : visible tout de suite dans le jeu.`)) document.getElementById('news-dialog').close();
+});
+document.getElementById('btn-nw-schedule')?.addEventListener('click', async () => {
+  const at = nwToUtc(document.getElementById('nw-publish-at').value);
+  if (!at) return nwMessage('nw-error', 'Choisis la date et l\'heure de publication.', true);
+  const it = await nwSave();
+  if (it && await nwAction(it.id, 'publish', `Publication programmée le ${nwDate(at)}.`, { at })) document.getElementById('news-dialog').close();
+});
+
+document.getElementById('btn-news-settings')?.addEventListener('click', async () => {
+  const { ok, data } = await api('PUT', '/api/admin/news/settings', {
+    autoSeasons: document.getElementById('news-auto-seasons').checked,
+    playerEvents: document.getElementById('news-player-events').checked,
+    depthMilestones: document.getElementById('news-depths').value.split(',').map(x => x.trim()).filter(Boolean).join(','),
+    rankTop: document.getElementById('news-rank-top').value,
+    playerDailyMax: document.getElementById('news-daily-max').value,
+  });
+  if (!ok) return nwMessage('news-settings-msg', data.error ?? 'Réglages refusés.', true);
+  nwMessage('news-settings-msg', 'Réglages enregistrés.');
+  loadNews();
+});
+
+if (document.getElementById('news-dialog')) {
+  admDialogSetup('news-dialog');
+  document.getElementById('news-dialog').addEventListener('input', e => { if (e.target.id !== 'nw-raw') nwPreview(); });
+  document.getElementById('btn-news-add').addEventListener('click', e => nwOpen(null, e.currentTarget));
+  document.getElementById('btn-news-refresh').addEventListener('click', loadNews);
+  document.getElementById('news-filter').addEventListener('change', loadNews);
+}

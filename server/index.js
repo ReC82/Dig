@@ -89,6 +89,7 @@ const collectionAi = require('./collectionAi');
 const seasonThemes = require('./seasonThemes');
 const badges = require('./badges');
 const badgeAi = require('./badgeAi');
+const news    = require('./news');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
@@ -498,6 +499,9 @@ app.post('/api/me/save', limit.save, (req, res) => {
     let badgesEarned = [];
     try { badgesEarned = badges.processSave(req.session.userId, data); }
     catch (err) { console.error('[POST /api/me/save] badges', err.message); }
+    // Actualités (#50) : palier de profondeur validée, seulement si activé et accepté par le joueur
+    try { news.onSave(req.session.userId); }
+    catch (err) { console.error('[POST /api/me/save] actualités', err.message); }
     res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}) });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
@@ -1629,6 +1633,42 @@ app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
   }
 });
 
+// ── Centre d'actualités (#50) : cloche du jeu, annonces, mise en forme IA ──────
+
+function newsRoute(label, fn) {
+  return (req, res) => {
+    try { res.setHeader('Cache-Control', 'no-store'); res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof news.NewsError) return res.status(err.status).json({ error: err.message, details: err.details });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+const newsId = req => intParam(req.params.id, { def: 0, min: 1 });
+
+// Jeu : annonces visibles (« À venir », « Dernières »), non lues et préférences du compte connecté.
+app.get('/api/news', limit.news, newsRoute('GET /api/news', req => news.publicView(req.session.userId || null)));
+app.post('/api/news/seen', limit.news, requireUser, newsRoute('POST /api/news/seen', req => news.markSeen(req.session.userId)));
+app.put('/api/news/prefs', limit.news, requireUser, newsRoute('PUT /api/news/prefs', req => ({ prefs: news.setPrefs(req.session.userId, req.body ?? {}) })));
+
+// Panel : liste, création (toujours en brouillon), modification, publication/programmation, archivage, journal.
+app.get('/api/admin/news', requireAdmin, newsRoute('GET /api/admin/news',
+  req => ({ ...news.listAdmin({ status: String(req.query.status || 'all') }), proposals: news.listProposals() })));
+app.put('/api/admin/news/settings', requireAdmin, newsRoute('PUT /api/admin/news/settings', req => ({ settings: news.updateSettings(req.body ?? {}) })));
+app.post('/api/admin/news', requireAdmin, newsRoute('POST /api/admin/news', req => ({ item: news.createItem(req.body ?? {}) })));
+app.put('/api/admin/news/:id', requireAdmin, newsRoute('PUT /api/admin/news/:id', req => ({ item: news.updateItem(newsId(req), req.body ?? {}) })));
+app.post('/api/admin/news/:id/publish', requireAdmin, newsRoute('POST /api/admin/news/:id/publish',
+  req => ({ item: news.publishItem(newsId(req), { at: req.body?.at || null }) })));
+app.post('/api/admin/news/:id/unpublish', requireAdmin, newsRoute('POST /api/admin/news/:id/unpublish', req => ({ item: news.unpublishItem(newsId(req)) })));
+app.post('/api/admin/news/:id/archive', requireAdmin, newsRoute('POST /api/admin/news/:id/archive', req => ({ item: news.archiveItem(newsId(req)) })));
+app.post('/api/admin/news-ai', requireAdmin, newsRoute('POST /api/admin/news-ai', req => ({ proposal: news.startProposal({ text: req.body?.text }).proposal })));
+app.get('/api/admin/news-ai/:id', requireAdmin, newsRoute('GET /api/admin/news-ai/:id', req => {
+  const proposal = news.getProposal(newsId(req));
+  if (!proposal) throw new news.NewsError(404, 'Proposition introuvable.');
+  return { proposal };
+}));
+app.delete('/api/admin/news-ai/:id', requireAdmin, newsRoute('DELETE /api/admin/news-ai/:id', req => { news.discardProposal(newsId(req)); return { ok: true }; }));
+
 // ── Bêta fermée (#57) : bandeau, invitations, signalements ────────────────────
 
 function betaRoute(label, fn) {
@@ -1868,6 +1908,7 @@ if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_COLLECTIONS !== 
 seasonThemes.init();             // saisons thématiques : thèmes, noms réservés, journal ; préparation par le planificateur (#48)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
+news.init();                     // centre d'actualités : annonces, lu par compte, IA, faits joueurs (#50)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 

@@ -1323,6 +1323,7 @@ async function _fetchMe() {
     _account = null;
   }
   if (isViewActive('settings')) renderSettings();
+  DigNews.refresh();   // non lues par compte une fois la session connue (#50)
   // Initialise seasonId et CPS limit même sans compte connecté
   _pollSeason();
   _loadChestCatalog();   // probabilités des coffres (fenêtre des chances, tirage anonyme, #20)
@@ -1330,13 +1331,13 @@ async function _fetchMe() {
 
 async function _doRegister(username, email, password, inviteCode) {
   const { ok, data } = await _apiFetch('POST', '/api/register', { username, email, password, inviteCode });
-  if (ok) { _account = data.user; DigBeta.clearInvite(); return null; }
+  if (ok) { _account = data.user; DigBeta.clearInvite(); DigNews.refresh(); return null; }
   return DigBeta.registerError(data.code) || data.error || t('account.err_generic');
 }
 
 async function _doLogin(username, password) {
   const { ok, data } = await _apiFetch('POST', '/api/login', { username, password });
-  if (ok) { _account = data.user; return null; }
+  if (ok) { _account = data.user; DigNews.refresh(); return null; }
   return data.error || t('account.err_generic');
 }
 
@@ -1387,6 +1388,7 @@ async function _doLogout() {
   Save.save();
   await _syncToCloud();
   await _apiFetch('POST', '/api/logout', { controllerId: _tabId });
+  DigNews.refresh();   // invité : non lues suivies dans le navigateur (#50)
   _account    = null;
   _cloudReady = false;
   _clearCloudMeta();
@@ -3411,6 +3413,8 @@ function init() {
 
   if (offlineGains) showOfflinePopup(offlineGains);
 
+  // Centre d'actualités (#50) : cloche à gauche du logo, pastille des annonces non lues.
+  DigNews.init();
   // Publicité (#45) : désactivée par défaut ; bannière haute seulement si le serveur l'autorise ici.
   DigAds.init();
   // Bêta fermée (#57) : bandeau et section « Bêta » seulement si l'admin les active ; un lien
