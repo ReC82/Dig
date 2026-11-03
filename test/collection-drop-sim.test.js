@@ -45,3 +45,18 @@ test('le crochet par bloc ne change pas la partie simulée par #49', () => {
   assert.deepStrictEqual(hooked, plain);
   assert.ok(blocks > 100);
 });
+
+test('variantes du 03/11 14:23 : ACCESSIBLE = valeurs seules ; CROISSANT = chance croissante (pityStep)', () => {
+  assert.ok(ds.SCALES.ACCESSIBLE.items.every(i => !i.pityStep));
+  const leg = ds.SCALES.CROISSANT.items.find(i => i.rarity === 'legendaire');
+  assert.deepStrictEqual([leg.chance, leg.pityStep, leg.minDepth], [0.03, 0.003, 100]);
+  // Même départ (3 %) : la chance croissante ne peut que faire trouver le légendaire plus souvent
+  ds.SCALES.FLAT3 = { label: 'test', items: ds.SCALES.CROISSANT.items.map(i => ({ ...i, pityStep: 0 })) };
+  try {
+    const r = ds.run(['FLAT3', 'CROISSANT'], ds.PROFILES.regulier, { runs: 40 });
+    assert.ok(r.CROISSANT.found.demi_manteau_martin >= r.FLAT3.found.demi_manteau_martin);
+    const byDay = r.CROISSANT.foundByDay.demi_manteau_martin;
+    assert.strictEqual(byDay[6], r.CROISSANT.found.demi_manteau_martin);
+    for (let d = 1; d < 7; d++) assert.ok(byDay[d] >= byDay[d - 1]);
+  } finally { delete ds.SCALES.FLAT3; }
+});

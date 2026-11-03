@@ -67,6 +67,15 @@ SCALES.EXIGEANT = variant('Alternative — exigeant (légendaire réservé aux p
   'Communs 3 %, peu communs 2 %, rare 1 % dès 40 m, légendaire 2 % par gemme dès 150 m.',
   { rare: { chance: 0.01 }, legendaire: { chance: 0.02, minDepth: 150 } });
 
+// Variantes demandées le 03/11 14:23 UTC : plus accessibles aux joueurs lents sans banaliser le
+// légendaire (repère : part des joueurs réguliers qui l'ont dès le 1er jour, 38 % avec BASE).
+SCALES.ACCESSIBLE = variant('Variante « accessible » — valeurs seules (applicable telle quelle dans l\'admin)',
+  'Communs 4 %, peu communs 2 %, rare 3 % dès 40 m (au lieu de 1,5 %), légendaire 6 % par gemme dès 100 m (au lieu de 5 %).',
+  { commun: { chance: 0.04 }, rare: { chance: 0.03 }, legendaire: { chance: 0.06 } });
+SCALES.CROISSANT = variant('Variante « chance croissante » — demande une petite évolution du jeu',
+  'Communs 4 %, peu communs 2 % ; rare 2 % + 0,1 point par minerai éligible raté ; légendaire 3 % + 0,3 point par gemme éligible ratée (compteur par joueur et par objet, NON implémenté dans le jeu).',
+  { commun: { chance: 0.04 }, rare: { chance: 0.02, pityStep: 0.001 }, legendaire: { chance: 0.03, pityStep: 0.003 } });
+
 const DAYS_ALL = [0, 1, 2, 3, 4, 5, 6];
 /** Profils (economy-sim.PROFILES) + nouvel entrant (arrive le vendredi, joue 3 jours sur 7). */
 const PROFILES = {
@@ -99,10 +108,11 @@ function rng(seed) {
 function run(scaleKeys, profile, { runs = 2000, season = 0, seed = 39 } = {}) {
   const rules = sim.currentRules();
   const acc = Object.fromEntries(scaleKeys.map(k => [k, {
-    found: Object.fromEntries(SCALES[k].items.map(i => [i.id, 0])), all: 0, byDay: new Array(7).fill(0) }]));
+    found: Object.fromEntries(SCALES[k].items.map(i => [i.id, 0])), all: 0, byDay: new Array(7).fill(0),
+    foundByDay: Object.fromEntries(SCALES[k].items.map(i => [i.id, new Array(7).fill(0)])) }]));
   const gem100 = [], maxDepth = [];
   for (let r = 0; r < runs; r++) {
-    const st = scaleKeys.map((k, n) => ({ k, items: SCALES[k].items, owned: new Set(), random: rng((seed * 7919 + r) * 31 + n), doneDay: null }));
+    const st = scaleKeys.map((k, n) => ({ k, items: SCALES[k].items, owned: new Set(), fails: {}, day: {}, random: rng((seed * 7919 + r) * 31 + n), doneDay: null }));
     let seasonIdx = -1, last = Infinity, g100 = 0, maxD = 0;
     const onBlock = (type, depth, t) => {
       if (depth < last) seasonIdx++;                  // nouvelle saison : profondeur remise à 1
@@ -116,7 +126,11 @@ function run(scaleKeys, profile, { runs = 2000, season = 0, seed = 39 } = {}) {
         const list = inSeason ? [...ORIGINES, ...x.items] : ORIGINES;
         for (const f of list) {                       // Collection.tryDrop : au plus un objet par bloc
           if (x.owned.has(f.id) || depth < f.minDepth || !f.from.includes(type.category)) continue;
-          if (x.random() < f.chance) { x.owned.add(f.id); break; }
+          // pityStep (variante « chance croissante », non implémentée dans le jeu) : +pityStep par
+          // tirage raté de cet objet, remis à zéro par la trouvaille (l'objet n'est plus tiré).
+          const chance = Math.min(1, f.chance + (f.pityStep || 0) * (x.fails[f.id] || 0));
+          if (x.random() < chance) { x.owned.add(f.id); if (inSeason) x.day[f.id] = Math.min(6, Math.floor(t / 86_400)); break; }
+          x.fails[f.id] = (x.fails[f.id] || 0) + 1;
         }
         if (inSeason && x.doneDay === null && x.items.every(i => x.owned.has(i.id))) x.doneDay = Math.min(6, Math.floor(t / 86_400));
       }
@@ -124,7 +138,10 @@ function run(scaleKeys, profile, { runs = 2000, season = 0, seed = 39 } = {}) {
     sim.simulatePlayers({ profile, rules, runs: 1, seasons: season + 1, seed: seed * 13 + r, options: { onBlock } });
     for (const x of st) {
       const a = acc[x.k];
-      for (const i of x.items) if (x.owned.has(i.id)) a.found[i.id]++;
+      for (const i of x.items) if (x.owned.has(i.id)) {
+        a.found[i.id]++;
+        for (let d = x.day[i.id]; d < 7; d++) a.foundByDay[i.id][d]++;
+      }
       if (x.doneDay !== null) { a.all++; for (let d = x.doneDay; d < 7; d++) a.byDay[d]++; }
     }
     gem100.push(g100); maxDepth.push(maxD);
@@ -134,6 +151,7 @@ function run(scaleKeys, profile, { runs = 2000, season = 0, seed = 39 } = {}) {
     maxDepth: { p10: q(maxDepth, 0.1), p50: q(maxDepth, 0.5) } };
   return Object.fromEntries(Object.entries(acc).map(([k, a]) => [k, {
     runs, all: a.all / runs, byDay: a.byDay.map(v => v / runs), eligible,
+    foundByDay: Object.fromEntries(Object.entries(a.foundByDay).map(([id, v]) => [id, v.map(n => n / runs)])),
     found: Object.fromEntries(Object.entries(a.found).map(([id, v]) => [id, v / runs])) }]));
 }
 
@@ -163,13 +181,14 @@ function report({ runs, scales = Object.keys(SCALES) }) {
     if (scale.note) say(`${scale.note}\n`);
     say(`| Objet | Rareté | Source | Dès | Chance par bloc éligible |`);
     say(`|---|---|---|---|---|`);
-    for (const i of scale.items) say(`| ${i.id} | ${i.rarity} | ${i.from.join(', ')} | ${i.minDepth} m | ${+(i.chance * 100).toFixed(2)} % |`);
+    for (const i of scale.items) say(`| ${i.id} | ${i.rarity} | ${i.from.join(', ')} | ${i.minDepth} m | ${+(i.chance * 100).toFixed(2)} %${i.pityStep ? ` + ${+(i.pityStep * 100).toFixed(2)} pt par tirage raté` : ''} |`);
     say('');
-    say(`| Profil | Saison | ${scale.items.map(i => i.id.split('_')[0]).join(' | ')} | **Série complète (7 j)** | Série complète fin J3 · J5 |`);
-    say(`|---|---|${scale.items.map(() => '---').join('|')}|---|---|`);
+    const leg = scale.items.find(i => i.rarity === 'legendaire');
+    say(`| Profil | Saison | ${scale.items.map(i => i.id.split('_')[0]).join(' | ')} | **Série complète (7 j)** | Série complète fin J3 · J5 | Légendaire fin J1 |`);
+    say(`|---|---|${scale.items.map(() => '---').join('|')}|---|---|---|`);
     for (const [pid, seasons] of PERIODS) for (const season of seasons) {
       const r = results[`${pid}|${season}`][key];
-      say(`| ${PROFILES[pid].label} | ${season + 1} | ${scale.items.map(i => pct(r.found[i.id])).join(' | ')} | **${pct(r.all)}** | ${pct(r.byDay[2])} · ${pct(r.byDay[4])} |`);
+      say(`| ${PROFILES[pid].label} | ${season + 1} | ${scale.items.map(i => pct(r.found[i.id])).join(' | ')} | **${pct(r.all)}** | ${pct(r.byDay[2])} · ${pct(r.byDay[4])} | ${pct(r.foundByDay[leg.id][0])} |`);
     }
     say('');
   }
