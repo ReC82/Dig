@@ -904,7 +904,7 @@ async function renderEvents() {
   };
   const section = (ev, title, sub) => `<section class="collection-series event-series" data-ev="${escapeHtml(ev.id)}">`
     + `<h3 class="collection-series-title">${escapeHtml(title)}</h3>${sub ? `<p class="badges-note">${sub}</p>` : ''}`
-    + `<div class="collection-series-grid">${ev.items.map(it => card(ev, it)).join('')}</div><p class="badges-note event-item-desc" hidden></p></section>`;
+    + `<div class="collection-series-grid">${ev.items.map(it => card(ev, it)).join('')}</div></section>`;
   let html = '';
   for (const ev of d.active) {
     const n = ev.items.filter(i => i.found).length;
@@ -918,15 +918,30 @@ async function renderEvents() {
     for (const ev of d.souvenirs) html += section(ev, `${ev.icon} ${_badgeText(ev.names)} · ${ev.items.length}`, '');
   }
   el.innerHTML = `<div class="section-divider"><span>${escapeHtml(t('events.section'))}</span></div>${html}`;
-  const all = [...d.active, ...d.souvenirs];
+  const all = [...d.active.map(ev => ({ ev, active: true })), ...d.souvenirs.map(ev => ({ ev, active: false }))];
   el.querySelectorAll('.find-card').forEach(b => b.addEventListener('click', () => {
-    const ev = all.find(e => e.id === b.dataset.ev);
-    const it = ev && ev.items.find(i => i.id === b.dataset.item);
-    const p = b.closest('section').querySelector('.event-item-desc');
-    if (!it || !p) return;
-    p.hidden = false;
-    p.textContent = it.found ? `${_badgeText(it.names)} — ${_badgeText(it.descs)} (${t('events.found_on', { date: fmtDate(it.foundAt) })})` : t('events.unknown');
+    const entry = all.find(e => e.ev.id === b.dataset.ev);
+    const it = entry && entry.ev.items.find(i => i.id === b.dataset.item);
+    if (it) showEventItemSheet(entry.ev, it, entry.active, b);
   }));
+}
+
+/** Fiche dédiée d'un objet d'événement (#39, recette 03/11) : même fenêtre que les objets de collection. */
+function showEventItemSheet(ev, it, active, opener) {
+  const lang = I18n.getCurrent();
+  const fmt = iso => new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+  const evName = `${ev.icon || '🎉'} ${_badgeText(ev.names)}`;
+  const when = active ? t('events.until', { date: fmt(ev.endsAt) }) : t('events.ended', { date: fmt(ev.endsAt) });
+  _openItemSheet({
+    found: !!it.found,
+    image: it.image,
+    icon: it.icon,
+    title: it.found ? _badgeText(it.names) : t('collection.unknown_title'),
+    rarity: it.found ? it.rarity : null,
+    context: `${evName} · ${when}`,
+    foundText: it.found && it.foundAt ? t('events.found_on', { date: fmt(it.foundAt) }) : '',
+    story: it.found ? _badgeText(it.descs) : t('events.unknown'),
+  }, opener);
 }
 
 let _badgesReq = 0;
@@ -1045,32 +1060,9 @@ function renderCollection() {
 
 /** Fiche détaillée d'un objet (#39) : grande image, nom, rareté, série/saison, date, quantité, histoire. */
 function showFindSheet(find, series) {
-  const modal = document.getElementById('find-modal');
-  if (!modal) return;
   const isFound = GameState.collection.includes(find.id);
   const meta = (GameState.collectionMeta || {})[find.id] || null;
-  const $ = id => document.getElementById(id);
-  const art = $('find-modal-art');
-  art.textContent = '';
-  if (isFound && find.image) {
-    const img = document.createElement('img');
-    img.src = find.image; img.alt = Collection.displayName(find);
-    art.appendChild(img);
-  } else {
-    art.textContent = isFound ? find.icon : '❔';
-  }
-  $('find-modal-title').textContent = isFound ? Collection.displayName(find) : t('collection.unknown_title');
-  const rarity = $('find-modal-rarity');
-  rarity.innerHTML = '';
-  if (isFound) {
-    const badge = document.createElement('span');
-    badge.className = `rarity-badge rarity-${find.rarity || 'commun'}`;
-    badge.textContent = t('rarity.' + (find.rarity || 'commun').replace('-', '_'));
-    rarity.appendChild(badge);
-  }
   const season = series && series.seasonId != null ? Collection.SEASONS[series.seasonId] : null;
-  $('find-modal-series').textContent = series
-    ? `${series.icon || '📦'} ${Collection.seriesName(series)}${season ? ' · ' + season.name : ''}` : '';
   const lang = I18n.getCurrent();
   let found = '';
   if (isFound && meta && Number.isFinite(meta.at)) {
@@ -1079,14 +1071,57 @@ function showFindSheet(find, series) {
     found = t('collection.found_before');
   }
   const qty = isFound ? Math.max(1, (meta && meta.n) || 1) : 0;
-  $('find-modal-found').textContent = isFound ? `${found} · ${t('collection.quantity', { n: qty })}` : '';
-  $('find-modal-story').textContent = isFound ? Collection.story(find)
-    : t(Collection.isArchived(series) ? 'collection.unknown_archived' : 'collection.unknown_story');
+  _openItemSheet({
+    found: isFound,
+    image: find.image,
+    icon: find.icon,
+    title: isFound ? Collection.displayName(find) : t('collection.unknown_title'),
+    rarity: isFound ? (find.rarity || 'commun') : null,
+    context: series ? `${series.icon || '📦'} ${Collection.seriesName(series)}${season ? ' · ' + season.name : ''}` : '',
+    foundText: isFound ? `${found} · ${t('collection.quantity', { n: qty })}` : '',
+    story: isFound ? Collection.story(find)
+      : t(Collection.isArchived(series) ? 'collection.unknown_archived' : 'collection.unknown_story'),
+  }, document.activeElement);
+}
+
+/** Fenêtre de fiche commune (collection et événements) : focus piégé sur Fermer, Échap, retour du focus. */
+function _openItemSheet(o, opener) {
+  const modal = document.getElementById('find-modal');
+  if (!modal) return;
+  const $ = id => document.getElementById(id);
+  const art = $('find-modal-art');
+  art.textContent = '';
+  if (o.found && o.image) {
+    const img = document.createElement('img');
+    img.src = o.image; img.alt = o.title;
+    art.appendChild(img);
+  } else {
+    art.textContent = o.found ? (o.icon || '🎁') : '❔';
+  }
+  $('find-modal-title').textContent = o.title;
+  const rarity = $('find-modal-rarity');
+  rarity.innerHTML = '';
+  if (o.rarity) {
+    const badge = document.createElement('span');
+    badge.className = `rarity-badge rarity-${o.rarity}`;
+    badge.textContent = t('rarity.' + o.rarity.replace('-', '_'));
+    rarity.appendChild(badge);
+  }
+  $('find-modal-series').textContent = o.context || '';
+  $('find-modal-found').textContent = o.foundText || '';
+  $('find-modal-story').textContent = o.story || '';
   modal.hidden = false;
   const close = $('btn-find-modal-close');
-  close.onclick = () => { modal.hidden = true; };
-  modal.onclick = e => { if (e.target === modal) modal.hidden = true; };
-  modal.onkeydown = e => { if (e.key === 'Escape') modal.hidden = true; };
+  const hide = () => {
+    modal.hidden = true;
+    if (opener && typeof opener.focus === 'function' && document.contains(opener)) opener.focus();
+  };
+  close.onclick = hide;
+  modal.onclick = e => { if (e.target === modal) hide(); };
+  modal.onkeydown = e => {
+    if (e.key === 'Escape') hide();
+    else if (e.key === 'Tab') { e.preventDefault(); close.focus(); }
+  };
   close.focus();
 }
 

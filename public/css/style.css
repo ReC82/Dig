@@ -1591,6 +1591,11 @@ h1 {
   letter-spacing: 0.3px;
 }
 .collection-archives-title { color: var(--muted); margin: 6px 0 -6px; }
+/* Événements (#56) : même rythme vertical que la grille de collection (recette #39 du 03/11) */
+#events-panel { display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px; }
+#events-panel .section-divider { margin-bottom: -4px; }
+#events-panel .collection-series-title { margin: 0 0 6px; }
+#events-panel .event-series .badges-note { margin: 0 0 10px; }
 .collection-series-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1664,7 +1669,7 @@ h1 {
   justify-content: center;
   filter: drop-shadow(0 3px 8px rgba(0,0,0,0.5));
 }
-#find-modal-art img { width: 160px; height: 160px; object-fit: contain; }
+#find-modal-art img { width: min(160px, 42vw); height: min(160px, 42vw); object-fit: contain; }
 #find-modal-title { font-size: 1.15rem; margin: 0; color: var(--text); }
 #find-modal-series, #find-modal-found { font-size: 0.72rem; color: var(--muted); }
 #find-modal-story {
