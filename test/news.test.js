@@ -188,6 +188,17 @@ test('fin de saison et faits joueurs : classement figé, accord, risque, plafond
   news.setPrefs(u2, { publicMentions: false });
   assert.ok(!news.publicView(null, new Date(now.getTime() + 1000)).latest.some(x => x.id === ranks[0].id), 'accord retiré : masqué aussitôt');
 
+  // Moins de 3 classés : aucun chiffre (il révélerait le résultat d'un joueur)
+  const few = db.createSeason('Saison 77-2026', cal.fmtUtc(ago(9 * 24 * H, now)), cal.fmtUtc(ago(2 * H, now)), 'closed');
+  const u0 = newUser();
+  conn().prepare(`INSERT INTO season_rankings (season_id, user_id, max_depth, reported_max_depth, manual_blocks, effective_manual_blocks, is_active)
+    VALUES (?, ?, 55, 55, 10, 10, 1)`).run(few.id, u0);
+  standings.freezeSeasonStandings(few.id, { source: 'test', now });
+  news.sync(now);
+  const fewItem = conn().prepare('SELECT * FROM news_items WHERE auto_key = ?').get(`season_end:${few.id}`);
+  assert.strictEqual(JSON.parse(fewItem.titles).fr, 'Fin de la saison 77-2026');
+  assert.doesNotMatch(JSON.parse(fewItem.summaries).fr, /55|mineurs/);
+
   // Profondeur : valeur validée par le serveur uniquement, palier le plus haut, une seule fois
   const active = db.getActiveSeason();
   const u4 = newUser();
