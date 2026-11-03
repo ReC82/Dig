@@ -408,14 +408,30 @@ function _peers(t) {
 // référence de style ou un motif/décor autour du nom est autorisé (et expliqué) ; sinon la règle
 // d'avant s'applique (nom complet = conflit certain, nom principal = conflit probable).
 const _phrases = list => list.map(p => _norm(p));
-// Changement de sujet explicite, n'importe où dans la proposition
-const _REPLACE = _phrases(['instead of', 'rather than', 'in place of', 'replace', 'replaced', 'replacing', 'replace it', 'swap', 'remplace', 'remplacer',
-  'remplacez', 'remplacee', 'a la place', 'au lieu', 'plutot que', 'plutot qu', 'turn into', 'turn it into', 'transform', 'transforme', 'transformer',
-  'transformez', 'devient', 'becomes', 'change into', 'change en', 'changer en']);
+// Changement de sujet explicite. Le sens compte : ce qui suit « au lieu de » est l'objet à RETIRER,
+// ce qui suit « remplace … par » ou « transforme en » est le NOUVEAU sujet (« remplace la lanterne par
+// un crayon » est juste sur la fiche du crayon, refusé sur celle du jeton).
+const _INSTEAD = _phrases(['instead of', 'rather than', 'in place of', 'a la place', 'au lieu', 'plutot que', 'plutot qu']);
+const _REPLACE = _phrases(['replace', 'replaced', 'replacing', 'swap', 'remplace', 'remplacer', 'remplacez', 'remplacee']);
+const _REPLACE_BY = new Set(['par', 'with', 'by', 'avec']);
+const _BECOME = _phrases(['turn into', 'turn it into', 'transform', 'transforme', 'transformer', 'transformez', 'devient', 'becomes',
+  'change into', 'change en', 'changer en']);
+const _CONTEXT_LABELS = { style: 'référence de style', detail: 'motif ou décor', replace: 'demande de dessiner un autre objet',
+  removed: 'objet à retirer de l\'image' };
+/** Position (en mots) de la première expression trouvée, ou -1. */
+function _at(words, phrases) {
+  const text = ` ${words.join(' ')} `;
+  for (const p of phrases) {
+    const i = text.indexOf(p);
+    if (i >= 0) return text.slice(0, i + 1).trim().split(' ').filter(Boolean).length;
+  }
+  return -1;
+}
 // Verbe qui fait de la mention le sujet de l'image (« dessine une boussole », « draw a broken crown »)
 const _DEPICT = new Set(['draw', 'dessine', 'dessiner', 'dessinez', 'depict', 'represente', 'representer', 'representez', 'show', 'montre', 'montrer',
   'montrez', 'paint', 'peins', 'peindre', 'peignez', 'illustrate', 'illustre', 'illustrer', 'illustrez', 'render', 'generate', 'genere', 'generer',
   'generez', 'create', 'cree', 'creer', 'creez', 'make', 'fais', 'faites', 'faire']);
+const _DESCRIBED = new Set(['image', 'images', 'icone', 'icon', 'proposition', 'picture', 'it', 'elle', 'il', 'cela', 'ca', 'this', 'that']);
 // Référence de style placée avant la mention dans la même proposition
 const _STYLE = _phrases(['coherent avec', 'coherente avec', 'coherents avec', 'coherent with', 'consistent with', 'matching', 'match', 'matches', 'same style',
   'meme style', 'style de', 'style des', 'style du', 'style of', 'style as', 'in the style', 'like the', 'comme la', 'comme le', 'comme les',
@@ -429,14 +445,22 @@ const _DETAIL = new Set(['embroidered', 'embroidery', 'brode', 'brodee', 'brodes
   'effigy', 'inlaid', 'incruste', 'incrustee', 'sewn', 'cousu', 'cousue', 'appliqued', 'applique', 'silhouette', 'shaped', 'etched', 'stitched',
   'woven', 'tisse', 'tissee', 'relief', 'medallion', 'medaillon', 'heraldic', 'heraldique']);
 const _IN = (hay, p) => hay.includes(p);
-const _CONTEXT_LABELS = { style: 'référence de style', detail: 'motif ou décor', replace: 'demande de remplacer ou de dessiner un autre objet' };
 
-/** Lecture d'une mention dans sa proposition : 'replace' | 'style' | 'detail' | 'mention'. */
+/** Lecture d'une mention dans sa proposition : 'replace' | 'removed' | 'style' | 'detail' | 'mention'. */
 function _mentionContext(words, at, len, ownWords) {
-  const clause = ` ${words.join(' ')} `;
-  if (_REPLACE.some(p => _IN(clause, p))) return 'replace';
+  const instead = _at(words, _INSTEAD);
+  if (instead >= 0) return at < instead ? 'replace' : 'removed';
+  const repl = _at(words, _REPLACE);
+  if (repl >= 0) {
+    const by = words.findIndex((w, i) => i > repl && _REPLACE_BY.has(w));
+    return by >= 0 && at > by ? 'replace' : at > repl ? 'removed' : 'replace';
+  }
+  const become = _at(words, _BECOME);
+  if (become >= 0) return at > become ? 'replace' : 'removed';
   for (let j = Math.max(0, at - 3); j < at; j++) {
-    if (_DEPICT.has(words[j]) && !words.slice(j + 1, at).some(w => ownWords.has(w))) return 'replace';
+    // « L'image précédente représente une lanterne » décrit l'ancienne image : ce n'est pas une demande
+    const described = words.slice(Math.max(0, j - 3), j).some(w => _DESCRIBED.has(w));
+    if (_DEPICT.has(words[j]) && !described && !words.slice(j + 1, at).some(w => ownWords.has(w))) return 'replace';
   }
   const before = ` ${words.slice(0, at).join(' ')} `;
   if (_STYLE.some(p => _IN(before, p))) return 'style';
@@ -478,8 +502,9 @@ function _subjectAnalysis(t, sources) {
           for (const at of _findTerm(words, term)) {
             const ctx = _mentionContext(words, at, term.split(' ').length, ownWords);
             if (ctx === 'style' || ctx === 'detail') { ref ??= { id: p.id, name, term, where, context: ctx, reason: _CONTEXT_LABELS[ctx] }; continue; }
-            const c = { id: p.id, name, term, where, strict: ctx === 'replace' || isFull, context: ctx,
-              ...(ctx === 'replace' ? { reason: _CONTEXT_LABELS.replace } : {}) };
+            // Objet à retirer : conflit probable (confirmation), même cité en entier
+            const c = { id: p.id, name, term, where, strict: ctx === 'replace' || (isFull && ctx !== 'removed'), context: ctx,
+              ...(_CONTEXT_LABELS[ctx] ? { reason: _CONTEXT_LABELS[ctx] } : {}) };
             if (!worst || (c.strict && !worst.strict)) worst = c;
           }
         }

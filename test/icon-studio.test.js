@@ -339,6 +339,14 @@ test('recettes des 02 et 03/11 : référence de style et motif autorisés, chang
       e => e.status === 409 && e.details.code === 'subject_conflict' && e.details.conflicts[0].id === id && e.details.conflicts[0].strict
         && e.details.conflicts[0].context === 'replace' && /dessiner cet autre objet/.test(e.message), instruction);
   }
+  // Sens du remplacement : « remplace la couronne par une culotte » retire la couronne (confirmable) ;
+  // « une couronne au lieu de la culotte » en fait le sujet (refusé) ; une description de l'ancienne image n'est pas une demande
+  const removed = studio.subjectCheck('item:relic', { instruction: 'Remplace la couronne par une culotte' }).conflicts[0];
+  assert.deepStrictEqual([removed.id, removed.strict, removed.context], ['broken_crown', false, 'removed']);
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'replace the broken crown with breeches' }).conflicts[0].strict, false, 'nom complet à retirer : confirmable');
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'une couronne au lieu de la culotte' }).conflicts[0].strict, true);
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'la culotte devient une couronne' }).conflicts[0].strict, true);
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'L\'image précédente représente une couronne' }).conflicts[0].strict, false);
   // Mention nue du nom principal : toujours un conflit probable, confirmable (règle inchangée)
   assert.throws(() => studio.generate('item:relic', { instruction: 'une couronne posée à côté' }), e => e.status === 409 && !e.details.conflicts[0].strict);
   // Une référence de style n'excuse pas une demande de remplacement dans la même phrase
