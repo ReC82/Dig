@@ -1,0 +1,35 @@
+{
+ "_doc": "Glossaire DIG! pour les traductions automatiques (#59). Un terme par ligne, une colonne par langue (code du registre public/js/languages.js). Ajouter une langue = ajouter sa colonne ; les termes absents sont laissés au jugement du modèle.",
+ "style": {
+  "all": "Friendly, playful tone for casual players of all ages. Address the player informally (singular 'you'), like the French 'tu'. Keep it short and concrete; light humour is welcome, never sarcastic.",
+  "it": "Use 'tu' (informal). Prefer common Italian gaming vocabulary. Do not use English words when a natural Italian word exists, except Boost, Badge and Auto-Dig.",
+  "ru": "Use informal 'ты'. Use real Russian plural forms (one/few/many/other)."
+ },
+ "terms": [
+  { "fr": "pièces (monnaie du jeu)", "en": "coins", "it": "monete", "ru": "монеты" },
+  { "fr": "gemmes", "en": "gems", "it": "gemme", "ru": "самоцветы" },
+  { "fr": "fragments (de relique)", "en": "fragments", "it": "frammenti", "ru": "осколки" },
+  { "fr": "relique", "en": "relic", "it": "reliquia", "ru": "реликвия" },
+  { "fr": "coffre", "en": "chest", "it": "forziere", "ru": "сундук" },
+  { "fr": "pioche", "en": "pickaxe", "it": "piccone", "ru": "кирка" },
+  { "fr": "bloc", "en": "block", "it": "blocco", "ru": "блок" },
+  { "fr": "creuser", "en": "dig", "it": "scavare", "ru": "копать" },
+  { "fr": "profondeur", "en": "depth", "it": "profondità", "ru": "глубина" },
+  { "fr": "amélioration", "en": "upgrade", "it": "potenziamento", "ru": "улучшение" },
+  { "fr": "Sac (amélioration)", "en": "Bag", "it": "Sacca", "ru": "Сумка" },
+  { "fr": "Chance (amélioration)", "en": "Luck", "it": "Fortuna", "ru": "Удача" },
+  { "fr": "Auto-Dig", "en": "Auto-Dig", "it": "Auto-Dig", "ru": "Auto-Dig", "note": "nom propre, ne pas traduire" },
+  { "fr": "saison", "en": "season", "it": "stagione", "ru": "сезон" },
+  { "fr": "ligue", "en": "league", "it": "lega", "ru": "лига" },
+  { "fr": "classement", "en": "leaderboard", "it": "classifica", "ru": "рейтинг" },
+  { "fr": "points de récompense", "en": "reward points", "it": "punti premio", "ru": "призовые очки" },
+  { "fr": "boutique de cadeaux", "en": "gift shop", "it": "negozio dei regali", "ru": "магазин подарков" },
+  { "fr": "boutique", "en": "shop", "it": "negozio", "ru": "магазин" },
+  { "fr": "collection", "en": "collection", "it": "collezione", "ru": "коллекция" },
+  { "fr": "trouvaille", "en": "find", "it": "scoperta", "ru": "находка" },
+  { "fr": "boost", "en": "boost", "it": "boost", "ru": "буст" },
+  { "fr": "badge", "en": "badge", "it": "badge", "ru": "значок" },
+  { "fr": "palier (de ligue)", "en": "tier", "it": "livello", "ru": "уровень" },
+  { "fr": "mission du jour", "en": "daily mission", "it": "missione del giorno", "ru": "задание дня" }
+ ]
+}

@@ -28,7 +28,7 @@ const badges  = require('./badges');
 const blockCatalog = require('./blockCatalog');
 
 const LANGS = badges.LANGS;
-const LANG_LABELS = { fr: 'French', en: 'English', nl: 'Dutch', es: 'Spanish' };
+const LANG_LABELS = require('./languages').ENGLISH_NAMES;
 const CONCEPT_MAX = 800;
 const UNSUPPORTED = 'unsupported';
 

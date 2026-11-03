@@ -1,0 +1,783 @@
+/* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
+/* Italian (preview) : 579/579 textes. Absents → français. */
+I18n.registerLocale("it", {
+ "account": {
+  "btn_back_login": "← Torna all’accesso",
+  "btn_cancel": "Annulla",
+  "btn_change_email": "Invia il link di conferma",
+  "btn_change_password": "Cambia la password",
+  "btn_forgot": "Password dimenticata?",
+  "btn_forgot_send": "Invia il link",
+  "btn_login": "Accedi",
+  "btn_logout": "Esci",
+  "btn_register": "Crea l’account",
+  "btn_reset": "Salva la password",
+  "btn_send_verify": "Invia il link di conferma",
+  "btn_social_confirm": "Collega questo account Google",
+  "btn_social_ignore": "Ignora",
+  "btn_social_link": "Continua su Google",
+  "btn_social_unlink": "Scollega Google",
+  "change_email": "Cambia indirizzo e-mail",
+  "change_password": "Cambia la password",
+  "email_change_sent": "Link inviato a {email}: l’indirizzo cambierà dopo la conferma.",
+  "email_unverified": "Indirizzo non verificato",
+  "email_verified": "Indirizzo verificato",
+  "err_email_taken": "Questo indirizzo e-mail è già in uso.",
+  "err_generic": "Si è verificato un errore.",
+  "err_taken": "Nome utente già in uso.",
+  "err_wrong": "Credenziali errate.",
+  "forgot_intro": "Inserisci il tuo nome utente o il tuo indirizzo e-mail: riceverai un link per scegliere una nuova password.",
+  "forgot_sent": "Se esiste un account corrispondente, ti abbiamo appena inviato un’e-mail. Controlla anche lo spam.",
+  "header_aria": "Profilo e account",
+  "hint_change_email": "Il nuovo indirizzo sostituisce il vecchio dopo la conferma tramite il link ricevuto.",
+  "hint_email": "esempio@email.com",
+  "hint_password": "Almeno 6 caratteri",
+  "hint_password_others": "Almeno 6 caratteri. Gli altri tuoi dispositivi verranno disconnessi.",
+  "hint_username": "3-20 caratteri: lettere, numeri, _ o -",
+  "label_current_password": "Password attuale",
+  "label_email": "Indirizzo e-mail",
+  "label_identifier": "Nome utente o e-mail",
+  "label_new_email": "Nuovo indirizzo e-mail",
+  "label_new_password": "Nuova password",
+  "label_password": "Password",
+  "label_username": "Nome utente",
+  "logged_as": "Connesso: {name}",
+  "no_mail_forgot": "Password dimenticata? Il recupero via e-mail non è ancora attivo: contatta l’organizzatore della beta, che può darti una password temporanea (da cambiare poi nelle Impostazioni).",
+  "no_mail_register": "⚠️ Beta: il recupero della password via e-mail non è ancora attivo. Annota bene la tua password. Per ora il tuo indirizzo non viene verificato.",
+  "password_changed": "Password modificata.",
+  "reset_intro": "Scegli una nuova password. Gli altri dispositivi connessi verranno disconnessi.",
+  "reset_ok": "Password modificata, sei connesso.",
+  "social_confirm": "Collegare l’account Google {email} a questo account DIG!? Poi potrai accedere con Google. I tuoi progressi non cambiano.",
+  "social_continue": "Continua con Google",
+  "social_link_hint": "Conferma la tua password, poi accedi a Google. I tuoi progressi non cambiano.",
+  "social_link_title": "Collega un account Google",
+  "social_linked_as": "Google: {email}",
+  "social_msg_already": "Un altro account Google è già collegato a questo account.",
+  "social_msg_cancelled": "Accesso con Google annullato.",
+  "social_msg_error": "L’accesso con Google non è riuscito. Riprova.",
+  "social_msg_linked": "Account Google collegato al tuo account DIG!.",
+  "social_msg_notallowed": "L’accesso con Google non è ancora disponibile per questo account.",
+  "social_msg_ok": "Accesso effettuato con Google.",
+  "social_msg_pending": "Account Google non collegato: accedi per collegarlo.",
+  "social_msg_taken": "Questo account Google è già collegato a un altro account DIG!.",
+  "social_msg_unavailable": "Accesso con Google non disponibile al momento.",
+  "social_pending_hint": "Questo account Google non è collegato a nessun account DIG!. Accedi qui sopra con nome utente e password per collegarlo.",
+  "social_unlink_hint": "Poi accederai con la tua password. Gli altri dispositivi verranno disconnessi.",
+  "social_unlink_title": "Scollega l’account Google",
+  "social_unlinked": "Account Google scollegato.",
+  "tab_login": "Accedi",
+  "tab_register": "Crea un account",
+  "title": "Account",
+  "verify_fail": "Link di conferma non valido o scaduto.",
+  "verify_ok": "Indirizzo e-mail confermato!",
+  "verify_sent": "E-mail inviata: clicca sul link che contiene."
+ },
+ "ads": {
+  "accept": "Accetto",
+  "consent_text": "DIG! è gratuito. Per finanziarlo, in alto sullo schermo, lontano dalla zona di gioco, può comparire un piccolo banner. Accetti che la concessionaria pubblicitaria usi i cookie per mostrare e misurare i suoi annunci? Se rifiuti, la tua partita non cambia.",
+  "consent_title": "Pubblicità e privacy",
+  "grant": "Accetta i banner",
+  "label": "Pubblicità",
+  "more": "Scopri di più",
+  "privacy_link": "Privacy, cookie e contatti",
+  "refuse": "Rifiuto",
+  "settings_denied": "Hai rifiutato i banner pubblicitari: non ne viene caricato nessuno.",
+  "settings_granted": "Hai accettato i banner pubblicitari.",
+  "settings_title": "📢 Pubblicità",
+  "settings_unset": "Non hai ancora fatto una scelta.",
+  "withdraw": "Ritira il mio consenso"
+ },
+ "badges": {
+  "archived": "Ritirato",
+  "count": "{n} / {total} ottenuti",
+  "earned_on": "Ottenuto il {date}",
+  "empty": "Nessun badge per ora.",
+  "error": "Badge non disponibili al momento.",
+  "event_until": "Evento fino al {date}",
+  "hidden": "Badge segreto",
+  "hidden_desc": "Continua a scavare per scoprirlo.",
+  "intro": "Badge onorifici: non danno né monete, né gemme, né punti. Registrati dal {date}.",
+  "loading": "Caricamento dei badge…",
+  "login": "Accedi per seguire i tuoi badge.",
+  "progress": "{value} / {target}",
+  "section": "🏅 Badge e traguardi",
+  "toast": "Badge ottenuto: {name}"
+ },
+ "beta": {
+  "banner": "🧪 BETA — gioco in sviluppo",
+  "banner_close": "Nascondi il banner",
+  "banner_report": "🐞 Segnala un bug",
+  "cancel": "Chiudi",
+  "copied": "Copiato: incollalo in #bugs.",
+  "copy": "📋 Copia per Discord",
+  "diag_label": "Allega le informazioni tecniche (versione, browser, dimensioni dello schermo, lingua, schermata del gioco)",
+  "diag_preview": "Vedi esattamente cosa verrà inviato",
+  "discord": "💬 Unisciti al Discord della beta",
+  "err_closed": "Le iscrizioni sono chiuse al momento. Se hai già un account, accedi.",
+  "err_invite_invalid": "Questo codice d’invito non è valido (già usato o scaduto). Chiedi un nuovo link a chi ti ha invitato.",
+  "err_invite_required": "Per ora ci si iscrive solo su invito: apri il link che hai ricevuto.",
+  "err_send": "Invio impossibile al momento.",
+  "err_short": "Descrivi cosa è successo (almeno 5 caratteri).",
+  "field_device": "Dispositivo e browser",
+  "field_expected": "Risultato atteso",
+  "field_observed": "Cosa è successo (obbligatorio)",
+  "field_step": "Passaggio (dov’eri, cosa stavi facendo?)",
+  "have_account": "Ho già un account: accedi",
+  "invite_dead": "Questo link d’invito non è più valido (già usato o scaduto). Chiedi un nuovo link a chi ti ha invitato.",
+  "invite_label": "Codice d’invito",
+  "invite_required": "Iscrizione su invito: apri il link che hai ricevuto, oppure incolla qui il codice che contiene.",
+  "invite_welcome": "🎟️ Sei invitato alla beta di DIG! Scegli un nickname, la tua e-mail e una password: è tutto.",
+  "issue_link": "dettagli",
+  "known_title": "Bug noti",
+  "mine_empty": "Nessuna segnalazione inviata.",
+  "mine_title": "Le mie segnalazioni",
+  "modal_intro": "Descrivi cosa stavi facendo, cosa ti aspettavi e cosa è successo. Per uno screenshot, pubblicalo su Discord.",
+  "modal_title": "🐞 Segnala un bug",
+  "policy_default": "Gioco in sviluppo: durante la beta i progressi possono essere modificati o azzerati e non è promessa alcuna ricompensa reale.",
+  "report": "🐞 Segnala un bug",
+  "section": "🧪 Beta",
+  "send": "Invia",
+  "sent": "Grazie! Segnalazione n. {id} ricevuta.",
+  "status_fixed": "risolta",
+  "status_new": "ricevuta",
+  "status_seen": "in analisi",
+  "status_wontfix": "non accolta",
+  "version": "Versione: {v}"
+ },
+ "block": {
+  "amethyste": "Ametista",
+  "argile": "Argilla",
+  "charbon": "Carbone",
+  "coffre_bois": "Forziere di legno",
+  "coffre_fer": "Forziere di ferro",
+  "cristal_ancien": "Cristallo antico",
+  "diamant": "Diamante",
+  "emeraude": "Smeraldo",
+  "fer_meteorique": "Ferro meteorico",
+  "granite": "Granito",
+  "gres": "Arenaria",
+  "minerai_argent": "Minerale d’argento",
+  "minerai_fer": "Minerale di ferro",
+  "minerai_or": "Minerale d’oro",
+  "minerai_platine": "Minerale di platino",
+  "obsidienne": "Ossidiana",
+  "pierre": "Pietra",
+  "quartz": "Quarzo",
+  "rubis": "Rubino",
+  "saphir": "Zaffiro",
+  "terre_meuble": "Terra smossa",
+  "vieille_caisse": "Vecchia cassa"
+ },
+ "chest_odds": {
+  "boost": "⚡ Boost ×{mult} delle monete dei blocchi — {minutes} min",
+  "btn": "ℹ️ Ricompense e probabilità",
+  "close": "Chiudi",
+  "coins": "💰 {min} – {max} monete",
+  "col_chance": "Probabilità",
+  "col_reward": "Ricompensa",
+  "collection": "📿 1 oggetto da collezione",
+  "error": "Impossibile caricare le probabilità al momento. Riprova tra un attimo.",
+  "jackpot": "jackpot",
+  "limit": "Massimo {max} aperture per stagione ({n}/{max} in questa stagione).",
+  "loading": "Caricamento…",
+  "price": "Prezzo: 💰 {cost} monete",
+  "relics": {
+   "$n": "n",
+   "one": "🔮 {n} frammento",
+   "other": "🔮 {n} frammenti"
+  },
+  "relics_you": "ne ricevi {n}",
+  "rule_boost": "Boost: moltiplica le monete guadagnate sui blocchi per tutta la sua durata (non i forzieri).",
+  "rule_coins": "Monete: importo estratto a caso nell’intervallo, con pari probabilità. Non vengono moltiplicate né dalla Sacca, né dalle reliquie, né dai boost.",
+  "rule_collection": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora ({missing} per te, cioè {pct} % ciascuno). Collezione completa: {n} frammenti al suo posto (senza bonus).",
+  "rule_collection_full": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora. La tua collezione è completa: riceveresti {n} frammenti al suo posto (senza bonus).",
+  "rule_draw": "Un’apertura = una sola estrazione. La percentuale è la probabilità di ottenere quel tipo di ricompensa; la quantità ricevuta è indicata accanto.",
+  "rule_fragments": "Frammenti ricevuti = (quantità + bonus della Calamita di schegge, da +1 a +5 secondo il livello){mult}, arrotondato, almeno 1.",
+  "rule_fragments_mult": " × {mult} (bonus frammenti del gioco)",
+  "title": "{name} — ricompense e probabilità",
+  "unlimited": "Aperture illimitate."
+ },
+ "collection": {
+  "archives": "🗄 Archivio delle stagioni passate",
+  "close": "Chiudi",
+  "found_before": "Trovato prima che si registrassero le date",
+  "found_on": "Trovato il {date}",
+  "quantity": "Quantità: {n}",
+  "series_origins": "Collezione delle origini",
+  "unknown_archived": "Questo oggetto apparteneva a una stagione conclusa: non è stato trovato in tempo.",
+  "unknown_story": "Nessuno sa ancora cosa si nasconda qui… Continua a scavare!",
+  "unknown_title": "Oggetto non scoperto"
+ },
+ "events": {
+  "count": "{n} / {total} trovati",
+  "found_on": "Trovato il {date}",
+  "keep": "Gli oggetti trovati restano nella tua collezione anche dopo l’evento.",
+  "section": "🎉 Eventi",
+  "souvenirs": "Ricordi degli eventi",
+  "test": "TEST (visibile solo ai tester)",
+  "toast": "Oggetto dell’evento trovato: {name}",
+  "unknown": "Oggetto misterioso: continua a scavare durante l’evento.",
+  "until": "Fino al {date}",
+  "upcoming": "Presto: {name} — dal {date}"
+ },
+ "find": {
+  "coin": {
+   "desc": "Una moneta di una civiltà dimenticata da tempo.",
+   "name": "Moneta antica"
+  },
+  "crown": {
+   "desc": "La corona di un re dimenticato da tempo.",
+   "name": "Corona spezzata"
+  },
+  "crystal": {
+   "desc": "Un cristallo dai riflessi azzurri, nato sotto pressione.",
+   "name": "Cristallo blu"
+  },
+  "fossil": {
+   "desc": "Un osso pietrificato vecchio di millenni.",
+   "name": "Fossile"
+  },
+  "map": {
+   "desc": "Un pezzo di mappa che porta verso l’ignoto.",
+   "name": "Frammento di mappa"
+  },
+  "orb": {
+   "desc": "Una sfera che sembra contenere un’intera galassia.",
+   "name": "Sfera misteriosa"
+  },
+  "relic": {
+   "desc": "Un vaso rotto di un’epoca passata.",
+   "name": "Reperto"
+  },
+  "tooth": {
+   "desc": "Un dente affilato di una creatura sotterranea.",
+   "name": "Dente di mostro"
+  }
+ },
+ "giftshop": {
+  "b_closed": "Scambi chiusi",
+  "b_expired": "Scaduto",
+  "b_not_started": "Presto",
+  "b_out_of_stock": "Esaurito",
+  "b_real_locked": "Presto",
+  "b_short": "Mancano {n} pt",
+  "b_unavailable": "Non disponibile",
+  "btn": "Scambia",
+  "cancel": "Annulla",
+  "cancel_confirm": "Annullare questo ordine? I punti verranno rimborsati.",
+  "conditions": "Condizioni",
+  "confirm": "Scambiare {cost} con «{title}»?\n\nSaldo dopo lo scambio: {after}.\nPuoi annullare finché l’ordine è «in attesa» (punti rimborsati).",
+  "cost": "{n} pt",
+  "done": "Scambio registrato: «{title}». Segui il tuo ordine in «I miei scambi».",
+  "empty": "Ancora nessun regalo: il catalogo apre presto. I tuoi punti restano tuoi.",
+  "error": "Scambio impossibile: {msg}",
+  "face_value": "Valore: {v}",
+  "help": "Consegna: le ricompense virtuali vengono consegnate dal team DIG! entro pochi giorni. Un problema? Rispondi a un’e-mail del gioco o contatta l’assistenza indicando il numero dell’ordine.",
+  "intro": "Scambia i tuoi punti premio con dei regali. Niente fortuna: scegli tu.",
+  "min_age": "Dai {n} anni",
+  "network": "Rete non disponibile: riprova tra un attimo (nessun doppio addebito possibile).",
+  "orders_empty": "Nessuno scambio per ora.",
+  "orders_toggle": "I miei scambi",
+  "per_user": "Max. {n} per giocatore",
+  "real_note": "Regali reali: presto. Gli scambi non sono ancora aperti.",
+  "s_cancelled": "Annullato (rimborsato)",
+  "s_delivered": "Consegnato",
+  "s_pending": "In attesa",
+  "s_processing": "In preparazione",
+  "stock": "Disponibili: {n}",
+  "territories": "Paesi: {list}",
+  "title": "🎁 Negozio dei regali",
+  "until": "Fino al {d}"
+ },
+ "mission": {
+  "break_blocks": {
+   "desc": "Rompi {t} blocchi",
+   "name": "Spaccatutto"
+  },
+  "buy_upgrades": {
+   "desc": {
+    "$n": "t",
+    "one": "Compra {t} potenziamento",
+    "other": "Compra {t} potenziamenti"
+   },
+   "name": "Fai-da-te"
+  },
+  "depth_gain": {
+   "desc": "Scava {t} m più a fondo",
+   "name": "Esploratore del giorno"
+  },
+  "earn_coins": {
+   "desc": "Guadagna {t} monete",
+   "name": "Accumulatore"
+  },
+  "find_gems": {
+   "desc": {
+    "$n": "t",
+    "one": "Trova {t} gemma",
+    "other": "Trova {t} gemme"
+   },
+   "name": "Gemmologo"
+  },
+  "open_chests": {
+   "desc": {
+    "$n": "t",
+    "one": "Apri {t} forziere",
+    "other": "Apri {t} forzieri"
+   },
+   "name": "Cacciatore di tesori"
+  }
+ },
+ "nav": {
+  "collection": "Collezione",
+  "collection_aria": "Collezione",
+  "daily": "Giornaliero",
+  "daily_aria": "Ricompensa giornaliera",
+  "dig": "Scava",
+  "dig_aria": "Scava",
+  "main_aria": "Navigazione principale",
+  "season_aria": "Stagione",
+  "shop": "Negozio",
+  "shop_aria": "Negozio",
+  "upgrades": "Potenzia",
+  "upgrades_aria": "Potenziamenti"
+ },
+ "news": {
+  "close": "Chiudi le notizie",
+  "discord": "💬 Unisciti al Discord",
+  "empty_latest": "Nessuna notizia al momento.",
+  "empty_upcoming": "Niente in programma per ora.",
+  "latest": "Ultime notizie",
+  "mentions": "Accetto che il mio nickname compaia nelle notizie quando compio un’impresa (profondità, classifica finale). Non viene pubblicato nient’altro; posso togliere la spunta in qualsiasi momento.",
+  "new": "Novità",
+  "offline": "Notizie non disponibili (sei offline?). Riprova più tardi.",
+  "open_link": "Scopri di più",
+  "read_more": "Continua a leggere",
+  "title": "Notizie",
+  "unread": "{n} da leggere",
+  "upcoming": "In arrivo"
+ },
+ "notif": {
+  "ad_bonus": "+{amount} 💰 bonus pubblicità!",
+  "boost_activated": "Boost ×{mult} attivo!",
+  "chest_float": "📦 FORZIERE!",
+  "cloud_resumed": "Progressi ripresi dal server (altro dispositivo o intervento admin).",
+  "cloud_save_error": "Salvataggio online impossibile per ora: i tuoi progressi restano salvati su questo dispositivo, nuovo tentativo automatico.",
+  "cloud_save_restored": "Salvataggio online ripristinato.",
+  "coin_float": "+{amount} 💰",
+  "daily_reward": "Giorno {day}: {parts}!",
+  "damage_float": "-{amount}",
+  "find_drop": "{name} trovato!",
+  "gem_float": "✨ GEMMA!",
+  "gems_added": "💎 +{amount}",
+  "mission_done": "Missione: {parts}!",
+  "quest_done": "{name} completato!",
+  "relic_unlocked": "{name} sbloccata!",
+  "relic_upgraded": "{name} livello {n}!",
+  "save_conflict": "Progressi aggiornati dal server (altro dispositivo o intervento admin).",
+  "skin_activated": "Skin attivata!"
+ },
+ "points": {
+  "balance": "Saldo:",
+  "history_empty": "Nessun movimento per ora.",
+  "history_toggle": "Cronologia",
+  "k_admin_credit": "Rettifica",
+  "k_admin_debit": "Rettifica",
+  "k_refund": "Rimborso",
+  "k_season_award": "Fine stagione",
+  "k_spend": "Scambio",
+  "league_note": "Bonus lega: +{p} % per livello.",
+  "live": "Accredito reale attivo: i tuoi punti verranno aggiunti al saldo a fine stagione.",
+  "potential": "Se la stagione finisse ora: posizione #{rank} su {n} → {tier}: +{pts} pt",
+  "potential_none": "Rompi blocchi a mano e scendi in profondità per guadagnare punti a fine stagione.",
+  "pts": "{n} pt",
+  "rules": "Punti conservati da una stagione all’altra. Non convertibili in monete, gemme o denaro, non trasferibili. Si scambiano nel negozio dei regali qui sotto.",
+  "scale_toggle": "Tabella di fine stagione",
+  "shop_link": "🎁 Apri il negozio dei regali ({n} articoli)",
+  "sim_award": "simulazione",
+  "simulation": "Anteprima: la tabella non è ancora confermata. I punti vengono calcolati ma non ancora accreditati.",
+  "tied": "pari merito",
+  "tier_active": "Altri partecipanti",
+  "tier_min": "da {n} partecipanti",
+  "tier_pct": "Top {p} %",
+  "tier_rank": "{n}° in classifica",
+  "tier_ranks": "Top {n}",
+  "ties_note": "Pari merito perfetto: la categoria migliore per tutti.",
+  "title": "🏅 Punti premio"
+ },
+ "quest": {
+  "break10": {
+   "desc": "Rompi 10 blocchi",
+   "name": "Primo colpo"
+  },
+  "coins100": {
+   "desc": "Guadagna 100 monete in totale",
+   "name": "Primo tesoro"
+  },
+  "depth25": {
+   "desc": "Raggiungi la profondità di 25m",
+   "name": "Esploratore"
+  },
+  "find_gem": {
+   "desc": "Trova un blocco gemma",
+   "name": "Una gemma!"
+  },
+  "upgrade5": {
+   "desc": "Compra 5 potenziamenti",
+   "name": "Artigiano"
+  }
+ },
+ "rarity": {
+  "commun": "Comune",
+  "epique": "Epico",
+  "legendaire": "Leggendario",
+  "peu_commun": "Non comune",
+  "rare": "Raro"
+ },
+ "relic": {
+  "ancient_engine": {
+   "bonus": "+3 danni auto/sec",
+   "desc": "Una macchina vecchissima che scava senza sosta.",
+   "name": "Motore antico"
+  },
+  "bonus_types": {
+   "autodig_bonus": "+{n} danni auto/sec",
+   "coins_pct": "+{n}% monete",
+   "damage_flat": {
+    "$n": "n",
+    "one": "+{n} danno/clic",
+    "other": "+{n} danni/clic"
+   },
+   "hp_reduction": "-{n}% HP blocchi",
+   "luck_pct": "+{n}% blocchi rari",
+   "relic_fragment_bonus": {
+    "$n": "n",
+    "one": "+{n} frammento/forziere",
+    "other": "+{n} frammenti/forziere"
+   }
+  },
+  "cracked_lens": {
+   "bonus": "+30% blocchi rari",
+   "desc": "Anche rotta, rivela i minerali più rari.",
+   "name": "Lente incrinata"
+  },
+  "eye_of_miner": {
+   "bonus": "+2 danni per clic",
+   "desc": "Lo sguardo di un minatore leggendario. Ogni colpo è più forte.",
+   "name": "Occhio del minatore"
+  },
+  "golden_heart": {
+   "bonus": "+25% monete",
+   "desc": "Un cuore forgiato in oro puro. Le monete arrivano più numerose.",
+   "name": "Cuore d’oro"
+  },
+  "level_label": "Lv. {cur}/{max}",
+  "obsidian_claw": {
+   "bonus": "-15% HP dei blocchi",
+   "desc": "Nato nelle profondità. I blocchi si sbriciolano sotto la sua pressione.",
+   "name": "Artiglio d’ossidiana"
+  },
+  "shard_magnet": {
+   "bonus": "+1 frammento per forziere",
+   "desc": "Attira i frammenti dalle profondità. I forzieri ne danno di più.",
+   "name": "Calamita di schegge"
+  }
+ },
+ "season": {
+  "blocks_label": "Blocchi a mano",
+  "collection": "Collezione della stagione: {name} ({n} oggetti)",
+  "depth_label": "Prof. max",
+  "empty": "Nessun giocatore attivo per ora.",
+  "ends_at": "Fine: {date}",
+  "ends_in": "Fine tra {d}g {h}h",
+  "ends_in_hm": "Fine tra {h}h {m}min",
+  "error": "Impossibile caricare la stagione per ora.",
+  "history_title": "Stagioni precedenti",
+  "info": {
+   "intro": "A fine stagione monete, profondità e potenziamenti vengono azzerati. Gemme, frammenti, reliquie e bonus permanenti si conservano sempre.",
+   "k_bonuses": "Bonus permanenti",
+   "k_frags": "Frammenti",
+   "k_gems": "Gemme",
+   "k_points": "Punti premio",
+   "k_relics": "Reliquie",
+   "kept_title": "✅ Conservato",
+   "r_boosts": "Boost temporanei",
+   "r_coins": "Monete",
+   "r_depth": "Profondità",
+   "r_rank": "Classifica",
+   "r_upgrades": "Potenziamenti",
+   "reset_title": "🔄 Azzerato",
+   "toggle": "ℹ️ Come funziona la stagione?"
+  },
+  "last": {
+   "deleted": "Account eliminato",
+   "depth": "{n} m",
+   "frozen": "Classifica congelata il {date} · partecipanti: {p} · classificati: {e}",
+   "hash": "Impronta SHA-256:",
+   "me_absent": "Non hai partecipato a questa stagione.",
+   "me_ineligible": "Non eri in classifica (nessuna profondità convalidata).",
+   "me_points": "+{n} pt accreditati",
+   "me_points_sim": "+{n} pt (simulazione, non accreditati)",
+   "me_rank": "Il tuo risultato: posizione #{rank} su {n} · {depth} m",
+   "nobody": "Nessun partecipante classificato: niente vincitore né punti per questa stagione.",
+   "podium": "Podio della stagione precedente",
+   "proof_link": "Vedi la classifica congelata completa",
+   "proof_text": "Questa classifica è stata congelata alla chiusura e non può più essere modificata. Vengono pubblicati solo i nickname e i punteggi.",
+   "proof_toggle": "Prova pubblica",
+   "rank_sr": "Posizione {n}:",
+   "title": "🏁 Risultato — {name}"
+  },
+  "leaderboard": "Classifica",
+  "league_hint": "La tua lega è un livello duraturo: si sale con la promozione a fine stagione. Il tema, invece, cambia ogni settimana.",
+  "league_label": "Lega",
+  "league_level": "livello {n}",
+  "loading": "Caricamento…",
+  "merit": {
+   "freeze": "Il {date} la classifica viene congelata e pubblicata con un’impronta di controllo: non cambia più.",
+   "join": "Per partecipare: essere connesso e rompere almeno un blocco a mano durante la stagione.",
+   "order": "Ordine per merito: profondità massima convalidata dal server, poi blocchi rotti a mano, poi chi è arrivato per primo a quella profondità. Nessuna estrazione a sorte.",
+   "points": "I punti premio vengono assegnati secondo la tabella dei punti, poi si scambiano nel negozio dei regali.",
+   "title": "🏆 Come si stabilisce la classifica?"
+  },
+  "new_season": "Nuova stagione! Buona fortuna a tutti!",
+  "new_season_named": "Nuova stagione: {name}! Buona fortuna a tutti!",
+  "next_collection": "Da scoprire: {name} — {n} oggetti da trovare",
+  "next_starts": "Inizio: {date}",
+  "next_title": "Prossima stagione: {name}",
+  "no_league": "Non classificato",
+  "not_active": "Rompi almeno 1 blocco a mano per comparire in classifica.",
+  "not_connected": "Accedi per partecipare alla classifica, guadagnare punti premio e accedere al negozio dei regali!",
+  "period": "Dal {start} al {end}",
+  "rank": "Posizione #{n}",
+  "retry": "Riprova",
+  "theme_label": "Tema della settimana",
+  "title": "Stagione",
+  "your_stats": "Le tue statistiche"
+ },
+ "settings": {
+  "btn_back": "← Indietro",
+  "lang_title": "Lingua",
+  "notif_clear": "Cancella la cronologia",
+  "notif_clear_confirm": "Cancellare la cronologia delle notifiche di questo dispositivo?",
+  "notif_empty": "Nessuna notifica per ora.",
+  "notif_title": "Cronologia delle notifiche",
+  "notif_type_error": "Errore",
+  "notif_type_info": "Informazione",
+  "notif_type_success": "Successo",
+  "notif_type_warning": "Avviso",
+  "title": "Impostazioni"
+ },
+ "shop": {
+  "badge_best_value": "Più conveniente",
+  "badge_popular": "Popolare",
+  "balance_label": "Saldo attuale",
+  "boost_x3": {
+   "label": "Monete ×3 per 30 min",
+   "name": "Boost ×3 monete"
+  },
+  "btn_owned": "✓ Posseduto",
+  "btn_soon": "Presto",
+  "disclaimer": "Acquisti presto disponibili · Per ora non si può ottenere nessun articolo",
+  "disclaimer_live": "Pagamento sicuro",
+  "gems_20": {
+   "label": "Sacchetto di gemme",
+   "name": "20 Gemme"
+  },
+  "gems_5": {
+   "label": "Borsellino",
+   "name": "5 Gemme"
+  },
+  "gems_60": {
+   "label": "Forziere di gemme",
+   "name": "60 Gemme"
+  },
+  "section_boosts": "⚡ Boost",
+  "section_gems": "💎 Gemme",
+  "section_skins": "⛏ Skin del piccone",
+  "skin_diamond": {
+   "label": "Aura blu sul blocco",
+   "name": "Piccone di diamante"
+  },
+  "skin_golden": {
+   "label": "Aura dorata sul blocco",
+   "name": "Piccone d’oro"
+  }
+ },
+ "shop_chest": {
+  "antique": {
+   "desc": "Possibile jackpot di frammenti. Massimo 5 aperture per stagione.",
+   "name": "Forziere antico"
+  },
+  "rare": {
+   "desc": "Più probabilità di ottenere frammenti e un oggetto da collezione.",
+   "name": "Forziere raro"
+  },
+  "simple": {
+   "desc": "Monete, frammenti o boost — piccole ricompense garantite.",
+   "name": "Forziere semplice"
+  }
+ },
+ "stats": {
+  "coins": "Monete",
+  "damage": "Danni",
+  "depth": "Prof.",
+  "depth_val": "{n}m",
+  "gems": "Gemme",
+  "pickaxe": "Piccone",
+  "pickaxe_val": "Lv.{n}",
+  "relics": "🔮 Framm."
+ },
+ "ui": {
+  "ad_cooldown": "Disponibile tra {min}:{sec}",
+  "ad_mock_sub": "Raddoppia tutti i guadagni!",
+  "ad_soon": "Ricompensa presto disponibile",
+  "ad_used": "Bonus già usato",
+  "block_aria": "Scava il blocco (Invio o Spazio)",
+  "block_reward": "Ricompensa: 💰 {amount}",
+  "boost_active": "⚡ Bonus monete ×{mult} attivo",
+  "boost_remaining": "— ancora {min}:{sec}",
+  "btn_claim": "Riscuoti la ricompensa",
+  "btn_close_ad": "Prendi il bonus →",
+  "btn_collect": "Raccogli!",
+  "btn_max": "MAX",
+  "btn_mission_claim": "Riscuoti",
+  "btn_mission_claim_aria": "Riscuoti {reward}",
+  "btn_open_chest": "Apri",
+  "btn_play_here": "Gioca qui",
+  "btn_reset": "Ricomincia la partita",
+  "btn_skip_ad": "Salta ✕",
+  "btn_unlock": "Sblocca",
+  "btn_upgrade": "Potenzia",
+  "btn_watch_ad": "Raddoppia la ricompensa",
+  "chest_content_label": "Contenuto",
+  "chest_loot": "Contenuto casuale",
+  "chest_reward_boost": "⚡ Boost monete ×{mult} — {minutes} min",
+  "chest_reward_coins": "💰 {amount} monete",
+  "chest_reward_relics": {
+   "$n": "amount",
+   "one": "🔮 {amount} frammento di reliquia",
+   "other": "🔮 {amount} frammenti di reliquia"
+  },
+  "chest_title": "{name} aperto!",
+  "collection_header": {
+   "$n": "found",
+   "one": "{found} / {total} trovato",
+   "other": "{found} / {total} trovati"
+  },
+  "confirm_reset": "Ricominciare la partita?\nPerderai tutte le monete, le gemme, i potenziamenti, le reliquie, gli obiettivi, le scoperte e la serie giornaliera.",
+  "daily_btn_claim": "Riscuoti la ricompensa",
+  "daily_claimed_msg": "✓ Ricompensa riscossa!",
+  "daily_next_msg": "Torna domani per continuare la serie.",
+  "daily_reward_boost": "⚡ Monete ×{mult} per {minutes} min",
+  "daily_reward_coins": {
+   "$n": "amount",
+   "one": "💰 {amount} moneta",
+   "other": "💰 {amount} monete"
+  },
+  "daily_reward_gems": {
+   "$n": "amount",
+   "one": "💎 {amount} gemma",
+   "other": "💎 {amount} gemme"
+  },
+  "daily_streak_day": "Giorno {n} di 7",
+  "daily_title": "Accesso giornaliero",
+  "device_inactive_text": "Il tuo account sta giocando altrove (altro dispositivo, browser o app). I tuoi progressi sono al sicuro: tocca «Gioca qui» per riprendere esattamente da dove eri rimasto.",
+  "device_inactive_title": "Partita aperta su un altro dispositivo",
+  "guest_warning": "Accedi per salvare i tuoi progressi!",
+  "hp_text": "{hp} / {maxHp} HP",
+  "mission_claimed": "✓ Riscossa",
+  "mission_progress": "{done} / {target}",
+  "mission_reward": "Ricompensa:",
+  "offline_duration": "Assente {dur}",
+  "offline_duration_cap": "Assente {full} (limitato a {capped})",
+  "offline_reward": "💰 +{coins} monete",
+  "offline_title": "Mentre eri via…",
+  "quest_claimed": "✓ Riscosso",
+  "relic_cost": {
+   "$n": "n",
+   "one": "🔮 {n} frammento",
+   "other": "🔮 {n} frammenti"
+  },
+  "relic_header": "{count} / {total} sbloccate — 🔮 frammenti: {frags}",
+  "relic_shortfall": "(ne mancano {n})",
+  "relic_unlocked_badge": "✓ Sbloccata",
+  "relic_upgrade_cost": {
+   "$n": "n",
+   "one": "🔮 {n} frammento → Lv. {next}",
+   "other": "🔮 {n} frammenti → Lv. {next}"
+  },
+  "reward_factor": {
+   "bag": "Sacca",
+   "boost": "Bonus temporaneo",
+   "event": "Bonus monete del gioco",
+   "relic": "Reliquia (monete)"
+  },
+  "reward_label": "Ricompensa",
+  "saved": "Salvato ✓",
+  "section_missions": "🎯 Missioni del giorno",
+  "section_objectives": "🎯 Obiettivi",
+  "section_relics": "✨ Reliquie",
+  "section_shop_chests": "🏪 Negozio stagionale",
+  "shop_chest_bought": "{n}/{max} aperti",
+  "shop_chest_error": "Errore durante l’apertura del forziere.",
+  "shop_chest_limit_reached": "Limite raggiunto",
+  "shop_chest_opened": "{name} aperto!",
+  "tab_inactive_text": "Per non mescolare i progressi, si può giocare in una sola scheda alla volta.",
+  "tab_inactive_title": "Gioco aperto in un’altra scheda",
+  "update_available": "Aggiornamento disponibile",
+  "update_reload": "↻ Ricarica",
+  "view_collection": "📦 Collezione",
+  "view_daily": "📅 Giornaliero",
+  "view_shop": "🛒 Negozio",
+  "view_upgrades": "⚙ Potenziamenti"
+ },
+ "upgrade": {
+  "autodig": {
+   "desc": {
+    "$n": "dmg",
+    "one": "{dmg} danno automatico/sec",
+    "other": "{dmg} danni automatici/sec"
+   },
+   "desc_off": "Inattivo",
+   "effect": "Danni auto/sec: {cur} → {next}",
+   "name": "Auto-Dig"
+  },
+  "bag": {
+   "desc": "Ricompense ×{mult}",
+   "desc_normal": "Ricompense normali",
+   "effect": "Ricompense ×{cur} → ×{next}",
+   "name": "Sacca"
+  },
+  "block_reroll": {
+   "desc": {
+    "$n": "n",
+    "one": "{n} cambio in questa stagione",
+    "other": "{n} cambi in questa stagione"
+   },
+   "desc_none": "Cambia il blocco attuale",
+   "name": "Cambia blocco"
+  },
+  "fragment_shop": {
+   "desc": "{n}/10 comprati in questa stagione",
+   "desc_none": "Compra 1 frammento di reliquia",
+   "name": "Frammenti"
+  },
+  "luck": {
+   "desc": "Più blocchi rari, senza rallentare",
+   "name": "Fortuna",
+   "preview": "A {depth}m: {now}% di blocchi rari → {next}%",
+   "preview_max": "A {depth}m: {now}% di blocchi rari",
+   "preview_none": "Nessun blocco raro prima dei 5m"
+  },
+  "max_level": "Livello massimo raggiunto",
+  "next_level": "Livello {cur} → {next}",
+  "pickaxe": {
+   "desc": {
+    "$n": "damage",
+    "one": "{damage} danno per clic",
+    "other": "{damage} danni per clic"
+   },
+   "effect": "Danni per clic: {cur} → {next}",
+   "name": "Piccone"
+  }
+ }
+});

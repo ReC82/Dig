@@ -30,7 +30,7 @@ const db     = require('./db');
 
 const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];
 const RARITIES   = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
-const LANGS      = ['fr', 'en', 'nl', 'es'];
+const LANGS      = [...require('./languages').CONTENT_LANGS];
 const MAX_ITEMS  = 400;
 const MAX_SERIES = 60;
 const MAX_IMAGE_BYTES = 350 * 1024;

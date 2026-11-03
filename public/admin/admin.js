@@ -1457,7 +1457,7 @@ let _shItems = [];
 
 function shMessage(id, text, ok) { ptMessage(id, text, ok); }
 
-const SH_LANGS = ['fr', 'en', 'nl', 'es'];
+const SH_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 
 function shFillForm(item) {
   document.getElementById('sh-id').value = item ? item.id : '';
@@ -1743,7 +1743,7 @@ function bkPreview() {
   }
 }
 
-const BK_LANGS = ['fr', 'en', 'nl', 'es'];
+const BK_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 
 function bkFillForm(t) {
   document.getElementById('bk-form-title').textContent = t ? `Modifier « ${t.id} »` : 'Nouveau bloc';
@@ -2259,7 +2259,7 @@ document.getElementById('btn-refresh-blocks').addEventListener('click', loadBloc
 
 // ── Création de blocs assistée par IA (#37) ─────────────────────────────────
 
-const AI_LANGS = [['fr', 'Français'], ['en', 'English'], ['nl', 'Nederlands'], ['es', 'Español']];
+const AI_LANGS = DigLanguages.selectable().map(l => [l.code, l.nativeName]); // registre des langues (#59)
 
 function aiEl(tag, attrs = {}, text) {
   const el = document.createElement(tag);
@@ -2603,7 +2603,7 @@ document.getElementById('btn-bk-simulate').addEventListener('click', async () =>
 // UX commune du panel (31/10) : la page montre d'abord séries et objets ; « ＋ Ajouter » ouvre un choix
 // (✨ collection avec l'IA, série ou objet manuel) ; un clic sur une ligne ouvre sa fiche.
 
-const CO_LANGS = ['fr', 'en', 'nl', 'es'];
+const CO_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 const CO_IMAGE_RE = /^(\/assets\/[A-Za-z0-9_\-/.]+\.(webp|png|svg)|\/api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp)|\/media\/icons\/[a-f0-9]{16}\.webp)$/;
 let _co = null;   // vue admin (GET /api/admin/collections)
 let _coAi = null; // propositions IA (GET /api/admin/collections/ai)
@@ -4582,7 +4582,7 @@ document.getElementById('btn-ic-budget').addEventListener('click', async () => {
 // clic sur une ligne → fiche (consultation, modification, activation). Un nouveau badge est toujours
 // enregistré DÉSACTIVÉ. La même fiche sert à relire une proposition IA (mode « proposition »).
 
-const BG_LANGS = ['fr', 'en', 'nl', 'es'];
+const BG_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 const BG_COND = {
   max_depth: 'Profondeur ≥ {n} m', blocks_of_type: '{block} ≥ {n}', blocks_total: 'Blocs minés ≥ {n}',
   distinct_types: 'Types différents ≥ {n}', chests_opened: 'Coffres ouverts ≥ {n}', play_days: 'Jours de jeu ≥ {n}',
@@ -5441,7 +5441,7 @@ function stDate(utc) {
   const d = new Date(String(utc).replace(' ', 'T') + 'Z');
   return isNaN(d) ? String(utc) : `${_stFmt.format(d)} (Bruxelles)`;
 }
-const ST_LANGS = ['fr', 'en', 'nl', 'es'];
+const ST_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 const ST_SOURCE = { pack: 'pack de saison rédigé', fallback: 'nom de repli automatique (sans collection)' };
 const ST_STATUS = { prepared: 'préparé', active: 'en cours', archived: 'archivé', rejected: 'rejeté (nom réservé)' };
 
@@ -5637,7 +5637,7 @@ document.getElementById('btn-st-prepare')?.addEventListener('click', async () =>
 // Liste d'abord ; « ＋ Ajouter » ouvre la fiche. Toute annonce est enregistrée en BROUILLON (y compris
 // celles mises en forme par l'IA) ; « Publier » / « Programmer » sont des actions séparées.
 
-const NW_LANGS = ['fr', 'en', 'nl', 'es'];
+const NW_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 const NW_STATES = { draft: '📝 Brouillon', scheduled: '⏰ Programmée', live: '✅ En ligne', expired: '⌛ Expirée', archived: '🗄 Archivée' };
 const NW_CATS = { news: 'Annonce', season: 'Saison', event: 'Événement', update: 'Mise à jour', maintenance: 'Maintenance', community: 'Communauté', player: 'Fait joueur' };
 const NW_SOURCES = { manual: 'Manuelle', ai: 'Mise en forme IA', auto: 'Automatique' };
@@ -5877,7 +5877,7 @@ if (document.getElementById('news-dialog')) {
 
 let _ev = null;          // vue admin (GET /api/admin/events)
 let _evEditing = null;   // identifiant en cours de modification (null = création)
-const EV_LANGS = ['fr', 'en', 'nl', 'es'];
+const EV_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 const EV_STATES = { draft: '📝 Brouillon', planned: '🗓️ Planifié', active: '🟢 Actif', ended: '🏁 Terminé' };
 const EV_RARITIES = { commun: 'Commun', 'peu-commun': 'Peu commun', rare: 'Rare', epique: 'Épique', legendaire: 'Légendaire' };
 const EV_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
