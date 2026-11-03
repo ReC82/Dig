@@ -295,3 +295,135 @@ Aucune décision utilisateur nécessaire.
 - #34 boutique (dépense `virtual` ; `real` verrouillé jusqu'à #27) ; #31 intégration dans la
   refonte de l'onglet Saison.
 - Signalé hors périmètre (inchangé) : l'ajustement admin n'a pas de clé d'idempotence côté panel.
+
+# Mise à jour du 03/11/2026, 02:00 (Bruxelles) — audit des points à la clôture d'une saison
+
+## 1. Ticket
+
+#33 — [P1] Points de récompense saisonniers — attribution au mérite et portefeuille persistant —
+https://github.com/ReC82/Dig/issues/33. Demande du propriétaire du 02/11 à 23:32 UTC
+(https://github.com/ReC82/Dig/issues/33#issuecomment-6591198824) : auditer et tester une clôture dans un
+environnement isolé (calcul des points, attribution unique même après une reprise ou un redémarrage,
+registre, consultation côté joueur, comparaison avec le classement figé, absence de double crédit),
+sans cadeau réel ni changement de barème, et appliquer un éventuel correctif technique non économique.
+
+## 2. État réel
+
+**Déployé en production (SHA `aeeb5e8`), en attente de recette.** Aucun défaut de calcul ni de double
+crédit trouvé. J'ai ajouté un contrôle automatique des clôtures, un garde de sécurité et 8 tests de
+pannes et de redémarrages. Le barème, les montants et les règles n'ont pas changé.
+
+## 3. Résultats, en clair (pré-bêta)
+
+**En production (relu en lecture seule, puis contrôlé sur une copie de la base) :**
+
+| Saison | Mode | Éligibles | Points attribués | Contrôle |
+|---|---|---|---|---|
+| Saison 44-2026 · 2 (close le 02/11 à 00:00 UTC) | réel | 1 | 5 | OK |
+| Saison 44-2026 (close le 30/10 à 15:45 UTC) | réel | 1 | 5 | OK |
+| 5 saisons plus anciennes (avant l'activation du 30/10) | simulation seulement | 0 ou 1 | 0 crédité | OK |
+
+- Registre : 2 crédits, soit 10 points pour un seul portefeuille. Le solde est égal à la somme du
+  registre, il n'y a aucun doublon et aucune saison n'a été créditée deux fois. Plusieurs déploiements
+  et redémarrages ont eu lieu depuis le 30/10 sans aucun crédit supplémentaire.
+- Pourquoi 5 points et pas 100 pour le 1er : avec **un seul joueur éligible**, la catégorie « 1er »
+  exige au moins 3 éligibles (barème v1 validé). C'est la catégorie « Participant » (5 points) qui
+  s'applique. Ce comportement est voulu, ce n'est pas une erreur.
+- Les 7 classements figés sont intacts : empreintes des lignes, du classement et de la chaîne vérifiées.
+- « Mimosa » est le nom de la **ligue** de départ (niveau 0), pas celui d'une saison : il figure dans
+  le rapport de promotion de chaque saison (« 1 joueur actif, promotion ignorée »). Il n'a aucun
+  effet sur les points (bonus de ligue 0 %). Les noms de saison thématiques relèvent de #48.
+
+**En environnement isolé** (bases temporaires, horloge simulée, serveur de test sur le port 3137,
+fichier `test/points-closure-audit.test.js`) :
+
+1. **Clôture ordinaire** (13 joueurs, dont un ex æquo parfait et un joueur sans profondeur) : les
+   points sont recalculés **à la main** depuis le classement figé : 100 / 30 / 20 / 12 / 12 / 12 /
+   12 (ex æquo) / 5 ×5 / 0, soit 223 points. Les crédits sont identiques, un seul mouvement par joueur.
+   Relancer l'attribution, le rattrapage ou la clôture ne crédite rien de plus.
+2. **Scores arrivés après la clôture** : ils n'ont aucun effet sur le classement figé ni sur les points.
+3. **Panne entre la clôture et l'attribution** : la saison est close et figée sans aucun point. Au
+   redémarrage, le rattrapage crédite **une seule fois** (les passages suivants ne font rien).
+4. **Panne au milieu de l'attribution** (échec au 3e joueur alors que 2 sont déjà crédités dans la
+   transaction) : **rien n'est conservé**, pas de crédit partiel. Après la reprise, tout le monde est
+   crédité une fois.
+5. **Classement figé falsifié** (base de test, protection retirée exprès) : le crédit est **refusé**
+   et le contrôle signale l'écart. Une fois la ligne restaurée, le crédit a lieu une seule fois.
+6. **Barème modifié après coup** (base de test uniquement) : les saisons closes ne sont jamais recréditées.
+7. **Saison sans participant** : exécution vide, aucun crédit. Contrôle global OK et somme des soldes
+   égale à la somme des exécutions réelles.
+8. **Vrai serveur arrêté par `kill -9`** : l'échéance tombe pendant l'arrêt. Au redémarrage, le
+   serveur clôt, fige et crédite avant d'accepter les requêtes. Le joueur voit 12 points, la saison
+   dans son historique, et 2e sur 4 en catégorie Top 50 %. Après deux autres `kill -9` suivis d'un
+   redémarrage, le registre et les exécutions sont identiques. Le contrôle du panel admin est OK.
+
+## 4. Changements réalisés
+
+- `server/rewardPoints.js` :
+  - `auditSeason(id)` et `auditAllSeasons()` : contrôle en lecture seule. Le classement figé est
+    intact, chaque exécution porte sur l'empreinte figée, les attributions sont égales au recalcul
+    avec le barème de l'exécution, et chaque crédit réel correspond à un seul mouvement du registre
+    (même joueur, même montant, aucun mouvement orphelin) ;
+  - **garde d'intégrité** dans `awardSeason` : aucune attribution si les empreintes du classement
+    figé ne correspondent plus aux lignes stockées. Dans ce cas rien n'est écrit, l'erreur est
+    journalisée et le planificateur retente.
+- `public/admin/admin.js` : l'onglet Points affiche « Contrôle des clôtures (classement figé ↔
+  attributions ↔ registre) : OK (N saison(s)) », ou le détail des écarts.
+- `public/js/main.js` : dans l'historique des points du joueur, chaque crédit de saison indique le
+  rang figé (par exemple « Récompense de saison — Saison 44-2026 · 2 — #1/1 +5 pts »).
+- `test/points-closure-audit.test.js` : les 8 scénarios ci-dessus.
+
+## 5. SHA, branche et procédure de test
+
+- Branche `feature/33-points-recompense` (commit `e6b1969`), intégrée dans `develop` en `aeeb5e8`.
+- `npm test` : 450/450 réussis sur la branche, sur `develop` et sur la release `aeeb5e8`.
+- Test ciblé : `node --test test/points-closure-audit.test.js` (8/8).
+
+## 6. Déploiement
+
+- Déployé `fb5846a → aeeb5e8` le 03/11 à 01:51 (Bruxelles). Sauvegarde vérifiée :
+  `~/backups/dig/dig-20261103-015112-pre-deploy-aeeb5e8.sqlite`.
+- Avant le déploiement : copie de la base de production démarrée en mode production sur le port 3122.
+  `/health` et version OK. Empreintes identiques avant et après le démarrage (`users`, `user_saves`,
+  `season_rankings`, `seasons`, `leagues`, `player_click_tracking`, registre et portefeuilles de
+  points). Copie supprimée ensuite.
+- Après le déploiement : les deux domaines répondent 200 en `1.0.0+aeeb5e8`, le journal ne contient
+  aucune erreur, `quick_check` = ok, les données joueurs et le registre sont inchangés (2 crédits, 10 points).
+- Aucune migration de schéma. Retour arrière : `git -C /home/ubuntu/Dig reset --keep fb5846a` puis
+  redémarrage.
+- Non fait : essai dans un navigateur (le panneau Points demande une connexion joueur). Le
+  changement côté client se limite à une ligne de libellé, vérifiée par `node --check`.
+
+**Test fonctionnel à faire par le propriétaire (2 minutes) :**
+1. Panel admin → onglet **Points** : la ligne de totaux se termine par « Contrôle des clôtures
+   (classement figé ↔ attributions ↔ registre) : OK (7 saison(s)) ». Le contrôle du registre est OK.
+2. En jeu, connecté, page **Saison** → carte **Points de récompense** → « Historique » : deux lignes
+   « Récompense de saison — Saison 44-2026 — #1/1 +5 pts » et « … Saison 44-2026 · 2 — #1/1 +5 pts »,
+   solde 10 pts (après un rechargement de la page).
+3. Dimanche 08/11 après 23:59:59 UTC (lundi 00:00 à 01:00 heure de Bruxelles) : la Saison 45-2026 est
+   créditée une fois, avec une nouvelle ligne dans l'historique et le contrôle toujours OK.
+
+Classement : **Bloquant MVP public** (fiabilité de la monnaie de récompense). Le travail est livré.
+
+## 7. Choix techniques faits seul
+
+- Garde d'intégrité limitée aux empreintes des lignes et du classement. Le lien de chaîne avec la
+  saison précédente n'est pas exigé, pour qu'une anomalie ancienne ne bloque pas indéfiniment les points des
+  saisons suivantes. Ce lien reste vérifié par le contrôle et dans #29.
+- Le contrôle recalcule le bonus de ligue avec les niveaux actuels des ligues. Le bonus est de 0 %
+  aujourd'hui, donc sans effet. S'il était activé un jour et qu'un niveau de ligue changeait, le
+  contrôle pourrait signaler un faux écart, mais sans jamais toucher aux crédits.
+- La demande citait #48 (saisons thématiques), qui n'est pas encore livré. Les points sont rattachés
+  à l'identifiant de saison et non à son nom : un renommage ou un thème n'a aucun effet sur
+  l'attribution. Le scénario sur 12 cycles de #57 (`test/season-cycles-12.test.js`) couvre déjà la
+  rotation, le changement d'heure et la panne de deux semaines.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire. Le barème et les règles n'ont pas changé.
+
+## 9. Reste à réaliser
+
+- Rien pour #33, en dehors de la recette du propriétaire.
+- Après lancement : un test de clôture réel avec au moins 3 joueurs éligibles permettrait de voir
+  les catégories « 1er » et « Top % » en conditions réelles.
