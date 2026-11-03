@@ -1290,7 +1290,12 @@ app.delete('/api/admin/collections/draft/:kind/:id', requireAdmin, collectionRou
 app.delete('/api/admin/collections/draft', requireAdmin, collectionRoute('DELETE /api/admin/collections/draft',
   () => ({ discarded: collectionCatalog.discardDraft() })));
 app.post('/api/admin/collections/publish', requireAdmin, collectionRoute('POST /api/admin/collections/publish',
-  req => collectionCatalog.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.expectedBasedOn, confirmDrops: req.body?.confirmDrops === true })));
+  req => collectionCatalog.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.expectedBasedOn, confirmDrops: req.body?.confirmDrops === true,
+    confirmIncomplete: req.body?.confirmIncomplete === true })));
+// Publication ciblée d'une seule série du brouillon (03/11) : le reste du brouillon n'est pas publié
+app.post('/api/admin/collections/series/:id/publish', requireAdmin, collectionRoute('POST /api/admin/collections/series/:id/publish',
+  req => collectionCatalog.publishSeries(String(req.params.id), { note: req.body?.note, expectedBasedOn: req.body?.expectedBasedOn,
+    confirmDrops: req.body?.confirmDrops === true, confirmPermanent: req.body?.confirmPermanent === true })));
 app.post('/api/admin/collections/rollback', requireAdmin, collectionRoute('POST /api/admin/collections/rollback',
   req => collectionCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
 app.post('/api/admin/collections/images', requireAdmin, collectionRoute('POST /api/admin/collections/images',

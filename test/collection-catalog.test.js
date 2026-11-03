@@ -157,9 +157,12 @@ test('publication : drop nouveau sous confirmation, version périmée refusée, 
   catalog.upsertDraftSeries({ id: 'hiver', names: { fr: 'Hiver' }, seasonId: season.id, icon: '❄️' });
   catalog.upsertDraftItem(ITEM());
   assert.throws(() => catalog.removeDraftEntry('series', 'hiver'), e => e.status === 409);   // encore utilisée
-  assert.throws(() => catalog.publishDraft({}), e => e.status === 409 && /barème/.test(e.message));
+  assert.throws(() => catalog.publishDraft({ confirmIncomplete: true }), e => e.status === 409 && /barème/.test(e.message));
   assert.throws(() => catalog.publishDraft({ confirmDrops: true, expectedBasedOn: 1 }), e => e.status === 409);
-  const p3 = catalog.publishDraft({ confirmDrops: true });
+  // Série incomplète (saison terminée, sans illustration ni traductions) : acceptation explicite exigée
+  assert.throws(() => catalog.publishDraft({ confirmDrops: true }), e => e.status === 409 && /incomplètes/.test(e.message)
+    && e.details.some(d => /hiver : Sans illustration : flocon/.test(d)));
+  const p3 = catalog.publishDraft({ confirmDrops: true, confirmIncomplete: true });
   assert.strictEqual(p3.version, 3);
   assert.deepStrictEqual(p3.drops.map(d => d.id), ['flocon']);
   assert.ok(catalog.listAudit().some(a => a.action === 'publish' && a.details.dropsConfirmed));
@@ -186,6 +189,76 @@ test('publication : drop nouveau sous confirmation, version périmée refusée, 
   assert.throws(() => conn().prepare('UPDATE collection_catalog_versions SET note = 1').run(), /ajout seul/);
   assert.throws(() => conn().prepare('DELETE FROM collection_catalog_versions').run(), /ajout seul/);
   assert.throws(() => conn().prepare('DELETE FROM collection_catalog_audit').run(), /ajout seul/);
+});
+
+test('publication ciblée : une série complète seule, le reste du brouillon intact (03/11)', () => {
+  const next = db.createSeason('Saison test programmée', '2099-01-05T00:00:00Z', '2099-01-11T23:59:59Z', 'scheduled');
+  const T4 = (fr) => ({ fr, en: `${fr} en`, nl: `${fr} nl`, es: `${fr} es` });
+  const IMG = c => `/media/icons/${c.repeat(16)}.webp`;
+  const OBJ = (id, seriesId, over = {}) => ({ id, seriesId, names: T4(id), stories: T4(`Histoire ${id}`), rarity: 'commun', icon: '🧳',
+    image: IMG('a'), drop: { from: ['terre'], minDepth: 5, chance: 0.03 }, dropEnabled: false, active: true, ...over });
+  const before = catalog.getPublished().version;
+  assert.strictEqual(catalog.getDraft(), null);
+  catalog.upsertDraftSeries({ id: 'legende', names: T4('Légende'), seasonId: null, icon: '🧳' });
+  catalog.upsertDraftItem(OBJ('orange', 'legende'));
+  catalog.upsertDraftItem(OBJ('culotte', 'legende', { image: IMG('b') }));
+  catalog.upsertDraftSeries({ id: 'mine', names: T4('Mine'), seasonId: next.id, icon: '⛏️' });
+  catalog.upsertDraftItem(OBJ('lanterne', 'mine', { image: null, names: { fr: 'Lanterne' } }));
+
+  // Contrôle : « Permanente » expliquée et bloquante, drops inactifs bloquants, manques listés
+  const r = Object.fromEntries(catalog.buildAdminView().draft.readiness.map(x => [x.seriesId, x]));
+  assert.deepStrictEqual(Object.keys(r).sort(), ['legende', 'mine']);
+  assert.ok(r.legende.needsPermanent && r.legende.blocking.some(b => /^Permanente/.test(b)));
+  assert.ok(r.legende.blocking.some(b => /Aucun drop activé/.test(b)));
+  assert.strictEqual(r.mine.schedule, 'scheduled');
+  assert.ok(r.mine.info.some(i => /invisible des joueurs/.test(i)));
+  assert.ok(r.mine.blocking.some(b => /Sans illustration : lanterne/.test(b)) && r.mine.blocking.some(b => /Nom manquant/.test(b)));
+
+  // Rien ne passe tant que c'est incomplet ; la publication globale non plus
+  assert.throws(() => catalog.publishSeries('mine', { confirmDrops: true }), e => e.status === 409 && /incomplète/.test(e.message));
+  assert.throws(() => catalog.publishDraft({ confirmDrops: true }), e => e.status === 409 && /incomplètes/.test(e.message));
+  assert.throws(() => catalog.publishSeries('inconnue'), e => e.status === 404);
+  assert.strictEqual(catalog.getPublished().version, before);
+
+  // Rattachée à la saison programmée, drops activés : barème exigé, puis publication de « legende » seule
+  catalog.upsertDraftSeries({ id: 'legende', names: T4('Légende'), seasonId: next.id, icon: '🧳' });
+  for (const id of ['orange', 'culotte']) catalog.upsertDraftItem({ ...catalog.getDraft().items.find(i => i.id === id), dropEnabled: true });
+  assert.throws(() => catalog.publishSeries('legende', { expectedBasedOn: before }), e => e.status === 409 && /barème/.test(e.message));
+  assert.throws(() => catalog.publishSeries('legende', { expectedBasedOn: before - 1, confirmDrops: true }), e => e.status === 409);
+  const pub = catalog.publishSeries('legende', { expectedBasedOn: before, confirmDrops: true });
+  assert.strictEqual(pub.version, before + 1);
+  const live = catalog.getPublished();
+  assert.ok(live.series.some(s => s.id === 'legende') && !live.series.some(s => s.id === 'mine'));
+  assert.deepStrictEqual(live.items.filter(i => i.seriesId === 'legende').map(i => i.id), ['orange', 'culotte']);
+  assert.ok(!live.items.some(i => i.id === 'lanterne'));
+  assert.strictEqual(live.note, 'Publication ciblée : série legende');
+  const rest = catalog.buildAdminView().draft;
+  assert.strictEqual(rest.basedOn, before + 1);
+  assert.deepStrictEqual(rest.readiness.map(x => x.seriesId), ['mine']);
+  assert.ok(rest.changes.every(c => ['mine', 'lanterne'].includes(c.id)));
+  assert.ok(catalog.listAudit().some(a => a.action === 'publish_series' && a.details.seriesId === 'legende' && a.details.dropsConfirmed));
+
+  // Jeu : saison programmée → masquée et sans drop ; à son ouverture → drops
+  const now = loadClient(next.id - 1), then = loadClient(next.id);
+  for (const c of [now, then]) c.Collection.applyCatalog(catalog.publicCatalog());
+  assert.ok(now.Collection.isArchived(now.Collection.SERIES.find(s => s.id === 'legende')));   // non possédée → non affichée
+  assert.ok(!now.Collection.canDrop(now.Collection.getById('orange')));
+  assert.ok(then.Collection.canDrop(then.Collection.getById('orange')));
+
+  // Illustration déjà publiée : son retrait est signalé
+  catalog.upsertDraftItem({ ...catalog.getDraft().items.find(i => i.id === 'culotte'), image: null });
+  const w = catalog.buildAdminView().draft.readiness.find(x => x.seriesId === 'legende');
+  assert.ok(w.warnings.some(x => /culotte.*illustration publiée serait retirée/.test(x)));
+  catalog.upsertDraftItem({ ...catalog.getDraft().items.find(i => i.id === 'culotte'), image: IMG('b') });
+
+  // Nouvelle série permanente : confirmation explicite ; brouillon supprimé quand plus rien n'y reste
+  catalog.removeDraftEntry('items', 'lanterne');
+  catalog.removeDraftEntry('series', 'mine');
+  catalog.upsertDraftSeries({ id: 'perma', names: T4('Perma'), seasonId: null, icon: '♾️' });
+  catalog.upsertDraftItem(OBJ('perma_obj', 'perma', { dropEnabled: true }));
+  assert.throws(() => catalog.publishSeries('perma', { confirmDrops: true }), e => e.status === 409 && e.details.some(d => /^Permanente/.test(d)));
+  assert.strictEqual(catalog.publishSeries('perma', { confirmDrops: true, confirmPermanent: true }).version, before + 2);
+  assert.strictEqual(catalog.getDraft(), null);
 });
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), crypto.randomBytes(64)]);
@@ -240,7 +313,10 @@ test('routes : catalogue public, images, administration protégée', async (t) =
   const view = await call('GET', '/api/admin/collections');
   assert.strictEqual(view.status, 200);
   assert.deepStrictEqual(view.body.draft.drops, []);
-  const p = await call('POST', '/api/admin/collections/publish', { note: 'test', expectedBasedOn: 1 });
+  assert.strictEqual((await call('POST', '/api/admin/collections/publish', { note: 'test', expectedBasedOn: 1 })).status, 409);   // flocon sans illustration
+  assert.strictEqual((await call('POST', '/api/admin/collections/series/origines/publish', { expectedBasedOn: 1 })).status, 409);
+  assert.strictEqual((await call('POST', '/api/admin/collections/series/origines/publish', {}, { auth: false })).status, 401);
+  const p = await call('POST', '/api/admin/collections/publish', { note: 'test', expectedBasedOn: 1, confirmIncomplete: true });
   assert.deepStrictEqual([p.status, p.body.version], [200, 2]);
   assert.strictEqual((await call('GET', '/api/collections/catalog', undefined, { auth: false })).body.items.length, 9);
 
