@@ -1,6 +1,120 @@
 # Ticket #40 — Atelier d'icônes IA dans le panel : objets, reliques, blocs et cohérence graphique
 
-Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch ; dernière mise à jour le 03/11/2026, 03 h 00.
+Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch ; dernière mise à jour le 03/11/2026, 13 h 45.
+
+---
+
+# Mise à jour du 03/11/2026, 13 h 45 (Bruxelles) — plus de plafond bloquant, consigne résumée en 4 champs
+
+**État réel : Déployé en production (SHA `d8d3e80`) — en attente de recette.** Classement : **Après lancement** (outil d'administration, sans effet sur les joueurs).
+
+Demandes traitées (commentaires du propriétaire sur #40, 03/11) :
+- [11:21 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6602489452) : « trop de texte à vérifier » → résumé lisible en quatre champs, texte exact replié et copiable ;
+- [11:26](https://github.com/ReC82/Dig/issues/40#issuecomment-6602580382) et [11:30](https://github.com/ReC82/Dig/issues/40#issuecomment-6602661436) : lanterne en betterave validée (génération, conservation, affichage) ; bouton « Publier dans Collections » jugé ambigu ;
+- [11:33](https://github.com/ReC82/Dig/issues/40#issuecomment-6602717489) et [11:37](https://github.com/ReC82/Dig/issues/40#issuecomment-6602791410) : compteurs à expliquer (période, périmètre, estimation ou coût réel) ; carré □ à la place d'une icône absente ;
+- [11:39](https://github.com/ReC82/Dig/issues/40#issuecomment-6602823776) : **décision « pas de plafond tout court »**, désactivé par défaut même après redémarrage, sans éditer `~/.config/dig/openai.env`.
+
+## 1. Résultat
+
+### 1.1 Plafond de dépense IA désactivé par défaut (`server/aiSpendCap.js`, nouveau)
+- Le plafond ne bloque plus aucun appel du panel : ni l'atelier d'icônes, ni les textes IA des blocs, collections, badges et actualités. Ce réglage est enregistré dans la base. Il est désactivé par défaut et reste désactivé après un redémarrage.
+- `DIG_IMAGE_BUDGET_USD`, défini dans `~/.config/dig/openai.env`, ne limite plus que les scripts d'icônes hors ligne (#22). Le fichier n'a pas été modifié.
+- **Réactivable** dans ⚙ Config → Budget IA : cocher « Activer un plafond bloquant », saisir un montant, puis Enregistrer. Le plafond s'applique au cumul de tout Dig, sans redémarrage. Chaque changement est tracé dans l'historique de l'atelier, et Dig ne le relève ni ne le réactive jamais seul. L'ancienne « limite de l'atelier » (1 USD) reste dans la base mais n'est plus utilisée.
+- **Toujours actifs** : une image par clic, un seul appel à la fois, au plus 40 images et 40 appels texte par 24 h, contrôle du sujet, refus d'un onglet obsolète. Le coût de chaque appel est journalisé.
+- **Plus de génération en lot sans plafond actif.** Le bouton « Générer les N images manquantes » est masqué et le serveur refuse le lot (409). Les objets s'illustrent un par un.
+- Quand un plafond actif refuse un appel, le message donne les montants à 4 décimales : déjà dépensé, réservé pour l'image, réservé pour le contrôle du sujet, plafond.
+
+### 1.2 Compteurs expliqués (⚙ Config → Budget IA)
+Le panneau indique d'abord l'état du plafond (« Aucun plafond bloquant… » ou « Plafond bloquant actif : X USD, il reste Y »). Il affiche ensuite :
+- **Ce mois-ci (UTC)**, à comparer à « November spend » d'OpenAI ;
+- **Cumul de tout Dig** depuis le premier appel journalisé, avec la part images et la part textes ;
+- **Atelier d'icônes seul** ;
+- **Dernière image** : coût calculé après l'appel ;
+- **Avant chaque image** : l'estimation réservée avant l'appel.
+
+Une section repliable « Que mesurent ces montants ? » précise que ces coûts sont **calculés par Dig** (jetons renvoyés par l'API × tarifs configurés). Le tableau de bord OpenAI fait foi.
+
+**Audit du journal de production** (lecture seule, `~/.local/state/dig-icons/ledger.jsonl`, 66 lignes) :
+
+| Période | Appels | Coût calculé par Dig |
+|---|---|---|
+| Octobre 2026 (scripts #22 : 24 images ; blocs : 2 images + 2 textes ; 4 échecs à 0) | 32 | 2,1080 USD |
+| Novembre 2026 jusqu'au 03/11, 12 h 23 (atelier : 9 images + 21 contrôles ; textes collections, badges et actualités) | 34 | 0,7744 USD |
+| **Cumul** | 66 | **2,8822 USD** |
+
+- Le « 2,88 / 3 USD » de l'atelier était donc le **cumul depuis le 30/10**, scripts #22 d'octobre compris. Ce n'est pas le mois en cours. Il n'y a ni double comptage ni faux cumul : chaque appel n'apparaît qu'une fois dans le journal.
+- Pour novembre, Dig calcule **0,77 USD** et OpenAI affiche **0,96 USD**. L'écart de 0,19 USD ne s'explique pas par le journal. Causes possibles : tarifs configurés différents des tarifs réels, ou autres appels sur la même clé ou organisation. Le code prévoit en effet une clé partagée transitoire avec un autre projet. Je n'ai pas lu la configuration de la clé, je ne peux donc pas trancher.
+- La réservation de 0,11 USD n'est pas une dépense : c'est une estimation (plus cher des 5 derniers coûts réels, 0,0823 USD, + 25 %), utilisée seulement quand un plafond est actif.
+
+### 1.3 Consigne résumée en quatre champs (atelier, fiche d'un objet)
+- Par défaut, la fiche affiche un résumé de quatre lignes :
+  - **Sujet** : nom français de l'objet + sujet de la consigne ;
+  - **Forme et matière** ;
+  - **Couleurs** (sans le préfixe « Palette: ») ;
+  - **Style et contraintes** : résumé **en français** du gabarit commun (3D low-poly, silhouette réelle, objet isolé, fond transparent, 1024 × 1024, style de la pierre de référence).
+- Les champs de saisie s'ouvrent avec « ✎ Modifier la consigne ». Ils s'ouvrent d'office si une modification n'est pas enregistrée.
+- « **Texte exact envoyé à l'IA** » est replié sous le résumé, avec « 📋 Copier le texte ». Il n'est pas nécessaire de le relire pour générer.
+- Limite : sujet, forme et couleurs restent dans la langue où la consigne est écrite. Les consignes préparées sont en anglais, et les traduire demanderait un appel IA (question 1).
+
+### 1.4 Autres retours
+- « Publier dans 📿 Collections → » devient « **Ouvrir l'onglet 📿 Collections →** » (bouton secondaire), avec la mention « Rien n'est publié ici : la publication se décide dans l'onglet Collections ». Le bouton ne publiait déjà rien : il changeait seulement d'onglet.
+- Miniature d'un objet sans image : quand l'emoji n'est pas affichable sur l'appareil (par exemple 🪶 U+1FAB6 sous Windows 10), la case affiche « **Pas encore d'image** » au lieu du carré □, ou de ⬜ en l'absence d'emoji. La détection se fait par rendu sur canvas.
+
+## 2. SHA, branche, procédure de test
+- Branche `feature/40-atelier-icones`, commit `b2ea799` ; **`develop` = `d8d3e80`**.
+- `npm test` : **528/528** sur la branche et sur la release `d8d3e80`. `npm run check` OK.
+- Nouveaux tests :
+  - `test/icon-studio.test.js` : plafond désactivé par défaut, totaux toujours calculés ; activation refusée sans montant ; plafond réactivé qui refuse avec montants à 4 décimales et réservation détaillée ; désactivation qui conserve le montant ; changements tracés ; lot refusé (409, 0 appel) sans plafond ; route PUT `/api/admin/icons/budget` (401, 400, activer, désactiver) ; résumé `promptSummary` ;
+  - `test/block-ai.test.js` : 5 USD déjà dépensés, au-delà de l'ancien plafond, et aucun refus ; plafond réactivé qui refuse (402).
+- Essai Chromium `test/e2e/icon-studio-nocap.e2e.js`, réussi à 390 px et à 1280 px. Conditions : copie de la base de production (supprimée ensuite), IA simulée, 0 USD. Vérifié sur « La plume de l'oie bavarde » :
+  - « Générer » actif, sans « Plafond atteint » ;
+  - quatre champs remplis, saisie repliée, texte exact replié et copiable ;
+  - une image par clic, rien conservé ;
+  - aucun bouton de lot ;
+  - ⚙ Config → Budget IA : totaux affichés ; plafond 0,01 activé, « Refaire » bloqué avec message explicite ; plafond désactivé ;
+  - aucune erreur JS, pas de défilement horizontal.
+- `test/e2e/icon-studio-series.e2e.js` active désormais un plafond large avant d'essayer le lot.
+
+## 3. Données, limites
+- Migration : **aucune**. Seules des clés sont ajoutées dans `icon_studio_settings` (`spend_cap_enabled`, `spend_cap_usd`), et seulement si l'admin les règle. Aucune donnée de joueur n'est touchée.
+- Le serveur n'a lancé aucune génération payante ; aucun plafond n'a été relevé ou réactivé.
+
+## 4. Déploiement
+- **SHA déployé : `d8d3e80`**, le 03/11 à 13 h 22 (Bruxelles). La version précédente était `6b54ba7`. Aucune génération n'était en cours : le dernier appel datait de 12 h 22.
+- Contrôles avant déploiement :
+  - release : `npm test` 528/528 ;
+  - copie de la base de production sur le port 3122 : `/health` OK, `/api/version` `1.0.0+d8d3e80`, empreintes identiques (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`), plafond absent donc désactivé ; copie supprimée.
+- Sauvegarde : `~/backups/dig/dig-20261103-132250-pre-deploy-d8d3e80.sqlite`, vérifiée.
+- Contrôles après déploiement :
+  - les 2 domaines répondent 200 avec `1.0.0+d8d3e80` ;
+  - `admin.js?v=1.0.0+d8d3e80` ;
+  - journal sans erreur ;
+  - `quick_check` ok ;
+  - empreintes identiques à la sauvegarde.
+- Retour arrière possible : `git -C /home/ubuntu/Dig reset --keep 6b54ba7` puis `sudo systemctl restart dig`. Le lock n'a pas changé ; aucune migration à défaire.
+
+## 5. Test fonctionnel à faire par le propriétaire
+1. Recharger le panel (Ctrl+F5).
+2. ⚙ Config → **Budget IA**. Attendu : « Aucun plafond bloquant… », puis les lignes « Ce mois-ci (novembre 2026, UTC) » (≈ 0,77 USD), « Cumul de tout Dig » (≈ 2,88 USD depuis le 30/10) et « Dernière image » (0,0823 USD).
+3. 🎨 Icônes → « **La plume de l'oie bavarde** ». Attendu : le résumé Sujet / Forme et matière / Couleurs / Style et contraintes, « ✎ Modifier la consigne », et « Texte exact envoyé à l'IA » replié. « ✨ Générer une image » est actif, sans « Plafond atteint ».
+4. Si vous le décidez : **un clic** sur « ✨ Générer une image ». Attendu : une seule image (≈ 0,08 USD), puis la comparer à la lanterne. Rien n'est conservé sans votre clic.
+5. Liste des icônes, filtre Objets : aucun bouton « Générer les N images manquantes ».
+6. Facultatif : cocher « Activer un plafond bloquant » avec un montant inférieur au cumul. « Générer » se bloque avec les montants détaillés. Décocher pour revenir.
+
+## 6. Choix techniques faits seul
+- **Plafond unique sur le cumul de tout Dig**, au lieu de deux plafonds (serveur + atelier) : c'était la source de confusion signalée, et la décision demande « pas de plafond ».
+- Le fichier serveur ne limite plus le panel. Il reste la protection des scripts hors ligne #22, utilisés par les sessions autonomes.
+- **Lot refusé sans plafond actif** : la décision interdit toute génération par lot. Le lot redevient possible si un plafond est réactivé, ce qui garde une borne de dépense.
+- Résumé « Style et contraintes » rédigé en français à partir du gabarit, sans appel IA. Les trois autres champs ne sont pas traduits (pas de dépense automatique).
+- Mois en UTC, comme la facturation OpenAI.
+
+## 7. Décisions demandées au propriétaire
+1. **Résumé entièrement en français** : sujet, forme et couleurs restent en anglais pour les consignes préparées. Options : (a) laisser ainsi ; (b) bouton « Traduire en français » par objet, un appel texte au clic (≈ 0,001 USD) ; (c) écrire désormais les consignes en français, que le modèle d'image comprend. **Recommandé : (a)** pour l'instant, (b) si la relecture reste pénible.
+2. **Écart de novembre (Dig 0,77 USD contre OpenAI 0,96 USD)** : la clé utilisée par Dig est-elle dédiée à Dig ou partagée avec un autre projet ? Si elle est partagée, **recommandé : une clé dédiée Dig**, pour que le tableau de bord corresponde au journal.
+
+## 8. Reste à faire
+- Recette de la plume (une image, sur décision du propriétaire), puis des autres objets de Saint-Martin, un par un.
+- Après lancement : traduction du résumé (question 1) ; boutons Rafraîchir de l'atelier (#60).
 
 ---
 
