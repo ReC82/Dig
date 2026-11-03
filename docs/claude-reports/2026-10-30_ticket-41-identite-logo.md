@@ -131,3 +131,78 @@ Chaque proposition générée a un bouton **« Voir dans le vrai en-tête ↗ »
 - Activer le logo choisi (décision 1), et éventuellement mettre l'icône PWA en cohérence.
 - Pictogramme Améliorations (décision 2) et destination du bouton Profil (décision 3).
 - Facultatif : générer 1 à 3 emblèmes IA dans l'atelier, si le budget est relevé (voir #40, décision 1).
+
+---
+
+## Mise à jour du 03/11/2026 — logo A « Lingot » activé par défaut
+
+**Ticket** : #41 — Identité DIG! — https://github.com/ReC82/Dig/issues/41
+
+**État réel** : **Déployé en production (SHA dec9d2c) — en attente de recette.**
+
+### Décision du propriétaire appliquée
+
+Commentaire du 03/11/2026 : le propriétaire a choisi le **logo A « Lingot »**. Aucune autre comparaison ne lui est demandée.
+
+### Changements
+
+- `public/index.html` : le titre texte « ⛏ DIG! » est remplacé par l'image `assets/logo/a-lingot.svg`, avec le texte alternatif « DIG! » (lecteurs d'écran) et une taille de 102 × 40 px.
+- `public/css/style.css` : le logo par défaut utilise la même règle que l'aperçu. Résultat : 40 px de haut, sans ombre de texte.
+- `public/js/logoPreview.js` : `?logo=b|c|d|media:…` reste disponible comme aperçu non mémorisé. Il remplace le logo A uniquement dans l'onglet ouvert.
+- `test/logo-identity.test.js` : le test vérifie que le logo A est bien le logo par défaut, avec son texte alternatif et sa hauteur compacte.
+- **Rien d'autre ne change**, conformément à la consigne : les boutons Profil et Paramètres, ainsi que l'onglet Améliorations, restent tels quels.
+
+### SHA et branche
+
+- Branche `feature/41-identite-logo` : commit `5d33d0e`.
+- `develop` : `dec9d2c` (fusion).
+- Production : `dec9d2c`.
+
+### Vérifications
+
+- `npm test` : 576/576 sur la branche, sur `develop` et sur la release `dec9d2c`.
+- Serveur de test (port 3141, base de test), dans Chromium headless à 320, 390 et 1280 px :
+  - en-tête de 54 px, comme pour l'aperçu `?logo=` validé par le propriétaire ;
+  - logo de 102 × 40 px, centré, image bien chargée ;
+  - compteurs à leur place ;
+  - aucune erreur JS ;
+  - `?logo=c` remplace toujours le logo.
+- Copie de la base de production, démarrée en mode production sur le port 3122 :
+  - empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` identiques avant et après le démarrage ;
+  - copie supprimée ensuite.
+- Aucune génération IA en cours au moment du déploiement. Dernier appel à l'atelier : 17:16 UTC.
+
+### Déploiement
+
+- `main` avancé en avance rapide (e393d44 → dec9d2c), puis `scripts/deploy.sh` lancé depuis la release.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261103-222405-pre-deploy-dec9d2c.sqlite`.
+- Contrôles après déploiement :
+  - les deux domaines répondent 200, `/api/version` = `1.0.0+dec9d2c` et `a-lingot.svg` répond 200 ;
+  - journal sans erreur ;
+  - `quick_check` ok ;
+  - empreintes des tables joueurs identiques à la sauvegarde ;
+  - en production, Chromium headless à 320, 390 et 1280 px : logo A chargé, en-tête de 54 px, aucune erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep e393d44` puis `sudo systemctl restart dig`. Aucune donnée n'est touchée, aucune migration n'a été faite.
+
+### Test fonctionnel à faire par le propriétaire (1 min)
+
+1. Ouvre https://dig.lodygames.com sur le téléphone puis sur le PC, et actualise une fois.
+   - Attendu : le logo doré **DIG!** (lettres en lingot, point du « ! » en gemme bleue) au centre de l'en-tête.
+   - Les compteurs restent à leur place et l'en-tête n'est pas plus haut qu'avant.
+2. Vérifie que la cloche, Profil et Paramètres sont inchangés et fonctionnent toujours.
+
+**Classement MVP** : Après lancement (cosmétique), mais déjà livré.
+
+### Choix techniques faits seul
+
+- **SVG directement dans le HTML**, sans JavaScript : le logo s'affiche dès le premier rendu, même hors ligne. Il passe par le même cache que les autres fichiers statiques, avec le paramètre `?v=` ajouté par le serveur.
+- **Aperçu `?logo=` conservé** : il ne coûte rien et sert au bouton « Voir dans le vrai en-tête » de l'atelier d'icônes.
+
+### Décisions demandées au propriétaire
+
+Aucune décision n'est nécessaire pour le logo. Les points 2 (pictogramme de l'onglet Améliorations) et 3 (destination du bouton Profil) du 30/10 restent ouverts. Ils ne changeront que sur ta décision explicite. Ils ne bloquent pas le MVP.
+
+### Reste à faire
+
+- Facultatif, après le lancement : mettre l'icône d'application (PWA) en cohérence avec le logo A, sur décision du propriétaire.
+- Points 2 et 3 ci-dessus.
