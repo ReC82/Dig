@@ -198,8 +198,8 @@ catalogue des coffres) pour ne plus rien recopier côté client.
 
 ### 8. SHA, branche et procédure de test
 
-- Branche `feature/49-audit-economie` ; SHA sur `develop` : voir le commentaire du ticket et
-  `commit_sha` (merge `--no-ff`).
+- Branche `feature/49-audit-economie` (commit `7680aee`) ; **SHA sur `develop` : `5ed7046`**
+  (merge `--no-ff`, arbre identique à la branche testée).
 - Fichiers : `tools/balance/economy-sim.js` (nouveau), `test/economy-sim.test.js` (nouveau), ce
   rapport. **Aucun fichier du jeu ni du serveur modifié.**
 - Reproduire : `node tools/balance/economy-sim.js` (≈ 6 min, annexe identique) ou
@@ -211,7 +211,7 @@ catalogue des coffres) pour ne plus rien recopier côté client.
 
 - Réglages et statistiques lus sur une **copie** de la base (`.backup` en lecture seule, supprimée
   ensuite) ; seule la sauvegarde du compte du propriétaire existe. Aucune écriture en production.
-- `npm test` complet : voir le commentaire du ticket.
+- `npm test` complet sur l'arbre exact de `5ed7046` : **465 / 465 réussis** (dont les 5 nouveaux).
 - Limites du modèle : joueur « rationnel » qui réinvestit au mieux et réclame tout ; temps de
   rupture d'un bloc calculé en dégâts/s (pas clic par clic) ; objets de collection supposés déjà
   possédés lors des conversions massives ; reliques achetées « la moins chère d'abord » ; pas de
