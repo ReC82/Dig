@@ -7,7 +7,7 @@
 
 ## 1. État réel
 
-**Déployé en production (SHA `a7919e6`) — en attente de recette.** Dernier lot : correction de l'ergonomie de création IA demandée lors de la recette du 02/11, mise en ligne le 03/11/2026 à 06:51 (Bruxelles) ; voir la section du 03/11 en fin de document. Première livraison : `bee0df4`, mise en ligne le 30/10/2026 à 22:02 (Bruxelles). Lot du 31/10 (UX commune et création par IA) : `6e6f58a`, mis en ligne le 31/10/2026 à 22:55. Voir la section datée du 31/10 en fin de document.
+**Déployé en production (SHA `e393d44`) — en attente de recette.** Dernier lot : refonte de la fiche badge demandée lors de la recette #38-A du 03/11, mise en ligne le 03/11/2026 à 22:02 (Bruxelles) ; voir la section « 03/11/2026 (soir) » en fin de document. Lot précédent : ergonomie de la création IA (`a7919e6`, 03/11 à 06:51). Première livraison : `bee0df4`, mise en ligne le 30/10/2026 à 22:02 (Bruxelles). Lot du 31/10 (UX commune et création par IA) : `6e6f58a`, mis en ligne le 31/10/2026 à 22:55. Voir la section datée du 31/10 en fin de document.
 
 ## 2. Résultat
 
@@ -368,3 +368,87 @@ Aucune nouvelle décision. Les 3 questions de la section 8 restent ouvertes, san
 
 - Les éléments de la section 9, inchangés.
 - Piste non réalisée (hors périmètre) : empêcher une seconde demande identique pendant qu'une génération est en cours. Aujourd'hui, le serveur n'autorise de toute façon qu'un appel IA à la fois.
+
+## Mise à jour du 03/11/2026 (soir) — recette #38-A : fiche badge trop longue
+
+### État réel
+**Déployé en production (SHA `e393d44`) — en attente de recette.** Mise en ligne le 03/11/2026 à 22:02 (Bruxelles).
+
+### Retour du propriétaire traité
+Recette #38-A (commentaire du 03/11, 12:56) : « même problème que l'autre formulaire actualité, trop grand avec l'ascenseur ». Les quatre langues et descriptions étaient affichées en même temps, dans une fiche trop longue avec les boutons en bas. Demande : reprendre la refonte de la fiche Actualités (#50). Il fallait donc :
+- des onglets FR/EN/NL/ES, une langue à la fois ;
+- un aperçu synchronisé ;
+- des sections Identité / Critère / Visuel ;
+- des options avancées repliées ;
+- un pied fixe Enregistrer / Annuler ;
+- une seule zone défilante et un affichage adapté au mobile ;
+- la protection des saisies #61 et aucune fenêtre native.
+
+La recette #38-B (bouton « Vérifier », validé en consultation) ne demandait rien : aucun changement de ce côté.
+
+### Changements (`public/admin/index.html`, `admin.js`, `admin.css`)
+- **Structure de la fiche Actualités** : en-tête fixe (titre + ✕ Fermer), **une seule zone défilante**, **pied fixe** avec « Enregistrer… », « Annuler », l'indicateur « ● modifications non enregistrées » et le message d'erreur. Les boutons et l'erreur restent toujours visibles.
+- **1. Identité** : onglets **FR / EN / NL / ES** avec pastilles (● nom et description, ◐ nom seul, ○ à traduire). Seuls le nom et la description de la langue choisie sont affichés. En traduction, le texte français sert de référence. Les flèches ← → changent de langue au clavier. L'identifiant et la catégorie suivent.
+- **2. Critère de déblocage** : condition, seuil (le type de bloc n'apparaît que pour « Blocs d'un type »), aide, puis le bouton **Vérifier (qui l'obtiendrait ?)** avec son résultat juste en dessous.
+- **3. Visuel** : emoji, image facultative. Pour une proposition IA, la consigne d'illustration est repliée.
+- **⚙️ Options avancées** (repliées) : visibilité, ordre d'affichage, période. Leur résumé reste lisible sans les déplier (« — visible · ordre 10 · permanent »).
+- **Statut et actions** (fiche existante ou proposition seulement) : « Obtenu par … », Activer/Désactiver, 🎨 Illustrer, Archiver, Abandonner la proposition.
+- **Aperçu joueur synchronisé** avec la langue choisie (repli sur le français signalé : « — texte français affiché »). Il est à droite sur PC, au-dessus des champs sur mobile.
+- Si le nom ou la description FR manque à l'enregistrement, l'onglet FR s'affiche et l'erreur apparaît dans le pied.
+- Inchangé : les règles du serveur, les routes et la protection #61 (mécanisme commun `admDialogSetup` : fond, ✕, Échap, départ de la page, échec d'enregistrement). Les confirmations restent stylées Dig (`admAsk`).
+
+### SHA, tests et procédure
+- Branche `feature/38-badges-succes`, commit `085d54f` ; **`develop` = `e393d44`** (fusion), déployé tel quel.
+- `npm test` **576/576** sur la branche, `develop` et la release `e393d44` (+1 test statique : structure de la fiche et aucune fenêtre native dans le module badges).
+- Nouveau parcours Chromium `test/e2e/badge-sheet.e2e.js` (serveur de test 3101, base de test), **52/52 OK** sur PC 1280×900 et smartphone 390×844. Il vérifie :
+  - la fiche tient dans l'écran, Enregistrer et Annuler sont visibles sans défiler ;
+  - une seule langue est visible, les pastilles et la référence FR s'affichent, les flèches clavier fonctionnent ;
+  - l'aperçu suit la saisie, avec repli FR ;
+  - les options sont repliées avec leur résumé ;
+  - une seule zone défile, sans défilement horizontal ;
+  - Échap, ✕ et le fond déclenchent la confirmation Dig, et « Continuer à modifier » garde la saisie ;
+  - réseau coupé : la fiche reste ouverte et le message s'affiche dans le pied ;
+  - l'enregistrement réel fonctionne, et l'abandon n'enregistre rien ;
+  - aucune fenêtre native, aucune erreur JS.
+- Contrôles supplémentaires dans Chromium :
+  - création manuelle : section Statut masquée, FR manquant → onglet FR et erreur, puis création désactivée ;
+  - proposition IA factice → « Modifier » (mobile) : la fiche s'ouvre, consigne repliée, « Abandonner la proposition » visible, Enregistrer visible.
+- Commande du parcours : `ADMIN_SECRET=… DB_FILE=test-38.sqlite PORT=3101 node server/index.js`, puis `DIG_E2E_SECRET_FILE=… NODE_PATH=<playwright-core> node test/e2e/badge-sheet.e2e.js`.
+
+### Données des joueurs et déploiement
+- Changement d'interface admin seulement : aucun schéma, aucune route, aucune donnée modifiée.
+- Copie de la production démarrée en `NODE_ENV=production` (port 3122) : santé OK, version `e393d44`. Empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`, `badges`, `player_badges`, `badge_ai_proposals` **identiques** ; 88 tables avant et après. Copie supprimée.
+- Avant le déploiement : aucun job IA en cours (propositions badges, blocs, collections, actualités, événements, thèmes).
+- `deploy.sh` OK (3ab096b → e393d44, sans `npm ci`). Sauvegarde vérifiée : `dig-20261103-220254-pre-deploy-e393d44.sqlite`.
+- Après le déploiement :
+  - les 2 domaines répondent 200 avec la version `1.0.0+e393d44`, et le nouveau CSS est servi ;
+  - `journalctl` est sans erreur et `quick_check` = ok ;
+  - les empreintes de production sont égales à celles de la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 3ab096b` puis `sudo systemctl restart dig` (aucune dépendance changée).
+
+### Test fonctionnel à faire par le propriétaire
+1. Panel admin → 🏅 Badges (**rechargez la page**, Ctrl+F5) → clic sur « Cent mètres sous terre ».
+   **Attendu** : la fiche tient dans l'écran, avec Enregistrer / Annuler en bas, toujours visibles. Seul le français est affiché (nom et description), avec les onglets ● FR ● EN ● NL ● ES. L'aperçu est à droite (au-dessus sur téléphone).
+2. Cliquez sur **EN**.
+   **Attendu** : seuls les champs anglais sont visibles, avec le rappel du texte français au-dessus. L'aperçu passe en anglais.
+3. Modifiez le nom EN.
+   **Attendu** : l'aperçu suit la saisie, et « ● modifications non enregistrées » apparaît. Appuyez sur Échap, ou cliquez à côté de la fiche, ou sur ✕ : une confirmation Dig s'affiche. « Continuer à modifier » garde la saisie, « Abandonner » ferme sans rien enregistrer.
+4. Dépliez **⚙️ Options avancées**.
+   **Attendu** : visibilité, ordre et période apparaissent. Replié, le résumé affiche « visible · ordre 10 · permanent ».
+5. Sur téléphone : même parcours.
+   **Attendu** : aucune page plus large que l'écran, et les boutons Enregistrer / Annuler sont toujours accessibles.
+
+Classement : **Après lancement** (confort admin, pas de bloquant MVP).
+
+### Choix techniques faits seul
+- Réutilisation directe des classes de la fiche Actualités (`nw-dialog`, `nw-scroll`, `nw-foot`, `nw-sec`, `co-lang-btn`). Les deux fiches restent ainsi homogènes, et le seul CSS propre aux badges est la largeur (1000 px) et l'ordre de l'aperçu sur mobile.
+- Visibilité et ordre d'affichage passent dans les options avancées, avec leur résumé visible replié : rien n'est caché sans être signalé.
+- Les actions de statut (Activer, Archiver, Illustrer, Abandonner) sont dans une section à part, et non dans le pied. Le pied ne contient qu'Enregistrer / Annuler, comme demandé et comme pour la publication des actualités.
+- Lecture seule d'une proposition déjà traitée : les zones de champs sont rendues inertes, mais les onglets de langue restent utilisables pour consulter les traductions.
+
+### Décisions demandées au propriétaire
+Aucune nouvelle décision. Les questions précédentes restent ouvertes (paliers à activer, mise en avant de 3 badges, coffres de boutique) : voir § 8.
+
+### Reste à réaliser
+- La génération d'image depuis Badges reste bloquée par le plafond local de 3 USD : elle est suivie dans **#40**, hors de ce ticket.
+- L'attribution réelle d'un badge n'a pas été testée en jeu par le propriétaire (#38-B l'a noté). Elle sera à observer à la prochaine progression d'un joueur.
