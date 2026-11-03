@@ -107,6 +107,20 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "account.btn_x_link": {
+   "text": "Collega il mio account X",
+   "src": "fafdd1885a87",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.btn_x_unlink": {
+   "text": "Rimuovi X",
+   "src": "560b836968db",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
   "account.change_email": {
    "text": "Cambia indirizzo e-mail",
    "src": "a6ddbc5108c7",
@@ -484,6 +498,125 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "account.x_badge_hint": {
+   "text": "Stato social: account X verificato da X (non è un traguardo del gioco).",
+   "src": "21b7b0931ed8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_link_hint": {
+   "text": "Accedi a X per dimostrare che questo account è tuo. DIG! non pubblica nulla e non conserva alcun accesso al tuo account X.",
+   "src": "0ae97142831a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_msg_already": {
+   "text": "Un account X è già collegato a questo account.",
+   "src": "a5c75c17fdb5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_msg_cancelled": {
+   "text": "Collegamento con X annullato.",
+   "src": "1653b49b703d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_msg_cooldown": {
+   "text": "Questo account X è stato rimosso di recente da un altro account DIG!: riprova più tardi.",
+   "src": "a80d586a1ce4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_msg_error": {
+   "text": "Collegamento con X non riuscito. Riprova.",
+   "src": "53726f02fc57",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_msg_linked": {
+   "text": "Account X collegato e verificato.",
+   "src": "139d0dc46e86",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_msg_switch": {
+   "text": "Hai cambiato account X di recente: riprova tra qualche giorno.",
+   "src": "ba0bbc866a3b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_msg_taken": {
+   "text": "Questo account X è già collegato a un altro account DIG!.",
+   "src": "a4b02225663b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_not_linked": {
+   "text": "Non collegato",
+   "src": "d0c0c8475c24",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_reward_off": {
+   "text": "Ricompensa settimanale per un post: non disponibile.",
+   "src": "49b9189848e6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_title": {
+   "text": "Account X",
+   "src": "74427cd91a4d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_unavailable": {
+   "text": "Non ancora disponibile",
+   "src": "b4cb47674c42",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_unlink_hint": {
+   "text": "Lo stato «account X verificato» scomparirà. I tuoi progressi non cambiano.",
+   "src": "3f02161f3d98",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_unlink_title": {
+   "text": "Rimuovi l’account X",
+   "src": "88b6771f8c34",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_unlinked": {
+   "text": "Account X rimosso.",
+   "src": "b63d5aa1179f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
+  },
+  "account.x_verified": {
+   "text": "verificato",
+   "src": "b43e5e7cfa4e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #51, relu)",
+   "at": "2026-11-03T05:59:20.832Z"
   },
   "ads.accept": {
    "text": "Accetto",

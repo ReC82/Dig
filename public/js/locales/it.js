@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 579/579 textes. Absents → français. */
+/* Italian (preview) : 598/598 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -17,6 +17,8 @@ I18n.registerLocale("it", {
   "btn_social_ignore": "Ignora",
   "btn_social_link": "Continua su Google",
   "btn_social_unlink": "Scollega Google",
+  "btn_x_link": "Collega il mio account X",
+  "btn_x_unlink": "Rimuovi X",
   "change_email": "Cambia indirizzo e-mail",
   "change_password": "Cambia la password",
   "email_change_sent": "Link inviato a {email}: l’indirizzo cambierà dopo la conferma.",
@@ -70,7 +72,24 @@ I18n.registerLocale("it", {
   "title": "Account",
   "verify_fail": "Link di conferma non valido o scaduto.",
   "verify_ok": "Indirizzo e-mail confermato!",
-  "verify_sent": "E-mail inviata: clicca sul link che contiene."
+  "verify_sent": "E-mail inviata: clicca sul link che contiene.",
+  "x_badge_hint": "Stato social: account X verificato da X (non è un traguardo del gioco).",
+  "x_link_hint": "Accedi a X per dimostrare che questo account è tuo. DIG! non pubblica nulla e non conserva alcun accesso al tuo account X.",
+  "x_msg_already": "Un account X è già collegato a questo account.",
+  "x_msg_cancelled": "Collegamento con X annullato.",
+  "x_msg_cooldown": "Questo account X è stato rimosso di recente da un altro account DIG!: riprova più tardi.",
+  "x_msg_error": "Collegamento con X non riuscito. Riprova.",
+  "x_msg_linked": "Account X collegato e verificato.",
+  "x_msg_switch": "Hai cambiato account X di recente: riprova tra qualche giorno.",
+  "x_msg_taken": "Questo account X è già collegato a un altro account DIG!.",
+  "x_not_linked": "Non collegato",
+  "x_reward_off": "Ricompensa settimanale per un post: non disponibile.",
+  "x_title": "Account X",
+  "x_unavailable": "Non ancora disponibile",
+  "x_unlink_hint": "Lo stato «account X verificato» scomparirà. I tuoi progressi non cambiano.",
+  "x_unlink_title": "Rimuovi l’account X",
+  "x_unlinked": "Account X rimosso.",
+  "x_verified": "verificato"
  },
  "ads": {
   "accept": "Accetto",
