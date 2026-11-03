@@ -85,6 +85,22 @@ function statusBadge(status) {
   return span;
 }
 
+// Dates des saisons : stockées en UTC (« YYYY-MM-DD HH:MM:SS »), affichées en heure de Bruxelles (#48).
+const _admBxl = new Intl.DateTimeFormat('fr-BE', { timeZone: 'Europe/Brussels', weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+function admBrussels(utc) {
+  if (!utc) return '—';
+  const d = new Date(String(utc).replace(' ', 'T') + 'Z');
+  return isNaN(d) ? String(utc) : _admBxl.format(d);
+}
+
+/** Cellule de date : heure de Bruxelles, UTC du serveur en petit dessous. */
+function addDateCell(tr, utc) {
+  const td = addCell(tr, admBrussels(utc));
+  td.title = `${utc ?? ''} UTC`;
+  if (utc) td.appendChild(Object.assign(document.createElement('span'), { className: 'season-utc', textContent: `${utc} UTC` }));
+  return td;
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 // Version du panel chargée dans cet onglet (injectée par le serveur) : envoyée avec chaque demande pour
@@ -227,12 +243,15 @@ async function loadSeasons() {
   if (!ok) return;
   const tbody = document.querySelector('#seasons-table tbody');
   tbody.innerHTML = '';
-  if (!data.seasons.length) { tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucune saison.</td></tr>'; return; }
+  if (!data.seasons.length) { tbody.innerHTML = '<tr><td colspan="7" class="muted">Aucune saison.</td></tr>'; return; }
 
   data.seasons.forEach(s => {
     if (s.status === 'active') { _currentSeasonId = s.id; document.getElementById('lb-season-name').textContent = s.name; }
     const tr = document.createElement('tr');
-    [s.id, s.name, s.start_at, s.end_at].forEach(v => addCell(tr, v));
+    [s.id, s.name].forEach(v => addCell(tr, v));
+    addCell(tr, s.theme ? `${s.theme.icon ?? ''} ${s.theme.name ?? ''}`.trim() : '—').className = 'season-theme-cell';
+    addDateCell(tr, s.start_at);
+    addDateCell(tr, s.end_at);
     addCell(tr, '').appendChild(statusBadge(s.status));
     admRowOpen(tr, `season:${s.id}`, s.name, row => openSeasonSheet(s, row));
     tbody.appendChild(tr);
@@ -260,7 +279,9 @@ function openSeasonSheet(s, opener) {
     for (const id of ['ns-name', 'ns-start', 'ns-end']) document.getElementById(id).value = '';
   } else {
     const dl = document.createElement('dl');
-    for (const [k, v] of [['Nom', s.name], ['Début (UTC)', s.start_at], ['Fin (UTC)', s.end_at], ['Statut', s.status]]) {
+    for (const [k, v] of [['Nom', s.name], ['Thème', s.theme ? `${s.theme.icon ?? ''} ${s.theme.name ?? ''}`.trim() : null],
+      ['Début (Bruxelles)', admBrussels(s.start_at)], ['Fin (Bruxelles)', admBrussels(s.end_at)],
+      ['Début (UTC)', s.start_at], ['Fin (UTC)', s.end_at], ['Statut', s.status]]) {
       const dt = document.createElement('dt'); dt.textContent = k;
       const dd = document.createElement('dd'); dd.textContent = v ?? '—';
       dl.append(dt, dd);
@@ -521,8 +542,11 @@ async function loadSeasonOverview() {
 
   document.getElementById('ov-season-name').textContent    = season.name;
   document.getElementById('ov-season-status').replaceChildren(statusBadge(season.status));
-  document.getElementById('ov-season-start').textContent   = season.start_at;
-  document.getElementById('ov-season-end').textContent     = season.end_at;
+  for (const [id, utc] of [['ov-season-start', season.start_at], ['ov-season-end', season.end_at]]) {
+    const el = document.getElementById(id);
+    el.textContent = admBrussels(utc);
+    el.title = `${utc} UTC`;
+  }
   document.getElementById('ov-season-players').textContent = activePlayers;
   document.getElementById('close-season-name').textContent = season.name;
 
@@ -5702,6 +5726,11 @@ function stDate(utc) {
 const ST_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
 const ST_SOURCE = { pack: 'pack de saison rédigé', fallback: 'nom de repli automatique (sans collection)' };
 const ST_STATUS = { prepared: 'préparé', active: 'en cours', archived: 'archivé', rejected: 'rejeté (nom réservé)' };
+const ST_EVENTS = {
+  created_active: 'Thème attribué à la saison active', prepared: 'Saison suivante préparée', attached: 'Thème rattaché à la saison qui démarre',
+  collection: 'Collection importée en brouillon', edited: 'Thème modifié', rejected: 'Nom remplacé (reste réservé)',
+  excluded: 'Mot ou nom exclu', exclusion_removed: 'Exclusion retirée',
+};
 
 function stMessage(id, text) {
   for (const k of ['st-msg', 'st-err']) document.getElementById(k).classList.add('hidden');
@@ -5711,29 +5740,124 @@ function stMessage(id, text) {
   el.classList.remove('hidden');
 }
 
-function stLine(parent, label, value) {
-  const p = aiEl('p', { class: 'st-line' });
-  p.appendChild(aiEl('span', { class: 'muted' }, `${label} : `));
-  p.appendChild(document.createTextNode(value ?? '—'));
-  parent.appendChild(p);
-  return p;
+/** « dans 5 j 14 h » / « il y a 2 h » à partir d'une date UTC du serveur. */
+function stUntil(utc, now = Date.now()) {
+  const t = new Date(String(utc).replace(' ', 'T') + 'Z').getTime();
+  if (isNaN(t)) return '';
+  const m = Math.round(Math.abs(t - now) / 60_000);
+  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mn = m % 60;
+  const txt = d ? `${d} j ${h} h` : h ? `${h} h ${String(mn).padStart(2, '0')}` : `${mn} min`;
+  return t >= now ? `dans ${txt}` : `il y a ${txt}`;
 }
 
-function stCollection(parent, col) {
-  if (!col) { stLine(parent, 'Collection', 'aucune (à préparer dans l\'onglet Collections si souhaité)'); return; }
-  const state = col.published ? 'publiée' : col.inDraft ? 'en brouillon (non publiée, drops inactifs)' : 'introuvable';
-  stLine(parent, 'Collection', `${col.icon ?? ''} ${col.names?.fr ?? col.id} — ${state}${col.seasonId ? `, rattachée à la saison n° ${col.seasonId}` : ''}`);
-  stLine(parent, 'Images', `${col.withImage}/${col.items} objets illustrés`
-    + (col.proposals ? ` · ${col.proposals} proposition(s) à examiner` : '')
-    + (col.toGenerate != null ? ` · ${col.toGenerate} à générer` : '')
-    + (col.estTotalUsd != null && col.toGenerate ? ` (≈ ${col.estTotalUsd} $)` : ''));
-  if (col.missing?.length) stLine(parent, 'Sans image', col.missing.map(m => m.name).join(', '));
-  if (col.problem) parent.appendChild(aiEl('p', { class: 'error' }, col.problem));
-  if (col.toGenerate) {
-    const b = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, '🎨 Illustrer la collection (atelier d\'icônes, une image par objet)');
-    b.addEventListener('click', () => document.querySelector('.tab-btn[data-tab="icons"]')?.click());
-    parent.appendChild(b);
+/** Date en heure de Bruxelles, l'UTC du serveur en infobulle ; option compte à rebours (rafraîchi chaque minute). */
+function stWhen(utc, { countdown = false } = {}) {
+  const span = aiEl('span', { class: 'st-when', title: utc ? `${utc} UTC (heure du serveur)` : '' }, admBrussels(utc));
+  if (countdown && utc) {
+    const c = aiEl('span', { class: 'st-countdown', 'data-until': utc }, ` · ${stUntil(utc)}`);
+    span.appendChild(c);
   }
+  return span;
+}
+setInterval(() => {
+  for (const el of document.querySelectorAll('#st-card [data-until]')) el.textContent = ` · ${stUntil(el.dataset.until)}`;
+}, 60_000);
+
+function stChip(text, tone) { return aiEl('span', { class: `st-chip st-chip--${tone}` }, text); }
+
+/** Ligne « libellé / valeur » d'une liste de faits compacte. */
+function stFact(dl, label, value) {
+  dl.appendChild(aiEl('dt', {}, label));
+  const dd = aiEl('dd');
+  if (value instanceof Node) dd.appendChild(value); else dd.textContent = value ?? '—';
+  dl.appendChild(dd);
+  return dd;
+}
+
+function stDetails(parent, summary) {
+  const d = aiEl('details', { class: 'st-fold' });
+  d.appendChild(aiEl('summary', {}, summary));
+  parent.appendChild(d);
+  return d;
+}
+
+function stButton(parent, label, onClick, cls = 'btn btn-sm btn-outline') {
+  const b = aiEl('button', { class: cls, type: 'button' }, label);
+  b.addEventListener('click', onClick);
+  parent.appendChild(b);
+  return b;
+}
+
+/** Ouvre l'onglet Collections filtré sur la série du thème (aucune modification). */
+async function stGoCollection(seriesId) {
+  document.querySelector('.tab-btn[data-tab="collections"]')?.click();
+  await loadCollections();
+  const f = document.getElementById('co-filter-series');
+  if (f && [...f.options].some(o => o.value === seriesId)) { f.value = seriesId; f.dispatchEvent(new Event('change')); }
+}
+
+/** Préparation automatique : date à venir, ou passe imminente du planificateur si l'horizon est atteint. */
+function stPrepWhen(utc) {
+  const t = new Date(String(utc).replace(' ', 'T') + 'Z').getTime();
+  return t > Date.now() ? `automatique à partir du ${stDate(utc)}` : 'automatique, à la prochaine passe du planificateur';
+}
+
+/** État de la collection : publiée / brouillon (non distribuée) / aucune, et images n/m. */
+function stCollectionState(col) {
+  if (!col) return { chip: stChip('Aucune collection', 'muted'), text: 'Thème seul : aucun objet à collectionner cette semaine.' };
+  if (col.problem) return { chip: stChip('Introuvable', 'bad'), text: col.problem };
+  if (col.published) return { chip: stChip('Publiée', 'ok'), text: 'Visible et collectionnable en jeu.' };
+  return { chip: stChip('Brouillon — non distribuée', 'warn'), text: 'Invisible pour les joueurs, aucun drop actif tant qu\'elle n\'est pas publiée dans Collections.' };
+}
+
+function stCollectionBox(parent, col) {
+  const box = aiEl('div', { class: 'st-coll' });
+  const head = aiEl('p', { class: 'st-coll-head' });
+  head.appendChild(aiEl('span', { class: 'st-coll-name' }, col ? `${col.icon ?? ''} ${col.names?.fr ?? col.id}` : 'Collection'));
+  const st = stCollectionState(col);
+  head.appendChild(st.chip);
+  box.appendChild(head);
+  if (col && !col.problem) {
+    const img = aiEl('p', { class: 'st-coll-images' });
+    img.appendChild(aiEl('strong', {}, `${col.withImage}/${col.items}`));
+    img.appendChild(document.createTextNode(' objets illustrés'
+      + (col.proposals ? ` · ${col.proposals} proposition(s) à examiner` : '')));
+    const meter = aiEl('span', { class: 'st-meter', 'aria-hidden': 'true' });
+    meter.appendChild(aiEl('span', { style: `width:${col.items ? Math.round(100 * col.withImage / col.items) : 0}%` }));
+    box.append(img, meter);
+  }
+  box.appendChild(aiEl('p', { class: 'muted st-small' }, st.text));
+  if (col?.missing?.length) {
+    const d = stDetails(box, `Objets sans image (${col.missing.length})`);
+    d.appendChild(aiEl('p', { class: 'st-small' }, col.missing.map(m => m.name).join(' · ')));
+  }
+  parent.appendChild(box);
+}
+
+/** Étapes de la saison suivante : préparer → illustrer → publier → annoncer (aucune n'en déclenche une autre). */
+function stSteps(parent, data) {
+  const n = data.next, t = n.theme, col = t?.collection;
+  const steps = [
+    ['Préparer', t ? 'fait' : stPrepWhen(n.prepareAt), t ? 'ok' : 'todo'],
+    ['Illustrer', !col ? 'sans objet (pas de collection)' : col.withImage >= col.items ? 'toutes les images sont prêtes'
+      : `${col.items - col.withImage} image(s) manquante(s)${col.estTotalUsd != null && col.toGenerate ? ` · ≈ ${col.estTotalUsd} $, lancement manuel` : ' · lancement manuel'}`,
+    !col ? 'muted' : col.withImage >= col.items ? 'ok' : 'todo'],
+    ['Publier', !col ? 'sans objet' : col.published ? 'publiée' : 'non publiée — décision manuelle dans Collections', !col ? 'muted' : col.published ? 'ok' : 'todo'],
+    ['Annoncer', !data.settings.public ? 'désactivé (réglage)' : !n.announceAt ? 'désactivé (0 h)'
+      : n.announced ? `affichée aux joueurs depuis le ${stDate(n.announceAt)}` : `automatique le ${stDate(n.announceAt)}`,
+    !data.settings.public || !n.announceAt ? 'muted' : n.announced ? 'ok' : 'todo'],
+  ];
+  const ol = aiEl('ol', { class: 'st-steps' });
+  for (const [label, text, tone] of steps) {
+    const li = aiEl('li', { class: `st-step st-step--${tone}` });
+    li.appendChild(aiEl('span', { class: 'st-step-mark', 'aria-hidden': 'true' }, tone === 'ok' ? '✓' : tone === 'muted' ? '–' : '•'));
+    const body = aiEl('span');
+    body.appendChild(aiEl('strong', {}, label));
+    body.appendChild(aiEl('span', { class: 'muted' }, ` — ${text}`));
+    li.appendChild(body);
+    ol.appendChild(li);
+  }
+  parent.appendChild(ol);
 }
 
 function stEditForm(theme, box) {
@@ -5747,97 +5871,213 @@ function stEditForm(theme, box) {
   }
   const [li, icon] = aiInput('Icône (emoji)', theme.icon, { maxlength: '8' });
   form.appendChild(li);
-  const save = aiEl('button', { class: 'btn btn-sm', type: 'button' }, 'Enregistrer');
-  save.addEventListener('click', async () => {
+  const actions = aiEl('div', { class: 'form-actions st-edit-actions' });
+  stButton(actions, 'Enregistrer', async () => {
     const body = { names: {}, taglines: {}, icon: icon.value };
     for (const l of ST_LANGS) { body.names[l] = inputs.names[l].value; body.taglines[l] = inputs.taglines[l].value; }
     const { ok, data } = await api('PUT', `/api/admin/season-themes/${theme.id}`, body);
     if (!ok) return stMessage('st-err', data.error ?? 'Enregistrement refusé.');
     stMessage('st-msg', `Thème enregistré : « ${data.theme.names.fr} ».`);
     loadSeasonThemes();
-  });
-  form.appendChild(save);
+  }, 'btn btn-sm');
+  stButton(actions, 'Annuler', () => { form.remove(); box.querySelector('[data-st-edit]')?.removeAttribute('disabled'); });
+  form.appendChild(actions);
   box.appendChild(form);
 }
 
-function stThemeBlock(parent, theme, { canReroll }) {
-  if (!theme) { parent.appendChild(aiEl('p', { class: 'muted' }, 'Pas encore de thème : il sera préparé automatiquement.')); return; }
-  const title = aiEl('p', { class: 'st-theme-name' }, `${theme.icon} ${theme.names.fr}`);
-  parent.appendChild(title);
-  stLine(parent, 'EN / NL / ES', `${theme.names.en} · ${theme.names.nl} · ${theme.names.es}`);
-  stLine(parent, 'Accroche', theme.taglines.fr);
-  stLine(parent, 'Origine', `${ST_SOURCE[theme.source] ?? theme.source}${theme.pack ? ` (${theme.pack})` : ''} — ${ST_STATUS[theme.status] ?? theme.status}`);
-  if (theme.notes) parent.appendChild(aiEl('p', { class: 'muted' }, theme.notes));
-  stCollection(parent, theme.collection);
-  const actions = aiEl('div', { class: 'form-actions' });
-  const edit = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, '✏️ Modifier (facultatif)');
-  edit.addEventListener('click', () => { edit.disabled = true; stEditForm(theme, parent); });
-  actions.appendChild(edit);
+/** Traductions, actions secondaires et détails techniques d'un thème : repliés par défaut. */
+function stThemeFolds(parent, theme, { canReroll }) {
+  const tr = stDetails(parent, `Traductions (${ST_LANGS.map(l => l.toUpperCase()).join(' · ')})`);
+  const table = aiEl('table', { class: 'st-langs' });
+  for (const l of ST_LANGS) {
+    const row = aiEl('tr');
+    row.appendChild(aiEl('th', { scope: 'row' }, l.toUpperCase()));
+    const td = aiEl('td');
+    td.appendChild(aiEl('strong', {}, theme.names[l] ?? '—'));
+    td.appendChild(aiEl('span', { class: 'muted st-small' }, theme.taglines[l] ? ` — ${theme.taglines[l]}` : ''));
+    row.appendChild(td);
+    table.appendChild(row);
+  }
+  tr.appendChild(table);
+
+  const act = stDetails(parent, 'Actions secondaires');
+  act.appendChild(aiEl('p', { class: 'muted st-small' }, canReroll
+    ? 'Changer le nom avant le début : l\'ancien nom reste réservé à vie et n\'est jamais réutilisé. La collection préparée ne change pas.'
+    : 'Corriger un texte de la saison en cours (nom, accroche, icône). Le nouveau nom doit être inédit.'));
+  const row = aiEl('div', { class: 'form-actions st-actions' });
+  const edit = stButton(row, '✏️ Modifier les textes', () => { edit.disabled = true; stEditForm(theme, act); });
+  edit.dataset.stEdit = '1';
   if (canReroll) {
-    for (const [label, exclude] of [['🎲 Autre nom', false], ['🚫 Autre nom et exclure celui-ci', true]]) {
-      const b = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, label);
-      b.addEventListener('click', async () => {
+    for (const [label, exclude, confirmText] of [
+      ['🎲 Tirer un autre nom', false, `Remplacer « ${theme.names.fr} » par un autre nom inédit ? L'ancien nom restera réservé.`],
+      ['🚫 Autre nom et exclure celui-ci', true, `Remplacer « ${theme.names.fr} » et exclure durablement ses mots des futurs noms ?`],
+    ]) {
+      stButton(row, label, async () => {
+        if (!confirm(confirmText)) return;
         const { ok, data } = await api('POST', `/api/admin/season-themes/${theme.id}/reroll`, { exclude });
         if (!ok) return stMessage('st-err', data.error ?? 'Refusé.');
         stMessage('st-msg', `Nouveau nom : « ${data.theme.names.fr} » (l'ancien reste réservé, il ne sera jamais réutilisé).`);
         loadSeasonThemes();
       });
-      actions.appendChild(b);
     }
   }
-  parent.appendChild(actions);
+  act.appendChild(row);
+
+  const tech = stDetails(parent, 'Détails techniques');
+  const dl = aiEl('dl', { class: 'st-facts st-small' });
+  stFact(dl, 'Origine', `${ST_SOURCE[theme.source] ?? theme.source}${theme.pack ? ` (${theme.pack})` : ''}`);
+  stFact(dl, 'État du thème', `${ST_STATUS[theme.status] ?? theme.status} · n° ${theme.id} · semaine ${theme.weekKey ?? '—'}`);
+  if (theme.collection) stFact(dl, 'Série', `${theme.collection.id}${theme.collection.seasonId ? ` · rattachée à la saison n° ${theme.collection.seasonId}` : ''}`);
+  if (theme.notes) stFact(dl, 'Notes', theme.notes);
+  tech.appendChild(dl);
+}
+
+function stThemeHead(parent, theme) {
+  parent.appendChild(aiEl('p', { class: 'st-theme-name' }, `${theme.icon} ${theme.names.fr}`));
+  if (theme.taglines?.fr) parent.appendChild(aiEl('p', { class: 'st-tagline' }, theme.taglines.fr));
+}
+
+function stCurrentCard(data) {
+  const card = aiEl('section', { class: 'st-col', 'aria-label': 'Saison en cours' });
+  const head = aiEl('div', { class: 'st-card-head' });
+  head.appendChild(aiEl('h4', {}, 'Saison en cours'));
+  card.appendChild(head);
+  if (!data.current) { head.appendChild(stChip('Aucune', 'muted')); card.appendChild(aiEl('p', { class: 'muted' }, 'Aucune saison active.')); return card; }
+  const { season, theme } = data.current;
+  head.appendChild(stChip('En cours', 'ok'));
+  if (theme) stThemeHead(card, theme);
+  else card.appendChild(aiEl('p', { class: 'muted' }, 'Pas encore de thème : il sera attribué automatiquement.'));
+  const dl = aiEl('dl', { class: 'st-facts' });
+  stFact(dl, 'Saison', season.name);
+  stFact(dl, 'Début', stWhen(season.startAt));
+  stFact(dl, 'Fin', stWhen(season.endAt, { countdown: true }));
+  card.appendChild(dl);
+  if (theme) {
+    stCollectionBox(card, theme.collection);
+    if (theme.collection && !theme.collection.problem) {
+      const row = aiEl('div', { class: 'form-actions st-main' });
+      stButton(row, '📚 Voir la collection', () => stGoCollection(theme.collection.id));
+      card.appendChild(row);
+    }
+    stThemeFolds(card, theme, { canReroll: false });
+  }
+  return card;
+}
+
+function stNextCard(data) {
+  const card = aiEl('section', { class: 'st-col', 'aria-label': 'Prochaine saison' });
+  const head = aiEl('div', { class: 'st-card-head' });
+  head.appendChild(aiEl('h4', {}, 'Prochaine saison'));
+  card.appendChild(head);
+  const n = data.next;
+  if (!n) { head.appendChild(stChip('Date inconnue', 'muted')); card.appendChild(aiEl('p', { class: 'muted' }, 'Date de la saison suivante indisponible (aucune saison active).')); return card; }
+  const t = n.theme;
+  head.appendChild(!t ? stChip('À préparer', 'muted') : n.announced ? stChip('Annoncée aux joueurs', 'ok') : stChip('Préparée', 'info'));
+  if (t) stThemeHead(card, t);
+  else card.appendChild(aiEl('p', { class: 'muted' }, `Pas encore de thème : préparation ${stPrepWhen(n.prepareAt)}.`));
+  const dl = aiEl('dl', { class: 'st-facts' });
+  stFact(dl, 'Début', stWhen(n.startAt, { countdown: true }));
+  stFact(dl, 'Annonce', !data.settings.public ? 'désactivée (réglage)' : n.announceAt ? stWhen(n.announceAt, { countdown: !n.announced }) : 'désactivée (0 h)');
+  card.appendChild(dl);
+  if (t) stCollectionBox(card, t.collection);
+  stSteps(card, data);
+
+  const row = aiEl('div', { class: 'form-actions st-main' });
+  if (!t) {
+    stButton(row, 'Préparer maintenant', async () => {
+      if (!confirm(`Préparer dès maintenant la saison du ${stDate(n.startAt)} ?\n\nUn nom inédit est réservé et, si un pack rédigé est disponible, sa collection est importée en BROUILLON (non publiée, drops inactifs). Rien n'est illustré, publié ni annoncé. Sans cette action, la préparation est ${stPrepWhen(n.prepareAt)}.`)) return;
+      const { ok, data: d } = await api('POST', '/api/admin/season-themes/prepare');
+      if (!ok) return stMessage('st-err', d.error ?? 'Préparation impossible.');
+      stMessage('st-msg', d.next?.theme ? `Saison suivante préparée : « ${d.next.theme.names.fr} ».` : 'Rien à préparer pour l\'instant.');
+      loadSeasonThemes();
+    }, 'btn btn-sm');
+  } else if (t.collection && !t.collection.problem) {
+    stButton(row, '📚 Voir / préparer la collection', () => stGoCollection(t.collection.id), 'btn btn-sm');
+    if (t.collection.toGenerate) {
+      stButton(row, `🎨 Illustrer (${t.collection.toGenerate} image${t.collection.toGenerate > 1 ? 's' : ''})`,
+        () => document.querySelector('.tab-btn[data-tab="icons"]')?.click());
+    }
+  }
+  if (row.childElementCount) card.appendChild(row);
+  if (t) {
+    card.appendChild(aiEl('p', { class: 'muted st-small' }, 'Déjà préparée : une nouvelle préparation ne la remplacerait pas. Pour changer le nom, voir « Actions secondaires ».'));
+    stThemeFolds(card, t, { canReroll: true });
+  }
+  return card;
+}
+
+function stSettings(box, data) {
+  const s = data.settings;
+  const cfg = aiEl('div', { class: 'st-settings' });
+  const sw = aiEl('label', { class: 'st-switch' });
+  const pub = aiEl('input', { type: 'checkbox', role: 'switch' });
+  pub.checked = !!s.public;
+  sw.append(pub, aiEl('span', {}, 'Afficher thèmes et annonces aux joueurs'));
+  cfg.appendChild(sw);
+  cfg.appendChild(aiEl('p', { class: 'muted st-small' }, 'Désactivé : l\'onglet Saison du jeu n\'affiche ni thème, ni annonce, ni historique. La préparation continue.'));
+  const num = (label, value, min, max, help) => {
+    const l = aiEl('label', {}, label);
+    const i = aiEl('input', { type: 'number', min: String(min), max: String(max), step: '1', inputmode: 'numeric' });
+    i.value = String(value);
+    l.appendChild(i);
+    cfg.append(l, aiEl('p', { class: 'muted st-small' }, help));
+    return i;
+  };
+  const prep = num('Préparer la saison suivante (jours avant son début)', s.prepDays, 3, 14, 'De 3 à 14 jours. Nom, textes et collection en brouillon.');
+  const ann = num('Annoncer aux joueurs (heures avant le début)', s.announceHours, 0, 168, 'De 0 à 168 heures ; 0 = pas d\'annonce.');
+  const actions = aiEl('div', { class: 'form-actions' });
+  stButton(actions, 'Enregistrer les réglages', async () => {
+    const wanted = [['season_themes_public', String(pub.checked), String(s.public)],
+      ['season_prep_days', prep.value.trim(), String(s.prepDays)], ['season_announce_hours', ann.value.trim(), String(s.announceHours)]];
+    for (const [i, lo, hi, label] of [[prep, 3, 14, 'Préparation'], [ann, 0, 168, 'Annonce']]) {
+      const v = i.value.trim();
+      if (!/^\d+$/.test(v) || +v < lo || +v > hi) { i.focus(); return stMessage('st-err', `${label} : nombre entier de ${lo} à ${hi} attendu.`); }
+    }
+    const changed = wanted.filter(([, v, old]) => v !== old);
+    if (!changed.length) return stMessage('st-msg', 'Aucun changement.');
+    for (const [key, value] of changed) {
+      const { ok, data: d } = await api('PUT', '/api/admin/config', { key, value });
+      if (!ok) return stMessage('st-err', d.error ?? 'Réglage refusé.');
+    }
+    stMessage('st-msg', `Réglages enregistrés (${changed.length}).`);
+    loadSeasonThemes();
+  }, 'btn btn-sm');
+  cfg.appendChild(actions);
+  box.appendChild(aiEl('h4', {}, 'Réglages'));
+  box.appendChild(cfg);
 }
 
 function stMore(data) {
   const box = document.getElementById('st-more');
   box.textContent = '';
-  // Réglages (admin_config, validés côté serveur)
-  const cfg = aiEl('div', { class: 'st-settings' });
-  const fields = [
-    ['season_themes_public', 'Afficher thèmes et annonces aux joueurs (true/false)', String(data.settings.public)],
-    ['season_prep_days', 'Préparer la saison suivante N jours avant son début (3–14)', String(data.settings.prepDays)],
-    ['season_announce_hours', 'Annoncer la saison suivante N heures avant (0–168, 0 = pas d\'annonce)', String(data.settings.announceHours)],
-  ];
-  const inputs = fields.map(([key, label, value]) => { const [l, i] = aiInput(label, value); i.dataset.key = key; cfg.appendChild(l); return i; });
-  const save = aiEl('button', { class: 'btn btn-sm', type: 'button' }, 'Enregistrer les réglages');
-  save.addEventListener('click', async () => {
-    for (const i of inputs) {
-      const { ok, data: d } = await api('PUT', '/api/admin/config', { key: i.dataset.key, value: i.value });
-      if (!ok) return stMessage('st-err', d.error ?? 'Réglage refusé.');
-    }
-    stMessage('st-msg', 'Réglages enregistrés.');
-    loadSeasonThemes();
-  });
-  cfg.appendChild(save);
-  box.appendChild(aiEl('h4', {}, 'Réglages'));
-  box.appendChild(cfg);
+  stSettings(box, data);
   // Mots exclus
   box.appendChild(aiEl('h4', {}, 'Mots ou noms exclus'));
-  box.appendChild(aiEl('p', { class: 'muted' }, 'Un nom contenant tous les mots d\'une exclusion n\'est jamais proposé. Les noms déjà attribués restent réservés à vie (non listés ici).'));
+  box.appendChild(aiEl('p', { class: 'muted st-small' }, 'Un nom contenant tous les mots d\'une exclusion n\'est jamais proposé. Les noms déjà attribués restent réservés à vie (non listés ici).'));
   const ul = aiEl('ul', { class: 'st-list' });
   for (const ex of data.exclusions) {
     const li = aiEl('li', {}, `${ex.label} `);
-    const rm = aiEl('button', { class: 'btn btn-sm btn-outline', type: 'button' }, 'Retirer');
-    rm.addEventListener('click', async () => {
+    stButton(li, 'Retirer', async () => {
       const { ok, data: d } = await api('DELETE', `/api/admin/season-themes/exclusions/${encodeURIComponent(ex.key)}`);
       if (!ok) return stMessage('st-err', d.error ?? 'Refusé.');
       loadSeasonThemes();
     });
-    li.appendChild(rm);
     ul.appendChild(li);
   }
   if (!data.exclusions.length) ul.appendChild(aiEl('li', { class: 'muted' }, 'Aucune exclusion.'));
   box.appendChild(ul);
+  const ex = aiEl('div', { class: 'form-actions st-inline' });
   const [lx, ix] = aiInput('Exclure un mot ou un nom', '', { maxlength: '60' });
-  const add = aiEl('button', { class: 'btn btn-sm', type: 'button' }, 'Exclure');
-  add.addEventListener('click', async () => {
+  ex.appendChild(lx);
+  stButton(ex, 'Exclure', async () => {
     const { ok, data: d } = await api('POST', '/api/admin/season-themes/exclusions', { label: ix.value });
     if (!ok) return stMessage('st-err', d.error ?? 'Refusé.');
     loadSeasonThemes();
-  });
-  box.append(lx, add);
+  }, 'btn btn-sm');
+  box.appendChild(ex);
   // Packs de saison
-  box.appendChild(aiEl('h4', {}, 'Packs de saison rédigés (server/content/seasons)'));
+  box.appendChild(aiEl('h4', {}, 'Packs de saison rédigés'));
+  box.appendChild(aiEl('p', { class: 'muted st-small' }, 'Fichiers server/content/seasons : un pack fournit nom, textes et collection. Sans pack disponible, la saison reçoit un nom de repli, sans collection.'));
   const pk = aiEl('ul', { class: 'st-list' });
   for (const p of data.packs) {
     pk.appendChild(aiEl('li', {}, `${p.icon} ${p.name} — ${p.items} objets${p.preferredWeek ? ` — semaine ${p.preferredWeek}` : ''} — ${p.used ? 'utilisé' : 'disponible'}`));
@@ -5847,12 +6087,16 @@ function stMore(data) {
   // Dépense images (#40)
   const b = data.imageBudget;
   box.appendChild(aiEl('h4', {}, 'Images (atelier d\'icônes)'));
-  box.appendChild(aiEl('p', { class: 'muted' }, !b ? 'Atelier indisponible.' : b.configured === false ? `API d'images non configurée : ${b.reason ?? ''}`
-    : `Dépensé atelier : ${b.studioSpentUsd ?? 0} $${b.studioCapUsd != null ? ` / plafond ${b.studioCapUsd} $` : ''} · reste ${b.remainingUsd ?? '—'} $ · aujourd'hui ${b.imagesToday ?? 0}/${b.maxImagesPerDay ?? '—'} images. Aucune image n'est générée automatiquement : lancement par « Illustrer la collection ».`));
+  box.appendChild(aiEl('p', { class: 'muted st-small' }, !b ? 'Atelier indisponible.' : b.configured === false ? `API d'images non configurée : ${b.reason ?? ''}`
+    : `Dépensé atelier : ${b.studioSpentUsd ?? 0} $${b.studioCapUsd != null ? ` / plafond ${b.studioCapUsd} $` : ''} · reste ${b.remainingUsd ?? '—'} $ · aujourd'hui ${b.imagesToday ?? 0}/${b.maxImagesPerDay ?? '—'} images. Aucune image n'est générée automatiquement : lancement par « Illustrer ».`));
   // Journal
   box.appendChild(aiEl('h4', {}, 'Journal'));
-  const jl = aiEl('ul', { class: 'st-list' });
-  for (const e of data.events) jl.appendChild(aiEl('li', {}, `${stDate(e.createdAt)} — ${e.action}${e.themeId ? ` (thème n° ${e.themeId})` : ''}${e.details ? ` — ${JSON.stringify(e.details).slice(0, 160)}` : ''}`));
+  const jl = aiEl('ul', { class: 'st-list st-journal' });
+  for (const e of data.events) {
+    const li = aiEl('li', {}, `${stDate(e.createdAt)} — ${ST_EVENTS[e.action] ?? e.action}${e.themeId ? ` (thème n° ${e.themeId})` : ''}`);
+    if (e.details) li.appendChild(aiEl('code', { class: 'st-small' }, ` ${JSON.stringify(e.details).slice(0, 160)}`));
+    jl.appendChild(li);
+  }
   if (!data.events.length) jl.appendChild(aiEl('li', { class: 'muted' }, 'Rien pour l\'instant.'));
   box.appendChild(jl);
 }
@@ -5863,33 +6107,11 @@ async function loadSeasonThemes() {
   const { ok, data } = await api('GET', '/api/admin/season-themes');
   body.textContent = '';
   if (!ok) { stMessage('st-err', data.error ?? 'Thèmes indisponibles.'); return; }
-  const cur = aiEl('div', { class: 'st-col' });
-  cur.appendChild(aiEl('h4', {}, 'Saison actuelle'));
-  if (data.current) {
-    stLine(cur, 'Saison', data.current.season.name);
-    stLine(cur, 'Bornes', `${stDate(data.current.season.startAt)} → ${stDate(data.current.season.endAt)}`);
-    stThemeBlock(cur, data.current.theme, { canReroll: false });
-  } else cur.appendChild(aiEl('p', { class: 'muted' }, 'Aucune saison active.'));
-  const nxt = aiEl('div', { class: 'st-col' });
-  nxt.appendChild(aiEl('h4', {}, 'Saison suivante'));
-  if (data.next) {
-    stLine(nxt, 'Début prévu', `${stDate(data.next.startAt)} (semaine ${data.next.weekKey})`);
-    stLine(nxt, 'Préparation', data.next.theme ? 'faite' : `prévue à partir du ${stDate(data.next.prepareAt)}`);
-    stLine(nxt, 'Annonce aux joueurs', !data.settings.public ? 'désactivée (réglage)' : data.next.announceAt
-      ? `${data.next.announced ? 'visible depuis' : 'à partir du'} ${stDate(data.next.announceAt)}` : 'désactivée (0 h)');
-    stThemeBlock(nxt, data.next.theme, { canReroll: true });
-  } else nxt.appendChild(aiEl('p', { class: 'muted' }, 'Date de la saison suivante indisponible.'));
-  body.append(cur, nxt);
+  body.append(stCurrentCard(data), stNextCard(data));
   stMore(data);
 }
 
 document.getElementById('btn-st-refresh')?.addEventListener('click', loadSeasonThemes);
-document.getElementById('btn-st-prepare')?.addEventListener('click', async () => {
-  const { ok, data } = await api('POST', '/api/admin/season-themes/prepare');
-  if (!ok) return stMessage('st-err', data.error ?? 'Préparation impossible.');
-  stMessage('st-msg', data.next?.theme ? `Saison suivante préparée : « ${data.next.theme.names.fr} ».` : 'Rien à préparer pour l\'instant.');
-  loadSeasonThemes();
-});
 
 // ── Centre d'actualités (#50) ─────────────────────────────────────────────────
 // Liste d'abord ; « ＋ Ajouter » ouvre la fiche. Toute annonce est enregistrée en BROUILLON (y compris

@@ -53,10 +53,10 @@
       <button class="btn btn-primary" id="btn-new-season" type="button">＋ Ajouter une saison</button>
     </div>
     <table id="seasons-table">
-      <thead><tr><th>ID</th><th>Nom</th><th>Début</th><th>Fin</th><th>Statut</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
+      <thead><tr><th>ID</th><th>Nom</th><th>Thème</th><th>Début (Bruxelles)</th><th>Fin (Bruxelles)</th><th>Statut</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
       <tbody></tbody>
     </table>
-    <p class="muted" style="font-size:0.75rem">Cliquez sur une saison (ou Entrée / Espace) pour ouvrir sa fiche.</p>
+    <p class="muted" style="font-size:0.75rem">Heures de Bruxelles (UTC du serveur au survol et dans la fiche). Le thème est celui affiché aux joueurs ; il se gère dans 📊 Ligues &amp; Saisons → « Thèmes de saison ». Cliquez sur une saison (ou Entrée / Espace) pour ouvrir sa fiche.</p>
 
     <dialog id="season-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="season-dialog-title">
       <div class="section-header bk-dialog-head">
@@ -169,24 +169,23 @@
       <div id="season-stats" class="stat-grid">
         <div class="stat-item"><span class="stat-label">Nom</span><span class="stat-value" id="ov-season-name">—</span></div>
         <div class="stat-item"><span class="stat-label">Statut</span><span class="stat-value" id="ov-season-status">—</span></div>
-        <div class="stat-item"><span class="stat-label">Début</span><span class="stat-value" id="ov-season-start">—</span></div>
-        <div class="stat-item"><span class="stat-label">Fin</span><span class="stat-value" id="ov-season-end">—</span></div>
+        <div class="stat-item"><span class="stat-label">Début (Bruxelles)</span><span class="stat-value" id="ov-season-start">—</span></div>
+        <div class="stat-item"><span class="stat-label">Fin (Bruxelles)</span><span class="stat-value" id="ov-season-end">—</span></div>
         <div class="stat-item stat-item--highlight"><span class="stat-label">Joueurs actifs</span><span class="stat-value" id="ov-season-players">—</span></div>
       </div>
     </div>
 
     <!-- Saisons thématiques (#48) -->
     <div class="overview-card" id="st-card">
-      <h3 class="overview-card-title">🎭 Thème — saison actuelle / saison suivante</h3>
-      <p class="muted">Nom inédit, accroche FR/EN/NL/ES et collection préparés automatiquement (pack de saison rédigé à l'avance, sinon nom de repli sans IA ni dépense), annoncés aux joueurs avant le début. La <strong>ligue</strong> (ex. Mimosa) est un palier durable, distinct du thème. Les collections restent en brouillon : leur publication et leurs drops se décident dans l'onglet Collections.</p>
-      <div id="st-body" class="st-grid"></div>
-      <div class="form-actions" style="margin-top:8px">
-        <button class="btn" id="btn-st-prepare" type="button">Préparer la saison suivante maintenant</button>
-        <button class="btn btn-outline" id="btn-st-refresh" type="button">↻ Rafraîchir</button>
+      <div class="section-header st-card-top">
+        <h3 class="overview-card-title">🎭 Thèmes de saison</h3>
+        <button class="btn btn-sm btn-outline" id="btn-st-refresh" type="button">↻ Rafraîchir</button>
       </div>
-      <p id="st-msg" class="success hidden"></p>
-      <p id="st-err" class="error hidden"></p>
-      <details style="margin-top:8px"><summary>Réglages, mots exclus, packs et journal</summary>
+      <p class="muted st-small">Le <strong>thème</strong> habille une semaine (nom inédit, accroche, collection) ; la <strong>ligue</strong> (ex. Mimosa) est un palier durable, inchangé. Préparation automatique ; illustrer et publier restent des décisions manuelles. Heures affichées en <strong>Bruxelles</strong> (UTC du serveur au survol).</p>
+      <div id="st-body" class="st-grid"></div>
+      <p id="st-msg" class="success hidden" role="status"></p>
+      <p id="st-err" class="error hidden" role="alert"></p>
+      <details class="st-adv"><summary>⚙️ Réglages et détails avancés (exclusions, packs, images, journal)</summary>
         <div id="st-more"></div>
       </details>
     </div>
