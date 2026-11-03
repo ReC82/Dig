@@ -134,12 +134,18 @@ function _formatInvite(r, now) {
   };
 }
 
+/** Vague courante : la plus haute déjà utilisée (1 si aucun code). */
+function currentWave() {
+  return conn().prepare('SELECT MAX(wave) AS w FROM beta_invites').get().w || 1;
+}
+
 /**
  * Crée `count` codes (1 à 20). `expiresInDays` : 1 à 90 (défaut 14) ; 0 = sans expiration.
+ * Sans vague précisée : vague courante (« Inviter un testeur » en un clic, recette du 03/11).
  */
-function createInvites({ label = '', wave = 1, maxUses = 1, expiresInDays = 14, count = 1 } = {}, now = new Date()) {
+function createInvites({ label = '', wave = null, maxUses = 1, expiresInDays = 14, count = 1 } = {}, now = new Date()) {
   const lbl = _text(label, 60, 'Libellé');
-  const w = Number(wave), m = Number(maxUses), d = Number(expiresInDays), n = Number(count);
+  const w = (wave === null || wave === undefined || wave === '') ? currentWave() : Number(wave), m = Number(maxUses), d = Number(expiresInDays), n = Number(count);
   if (!Number.isInteger(w) || w < 1 || w > 20) throw new BetaError(400, 'Vague : entier de 1 à 20.');
   if (!Number.isInteger(m) || m < 1 || m > MAX_USES_MAX) throw new BetaError(400, `Utilisations : entier de 1 à ${MAX_USES_MAX}.`);
   if (!Number.isInteger(d) || d < 0 || d > 90) throw new BetaError(400, 'Expiration : 0 (aucune) à 90 jours.');
@@ -171,6 +177,19 @@ function revokeInvite(id) {
 
 function listInvites(now = new Date()) {
   return conn().prepare('SELECT * FROM beta_invites ORDER BY id DESC LIMIT 300').all().map(r => _formatInvite(r, now));
+}
+
+/**
+ * État d'un lien d'invitation, pour que le jeu accueille l'invité (ou explique clairement pourquoi
+ * le lien ne marche plus) AVANT qu'il remplisse le formulaire. Ne révèle rien d'autre que l'état
+ * du code fourni ; route limitée en débit (≈ 8·10¹¹ codes possibles : pas d'énumération).
+ */
+function inviteStatus(rawCode, now = new Date()) {
+  const registration = getSettings().registrationMode;
+  const code = normalizeCode(rawCode);
+  const row = code && CODE_RE.test(code) && conn().prepare('SELECT * FROM beta_invites WHERE code = ?').get(code);
+  const state = row ? _inviteState(row, now) : 'invalid';
+  return { state: registration === 'closed' ? 'closed' : state, valid: registration !== 'closed' && state === 'active', registration };
 }
 
 /**
@@ -337,7 +356,7 @@ function updateReport(id, body = {}) {
 
 /** Vue d'ensemble du panel. */
 function adminSummary(now = new Date()) {
-  return { settings: getSettings(), invites: listInvites(now), ...listTesters(now), reports: listReports() };
+  return { settings: getSettings(), currentWave: currentWave(), invites: listInvites(now), ...listTesters(now), reports: listReports() };
 }
 
 module.exports = {
@@ -348,7 +367,9 @@ module.exports = {
   getSettings,
   updateSettings,
   publicConfig,
+  currentWave,
   createInvites,
+  inviteStatus,
   revokeInvite,
   listInvites,
   checkRegistration,

@@ -4973,31 +4973,96 @@ document.getElementById('btn-ad-toggle').addEventListener('click', async () => {
 });
 
 // ── Bêta fermée (#57) ─────────────────────────────────────────────────────────
+// Recette du 03/11 : le tableau de bord ne montre que l'état ENREGISTRÉ sur le serveur ; inviter
+// quelqu'un = « Inviter un testeur » → « Créer le lien » → « Copier » ; la configuration passe par
+// une fiche qui montre ce qui va changer avant d'enregistrer ; le reste est replié (avancé).
 
-const BETA_MODES  = { open: 'ouverte à tous', invite: 'sur invitation', closed: 'fermée' };
-const BETA_STATES = { active: 'active', used: 'épuisé', expired: 'expiré', revoked: 'révoqué' };
+const BETA_MODES  = { open: 'Inscriptions ouvertes à tous', invite: 'Sur invitation', closed: 'Inscriptions fermées' };
+const BETA_MODE_SHORT = { open: 'tout le monde', invite: 'seulement les invités', closed: 'personne' };
+const BETA_STATES = { active: 'actif', used: 'utilisé', expired: 'expiré', revoked: 'révoqué' };
 const BETA_STATUS = { new: 'nouveau', seen: 'vu', fixed: 'corrigé', wontfix: 'non retenu' };
+let _beta = null;   // dernière vue enregistrée (GET /api/admin/beta)
 
 function betaInviteLink(code) {
   return `${location.origin}/?invite=${encodeURIComponent(code)}`;
 }
 
+/** Message prêt à envoyer à un invité (le lien Discord seulement s'il est configuré). */
+function betaInviteMessage(link, name) {
+  const discord = _beta?.settings.discordUrl;
+  return [
+    `Salut${name ? ` ${name}` : ''} ! Je t'invite à tester DIG!, mon petit jeu de minage, en avant-première.`,
+    '',
+    `1. Ouvre ce lien (ordinateur ou téléphone) : ${link}`,
+    '2. Choisis un pseudo, ton e-mail et un mot de passe : c\'est tout.',
+    '',
+    'Le lien ne sert qu\'une fois et reste valable 14 jours. C\'est une bêta : la progression peut encore être ajustée.',
+    discord ? `Un souci ou une idée ? Viens en parler sur Discord (facultatif) : ${discord}` : 'Un souci ou une idée ? Dis-le-moi, ou utilise « 🐞 Signaler un bug » dans le jeu.',
+  ].join('\n');
+}
+
+async function betaCopy(text, btn, label) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { prompt('À copier :', text); return; }
+  btn.textContent = '✓ Copié';
+  setTimeout(() => { btn.textContent = label; }, 1800);
+  admToast('Copié dans le presse-papiers.');
+}
+
+/** Confirmation brève en bas de l'écran (aucune action requise). */
+function admToast(text) {
+  let el = document.getElementById('adm-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'adm-toast';
+    el.className = 'adm-toast';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.classList.add('is-shown');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('is-shown'), 3200);
+}
+
 function renderBeta(data) {
+  _beta = data;
   const s = data.settings;
-  const banner = document.getElementById('beta-state');
-  banner.className = `contest-banner contest-banner--${s.registrationMode === 'open' ? 'open' : 'locked'}`;
-  banner.textContent = `Inscription ${BETA_MODES[s.registrationMode]} · bandeau ${s.bannerEnabled ? 'affiché' : 'masqué'} · `
-    + `Discord ${s.discordUrl ? 'configuré' : 'non configuré'} · signalements ${s.reportsEnabled ? 'ouverts' : 'fermés'}`;
-  document.getElementById('beta-mode').value = s.registrationMode;
-  document.getElementById('beta-discord').value = s.discordUrl;
-  document.getElementById('beta-banner').checked = s.bannerEnabled;
-  document.getElementById('beta-reports').checked = s.reportsEnabled;
-  document.getElementById('beta-policy').value = s.resetPolicy;
+  const active = data.invites.filter(i => i.state === 'active').length;
+  const newReports = data.reports.counts.new || 0;
+
+  const st = document.getElementById('beta-state');
+  st.className = `beta-state beta-state--${s.registrationMode}`;
+  st.textContent = `${BETA_MODES[s.registrationMode]}`;
+  const small = document.createElement('small');
+  small.textContent = ` · bandeau ${s.bannerEnabled ? 'affiché' : 'masqué'} · signalements ${s.reportsEnabled ? 'ouverts' : 'fermés'} · Discord ${s.discordUrl ? 'configuré' : 'non configuré'} — état enregistré`;
+  st.appendChild(small);
+
+  const stats = document.getElementById('beta-stats');
+  stats.textContent = '';
+  for (const [n, l] of [[data.summary.total, 'testeur(s) inscrit(s)'], [active, 'lien(s) d\'invitation actif(s)'], [newReports, 'nouveau(x) retour(s)']]) {
+    const li = document.createElement('li');
+    const b = document.createElement('strong'); b.textContent = n;
+    li.append(b, ` ${l}`);
+    stats.appendChild(li);
+  }
+
+  // Avertissements : seulement ce qui empêche une invitation de fonctionner, ou l'ouvre à tous.
+  const warns = [];
+  if (s.registrationMode === 'closed') warns.push('Inscriptions fermées : un lien d\'invitation ne permet PAS de créer un compte. Ouvre « Configurer la bêta » → « Seulement les invités ».');
+  if (s.registrationMode === 'open') warns.push('Tout le monde peut encore créer un compte sans invitation. Pour une bêta privée : « Configurer la bêta » → « Seulement les invités ».');
+  const wl = document.getElementById('beta-warnings');
+  wl.textContent = '';
+  for (const w of warns) { const li = document.createElement('li'); li.textContent = `⚠️ ${w}`; wl.appendChild(li); }
+  document.getElementById('btn-beta-feedback').textContent = `💬 Voir les retours${newReports ? ` (${newReports} nouveau${newReports > 1 ? 'x' : ''})` : ''}`;
+
   document.getElementById('beta-known').value = s.knownIssues;
+  document.getElementById('beta-inv-wave').value = data.currentWave;
+  document.getElementById('beta-invite-wave').textContent = data.currentWave;
 
   const ib = document.getElementById('beta-invites');
   ib.textContent = '';
-  if (!data.invites.length) ib.innerHTML = '<tr><td colspan="8" class="muted">Aucun code.</td></tr>';
+  if (!data.invites.length) ib.innerHTML = '<tr><td colspan="8" class="muted">Aucun lien créé.</td></tr>';
   for (const inv of data.invites) {
     const tr = document.createElement('tr');
     addCell(tr, inv.code).style.fontFamily = 'monospace';
@@ -5005,10 +5070,7 @@ function renderBeta(data) {
     if (inv.state === 'active') {
       const copy = document.createElement('button');
       copy.className = 'btn-ghost'; copy.textContent = '📋 Copier le lien';
-      copy.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(betaInviteLink(inv.code)); copy.textContent = '✓ Copié'; }
-        catch { prompt('Lien à copier :', betaInviteLink(inv.code)); }
-      });
+      copy.addEventListener('click', () => betaCopy(betaInviteLink(inv.code), copy, '📋 Copier le lien'));
       linkTd.appendChild(copy);
     }
     [inv.label || '—', inv.wave, `${inv.uses} / ${inv.maxUses}`, inv.expiresAt || 'jamais', BETA_STATES[inv.state] || inv.state].forEach(x => addCell(tr, x));
@@ -5017,9 +5079,10 @@ function renderBeta(data) {
       const rev = document.createElement('button');
       rev.className = 'btn-ghost'; rev.textContent = 'Révoquer';
       rev.addEventListener('click', async () => {
-        if (!confirm(`Révoquer ${inv.code} ? Les comptes déjà créés avec ce code ne sont pas touchés.`)) return;
+        if (!confirm(`Révoquer ${inv.code} ? Le lien ne marchera plus. Les comptes déjà créés avec ce lien ne sont pas touchés.`)) return;
         const { ok, data: d } = await api('POST', `/api/admin/beta/invites/${inv.id}/revoke`);
         if (!ok) return adMessage('beta-invite-msg', d.error || 'Erreur.', false);
+        admToast(`Lien ${inv.code} révoqué.`);
         loadBeta();
       });
       act.appendChild(rev);
@@ -5033,7 +5096,7 @@ function renderBeta(data) {
     + '(approximation : dernière sauvegarde cloud au moins 1 ou 7 jours après l’inscription).';
   const tb = document.getElementById('beta-testers');
   tb.textContent = '';
-  if (!data.testers.length) tb.innerHTML = '<tr><td colspan="8" class="muted">Aucun compte créé avec un code.</td></tr>';
+  if (!data.testers.length) tb.innerHTML = '<tr><td colspan="8" class="muted">Aucun compte créé avec une invitation.</td></tr>';
   for (const x of data.testers) {
     const tr = document.createElement('tr');
     [x.username, x.label || '—', x.wave, x.createdAt, x.lastSaveAt || '—', x.returnedD1 ? 'oui' : '—', x.returnedD7 ? 'oui' : '—', x.reports]
@@ -5045,12 +5108,17 @@ function renderBeta(data) {
   document.getElementById('beta-reports-counts').textContent = Object.entries(BETA_STATUS).map(([k, l]) => `${l} : ${c[k] || 0}`).join(' · ');
   const list = document.getElementById('beta-reports-list');
   list.textContent = '';
-  if (!data.reports.reports.length) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Aucun signalement.'; list.appendChild(p); }
+  if (!data.reports.reports.length) {
+    const p = document.createElement('p'); p.className = 'muted';
+    p.textContent = s.reportsEnabled ? 'Aucun retour pour le moment.' : 'Aucun retour. Le bouton « Signaler un bug » est désactivé (« Configurer la bêta » pour l’activer).';
+    list.appendChild(p);
+  }
   for (const r of data.reports.reports) {
-    const card = document.createElement('div');
-    card.className = 'overview-card';
-    const h = document.createElement('h4');
-    h.textContent = `n°${r.id} — ${r.createdAt} UTC — ${r.username || 'invité'} — ${BETA_STATUS[r.status]}`;
+    const card = document.createElement('details');
+    card.className = 'beta-report';
+    if (r.status === 'new') card.open = true;
+    const h = document.createElement('summary');
+    h.textContent = `n°${r.id} — ${r.username || 'invité'} — ${BETA_STATUS[r.status]} — ${r.createdAt} UTC — ${(r.observed || '').slice(0, 80)}`;
     card.appendChild(h);
     for (const [label, val] of [['Appareil', r.device], ['Étape', r.step], ['Attendu', r.expected], ['Constaté', r.observed]]) {
       const p = document.createElement('p');
@@ -5066,10 +5134,11 @@ function renderBeta(data) {
     const row = document.createElement('div');
     row.className = 'form-actions';
     const sel = document.createElement('select');
+    sel.setAttribute('aria-label', 'Statut');
     for (const [k, l] of Object.entries(BETA_STATUS)) sel.appendChild(new Option(l, k));
     sel.value = r.status;
     const gh = document.createElement('input');
-    gh.type = 'url'; gh.maxLength = 200; gh.placeholder = 'https://github.com/ReC82/Dig/issues/…'; gh.value = r.githubUrl || '';
+    gh.type = 'url'; gh.maxLength = 200; gh.placeholder = 'Lien du ticket GitHub (facultatif)'; gh.value = r.githubUrl || '';
     const note = document.createElement('input');
     note.type = 'text'; note.maxLength = 1000; note.placeholder = 'Note interne'; note.value = r.adminNote || '';
     const save = document.createElement('button');
@@ -5077,7 +5146,7 @@ function renderBeta(data) {
     save.addEventListener('click', async () => {
       const { ok, data: d } = await api('PUT', `/api/admin/beta/reports/${r.id}`, { status: sel.value, githubUrl: gh.value.trim(), adminNote: note.value });
       if (!ok) return adMessage('beta-report-msg', d.error || 'Erreur.', false);
-      adMessage('beta-report-msg', `Signalement n°${r.id} enregistré.`, true);
+      admToast(`Retour n°${r.id} enregistré (${BETA_STATUS[sel.value]}).`);
       loadBeta();
     });
     row.append(sel, gh, note, save);
@@ -5088,26 +5157,134 @@ function renderBeta(data) {
 
 async function loadBeta() {
   const { ok, data } = await api('GET', '/api/admin/beta');
-  if (!ok) return adMessage('beta-settings-msg', data.error || 'Erreur lors du chargement.', false);
+  if (!ok) return adMessage('beta-invite-msg', data.error || 'Erreur lors du chargement.', false);
   renderBeta(data);
 }
 
 document.getElementById('btn-refresh-beta').addEventListener('click', loadBeta);
+document.getElementById('btn-beta-feedback').addEventListener('click', () => {
+  const card = document.getElementById('beta-feedback-card');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  card.querySelector('summary, select, button')?.focus({ preventScroll: true });
+});
 
-document.getElementById('btn-beta-settings').addEventListener('click', async () => {
-  const mode = document.getElementById('beta-mode').value;
-  if (mode === 'closed' && !confirm('Fermer les inscriptions ? Plus personne ne pourra créer de compte (les joueurs existants continuent de jouer).')) return;
-  const { ok, data } = await api('PUT', '/api/admin/beta/settings', {
-    registrationMode: mode,
-    discordUrl:       document.getElementById('beta-discord').value.trim(),
+// ── Fiche « Inviter un testeur » : un champ facultatif, valeurs sûres (1 inscription, 14 jours, vague courante).
+admDialogSetup('beta-invite-dialog');
+
+function betaInviteReset() {
+  document.getElementById('beta-invite-step1').classList.remove('hidden');
+  document.getElementById('beta-invite-step2').classList.add('hidden');
+  document.getElementById('beta-invite-name').value = '';
+  admShowError(document.getElementById('beta-invite-error'), '');
+  const mode = _beta?.settings.registrationMode;
+  const warn = document.getElementById('beta-invite-warn');
+  warn.textContent = mode === 'closed'
+    ? '⚠️ Les inscriptions sont fermées : ce lien ne permettra pas de créer un compte tant que tu n’as pas choisi « Seulement les invités » dans « Configurer la bêta ».'
+    : '';
+  warn.classList.toggle('hidden', mode !== 'closed');
+}
+
+document.getElementById('btn-beta-invite-open').addEventListener('click', e => {
+  betaInviteReset();
+  admDialogOpen('beta-invite-dialog', e.currentTarget, 'beta-invite-name');
+});
+document.getElementById('btn-beta-invite-again').addEventListener('click', () => {
+  betaInviteReset();
+  document.getElementById('beta-invite-name').focus();
+});
+
+document.getElementById('btn-beta-invite-create').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-beta-invite-create');
+  const name = document.getElementById('beta-invite-name').value.trim();
+  btn.disabled = true;
+  const { ok, data } = await api('POST', '/api/admin/beta/invites', { label: name });
+  btn.disabled = false;
+  if (!ok) return admShowError(document.getElementById('beta-invite-error'), data.error || 'Erreur.');
+  const link = betaInviteLink(data.invites[0].code);
+  document.getElementById('beta-invite-done').textContent = `✓ Lien créé${name ? ` pour ${name}` : ''}. Copie-le et envoie-le toi-même.`;
+  document.getElementById('beta-invite-link').value = link;
+  document.getElementById('beta-invite-message').value = betaInviteMessage(link, name);
+  document.getElementById('beta-invite-step1').classList.add('hidden');
+  document.getElementById('beta-invite-step2').classList.remove('hidden');
+  document.getElementById('btn-beta-copy-link').focus();
+  loadBeta();
+});
+document.getElementById('btn-beta-copy-link').addEventListener('click', e =>
+  betaCopy(document.getElementById('beta-invite-link').value, e.currentTarget, '📋 Copier le lien'));
+document.getElementById('btn-beta-copy-msg').addEventListener('click', e =>
+  betaCopy(document.getElementById('beta-invite-message').value, e.currentTarget, '✉️ Copier un message prêt à envoyer'));
+
+// ── Fiche « Configurer la bêta » : formulaire = brouillon ; la liste « ce qui va changer » compare
+// au dernier état enregistré ; rien ne change tant que « Enregistrer » n'est pas cliqué.
+admDialogSetup('beta-config-dialog');
+
+function betaConfigForm() {
+  return {
+    registrationMode: document.querySelector('input[name="beta-mode"]:checked')?.value,
     bannerEnabled:    document.getElementById('beta-banner').checked,
     reportsEnabled:   document.getElementById('beta-reports').checked,
-    resetPolicy:      document.getElementById('beta-policy').value,
-    knownIssues:      document.getElementById('beta-known').value,
-  });
-  if (!ok) return adMessage('beta-settings-msg', data.error || 'Erreur.', false);
-  adMessage('beta-settings-msg', 'Réglages enregistrés (visibles par les joueurs au prochain chargement de page).', true);
+    discordUrl:       document.getElementById('beta-discord').value.trim(),
+    resetPolicy:      document.getElementById('beta-policy').value.trim(),
+  };
+}
+
+function betaConfigDiff() {
+  const cur = _beta.settings, next = betaConfigForm();
+  const out = [];
+  if (next.registrationMode !== cur.registrationMode) out.push(`Création de compte : ${BETA_MODE_SHORT[cur.registrationMode]} → ${BETA_MODE_SHORT[next.registrationMode]} (les comptes existants continuent de jouer).`);
+  if (next.bannerEnabled !== cur.bannerEnabled) out.push(next.bannerEnabled ? 'Le bandeau « 🧪 BÊTA » et la section « Bêta » apparaîtront dans le jeu.' : 'Le bandeau « 🧪 BÊTA » sera retiré du jeu.');
+  if (next.reportsEnabled !== cur.reportsEnabled) out.push(next.reportsEnabled ? 'Les joueurs pourront « Signaler un bug ».' : 'Le bouton « Signaler un bug » sera retiré.');
+  if (next.discordUrl !== cur.discordUrl) out.push(next.discordUrl ? `Lien Discord affiché dans le jeu : ${next.discordUrl}` : 'Plus aucun lien Discord affiché.');
+  if (next.resetPolicy !== cur.resetPolicy) out.push(next.resetPolicy ? 'Nouveau texte de politique de progression.' : 'Politique de progression : texte par défaut.');
+  const ul = document.getElementById('beta-config-diff');
+  ul.textContent = '';
+  if (!out.length) { const li = document.createElement('li'); li.className = 'muted'; li.textContent = 'Rien (identique à l’état enregistré).'; ul.appendChild(li); }
+  for (const t of out) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+  document.getElementById('btn-beta-settings').disabled = !out.length;
+  return out;
+}
+
+document.getElementById('btn-beta-config-open').addEventListener('click', e => {
+  if (!_beta) return;
+  const s = _beta.settings;
+  const radio = document.querySelector(`input[name="beta-mode"][value="${s.registrationMode}"]`);
+  if (radio) radio.checked = true;
+  document.getElementById('beta-banner').checked = s.bannerEnabled;
+  document.getElementById('beta-reports').checked = s.reportsEnabled;
+  document.getElementById('beta-discord').value = s.discordUrl;
+  document.getElementById('beta-policy').value = s.resetPolicy;
+  admShowError(document.getElementById('beta-settings-msg'), '');
+  betaConfigDiff();
+  admDialogOpen('beta-config-dialog', e.currentTarget, document.querySelector('input[name="beta-mode"]:checked'));
+});
+document.getElementById('beta-config-dialog').addEventListener('input', betaConfigDiff);
+document.getElementById('beta-config-dialog').addEventListener('change', betaConfigDiff);
+
+document.getElementById('btn-beta-recommended').addEventListener('click', () => {
+  document.querySelector('input[name="beta-mode"][value="invite"]').checked = true;
+  document.getElementById('beta-banner').checked = true;
+  document.getElementById('beta-reports').checked = true;
+  betaConfigDiff();
+});
+
+document.getElementById('btn-beta-settings').addEventListener('click', async () => {
+  const changes = betaConfigDiff();
+  if (!changes.length) return;
+  const next = betaConfigForm();
+  if (next.registrationMode === 'closed' && !confirm('Fermer les inscriptions ? Plus personne ne pourra créer de compte, même avec un lien d’invitation (les joueurs existants continuent de jouer).')) return;
+  const { ok, data } = await api('PUT', '/api/admin/beta/settings', next);
+  if (!ok) return admShowError(document.getElementById('beta-settings-msg'), data.error || 'Erreur.');
+  document.getElementById('beta-config-dialog').close();
+  admToast(`Enregistré : ${BETA_MODES[data.settings.registrationMode]}. Visible par les joueurs au prochain chargement de page.`);
   loadBeta();
+});
+
+document.getElementById('btn-beta-known').addEventListener('click', async () => {
+  const { ok, data } = await api('PUT', '/api/admin/beta/settings', { knownIssues: document.getElementById('beta-known').value });
+  if (!ok) return adMessage('beta-known-msg', data.error || 'Erreur.', false);
+  adMessage('beta-known-msg', 'Bugs connus enregistrés.', true);
+  admToast('Bugs connus enregistrés.');
+  _beta.settings = data.settings;
 });
 
 document.getElementById('btn-beta-invite').addEventListener('click', async () => {
@@ -5116,8 +5293,8 @@ document.getElementById('btn-beta-invite').addEventListener('click', async () =>
     label: document.getElementById('beta-inv-label').value.trim(),
     wave: num('beta-inv-wave'), maxUses: num('beta-inv-uses'), expiresInDays: num('beta-inv-days'), count: num('beta-inv-count'),
   });
-  if (!ok) return adMessage('beta-invite-msg', data.error || 'Erreur.', false);
-  adMessage('beta-invite-msg', `${data.invites.length} code(s) créé(s) : ${data.invites.map(i => i.code).join(', ')}`, true);
+  if (!ok) return adMessage('beta-batch-msg', data.error || 'Erreur.', false);
+  adMessage('beta-batch-msg', `${data.invites.length} code(s) créé(s) : ${data.invites.map(i => i.code).join(', ')} — liens à copier dans « Liens d'invitation créés ».`, true);
   loadBeta();
 });
 

@@ -1330,8 +1330,8 @@ async function _fetchMe() {
 
 async function _doRegister(username, email, password, inviteCode) {
   const { ok, data } = await _apiFetch('POST', '/api/register', { username, email, password, inviteCode });
-  if (ok) { _account = data.user; return null; }
-  return data.error || t('account.err_generic');
+  if (ok) { _account = data.user; DigBeta.clearInvite(); return null; }
+  return DigBeta.registerError(data.code) || data.error || t('account.err_generic');
 }
 
 async function _doLogin(username, password) {
@@ -2426,12 +2426,21 @@ function _accountSectionHtml() {
   }
 
   const tab = _accountTab === 'register' ? 'register' : 'login';
+  // Lien d'invitation périmé (#57) : un message, une action ; pas de formulaire voué à l'échec.
+  if (tab === 'register' && DigBeta.inviteBlocked()) {
+    return `<div class="settings-section">${head}
+      <div class="account-form">
+        ${DigBeta.inviteNoticeHtml()}
+        <button type="button" class="account-link-btn" data-tab="login">${t('beta.have_account')}</button>
+      </div></div>`;
+  }
   return `<div class="settings-section">${head}
     <div class="account-tabs">
       <button class="account-tab${tab === 'login'    ? ' is-active' : ''}" data-tab="login">${t('account.tab_login')}</button>
       <button class="account-tab${tab === 'register' ? ' is-active' : ''}" data-tab="register">${t('account.tab_register')}</button>
     </div>
     <form class="account-form" id="form-account-login" novalidate>
+      ${tab === 'register' ? DigBeta.inviteNoticeHtml() : ''}
       <input class="account-input" id="acc-username" type="text"
         placeholder="${t('account.label_username')}" aria-label="${t('account.label_username')}" autocomplete="username" maxlength="20">
       ${tab === 'register'
@@ -2442,7 +2451,7 @@ function _accountSectionHtml() {
         placeholder="${t('account.label_password')}" aria-label="${t('account.label_password')}" autocomplete="${tab === 'register' ? 'new-password' : 'current-password'}">
       ${(tab === 'register' && DigBeta.showInviteField())
         ? `<input class="account-input" id="acc-invite" type="text" maxlength="20" autocomplete="off" autocapitalize="characters"
-            value="${escapeHtml(DigBeta.pendingInvite() || '')}" placeholder="${t('beta.invite_label')}" aria-label="${t('beta.invite_label')}">
+            placeholder="${t('beta.invite_label')}" aria-label="${t('beta.invite_label')}">
           <p class="account-hint">${t('beta.invite_required')}</p>`
         : ''}
       ${tab === 'register'
@@ -2717,7 +2726,9 @@ function _bindAccountSection(container) {
     const username = document.getElementById('acc-username').value.trim();
     const email    = (document.getElementById('acc-email')?.value ?? '').trim();
     const password = document.getElementById('acc-password').value;
-    const invite   = (document.getElementById('acc-invite')?.value ?? '').trim();
+    // Lien d'invitation valable : le code part seul ; sinon, champ « code » du mode invitation.
+    const invite   = DigBeta.inviteAccepted() ? DigBeta.pendingInvite()
+      : (document.getElementById('acc-invite')?.value ?? '').trim();
     document.getElementById('acc-error').textContent = '';
 
     const error = _accountTab === 'register'
@@ -3303,7 +3314,8 @@ function init() {
   // Bêta fermée (#57) : bandeau et section « Bêta » seulement si l'admin les active ; un lien
   // d'invitation ouvre directement le formulaire d'inscription, code prérempli.
   DigBeta.init().then(() => {
-    if (DigBeta.pendingInvite() && !_account && !isViewActive('settings')) {
+    if (DigBeta.pendingInvite() && _account) DigBeta.clearInvite();   // déjà connecté : lien sans objet
+    else if (DigBeta.pendingInvite() && !isViewActive('settings')) {
       _accountTab = 'register';
       switchView('settings');
     } else if (isViewActive('settings')) renderSettings();

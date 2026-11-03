@@ -666,3 +666,35 @@ table:has(.visually-hidden) { position: relative; }
   .ic-series-row .btn { margin-left: 0; width: 100%; }
   .ic-batch-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
 }
+
+/* ── Bêta fermée (#57, recette du 03/11) : tableau de bord épuré, fiches, avancé replié ── */
+.beta-dash { display: flex; flex-direction: column; gap: 10px; }
+.beta-state { margin: 0; font-size: 1.05rem; font-weight: 700; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); }
+.beta-state small { font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+.beta-state--invite { border-color: #3aa76d; }
+.beta-state--open { border-color: var(--gold); }
+.beta-state--closed { border-color: #c0504d; }
+.beta-stats { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; font-size: 0.88rem; }
+.beta-stats strong { font-size: 1.1rem; color: var(--gold); }
+.beta-warnings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; }
+.beta-warnings:empty { display: none; }
+.beta-warnings li, .beta-warn { background: rgba(192, 80, 77, 0.12); border-left: 3px solid #c0504d; padding: 6px 10px; border-radius: 4px; }
+.beta-adv > summary, .beta-sub > summary, .beta-report > summary { cursor: pointer; font-weight: 600; }
+.beta-adv > summary { color: var(--muted); font-size: 0.88rem; }
+.beta-adv[open] > summary { margin-bottom: 8px; }
+.beta-sub { border-top: 1px solid var(--border); padding: 8px 0; }
+.beta-sub > summary { font-size: 0.85rem; margin-bottom: 6px; }
+.beta-report { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+.beta-report > summary { font-size: 0.82rem; font-weight: 400; overflow-wrap: anywhere; }
+.beta-report[open] > summary { margin-bottom: 6px; }
+.beta-modes { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+.beta-modes legend { font-weight: 600; font-size: 0.88rem; padding: 0 4px; }
+.beta-preview { background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; font-size: 0.82rem; margin: 6px 0; }
+.beta-preview ul { margin: 4px 0 0 18px; padding: 0; }
+.adm-dialog input[readonly] { width: 100%; font-family: monospace; }
+.adm-dialog textarea[readonly] { width: 100%; }
+.adm-toast { position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 40px); opacity: 0; pointer-events: none;
+  background: #1f6f43; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 0.88rem; z-index: 1000;
+  max-width: calc(100vw - 32px); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); transition: opacity 0.2s, transform 0.2s; }
+.adm-toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+

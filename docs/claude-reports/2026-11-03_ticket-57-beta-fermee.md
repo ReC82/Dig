@@ -2,6 +2,125 @@
 
 Lien : https://github.com/ReC82/Dig/issues/57
 
+## Session du 03/11/2026 (2) — panneau Bêta simplifié, invitation en 2 clics, verdict par audience
+
+Réponse aux deux commentaires du propriétaire du 03/11 : « NUIT 03/11 — verdict pré-bêta » et « Retour de recette — UX bêta trop nébuleuse ».
+
+### 1. État réel
+
+**Déployé en production (SHA `@@DEPLOY@@`), en attente de recette.** Le panneau 🧪 Bêta a été réorganisé et le parcours de l'invité simplifié. **Aucun réglage de production n'a été modifié** : en production, l'inscription reste « ouverte à tous », le bandeau est masqué et aucun lien Discord n'est configuré, jusqu'à ce que tu passes par « Configurer la bêta ». Aucune invitation n'a été créée ni envoyée.
+
+### 2. Verdict par audience
+
+| Audience | Verdict | Raisons précises |
+|---|---|---|
+| **3–5 proches (dont ta sœur)** | **GO**, après tes 10 minutes de préparation (checklist §6) | Inscription par lien sans code à saisir (vérifiée dans un vrai navigateur, ordinateur et mobile, en navigation privée). Lien à usage unique, refus clair s'il est réutilisé. Google ne peut **pas** créer de compte, donc il ne contourne pas l'invitation (vérifié dans le code et par un test automatique). Comptes existants jamais coupés. Session unique multi-appareils (#35) validée et close par toi. Sauvegarde quotidienne à 03:30 + sauvegarde avant chaque déploiement, restauration testée par `test/backup-restore.test.js`. Simulation de 12 clôtures de saison réussie (session précédente). **Limite acceptée :** pas d'e-mail (#43). Un mot de passe perdu passe par toi (panel → Paramètres avancés → « Mot de passe perdu »). |
+| **10–20 testeurs** | **NO-GO pour l'instant** | (1) **Pas d'e-mail du jeu (#43)** : ni vérification d'adresse ni « mot de passe oublié » autonome. À 20 personnes, la réinitialisation manuelle ne tient plus. (2) Points de récompense **réels** (#33 non terminé, décision 1 en attente). (3) Ligues et promotions (#19) et saisons thématiques (#48) non livrées : le classement fonctionne, mais sans promotion. (4) Économie calculée par le navigateur (#25 lots C–E) : un testeur curieux peut tricher. Sans gravité entre proches, mais le classement perd son sens à 20. (5) Pas de sauvegarde hors machine (#36 bloqué). **Feu vert** quand (1) est fait, (2) est décidé et que 7 jours de vague 1 se sont écoulés sans perte de progression. |
+| **Bêta publique** | **NO-GO** | En plus des points ci-dessus : conditions d'utilisation, coordonnées de l'éditeur et suppression de compte ; surveillance externe de `/health` ; sauvegarde hors machine prouvée (#36) ; décision sur la triche côté navigateur (#25/#49) ; conformité du concours (#27) si des lots réels sont promis. |
+
+État par parcours (preuves) :
+
+| Parcours | État | Preuve |
+|---|---|---|
+| Nouveau compte (lien d'invitation) | ✅ | Essai navigateur `test/e2e/beta-invite.e2e.js` (mobile 390×844, navigation privée) et tests `test/beta.test.js` (9) |
+| Connexion Google | ✅ ne contourne pas l'invitation | Mode « link » seul en production (journal du service). Aucun `createUser` dans `socialAuth.js` (test automatique) |
+| E-mail / récupération (#43) | ⚠️ absent (`mail:false` en production) | Contournement : mot de passe temporaire depuis le panel |
+| Première minute, minage, sauvegarde/reprise | ✅ | Tests `save-revision`, `block-resume`, `play-session` |
+| Session unique (#35) | ✅ | Ticket clos par toi |
+| Boutique, coffres, boost (#47) | ✅ correctif déployé (`0e1a561`), recette à faire | Ticket #47 en attente de ta validation |
+| Classement, saisons | ✅ rotation | `season-cycles-12.test.js` (12 cycles, heure d'été à Bruxelles, panne de 15 jours) |
+| Promotions (#19), saisons thématiques (#48) | ❌ non livrées | Pas bloquant pour 3–5 proches |
+| Crédit de points (#33) | ⚠️ points réels actifs, portefeuille incomplet | Décision 1 |
+| Sécurité, anti-triche (#25) | ⚠️ limites de débit, anti-autoclic. Économie côté navigateur | #25 en attente |
+| Sauvegarde et restauration | ✅ locale ; ❌ hors machine (#36) | `~/backups/dig/`, timer `dig-backup.timer` |
+
+### 3. Ce qui a changé (refonte demandée)
+
+**Panneau admin 🧪 Bêta** (`public/admin/index.html`, `admin.js`, `admin.css`) :
+- **Tableau de bord** à l'ouverture : l'état **enregistré** en gros (« Inscriptions ouvertes à tous », « Sur invitation » ou « Inscriptions fermées »), le nombre de testeurs, de liens actifs et de nouveaux retours. Un avertissement n'apparaît que s'il est utile : inscription encore ouverte à tous, ou inscriptions fermées (dans ce cas, une invitation ne marche pas). Trois boutons : **➕ Inviter un testeur**, **💬 Voir les retours**, **⚙️ Configurer la bêta**. Aucun formulaire technique n'est visible au chargement.
+- **Inviter un testeur** : une fiche avec un seul champ, facultatif (« Pour qui ? »), puis **Créer le lien**. Valeurs sûres : 1 inscription, 14 jours, vague courante. Ensuite viennent **📋 Copier le lien** et **✉️ Copier un message prêt à envoyer**. Le message contient le lien Discord seulement s'il est configuré, et Discord reste présenté comme facultatif. Puis « Inviter quelqu'un d'autre ».
+- **Configurer la bêta** : une fiche guidée (qui peut créer un compte, bandeau, bouton « Signaler un bug », Discord, politique de progression avec le texte par défaut affiché). Le bouton « Réglages conseillés » coche invitation, bandeau et signalements. Une liste **« Ce qui va changer »** compare le brouillon à l'état enregistré. « Enregistrer » reste grisé tant que rien ne change. Après l'enregistrement, une confirmation (toast) s'affiche. Le tableau de bord n'affiche jamais un état non enregistré, ce qui corrige l'incohérence relevée (« Sur invitation » dans le champ alors que l'inscription était encore ouverte).
+- **Retours des testeurs** : une liste simple, les nouveaux dépliés.
+- **Paramètres avancés** (repliés) : liens créés (copie, révocation), testeurs (J+1/J+7), lot de codes (vague, utilisations, expiration, nombre), bugs connus, mot de passe perdu.
+
+**Côté joueur** (`public/js/beta.js`, `main.js`, `i18n.js`, `style.css`) :
+- Le lien `/?invite=…` ouvre l'inscription avec le mot d'accueil « 🎟️ Tu es invité·e à la bêta de DIG! Choisis un pseudo, ton e-mail et un mot de passe : c'est tout. ». **Aucun champ « code »** n'apparaît : le code part tout seul. Le formulaire est identique à l'inscription normale.
+- Lien déjà utilisé, expiré ou révoqué : le jeu le vérifie **avant** que l'invité remplisse le formulaire. Il affiche alors un seul message (« demande un nouveau lien à la personne qui t'a invité·e ») et un seul bouton, « J'ai déjà un compte : me connecter ».
+- Les erreurs d'inscription liées à la bêta sont traduites (FR/EN/NL/ES) et formulées simplement.
+- Déjà connecté : le lien est ignoré.
+
+**Serveur** (`server/beta.js`, `server/index.js`, `server/rateLimits.js`) :
+- `GET /api/beta/invite/:code` renvoie l'état du lien (`active`, `used`, `expired`, `revoked`, `invalid` ou `closed`). Il est limité à 30 requêtes par IP toutes les 15 minutes (`RATE_INVITE_CHECK_MAX`). Avec environ 8·10¹¹ codes possibles, aucune énumération n'est faisable.
+- Une invitation créée sans vague prend la **vague courante** (la plus haute). Le panneau reçoit `currentWave`.
+- Aucune migration : aucune table ni colonne nouvelle.
+
+Cohérence de **toutes** les voies d'inscription (point 5 de la recette) :
+- **E-mail et mot de passe** (`POST /api/register`) : c'est le **seul** endroit qui crée un compte. Le mode et le code sont vérifiés avant le hachage, puis revérifiés et consommés dans la même transaction que la création du compte (deux inscriptions simultanées ne peuvent pas dépasser la limite).
+- **Google (Auth0)** : en mode `link`, il ne fait que lier un compte DIG! existant (mot de passe exigé). Il ne crée jamais de compte. Un test automatique échoue si `createUser` apparaît ailleurs.
+- **Activation** : aucune vérification d'e-mail tant que #43 n'est pas livré. Le compte est utilisable tout de suite.
+- **Récupération** : sans e-mail, elle passe par le mot de passe temporaire du panel, qui ferme les sessions du joueur.
+- **Lien privé** : le code est retiré de la barre d'adresse au chargement et gardé seulement pour l'onglet. Il est à usage unique par défaut, expire après 14 jours et peut être révoqué. Révoquer un lien ne touche pas les comptes déjà créés.
+
+### 4. SHA et procédure de test
+
+- Branche `feature/57-beta-fermee`, commit `@@BRANCH@@`, intégré dans `develop` : `@@DEV@@`.
+- `npm test` : @@TESTS@@.
+- Essai navigateur (hors `npm test`, base neuve) :
+  `PW=…/playwright-core CHROME=…/chrome-headless-shell BASE=http://127.0.0.1:3157 ADMIN=<secret de test> OUT=/tmp/x node test/e2e/beta-invite.e2e.js`.
+  Résultat : 8 étapes ✓ (tableau de bord sans configuration, configuration avec aperçu et toast, invitation en 2 clics avec copie vérifiée dans le presse-papiers, invité mobile en navigation privée sans code, lien réutilisé, refus sans lien, mode fermé, aucune erreur JavaScript).
+
+Captures (avant / après), dans `docs/claude-reports/img/` :
+- avant : `2026-11-03_ticket-57-avant-panel-desktop.png` ;
+- après : `…-1-dashboard-desktop.png`, `…-2-config-desktop.png`, `…-3-invite-desktop.png`, `…-4-invite-mobile.png`, `…-6-used-mobile.png`, `…-7-dashboard-mobile.png`.
+
+### 5. Vérifications, limites, données joueurs
+
+- Aucune donnée joueur modifiée, aucune migration. Empreintes de la base identiques avant et après le démarrage sur une copie de la production (voir §6).
+- Non vérifié dans un vrai navigateur : la connexion Google de bout en bout (il faut un compte Google réel). Le code et le test automatique prouvent seulement qu'elle ne crée pas de compte.
+- Le premier écran d'un nouvel appareil reste le choix de la langue (comme pour tout nouveau joueur). L'inscription s'ouvre juste après.
+
+### 6. Déploiement et recette de 3 minutes
+
+@@DEPLOYBLOCK@@
+
+**Recette de 3 minutes (toi) :**
+1. Panel → 🧪 Bêta. Tu vois seulement un tableau de bord : « Inscriptions ouvertes à tous » et un avertissement.
+2. **⚙️ Configurer la bêta** → **Réglages conseillés pour la bêta**. Lis « Ce qui va changer » → **Enregistrer**. Une confirmation verte s'affiche et le titre devient « Sur invitation ».
+3. **➕ Inviter un testeur** → tape « Test » → **Créer le lien** → **📋 Copier le lien**.
+4. Sur ton téléphone, en **navigation privée**, colle le lien → choisis la langue. Le formulaire d'inscription s'ouvre avec « 🎟️ Tu es invité·e… », **sans champ code**. Crée un compte `test_soeur`.
+5. Rouvre le même lien dans un nouvel onglet privé : « Ce lien d'invitation n'est plus valable… » et un seul bouton.
+6. Panel → **↻ Rafraîchir** : « 1 testeur inscrit ».
+
+Attendu : aucune étape ne demande de comprendre le mot « code ». Le compte de test peut ensuite rester tel quel ou être ignoré.
+
+**Checklist du jour J (avant d'inviter ta sœur) :**
+- [ ] Recette de 3 minutes ci-dessus réussie.
+- [ ] (Facultatif) Serveur Discord créé, lien collé dans « Configurer la bêta » (procédure : section « Session du 03/11/2026 (nuit) », §9 A, plus bas).
+- [ ] Décision 1 (points réels ou simulés) prise dans panel → 🏅 Points.
+- [ ] Un lien par proche (« Inviter un testeur » → prénom), envoyé avec « Copier un message prêt à envoyer ».
+- [ ] Le soir même : panel → 🧪 Bêta → « Voir les retours », puis Paramètres avancés → Testeurs (le compte a-t-il sauvegardé ?).
+- [ ] À J+1 : la colonne J+1 des testeurs, et la question « ta progression est-elle toujours là ? ».
+
+Classement : **Bloquant MVP** (accès des premiers testeurs).
+
+### 7. Choix techniques faits seul
+
+- Fiches `<dialog>` existantes du panel plutôt qu'un nouvel écran : même ergonomie que Saisons, Ligues et Blocs.
+- Vérification du lien avant le formulaire, par une route publique limitée en débit, pour que l'invité n'apprenne pas l'échec après avoir tout rempli.
+- Inscription « ouverte à tous » et lien périmé : le message est masqué (l'invité peut s'inscrire quand même, l'inquiéter ne sert à rien).
+- Pas d'envoi automatique : le panneau prépare le texte, et c'est toi qui l'envoies.
+
+### 8. Décisions demandées au propriétaire
+
+Inchangées par rapport à la session précédente (voir plus bas, §8) : (1) points réels ou simulés pendant la bêta, recommandé **simulés** ; (2) politique de reset, recommandé « peut être ajustée » ; (3) badge « Testeur fondateur » sans bonus, oui ou non ; (4) fournisseur e-mail pour #43, **bloquant avant 10–20 testeurs**.
+
+### 9. Reste à faire
+
+- #43 e-mails (bloquant pour 10–20), #33 portefeuille de points, #19/#48 promotions et saisons thématiques, #36 sauvegarde hors machine, conditions d'utilisation : classés « Après la vague 1 ».
+- Après lancement : un essai de la connexion Google de bout en bout avec un vrai compte, une fois l'inscription Google éventuellement ouverte.
+
+---
+
 ## Session du 03/11/2026 (nuit)
 
 ### 1. État réel

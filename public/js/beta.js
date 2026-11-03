@@ -8,7 +8,8 @@
  * - Signalement : texte du joueur ; les informations techniques ne partent que si la case est
  *   cochée, et leur contenu exact est visible avant l'envoi. Aucune capture n'est prise.
  * - Lien d'invitation `/?invite=DIG-XXXX-XXXX` : le code est retiré de l'adresse, gardé pour la
- *   session et prérempli dans le formulaire d'inscription.
+ *   session et envoyé tout seul avec l'inscription. L'invité ne voit jamais le mot « code » : un
+ *   lien valable affiche un mot d'accueil, un lien périmé un message clair (recette du 03/11).
  */
 const DigBeta = (() => {
   const INVITE_KEY = 'dig_invite';
@@ -16,6 +17,7 @@ const DigBeta = (() => {
   let _config = null;
   let _mine   = null;   // signalements du joueur connecté (null = non chargés)
   let _lastReport = null;
+  let _inviteState = null;   // état du lien reçu : active, used, expired, revoked, invalid, closed
 
   const _ss = {
     get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
@@ -35,8 +37,58 @@ const DigBeta = (() => {
   /** Code d'invitation reçu par lien (ou null). */
   function pendingInvite() { return _ss.get(INVITE_KEY); }
 
-  /** Faut-il afficher le champ « code d'invitation » à l'inscription ? */
-  function showInviteField() { return _config?.registration === 'invite' || !!pendingInvite(); }
+  /** Lien d'invitation reçu et encore valable : le code part seul, sans champ à remplir. */
+  function inviteAccepted() { return !!pendingInvite() && _inviteState === 'active'; }
+
+  /** Oublie le lien (compte créé, ou lien refusé par le serveur). */
+  function clearInvite() {
+    try { sessionStorage.removeItem(INVITE_KEY); } catch { /* stockage indisponible */ }
+    _inviteState = null;
+  }
+
+  /** Faut-il afficher le champ « code d'invitation » à l'inscription (mode invitation, sans lien valable) ? */
+  function showInviteField() { return _config?.registration === 'invite' && !inviteAccepted(); }
+
+  /**
+   * Message au-dessus du formulaire d'inscription : accueil de l'invité, ou explication d'un lien
+   * qui ne marche plus (une seule action : demander un nouveau lien). Chaîne vide sinon.
+   */
+  function inviteNoticeHtml() {
+    if (!_inviteState) return '';
+    if (_inviteState === 'active') return `<p class="beta-invite beta-invite--ok" role="status">${t('beta.invite_welcome')}</p>`;
+    const key = _inviteState === 'closed' ? 'beta.err_closed' : 'beta.invite_dead';
+    return `<p class="beta-invite beta-invite--bad" role="alert">${t(key)}</p>`;
+  }
+
+  /**
+   * Lien reçu inutilisable alors qu'aucune inscription libre n'est possible : le formulaire ne
+   * servirait à rien, seul le message (et « J'ai déjà un compte ») est affiché.
+   */
+  function inviteBlocked() {
+    return !!_inviteState && _inviteState !== 'active' && registrationMode() !== 'open';
+  }
+
+  /** Message clair pour un refus d'inscription lié à la bêta (code renvoyé par le serveur), sinon null. */
+  function registerError(code) {
+    if (code === 'invite_invalid') {
+      if (pendingInvite()) _inviteState = 'used';
+      return t(pendingInvite() ? 'beta.invite_dead' : 'beta.err_invite_invalid');
+    }
+    if (code === 'invite_required') return t('beta.err_invite_required');
+    if (code === 'registration_closed') return t('beta.err_closed');
+    return null;
+  }
+
+  async function _checkInvite() {
+    const code = pendingInvite();
+    if (!code) return;
+    try {
+      const r = await fetch(`/api/beta/invite/${encodeURIComponent(code)}`, { cache: 'no-store' });
+      if (r.ok) _inviteState = (await r.json()).state;
+    } catch { /* hors ligne : le serveur tranchera à l'inscription */ }
+    // Inscription ouverte à tous : un lien périmé n'empêche rien, inutile d'inquiéter l'invité.
+    if (_inviteState !== 'active' && _inviteState !== 'closed' && _config?.registration === 'open') clearInvite();
+  }
 
   function registrationMode() { return _config?.registration || 'open'; }
 
@@ -233,10 +285,14 @@ const DigBeta = (() => {
       const r = await fetch('/api/beta/config', { cache: 'no-store' });
       if (r.ok) _config = await r.json();
     } catch { /* hors ligne : rien d'affiché */ }
+    await _checkInvite();
     _renderBanner();
     I18n.onLangChange(() => _renderBanner());
     return _config;
   }
 
-  return { init, pendingInvite, showInviteField, registrationMode, settingsSectionHtml, bindSettings, openReport };
+  return {
+    init, pendingInvite, inviteAccepted, inviteBlocked, clearInvite, showInviteField, inviteNoticeHtml, registerError,
+    registrationMode, settingsSectionHtml, bindSettings, openReport,
+  };
 })();

@@ -3,6 +3,8 @@
  *   - par défaut rien ne change (inscription ouverte, bandeau masqué, aucun lien Discord) ;
  *   - inscription sur invitation : code exigé, usage limité, expiration, révocation, concurrence ;
  *   - inscriptions fermées : création refusée, connexion des comptes existants intacte ;
+ *   - lien d'invitation : état lisible par l'invité, vague courante par défaut, aucune autre voie
+ *     de création de compte (Google ne crée jamais de compte) — recette du 03/11 ;
  *   - signalements : diagnostic seulement avec consentement, champs filtrés, suivi joueur, panel ;
  *   - mot de passe temporaire (admin) : confirmation exigée, sessions fermées ;
  *   - /health vérifie la base.
@@ -117,6 +119,34 @@ test('inscriptions fermées : refus, même avec un code valide', () => {
   assert.strictEqual(beta.checkRegistration(c.code), c.code, 'mode ouvert : un code valide est accepté (testeur identifié)');
 });
 
+test('lien d\'invitation : état lisible par l\'invité, vague courante par défaut (recette du 03/11)', () => {
+  const [a] = beta.createInvites({ wave: 3 });
+  const [b] = beta.createInvites({ label: 'Sophie' });
+  assert.strictEqual(b.wave, 3, 'sans vague : vague courante (la plus haute)');
+  assert.strictEqual(beta.currentWave(), 3);
+  assert.deepStrictEqual(beta.inviteStatus(b.code.toLowerCase()), { state: 'active', valid: true, registration: 'open' });
+  for (const bad of ['', 'DIG-0000-0000', 'nimportequoi', null]) assert.strictEqual(beta.inviteStatus(bad).state, 'invalid', String(bad));
+  beta.revokeInvite(a.id);
+  assert.strictEqual(beta.inviteStatus(a.code).state, 'revoked');
+  beta.registerWithInvite(b.code, create);
+  assert.deepStrictEqual(beta.inviteStatus(b.code), { state: 'used', valid: false, registration: 'open' });
+  const [c] = beta.createInvites({ expiresInDays: 1 });
+  assert.strictEqual(beta.inviteStatus(c.code, new Date(Date.now() + 2 * 86_400_000)).state, 'expired');
+  beta.updateSettings({ registrationMode: 'closed' });
+  try { assert.deepStrictEqual(beta.inviteStatus(c.code), { state: 'closed', valid: false, registration: 'closed' }); }
+  finally { beta.updateSettings({ registrationMode: 'open' }); }
+});
+
+test('aucune autre voie de création de compte : Google (Auth0) ne crée jamais de compte', () => {
+  const src = f => fs.readFileSync(path.join(ROOT, 'server', f), 'utf8');
+  assert.doesNotMatch(src('socialAuth.js'), /createUser|INSERT INTO users/, 'socialAuth ne crée pas de compte');
+  const index = src('index.js');
+  const calls = index.match(/createUser\(/g) || [];
+  assert.strictEqual(calls.length, 1, 'un seul appel à createUser dans index.js');
+  assert.match(index, /beta\.registerWithInvite\(inviteCode, \(\) => createUser\(/, 'et il passe par le contrôle d\'invitation');
+  assert.doesNotMatch(index, /INSERT INTO users/);
+});
+
 test('signalements : texte obligatoire, diagnostic seulement avec consentement, champs filtrés', () => {
   const u = create();
   assert.strictEqual(status(() => beta.createReport(u.id, { observed: 'oups' })), 400, 'trop court');
@@ -211,6 +241,14 @@ test('routes : inscription sur invitation, fermeture sans couper les comptes, si
   r = await register('testeuse', { inviteCode: code.toLowerCase() });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
   const testerCookie = r.cookie;
+  r = await call('GET', `/api/beta/invite/${code}`);
+  assert.deepStrictEqual([r.status, r.body.state, r.body.valid], [200, 'used', false], 'lien déjà utilisé : l\'invité le sait avant de remplir le formulaire');
+  r = await call('GET', '/api/beta/invite/DIG-ZZZZ-ZZZZ');
+  assert.deepStrictEqual([r.status, r.body.state], [200, 'invalid']);
+  r = await call('POST', '/api/admin/beta/invites', { label: 'Sophie' }, { admin: true });
+  assert.deepStrictEqual([r.status, r.body.invites[0].maxUses, r.body.invites[0].wave], [200, 1, 1], '« Inviter un testeur » : 1 inscription, vague courante');
+  r = await call('GET', `/api/beta/invite/${r.body.invites[0].code}`);
+  assert.deepStrictEqual([r.body.state, r.body.valid, r.body.registration], ['active', true, 'invite']);
   r = await register('second', { inviteCode: code });
   assert.deepStrictEqual([r.status, r.body.code], [403, 'invite_invalid']);
 
@@ -235,6 +273,7 @@ test('routes : inscription sur invitation, fermeture sans couper les comptes, si
 
   r = await call('GET', '/api/admin/beta', undefined, { admin: true });
   assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.body.currentWave, 1);
   assert.strictEqual(r.body.summary.total, 1);
   assert.strictEqual(r.body.testers[0].username, 'testeuse');
   assert.strictEqual(r.body.reports.reports.length, 2);
