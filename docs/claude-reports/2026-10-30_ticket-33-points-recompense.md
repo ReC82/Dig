@@ -400,7 +400,7 @@ fichier `test/points-closure-audit.test.js`) :
 2. En jeu, connecté, page **Saison** → carte **Points de récompense** → « Historique » : deux lignes
    « Récompense de saison — Saison 44-2026 — #1/1 +5 pts » et « … Saison 44-2026 · 2 — #1/1 +5 pts »,
    solde 10 pts (après un rechargement de la page).
-3. Dimanche 08/11 après 23:59:59 UTC (lundi 00:00 à 01:00 heure de Bruxelles) : la Saison 45-2026 est
+3. Lundi 09/11 vers 01:00 heure de Bruxelles (fin de saison le 08/11 à 23:59:59 UTC) : la Saison 45-2026 est
    créditée une fois, avec une nouvelle ligne dans l'historique et le contrôle toujours OK.
 
 Classement : **Bloquant MVP public** (fiabilité de la monnaie de récompense). Le travail est livré.
