@@ -3388,27 +3388,18 @@ body.has-ad-top.ad-top-collapsed header { padding-top: calc(14px + env(safe-area
 /* ── Guide des trois boutiques (#34) : où l'on est, quelle monnaie, lien vers les deux autres ── */
 .shop-guide { margin: 0 0 12px; }
 .shop-guide-title { margin: 0 0 6px; font-size: 0.8rem; font-weight: 700; color: var(--text); }
-.shop-guide-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.shop-guide-row { display: grid; grid-template-columns: 1fr; gap: 5px; }
+/* Une ligne par boutique (recette #34-A : en trois colonnes, l'appli limitée à 440 px coupait
+   « Gemmes et cosmétiques » sur plusieurs lignes, téléphone comme ordinateur) : nom et monnaie à
+   gauche, « Tu es ici » / lien à droite ; mêmes textes, rien n'est raccourci ni déplacé. */
 .shop-guide-item {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
-  min-height: 44px; padding: 7px 8px; border-radius: 10px; text-align: left;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+  column-gap: 10px; row-gap: 1px; min-height: 44px; padding: 6px 10px; border-radius: 10px; text-align: left;
   background: var(--surface2); border: 1px solid rgba(255, 255, 255, 0.14);
   color: var(--text); font: inherit; cursor: pointer;
 }
 .shop-guide-item:hover, .shop-guide-item:focus-visible { border-color: var(--gold); }
 .shop-guide-item.is-current { cursor: default; border-color: var(--gold); background: rgba(245, 197, 24, 0.1); }
-.shop-guide-name { font-size: 0.82rem; font-weight: 700; line-height: 1.2; }
-.shop-guide-cur  { font-size: 0.76rem; color: #c9cbd6; line-height: 1.2; }
-.shop-guide-where { margin-top: auto; font-size: 0.74rem; font-weight: 600; color: var(--gold); }
-/* Téléphone (recette #34-A) : trois colonnes trop étroites, libellés coupés → une ligne par boutique,
-   nom et monnaie à gauche, « Tu es ici » / lien à droite ; mêmes textes, rien n'est raccourci. */
-@media (max-width: 499px) {
-  .shop-guide-row { grid-template-columns: 1fr; gap: 5px; }
-  .shop-guide-item {
-    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
-    column-gap: 10px; row-gap: 1px; min-height: 44px; padding: 6px 10px;
-  }
-  .shop-guide-name { grid-column: 1; grid-row: 1; }
-  .shop-guide-cur  { grid-column: 1; grid-row: 2; }
-  .shop-guide-where { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; white-space: nowrap; }
-}
+.shop-guide-name { grid-column: 1; grid-row: 1; font-size: 0.82rem; font-weight: 700; line-height: 1.2; }
+.shop-guide-cur  { grid-column: 1; grid-row: 2; font-size: 0.76rem; color: #c9cbd6; line-height: 1.2; }
+.shop-guide-where { grid-column: 2; grid-row: 1 / span 2; font-size: 0.74rem; font-weight: 600; color: var(--gold); white-space: nowrap; }

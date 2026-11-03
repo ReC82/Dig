@@ -34,7 +34,7 @@ const errors = [];
         links: [...(g?.querySelectorAll('[data-shop-guide]') || [])].map(x => x.dataset.shopGuide),
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         active: document.querySelector('.nav-btn.active')?.dataset.view,
-        // nombre max. de lignes d'un libellé (téléphone : une ligne par boutique, aucun libellé coupé)
+        // nombre max. de lignes d'un libellé (une ligne par boutique, aucun libellé coupé)
         lines: Math.max(0, ...[...(g?.querySelectorAll('.shop-guide-name, .shop-guide-cur, .shop-guide-where') || [])]
           .map(x => { const r = document.createRange(); r.selectNodeContents(x);
             return new Set([...r.getClientRects()].map(c => Math.round(c.bottom))).size; })),
@@ -49,7 +49,7 @@ const errors = [];
     assert.match(s.current, /Coffres.*Pièces.*Tu es ici/);
     assert.deepStrictEqual(s.links, ['gems', 'gifts']);
     assert.ok(s.overflow <= 0, 'pas de défilement horizontal');
-    if (w < 500) assert.strictEqual(s.lines, 1, 'téléphone : chaque libellé tient sur une ligne');
+    assert.strictEqual(s.lines, 1, 'chaque libellé tient sur une ligne');
     await page.evaluate(() => document.getElementById('shop-chests-anchor').scrollIntoView());
     await page.screenshot({ path: `${OUT}/guide-${w}-coffres.png` });
 
@@ -60,7 +60,7 @@ const errors = [];
     assert.strictEqual(s.active, 'shop');
     assert.match(s.current, /Gemmes.*Argent réel · bientôt.*Tu es ici/);
     assert.deepStrictEqual(s.links, ['chests', 'gifts']);
-    if (w < 500) assert.strictEqual(s.lines, 1, 'téléphone : « Gemmes et cosmétiques » sur une ligne');
+    assert.strictEqual(s.lines, 1, '« Gemmes et cosmétiques » sur une ligne');
     await page.screenshot({ path: `${OUT}/guide-${w}-boutique.png` });
 
     // 3. lien Cadeaux → Saison, carte cadeaux dépliée
