@@ -2,7 +2,169 @@
 
 - Ticket : https://github.com/ReC82/Dig/issues/20
 - Source : audit général #6 (T-13, bug B8, risque P2 « paramètres d'admin morts »)
-- Branche : `feature/20-parametres-economiques` (dernier code : `e339a26`, `develop` : `9fd23e4`, déployé : `9fd23e4`)
+- Branche : `feature/20-parametres-economiques` (dernier code : `e1686b4`, `develop` : `3ab096b`, déployé : `3ab096b`)
+
+## Session du 03/11/2026 (soir, DIGORCH) — fenêtre des chances lisible sur téléphone
+
+Commentaires du propriétaire traités (recettes du 03/11) :
+[#20-A coffre simple](https://github.com/ReC82/Dig/issues/20#issuecomment-6607531824),
+[#20-B/C coffres rare et antique](https://github.com/ReC82/Dig/issues/20#issuecomment-6607585755),
+[#20-D aperçu des améliorations](https://github.com/ReC82/Dig/issues/20#issuecomment-6607630259),
+[#20-E décomposition des pièces](https://github.com/ReC82/Dig/issues/20#issuecomment-6608065540) et
+[#20-F crédit réel +45](https://github.com/ReC82/Dig/issues/20#issuecomment-6608372108).
+
+### 1. État réel
+
+**Déployé en production (SHA `3ab096b`) — en attente de recette.** Ce qui est déjà validé par le
+propriétaire n'est pas à refaire :
+- les chances des 3 coffres (somme 100 %) ;
+- l'aperçu avant/après des 6 améliorations ;
+- la ligne Récompense (28 × 🎒 1,6 = 45) ;
+- le crédit réel (+45).
+
+Il reste à recetter la nouvelle présentation de la fenêtre des chances. La question des trois
+boutiques attend une décision (point 7).
+
+### 2. Résultat et changements réalisés
+
+Défaut signalé : sous le tableau, le texte était trop long, trop petit et gris foncé sur téléphone.
+La nouvelle fenêtre se lit de haut en bas ainsi :
+
+1. **Titre, puis prix et limite** (inchangés), en texte clair.
+2. **Tableau des chances en premier.** Police plus grande (0,95rem, environ 15 px) et lignes plus
+   aérées. Chaque probabilité exacte, chaque plage et l'étiquette « gros lot » restent visibles.
+   La mention « tu en reçois N » apparaît quand l'Aimant à éclats change la quantité.
+3. **Une phrase de synthèse**, dans un encadré : « Une ouverture = une seule récompense, tirée au
+   sort selon ces chances. Les pièces d'un coffre ne sont multipliées ni par le Sac ni par les
+   boosts. »
+4. **« ℹ️ Comment fonctionnent les récompenses ? »**, replié par défaut. La zone à toucher fait
+   44 px de haut. Une fois ouvert, il montre des sous-sections courtes, en mots simples, seulement
+   pour les types présents dans le coffre :
+   - 🎲 Le tirage ;
+   - 💰 Pièces : montant au hasard dans la plage, non augmenté par le Sac, les reliques ni les
+     boosts ;
+   - 🔮 Fragments et Aimant à éclats : +1 à +5 selon le niveau, au moins 1, et le niveau actuel du
+     joueur (« niveau 2 sur 5 ») ;
+   - ⚡ Boost : seulement les pièces des blocs, pas celles des coffres ;
+   - 📿 Objet de collection : « il t'en manque 8 sur 8, soit 12,5 % chacun », 5 fragments sans
+     bonus si la collection est complète.
+5. **Bouton Fermer** (44 px). Toujours **aucun bouton d'achat**.
+
+Les textes secondaires passent du gris `--muted` (#6b7280, contraste d'environ 3:1 sur le fond)
+à #c4c4d4 (contraste d'environ 9:1). Aucun texte de la fenêtre ne descend sous 12,5 px. Les règles
+dépliées font 14 px.
+
+**Inchangé :** les tables, les prix, le tirage serveur, l'API `/api/shop/chests` et les données des
+joueurs.
+
+Fichiers modifiés :
+- `public/js/main.js` (`showChestOdds`) ;
+- `public/css/style.css` (bloc « Fenêtre Récompenses et chances ») ;
+- `public/js/i18n.js` : FR, EN, NL et ES ;
+- `i18n/it.json` et `public/js/locales/it.js` : italien en aperçu, 15 clés rédigées dans la
+  session sans appel payant (`origin: ai`), donc retraduisibles ;
+- `test/chest-shop-odds.test.js` : 3 tests.
+
+### 3. SHA et procédure de test
+
+- Branche `feature/20-parametres-economiques`, commit `e1686b4`. `develop` : `3ab096b`.
+- `npm test` → 575/575. Les nouveaux tests vérifient, pour chaque coffre :
+  - l'ordre tableau → synthèse → détail ;
+  - le détail replié par défaut et l'absence de bouton ;
+  - toutes les lignes, avec leur probabilité exacte ;
+  - une sous-section par type de récompense ;
+  - le niveau d'Aimant et le pourcentage par objet manquant.
+
+  Ils vérifient aussi la présence des textes en FR, EN, NL et ES avec les mêmes variables et des
+  phrases courtes, ainsi que la taille de police, le contraste (pas de `--muted`) et la zone à
+  toucher de 44 px.
+
+### 4. Vérifications effectuées
+
+- Chromium sur serveur de test (port 3101, base de test), en 390×844 et 1280×900, en FR, EN, NL
+  et ES, sur les 3 coffres :
+  - fenêtre ouverte avec le détail replié ;
+  - total des pourcentages 100 % ;
+  - aucun débordement horizontal ;
+  - plus petite police 12,5 px, 14 px dans le détail ;
+  - seul bouton présent : Fermer ;
+  - le détail s'ouvre au toucher et la fenêtre se ferme avec Échap ;
+  - aucune erreur de console.
+- Mêmes contrôles en production, en visiteur et sans achat (FR, PC et mobile) : conformes.
+- Non vérifié : un vrai téléphone (seule l'émulation Chromium a été utilisée) et la relecture de
+  l'italien par un locuteur natif (langue en aperçu, masquée au public).
+
+### 5. Déploiement
+
+- Release `3ab096b` : `npm test` 575/575.
+- Copie de la base de production démarrée en `NODE_ENV=production` : `/health`, `/api/version`
+  et `/api/shop/chests` répondent. Empreintes de `users`, `user_saves`, `season_rankings`,
+  `seasons`, `leagues` et `player_click_tracking` identiques ; copie supprimée.
+- Aucune génération IA en cours : la dernière date de 17:16 UTC.
+- `main` avancé en avance rapide `f1c3bcb..3ab096b`.
+- `deploy.sh` OK, sauvegarde `dig-20261103-213600-pre-deploy-3ab096b.sqlite`.
+- Les 2 domaines répondent 200 en `1.0.0+3ab096b`, `/api/shop/chests` 200, journal sans
+  erreur, `quick_check` ok, empreintes identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep f1c3bcb` puis
+  `sudo systemctl restart dig`. Le lock est inchangé et il n'y a aucune migration.
+
+**Test fonctionnel à faire par le propriétaire (≈ 1 min, sans achat, recharger la page une
+fois) :**
+
+1. Sur le téléphone : Amélios → Boutique de saison → « ℹ️ Récompenses et chances » sous le
+   🏺 coffre antique. Attendu :
+   - le tableau des 7 chances, en gros caractères bien lisibles ;
+   - en dessous, une phrase de synthèse dans un encadré ;
+   - puis la ligne « ℹ️ Comment fonctionnent les récompenses ? », fermée.
+2. Toucher cette ligne. Attendu : 5 petites sections lisibles (Le tirage, Pièces, Fragments et
+   Aimant à éclats avec ton niveau, Boost, Objet de collection avec ton nombre d'objets manquants).
+   Rien n'est coupé et rien ne dépasse sur le côté.
+3. « Fermer » : la fenêtre se ferme, sans aucune proposition d'achat.
+
+**Classement MVP :** « Après lancement ». C'est de la lisibilité ; les chances étaient déjà
+exactes et visibles. Le correctif est livré.
+
+### 6. Choix techniques faits seul
+
+- J'ai utilisé `<details>`/`<summary>` natif : accessible au clavier et aux lecteurs d'écran,
+  sans script. Le détail est replié à chaque ouverture de la fenêtre, comme demandé.
+- J'ai défini une couleur secondaire locale à la fenêtre (`--odds-soft`) au lieu de modifier
+  `--muted`. Ce gris est utilisé partout dans le jeu ; le changer aurait eu un effet de bord hors
+  du ticket.
+- La phrase de synthèse est la même pour les 3 coffres, puisque tous contiennent des pièces. Les
+  détails propres à chaque coffre (Aimant, collection) restent dans les sous-sections.
+- Italien : textes rédigés dans la session, dans le format de #59, avec les termes déjà en place
+  (« Sacca », « Calamita di schegge »). Je n'ai fait aucun appel à l'API de traduction.
+
+### 7. Décisions demandées au propriétaire
+
+1. **Trois boutiques** (constat du 03/11, à croiser avec #34). Aujourd'hui :
+   - l'onglet Boutique pour les gemmes, skins et boosts ;
+   - la Boutique de saison sous Amélios, pour les coffres en pièces ;
+   - la Boutique de cadeaux sous Saison, pour les points.
+
+   Options, sans fusionner les économies ni toucher aux prix :
+   - **(A, recommandée)** L'onglet Boutique devient le point d'entrée unique. Il a 3 onglets
+     internes : « 💎 Gemmes et objets », « 📦 Coffres (💰 pièces) » et « 🎁 Cadeaux (🏅 points) ».
+     Chaque onglet affiche son solde dans sa monnaie. Les emplacements actuels (Amélios, Saison)
+     gardent un lien « Voir dans la Boutique » pendant la saison en cours, puis sont retirés à la
+     saison suivante.
+   - (B) Signalétique seulement : chaque espace garde sa place, avec un bandeau « Tu paies en
+     💰 pièces / 💎 gemmes / 🏅 points » et des liens vers les deux autres.
+   - (C) Statu quo jusqu'après le lancement.
+
+   B peut être livré vite et sans risque. A est la cible, à faire dans #34 ou dans un ticket
+   dédié.
+   **Classement :** « Après lancement » pour A ; B est possible avant le lancement si tu le
+   souhaites.
+
+### 8. Éléments restant à réaliser
+
+- Recette de la nouvelle présentation (point 5).
+- Décision sur les trois boutiques (point 7). Rien n'est implémenté de ce côté, conformément à
+  la demande « étude UX, pas de refonte destructive ».
+- Facultatif : cas combinés de la ligne Récompense (Cœur d'or + Sac + bonus ×2). Ils sont couverts
+  par les tests automatisés ; le propriétaire a demandé de ne pas retester la formule simple.
 
 ## Session du 30/10/2026 (soir, DIGORCH) — option A des coffres, chances visibles, aperçu des améliorations
 
