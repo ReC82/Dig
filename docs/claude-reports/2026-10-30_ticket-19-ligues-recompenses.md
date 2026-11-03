@@ -267,8 +267,9 @@ Procédure de test : `npm test` (ou `node --test test/leagues-audit.test.js`) �
 - Retour arrière : `git -C /home/ubuntu/Dig reset --keep 2b6c457` + redémarrage (aucun changement de
   dépendances ni de schéma).
 
-**Test fonctionnel (2 minutes)** : panel admin → Config → champ « Taux de promotion entre ligues »,
-saisir `abc` → refus avec « promotion_rate : nombre entre 0 et 1 attendu » ; le libellé du seuil se lit
+**Test fonctionnel (2 minutes)** : panel admin → section « Ligues & Saisons » → champ « Joueurs
+actifs min par ligue », saisir `2.5` et enregistrer → refus « min_active_players_per_league : entier
+≥ 1 attendu » (avant : accepté). Remettre `10`. Dans la liste générale de Config, le seuil se lit
 « Joueurs actifs min dans une ligue pour qu'il y ait des promus ». Côté jeu, rien ne change : la
 ligue affichée reste Mimosa tant qu'aucune ligue n'atteint le seuil.
 
