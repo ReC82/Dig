@@ -1363,17 +1363,51 @@ const ctDateInput = v => (v ? v.replace(' ', 'T').slice(0, 16) : '');
 const ctDateValue = v => (v ? `${v.replace('T', ' ')}:00` : null);
 const ctPrize = p => (p && p.label ? `${p.label} ${(p.valueCents / 100).toFixed(2)} ${p.currency}` : '');
 
-async function loadContest() {
-  const { ok, data } = await api('GET', '/api/admin/contest');
-  if (!ok) { ctMessage('ct-settings-msg', data.error || 'Erreur lors du chargement.', false); return; }
-  const s = data.settings;
+let _ctSettings = null;
+let _ctDirty = false;
 
-  const lock = document.getElementById('ct-lock');
-  lock.className = `contest-banner contest-banner--${s.realPrizesUnlocked ? 'open' : 'locked'}`;
-  lock.textContent = s.realPrizesUnlocked
-    ? '⚠ Cadeaux réels DÉVERROUILLÉS sur ce serveur (CONTEST_REAL_PRIZES=on).'
-    : `🔒 Simulation uniquement : cadeaux réels verrouillés. Concours ${s.enabled ? 'actif' : 'inactif'}.`;
+const ctRisk = v => (v === null || v === undefined ? 'aucune exclusion' : `≤ N${v}`);
+const ctWhen = v => (v ? `${v.slice(0, 16)} UTC` : null);
 
+/** Résumés : synthèse toujours visible et en-têtes des accordéons de la fiche. */
+function ctRenderSummary(s) {
+  const re = s.realEligibility || {};
+  const prize = `${s.prize.label || '—'} ${(s.prize.valueCents / 100).toFixed(2)} ${s.prize.currency}${s.prize.provider ? ` (${s.prize.provider})` : ''}`;
+  const calendar = s.startsAt || s.endsAt
+    ? `${ctWhen(s.startsAt) || 'sans début'} → ${ctWhen(s.endsAt) || 'sans fin'}` : 'sans limite';
+  const real = s.realPrizesUnlocked ? '⚠ déverrouillés' : '🔒 verrouillés';
+  const facts = [
+    ['État', s.enabled ? '✅ actif' : '⏸ inactif'],
+    ['Lot', prize],
+    ['Lots par saison', String(s.lotsPerSeason)],
+    ['Profondeur minimale', `${s.minDepth} m`],
+    ['Risque anti-bot', ctRisk(s.maxRiskLevel)],
+    ['Délai entre deux gains', s.cooldownSeasons ? `${s.cooldownSeasons} saison(s)` : 'aucun'],
+    ['Délai de remise', `${s.claimDays} jours`],
+    ['Calendrier', calendar],
+    ['Cadeaux réels', `${real} — stock ${s.prize.stock}`],
+  ];
+  const dl = document.getElementById('ct-summary');
+  dl.textContent = '';
+  for (const [k, v] of facts) {
+    const div = document.createElement('div');
+    const dt = document.createElement('dt');
+    const dd = document.createElement('dd');
+    dt.textContent = k;
+    dd.textContent = v;
+    div.append(dt, dd);
+    dl.appendChild(div);
+  }
+  document.getElementById('ct-acc-main-sum').textContent =
+    `${s.enabled ? 'actif' : 'inactif'} · ${prize} · ${s.lotsPerSeason} lot(s)/saison`;
+  document.getElementById('ct-acc-rules-sum').textContent =
+    `≥ ${s.minDepth} m · risque ${ctRisk(s.maxRiskLevel)} · ${s.cooldownSeasons ? `${s.cooldownSeasons} saison(s) entre gains` : 'aucun délai entre gains'} · remise ${s.claimDays} j · ${calendar}`;
+  document.getElementById('ct-acc-real-sum').textContent =
+    `${real} · stock ${s.prize.stock}${(re.countries || []).length ? ` · ${re.countries.join(', ')}` : ''}${re.minAge ? ` · ${re.minAge} ans min.` : ''}`;
+}
+
+/** Remplit la fiche avec les réglages enregistrés. */
+function ctFillForm(s) {
   document.getElementById('ct-enabled').checked = s.enabled;
   document.getElementById('ct-title').value = s.title;
   document.getElementById('ct-description').value = s.description;
@@ -1395,6 +1429,48 @@ async function loadContest() {
   document.getElementById('ct-re-parental').checked = !!re.parentalConsent;
   document.getElementById('ct-re-provider').value = re.provider || '';
   document.getElementById('ct-re-notes').value = re.notes || '';
+}
+
+function ctSetDirty(v) {
+  _ctDirty = v;
+  document.getElementById('ct-dirty').classList.toggle('hidden', !v);
+}
+
+/** Ouvre ou referme la fiche ; la synthèse reste visible au-dessus. */
+function ctShowForm(open) {
+  document.getElementById('ct-form').classList.toggle('hidden', !open);
+  document.getElementById('btn-ct-edit').classList.toggle('hidden', open);
+  if (open) {
+    document.getElementById('ct-acc-main').open = true;
+    document.getElementById('ct-acc-rules').open = false;
+    document.getElementById('ct-acc-real').open = false;
+  }
+}
+
+function ctCancelEdit() {
+  if (_ctDirty && !confirm('Abandonner les modifications non enregistrées des réglages ?')) return;
+  if (_ctSettings) ctFillForm(_ctSettings);
+  ctSetDirty(false);
+  ctShowForm(false);
+  document.getElementById('ct-settings-msg').className = 'hidden';
+}
+
+async function loadContest() {
+  const { ok, data } = await api('GET', '/api/admin/contest');
+  if (!ok) { ctMessage('ct-settings-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  const s = data.settings;
+  _ctSettings = s;
+
+  const lock = document.getElementById('ct-lock');
+  lock.className = `contest-banner contest-banner--${s.realPrizesUnlocked ? 'open' : 'locked'}`;
+  lock.textContent = s.realPrizesUnlocked
+    ? '⚠ Cadeaux réels DÉVERROUILLÉS sur ce serveur (CONTEST_REAL_PRIZES=on).'
+    : `🔒 Simulation uniquement : cadeaux réels verrouillés. Concours ${s.enabled ? 'actif' : 'inactif'}.`;
+
+  ctRenderSummary(s);
+  // Un rafraîchissement n'écrase pas une saisie en cours dans la fiche.
+  if (!_ctDirty) ctFillForm(s);
+  document.querySelector('#ct-mode option[value="real"]').textContent = s.realPrizesUnlocked ? 'Réel' : 'Réel (verrouillé)';
 
   const sel = document.getElementById('ct-season');
   const keep = sel.value;
@@ -1444,7 +1520,14 @@ async function saveContestSettings() {
   };
   const { ok, data } = await api('PUT', '/api/admin/contest/settings', body);
   ctMessage('ct-settings-msg', ok ? 'Réglages enregistrés.' : (data.error || 'Erreur.'), ok);
-  if (ok) loadContest();
+  if (!ok) {
+    // Refus du serveur : toutes les sections dépliées pour retrouver le champ en cause.
+    for (const d of document.querySelectorAll('#ct-form details')) d.open = true;
+    return;
+  }
+  ctSetDirty(false);
+  ctShowForm(false);
+  loadContest();
 }
 
 async function loadContestPreview() {
@@ -1611,6 +1694,9 @@ async function loadContestAudit(winnerId) {
 
 document.getElementById('btn-refresh-contest').addEventListener('click', loadContest);
 document.getElementById('btn-save-contest').addEventListener('click', saveContestSettings);
+document.getElementById('btn-ct-edit').addEventListener('click', () => ctShowForm(true));
+document.getElementById('btn-ct-cancel').addEventListener('click', ctCancelEdit);
+document.getElementById('ct-form').addEventListener('input', () => ctSetDirty(true));
 document.getElementById('btn-ct-preview').addEventListener('click', loadContestPreview);
 document.getElementById('ct-season').addEventListener('change', loadContestPreview);
 document.getElementById('ct-mode').addEventListener('change', loadContestPreview);
