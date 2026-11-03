@@ -1762,7 +1762,7 @@
           </select></label>
         <span id="news-counts" class="muted" style="font-size:0.8rem"></span>
       </div>
-      <div style="overflow-x:auto"><table><thead><tr><th>État</th><th>Annonce</th><th>Catégorie</th><th>Publication</th><th>Événement</th><th>Source</th><th>Actions</th></tr></thead><tbody id="news-list"></tbody></table></div>
+      <div style="overflow-x:auto"><table class="news-table"><thead><tr><th>État</th><th>Annonce</th><th>Catégorie</th><th>Publication</th><th>Événement</th><th>Source</th><th>Actions</th></tr></thead><tbody id="news-list"></tbody></table></div>
       <p id="news-msg" class="hidden"></p>
     </div>
 
@@ -1787,74 +1787,104 @@
       <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Annonce</th><th>Action</th><th>Détails</th></tr></thead><tbody id="news-log"></tbody></table></div>
     </details>
 
-    <dialog id="news-dialog" class="bk-dialog adm-dialog" aria-labelledby="news-dialog-title">
+    <!-- Fiche (recette #50-B/E du 03/11) : notes → IA en tête, une langue visible à la fois (onglets FR/EN/NL/ES avec
+         pastilles), aperçu dans la langue choisie, réglages facultatifs repliés, pied fixe « Enregistrer le brouillon »,
+         publication à part avec confirmation. Fermeture protégée si la fiche contient des saisies non enregistrées. -->
+    <dialog id="news-dialog" class="bk-dialog adm-dialog nw-dialog" aria-labelledby="news-dialog-title">
       <div class="section-header bk-dialog-head">
         <h3 class="overview-card-title" id="news-dialog-title">＋ Nouvelle annonce</h3>
-        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
-      </div>
-      <details id="nw-ai-box" class="overview-card" open>
-        <summary>✨ Mise en forme avec l'IA depuis un texte brut</summary>
-        <p class="muted" style="font-size:0.78rem">Colle tes notes telles quelles. L'IA rédige titre, résumé et texte en FR/EN/NL/ES <strong>sans rien ajouter</strong> :
-          ce qui manque (date, heure…) est listé ci-dessous, un lien absent de tes notes est retiré. Le résultat remplit la fiche ; rien n'est publié.</p>
-        <textarea id="nw-raw" rows="5" maxlength="4000" style="width:100%" placeholder="ex. Maintenance jeudi 20h-20h30 heure belge, le jeu sera indisponible, sauvegardez avant."></textarea>
-        <div class="form-actions"><button class="btn" id="btn-nw-ai" type="button">✨ Mettre en forme</button><span id="nw-ai-state" class="muted" style="font-size:0.8rem"></span></div>
-        <ul id="nw-ai-notes" class="beta-warnings"></ul>
-      </details>
-      <div class="adm-form">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">
-          <label>Catégorie<select id="nw-category">
-            <option value="news">Annonce</option><option value="season">Saison</option><option value="event">Événement</option>
-            <option value="update">Mise à jour</option><option value="maintenance">Maintenance</option><option value="community">Communauté</option>
-          </select></label>
-          <label>Icône (un emoji)<input id="nw-icon" type="text" maxlength="8" value="📰"></label>
-          <label>Date de l'événement (heure locale, facultatif)<input id="nw-event" type="datetime-local"></label>
-          <label>Expiration (heure locale, facultatif)<input id="nw-expires" type="datetime-local"></label>
+        <div class="adm-head-actions">
+          <button type="button" class="btn btn-outline" id="btn-nw-print" title="Toutes les langues et réglages sur une page, pour imprimer ou enregistrer en PDF">🖨 Fiche complète</button>
+          <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
         </div>
-        <label>Lien (https://…, facultatif)<input id="nw-link" type="text" inputmode="url" maxlength="300" placeholder="https://"></label>
-        <details class="nw-lang" open>
-          <summary>Français (obligatoire)</summary>
-          <label>Titre<input id="nw-title-fr" type="text" maxlength="90"></label>
-          <label>Résumé (une phrase)<input id="nw-summary-fr" type="text" maxlength="280"></label>
-          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-fr" rows="4" maxlength="2000"></textarea></label>
-          <label>Libellé du lien<input id="nw-linklabel-fr" type="text" maxlength="40" placeholder="En savoir plus"></label>
-        </details>
-        <details class="nw-lang">
-          <summary>English (vide = français affiché)</summary>
-          <label>Titre<input id="nw-title-en" type="text" maxlength="90"></label>
-          <label>Résumé (une phrase)<input id="nw-summary-en" type="text" maxlength="280"></label>
-          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-en" rows="4" maxlength="2000"></textarea></label>
-          <label>Libellé du lien<input id="nw-linklabel-en" type="text" maxlength="40" placeholder="En savoir plus"></label>
-        </details>
-        <details class="nw-lang">
-          <summary>Nederlands (vide = français affiché)</summary>
-          <label>Titre<input id="nw-title-nl" type="text" maxlength="90"></label>
-          <label>Résumé (une phrase)<input id="nw-summary-nl" type="text" maxlength="280"></label>
-          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-nl" rows="4" maxlength="2000"></textarea></label>
-          <label>Libellé du lien<input id="nw-linklabel-nl" type="text" maxlength="40" placeholder="En savoir plus"></label>
-        </details>
-        <details class="nw-lang">
-          <summary>Español (vide = français affiché)</summary>
-          <label>Titre<input id="nw-title-es" type="text" maxlength="90"></label>
-          <label>Résumé (une phrase)<input id="nw-summary-es" type="text" maxlength="280"></label>
-          <label>Texte (paragraphes séparés par une ligne vide)<textarea id="nw-body-es" rows="4" maxlength="2000"></textarea></label>
-          <label>Libellé du lien<input id="nw-linklabel-es" type="text" maxlength="40" placeholder="En savoir plus"></label>
-        </details>
       </div>
-      <div class="beta-preview">
-        <strong>Aperçu (comme dans le jeu, en français) :</strong>
-        <ul id="nw-preview" class="news-admin-preview"></ul>
+      <div class="nw-scroll">
+        <details id="nw-ai-box" class="nw-sec" open>
+          <summary>✨ 1. Notes brutes → mise en forme par l'IA</summary>
+          <textarea id="nw-raw" rows="4" maxlength="4000" style="width:100%" aria-label="Notes brutes" placeholder="ex. Maintenance jeudi 20h-20h30 heure belge, le jeu sera indisponible, sauvegardez avant."></textarea>
+          <div class="form-actions"><button class="btn" id="btn-nw-ai" type="button">✨ Mettre en forme</button><span id="nw-ai-state" class="muted" role="status" style="font-size:0.8rem"></span></div>
+          <ul id="nw-ai-notes" class="beta-warnings"></ul>
+          <details id="nw-ai-more" class="nw-ai-more hidden"><summary id="nw-ai-more-sum">Autres suggestions</summary><ul id="nw-ai-suggestions" class="muted"></ul></details>
+          <details class="nw-help"><summary>ⓘ Comment ça marche</summary>
+            <p class="muted">L'IA rédige titre, résumé et texte en FR/EN/NL/ES <strong>sans rien ajouter</strong> : une information
+              indispensable absente (date d'une maintenance…) est signalée ci-dessus, un lien absent de tes notes est retiré.
+              Le résultat remplit la fiche ; rien n'est enregistré ni publié tant que tu ne cliques pas.</p></details>
+        </details>
+        <section class="nw-sec" aria-labelledby="nw-text-h">
+          <h4 id="nw-text-h">2. Texte de l'annonce</h4>
+          <div class="nw-text-wrap">
+            <div class="nw-text-fields">
+              <div class="co-lang-switch" id="nw-langs" role="group" aria-label="Langue éditée">
+                <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true">FR</button>
+                <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false">EN</button>
+                <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false">NL</button>
+                <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false">ES</button>
+              </div>
+              <p class="muted nw-lang-legend">● complet · ◐ titre seul · ○ à traduire (le français est alors affiché)</p>
+              <p id="nw-fr-ref" class="muted co-prop-ref hidden"><strong>Français :</strong> <span id="nw-fr-ref-text"></span></p>
+              <div class="nw-lang-fields" data-lang="fr">
+                <label>Titre (FR) — obligatoire<input id="nw-title-fr" type="text" maxlength="90"></label>
+                <label>Résumé (FR, une phrase)<input id="nw-summary-fr" type="text" maxlength="280"></label>
+                <label>Texte (FR, paragraphes séparés par une ligne vide)<textarea id="nw-body-fr" rows="5" maxlength="2000"></textarea></label>
+                <label class="nw-linklabel">Libellé du lien (FR)<input id="nw-linklabel-fr" type="text" maxlength="40" placeholder="En savoir plus"></label>
+              </div>
+              <div class="nw-lang-fields hidden" data-lang="en">
+                <label>Titre (EN)<input id="nw-title-en" type="text" maxlength="90"></label>
+                <label>Résumé (EN, une phrase)<input id="nw-summary-en" type="text" maxlength="280"></label>
+                <label>Texte (EN, paragraphes séparés par une ligne vide)<textarea id="nw-body-en" rows="5" maxlength="2000"></textarea></label>
+                <label class="nw-linklabel">Libellé du lien (EN)<input id="nw-linklabel-en" type="text" maxlength="40" placeholder="En savoir plus"></label>
+              </div>
+              <div class="nw-lang-fields hidden" data-lang="nl">
+                <label>Titre (NL)<input id="nw-title-nl" type="text" maxlength="90"></label>
+                <label>Résumé (NL, une phrase)<input id="nw-summary-nl" type="text" maxlength="280"></label>
+                <label>Texte (NL, paragraphes séparés par une ligne vide)<textarea id="nw-body-nl" rows="5" maxlength="2000"></textarea></label>
+                <label class="nw-linklabel">Libellé du lien (NL)<input id="nw-linklabel-nl" type="text" maxlength="40" placeholder="En savoir plus"></label>
+              </div>
+              <div class="nw-lang-fields hidden" data-lang="es">
+                <label>Titre (ES)<input id="nw-title-es" type="text" maxlength="90"></label>
+                <label>Résumé (ES, une phrase)<input id="nw-summary-es" type="text" maxlength="280"></label>
+                <label>Texte (ES, paragraphes séparés par une ligne vide)<textarea id="nw-body-es" rows="5" maxlength="2000"></textarea></label>
+                <label class="nw-linklabel">Libellé du lien (ES)<input id="nw-linklabel-es" type="text" maxlength="40" placeholder="En savoir plus"></label>
+              </div>
+            </div>
+            <div class="nw-preview-col">
+              <strong id="nw-preview-h">Aperçu joueur (FR)</strong>
+              <ul id="nw-preview" class="news-admin-preview"></ul>
+              <p id="nw-warn" class="beta-warn hidden"></p>
+            </div>
+          </div>
+        </section>
+        <details class="nw-sec" id="nw-opts">
+          <summary>⚙️ 3. Catégorie, icône, dates et lien <span id="nw-opts-sum" class="muted"></span></summary>
+          <div class="nw-opts-grid">
+            <label>Catégorie<select id="nw-category">
+              <option value="news">Annonce</option><option value="season">Saison</option><option value="event">Événement</option>
+              <option value="update">Mise à jour</option><option value="maintenance">Maintenance</option><option value="community">Communauté</option>
+            </select></label>
+            <label>Icône (un emoji)<input id="nw-icon" type="text" maxlength="8" value="📰"></label>
+            <label>Date de l'événement (heure locale, facultatif)<input id="nw-event" type="datetime-local"></label>
+            <label>Expiration (heure locale, facultatif)<input id="nw-expires" type="datetime-local"></label>
+            <label class="nw-span">Lien (https://…, facultatif)<input id="nw-link" type="text" inputmode="url" maxlength="300" placeholder="https://"></label>
+          </div>
+        </details>
+        <section class="nw-sec nw-publish hidden" id="nw-publish-row" aria-labelledby="nw-publish-h">
+          <h4 id="nw-publish-h">📣 Publication — visible par les joueurs</h4>
+          <p class="muted" style="font-size:0.78rem">Séparée de l'enregistrement : chaque action demande une confirmation. Les modifications de la fiche sont enregistrées d'abord.</p>
+          <div class="form-actions">
+            <button class="btn btn-outline nw-pub-btn" id="btn-nw-publish" type="button">📣 Publier maintenant…</button>
+            <label>ou programmer le<input id="nw-publish-at" type="datetime-local"></label>
+            <button class="btn btn-outline nw-pub-btn" id="btn-nw-schedule" type="button">⏰ Programmer…</button>
+          </div>
+        </section>
       </div>
-      <p id="nw-warn" class="beta-warn hidden"></p>
-      <div class="form-actions">
-        <button class="btn btn-primary" id="btn-nw-save" type="button">Enregistrer le brouillon</button>
-        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      <div class="nw-foot">
+        <p id="nw-error" class="error hidden"></p>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-nw-save" type="button">💾 Enregistrer le brouillon</button>
+          <button class="btn btn-outline" type="button" data-close>Annuler</button>
+          <span id="nw-dirty" class="bk-dirty hidden">● modifications non enregistrées</span>
+        </div>
       </div>
-      <div class="form-actions" id="nw-publish-row">
-        <button class="btn" id="btn-nw-publish" type="button">📣 Publier maintenant</button>
-        <label>ou programmer le<input id="nw-publish-at" type="datetime-local"></label>
-        <button class="btn btn-outline" id="btn-nw-schedule" type="button">Programmer</button>
-      </div>
-      <p id="nw-error" class="error hidden"></p>
     </dialog>
   </section>
 
@@ -1951,6 +1981,7 @@
 <script src="/js/languages.js"></script>
 <script src="/js/i18n.js"></script>
 <script src="/js/iconLibrary.js"></script>
+<div id="nw-print" class="nw-print" aria-hidden="true"></div>
 <script src="admin.js"></script>
 </body>
 </html>

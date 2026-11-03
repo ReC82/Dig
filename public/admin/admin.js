@@ -47,6 +47,63 @@ function admDialogOpen(id, opener, focusEl) {
   return dlg;
 }
 
+/**
+ * Confirmation stylée Dig (recette #50-E du 03/11) — remplace window.confirm() : <dialog> natif empilé au-dessus
+ * des fiches, focus initial sur Annuler, Échap / fond / Annuler = refus, focus rendu à l'élément d'origine.
+ * `impact` : lignes expliquant l'effet (réversible ou non, visible des joueurs…). Rend une promesse booléenne.
+ */
+function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 'Annuler', danger = false }) {
+  let dlg = document.getElementById('adm-confirm');
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'adm-confirm';
+    dlg.className = 'bk-dialog adm-dialog adm-dialog--narrow adm-confirm';
+    dlg.setAttribute('aria-labelledby', 'adm-confirm-title');
+    dlg.setAttribute('aria-describedby', 'adm-confirm-text');
+    const h = document.createElement('h3');
+    h.className = 'overview-card-title';
+    h.id = 'adm-confirm-title';
+    const p = document.createElement('p');
+    p.id = 'adm-confirm-text';
+    const ul = document.createElement('ul');
+    ul.id = 'adm-confirm-impact';
+    ul.className = 'adm-confirm-impact';
+    const act = document.createElement('div');
+    act.className = 'form-actions';
+    const no = document.createElement('button');
+    no.type = 'button'; no.className = 'btn btn-outline'; no.id = 'adm-confirm-no';
+    const yes = document.createElement('button');
+    yes.type = 'button'; yes.id = 'adm-confirm-yes';
+    act.append(no, yes);
+    dlg.append(h, p, ul, act);
+    document.body.appendChild(dlg);
+    no.addEventListener('click', () => dlg.close('no'));
+    yes.addEventListener('click', () => dlg.close('yes'));
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close('no'); });
+  }
+  if (dlg.open) return Promise.resolve(false); // jamais deux confirmations à la fois (double clic)
+  const opener = document.activeElement;
+  dlg.querySelector('#adm-confirm-title').textContent = title;
+  dlg.querySelector('#adm-confirm-text').textContent = text;
+  const ul = dlg.querySelector('#adm-confirm-impact');
+  ul.textContent = '';
+  for (const line of impact) { const li = document.createElement('li'); li.textContent = line; ul.appendChild(li); }
+  ul.classList.toggle('hidden', !impact.length);
+  dlg.querySelector('#adm-confirm-no').textContent = cancel;
+  const yes = dlg.querySelector('#adm-confirm-yes');
+  yes.textContent = ok;
+  yes.className = danger ? 'btn btn-danger' : 'btn btn-primary';
+  dlg.returnValue = '';
+  dlg.showModal();
+  dlg.querySelector('#adm-confirm-no').focus();
+  return new Promise(resolve => {
+    dlg.addEventListener('close', () => {
+      if (opener && document.contains(opener)) opener.focus();
+      resolve(dlg.returnValue === 'yes');
+    }, { once: true });
+  });
+}
+
 /** Ligne de liste cliquable (souris, Entrée, Espace) qui ouvre une fiche ; rien n'est modifié à l'ouverture. */
 function admRowOpen(tr, key, label, onOpen) {
   tr.classList.add('bk-row');
@@ -6239,21 +6296,28 @@ function renderNews() {
   }
   for (const it of d.items) {
     const tr = document.createElement('tr');
-    addCell(tr, NW_STATES[it.state] ?? it.state);
-    const t = addCell(tr, `${it.icon} ${it.titles.fr}`);
-    if (it.subject) t.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `joueur cité : ${it.subject}`));
-    for (const w of it.warnings) t.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.75rem' }, `⚠️ ${w}`));
-    addCell(tr, NW_CATS[it.category] ?? it.category);
-    addCell(tr, it.status === 'draft' ? '—' : nwDate(it.publishAt));
-    addCell(tr, nwDate(it.eventAt));
-    addCell(tr, NW_SOURCES[it.source] ?? it.source);
-    const act = addCell(tr, '');
-    const btn = (label, fn) => { const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, label); b.addEventListener('click', fn); act.appendChild(b); return b; };
-    if (it.source !== 'auto' || it.status === 'draft') btn('Modifier', e => nwOpen(it, e.currentTarget));
-    if (it.status === 'draft') btn('Publier', () => nwAction(it.id, 'publish', `« ${it.titles.fr} » est publiée : visible tout de suite dans le jeu.`));
-    if (it.status === 'published') btn('Dépublier', () => nwAction(it.id, 'unpublish', 'Annonce repassée en brouillon (retirée du jeu).'));
-    if (it.status !== 'archived') btn('Archiver', () => { if (confirm(`Archiver « ${it.titles.fr} » ? Elle disparaît du jeu (rien n'est supprimé).`)) nwAction(it.id, 'archive', 'Annonce archivée.'); });
-    else btn('Restaurer en brouillon', () => nwAction(it.id, 'unpublish', 'Annonce restaurée en brouillon.'));
+    const cell = (label, value, cls) => { const td = addCell(tr, value); td.dataset.label = label; if (cls) td.className = cls; return td; };
+    cell('État', NW_STATES[it.state] ?? it.state, 'nw-c-state');
+    const t = cell('Annonce', `${it.icon} ${it.titles.fr}`, 'nw-c-title');
+    if (it.subject) t.appendChild(aiEl('div', { class: 'muted nw-sub' }, `joueur cité : ${it.subject}`));
+    for (const w of it.warnings) t.appendChild(aiEl('div', { class: 'muted nw-sub' }, `⚠️ ${w}`));
+    cell('Catégorie', NW_CATS[it.category] ?? it.category, 'nw-c-nowrap');
+    cell('Publication', it.status === 'draft' ? '—' : nwDate(it.publishAt), 'nw-c-nowrap');
+    cell('Événement', nwDate(it.eventAt), 'nw-c-nowrap');
+    cell('Source', NW_SOURCES[it.source] ?? it.source, 'nw-c-nowrap');
+    const act = cell('Actions', '', 'nw-c-actions');
+    const btn = (label, fn, key) => {
+      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, label);
+      b.dataset.admKey = `nw-${it.id}-${key}`;
+      b.addEventListener('click', fn);
+      act.appendChild(b);
+      return b;
+    };
+    if (it.source !== 'auto' || it.status === 'draft') btn('Modifier', e => nwOpen(it, e.currentTarget), 'edit');
+    if (it.status === 'draft') btn('Publier…', () => nwConfirmAction(it, 'publish'), 'publish');
+    if (it.status === 'published') btn('Dépublier…', () => nwConfirmAction(it, 'unpublish'), 'unpublish');
+    if (it.status !== 'archived') btn('Archiver…', () => nwConfirmAction(it, 'archive'), 'archive');
+    else btn('Restaurer en brouillon…', () => nwConfirmAction(it, 'restore'), 'restore');
     tb.appendChild(tr);
   }
 
@@ -6276,13 +6340,46 @@ function renderNews() {
   }
 }
 
+const _nwBusy = new Set(); // actions en cours (pas de double envoi sur un double clic)
 async function nwAction(id, action, okText, body = {}) {
-  const { ok, data } = await api('POST', `/api/admin/news/${id}/${action}`, body);
-  if (!ok) { nwMessage('news-msg', data.error ?? 'Action impossible.', true); return false; }
-  admToast(okText);
-  nwMessage('news-msg', '');
-  loadNews();
-  return true;
+  const key = `${id}:${action}`;
+  if (_nwBusy.has(key)) return false;
+  _nwBusy.add(key);
+  try {
+    const { ok, data } = await api('POST', `/api/admin/news/${id}/${action}`, body);
+    if (!ok) { admToast(`❌ ${data.error ?? 'Action impossible.'}`); nwMessage('news-msg', data.error ?? 'Action impossible.', true); return false; }
+    admToast(okText);
+    nwMessage('news-msg', '');
+    loadNews();
+    return true;
+  } finally { _nwBusy.delete(key); }
+}
+
+/** Textes des confirmations : effet exact de l'action, réversible ou non, visible des joueurs ou non. */
+function nwConfirmText(it, kind, at) {
+  const name = `« ${it.titles.fr || 'sans titre'} »`;
+  return {
+    publish: { title: 'Publier cette annonce ?', text: name, ok: '📣 Publier maintenant',
+      impact: ['Visible tout de suite dans le jeu par tous les joueurs (cloche et panneau Actualités).', 'Réversible : « Dépublier » la retire du jeu et la remet en brouillon.'] },
+    schedule: { title: 'Programmer la publication ?', text: name, ok: '⏰ Programmer',
+      impact: [`Visible dans le jeu à partir du ${nwDate(at)} (heure de ce navigateur).`, 'Jusque-là, invisible des joueurs ; « Dépublier » annule la programmation.'] },
+    unpublish: { title: 'Dépublier cette annonce ?', text: name, ok: 'Dépublier', danger: true,
+      impact: ['Retirée du jeu immédiatement et remise en brouillon.', 'Rien n\'est supprimé : elle peut être republiée.'] },
+    archive: { title: 'Archiver cette annonce ?', text: name, ok: '🗄 Archiver', danger: true,
+      impact: ['Elle disparaît du jeu si elle y était (et n\'y sera pas publiée).', 'Réversible : « Restaurer en brouillon » sur sa ligne. Rien n\'est supprimé.'] },
+    restore: { title: 'Restaurer en brouillon ?', text: name, ok: 'Restaurer en brouillon',
+      impact: ['Elle redevient un brouillon, invisible des joueurs.', 'Rien n\'est publié : la publication reste une action séparée.'] },
+  }[kind];
+}
+const NW_DONE = {
+  publish: it => `« ${it.titles.fr} » est publiée : visible tout de suite dans le jeu.`,
+  unpublish: () => 'Annonce repassée en brouillon (retirée du jeu).',
+  archive: () => 'Annonce archivée.',
+  restore: () => 'Annonce restaurée en brouillon.',
+};
+async function nwConfirmAction(it, kind) {
+  if (!await admConfirm(nwConfirmText(it, kind))) return false;
+  return nwAction(it.id, kind === 'restore' ? 'unpublish' : kind, NW_DONE[kind](it));
 }
 
 function nwFill(item) {
@@ -6311,21 +6408,79 @@ function nwCollect() {
   };
 }
 
+// Langue éditée : une seule visible à la fois (comme les fiches Collections #39) ; les autres gardent leurs saisies.
+let _nwLang = 'fr';
+function nwLangState(it, l) {
+  if (!it.titles[l]) return 'none';
+  return it.summaries[l] || it.bodies[l] ? 'ok' : 'name';
+}
+function nwLang(l, focus = false) {
+  _nwLang = l;
+  for (const b of document.querySelectorAll('#nw-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const d of document.querySelectorAll('#news-dialog .nw-lang-fields')) d.classList.toggle('hidden', d.dataset.lang !== l);
+  nwPreview();
+  if (focus) document.querySelector(`#nw-langs .co-lang-btn[data-lang="${l}"]`).focus();
+}
+
+/** Élément d'aperçu d'une annonce dans une langue (repli sur le français, comme dans le jeu). */
+function nwPreviewItem(it, l) {
+  const tx = k => it[k][l] || it[k].fr;
+  const li = aiEl('li', { class: 'news-admin-item' });
+  li.appendChild(aiEl('strong', {}, `${it.icon || '📰'} ${tx('titles') || '(titre français manquant)'}`));
+  if (it.eventAt) li.appendChild(aiEl('div', { class: 'muted' }, `📅 ${nwDate(it.eventAt)} — rangée dans « À venir » jusqu'à cette date`));
+  if (tx('summaries')) li.appendChild(aiEl('div', {}, tx('summaries')));
+  for (const p of tx('bodies').split(/\n{2,}/)) if (p.trim()) li.appendChild(aiEl('p', { style: 'margin:4px 0 0;white-space:pre-line' }, p.trim()));
+  if (it.linkUrl) li.appendChild(aiEl('div', { class: 'muted' }, `🔗 ${tx('linkLabels') || 'En savoir plus'} → ${it.linkUrl}`));
+  return li;
+}
+
 function nwPreview() {
   const it = nwCollect();
+  const l = _nwLang;
   const ul = document.getElementById('nw-preview');
   ul.textContent = '';
-  const li = aiEl('li', { class: 'news-admin-item' });
-  li.appendChild(aiEl('strong', {}, `${it.icon || '📰'} ${it.titles.fr || '(titre français manquant)'}`));
-  if (it.eventAt) li.appendChild(aiEl('div', { class: 'muted' }, `📅 ${nwDate(it.eventAt)} — rangée dans « À venir » jusqu'à cette date`));
-  if (it.summaries.fr) li.appendChild(aiEl('div', {}, it.summaries.fr));
-  for (const p of it.bodies.fr.split(/\n{2,}/)) if (p.trim()) li.appendChild(aiEl('p', { style: 'margin:4px 0 0;white-space:pre-line' }, p.trim()));
-  if (it.linkUrl) li.appendChild(aiEl('div', { class: 'muted' }, `🔗 ${it.linkLabels.fr || 'En savoir plus'} → ${it.linkUrl}`));
-  ul.appendChild(li);
-  const miss = NW_LANGS.filter(l => l !== 'fr' && !it.titles[l]);
+  ul.appendChild(nwPreviewItem(it, l));
+  document.getElementById('nw-preview-h').textContent = `Aperçu joueur (${l.toUpperCase()})${l !== 'fr' && !it.titles[l] ? ' — texte français affiché' : ''}`;
+  // Pastilles des langues
+  for (const b of document.querySelectorAll('#nw-langs .co-lang-btn')) {
+    const st = nwLangState(it, b.dataset.lang);
+    b.className = `co-lang-btn co-lang--${st}`;
+    b.textContent = `${{ ok: '●', name: '◐', none: '○' }[st]} ${b.dataset.lang.toUpperCase()}`;
+    b.title = { ok: 'complet', name: 'titre seul : résumé et texte manquants', none: 'à traduire (le français sera affiché)' }[st];
+  }
+  // Référence française quand on traduit
+  const ref = [it.titles.fr, it.summaries.fr].filter(Boolean).join(' — ');
+  document.getElementById('nw-fr-ref').classList.toggle('hidden', l === 'fr' || !ref);
+  document.getElementById('nw-fr-ref-text').textContent = ref;
+  // Libellé de lien seulement s'il y a un lien
+  for (const el of document.querySelectorAll('#news-dialog .nw-linklabel')) el.classList.toggle('hidden', !it.linkUrl);
+  // Résumé des réglages repliés
+  const opts = [NW_CATS[it.category] ?? it.category, it.icon || '📰', it.eventAt ? `📅 ${nwDate(it.eventAt)}` : 'sans date',
+    it.expiresAt ? `expire ${nwDate(it.expiresAt)}` : null, it.linkUrl ? '🔗 lien' : 'sans lien'].filter(Boolean);
+  document.getElementById('nw-opts-sum').textContent = `— ${opts.join(' · ')}`;
+  const miss = NW_LANGS.filter(x => x !== 'fr' && !it.titles[x]);
   const w = document.getElementById('nw-warn');
   w.textContent = miss.length ? `Titre manquant en ${miss.join(', ').toUpperCase()} : le français sera affiché à ces joueurs.` : '';
   w.classList.toggle('hidden', !miss.length);
+  nwDirtyUpdate();
+}
+
+// Saisies non enregistrées (notes brutes comprises) : confirmation avant toute fermeture (✕, Annuler, Échap, fond, page).
+let _nwSnap = null;
+const nwSnapshot = () => JSON.stringify([nwCollect(), document.getElementById('nw-raw').value.trim()]);
+const nwDirty = () => document.getElementById('news-dialog').open && _nwSnap !== null && nwSnapshot() !== _nwSnap;
+function nwDirtyUpdate() { document.getElementById('nw-dirty').classList.toggle('hidden', !nwDirty()); }
+
+async function nwRequestClose() {
+  const dlg = document.getElementById('news-dialog');
+  if (nwDirty() && !await admConfirm({
+    title: 'Modifications non enregistrées',
+    text: 'Cette fiche contient des saisies qui ne sont pas enregistrées (notes, textes ou réglages).',
+    impact: ['« Abandonner » ferme la fiche et perd ces saisies (une mise en forme IA non enregistrée serait à refaire).', 'Pour les garder : « Continuer à modifier », puis « 💾 Enregistrer le brouillon ».'],
+    ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
+  })) return;
+  _nwSnap = null;
+  dlg.close();
 }
 
 function nwOpen(item, opener) {
@@ -6333,32 +6488,61 @@ function nwOpen(item, opener) {
   _nwProposal = null;
   document.getElementById('news-dialog-title').textContent = item ? `Modifier l'annonce n° ${item.id}` : '＋ Nouvelle annonce';
   document.getElementById('nw-ai-box').open = !item;
+  document.getElementById('nw-opts').open = false;
   document.getElementById('nw-raw').value = '';
   document.getElementById('nw-ai-state').textContent = '';
-  document.getElementById('nw-ai-notes').textContent = '';
+  nwAiNotes(null);
   document.getElementById('nw-publish-at').value = '';
   document.getElementById('nw-publish-row').classList.toggle('hidden', !item || item.status === 'archived');
-  document.getElementById('btn-nw-save').textContent = item && item.status !== 'draft' ? 'Enregistrer les modifications' : 'Enregistrer le brouillon';
+  document.getElementById('btn-nw-save').textContent = item && item.status !== 'draft' ? '💾 Enregistrer les modifications' : '💾 Enregistrer le brouillon';
   nwMessage('nw-error', '');
   nwFill(item);
+  nwLang('fr');
   admDialogOpen('news-dialog', opener, item ? 'nw-title-fr' : 'nw-raw');
+  document.querySelector('#news-dialog .nw-scroll').scrollTop = 0;
+  _nwSnap = nwSnapshot();
+  nwDirtyUpdate();
+}
+
+/** Remarques de l'IA : au premier plan seulement ce qui manque vraiment ou pose problème ; le reste replié. */
+function nwAiNotes(p) {
+  const notes = document.getElementById('nw-ai-notes');
+  const more = document.getElementById('nw-ai-more');
+  const sug = document.getElementById('nw-ai-suggestions');
+  notes.textContent = '';
+  sug.textContent = '';
+  more.open = false;
+  for (const m of p?.missing ?? []) notes.appendChild(aiEl('li', {}, `❓ À compléter : ${m}`));
+  for (const m of p?.doubts ?? []) notes.appendChild(aiEl('li', {}, `⚠️ À vérifier : ${m}`));
+  for (const m of p?.suggestions ?? []) sug.appendChild(aiEl('li', {}, m));
+  more.classList.toggle('hidden', !(p?.suggestions ?? []).length);
+  document.getElementById('nw-ai-more-sum').textContent = `Autres suggestions facultatives (${(p?.suggestions ?? []).length})`;
 }
 
 /** Enregistre la fiche ; rend l'annonce enregistrée ou null. */
+let _nwSaving = false;
 async function nwSave() {
-  const body = nwCollect();
-  if (_nwProposal && !_nwEditing) body.aiProposalId = _nwProposal;
-  const { ok, data } = _nwEditing
-    ? await api('PUT', `/api/admin/news/${_nwEditing.id}`, body)
-    : await api('POST', '/api/admin/news', body);
-  if (!ok) { nwMessage('nw-error', (data.details ?? [data.error ?? 'Enregistrement impossible.']).join(' '), true); return null; }
-  _nwEditing = data.item;
-  _nwProposal = null;
-  document.getElementById('news-dialog-title').textContent = `Modifier l'annonce n° ${data.item.id}`;
-  document.getElementById('nw-publish-row').classList.toggle('hidden', data.item.status === 'archived');
-  nwMessage('nw-error', '');
-  loadNews();
-  return data.item;
+  if (_nwSaving) return null;
+  _nwSaving = true;
+  const save = document.getElementById('btn-nw-save');
+  save.disabled = true;
+  try {
+    const body = nwCollect();
+    if (_nwProposal && !_nwEditing) body.aiProposalId = _nwProposal;
+    const { ok, data } = _nwEditing
+      ? await api('PUT', `/api/admin/news/${_nwEditing.id}`, body)
+      : await api('POST', '/api/admin/news', body);
+    if (!ok) { nwMessage('nw-error', (data.details ?? [data.error ?? 'Enregistrement impossible.']).join(' '), true); return null; }
+    _nwEditing = data.item;
+    _nwProposal = null;
+    document.getElementById('news-dialog-title').textContent = `Modifier l'annonce n° ${data.item.id}`;
+    document.getElementById('nw-publish-row').classList.toggle('hidden', data.item.status === 'archived');
+    nwMessage('nw-error', '');
+    _nwSnap = nwSnapshot();
+    nwDirtyUpdate();
+    loadNews();
+    return data.item;
+  } finally { _nwSaving = false; save.disabled = false; }
 }
 
 async function nwPoll(id) {
@@ -6371,11 +6555,34 @@ async function nwPoll(id) {
   return { status: 'error', error: 'Toujours en cours après 3 minutes : rouvre la fiche plus tard.' };
 }
 
+/** Fiche complète (toutes les langues + réglages) sur une page, pour impression ou PDF, sans zone tronquée. */
+function nwPrint() {
+  const it = nwCollect();
+  const root = document.getElementById('nw-print');
+  root.textContent = '';
+  root.appendChild(aiEl('h1', {}, document.getElementById('news-dialog-title').textContent));
+  const st = _nwEditing ? (NW_STATES[_nwEditing.state] ?? _nwEditing.state) : '📝 Non enregistrée';
+  const dl = aiEl('dl', {});
+  for (const [k, v] of [['État', `${st}${nwDirty() ? ' — modifications non enregistrées' : ''}`], ['Catégorie', NW_CATS[it.category] ?? it.category],
+    ['Icône', it.icon || '📰'], ['Événement', nwDate(it.eventAt)], ['Expiration', nwDate(it.expiresAt)], ['Lien', it.linkUrl ?? '—']]) {
+    dl.append(aiEl('dt', {}, k), aiEl('dd', {}, v));
+  }
+  root.appendChild(dl);
+  for (const l of NW_LANGS) {
+    root.appendChild(aiEl('h2', {}, `${l.toUpperCase()}${l !== 'fr' && !it.titles[l] ? ' — non traduit (français affiché)' : ''}`));
+    const ul = aiEl('ul', { class: 'news-admin-preview' });
+    ul.appendChild(nwPreviewItem(it, l));
+    root.appendChild(ul);
+  }
+  document.body.classList.add('nw-printing');
+  window.addEventListener('afterprint', () => document.body.classList.remove('nw-printing'), { once: true });
+  window.print();
+}
+
 document.getElementById('btn-nw-ai')?.addEventListener('click', async e => {
   const b = e.currentTarget;
   const state = document.getElementById('nw-ai-state');
-  const notes = document.getElementById('nw-ai-notes');
-  notes.textContent = '';
+  nwAiNotes(null);
   b.disabled = true;
   state.textContent = '⏳ Mise en forme en cours (10 à 40 s)…';
   try {
@@ -6385,9 +6592,8 @@ document.getElementById('btn-nw-ai')?.addEventListener('click', async e => {
     if (p.status !== 'open') { state.textContent = `❌ ${p.error ?? 'Échec de la mise en forme.'}`; return; }
     nwFill({ ...nwCollect(), ...p.data.item });
     _nwProposal = _nwEditing ? null : p.id;
-    state.textContent = '✅ Fiche remplie : relis chaque langue, corrige si besoin, puis « Enregistrer le brouillon ».';
-    for (const m of p.data.missing) notes.appendChild(aiEl('li', {}, `❓ À compléter : ${m}`));
-    for (const m of p.data.doubts) notes.appendChild(aiEl('li', {}, `⚠️ À vérifier : ${m}`));
+    state.textContent = '✅ Fiche remplie : relis chaque langue (FR, EN, NL, ES), corrige si besoin, puis « 💾 Enregistrer le brouillon ».';
+    nwAiNotes(p.data);
   } finally { b.disabled = false; }
 });
 
@@ -6396,14 +6602,18 @@ document.getElementById('btn-nw-save')?.addEventListener('click', async () => {
   if (it) admToast(it.status === 'draft' ? 'Brouillon enregistré (invisible dans le jeu).' : 'Modifications enregistrées.');
 });
 document.getElementById('btn-nw-publish')?.addEventListener('click', async () => {
+  const cur = { ...(_nwEditing ?? {}), titles: nwCollect().titles };
+  if (!await admConfirm(nwConfirmText(cur, 'publish'))) return;
   const it = await nwSave();
-  if (it && await nwAction(it.id, 'publish', `« ${it.titles.fr} » est publiée : visible tout de suite dans le jeu.`)) document.getElementById('news-dialog').close();
+  if (it && await nwAction(it.id, 'publish', NW_DONE.publish(it))) { _nwSnap = null; document.getElementById('news-dialog').close(); }
 });
 document.getElementById('btn-nw-schedule')?.addEventListener('click', async () => {
   const at = nwToUtc(document.getElementById('nw-publish-at').value);
   if (!at) return nwMessage('nw-error', 'Choisis la date et l\'heure de publication.', true);
+  const cur = { ...(_nwEditing ?? {}), titles: nwCollect().titles };
+  if (!await admConfirm(nwConfirmText(cur, 'schedule', at))) return;
   const it = await nwSave();
-  if (it && await nwAction(it.id, 'publish', `Publication programmée le ${nwDate(at)}.`, { at })) document.getElementById('news-dialog').close();
+  if (it && await nwAction(it.id, 'publish', `Publication programmée le ${nwDate(at)}.`, { at })) { _nwSnap = null; document.getElementById('news-dialog').close(); }
 });
 
 document.getElementById('btn-news-settings')?.addEventListener('click', async () => {
@@ -6420,8 +6630,38 @@ document.getElementById('btn-news-settings')?.addEventListener('click', async ()
 });
 
 if (document.getElementById('news-dialog')) {
-  admDialogSetup('news-dialog');
-  document.getElementById('news-dialog').addEventListener('input', e => { if (e.target.id !== 'nw-raw') nwPreview(); });
+  const dlg = admDialogSetup('news-dialog');
+  // Fermeture protégée : ✕ / Annuler / fond interceptés avant admDialogSetup, Échap via « cancel ».
+  dlg.addEventListener('click', e => {
+    const closeBtn = e.target.closest('[data-close]');
+    if (e.target === dlg) {
+      // Clic dans la marge intérieure de la fiche : ignoré ; seul un clic sur le fond (hors cadre) demande la fermeture.
+      const r = dlg.getBoundingClientRect();
+      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+      e.stopImmediatePropagation();
+      if (!inside) nwRequestClose();
+      return;
+    }
+    if (!closeBtn) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    nwRequestClose();
+  }, true);
+  dlg.addEventListener('cancel', e => { e.preventDefault(); nwRequestClose(); });
+  dlg.addEventListener('close', () => { _nwSnap = null; });
+  window.addEventListener('beforeunload', e => { if (nwDirty()) { e.preventDefault(); e.returnValue = ''; } });
+  dlg.addEventListener('input', () => nwPreview());
+  dlg.addEventListener('change', () => nwPreview());
+  document.querySelectorAll('#nw-langs .co-lang-btn').forEach((b, k, all) => {
+    b.addEventListener('click', () => nwLang(b.dataset.lang));
+    b.addEventListener('keydown', e => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      nwLang(all[(k + step + all.length) % all.length].dataset.lang, true);
+    });
+  });
+  document.getElementById('btn-nw-print').addEventListener('click', nwPrint);
   document.getElementById('btn-news-add').addEventListener('click', e => nwOpen(null, e.currentTarget));
   document.getElementById('btn-news-refresh').addEventListener('click', loadNews);
   document.getElementById('news-filter').addEventListener('change', loadNews);
