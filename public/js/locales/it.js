@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 598/598 textes. Absents → français. */
+/* Italian (preview) : 601/601 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -127,10 +127,12 @@ I18n.registerLocale("it", {
   "banner_close": "Nascondi il banner",
   "banner_report": "🐞 Segnala un bug",
   "cancel": "Chiudi",
+  "confirm_close": "Chiudere senza inviare? Quello che hai scritto andrà perso.",
   "copied": "Copiato: incollalo in #bugs.",
   "copy": "📋 Copia per Discord",
   "diag_label": "Allega le informazioni tecniche (versione, browser, dimensioni dello schermo, lingua, schermata del gioco)",
   "diag_preview": "Vedi esattamente cosa verrà inviato",
+  "discard": "Abbandona",
   "discord": "💬 Unisciti al Discord della beta",
   "err_closed": "Le iscrizioni sono chiuse al momento. Se hai già un account, accedi.",
   "err_invite_invalid": "Questo codice d’invito non è valido (già usato o scaduto). Chiedi un nuovo link a chi ti ha invitato.",
@@ -147,6 +149,7 @@ I18n.registerLocale("it", {
   "invite_required": "Iscrizione su invito: apri il link che hai ricevuto, oppure incolla qui il codice che contiene.",
   "invite_welcome": "🎟️ Sei invitato alla beta di DIG! Scegli un nickname, la tua e-mail e una password: è tutto.",
   "issue_link": "dettagli",
+  "keep_writing": "Continua a scrivere",
   "known_title": "Bug noti",
   "mine_empty": "Nessuna segnalazione inviata.",
   "mine_title": "Le mie segnalazioni",

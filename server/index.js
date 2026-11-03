@@ -102,6 +102,7 @@ const playSession = require('./playSession');
 const ads = require('./ads');
 const legal = require('./legal');
 const beta  = require('./beta');
+const adminSession = require('./adminSession');
 const { isValidEmail, intParam } = require('./validation');
 const { createMailer } = require('./mailer');
 const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
@@ -846,9 +847,27 @@ function badgeRoute(label, fn) {
 
 // ── Middleware admin ──────────────────────────────────────────────────────────
 
+// Accès admin : clé en en-tête Authorization (scripts, tests) OU session admin du panel (cookie
+// HttpOnly à durée limitée + en-tête X-Dig-Admin, #57 recette du 03/11). La clé n'est jamais
+// conservée par le navigateur.
+const ADMIN_FP = ADMIN_SECRET ? adminSession.secretFingerprint(ADMIN_SECRET, SESSION_SECRET) : null;
+
+function adminAuth(req) {
+  if (!ADMIN_SECRET) return null;
+  if (req.headers['authorization']) {
+    return security.isValidBearer(req.headers['authorization'], ADMIN_SECRET) ? { via: 'key' } : null;
+  }
+  if (req.headers[adminSession.HEADER] !== '1') return null;
+  const s = adminSession.check(adminSession.readCookie(req), ADMIN_FP);
+  return s ? { via: 'session', ...s } : null;
+}
+
 function requireAdmin(req, res, next) {
+  res.set('Cache-Control', 'no-store');
   if (!ADMIN_SECRET) return res.status(503).json({ error: 'Panel admin non configuré (ADMIN_SECRET manquant ou trop court).' });
-  if (!security.isValidBearer(req.headers['authorization'], ADMIN_SECRET)) return res.status(401).json({ error: 'Accès refusé.' });
+  const auth = adminAuth(req);
+  if (!auth) return res.status(401).json({ error: 'Accès refusé.', code: 'admin_auth' });
+  req.adminVia = auth.via;
   next();
 }
 
@@ -858,16 +877,64 @@ function requireAdmin(req, res, next) {
 app.use('/api/admin', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
   res.on('finish', () => {
-    if (!ADMIN_SECRET || !security.isValidBearer(req.headers['authorization'], ADMIN_SECRET)) return;
+    if (!req.adminVia) return;
     try {
       const fields = req.body && typeof req.body === 'object' ? Object.keys(req.body).slice(0, 20) : [];
       antibot.logSecurityEvent('admin_action', {
-        details: { method: req.method, path: req.originalUrl.slice(0, 200), status: res.statusCode, fields },
+        details: { method: req.method, path: req.originalUrl.slice(0, 200), status: res.statusCode, fields, via: req.adminVia },
         ip: req.ip,
       });
     } catch (err) { console.error('[antibot] audit admin', err.message); }
   });
   next();
+});
+
+// ── Session du panel admin (#57) ──────────────────────────────────────────────
+// POST : la clé saisie (en-tête Authorization, une seule fois) ouvre une session admin limitée dans
+// le temps ; GET : état de la session (rechargement de la page) ; DELETE : déconnexion de cette
+// session ; POST /revoke-all : déconnecte toutes les sessions admin, y compris celle-ci.
+function adminCookieSecure(req) {
+  const v = security.cookieSecure();
+  return v === 'auto' ? req.secure : v;
+}
+
+app.post('/api/admin/session', limit.login, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!ADMIN_SECRET) return res.status(503).json({ error: 'Panel admin non configuré (ADMIN_SECRET manquant ou trop court).' });
+  if (!security.isValidBearer(req.headers['authorization'], ADMIN_SECRET)) {
+    try { antibot.logSecurityEvent('admin_login_failed', { ip: req.ip }); } catch (_) {}
+    return res.status(401).json({ error: 'Clé incorrecte.' });
+  }
+  try {
+    const s = adminSession.create(ADMIN_FP);
+    res.cookie(adminSession.COOKIE, s.token, { ...adminSession.cookieOptions(adminCookieSecure(req)), maxAge: adminSession.MAX_AGE_MS });
+    try { antibot.logSecurityEvent('admin_login', { ip: req.ip }); } catch (_) {}
+    res.json({ ok: true, expiresAt: new Date(Math.min(s.expiresAt, Date.now() + adminSession.IDLE_MS)).toISOString(), idleMinutes: adminSession.IDLE_MS / 60000 });
+  } catch (err) { console.error('[POST /api/admin/session]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+app.get('/api/admin/session', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!ADMIN_SECRET) return res.status(503).json({ error: 'Panel admin non configuré (ADMIN_SECRET manquant ou trop court).' });
+  const auth = adminAuth(req);
+  if (!auth) return res.status(401).json({ error: 'Session admin absente ou expirée.', code: 'admin_auth' });
+  res.json({ ok: true, via: auth.via, expiresAt: auth.expiresAt ? new Date(auth.expiresAt).toISOString() : null, idleMinutes: adminSession.IDLE_MS / 60000 });
+});
+
+app.delete('/api/admin/session', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { adminSession.revoke(adminSession.readCookie(req)); }
+  catch (err) { console.error('[DELETE /api/admin/session]', err); }
+  res.clearCookie(adminSession.COOKIE, adminSession.cookieOptions(adminCookieSecure(req)));
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/session/revoke-all', requireAdmin, (req, res) => {
+  try {
+    const n = adminSession.revokeAll();
+    res.clearCookie(adminSession.COOKIE, adminSession.cookieOptions(adminCookieSecure(req)));
+    res.json({ ok: true, revoked: n });
+  } catch (err) { console.error('[POST /api/admin/session/revoke-all]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 // ── Routes admin ──────────────────────────────────────────────────────────────

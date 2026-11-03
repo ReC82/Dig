@@ -48,7 +48,11 @@ header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
-header h1 { font-size: 1.1rem; }
+header h1 { font-size: 1.1rem; margin-right: auto; }
+header { gap: 8px; flex-wrap: wrap; }
+.admin-session-info { font-size: 0.72rem; color: var(--muted); }
+.refresh-status { font-size: 0.75rem; color: var(--muted); margin-left: 8px; }
+.refresh-status.is-err { color: var(--red); }
 
 .admin-nav {
   display: flex;

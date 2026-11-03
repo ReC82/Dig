@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<div id="auth-screen">
+<div id="auth-screen" class="hidden">
   <div class="auth-card">
     <h1>⛏ DIG! Admin</h1>
     <input id="secret-input" type="password" placeholder="Clé admin (ADMIN_SECRET)">
@@ -20,7 +20,9 @@
 <div id="admin-app" class="hidden">
   <header>
     <h1>⛏ DIG! Admin</h1>
-    <button id="logout-btn" class="btn-sm btn-danger">Déconnexion</button>
+    <span id="admin-session-info" class="admin-session-info"></span>
+    <button id="logout-all-btn" class="btn-sm btn-outline" type="button" title="Ferme la session admin sur tous les appareils">Déconnecter partout</button>
+    <button id="logout-btn" class="btn-sm btn-danger" type="button">Déconnexion</button>
   </header>
 
   <nav class="admin-nav">
@@ -1593,7 +1595,10 @@
          clic, configuration guidée dans une fiche, réglages techniques repliés sous « Paramètres avancés ». -->
     <div class="section-header">
       <h2>🧪 Bêta fermée</h2>
-      <button class="btn btn-outline" id="btn-refresh-beta" type="button">↻ Rafraîchir</button>
+      <div>
+        <button class="btn btn-outline" id="btn-refresh-beta" type="button">↻ Rafraîchir</button>
+        <span id="beta-refresh-status" class="refresh-status" role="status" aria-live="polite"></span>
+      </div>
     </div>
 
     <div class="overview-card beta-dash">

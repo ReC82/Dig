@@ -821,6 +821,19 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_bug_reports_user ON bug_reports(user_id, id);
   `);
 
+  // ── Sessions du panel admin (#57, recette du 03/11) ───────────────────────
+  // Seule l'empreinte du jeton est stockée (jamais le jeton ni ADMIN_SECRET). Table ajoutée seule.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      token_hash TEXT    PRIMARY KEY,
+      secret_fp  TEXT    NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_seen  INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER
+    );
+  `);
+
   // ── Seeds config ──────────────────────────────────────────────────────────
   const cfgStmt = _db.prepare(
     `INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`
