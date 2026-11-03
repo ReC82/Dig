@@ -368,6 +368,39 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .ct-acc { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; }
 .ct-form-actions { align-items: center; gap: 10px 12px; flex-wrap: wrap; margin-top: 10px; }
 @media (max-width: 560px) { .ct-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Aperçu de saison (recette #30-D) : cartes de synthèse, preuve repliée, action persistante séparée. */
+.ct-pv-note { font-size: 0.8rem; color: var(--muted); margin: 0 0 10px; }
+.ct-pv-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.ct-pv-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; background: var(--bg); }
+.ct-pv-card--ok   { border-color: rgba(34,197,94,0.5); }
+.ct-pv-card--warn { border-color: rgba(251,191,36,0.6); }
+.ct-pv-card--win  { border-color: var(--gold); background: rgba(251,191,36,0.08); }
+.ct-pv-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; }
+.ct-pv-value { font-size: 0.95rem; overflow-wrap: anywhere; }
+.ct-pv-detail { font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+.ct-pv-blocker { color: var(--red); font-size: 0.82rem; margin: 0 0 6px; }
+#ct-pv-proof { margin: 4px 0 10px; }
+#ct-pv-proof dd { font-family: monospace; font-weight: 400; font-size: 0.78rem; }
+.ct-pv-table-wrap { overflow-x: auto; }
+.ct-pv-table tr.ct-pv-win td { background: rgba(251,191,36,0.10); }
+.ct-pv-table tr.ct-pv-win .ct-pv-player { color: var(--gold); font-weight: 700; }
+.ct-pv-table tr.ct-pv-out td { color: var(--muted); }
+.ct-commit { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--gold); border-radius: var(--radius); }
+.ct-commit-title { font-size: 0.85rem; color: var(--gold); margin: 0 0 4px; }
+.ct-commit-text { font-size: 0.82rem; margin: 0 0 8px; }
+.ct-help { margin-top: 8px; font-size: 0.78rem; }
+.ct-help summary { cursor: pointer; color: var(--muted); }
+.ct-help p { margin-top: 6px; }
+@media (max-width: 560px) {
+  .ct-pv-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ct-pv-table thead { display: none; }
+  .ct-pv-table, .ct-pv-table tbody, .ct-pv-table tr, .ct-pv-table td { display: block; width: 100%; }
+  .ct-pv-table tr { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; padding: 4px 0; }
+  .ct-pv-table td { display: flex; justify-content: space-between; gap: 12px; border: 0; padding: 3px 10px; text-align: right; }
+  .ct-pv-table td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 0.75rem; text-align: left; }
+  .ct-pv-table td:empty { display: none; }
+  .ct-pv-table tr.ct-pv-win .ct-pv-player::before { font-weight: 400; color: var(--muted); }
+}
 .contest-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .badge-designated, .badge-contacted, .badge-identity_verified { color: var(--gold); font-weight: 600; font-size: 0.78rem; }
 .badge-sent, .badge-confirmed { color: var(--green); font-weight: 600; font-size: 0.78rem; }

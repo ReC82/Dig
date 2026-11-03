@@ -410,3 +410,25 @@ test('panel admin : synthèse d\'abord, « Modifier » ouvre la fiche en accord�
   assert.match(js, /if \(!_ctDirty\) ctFillForm\(s\)/, 'un rafraîchissement n\'écrase pas une saisie en cours');
   assert.match(html, /Simulation : inscrit le ou les gagnants fictifs[^<]*aucun stock consommé, aucun message au joueur, aucun point ni cadeau/);
 });
+
+test('panel admin : aperçu de saison en cartes, preuve repliée, action persistante séparée et confirmée (recette #30-D)', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public/admin/index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
+  const card = html.slice(html.indexOf('id="ct-preview-card"'), html.indexOf('Gagnants et remise des lots'));
+  assert.match(card, /id="ct-pv-cards"/);
+  assert.match(card, /<details class="bk-acc ct-acc" id="ct-pv-proof">/, 'preuve technique repliée par défaut');
+  assert.match(card, /Aperçu sans effet/);
+  // L'action persistante vient après le tableau, dans son propre bloc, avec son explication juste avant le bouton.
+  assert.ok(card.indexOf('id="ct-commit"') > card.indexOf('id="ct-preview-body"'));
+  const commit = card.slice(card.indexOf('id="ct-commit"'));
+  assert.ok(commit.indexOf('id="ct-commit-text"') < commit.indexOf('id="btn-ct-attribute"'));
+  assert.match(commit, /<details class="ct-help">/, 'aide détaillée facultative');
+  // Exclusion : fiche dédiée, motif obligatoire, bouton désactivé tant que le motif est vide.
+  assert.match(html, /<dialog id="ct-exclude-dialog"/);
+  assert.match(html, /id="btn-ct-exclude-yes" disabled>/);
+  const fns = js.slice(js.indexOf('async function loadContestPreview'), js.indexOf('async function loadContestWinners'));
+  assert.doesNotMatch(fns, /\bconfirm\(|\bprompt\(/, 'plus de confirm()/prompt() natifs');
+  assert.match(fns, /async function contestAttribute[\s\S]*await admConfirm\(/, 'confirmation Dig avant écriture');
+  assert.match(fns, /Enregistrer une attribution simulée/);
+  assert.match(fns, /admBrussels\(data\.season\.startAt\)/, 'dates de Bruxelles en affichage principal');
+});
