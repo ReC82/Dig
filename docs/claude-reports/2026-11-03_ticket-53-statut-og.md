@@ -203,8 +203,8 @@ décisions ci-dessous sont attendues.
 - Source = classement figé (#29), parce qu'il est immuable et horodaté : attribution
   idempotente et vérifiable, aucune nouvelle collecte de données.
 - Regroupement par semaine ISO : règle la double clôture du 30/10 sans cas particulier.
-- Seuil en blocs **manuels validés** plutôt qu'en connexions ou en `play_days` : `play_days` n'
-  existe que depuis le 02/11 et ne distingue pas l'Auto-Dig.
+- Seuil en blocs **manuels validés** plutôt qu'en connexions ou en `play_days` :
+  `play_days` n'existe que depuis le 02/11 et ne distingue pas l'Auto-Dig.
 - 18 paliers indépendants du pseudo : équité entre pseudos courts et longs.
 
 ### 12. Décisions demandées au propriétaire
