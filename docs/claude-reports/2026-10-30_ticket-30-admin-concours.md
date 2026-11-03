@@ -9,10 +9,10 @@
 
 ## 1. État réel
 
-**Déployé en production (SHA `1ef0693`, toujours présent dans la version servie `36b9e70`) —
-en attente de recette.** Mise à jour du 30/10/2026 à 16:55 (Bruxelles, session 2) : le propriétaire
-a ajouté `ADMIN_SECRET` ; **le panel admin est désormais actif en production** et protégé (§ 10).
-Aucun changement visible pour les joueurs.
+**Déployé en production (SHA `a49c604`, 03/11/2026 17:15 Bruxelles) — en attente de recette.**
+Dernière évolution (§ 11) : retour UX de la recette du propriétaire du 03/11 (#30-A) — synthèse des
+réglages d'abord, « Modifier » ouvre la fiche en accordéons, simulation explicitée. Le panel est
+actif et protégé par `ADMIN_SECRET` depuis le 30/10 (§ 10). Aucun changement visible pour les joueurs.
 
 ## 2. Périmètre retenu
 
@@ -216,3 +216,108 @@ production, avec une clé de test aléatoire (port 3122, copie et clé supprimé
 (déjà faite). À l'étape 3, choisir la saison **« Saison 44-2026 (closed, figée) »** (clôturée le
 30/10 à 16h par #44). Résultat attendu : connexion refusée avec une mauvaise clé ; avec la bonne
 clé, l'onglet 🎁 Concours s'ouvre avec le bandeau jaune « Simulation uniquement ».
+
+## 11. Mise à jour du 03/11/2026, 17:20 (session 3) — synthèse d'abord, fiche en accordéons
+
+**Retour du propriétaire** (recette #30-A, 03/11 15:50 UTC, consultation sans action) : grande fiche
+de configuration ouverte par défaut, réglages de cadeaux réels verrouillés (pays, âge, stock,
+fournisseur) mêlés au reste, long défilement ; demander « liste/synthèse d'abord, Modifier ouvre la
+fiche », accordéons pour l'avancé et l'éligibilité des cadeaux réels ; ne pas activer le concours ni
+toucher aux paramètres ; prochain test éventuel limité à la Simulation **après confirmation que
+l'action reste sans effet réel**.
+
+**État réel : déployé en production (`a49c604`) — en attente de recette.**
+
+### Changements (`public/admin/index.html`, `admin.js`, `admin.css`, `test/contest.test.js`)
+
+- **Synthèse toujours visible** en tête de « Réglages du concours et du lot » : état, lot (libellé,
+  valeur, devise, fournisseur), lots par saison, profondeur minimale, risque anti-bot, délai entre
+  deux gains, délai de remise, calendrier, cadeaux réels (🔒 verrouillés + stock). Deux colonnes sur
+  smartphone.
+- **« ✏ Modifier »** ouvre la fiche sous la synthèse, en trois accordéons avec résumé :
+  « Concours et lot » (déplié), « Critères et calendrier » (replié), « Cadeaux réels : stock et
+  éligibilité » (replié, mention « rien n'est appliqué tant que verrouillé »). Le stock réel est
+  désormais rangé avec l'éligibilité réelle.
+- **Enregistrer** referme la fiche et met à jour la synthèse ; **Annuler** rétablit les valeurs
+  enregistrées (confirmation si une saisie est en cours) ; un refus du serveur (valeur hors bornes)
+  déplie toutes les sections et affiche le message.
+- **Rafraîchir n'écrase plus une saisie en cours** dans la fiche (indicateur « ● modifications non
+  enregistrées »). Protection minimale propre à ce formulaire ; la généralisation reste #61.
+- **Simulation explicitée** sous « Attribuer les lots » ; l'option de mode affiche « Réel
+  (verrouillé) » tant que `CONTEST_REAL_PRIZES` ≠ `on`.
+- Aucun réglage supprimé ; aucune route, règle d'attribution ni donnée modifiée.
+
+### Confirmation demandée : la Simulation reste sans effet réel (vérifié dans le code)
+
+`attribute(…, { mode: 'simulation' })` (`server/contest.js`) :
+- **écrit** une ligne par lot dans `contest_winners` (mode `simulation`) et un événement dans le
+  journal du concours ; c'est tout ;
+- **ne consomme aucun stock** (seul le mode réel décrémente `prize_stock`), **n'envoie aucun
+  message ni e-mail**, **ne donne aucun point ni cadeau** (aucun autre module du jeu ne lit
+  `contest_winners`), et rien n'est visible côté joueur ;
+- n'est possible **que sur une saison close et figée** (#29), **une seule fois par saison** ; la ligne
+  ne peut pas être supprimée (déclencheur), seulement passée à « expiré » ;
+- elle n'influence que les simulations suivantes (délai entre gains calculé par mode) — jamais le
+  mode réel. Le mode réel reste refusé (`real_prizes_locked`) tant que la variable n'est pas `on`.
+
+Saisons proposées en production : « Saison 45-2026 » (active, non figée → aperçu seulement),
+« Saison 44-2026 · 2 », « Saison 44-2026 », « Saison 41-2026 » (closes et figées, aucun gagnant).
+
+### Vérifications
+
+- `npm test` complet : **553/553** sur la branche puis sur le SHA exact `a49c604` (release).
+- Nouveau test : synthèse et bouton présents, fiche fermée par défaut, un seul accordéon déplié,
+  **tous les champs envoyés au serveur présents dans la fiche**, stock/éligibilité réels dans
+  l'accordéon verrouillé, Rafraîchir sans écrasement, texte de simulation.
+- Navigateur (Chromium headless, base de test, port 3101) en 1280×900 et 390×844 : synthèse,
+  « Modifier », saisie conservée après Rafraîchir, Annuler → valeur d'origine et fiche refermée,
+  enregistrement (lots/saison 2) reflété dans la synthèse, refus serveur (99) → toutes les sections
+  dépliées + message ; aucune erreur JavaScript. Serveur arrêté, base de test supprimée.
+- Copie de la base de production (`a49c604`, `NODE_ENV=production`, port 3122) : `/health` ok,
+  version `1.0.0+a49c604`, `/admin/` 200, empreintes des 6 tables identiques avant/après ; copie
+  supprimée.
+
+### Déploiement
+
+- `main` avancé de `0c66821` à `a49c604` (avance rapide ; inclut aussi l'outil de simulation #39
+  déjà intégré dans `develop`, sans fichier servi aux joueurs).
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261103-171531-pre-deploy-a49c604.sqlite`.
+- Après déploiement : les deux domaines 200, `/admin/` 200, `/api/version` = `1.0.0+a49c604`,
+  `admin.js` servi contient la nouvelle synthèse, journal sans erreur, `quick_check` ok ; empreintes :
+  `users`, `seasons`, `leagues` identiques, `user_saves` (version 833 → 834) et horodatages de
+  `season_rankings` / `player_click_tracking` en progression (partie en cours), aucune perte.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 0c66821` + `sudo systemctl restart dig`
+  (pas de `npm ci` : verrou inchangé, aucune migration).
+
+### Test fonctionnel à faire par le propriétaire (sans aucune action réelle)
+
+1. Admin → 🎁 Concours (recharger la page avec Ctrl+F5 si elle était ouverte).
+   Attendu : bandeau jaune « Simulation uniquement », puis la **synthèse** (État ⏸ inactif, Lot
+   Carte cadeau Amazon 5.00 EUR, Cadeaux réels 🔒 verrouillés — stock 0) **sans formulaire ouvert**.
+2. Cliquer **✏ Modifier**. Attendu : « Concours et lot » déplié, les deux autres sections repliées avec
+   leur résumé. Ouvrir « Cadeaux réels : stock et éligibilité » pour voir le regroupement.
+3. Sans rien enregistrer, cliquer **Annuler**. Attendu : la fiche se referme, rien n'a changé.
+4. (Facultatif, Simulation seule) Choisir « Saison 44-2026 (closed, figée) », mode Simulation,
+   **Aperçu** : la liste et le texte « aucun stock consommé, aucun message au joueur, aucun point ni
+   cadeau » s'affichent. « Attribuer les lots (simulation) » inscrirait un gagnant fictif
+   **définitif pour cette saison** (non supprimable, passable à « expiré ») — à ne cliquer que si ce
+   test est voulu.
+
+Classement : **Après lancement** (le MVP se partage sans concours).
+
+### Choix techniques faits seul
+
+- Réutilisation des accordéons de la fiche d'un bloc (#37, classes `bk-acc`) pour une présentation
+  homogène dans l'admin.
+- Le stock réel passe dans l'accordéon « Cadeaux réels » : il n'a d'effet qu'en mode réel.
+- Largeur/centrage communs (#62), protection générale des formulaires (#61) et bouton Rafraîchir
+  avec état (#60) ne sont **pas** traités ici : ce sont des tickets dédiés, transverses à tout
+  l'admin ; le panel Concours en bénéficiera automatiquement.
+
+### Décisions demandées au propriétaire
+
+Inchangées (§ 8, questions 1 et 2), non bloquantes : délai entre deux gains ; sort d'un lot expiré.
+
+### Restant à réaliser
+
+Inchangé (§ 9), plus #60/#61/#62 pour l'harmonisation transverse de l'admin.
