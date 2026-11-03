@@ -116,3 +116,109 @@ Sinon, aucune décision nécessaire pour la recette.
 
 - Faits « découverte importante » (objet rare de collection) et « collection terminée » : il faut d'abord un suivi serveur fiable des trouvailles, qui n'est validé aujourd'hui que côté client (#39). C'est à reprendre avec l'anti-bot (#25).
 - Notifications push ou e-mail des annonces : seulement une fois le SMTP en place (#43).
+
+---
+
+## Mise à jour du 03/11/2026 (midi) — recettes #50-A à #50-E : ergonomie du panel
+
+Lien : https://github.com/ReC82/Dig/issues/50 — recettes du propriétaire #50-A, B, C, D, E du 03/11.
+
+### État réel
+
+**Déployé en production (SHA `d37b478`), en attente de ta recette.** Tes recettes ont validé le fonctionnement : génération IA, brouillon invisible des joueurs, archivage. Cette mise à jour ne traite que l'ergonomie, sans toucher aux annonces publiées ni au mécanisme de saison. Classement : **Après lancement**, non bloquant pour la pré-bêta.
+
+### Ce qui a changé (panel → 📰 Actualités)
+
+1. **Fini les popups JavaScript (#50-E)**
+   - Publier, Programmer, Dépublier, Archiver, Restaurer et « abandonner les modifications » ouvrent une **confirmation aux couleurs de Dig**. Elle reprend le même type de fenêtre que les fiches du panel.
+   - Elle indique ce que fait l'action : visible des joueurs ou non, réversible ou non, et comment revenir en arrière.
+   - Le focus est d'abord sur **Annuler**. Échap, un clic sur le fond ou Annuler ne changent rien, et le focus revient au bouton d'origine.
+   - Le bouton d'action est rouge pour Archiver, Dépublier et Abandonner. Le résultat s'affiche dans un toast, erreur comprise.
+   - Un double clic n'envoie l'action qu'une fois.
+   - Le composant est réutilisable (`admConfirm()` dans `public/admin/admin.js`) pour les autres onglets (voir l'inventaire plus bas).
+2. **La fiche d'une annonce est réorganisée (#50-B, #50-E)**
+   - **1. Notes brutes → mise en forme IA** en tête. La section est ouverte pour une nouvelle annonce et repliée pour une modification ; l'aide « ⓘ Comment ça marche » est repliée.
+   - **2. Texte** avec des **onglets FR / EN / NL / ES** : une seule langue est visible à la fois, comme dans les fiches Collections. Chaque onglet porte une pastille : ● complet, ◐ titre seul, ○ à traduire.
+     - Changer de langue ne perd rien.
+     - Quand tu traduis, le texte français reste affiché en référence.
+     - L'**aperçu joueur** suit la langue choisie. Il est à droite sur PC et en dessous sur mobile.
+   - **3. Catégorie, icône, dates et lien** est replié, avec un résumé sur une ligne (ex. « Annonce · 📣 · sans date · sans lien »). Le libellé du lien n'apparaît que si un lien est saisi.
+   - **Publication** est un cadre séparé, sous la fiche, visible seulement pour une annonce déjà enregistrée. Chaque action demande une confirmation.
+   - Le **pied de fiche reste fixe** : « 💾 Enregistrer le brouillon », Annuler et l'indicateur « ● modifications non enregistrées ».
+   - La fiche a une hauteur limitée, avec **une seule zone qui défile** entre l'en-tête et le pied. Sur mobile, les deux boutons restent visibles côte à côte.
+   - **Saisies protégées** (notes, textes, réglages) : ✕, Annuler, Échap ou un clic sur le fond demandent confirmation s'il reste quelque chose de non enregistré. Le navigateur prévient aussi si tu quittes la page.
+   - **« 🖨 Fiche complète »** : imprime ou enregistre en PDF l'annonce entière, avec ses réglages et les 4 langues l'une sous l'autre, sur fond blanc. Plus besoin de trois captures.
+3. **Liste pleine largeur (#50-A)**
+   - Jusqu'à 1440 px, comme Ligues & Saisons.
+   - Le titre a la colonne la plus large ; état, catégorie, dates et source tiennent sur une ligne.
+   - Sur téléphone, chaque annonce devient une carte (État : …, Catégorie : …) avec des boutons plus hauts.
+4. **Remarques de l'IA allégées (#50-C)** (`server/news.js`)
+   - Au premier plan ne restent que ❓ les **lacunes qui gêneraient vraiment** (3 au plus, par exemple une maintenance sans date) et ⚠️ les **points risqués** (2 au plus).
+   - Les idées facultatives (durée, critères…) sont dans « Autres suggestions facultatives (n) », replié.
+   - **Registre homogène** : l'IA doit tutoyer partout, comme le jeu. En français « tu », en néerlandais « je/jij », en espagnol d'Espagne « tú » (jamais « vosotros », « vuestro » ni « usted »), en anglais « you ». Elle ne mélange jamais les registres dans un même texte.
+   - La relecture multilingue plus poussée (glossaire) relève de #59.
+
+### Fichiers
+`public/admin/admin.js` (`admConfirm`, section Actualités), `public/admin/index.html` (fiche `news-dialog`, `#nw-print`), `public/admin/admin.css`, `server/news.js` (consigne et liste `suggestions`), `test/admin-news-ux.test.js` (nouveau, 6 tests), `test/news.test.js`.
+
+### SHA et tests
+- Branche `feature/50-centre-actualites` (`e986744`), intégrée dans `develop` en **`d37b478`**.
+- `npm test` : **527/527** sur la branche, sur `develop` `d37b478` et dans la release `d37b478`.
+- **Essai navigateur local** (Chromium, 1280×900 et 390×844, IA simulée) :
+  - aucune popup native ;
+  - focus sur Annuler, et Échap sur Archiver ne modifie rien ;
+  - une seule langue visible, saisie ES conservée après FR → ES, aperçu ES ;
+  - Échap ou clic sur le fond avec une fiche modifiée → confirmation, puis « Continuer » garde la fiche ;
+  - ✕ sans modification ferme directement ;
+  - brouillon → indicateur effacé, cadre Publication visible ;
+  - Publier → confirmation → Annuler ;
+  - Archiver → Confirmer en double clic → une seule archive ;
+  - fiche complète en impression : 4 langues ;
+  - pas de défilement horizontal sur mobile.
+- **Copie de la base de production** : empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` identiques avant et après démarrage, `quick_check` ok. Aucune migration : le schéma est inchangé.
+
+### Déploiement
+- **`d37b478` en production** (avance rapide de `main` 33aac1b → d37b478). Sauvegarde vérifiée : `dig-20261103-123217-pre-deploy-d37b478.sqlite`.
+- dig.lodygames.com et dig.lodylands.com répondent 200, version `1.0.0+d37b478`.
+- Journal sans erreur, `quick_check` ok, empreintes joueurs identiques à la sauvegarde.
+- Annonces en base inchangées : 2 publiées, 1 archivée (ton test).
+- Chromium en production, jeu et page admin, 1280 et 390 : aucune erreur.
+- Aucune génération IA n'était en cours au redémarrage.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 33aac1b && sudo systemctl restart dig` (pas de migration, base inchangée).
+
+### Test à faire par le propriétaire (≈ 4 min, PC puis téléphone)
+1. /admin/ (Ctrl+F5) → 📰 Actualités. La liste occupe la largeur et les titres tiennent mieux. Sur téléphone, chaque annonce est une carte.
+2. Sur l'annonce archivée « Dig en bêta privée », clique « Restaurer en brouillon… ». Une fenêtre Dig (pas une popup du navigateur) explique l'effet, avec le focus sur Annuler. Appuie sur **Échap** : rien ne change.
+3. Clique « Modifier » sur cette annonce. Tu dois voir les onglets ● FR ● EN ● NL ● ES, une seule langue visible, l'aperçu dans la langue choisie, la section 3 repliée et les boutons en bas toujours visibles.
+4. Modifie une lettre du titre, puis clique sur le fond ou appuie sur Échap. Attendu : « Modifications non enregistrées », puis « Continuer à modifier » garde ta saisie.
+5. « 🖨 Fiche complète » : l'aperçu d'impression montre l'annonce dans les 4 langues sur une page. Ferme ensuite avec « Abandonner les modifications ». **Ne publie rien.**
+6. Facultatif (un appel IA) : « ＋ Ajouter », colle une note courte et clique « ✨ Mettre en forme ». Au premier plan, il ne doit rester que peu de remarques ; les autres sont sous « Autres suggestions ». Dans l'onglet ES, le tutoiement doit être cohérent.
+
+### Choix techniques faits seul
+- **Composant partagé `admConfirm()`** créé à la volée, sans balisage par onglet. Ainsi chaque section pourra l'adopter en une ligne, sans confirmation ad hoc incohérente.
+- **Impression** : un bloc `#nw-print` est rempli puis `window.print()` est appelé. Une feuille `@media print` masque tout le reste. C'est fiable et ne demande ni bibliothèque PDF ni génération serveur.
+- **Clic sur le fond** : seul un clic hors du cadre de la fiche demande la fermeture. Un clic dans sa marge intérieure est ignoré.
+- **Archiver ne se fait pas depuis la fiche**, seulement depuis la liste, avec confirmation. Cela évite une action de plus près de « Enregistrer ».
+
+### Inventaire des `confirm/alert/prompt` restants dans le panel (#50-E, point 2) — à programmer
+Il reste **environ 58 appels natifs hors Actualités**. Ordre de remplacement proposé par `admConfirm()`, de l'usage le plus fréquent au plus rare, et sans toucher aux parcours critiques avant la pré-bêta :
+
+| Priorité | Onglet | Appels | Remarque |
+|---|---|---|---|
+| 1 | Collections (#39), Blocs (#37), Badges (#38) | ~25 | publier, abandonner, retirer, fermer une fiche modifiée : usage le plus fréquent |
+| 2 | Événements (#56), Saisons thématiques (#48), Icônes (#40) | ~11 | publier ou planifier, verrouiller une image |
+| 3 | Bêta (#57), Publicité (#45), Boutique (#34), Points (#33) | ~8 | révoquer, fermer les inscriptions, ajuster des points |
+| 4 | Concours (#30), Classement, Saisons, Ligues, Auth, Config | ~14 | dont **6 `prompt()`** (motif, profondeur, note) qui demandent une petite fiche de saisie : prévoir un `admPrompt()` |
+
+Je propose de le faire dans **#61** (« Admin — empêcher la perte de modifications dans tous les formulaires »), qui touche les mêmes fiches. Les collections et les blocs utilisent encore `confirm()` pour la fermeture d'une fiche modifiée.
+
+### Décisions demandées au propriétaire
+Aucune décision nécessaire pour cette mise à jour. Les questions précédentes restent ouvertes et ne bloquent rien :
+1. Activer les faits joueurs ? Je recommande d'attendre la bêta ouverte.
+2. Lien Discord à saisir dans 🧪 Bêta quand il existera.
+3. Ajouter le remplacement des popups natives des autres onglets au périmètre de #61 ? Je le recommande.
+
+### Reste à faire (après lancement)
+- Remplacer les popups natives des autres onglets (inventaire ci-dessus).
+- Faits « découverte importante » et « collection terminée ».
+- Annonces en direct : aujourd'hui elles arrivent au chargement ou toutes les 10 min.
