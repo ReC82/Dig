@@ -183,3 +183,115 @@ Recommandation : oui.
 
 **Restant à réaliser (après lancement)** : paquet 2.2 sur décision ; éventuellement reset serveur et
 divisions de taille fixe.
+
+---
+
+## Mise à jour du 03/11/2026 — audit de nuit des promotions et de « Mimosa » (lié à #48)
+
+Demande du propriétaire (commentaire du 02/11, 23:32 UTC) : vérifier la formule de promotion pour N
+ligues évolutives, une ligue très difficile et les petits effectifs (minimum d'un promu), tester
+3 ligues × 30, les égalités, le départage manuel sans auto-dig, le redémarrage et la relégation selon
+les règles existantes ; distinguer « Mimosa = ligue » ou « Mimosa = saison » ; pas de barème modifié.
+
+### 1. État réel
+
+**Déployé en production (SHA `fb5846a`) — en attente de recette.** Branche
+`feature/19-ligues-recompenses` (`072582d`), intégrée dans `develop` (`fb5846a`).
+
+### 2. Diagnostic « Mimosa »
+
+**Mimosa est la ligue, pas la saison.** En production (copie lue, supprimée ensuite) :
+- table `leagues` : une seule ligue, **Mimosa 🌼, niveau 0** (ligue d'arrivée de tout nouveau compte) ;
+- table `seasons` : 8 saisons aux noms distincts (« Saison 44-2026 », « Saison 44-2026 · 2 »,
+  « Saison 45-2026 » active du 02/11 au 08/11 23:59:59 UTC…) ;
+- rapports de clôture du 30/10 et du 02/11 : `Mimosa — 1 actif, 0 promu, raison not_enough_players`.
+
+Mimosa reste affichée parce que **personne n'a jamais été promu** : un seul joueur actif par semaine,
+pour un seuil de 10 actifs par ligue. La rotation des saisons fonctionne. Renommer la ligue chaque
+semaine serait faux (une ligue est un palier durable) ; ce qui manque est l'affichage distinct de la
+saison (nom, bornes, temps restant) à côté de la ligue, qui relève de **#48** (non fait ici).
+
+### 3. Vérification de la formule (règles actuelles, inchangées)
+
+`promus = max(1, ⌊actifs × 0,50 / (1 + niveau × 0,45)⌋)`, seulement si la ligue a ≥ 10 actifs ;
+« actif » = au moins un bloc manuel dans la saison ; tri : profondeur ↓, blocs manuels validés ↓,
+premier arrivé ↑, compte ↑ ; pas de relégation.
+
+| Cas | Résultat vérifié |
+|---|---|
+| 3 ligues × 30 | 15 / 10 / 7 promus, ligue Or créée (test existant `leagues.test.js`) |
+| N ligues, 40 joueurs, 5 clôtures | répartition `{0:20,1:20}` → `{0:10,1:24,2:6}` → `{0:5,1:21,2:14}` → `{0:5,1:14,2:18,3:3}` → `{0:5,1:10,2:18,3:7}` ; +1 niveau max par clôture, jamais de descente |
+| Ligue très difficile (niveau 12, 10 actifs) | formule 0,78 → **1 promu** garanti ; ligue 13 créée (« Ligue 13 ») |
+| Petits effectifs (1 à 9 actifs) | 0 promu (règle actuelle) ; seuil mis à 1 dans le panel → le joueur seul est promu |
+| Égalités | même profondeur : plus de blocs manuels validés devant ; puis le premier arrivé ; puis le compte le plus ancien |
+| Auto-dig | un joueur 100 % auto-dig n'entre ni dans l'effectif ni dans la promotion ; 99 999 blocs auto ne font pas passer devant |
+| Panne à la clôture | rien n'est appliqué (saison toujours active, aucune promotion, aucune ligue créée) ; après redémarrage, promotion appliquée **une seule fois** |
+| 12 transitions de saisons | couvert par `season-cycles-12.test.js` (#57), toujours vert |
+
+**Défaut trouvé et corrigé** : une valeur illisible de `promotion_rate` (ex. « abc »),
+`difficulty_coefficient` ou `min_active_players_per_league` donnait un calcul NaN et **0 promu en
+silence**, contraire au minimum d'un promu. Le panel admin ne contrôlait pas ces trois réglages.
+
+### 4. Changements réalisés
+
+- `server/seasons.js` : `leagueSettings()` — valeur absente, illisible ou hors bornes → valeur par
+  défaut (0,50 / 0,45 / 10, inchangées) ; nombre de promus borné à l'effectif ;
+  `validateLeagueConfigValue()` pour le panel.
+- `server/index.js` : `PUT /api/admin/config` refuse un taux hors 0–1, un coefficient négatif, un
+  seuil non entier ou < 1.
+- `public/admin/admin.js` : libellé du seuil corrigé (« Joueurs actifs min dans une ligue pour qu'il
+  y ait des promus » au lieu de « … pour créer une ligue », qui était faux).
+- `test/leagues-audit.test.js` : 7 tests (Mimosa = ligue, N ligues, ligue difficile, petits
+  effectifs, paramètres invalides, égalités/auto-dig, panne et redémarrage).
+- `docs/LIGUES.md` : section 1.1 « Audit du 03/11/2026 ».
+
+Procédure de test : `npm test` (ou `node --test test/leagues-audit.test.js`) — attendu 442/442.
+
+### 5. Vérifications, limites, impact données
+
+- `npm test` 442/442 sur la branche, sur `develop` et sur la release `fb5846a`.
+- Copie de la base de production démarrée en `NODE_ENV=production` (port 3122) : `/health` ok,
+  version `fb5846a`, empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`,
+  `player_click_tracking` identiques avant/après ; copie supprimée.
+- **Aucune migration, aucune donnée joueur modifiée**, aucun réglage changé en production
+  (le seuil reste 10).
+- Non fait : essai HTTP du refus admin avec un vrai compte admin (validateur couvert en test
+  unitaire, branchement d'une ligne) ; captures navigateur (rien de visible n'a changé côté joueur).
+
+### 6. Déploiement
+
+- SHA déployé : **`fb5846a`** (avant : `2b6c457`) ; sauvegarde vérifiée
+  `dig-20261103-012840-pre-deploy-fb5846a.sqlite`.
+- dig.lodygames.com et dig.lodylands.com : 200, `/api/version` = `1.0.0+fb5846a` ; journal sans
+  erreur ; `quick_check` ok ; empreintes joueurs identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 2b6c457` + redémarrage (aucun changement de
+  dépendances ni de schéma).
+
+**Test fonctionnel (2 minutes)** : panel admin → Config → champ « Taux de promotion entre ligues »,
+saisir `abc` → refus avec « promotion_rate : nombre entre 0 et 1 attendu » ; le libellé du seuil se lit
+« Joueurs actifs min dans une ligue pour qu'il y ait des promus ». Côté jeu, rien ne change : la
+ligue affichée reste Mimosa tant qu'aucune ligue n'atteint le seuil.
+
+**Classement** : correctif **utile au MVP** (robustesse) ; affichage distinct saison / ligue :
+**Bloquant pré-bêta selon le propriétaire, périmètre #48** ; paquet ligues (relégation, bonus) :
+après lancement.
+
+### 7. Choix techniques faits seul
+
+- Valeur invalide → valeur par défaut plutôt que blocage de la clôture : la rotation ne doit jamais
+  s'arrêter pour un réglage mal saisi, et le défaut est le barème actuel.
+- Seuil laissé à 10 : le modifier est une règle de ligue, à la main du propriétaire (panel).
+- Pas de renommage de Mimosa ni de changement d'affichage : diagnostic transmis à #48.
+
+### 8. Décisions demandées au propriétaire
+
+1. **Seuil de promotion pendant la bêta** (réglage du panel, sans code ni redéploiement) :
+   garder 10 / descendre à 3 / à 1 ? Avec 10, aucun testeur ne verra de promotion tant qu'il y a
+   moins de 10 actifs la même semaine ; à 1, même un joueur seul monte chaque semaine.
+   *Recommandation : 3 pendant la bêta fermée*, pour que les testeurs voient la mécanique sans
+   promotion automatique d'un joueur isolé. Non urgent ; rien n'est changé sans réponse.
+
+### 9. Restant à réaliser
+
+- Affichage distinct saison (nom, bornes, temps restant) / ligue / collection : **#48**.
+- Paquet ligues après lancement (relégation, bonus de ligue #33) : décision groupée inchangée.
