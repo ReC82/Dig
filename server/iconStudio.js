@@ -43,7 +43,7 @@ const { APP_VERSION } = require('./version');
 
 const ROOT = path.join(__dirname, '..');
 const MAX_IMAGES_PER_DAY = 40;
-const INSTRUCTION_MAX = 300;
+const INSTRUCTION_MAX = 1000;   // consigne artistique réelle (recette du 02/11 : 300 trop court)
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const SHA_RE = /^[a-f0-9]{16}$/;
 const KEY_RE = /^(block|item|badge|ui):([a-z][a-z0-9_]{1,39})$/;
@@ -187,20 +187,43 @@ function _imagesToday() {
   return conn().prepare("SELECT COUNT(*) n FROM icon_studio_calls WHERE created_at >= datetime('now', '-1 day') AND target NOT LIKE 'check:%'").get().n;
 }
 
+// Réservation par image (retour du 03/11) : l'estimation configurée (0,25 USD) triplait le coût réel
+// constaté (≈ 0,082 USD) et bloquait les lots bien avant le plafond. Dès 2 images réellement facturées,
+// la réservation devient le plus cher des 5 derniers coûts mesurés + 25 % (arrondi au cent supérieur),
+// sans jamais dépasser l'estimation configurée. Le plafond, lui, ne change pas : dépensé + réservation ≤ plafond.
+const RESERVE_SAMPLES = 5, RESERVE_MIN_SAMPLES = 2, RESERVE_MARGIN = 1.25;
+function _imageReserve(cfg) {
+  const rows = conn().prepare(`SELECT cost_usd FROM icon_studio_calls WHERE ok = 1 AND target NOT LIKE 'check:%' AND cost_basis LIKE 'usage%'
+    AND created_at >= datetime('now', '-30 days') ORDER BY id DESC LIMIT ?`).all(RESERVE_SAMPLES);
+  return reserveFromCosts(rows.map(r => r.cost_usd), cfg.estCostUsd);
+}
+function reserveFromCosts(costs, configuredUsd) {
+  if (costs.length < RESERVE_MIN_SAMPLES) return { usd: configuredUsd, basis: 'configured', configuredUsd, measuredMaxUsd: null, samples: costs.length };
+  const measuredMaxUsd = Math.max(...costs);
+  const usd = Math.min(configuredUsd, Math.ceil(measuredMaxUsd * RESERVE_MARGIN * 100 - 1e-9) / 100);
+  return { usd, basis: usd < configuredUsd ? 'measured' : 'configured', configuredUsd, measuredMaxUsd, samples: costs.length };
+}
+
+/** Coût réel de la dernière image générée par l'atelier (affiché à part du cumul). */
+function _lastImageCost() {
+  return conn().prepare("SELECT target, cost_usd, created_at FROM icon_studio_calls WHERE ok = 1 AND target NOT LIKE 'check:%' ORDER BY id DESC LIMIT 1").get() ?? null;
+}
+
 /** Budgets : global (configuration, partagé #22/#37) et propre à l'atelier (panel). Jamais de secret. */
 function budget(cfg = config()) {
   const studioCap = _setting('studio_budget_usd');
   const globalSpent = _globalSpent(), studioSpent = _studioSpent();
   const globalRemaining = cfg.budgetUsd - globalSpent;
   const studioRemaining = studioCap == null ? Infinity : Number(studioCap) - studioSpent;
+  const reserve = _imageReserve(cfg);
   return {
     globalCapUsd: cfg.budgetUsd, globalSpentUsd: +globalSpent.toFixed(4),
     studioCapUsd: studioCap == null ? null : Number(studioCap), studioSpentUsd: +studioSpent.toFixed(4),
     remainingUsd: +Math.max(0, Math.min(globalRemaining, studioRemaining)).toFixed(4),
-    estImageUsd: cfg.estCostUsd,
+    estImageUsd: reserve.usd, reserve, perImageUsd: +(reserve.usd + _checkEst()).toFixed(4), lastImage: _lastImageCost(),
     // Plafond qui limite en premier : celui de l'atelier (panel) ou celui du serveur (fichier de configuration)
     limitedBy: studioRemaining < globalRemaining ? 'studio' : 'global',
-    budgetReached: Math.min(globalRemaining, studioRemaining) + 1e-9 < cfg.estCostUsd,
+    budgetReached: Math.min(globalRemaining, studioRemaining) + 1e-9 < reserve.usd + _checkEst(),
   };
 }
 
@@ -379,27 +402,120 @@ function _peers(t) {
   return [];
 }
 
-/**
- * Mentions d'un autre objet dans des textes ({ where, text }). Nom complet d'un autre objet = conflit
- * certain (`strict`, jamais contournable) ; nom principal seul (« crayon », « lantern ») = conflit
- * probable, contournable par confirmation explicite (« ce n'est pas un autre objet »).
- */
-function _subjectConflicts(t, sources) {
-  if (!_BRIEF_UNIQUE.has(t.kind)) return [];
-  const own = [t.src.names?.fr, t.src.names?.en, t.id.replace(/_/g, ' ')].map(_norm).join(' ');
+// Recettes du 02 et 03/11 : « cohérent avec la boussole et la lanterne » (référence de style) et
+// « embroidered royal crown » (motif brodé) étaient refusés. Chaque mention est lue dans sa
+// proposition : une demande de remplacer ou de dessiner un autre objet bloque toujours ; une
+// référence de style ou un motif/décor autour du nom est autorisé (et expliqué) ; sinon la règle
+// d'avant s'applique (nom complet = conflit certain, nom principal = conflit probable).
+const _phrases = list => list.map(p => _norm(p));
+// Changement de sujet explicite. Le sens compte : ce qui suit « au lieu de » est l'objet à RETIRER,
+// ce qui suit « remplace … par » ou « transforme en » est le NOUVEAU sujet (« remplace la lanterne par
+// un crayon » est juste sur la fiche du crayon, refusé sur celle du jeton).
+const _INSTEAD = _phrases(['instead of', 'rather than', 'in place of', 'a la place', 'au lieu', 'plutot que', 'plutot qu']);
+const _REPLACE = _phrases(['replace', 'replaced', 'replacing', 'swap', 'remplace', 'remplacer', 'remplacez', 'remplacee']);
+const _REPLACE_BY = new Set(['par', 'with', 'by', 'avec']);
+const _BECOME = _phrases(['turn into', 'turn it into', 'transform', 'transforme', 'transformer', 'transformez', 'devient', 'becomes',
+  'change into', 'change en', 'changer en']);
+const _CONTEXT_LABELS = { style: 'référence de style', detail: 'motif ou décor', replace: 'demande de dessiner un autre objet',
+  removed: 'objet à retirer de l\'image' };
+/** Position (en mots) de la première expression trouvée, ou -1. */
+function _at(words, phrases) {
+  const text = ` ${words.join(' ')} `;
+  for (const p of phrases) {
+    const i = text.indexOf(p);
+    if (i >= 0) return text.slice(0, i + 1).trim().split(' ').filter(Boolean).length;
+  }
+  return -1;
+}
+// Verbe qui fait de la mention le sujet de l'image (« dessine une boussole », « draw a broken crown »)
+const _DEPICT = new Set(['draw', 'dessine', 'dessiner', 'dessinez', 'depict', 'represente', 'representer', 'representez', 'show', 'montre', 'montrer',
+  'montrez', 'paint', 'peins', 'peindre', 'peignez', 'illustrate', 'illustre', 'illustrer', 'illustrez', 'render', 'generate', 'genere', 'generer',
+  'generez', 'create', 'cree', 'creer', 'creez', 'make', 'fais', 'faites', 'faire']);
+const _DESCRIBED = new Set(['image', 'images', 'icone', 'icon', 'proposition', 'picture', 'it', 'elle', 'il', 'cela', 'ca', 'this', 'that']);
+// Référence de style placée avant la mention dans la même proposition
+const _STYLE = _phrases(['coherent avec', 'coherente avec', 'coherents avec', 'coherent with', 'consistent with', 'matching', 'match', 'matches', 'same style',
+  'meme style', 'style de', 'style des', 'style du', 'style of', 'style as', 'in the style', 'like the', 'comme la', 'comme le', 'comme les',
+  'comme l', 'a la maniere', 'dans l esprit', 'assorti', 'assortie', 'assortis', 'harmonise', 'harmonisee', 'harmonious with', 'en harmonie', 'meme rendu',
+  'meme palette', 'same palette', 'same rendering', 'same look', 'fits with', 'va avec', 'aligned with', 'aligne sur', 'reference', 'references']);
+// Motif, décor ou ornement collé à la mention (3 mots avant ou après)
+const _DETAIL = new Set(['embroidered', 'embroidery', 'brode', 'brodee', 'brodes', 'brodees', 'broderie', 'motif', 'motifs', 'pattern', 'patterned',
+  'engraved', 'engraving', 'grave', 'gravee', 'graves', 'gravure', 'embossed', 'stamped', 'estampe', 'estampee', 'estampille', 'frappe', 'frappee',
+  'emblem', 'embleme', 'crest', 'blason', 'ecusson', 'insignia', 'insigne', 'monogram', 'monogramme', 'logo', 'symbol', 'symbole', 'printed', 'imprime',
+  'imprimee', 'decor', 'decore', 'decoree', 'decorated', 'decoration', 'ornament', 'ornamental', 'ornate', 'orne', 'ornee', 'ornement', 'effigie',
+  'effigy', 'inlaid', 'incruste', 'incrustee', 'sewn', 'cousu', 'cousue', 'appliqued', 'applique', 'silhouette', 'shaped', 'etched', 'stitched',
+  'woven', 'tisse', 'tissee', 'relief', 'medallion', 'medaillon', 'heraldic', 'heraldique']);
+const _IN = (hay, p) => hay.includes(p);
+
+/** Lecture d'une mention dans sa proposition : 'replace' | 'removed' | 'style' | 'detail' | 'mention'. */
+function _mentionContext(words, at, len, ownWords) {
+  const instead = _at(words, _INSTEAD);
+  if (instead >= 0) return at < instead ? 'replace' : 'removed';
+  const repl = _at(words, _REPLACE);
+  if (repl >= 0) {
+    const by = words.findIndex((w, i) => i > repl && _REPLACE_BY.has(w));
+    return by >= 0 && at > by ? 'replace' : at > repl ? 'removed' : 'replace';
+  }
+  const become = _at(words, _BECOME);
+  if (become >= 0) return at > become ? 'replace' : 'removed';
+  for (let j = Math.max(0, at - 3); j < at; j++) {
+    // « L'image précédente représente une lanterne » décrit l'ancienne image : ce n'est pas une demande
+    const described = words.slice(Math.max(0, j - 3), j).some(w => _DESCRIBED.has(w));
+    if (_DEPICT.has(words[j]) && !described && !words.slice(j + 1, at).some(w => ownWords.has(w))) return 'replace';
+  }
+  const before = ` ${words.slice(0, at).join(' ')} `;
+  if (_STYLE.some(p => _IN(before, p))) return 'style';
+  if (words.slice(Math.max(0, at - 3), at + len + 3).some(w => _DETAIL.has(w))) return 'detail';
+  return 'mention';
+}
+
+/** Positions d'un terme (pluriel en « s » admis) dans une liste de mots. */
+function _findTerm(words, term) {
+  const tw = term.split(' ');
   const out = [];
+  for (let i = 0; i + tw.length <= words.length; i++) {
+    if (tw.every((w, k) => words[i + k] === w || (k === tw.length - 1 && words[i + k] === `${w}s`))) out.push(i);
+  }
+  return out;
+}
+
+/**
+ * Mentions d'un autre objet dans des textes ({ where, text }), lues en contexte. Rend
+ * { conflicts, references } : `conflicts` bloque la dépense (`strict` = jamais contournable :
+ * demande de remplacement, ou nom complet cité sans contexte ; sinon contournable par confirmation),
+ * `references` liste les mentions autorisées et pourquoi (affichées dans l'atelier).
+ */
+function _subjectAnalysis(t, sources) {
+  if (!_BRIEF_UNIQUE.has(t.kind)) return { conflicts: [], references: [] };
+  const own = [t.src.names?.fr, t.src.names?.en, t.id.replace(/_/g, ' ')].map(_norm).join(' ');
+  const ownWords = new Set(own.trim().split(/\s+/).filter(w => w.length >= 4));
+  const conflicts = [], references = [];
   for (const p of _peers(t)) {
     const full = [p.names?.fr, p.names?.en].map(n => _norm(n).trim()).filter(n => n.length >= 3 && !_has(own, n));
     const heads = _heads(p.names).filter(w => !_has(own, w));
+    const name = p.names?.fr || p.names?.en || p.id;
+    let worst = null, ref = null;
     for (const { where, text } of sources) {
-      const hay = _norm(text);
-      const strict = full.find(n => _has(hay, n));
-      const term = strict ?? heads.find(w => _has(hay, w));
-      if (term) { out.push({ id: p.id, name: p.names?.fr || p.names?.en || p.id, term, where, strict: !!strict }); break; }
+      // Une proposition = un morceau entre ponctuations (« vue de trois quarts, cohérent avec la boussole »)
+      for (const part of String(text ?? '').split(/[.,;:!?\n()[\]«»"]+|\s[-–—]\s/)) {
+        const words = _norm(part).trim().split(' ').filter(Boolean);
+        for (const [term, isFull] of [...full.map(n => [n, true]), ...heads.map(w => [w, false])]) {
+          for (const at of _findTerm(words, term)) {
+            const ctx = _mentionContext(words, at, term.split(' ').length, ownWords);
+            if (ctx === 'style' || ctx === 'detail') { ref ??= { id: p.id, name, term, where, context: ctx, reason: _CONTEXT_LABELS[ctx] }; continue; }
+            // Objet à retirer : conflit probable (confirmation), même cité en entier
+            const c = { id: p.id, name, term, where, strict: ctx === 'replace' || (isFull && ctx !== 'removed'), context: ctx,
+              ...(_CONTEXT_LABELS[ctx] ? { reason: _CONTEXT_LABELS[ctx] } : {}) };
+            if (!worst || (c.strict && !worst.strict)) worst = c;
+          }
+        }
+      }
     }
+    if (worst) conflicts.push(worst);
+    else if (ref) references.push(ref);
   }
-  return out.sort((a, b) => b.strict - a.strict);   // conflit certain cité en premier
+  return { conflicts: conflicts.sort((a, b) => b.strict - a.strict), references };   // conflit certain cité en premier
 }
+const _subjectConflicts = (t, sources) => _subjectAnalysis(t, sources).conflicts;
 
 /** Textes envoyés à l'IA qui décrivent le sujet : précision de cette génération et consigne d'illustration. */
 const _subjectSources = (instruction, brief) => [
@@ -418,10 +534,11 @@ function _assetWarning(t, meta) {
 }
 
 function _conflictMessage(t, list) {
-  const parts = list.map(c => `« ${c.term} » (objet « ${c.name} ») dans la ${c.where}`).join(', ');
+  const parts = list.map(c => `« ${c.term} » (objet « ${c.name} ») dans la ${c.where}${c.context === 'replace' ? ', lu comme une demande de dessiner cet autre objet' : ''}`).join(', ');
   return `Conflit de sujet : cette fiche est « ${t.current.name} », mais la demande mentionne ${parts}. `
     + 'Aucune image n\'a été générée et rien n\'a été dépensé. Retirez cette mention'
-    + (list.some(c => c.strict) ? '.' : ', ou confirmez qu\'il ne s\'agit pas d\'un autre objet.');
+    + (list.some(c => c.strict) ? '.' : ', ou confirmez qu\'il ne s\'agit pas d\'un autre objet.')
+    + ' Une référence de style (« cohérent avec la boussole ») ou un motif (« couronne brodée ») est accepté.';
 }
 
 function _assetCounts() {
@@ -570,9 +687,14 @@ function _checkBudget(images, extraUsd = 0) {
   let cfg;
   try { cfg = config(); } catch (err) { throw new StudioError(503, `API d'images non configurée : ${oa().redact(String(err.message).replace(os.homedir(), '~'))}`); }
   const b = budget(cfg);
-  const planned = images * cfg.estCostUsd + extraUsd;
+  const planned = images * b.reserve.usd + extraUsd;
   if (planned > b.remainingUsd + 1e-9) {
-    throw new StudioError(402, `Plafond de dépense IA atteint : une image (et son contrôle) coûte au plus ${planned.toFixed(2)} USD selon l'estimation configurée, il reste ${b.remainingUsd.toFixed(2)} USD. `
+    const how = b.reserve.basis === 'measured'
+      ? `${b.reserve.usd.toFixed(2)} USD réservés par image (plus cher des derniers coûts réels, ${b.reserve.measuredMaxUsd.toFixed(3)} USD, + 25 %)`
+      : `${b.reserve.usd.toFixed(2)} USD réservés par image (estimation configurée DIG_IMAGE_EST_COST_USD)`;
+    throw new StudioError(402, `Plafond de dépense IA atteint : la prochaine image n'est pas lancée. Il reste ${b.remainingUsd.toFixed(2)} USD sous le plafond, `
+      + `il faut ${planned.toFixed(2)} USD (${how}${extraUsd ? ', contrôle du sujet compris' : ''}). Ce n'est pas le coût d'une image : `
+      + `le cumul (${b.globalSpentUsd.toFixed(2)} USD) additionne toutes les générations depuis le début, scripts #22 et blocs compris. `
       + (b.limitedBy === 'studio'
         ? `Pour continuer, relevez la limite de l'atelier dans ⚙ Config → Budget IA (${b.studioSpentUsd.toFixed(2)} / ${b.studioCapUsd} USD).`
         : `Pour continuer, relevez le plafond du serveur (${b.globalSpentUsd.toFixed(2)} / ${b.globalCapUsd} USD) : DIG_IMAGE_BUDGET_USD dans ~/.config/dig/openai.env, pris en compte sans redémarrage.`));
@@ -790,7 +912,7 @@ function seriesPlan(seriesId) {
   const todo = items.filter(i => i.state === 'todo').length;
   let cfg = null, b = null;
   try { cfg = config(); b = budget(cfg); } catch (_) { /* API non configurée : signalé par status() */ }
-  const perImage = cfg ? cfg.estCostUsd + _checkEst() : null;
+  const perImage = cfg ? _imageReserve(cfg).usd + _checkEst() : null;
   const avg = conn().prepare("SELECT AVG(cost_usd) c, AVG(duration_ms) d FROM (SELECT cost_usd, duration_ms FROM icon_studio_calls WHERE ok = 1 AND target NOT LIKE 'check:%' ORDER BY id DESC LIMIT 20)").get();
   return { seriesId, name: series.names?.fr || seriesId, icon: series.icon, items, todo,
     estPerImageUsd: perImage, estTotalUsd: perImage == null ? null : +(todo * perImage).toFixed(2),
@@ -922,9 +1044,8 @@ function getTarget(key) {
     briefSharedWith: [...(brief.ignored?.sharedWith ?? brief.sharedWith ?? [])].sort(),
     briefIgnored: !!brief.ignored,
   } : {};
-  const subjectConflicts = _subjectConflicts(t, _subjectSources('', brief));
-  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), identity: _identity(t), subjectConflicts,
-    peerNames: _BRIEF_UNIQUE.has(t.kind) ? _peers(t).map(p => ({ id: p.id, name: p.names?.fr || p.id, terms: [p.names?.fr, p.names?.en].filter(Boolean) })) : [],
+  const { conflicts: subjectConflicts, references: subjectReferences } = _subjectAnalysis(t, _subjectSources('', brief));
+  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), identity: _identity(t), subjectConflicts, subjectReferences,
     assets, history, ...itemExtra,
     costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : null };
 }
@@ -992,7 +1113,19 @@ function _references() {
   return Object.entries(lib.materials).filter(([, e]) => e.validated).map(([id, e]) => ({ id, url: `/${lib.base}${e.webp['256']}`, validated: e.validated }));
 }
 
+/**
+ * Lecture du sujet pendant la saisie (aucun appel IA, aucune écriture) : précision et consigne en cours
+ * de frappe, analysées par la même règle que la génération. Le serveur reste seul juge au moment de générer.
+ */
+function subjectCheck(key, { instruction = '', subject = null, details = null } = {}) {
+  const t = _target(key);
+  const saved = _briefFor(t);
+  const brief = subject === null && details === null ? saved
+    : { custom: true, subject: _clean(subject ?? saved.subject, 300), details: _clean(details ?? saved.details, 600) };
+  return _subjectAnalysis(t, _subjectSources(_clean(instruction, INSTRUCTION_MAX), brief));
+}
+
 module.exports = {
   StudioError, UI_TARGETS, init, status, setStudioBudget, listTargets, getTarget, setBrief, generate, jobView, waitJob,
-  upload, mark, apply, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
+  upload, mark, apply, subjectCheck, reserveFromCosts, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
 };

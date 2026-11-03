@@ -298,6 +298,79 @@ test('recette du 02/11 (2) : une demande qui cite un autre objet est refusée av
   studio.apply('item:fossil', { sha: null });
 });
 
+test('recettes des 02 et 03/11 : référence de style et motif autorisés, changement de sujet refusé sans dépense', async () => {
+  const calls = () => conn().prepare('SELECT COUNT(*) n FROM icon_studio_calls').get().n;
+  // Cas « Jeton doré » : la consigne cite d'autres objets comme référence de style (boussole, lanterne)
+  const style = 'Jeton plat vu de trois quarts, relief 3D stylisé, cohérent avec le fossile et la couronne brisée, bord net et lisible en petit.';
+  const s1 = studio.subjectCheck('item:crystal', { instruction: style });
+  assert.deepStrictEqual(s1.conflicts, []);
+  assert.deepStrictEqual(s1.references.map(r => [r.id, r.context]).sort(), [['broken_crown', 'style'], ['fossil', 'style']]);
+  studio.generate('item:crystal', { instruction: style });
+  let j = await studio.waitJob();
+  assert.strictEqual(j.status, 'done', JSON.stringify(j));
+  assert.match(prompts.at(-1).prompt, /^Object to depict: "Blue Crystal"/);
+  // Consigne longue (texte intégral, au-delà de l'ancienne limite de 300 caractères) transmise entière
+  const long = `${style} ${'Patine chaude, reflets doux sur le rebord, ombre portée légère. '.repeat(8)}`.trim();
+  assert.ok(long.length > 400 && long.length < 1000);
+  studio.generate('item:crystal', { instruction: long });
+  j = await studio.waitJob();
+  assert.strictEqual(j.status, 'done', JSON.stringify(j));
+  assert.ok(prompts.at(-1).prompt.includes(long), 'précision complète transmise');
+
+  // Cas « culotte du roi Dagobert » : couronne brodée = motif, pas un autre objet (consigne enregistrée)
+  studio.setBrief('item:relic', { subject: 'A pair of baggy medieval royal breeches',
+    details: 'Puffy knee-length royal breeches in crimson velvet, gold trim at the cuffs, ornate embroidered royal crown, one small clothing label sewn on the outside.',
+    palette: 'Palette: crimson red velvet, gold trim.' });
+  const relic = studio.getTarget('item:relic');
+  assert.deepStrictEqual(relic.subjectConflicts, []);
+  assert.deepStrictEqual(relic.subjectReferences.map(r => [r.id, r.term, r.context]), [['broken_crown', 'crown', 'detail']]);
+  assert.deepStrictEqual(studio.subjectCheck('item:relic', { instruction: 'embroidered crown on breeches' }).conflicts, []);
+  assert.deepStrictEqual(studio.subjectCheck('item:relic', { instruction: 'une couronne brodée sur la ceinture' }).conflicts, []);
+  studio.generate('item:relic', { instruction: 'embroidered crown on breeches' });
+  j = await studio.waitJob();
+  assert.strictEqual(j.status, 'done', JSON.stringify(j));
+  assert.strictEqual(studio.getTarget('item:relic').assets.find(a => a.sha === j.result.sha).warning, null, 'proposition non marquée douteuse');
+
+  // Vrais changements de sujet : refusés avant tout appel, jamais contournables
+  const c0 = calls(), p0 = prompts.length;
+  for (const [instruction, id] of [['draw a broken crown instead of breeches', 'broken_crown'], ['Dessine une couronne.', 'broken_crown'],
+    ['remplace par un fossile, cohérent avec le cristal bleu', 'fossil'], ['show a crown', 'broken_crown']]) {
+    assert.throws(() => studio.generate('item:relic', { instruction, acknowledge: [id] }),
+      e => e.status === 409 && e.details.code === 'subject_conflict' && e.details.conflicts[0].id === id && e.details.conflicts[0].strict
+        && e.details.conflicts[0].context === 'replace' && /dessiner cet autre objet/.test(e.message), instruction);
+  }
+  // Sens du remplacement : « remplace la couronne par une culotte » retire la couronne (confirmable) ;
+  // « une couronne au lieu de la culotte » en fait le sujet (refusé) ; une description de l'ancienne image n'est pas une demande
+  const removed = studio.subjectCheck('item:relic', { instruction: 'Remplace la couronne par une culotte' }).conflicts[0];
+  assert.deepStrictEqual([removed.id, removed.strict, removed.context], ['broken_crown', false, 'removed']);
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'replace the broken crown with breeches' }).conflicts[0].strict, false, 'nom complet à retirer : confirmable');
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'une couronne au lieu de la culotte' }).conflicts[0].strict, true);
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'la culotte devient une couronne' }).conflicts[0].strict, true);
+  assert.strictEqual(studio.subjectCheck('item:relic', { instruction: 'L\'image précédente représente une couronne' }).conflicts[0].strict, false);
+  // Mention nue du nom principal : toujours un conflit probable, confirmable (règle inchangée)
+  assert.throws(() => studio.generate('item:relic', { instruction: 'une couronne posée à côté' }), e => e.status === 409 && !e.details.conflicts[0].strict);
+  // Une référence de style n'excuse pas une demande de remplacement dans la même phrase
+  assert.ok(studio.subjectCheck('item:relic', { instruction: 'cohérent avec le fossile mais remplace la culotte par un fossile' }).conflicts[0].strict);
+  assert.deepStrictEqual([calls(), prompts.length], [c0, p0], 'aucun appel ni coût pour les refus');
+  // Lecture pendant la saisie : consigne en cours de frappe (non enregistrée) analysée de même
+  assert.strictEqual(studio.subjectCheck('item:relic', { subject: 'A broken crown', details: '' }).conflicts[0].strict, true);
+  studio.setBrief('item:relic', { reset: true });
+});
+
+test('réservation par image (03/11) : coûts réels mesurés, jamais au-delà de l\'estimation configurée', () => {
+  // Coûts constatés en production le 02/11 : 0,0818 à 0,0823 USD → 0,11 réservé au lieu de 0,25
+  assert.deepStrictEqual(studio.reserveFromCosts([0.0818, 0.0823, 0.0822], 0.25), { usd: 0.11, basis: 'measured', configuredUsd: 0.25, measuredMaxUsd: 0.0823, samples: 3 });
+  assert.strictEqual(studio.reserveFromCosts([0.0822], 0.25).basis, 'configured', 'une seule mesure : estimation configurée');
+  assert.strictEqual(studio.reserveFromCosts([0.3, 0.2], 0.25).usd, 0.25, 'jamais au-delà de l\'estimation configurée');
+  assert.strictEqual(studio.reserveFromCosts([0.08, 0.08], 0.25).usd, 0.1);
+  // Plafond de 3 USD, 2,7961 USD cumulés (état du 03/11) : 2 images possibles, la 3e refusée
+  let left = 3 - 2.7961, n = 0;
+  while (left + 1e-9 >= 0.11 + 0.01) { left -= 0.0822 + 0.0005; n++; }
+  assert.strictEqual(n, 2);
+  const s = studio.status();
+  assert.ok(s.reserve && 'lastImage' in s && s.perImageUsd >= s.estImageUsd, JSON.stringify(s));
+});
+
 test('collection entière (02/11) : une image par objet, enchaînées, plafond respecté, échecs seuls à corriger', async () => {
   const seen = [];
   const badCheck = new Set(['monster_tooth']);
@@ -417,6 +490,13 @@ test('routes : protégées, image servie, gros corps seulement après la clé ad
   const cbody = await conflict.json();
   assert.deepStrictEqual([conflict.status, cbody.details?.code, cbody.details?.conflicts?.[0]?.id], [409, 'subject_conflict', 'crystal']);
   assert.strictEqual((await (await fetch(`${BASE}/api/admin/icons/job`, { headers: H })).json()).job, null, 'aucune génération lancée');
+  // Lecture du sujet pendant la saisie : protégée, sans appel ni écriture
+  const sc = body => fetch(`${BASE}/api/admin/icons/targets/item:fossil/subject-check`, { method: 'POST', headers: H, body: JSON.stringify(body) });
+  assert.strictEqual((await fetch(`${BASE}/api/admin/icons/targets/item:fossil/subject-check`, { method: 'POST', body: '{}' })).status, 401);
+  const ok1 = await (await sc({ instruction: 'vue de trois quarts, cohérent avec le cristal bleu' })).json();
+  assert.deepStrictEqual([ok1.conflicts.length, ok1.references[0]?.context], [0, 'style'], JSON.stringify(ok1));
+  const ko1 = await (await sc({ instruction: 'dessine un cristal bleu' })).json();
+  assert.deepStrictEqual([ko1.conflicts[0]?.id, ko1.conflicts[0]?.strict], ['crystal', true]);
   // Collection entière : plan lisible, mêmes refus (panel obsolète, cible), arrêt sans génération en cours
   assert.strictEqual((await fetch(`${BASE}/api/admin/icons/series/origines`)).status, 401);
   const plan = await (await fetch(`${BASE}/api/admin/icons/series/origines`, { headers: H })).json();
