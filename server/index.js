@@ -106,6 +106,7 @@ const { isValidEmail, intParam } = require('./validation');
 const { createMailer } = require('./mailer');
 const { registerAccountRoutes, authVersionGuard, publicAccount } = require('./accountRoutes');
 const { resolveSocialConfig, registerSocialRoutes } = require('./socialAuth');
+const xLink = require('./xLink');
 
 // Secrets : refus de démarrer en production sans SESSION_SECRET solide (#12)
 let SESSION_SECRET, ADMIN_SECRET;
@@ -143,6 +144,9 @@ if (mailer.enabled) {
 // Connexion Google via Auth0 (#28) : désactivée tant que SOCIAL_LOGIN n'est pas « link »
 const socialConfig = resolveSocialConfig(process.env, { publicBaseUrl: mailer.baseUrl });
 let social;   // routes enregistrées plus bas, après les routes de compte
+const xConfig = xLink.resolveXConfig(process.env, { publicBaseUrl: mailer.baseUrl });
+let xStatus;  // compte X lié (#51), routes enregistrées avec celles de Google
+if (xConfig.enabled) console.log(`[x] liaison de compte X : mode ${xConfig.mode}${xConfig.users.size ? ` (${xConfig.users.size} compte(s) autorisé(s))` : ''}`);
 if (socialConfig.enabled) console.log(`[social] connexion Google : mode ${socialConfig.mode}${socialConfig.users.size ? ` (${socialConfig.users.size} compte(s) autorisé(s))` : ''}`);
 
 // ── Middlewares ───────────────────────────────────────────────────────────────
@@ -407,10 +411,10 @@ app.post('/api/login', limit.login, async (req, res) => {
 app.get('/api/me', (req, res) => {
   try {
     const mail = mailer.enabled;
-    if (!req.session.userId) return res.json({ user: null, mail, social: social.describe(req, null) });
+    if (!req.session.userId) return res.json({ user: null, mail, social: social.describe(req, null), x: xStatus.describe(null) });
     const user = getUserAuth(req.session.userId);
     if (!user) { req.session.destroy(() => {}); return res.json({ user: null, mail }); }
-    res.json({ user: publicAccount(user), mail, social: social.describe(req, user) });
+    res.json({ user: publicAccount(user), mail, social: social.describe(req, user), x: xStatus.describe(user) });
   } catch (err) {
     console.error('[GET /api/me]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -434,6 +438,9 @@ registerAccountRoutes(app, { limit, mailer });
 
 // Connexion Google via Auth0 Free, liaison explicite des comptes (#28)
 social = registerSocialRoutes(app, { limit, mailer, config: socialConfig });
+
+// Compte X lié : statut social vérifié, récompense hebdomadaire désactivée (#51)
+xStatus = xLink.registerXRoutes(app, { limit, config: xConfig });
 
 
 // ── Routes sauvegardes cloud (liées au compte) ────────────────────────────────
@@ -1952,6 +1959,7 @@ collectionAi.init();             // propositions de collections assistées par I
 // Collections préparées (server/content/collections) → brouillon, une seule fois (#39) ; pas en test (bases neuves)
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_COLLECTIONS !== '0') collectionAi.importPrepared();
 seasonThemes.init();             // saisons thématiques : thèmes, noms réservés, journal ; préparation par le planificateur (#48)
+xLink.init();                    // compte X lié, historique, demandes de récompense (désactivées) (#51)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
 news.init();                     // centre d'actualités : annonces, lu par compte, IA, faits joueurs (#50)

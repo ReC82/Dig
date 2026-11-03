@@ -35,6 +35,7 @@ let _mailEnabled          = false;   // e-mails de compte disponibles côté ser
 let _resetToken           = null;    // jeton du lien « mot de passe oublié » ouvert (#28)
 let _social               = null;    // connexion Google (#28) : null = désactivée côté serveur
 let _socialResult         = null;    // résultat du retour Google (?social=…), lu au chargement
+let _xStatus              = null;    // compte X lié (#51) : { available, linked, reward } ou null
 const SOCIAL_SEEN_KEY     = 'dig.socialLinked'; // un compte Google a été lié sur cet appareil
 let _hasShownGuestWarning = false;   // avertissement affiché une seule fois par session
 let _seasonCpsLimit       = 8;       // seuil CPS récupéré depuis le serveur
@@ -1370,6 +1371,7 @@ async function _loadAccount() {
   _account     = ok ? (data.user ?? null) : null;
   _mailEnabled = ok && !!data.mail;
   _social      = ok ? (data.social ?? null) : null;
+  _xStatus     = ok ? (data.x ?? null) : null;
 }
 
 async function _fetchMe() {
@@ -1408,10 +1410,12 @@ function _handleAccountLinks() {
   const verify = params.get('verify');
   const reset  = params.get('reset');
   const social = params.get('social');
-  if (!verify && !reset && !social) return;
+  const xlink  = params.get('xlink');
+  if (!verify && !reset && !social && !xlink) return;
   params.delete('verify');
   params.delete('reset');
   params.delete('social');
+  params.delete('xlink');
   const qs = params.toString();
   history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : '') + location.hash);
 
@@ -1423,6 +1427,12 @@ function _handleAccountLinks() {
     const key  = `account.social_msg_${social}`;
     showAchievement(good ? '🔗' : (social === 'pending' ? '👤' : '⚠️'), t(key) !== key ? t(key) : t('account.social_msg_error'));
     switchView('settings');   // le parcours Google part toujours de Paramètres → Compte
+  }
+  // Retour de liaison X (#51) : message, puis Paramètres → Compte.
+  if (xlink && /^[a-z]{1,20}$/.test(xlink)) {
+    const key = `account.x_msg_${xlink}`;
+    showAchievement(xlink === 'linked' ? '𝕏' : '⚠️', t(key) !== key ? t(key) : t('account.x_msg_error'));
+    switchView('settings');
   }
   if (reset) {
     _resetToken = reset;
@@ -2562,6 +2572,7 @@ function _accountSectionHtml() {
       </details>
       ${changeEmail}
       ${_socialAccountHtml()}
+      ${_xAccountHtml()}
     </div>`;
   }
 
@@ -2691,6 +2702,45 @@ function _socialAccountHtml() {
         <p class="account-msg" id="acc-social-link-msg" role="status"></p>
       </form>
     </details>`;
+}
+
+/**
+ * Compte X (#51) : statut social vérifié, distinct des badges honorifiques. « Non disponible »
+ * explicite tant que la liaison est fermée côté serveur ; la récompense hebdomadaire reste fermée.
+ */
+function _xAccountHtml() {
+  const x = _xStatus;
+  const reward = `<p class="account-hint">${t('account.x_reward_off')}</p>`;
+  if (!x || !x.available) {
+    return `<div class="account-x" id="account-x">
+        <span class="account-x-title">${t('account.x_title')}</span>
+        <span class="account-x-state">${t('account.x_unavailable')}</span>
+      </div>`;
+  }
+  if (x.linked) {
+    return `<div class="account-x" id="account-x">
+        <span class="account-x-title">${t('account.x_title')}</span>
+        <span class="account-x-badge" title="${escapeHtml(t('account.x_badge_hint'))}">𝕏 @${escapeHtml(x.linked.username)} · ${t('account.x_verified')}</span>
+      </div>
+      <div class="account-x-block">${reward}</div>
+      <details class="account-details">
+        <summary>${t('account.x_unlink_title')}</summary>
+        <div class="account-x-block">
+          <p class="account-hint">${t('account.x_unlink_hint')}</p>
+          <button type="button" class="account-submit-btn" id="btn-x-unlink">${t('account.btn_x_unlink')}</button>
+          <p class="account-msg" id="acc-x-msg" role="status"></p>
+        </div>
+      </details>`;
+  }
+  return `<div class="account-x" id="account-x">
+      <span class="account-x-title">${t('account.x_title')}</span>
+      <span class="account-x-state">${t('account.x_not_linked')}</span>
+    </div>
+    <div class="account-x-block">
+      <p class="account-hint">${t('account.x_link_hint')}</p>
+      <button type="button" class="account-submit-btn" id="btn-x-link">${t('account.btn_x_link')}</button>
+      ${reward}
+    </div>`;
 }
 
 /** Quitte la page vers Google (via Auth0) après un dernier enregistrement local et cloud. */
@@ -2882,6 +2932,16 @@ function _bindAccountSection(container) {
     await _loadAccount();
     renderSettings();
     return null;
+  });
+
+  // Compte X (#51)
+  _onAccountClick('btn-x-link', () => _goToGoogle('/api/x/start'));
+  _onAccountClick('btn-x-unlink', async () => {
+    const { ok, data } = await _apiFetch('POST', '/api/x/unlink');
+    if (!ok) return _accMsg('acc-x-msg', data.error || t('account.err_generic'), false);
+    showAchievement('𝕏', t('account.x_unlinked'));
+    await _loadAccount();
+    renderSettings();
   });
 
   // Connexion / inscription

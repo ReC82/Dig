@@ -290,6 +290,53 @@ effet et resservent à la réactivation.
 - les refus sont journalisés (`journalctl -u dig | grep '\[social\]'`) sans jeton ;
 - si le SMTP est configuré, chaque liaison ou retrait est notifié à l'adresse du compte.
 
+
+## Compte X lié et statut social (ticket #51)
+
+**Désactivé par défaut** (`X_LINK` absent ou `off`) : aucune route `/api/x/*`, aucun appel à X.
+Paramètres → Compte affiche « Compte X : non disponible pour le moment ». Les tables
+`user_x_links`, `x_link_history` et `x_reward_claims` restent vides.
+
+Mode `link` : un joueur connecté clique « Lier mon compte X », se connecte chez X (OAuth 2.0 +
+PKCE, portées `users.read tweet.read`), et revient avec le statut « 𝕏 @nom · vérifié ». DIG! lit
+une seule fois `GET /2/users/me` (identifiant, nom, date de création du compte X), **révoque le
+jeton aussitôt** et n'en garde aucun. DIG! ne publie jamais rien. Règles : un compte X par compte
+DIG! et inversement ; un compte X retiré ne peut pas être lié à un autre compte DIG! avant 30 jours ;
+un compte DIG! ne peut pas changer de compte X avant 7 jours.
+
+**Récompense hebdomadaire : verrouillée dans le code** (`REWARD_ENABLED = false` dans
+`server/xLink.js`, aucune route, aucun crédit). Aucune variable ne l'ouvre : décision du
+propriétaire requise (rapport #51 — les règles X interdisent depuis janvier 2026 de récompenser
+la publication par des points).
+
+### Mise en service par le propriétaire (si décidé)
+
+1. https://developer.x.com → projet + application, **User authentication settings** : OAuth 2.0,
+   type **Web App (confidential client)**, permissions **Read**.
+   - Callback URI : `https://dig.lodygames.com/api/x/callback` et `https://dig.lodylands.com/api/x/callback`
+   - Website URL : `https://dig.lodygames.com`
+   - Noter le **Client ID** et le **Client Secret** OAuth 2.0.
+   - Coût : la liaison fait une lecture `users/me` par joueur (paiement à l'usage, ordre du
+     centime) ; vérifier le crédit du compte développeur.
+2. Ajouter dans `/etc/dig/dig.env`, puis `sudo systemctl restart dig` :
+
+   ```
+   X_LINK=link
+   X_LINK_USERS=<ton nom d'utilisateur DIG!>
+   X_CLIENT_ID=…
+   X_CLIENT_SECRET=…
+   ```
+
+   Contrôle : `journalctl -u dig --since -2min | grep '\[x\]'` → `liaison de compte X : mode link`.
+3. Après recette, retirer `X_LINK_USERS` pour ouvrir à tous.
+
+Autres variables : `X_ORIGINS` (défaut : les deux domaines du jeu) ; `X_OAUTH_BASE` / `X_API_BASE`
+pour les tests uniquement, refusées en production. Limite : `RATE_SOCIAL_MAX` (partagée avec Google).
+
+**Retour arrière** : `X_LINK=off` (ou supprimer la ligne) puis `sudo systemctl restart dig`. Les
+liaisons restent en base sans effet. **Journal** : `user_events` reçoit `x_linked`,
+`x_unlinked`, `x_link_refused` (raison) ; `x_link_history` garde chaque liaison et sa fin.
+
 ## Tests
 
 ```bash

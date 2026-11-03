@@ -13,7 +13,7 @@ const ads = require('./ads');
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const UPDATED = '30 octobre 2026';
+const UPDATED = '3 novembre 2026';
 
 function privacyPage(host, canonicalHost) {
   const s = ads.getSettings();
@@ -66,13 +66,14 @@ function privacyPage(host, canonicalHost) {
     <tr><th>Donnée</th><th>Pourquoi</th><th>Base</th></tr>
     <tr><td>Pseudo, mot de passe (stocké haché, jamais en clair), e-mail facultatif</td><td>Créer et protéger ton compte, vérifier l'adresse, récupérer le mot de passe</td><td>Exécution du service</td></tr>
     <tr><td>Connexion Google (facultative) : identifiant du compte Google et e-mail</td><td>Te connecter sans mot de passe</td><td>Exécution du service</td></tr>
+    <tr><td>Compte X lié (facultatif) : identifiant et nom du compte X, date de création du compte X — aucun accès conservé, aucune publication</td><td>Afficher ton statut « compte X vérifié » ; empêcher qu'un compte X serve à plusieurs comptes DIG!</td><td>Consentement (retrait à tout moment dans Paramètres → Compte)</td></tr>
     <tr><td>Sauvegarde de partie, résultats de saison</td><td>Retrouver ta progression sur tes appareils ; classement</td><td>Exécution du service</td></tr>
     <tr><td>Pseudo et score dans le classement</td><td>Classement public de la saison</td><td>Exécution du service</td></tr>
     <tr><td>Statistiques de clics et de progression, événements de sécurité (adresse IP uniquement sous forme d'empreinte non réversible)</td><td>Lutter contre la triche, les robots et les abus</td><td>Intérêt légitime (jeu équitable, sécurité)</td></tr>
   </table>
   <p>Les journaux de sécurité sont supprimés après 90 jours. Les données ne sont ni vendues ni transmises à des
   tiers, sauf aux prestataires techniques nécessaires (hébergement chez Amazon Web Services, envoi d'e-mails,
-  connexion Google via Auth0 si tu la choisis).</p>
+  connexion Google via Auth0 ou liaison d'un compte X si tu les choisis).</p>
 
   <h2>Cookies et stockage local</h2>
   <table>
