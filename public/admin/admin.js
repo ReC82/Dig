@@ -4650,6 +4650,7 @@ function bgFillForm(b) {
   set('bg-starts', b?.startsAt); set('bg-ends', b?.endsAt); set('bg-sort', b?.sort ?? 0);
   for (const l of BG_LANGS) { set(`bg-${l}-name`, b?.names?.[l]); set(`bg-${l}-desc`, b?.descriptions?.[l]); }
   document.getElementById('bg-preview').textContent = '';
+  document.getElementById('bg-period-box').open = !!(b?.startsAt || b?.endsAt);
   bgToggleBlock();
 }
 
@@ -4692,14 +4693,14 @@ function bgOpenSheet(sheet, opener) {
   document.getElementById('bg-id').disabled = mode === 'edit';
   bgToggleBlock();
   document.getElementById('bg-form-title').textContent = mode === 'edit' ? `${b.icon} ${b.names.fr} — fiche du badge`
-    : mode === 'new' ? 'Nouveau badge (manuel)' : `✨ Proposition IA n° ${p.id}`;
+    : mode === 'new' ? 'Nouveau badge (manuel)' : '✨ Modifier la proposition IA';
   const state = document.getElementById('bg-state');
   const stateText = mode === 'edit'
     ? `Statut : ${BG_STATUS[b.status]}${b.status === 'active' ? ' — les modifications enregistrées sont visibles immédiatement par les joueurs.' : ' — invisible des joueurs.'}`
     : mode === 'new' ? 'Le badge sera enregistré désactivé : activez-le ensuite depuis sa fiche.'
     : {
       pending: '⏳ Génération en cours (≈ 20 à 60 s) : vous pouvez fermer cette fiche, la proposition restera dans « ✨ Propositions IA ».',
-      open: 'À relire : corrigez ce qui doit l\'être, puis « Enregistrer comme badge désactivé ». Rien n\'est activé ; aucune image n\'est générée.',
+      open: `Demande : « ${p.concept} » (proposition n° ${p.id}). Corrigez ce qui doit l'être, puis « Enregistrer comme badge désactivé ». Rien n'est activé ; aucune image n'est générée.`,
       error: `Échec : ${p.error ?? 'erreur inconnue'}. Aucune donnée n'a été modifiée ; relancez une proposition depuis « ＋ Ajouter un badge ».`,
       in_draft: `Déjà enregistrée comme badge désactivé « ${p.badgeId} » : ouvrez-le dans la liste pour l'illustrer et l'activer.`,
     }[p.status] ?? p.status;
@@ -4798,6 +4799,7 @@ async function loadBadgeAudit() {
 admDialogSetup('bg-dialog');
 admDialogSetup('bg-add-dialog');
 admDialogSetup('bg-ai-dialog');
+admDialogSetup('bg-review-dialog');
 document.getElementById('bg-dialog').addEventListener('close', () => { _bgSheet = null; });
 document.getElementById('bg-condition').addEventListener('change', bgToggleBlock);
 for (const id of ['bg-icon', 'bg-image', 'bg-threshold', 'bg-block', 'bg-visibility', 'bg-starts', 'bg-ends', 'bg-fr-name', 'bg-fr-desc']) {
@@ -4842,7 +4844,7 @@ document.getElementById('btn-bg-save').addEventListener('click', async () => {
     const r = await api('POST', `/api/admin/badges/ai/proposals/${sheet.proposal.id}/draft`);
     if (!r.ok) {
       // Corrections gardées : la fiche affiche ce qui bloque encore
-      bgOpenSheet({ mode: 'proposal', proposal: put.data.proposal }, document.getElementById('btn-bg-add'));
+      bgOpenSheet({ mode: 'proposal', proposal: put.data.proposal, opener: sheet.opener }, sheet.opener ?? document.getElementById('btn-bg-add'));
       ptMessage('bg-form-msg', bgError(r.data), false);
       return;
     }
@@ -4928,30 +4930,181 @@ async function bgAiLoad() {
   for (const p of list) {
     const tr = document.createElement('tr');
     const b = p.data?.badge;
-    [p.createdAt, p.concept.length > 70 ? `${p.concept.slice(0, 70)}…` : p.concept, b ? `${b.icon} ${b.names.fr || b.id}` : '—',
+    [`n° ${p.id} · ${p.createdAt}`, p.concept.length > 70 ? `${p.concept.slice(0, 70)}…` : p.concept, b ? `${b.icon} ${b.names.fr || b.id}` : '—',
      b ? bgCondLabel(b) : '', BG_AI_STATE[p.status] ?? p.status].forEach(x => addCell(tr, x));
     admRowOpen(tr, `bg-prop:${p.id}`, `Proposition ${p.id}`, row => bgPropOpen(p.id, row));
     tb.appendChild(tr);
   }
   clearTimeout(_bgAiTimer);
-  if (list.some(p => p.status === 'pending')) _bgAiTimer = setTimeout(bgAiPoll, 4000);
+  if (list.some(p => p.status === 'pending')) _bgAiTimer = setTimeout(bgAiPoll, 3000);
 }
 
 async function bgAiPoll() {
-  const before = new Set((_bgAi?.proposals ?? []).filter(p => p.status === 'pending').map(p => p.id));
   await bgAiLoad();
-  const s = _bgSheet;
-  if (document.getElementById('bg-dialog').open && s?.mode === 'proposal' && before.has(s.proposal.id)) {
-    const p = _bgAi.proposals.find(x => x.id === s.proposal.id);
-    if (p && p.status !== 'pending') bgOpenSheet({ mode: 'proposal', proposal: p }, document.getElementById('btn-bg-add'));
-  }
+  // Seule la vue de relecture (sans champ de saisie) suit le job : la fiche « Modifier » n'est jamais remplacée.
+  const id = _bgReview?.id;
+  if (!id || !document.getElementById('bg-review-dialog').open) return;
+  const p = _bgAi.proposals.find(x => x.id === id);
+  if (p && p.status !== _bgReview.status) bgReviewRender(p, true);
 }
 
 async function bgPropOpen(id, opener) {
   const { ok, data } = await api('GET', `/api/admin/badges/ai/proposals/${id}`);
   if (!ok) { ptMessage('bg-msg', data.error || 'Erreur.', false); return; }
-  bgOpenSheet({ mode: 'proposal', proposal: data.proposal }, opener);
+  bgReviewOpen(data.proposal, opener);
 }
+
+// ── Badges : vue d'attente puis relecture synthétique d'une proposition IA (recette du 02/11) ──
+// Après « Proposer » : vue d'attente légère (demande, statut, durée) que l'on peut fermer sans perdre
+// le job ; à la fin, fiche de relecture (aperçu, condition exacte, état désactivé, traductions et visuel
+// repliés). Le formulaire complet n'apparaît qu'après « Modifier ».
+
+let _bgReview = null;      // proposition affichée dans la vue de relecture
+let _bgReviewClock = null;
+
+const bgUtc = s => new Date(`${String(s).replace(' ', 'T')}Z`);
+
+function bgReviewTick() {
+  const p = _bgReview;
+  if (!p || p.status !== 'pending') { clearInterval(_bgReviewClock); return; }
+  const sec = Math.max(0, Math.round((Date.now() - bgUtc(p.createdAt).getTime()) / 1000));
+  document.getElementById('bg-rv-wait-text').textContent = `Demandée il y a ${sec} s (en général 20 à 60 s). `
+    + 'Vous pouvez fermer cette fenêtre : la génération continue et la proposition restera dans « ✨ Propositions IA ». Aucun badge n\'est créé sans votre action.';
+}
+
+function bgReviewRender(p, refresh) {
+  _bgReview = p;
+  const b = p.data?.badge;
+  const show = (id, on) => document.getElementById(id).classList.toggle('hidden', !on);
+  const others = (_bgAi?.proposals ?? []).filter(x => x.id !== p.id && x.concept === p.concept).map(x => `n° ${x.id}`);
+  document.getElementById('bg-rv-ref').textContent = `Demande : « ${p.concept} » — proposition n° ${p.id}, ${bgUtc(p.createdAt).toLocaleString('fr')}.`
+    + (others.length ? ` Même demande déjà proposée : ${others.join(', ')} (chaque « Proposer » ou « Refaire » crée une nouvelle proposition).` : '');
+  show('bg-rv-wait', p.status === 'pending');
+  clearInterval(_bgReviewClock);
+  if (p.status === 'pending') {
+    bgReviewTick();
+    _bgReviewClock = setInterval(bgReviewTick, 1000);
+    // Suivi garanti même si la liste a été chargée avant le lancement du job
+    clearTimeout(_bgAiTimer);
+    _bgAiTimer = setTimeout(bgAiPoll, 3000);
+  }
+  icNotice(document.getElementById('bg-rv-state'), {
+    open: refresh ? 'Proposition prête : relisez-la ci-dessous.' : '',
+    error: `Échec : ${p.error ?? 'erreur inconnue'}. Aucune donnée n'a été modifiée.`,
+    in_draft: `Déjà conservée : badge désactivé « ${p.badgeId} ». Ouvrez-le pour l'illustrer et l'activer.`,
+  }[p.status] ?? '', p.status === 'error' ? 'warn' : 'info');
+
+  show('bg-rv-body', p.status === 'open' && !!b);
+  if (p.status === 'open' && b) {
+    bgArt(document.getElementById('bg-rv-art'), b.image, b.icon, 56);
+    document.getElementById('bg-rv-name').textContent = b.names.fr || '(nom FR manquant)';
+    document.getElementById('bg-rv-desc').textContent = b.descriptions.fr || '(description FR manquante)';
+    document.getElementById('bg-rv-cond').textContent = b.condition
+      ? `${bgCondLabel(b)} — ${BG_METRIC_FR[b.condition] ?? ''}` : '⚠ Aucun critère pris en charge : « Modifier » pour en choisir un.';
+    document.getElementById('bg-rv-vis').textContent = b.visibility === 'hidden' ? 'Secret (révélé une fois obtenu)' : 'Visible';
+    document.getElementById('bg-rv-period').textContent = b.startsAt || b.endsAt
+      ? `⚠ Événement : ${b.startsAt || '…'} → ${b.endsAt || '…'} (UTC)` : 'Permanent (aucune période)';
+    document.getElementById('bg-rv-id').textContent = `${b.category} · ${b.id}`;
+    bgList('bg-rv-issues', p.errors ?? []);
+    bgList('bg-rv-warnings', p.warnings ?? []);
+    const rat = document.getElementById('bg-rv-rationale');
+    rat.textContent = p.data.rationale ? `Pourquoi ce critère : ${p.data.rationale}` : '';
+    show('bg-rv-rationale', !!rat.textContent);
+    const tb = document.getElementById('bg-rv-tr');
+    tb.textContent = '';
+    for (const l of BG_LANGS.filter(x => x !== 'fr')) {
+      const tr = document.createElement('tr');
+      [l.toUpperCase(), b.names[l] || '— (FR affiché)', b.descriptions[l] || '—'].forEach(x => addCell(tr, x));
+      tb.appendChild(tr);
+    }
+    const dl = document.getElementById('bg-rv-brief');
+    dl.textContent = '';
+    for (const [k, label] of [['subject', 'Sujet'], ['details', 'Détails'], ['palette', 'Palette']]) {
+      const dt = document.createElement('dt'); dt.textContent = label;
+      const dd = document.createElement('dd'); dd.textContent = p.data.image?.[k] || '—';
+      dl.append(dt, dd);
+    }
+  }
+  const keep = document.getElementById('btn-bg-rv-keep');
+  keep.disabled = !!(p.errors ?? []).length;
+  keep.title = keep.disabled ? 'À corriger d\'abord via « Modifier »' : 'Crée le badge désactivé (invisible des joueurs)';
+  show('btn-bg-rv-keep', p.status === 'open');
+  show('btn-bg-rv-edit', p.status === 'open');
+  show('btn-bg-rv-redo', ['open', 'error'].includes(p.status));
+  show('btn-bg-rv-cancel', ['open', 'error'].includes(p.status));
+  show('btn-bg-rv-open', p.status === 'in_draft');
+  document.getElementById('btn-bg-rv-close').textContent = p.status === 'pending' ? 'Fermer (la génération continue)' : 'Fermer';
+  if (!refresh) ptMessage('bg-rv-msg', '', true);
+  // Un bouton masqué ne garde pas le focus : il revient au titre de la fiche.
+  const dlg = document.getElementById('bg-review-dialog');
+  if (dlg.open && (!dlg.contains(document.activeElement) || document.activeElement.closest('.hidden'))) document.getElementById('bg-rv-title').focus();
+  // Fin de génération : du titre (focus d'attente) à l'action principale, sans quitter la fiche
+  if (dlg.open && refresh && p.status === 'open' && document.activeElement.id === 'bg-rv-title' && !keep.disabled) keep.focus();
+}
+
+function bgReviewOpen(p, opener) {
+  bgReviewRender(p, false);
+  admDialogOpen('bg-review-dialog', opener, p.status === 'open' && !(p.errors ?? []).length ? 'btn-bg-rv-keep' : 'bg-rv-title');
+}
+
+document.getElementById('bg-review-dialog').addEventListener('close', () => { clearInterval(_bgReviewClock); _bgReview = null; });
+
+document.getElementById('btn-bg-rv-keep').addEventListener('click', async e => {
+  const p = _bgReview;
+  if (!p) return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const r = await api('POST', `/api/admin/badges/ai/proposals/${p.id}/draft`);
+  btn.disabled = false;
+  if (!r.ok) { ptMessage('bg-rv-msg', bgError(r.data), false); return; }
+  document.getElementById('bg-review-dialog').close();
+  ptMessage('bg-msg', `Badge « ${r.data.badge.id} » conservé en brouillon, désactivé (invisible des joueurs). Illustrez-le dans 🎨 Atelier d'icônes puis activez-le depuis sa fiche.`, true);
+  loadBadges();
+});
+
+document.getElementById('btn-bg-rv-edit').addEventListener('click', () => {
+  const p = _bgReview;
+  if (!p) return;
+  const dlg = document.getElementById('bg-review-dialog');
+  const opener = dlg._admOpener;
+  dlg._admOpener = null;   // le focus passe à la fiche complète, pas à la liste
+  dlg.close();
+  bgOpenSheet({ mode: 'proposal', proposal: p, opener }, opener);
+});
+
+document.getElementById('btn-bg-rv-redo').addEventListener('click', async e => {
+  const p = _bgReview;
+  if (!p) return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const r = await api('POST', `/api/admin/badges/ai/proposals/${p.id}/redo`);
+  btn.disabled = false;
+  if (!r.ok) { ptMessage('bg-rv-msg', r.data.error || 'Erreur.', false); return; }
+  await bgAiLoad();
+  bgReviewRender(r.data.proposal, false);
+  ptMessage('bg-rv-msg', `Nouvelle proposition n° ${r.data.proposal.id} demandée ; la n° ${p.id} est abandonnée.`, true);
+});
+
+document.getElementById('btn-bg-rv-cancel').addEventListener('click', async () => {
+  const p = _bgReview;
+  if (!p || !confirm('Annuler cette proposition ? Aucun badge n\'est créé.')) return;
+  const r = await api('DELETE', `/api/admin/badges/ai/proposals/${p.id}`);
+  if (!r.ok) { ptMessage('bg-rv-msg', bgError(r.data), false); return; }
+  document.getElementById('bg-review-dialog').close();
+  ptMessage('bg-msg', 'Proposition annulée : aucun badge créé.', true);
+  bgAiLoad();
+});
+
+document.getElementById('btn-bg-rv-open').addEventListener('click', () => {
+  const id = _bgReview?.badgeId;
+  const b = _bgData?.badges.find(x => x.id === id);
+  const dlg = document.getElementById('bg-review-dialog');
+  const opener = dlg._admOpener;
+  dlg._admOpener = null;
+  dlg.close();
+  if (b) bgOpenSheet({ mode: 'edit', badge: b }, opener);
+  else ptMessage('bg-msg', `Badge « ${id} » introuvable (archivé ?).`, false);
+});
 
 document.getElementById('btn-bg-ai-generate').addEventListener('click', async e => {
   const btn = e.currentTarget;
@@ -4963,10 +5116,10 @@ document.getElementById('btn-bg-ai-generate').addEventListener('click', async e 
   if (!ok) { ptMessage('bg-ai-msg', data.error || 'Erreur.', false); return; }
   document.getElementById('bg-ai-dialog').close();
   document.getElementById('bg-ai-concept').value = '';
-  ptMessage('bg-msg', '✨ Proposition demandée : génération en cours (≈ 20 à 60 s). Elle apparaît dans « ✨ Propositions IA » ; aucun badge n\'est créé sans votre action.', true);
+  ptMessage('bg-msg', `✨ Proposition n° ${data.proposal.id} demandée : elle apparaîtra dans « ✨ Propositions IA » ; aucun badge n'est créé sans votre action.`, true);
   await bgAiLoad();
   document.getElementById('bg-ai-card').open = true;
-  bgPropOpen(data.proposal.id, document.getElementById('btn-bg-add'));
+  bgReviewOpen(data.proposal, document.getElementById('btn-bg-add'));
 });
 
 // ── Publicité (#45) ───────────────────────────────────────────────────────────

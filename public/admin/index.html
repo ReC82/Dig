@@ -1332,10 +1332,10 @@
     <!-- Propositions IA existantes (données) : affichées seulement s'il y en a ; la création passe par « ＋ Ajouter ». -->
     <details class="overview-card hidden" id="bg-ai-card">
       <summary class="overview-card-title" id="bg-ai-card-title">✨ Propositions IA</summary>
-      <p class="muted" style="font-size:0.78rem">Ouvrez une proposition pour la relire, la corriger, puis « Enregistrer comme badge désactivé ». <strong>Rien n'est activé automatiquement.</strong></p>
+      <p class="muted" style="font-size:0.78rem">Ouvrez une proposition pour la relire, puis « Conserver en brouillon » (badge désactivé), « Modifier » ou « Refaire ». Chaque demande crée une nouvelle proposition numérotée. <strong>Rien n'est activé automatiquement.</strong></p>
       <div class="bk-table-wrap">
         <table class="bk-table">
-          <thead><tr><th>Date (UTC)</th><th>Description</th><th>Badge proposé</th><th>Critère</th><th>État</th><th><span class="visually-hidden">Ouvrir</span></th></tr></thead>
+          <thead><tr><th>N° · date (UTC)</th><th>Description</th><th>Badge proposé</th><th>Critère</th><th>État</th><th><span class="visually-hidden">Ouvrir</span></th></tr></thead>
           <tbody id="bg-ai-body"></tbody>
         </table>
       </div>
@@ -1372,6 +1372,53 @@
       <div class="form-actions"><button class="btn btn-outline" type="button" data-close>Annuler</button></div>
     </dialog>
 
+    <dialog id="bg-review-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="bg-rv-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="bg-rv-title" tabindex="-1">✨ Badge proposé par l'IA</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <p id="bg-rv-ref" class="muted bg-rv-ref"></p>
+      <div id="bg-rv-wait" class="bg-rv-wait hidden">
+        <span class="ic-spinner" aria-hidden="true"></span>
+        <div>
+          <strong>Génération en cours…</strong>
+          <p id="bg-rv-wait-text" class="muted"></p>
+        </div>
+      </div>
+      <p id="bg-rv-state" class="ic-notice hidden" role="status" aria-live="polite"></p>
+      <div id="bg-rv-body" class="hidden">
+        <div class="bg-rv-card">
+          <span id="bg-rv-art" class="co-thumb bg-rv-art"></span>
+          <div><strong id="bg-rv-name"></strong><br><span id="bg-rv-desc" class="muted"></span></div>
+        </div>
+        <dl class="bg-rv-facts">
+          <dt>Condition</dt><dd id="bg-rv-cond"></dd>
+          <dt>Visibilité</dt><dd id="bg-rv-vis"></dd>
+          <dt>Période</dt><dd id="bg-rv-period"></dd>
+          <dt>État</dt><dd>Sera enregistré <strong>désactivé</strong> : invisible des joueurs jusqu'à « Activer ».</dd>
+          <dt>Catégorie · identifiant</dt><dd id="bg-rv-id"></dd>
+        </dl>
+        <ul id="bg-rv-issues" class="error hidden"></ul>
+        <ul id="bg-rv-warnings" class="muted hidden"></ul>
+        <p id="bg-rv-rationale" class="muted hidden"></p>
+        <details class="co-fs"><summary class="muted">Traductions</summary>
+          <div class="bk-table-wrap"><table class="bk-table"><thead><tr><th>Langue</th><th>Nom</th><th>Description</th></tr></thead><tbody id="bg-rv-tr"></tbody></table></div>
+        </details>
+        <details class="co-fs"><summary class="muted">Visuel : consigne d'illustration</summary>
+          <dl class="bg-rv-facts" id="bg-rv-brief"></dl>
+          <p class="muted" style="font-size:0.75rem">Aucune image n'est générée ici : après « Conserver en brouillon », l'image se crée une par une dans 🎨 Atelier d'icônes, à partir de cette consigne.</p>
+        </details>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary hidden" id="btn-bg-rv-keep" type="button" title="Crée le badge désactivé (invisible des joueurs)">Conserver en brouillon</button>
+        <button class="btn btn-outline hidden" id="btn-bg-rv-edit" type="button">Modifier</button>
+        <button class="btn btn-outline hidden" id="btn-bg-rv-redo" type="button">↻ Refaire la proposition</button>
+        <button class="btn btn-outline hidden" id="btn-bg-rv-open" type="button">Ouvrir le badge</button>
+        <button class="btn btn-ghost hidden" id="btn-bg-rv-cancel" type="button">Annuler la proposition</button>
+        <button class="btn btn-outline" id="btn-bg-rv-close" type="button" data-close>Fermer</button>
+      </div>
+      <p id="bg-rv-msg" class="hidden"></p>
+    </dialog>
     <dialog id="bg-ai-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="bg-ai-title">
       <div class="section-header bk-dialog-head">
         <h3 class="overview-card-title" id="bg-ai-title">✨ Créer un badge avec l'IA</h3>
@@ -1454,13 +1501,13 @@
               </div>
             </div>
           </fieldset>
-          <fieldset class="co-fs"><legend>Période d'événement (facultative)</legend>
+          <details class="co-fs" id="bg-period-box"><summary class="muted" style="font-size:0.78rem">Options avancées : période d'événement (vide = badge permanent)</summary>
             <div class="co-grid">
-              <label>Début (UTC)<input id="bg-starts" type="text" placeholder="2026-10-31T00:00:00Z"></label>
-              <label>Fin (UTC)<input id="bg-ends" type="text" placeholder="2026-11-02T00:00:00Z"></label>
+              <label>Début (UTC)<input id="bg-starts" type="text" placeholder="vide = permanent (ex. AAAA-MM-JJT00:00:00Z)"></label>
+              <label>Fin (UTC)<input id="bg-ends" type="text" placeholder="vide = permanent"></label>
             </div>
-            <p class="muted" style="font-size:0.75rem;margin:6px 0 0">Le badge ne s'obtient qu'entre le début et la fin, avec la progression faite pendant la période ; une fois obtenu, il reste dans la collection.</p>
-          </fieldset>
+            <p class="muted" style="font-size:0.75rem;margin:6px 0 0">Seulement pour un badge limité dans le temps : il ne s'obtient qu'entre le début et la fin, avec la progression faite pendant la période ; une fois obtenu, il reste dans la collection.</p>
+          </details>
         </div>
         <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px">
           <div class="co-fs" aria-live="polite">
