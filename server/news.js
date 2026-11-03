@@ -402,12 +402,12 @@ function _schema() {
   const texts = { type: 'object', additionalProperties: false, required: LANGS, properties: Object.fromEntries(LANGS.map(l => [l, str])) };
   return {
     type: 'object', additionalProperties: false,
-    required: ['category', 'icon', 'titles', 'summaries', 'bodies', 'eventAt', 'linkUrl', 'linkLabels', 'missing', 'doubts'],
+    required: ['category', 'icon', 'titles', 'summaries', 'bodies', 'eventAt', 'linkUrl', 'linkLabels', 'missing', 'doubts', 'suggestions'],
     properties: {
       category: { type: 'string', enum: CATEGORIES }, icon: str,
       titles: texts, summaries: texts, bodies: texts,
       eventAt: str, linkUrl: str, linkLabels: texts,
-      missing: { type: 'array', items: str }, doubts: { type: 'array', items: str },
+      missing: { type: 'array', items: str }, doubts: { type: 'array', items: str }, suggestions: { type: 'array', items: str },
     },
   };
 }
@@ -418,8 +418,11 @@ function _messages(raw, nowIso) {
     'You format announcements for DIG!, an idle clicker mining game for all ages, shown in an in-game news panel.',
     'The game admin gives you RAW NOTES. Turn them into one clear, friendly announcement.',
     'STRICT RULE: use ONLY facts present in the notes. NEVER invent or guess a date, time, number, reward, prize, feature, price, URL or name.',
-    'If something a player would need is absent or ambiguous (date, time zone, duration, conditions…), do not fill it in: list it in "missing" (short French sentences).',
-    'List in "doubts" (short French sentences) any statement in the notes that seems contradictory, risky (promise of real prizes, personal data) or unclear.',
+    'If something is absent, do not fill it in. Classify your remarks (short French sentences) in three lists:',
+    '- "missing": ONLY information without which players would be misled or could not act (e.g. a maintenance or event announced without its date or time). At most 3 items. For a short general announcement this list is usually EMPTY: do not list nice-to-have details there.',
+    '- "doubts": ONLY statements that are contradictory or risky (promise of real prizes or money, collection of personal data). At most 2 items, usually empty.',
+    '- "suggestions": optional ideas that could enrich the announcement (duration, criteria, contact…). At most 4 items. They are shown folded.',
+    'Address the player consistently in the same informal singular register as the game, in every sentence of a language: French "tu", Dutch "je/jij", European Spanish "tú" (never "vosotros", "vuestro" or "usted"), English plain "you". Never mix registers within one text.',
     `Write every text natively and idiomatically in ${langs}. titles: max 80 chars. summaries: one sentence, max 200 chars. bodies: 1-3 short paragraphs separated by a blank line, max 1200 chars, plain text (no markdown, no HTML).`,
     `category: one of ${CATEGORIES.join(', ')} ("player" is reserved for automatic player facts: do not use it).`,
     'icon: exactly one emoji fitting the topic.',
@@ -436,9 +439,11 @@ function _fake(raw) {
     summaries: { fr: String(raw).slice(0, 120), en: 'Test summary.', nl: 'Testsamenvatting.', es: 'Resumen de prueba.' },
     bodies: { fr: String(raw).slice(0, 400), en: 'Test body.', nl: 'Testtekst.', es: 'Texto de prueba.' },
     eventAt: '', linkUrl: '', linkLabels: { fr: '', en: '', nl: '', es: '' },
-    missing: ['Proposition de test : aucune IA appelée.'], doubts: [],
+    missing: ['Proposition de test : aucune IA appelée.'], doubts: [], suggestions: ['Suggestion de test.'],
   };
 }
+
+const _notes = (list, max) => (Array.isArray(list) ? list : []).map(x => _line(x, 200)).filter(Boolean).slice(0, max);
 
 /** Proposition normalisée. Un lien absent du texte brut est retiré (jamais d'adresse inventée). */
 function _normalizeProposal(out, raw) {
@@ -446,7 +451,7 @@ function _normalizeProposal(out, raw) {
   const linkUrl = _line(r.linkUrl, MAX.url);
   const keepLink = linkUrl && URL_RE.test(linkUrl) && raw.includes(linkUrl);
   const eventAt = iso(r.eventAt);
-  const missing = (Array.isArray(r.missing) ? r.missing : []).map(x => _line(x, 200)).filter(Boolean).slice(0, 8);
+  const missing = _notes(r.missing, 4);
   if (linkUrl && !keepLink) missing.push('Lien proposé par l\'IA absent du texte brut : retiré.');
   return {
     item: {
@@ -457,7 +462,8 @@ function _normalizeProposal(out, raw) {
       eventAt, publishAt: null, expiresAt: null,
     },
     missing,
-    doubts: (Array.isArray(r.doubts) ? r.doubts : []).map(x => _line(x, 200)).filter(Boolean).slice(0, 8),
+    doubts: _notes(r.doubts, 3),
+    suggestions: _notes(r.suggestions, 6),
   };
 }
 

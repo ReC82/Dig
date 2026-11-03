@@ -109,7 +109,7 @@ test('IA : mise en forme sans lien inventé, brouillon obligatoire, proposition 
     category: 'player', icon: '🎉', titles: T4('Soirée minage', 'Mining night', 'Mijnavond', 'Noche minera'),
     summaries: T4('Rendez-vous vendredi.'), bodies: T4('Venez nombreux.\n\nÀ vendredi !'),
     eventAt: '2026-11-06T19:00:00Z', linkUrl: 'https://discord.gg/invente', linkLabels: T4('Discord'),
-    missing: ['Heure de fin absente.'], doubts: [],
+    missing: ['Heure de fin absente.', 'm2', 'm3', 'm4', 'm5', 'm6'], doubts: [], suggestions: ['Durée de la soirée ?'],
   };
   let lastMessages = null;
   blockAi.setFakeTransport({ json: async ({ messages }) => { lastMessages = messages; return { data: answer, usage: {} }; } });
@@ -124,6 +124,12 @@ test('IA : mise en forme sans lien inventé, brouillon obligatoire, proposition 
   assert.strictEqual(p.data.item.category, 'news', 'catégorie réservée refusée');
   assert.strictEqual(p.data.item.eventAt, '2026-11-06T19:00:00Z');
   assert.match(lastMessages[0].content, /NEVER invent/);
+  // Recette #50-C : lacunes bloquantes limitées, suggestions à part (repliées), registre unique par langue
+  assert.ok(p.data.missing.length <= 5 && p.data.missing.includes('Heure de fin absente.'), 'au plus 4 lacunes + le lien retiré');
+  assert.deepStrictEqual(p.data.suggestions, ['Durée de la soirée ?']);
+  assert.match(lastMessages[0].content, /"suggestions"/);
+  assert.match(lastMessages[0].content, /European Spanish "tú" \(never "vosotros", "vuestro" or "usted"\)/);
+  assert.match(lastMessages[0].content, /Never mix registers/);
   const item = news.createItem({ ...p.data.item, aiProposalId: p.id });
   assert.deepStrictEqual([item.status, item.source], ['draft', 'ai']);
   assert.strictEqual(news.getProposal(p.id).status, 'used');
