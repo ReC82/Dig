@@ -1,5 +1,120 @@
 # Ticket #56 — Événements mensuels : objets exclusifs à miner et calendrier automatique
 
+# Mise à jour du 03/11/2026, ~19 h 30 (Bruxelles) — recettes #56-B à #56-G : refonte de l'admin
+
+Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Retours pris en compte : [#56-B](https://github.com/ReC82/Dig/issues/56#issuecomment-6600449019) (sélecteur de testeurs), [#56-C](https://github.com/ReC82/Dig/issues/56#issuecomment-6600513799) (refonte de la fiche, dates), [#56-D](https://github.com/ReC82/Dig/issues/56#issuecomment-6600600171) (confirmation native). #56-E, #56-F et #56-G **valident** le cycle complet en production : découverte réelle, persistance après F5, compteur admin, arrêt, souvenir conservé.
+
+## 1. État réel
+
+**Déployé en production (SHA `db38cc0`) — en attente de recette.** Classement : **Après lancement**. Aucun événement n'a été modifié ni planifié en production. Noël reste en brouillon. L'événement `test_2611030949` reste en brouillon, et ses testeurs restent au format d'origine tant qu'aucune action admin ne l'enregistre.
+
+## 2. Résultat et changements
+
+Fichiers : `server/monthlyEvents.js`, `server/index.js`, `public/admin/index.html`, `public/admin/admin.js`, `public/admin/admin.css`, `test/monthly-events.test.js`.
+
+**Testeurs (#56-B)**
+- Le champ libre est remplacé par un **sélecteur**. On tape une partie du pseudo et la liste propose « pseudo · ID » (jamais l'e-mail). Il marche au clavier (↑/↓, Entrée, Échap) et au tactile.
+- On peut choisir plusieurs testeurs. Chacun s'affiche en pastille, avec un ✕ pour le retirer.
+- La liste affiche « Aucun pseudo ne contient… » quand rien ne correspond. Si l'admin tape un pseudo sans le choisir dans la liste, il est averti tout de suite.
+- **Comptes proposés d'un clic** : les inscrits de la bêta (#57), dont `testeur`, et les testeurs déjà utilisés.
+- **Stockage par ID stable** : `[{id, username}]`. Le serveur contrôle l'accès par ID, donc un renommage ne coupe pas l'accès. Un compte inconnu est refusé (400).
+- **Compatibilité** : les anciens événements (`["testeur"]`) restent lisibles et le pseudo est résolu à la lecture, sans réécriture. Un pseudo introuvable bloque la planification, avec un message clair.
+
+**Fiche (#56-C)**
+- **Liste compacte** : état et audience en pastilles, dates JJ/MM/AAAA HH:mm, miniatures des objets, trouvailles. Les avertissements sont regroupés (« ⚠ 5 illustration(s) absente(s) »). Un clic (ou Entrée) sur une ligne ouvre la fiche.
+- **Fiche modale** avec cinq blocs :
+  - Identité, avec onglets FR/EN/NL/ES et une pastille ✓ par langue complète ;
+  - Calendrier : JJ/MM/AAAA + HH:mm, heure de Bruxelles, durée et temps restant affichés, date inexistante refusée ;
+  - Public, avec le sélecteur de testeurs ;
+  - Objets en sous-liste compacte ;
+  - Simulateur, replié par défaut.
+- Les actions sont séparées dans une barre fixe : *Enregistrer le brouillon* / *Planifier…* / *Démarrer le test maintenant…* / *Repasser en brouillon…* / *Révisions*.
+- **Fiche objet distincte** :
+  - une langue à la fois, avec un **aperçu joueur** ;
+  - catégories en grille, avec des libellés cliquables et l'aide « aucune case = tous les blocs » ;
+  - le taux est traduit en exemple (« 1 chance sur N, X % en 100 blocs ») ;
+  - illustration : URL ou téléversement, plus la consigne d'illustration.
+- **Saisies non enregistrées** : une confirmation Dig apparaît avant de fermer la fiche ou l'objet (✕, Échap, fond, rechargement de la page).
+- **« ＋ Ajouter »** propose trois choix : Événement manuel / Événement TEST / Avec l'IA. Ces formulaires ne sont plus affichés en permanence. Le calendrier et le journal sont repliés.
+
+**Confirmations (#56-D)**
+- Plus aucun `confirm()` dans l'onglet. Chaque confirmation est une boîte Dig qui détaille l'audience, les dates, les objets (taux et sources) et les conséquences, avec Annuler / Confirmer.
+- Un événement public demande toujours deux confirmations.
+
+**Période avant planification (#56-C)**
+- Côté serveur, une période **terminée** est refusée (`expired`).
+- Une période **déjà commencée** n'est planifiée qu'avec une confirmation explicite qui indique le temps restant (`confirmElapsed`, code `elapsed`).
+- **« Démarrer le test maintenant pour N min »** (TEST en brouillon uniquement) recale les dates et planifie dans une seule transaction. L'audience TEST est conservée et les anciennes dates restent dans la révision précédente et dans le journal. Les dates ne changent jamais en silence.
+- Le brouillon TEST créé par « ＋ Ajouter » s'ouvre directement sur sa fiche, prêt à être démarré.
+
+## 3. SHA et procédure de test
+
+Branche `feature/56-evenements-mensuels`, commit `7f163b5`, develop `db38cc0`.
+- `npm test` : 563/563 sur develop `db38cc0` et sur la release (18 tests dans `test/monthly-events.test.js`, dont 3 nouveaux : testeurs par ID et ancien format, période expirée ou entamée et « Démarrer maintenant », suggestions sans donnée privée ; plus la route HTTP `start-now`).
+- Copie de la base de production (port 3101, supprimée ensuite), Chromium 1280×900 et 390×844, 0 erreur JS, **0 boîte native**. Scénarios déroulés :
+  - liste ;
+  - fiche de l'ancien événement TEST : `testeur · ID 2` résolu ;
+  - recherche « tes » → `testeur · ID 2` ; « zzz » → message ;
+  - fiche objet en NL, modification puis Échap → confirmation Dig ;
+  - « Planifier » sur la période expirée → message qui renvoie vers « Démarrer maintenant » ;
+  - « ＋ Ajouter → TEST » : testeur proposé ajouté d'un clic → brouillon → « Démarrer pour 30 min » → 🟢 Actif → « Repasser en brouillon » → 📝 ;
+  - date 31/02 refusée ;
+  - fiche manuelle modifiée puis fermée → confirmation Dig.
+
+## 4. Vérifications, limites, données
+
+- **Données** : aucune migration (colonne `testers` existante, format JSON enrichi). Aucune donnée joueur touchée. Les anciennes lignes ne sont réécrites que lors d'une action admin.
+- **Limites** :
+  - la recherche est limitée à 10 résultats (sans pagination) : il suffit de préciser le pseudo ;
+  - le bouton « Rafraîchir » reste sans retour visuel (#60) ;
+  - la largeur commune du panel relève de #62 ;
+  - l'atelier d'images pour les objets d'événement n'est toujours pas branché (#40).
+- **Non vérifié** (recette #56-G) : l'absence de drop pour un compte non autorisé et l'unicité sur un long minage, en jeu. Les tests automatiques couvrent ces deux cas (`activeFor` d'un compte non testeur = vide, `INSERT OR IGNORE`).
+
+## 5. Déploiement
+
+- **Déployé `db38cc0`** : avance rapide de `main` `c04748e` → `db38cc0` (5 commits, sans `npm ci`), avec `scripts/deploy.sh` de la release. Sauvegarde vérifiée : `dig-20261103-192052-pre-deploy-db38cc0.sqlite`.
+- **Avant** :
+  - aucune génération IA en cours (dernier appel de l'atelier à 17:16 UTC, aucune proposition d'événement en attente) ;
+  - release : `npm test` 563/563 ;
+  - copie de la base de production en mode production (port 3122) : santé, version et `/api/events` OK ; empreintes des 6 tables joueurs identiques avant et après le démarrage ; événements intacts (`["testeur"]` non réécrit) ; copie supprimée.
+- **Après** :
+  - dig.lodygames.com et dig.lodylands.com → 200, version `1.0.0+db38cc0` ;
+  - `/api/admin/events` sans clé → 401 ;
+  - journal sans erreur ; `quick_check` ok ;
+  - empreintes des 6 tables joueurs **identiques** à la sauvegarde pré-déploiement ;
+  - Chromium 1280 et 390, jeu et page admin : 0 erreur JS.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep c04748e` puis `sudo systemctl restart dig`. Aucune donnée n'est à restaurer : le format des testeurs reste lisible par l'ancienne version, à une exception près. Un événement enregistré après ce déploiement porte des testeurs au format `{id}`, que l'ancienne version ne reconnaîtrait pas. Elle ne lui afficherait alors aucun testeur, sans perte de données.
+
+### Test fonctionnel à faire par le propriétaire (5 min)
+1. Admin (Ctrl+F5) → 🎉 Événements. **Attendu** : liste compacte, une ligne par événement, « ⚠ 5 illustration(s) absente(s) » regroupé sur Noël. Le calendrier et le journal sont repliés.
+2. Cliquez sur la ligne `test_2611030949`. **Attendu** : la fiche s'ouvre en fenêtre, avec la pastille « testeur · ID 2 », des dates en 03/11/2026 10:49 et les 3 objets en lignes compactes. Cliquez sur un objet : fiche séparée, onglets FR/EN/NL/ES, aperçu joueur. Fermez sans rien changer.
+3. « Planifier… » sur cet ancien test. **Attendu** : message « Période expirée : utilisez « Démarrer le test maintenant » » (aucune popup du navigateur).
+4. « ＋ Ajouter → 🧪 Événement TEST ». Cliquez sur « ＋ testeur » dans « Proposés », ou tapez « tes » et choisissez dans la liste. Mettez 30 min, puis « Créer le brouillon TEST ». **Attendu** : la fiche du nouveau brouillon s'ouvre.
+5. Facultatif : « ▶ Démarrer le test maintenant… » → la boîte Dig liste l'audience, les dates (maintenant → +30 min) et les 3 objets → Confirmer → 🟢 Actif. En jeu avec `testeur` : drops ; avec un autre compte (`lody`) : aucun objet. Puis « ⏸ Repasser en brouillon… ».
+
+## 6. Choix techniques faits seul
+
+- **Format `[{id, username}]`** : l'ID fait foi et le pseudo n'est qu'un repère lisible, mis à jour à la lecture. Les anciens pseudos sont lus sans migration, pour aucun risque sur la base.
+- **Suggestions = bêta + testeurs déjà utilisés** : la demande parle de « comptes de bêta déjà inscrits ». Les autres comptes restent accessibles par la recherche.
+- **Planification d'une période entamée** : autorisée seulement avec une confirmation explicite. Bloquer totalement gênerait un public qu'on lance en retard, et ne rien dire créerait des tests trop courts sans prévenir.
+- **« Démarrer maintenant » réservé au TEST** : un événement public garde des dates choisies et annoncées (#50).
+- Champs date et heure en texte JJ/MM/AAAA + HH:mm plutôt que `datetime-local`, dont le format dépend de la langue du navigateur.
+
+## 7. Décisions demandées au propriétaire
+
+Les questions du premier incrément restent ouvertes (voir plus bas) : barème de Noël (recommandé : diviser par 2 les 3 premiers objets), dates (recommandé : 1/12 → 1/1), planification avant le 24/11, thèmes 2027. Aucune nouvelle décision n'est nécessaire pour cette refonte.
+
+## 8. Restant à réaliser
+
+- **Après lancement** :
+  - illustrations de Noël et branchement dans l'atelier #40 ;
+  - pagination de la recherche de comptes si la base grossit ;
+  - aperçu joueur de l'événement entier ;
+  - harmonisation du bouton Rafraîchir (#60) et de la largeur (#62).
+
+---
+
 # Mise à jour du 03/11/2026, ~05 h 45 (Bruxelles) — premier incrément
 
 Ticket : [#56](https://github.com/ReC82/Dig/issues/56).
