@@ -501,6 +501,8 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .ic-card-kind { font-size: 0.72rem; color: var(--muted); }
 .ic-thumb { margin: 0 auto; }
 .ic-thumb img { object-fit: contain; }
+.ic-thumb--none { border: 1px dashed var(--border); }
+.ic-thumb-none { color: var(--muted); text-align: center; line-height: 1.15; padding: 2px; }
 .ic-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--border); color: var(--muted); }
 .ic-badge--ok { color: var(--green); border-color: rgba(34, 197, 94, 0.45); }
 .ic-badge--warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.5); }
@@ -549,7 +551,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .ic-more .form-actions { flex-wrap: wrap; margin: 10px 0; }
 .ic-brief { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; max-width: 640px; }
 .ic-brief h4 { font-size: 0.85rem; }
-.ic-prompt { font-size: 0.74rem; }
+.ic-prompt { font-size: 0.74rem; white-space: pre-wrap; word-break: break-word; margin: 6px 0; font-family: inherit; }
 .ic-preview { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; margin-top: 10px; }
 .ic-sizes { display: flex; gap: 10px; align-items: flex-end; }
 .ic-sizes div { display: flex; flex-direction: column; align-items: center; gap: 3px; background: #1f2937; border-radius: 6px; padding: 5px; font-size: 0.66rem; color: var(--muted); }
@@ -655,6 +657,15 @@ table:has(.visually-hidden) { position: relative; }
 .ic-item-brief h4 { margin: 0; font-size: 0.9rem; }
 .ic-item-brief .ic-hint { margin: 0; font-size: 0.78rem; }
 .ic-item-brief .ic-notice p { margin: 0 0 6px; }
+/* Résumé de la consigne en quatre champs (recette du 03/11) */
+.ic-summary { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0; font-size: 0.85rem; }
+.ic-summary dt { font-weight: 600; color: var(--muted, #94a3b8); }
+.ic-summary dd { margin: 0; overflow-wrap: anywhere; }
+.ic-summary-tools { margin: 0; }
+.ic-brief-edit { display: flex; flex-direction: column; gap: 8px; }
+.ic-brief-edit.hidden { display: none; }
+.ic-exact > summary { cursor: pointer; font-size: 0.8rem; }
+@media (max-width: 520px) { .ic-summary { grid-template-columns: 1fr; } .ic-summary dd { margin-bottom: 6px; } }
 
 /* Panel ouvert avant un déploiement : rechargement demandé (#40) */
 .adm-stale { position: sticky; top: 0; z-index: 1000; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap;

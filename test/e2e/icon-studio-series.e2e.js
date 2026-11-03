@@ -29,6 +29,8 @@ async function main() {
   const errors = [];
   page.on('pageerror', e => errors.push(String(e)));
 
+  // Lot réservé au cas où un plafond est actif (décision du 03/11) : plafond large activé pour l'essai
+  await fetch(`${BASE}/api/admin/icons/budget`, { method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: true, capUsd: 1000 }) });
   const plan0 = (await api('/api/admin/icons/series/tresors_vieille_mine')).plan;
   const images0 = Object.fromEntries(plan0.items.map(i => [i.id, i.image]));
   assert.deepStrictEqual(plan0.items.filter(i => i.state === 'todo').map(i => i.id), ['crayon_de_mineur', 'jeton_dore', 'tasse_ebrechee', 'cle_des_galeries'], JSON.stringify(plan0));

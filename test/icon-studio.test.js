@@ -102,6 +102,11 @@ test('génération : une image par action, consigne « Refaire », provenance, c
   assert.strictEqual(done.status, 'done', JSON.stringify(done));
   assert.strictEqual(done.instruction, 'plus sombre b');
   const relic = studio.getTarget('item:relic');
+  // Résumé en quatre champs (recette du 03/11) : objet du catalogue, forme, couleurs sans « Palette: », style en français
+  assert.ok(relic.promptSummary && relic.promptSummary.object && relic.promptSummary.subject, JSON.stringify(relic.promptSummary));
+  assert.doesNotMatch(relic.promptSummary.colors, /^palette/i);
+  assert.match(relic.promptSummary.style, /fond transparent/);
+  assert.match(relic.prompt, /Object to depict/, 'texte exact toujours fourni');
   assert.strictEqual(relic.assets.length, 2, 'aucune proposition écrasée');
   const a = relic.assets.find(x => x.sha === done.result.sha);
   assert.strictEqual(a.instruction, 'plus sombre b');
@@ -124,13 +129,21 @@ test('génération : une image par action, consigne « Refaire », provenance, c
   assert.strictEqual(typeof studio.startJob, 'undefined', 'plus de génération par lot');
 });
 
-test('plafond de l\'atelier, quota, échec journalisé sans secret', async () => {
-  studio.setStudioBudget(0.034);      // 0,03 déjà dépensés : une image de 0,01 dépasserait
-  assert.strictEqual(studio.status().studioCapUsd, 0.03, 'arrondi au centime');
-  assert.throws(() => studio.generate('item:fossil'), e => e.status === 402 && /Plafond/.test(e.message) && /Config → Budget IA/.test(e.message));
-  assert.strictEqual(studio.status().studioCapUsd, 0.03, 'jamais relevé automatiquement');
-  assert.throws(() => studio.setStudioBudget(-1), e => e.status === 400);
-  studio.setStudioBudget(null);
+test('plafond (03/11) : désactivé par défaut, réactivable dans ⚙ Config, quota, échec journalisé sans secret', async () => {
+  const s0 = studio.status();
+  assert.deepStrictEqual([s0.capEnabled, s0.remainingUsd, s0.budgetReached], [false, null, false], 'aucun plafond bloquant par défaut');
+  assert.strictEqual(s0.globalSpentUsd, 0.03, 'dépenses toujours totalisées');
+  assert.ok(s0.totals.monthUsd >= 0 && s0.totals.calls >= 3 && s0.totals.since, JSON.stringify(s0.totals));
+  assert.throws(() => studio.setSpendCap({ capUsd: -1, enabled: true }), e => e.status === 400);
+  studio.setSpendCap({ capUsd: 0.034, enabled: true });     // 0,03 déjà dépensés : une image de 0,01 dépasserait
+  assert.deepStrictEqual([studio.status().capEnabled, studio.status().capUsd], [true, 0.03], 'arrondi au centime');
+  assert.throws(() => studio.generate('item:fossil'), e => e.status === 402 && /Plafond/.test(e.message) && /Config → Budget IA/.test(e.message)
+    && /0\.0300 USD déjà dépensés \+ 0\.0100 USD réservés/.test(e.message) && /Réservation : 0\.0100 USD pour l'image/.test(e.message), 'montants non arrondis, réservation détaillée');
+  assert.strictEqual(studio.status().capUsd, 0.03, 'jamais relevé automatiquement');
+  studio.setSpendCap({ enabled: false });
+  assert.deepStrictEqual([studio.status().capEnabled, studio.status().capUsd], [false, 0.03], 'désactivé, montant conservé pour plus tard');
+  const ev = conn().prepare("SELECT details FROM icon_studio_events WHERE action = 'spend-cap' ORDER BY id").all().map(r => JSON.parse(r.details).enabled);
+  assert.deepStrictEqual(ev, [true, false], 'changements du plafond tracés');
   failNext = true;
   studio.generate('item:fossil');
   const j = await studio.waitJob();
@@ -390,10 +403,14 @@ test('collection entière (02/11) : une image par objet, enchaînées, plafond r
   assert.throws(() => studio.generateSeries('origines', { client: { build: 'ancien', target: 'series:origines' } }), e => e.details?.code === 'stale_client');
   assert.throws(() => studio.generateSeries('origines', { client: { build: require('../server/version').APP_VERSION, target: 'item:relic' } }), e => e.details?.code === 'target_mismatch');
 
-  // Plafond de l'atelier : 2 images possibles, la 3e n'est pas lancée, le plafond n'est jamais relevé
-  const spent = () => studio.status().studioSpentUsd;
-  studio.setStudioBudget(+(spent() + 0.02).toFixed(2));    // coût factice : 0,01 par image, contrôle gratuit
-  const cap = studio.status().studioCapUsd;
+  // Sans plafond actif (défaut du 03/11) : aucun lot, une image par clic
+  assert.strictEqual(plan.batchAllowed, false);
+  assert.throws(() => studio.generateSeries('origines'), e => e.status === 409 && /une image par clic/.test(e.message));
+  assert.deepStrictEqual(seen, [], 'aucun appel');
+  // Plafond réactivé : 2 images possibles, la 3e n'est pas lancée, le plafond n'est jamais relevé
+  const spent = () => studio.status().globalSpentUsd;
+  studio.setSpendCap({ enabled: true, capUsd: +(spent() + 0.0225).toFixed(2) });   // coût factice : 0,01 par image, contrôle gratuit
+  const cap = studio.status().capUsd;
   const job = studio.generateSeries('origines');
   assert.deepStrictEqual([job.kind, job.status, job.target], ['series', 'running', 'series:origines']);
   assert.throws(() => studio.generate('item:relic'), e => e.status === 429 && /collection/.test(e.message), 'une seule génération à la fois');
@@ -404,11 +421,11 @@ test('collection entière (02/11) : une image par objet, enchaînées, plafond r
   assert.match(by('monster_tooth').reason, /Plafond/);
   assert.deepStrictEqual(seen, ['item:ancient_coin', 'item:broken_crown'], 'un appel par objet, aucun pour les objets ignorés');
   assert.deepStrictEqual([by('ancient_coin').check.matches, by('ancient_coin').check.seen], [true, 'a ancient coin']);
-  assert.strictEqual(studio.status().studioCapUsd, cap, 'plafond inchangé');
+  assert.strictEqual(studio.status().capUsd, cap, 'plafond inchangé');
   assert.throws(() => studio.generateSeries('origines'), e => e.status === 402, 'plafond atteint : refus immédiat');
 
   // Budget relevé par l'admin : l'objet restant est généré ; le contrôle du sujet le signale « à revoir »
-  studio.setStudioBudget(cap + 0.05);
+  studio.setSpendCap({ capUsd: cap + 0.05 });
   studio.generateSeries('origines');
   j = await studio.waitJob();
   assert.strictEqual(j.status, 'done');
@@ -428,7 +445,7 @@ test('collection entière (02/11) : une image par objet, enchaînées, plafond r
   const ev = conn().prepare("SELECT details FROM icon_studio_events WHERE target = 'item:monster_tooth' AND action = 'generated' ORDER BY id DESC").get();
   assert.strictEqual(typeof JSON.parse(ev.details).batch, 'number', 'génération tracée comme partie d\'une collection');
   assert.strictEqual(JSON.stringify(coll.getDraft()), draftBefore, 'rien appliqué au brouillon ni publié');
-  studio.setStudioBudget(null);
+  studio.setSpendCap({ enabled: false });
   studio.setFakeTransport({ image: fakeImage });
 });
 
@@ -455,6 +472,15 @@ test('routes : protégées, image servie, gros corps seulement après la clé ad
   assert.strictEqual(anon.status, 401, 'corps lourd refusé avant lecture sans clé');
   assert.strictEqual((await fetch(`${BASE}/api/admin/icons/budget`, { method: 'PUT', headers: H, body: JSON.stringify({ studioBudgetUsd: 'x'.repeat(600 * 1024) }) })).status, 413,
     'limite de 512 Ko conservée ailleurs');
+  // Plafond (décision du 03/11) : désactivé par défaut au démarrage, réglable depuis ⚙ Config, sans redémarrage
+  const budgetPut = body => fetch(`${BASE}/api/admin/icons/budget`, { method: 'PUT', headers: H, body: JSON.stringify(body) });
+  assert.strictEqual((await fetch(`${BASE}/api/admin/icons/budget`, { method: 'PUT', body: '{}' })).status, 401);
+  assert.strictEqual((await (await fetch(`${BASE}/api/admin/icons/job`, { headers: H })).json()).status.capEnabled, false);
+  assert.strictEqual((await budgetPut({ enabled: true })).status, 400, 'activation sans montant refusée');
+  const on = await (await budgetPut({ enabled: true, capUsd: 12.345 })).json();
+  assert.deepStrictEqual([on.status.capEnabled, on.status.capUsd, on.status.remainingUsd > 0], [true, 12.35, true]);
+  const off = await (await budgetPut({ enabled: false })).json();
+  assert.deepStrictEqual([off.status.capEnabled, off.status.capUsd, off.status.remainingUsd], [false, 12.35, null]);
 
   const ov = await (await fetch(`${BASE}/api/admin/icons`, { headers: H })).json();
   assert.strictEqual(ov.status.configured, true);

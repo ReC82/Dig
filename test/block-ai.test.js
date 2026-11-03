@@ -126,6 +126,13 @@ test('gemme créée par IA : pas de gemme premium par défaut ; échec et quota 
   const failed = ai.listCalls().find(c => !c.ok);
   assert.ok(failed && !failed.error.includes('sk-proj-ABCD'));
   await assert.rejects(ai.createProposal({ concept: 'x' }), /3 à 500/);
+  // Plafond (décision du 03/11) : désactivé par défaut, même au-delà de l'ancien plafond de la configuration
+  conn().prepare("INSERT INTO block_ai_calls (kind, ok, cost_usd) VALUES ('image', 1, 5)").run();
+  assert.deepStrictEqual([ai.status().capEnabled, ai.status().budgetUsd, ai.status().remainingUsd], [false, null, null]);
+  assert.ok((await ai.createProposal({ concept: 'bloc sans plafond', withImage: false })).id, 'aucun refus sans plafond');
+  require('../server/aiSpendCap').setPolicy({ enabled: true, capUsd: 5 });
+  await assert.rejects(ai.createProposal({ concept: 'bloc au plafond', withImage: false }), e => e.status === 402 && /Config → Budget IA/.test(e.message));
+  require('../server/aiSpendCap').setPolicy({ enabled: false });
   // Quota journalier
   const ins = conn().prepare("INSERT INTO block_ai_calls (kind, ok, cost_usd) VALUES ('text', 1, 0)");
   for (let i = 0; i < 40; i++) ins.run();

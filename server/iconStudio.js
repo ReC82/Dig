@@ -18,9 +18,10 @@
  *     confirmation explicite (`override`), tracée ;
  *   - clé API uniquement côté serveur (infrastructure #22 : ~/.config/dig/openai.env, clé lue sur
  *     place, jamais renvoyée ni journalisée) ; erreurs masquées ;
- *   - une génération à la fois, quota d'images par 24 h, double plafond de dépense : plafond global
- *     de la configuration (journal partagé ~/.local/state/dig-icons/ledger.jsonl) ET plafond propre
- *     à l'atelier, réglable dans ⚙ Config → Budget IA (jamais au-delà du global, jamais relevé automatiquement) ;
+ *   - une génération à la fois, quota d'images par 24 h, coût de chaque appel journalisé
+ *     (journal partagé ~/.local/state/dig-icons/ledger.jsonl) ; plafond de dépense DÉSACTIVÉ par
+ *     défaut depuis la décision du 03/11, réactivable dans ⚙ Config → Budget IA (server/aiSpendCap.js),
+ *     lots refusés tant qu'aucun plafond n'est actif ;
  *   - stockage dans la base (sauvegardée avec elle), en ajout seul : images (WebP 256, URL
  *     immuable /media/icons/<sha>.webp), provenance (prompt, modèle, référence, contrôles, coût),
  *     historique des actions (génération, téléversement, choix, application, retour, validation).
@@ -39,6 +40,7 @@ const db = require('./db');
 const blockCatalog = require('./blockCatalog');
 const collectionCatalog = require('./collectionCatalog');
 const badges = require('./badges');
+const aiSpendCap = require('./aiSpendCap');
 const { APP_VERSION } = require('./version');
 
 const ROOT = path.join(__dirname, '..');
@@ -77,6 +79,7 @@ const conn = () => db.getDb();
 // ── Schéma (ajout seul pour images, appels et historique) ─────────────────────
 
 function init() {
+  aiSpendCap.init();                // réglages du plafond de dépense IA (désactivé par défaut)
   conn().exec(`
     CREATE TABLE IF NOT EXISTS icon_studio_assets (
       sha         TEXT    PRIMARY KEY,
@@ -168,8 +171,6 @@ function _sharpAvailable() {
   try { require.resolve('sharp'); return true; } catch (_) { return false; }
 }
 
-const _setting = key => conn().prepare('SELECT value FROM icon_studio_settings WHERE key = ?').get(key)?.value ?? null;
-
 function _studioSpent() {
   return conn().prepare('SELECT COALESCE(SUM(cost_usd), 0) s FROM icon_studio_calls').get().s;
 }
@@ -209,21 +210,33 @@ function _lastImageCost() {
   return conn().prepare("SELECT target, cost_usd, created_at FROM icon_studio_calls WHERE ok = 1 AND target NOT LIKE 'check:%' ORDER BY id DESC LIMIT 1").get() ?? null;
 }
 
-/** Budgets : global (configuration, partagé #22/#37) et propre à l'atelier (panel). Jamais de secret. */
+/** Entrées du journal de dépenses de tout Dig (journal partagé ; base en mode test). */
+function _ledgerEntries() {
+  if (_fake) {
+    const rows = conn().prepare("SELECT created_at at, cost_usd, CASE WHEN target LIKE 'check:%' THEN 'check' ELSE 'image' END kind FROM icon_studio_calls").all();
+    try { rows.push(...conn().prepare('SELECT created_at at, cost_usd, kind FROM block_ai_calls').all()); } catch (_) { /* table absente */ }
+    return rows;
+  }
+  return oa().readLedger();
+}
+
+/**
+ * Budget (décision du 03/11) : plafond DÉSACTIVÉ par défaut (server/aiSpendCap.js), réactivable dans
+ * ⚙ Config → Budget IA. Les totaux restent calculés et affichés, sans bloquer. Jamais de secret.
+ */
 function budget(cfg = config()) {
-  const studioCap = _setting('studio_budget_usd');
-  const globalSpent = _globalSpent(), studioSpent = _studioSpent();
-  const globalRemaining = cfg.budgetUsd - globalSpent;
-  const studioRemaining = studioCap == null ? Infinity : Number(studioCap) - studioSpent;
+  const totals = aiSpendCap.summarize(_ledgerEntries());
+  const studioSpent = _studioSpent();
+  const cap = aiSpendCap.policy();
   const reserve = _imageReserve(cfg);
+  const perImageUsd = +(reserve.usd + _checkEst()).toFixed(4);
+  const remaining = cap.enabled ? cap.capUsd - totals.totalUsd : null;
   return {
-    globalCapUsd: cfg.budgetUsd, globalSpentUsd: +globalSpent.toFixed(4),
-    studioCapUsd: studioCap == null ? null : Number(studioCap), studioSpentUsd: +studioSpent.toFixed(4),
-    remainingUsd: +Math.max(0, Math.min(globalRemaining, studioRemaining)).toFixed(4),
-    estImageUsd: reserve.usd, reserve, perImageUsd: +(reserve.usd + _checkEst()).toFixed(4), lastImage: _lastImageCost(),
-    // Plafond qui limite en premier : celui de l'atelier (panel) ou celui du serveur (fichier de configuration)
-    limitedBy: studioRemaining < globalRemaining ? 'studio' : 'global',
-    budgetReached: Math.min(globalRemaining, studioRemaining) + 1e-9 < reserve.usd + _checkEst(),
+    capEnabled: cap.enabled, capUsd: cap.capUsd, capUpdatedAt: cap.updatedAt,
+    globalSpentUsd: totals.totalUsd, totals, studioSpentUsd: +studioSpent.toFixed(4),
+    remainingUsd: remaining == null ? null : +Math.max(0, remaining).toFixed(4),
+    estImageUsd: reserve.usd, reserve, checkEstUsd: _checkEst(), perImageUsd, lastImage: _lastImageCost(),
+    budgetReached: remaining != null && remaining + 1e-9 < perImageUsd,
   };
 }
 
@@ -238,22 +251,19 @@ function status() {
       imagesToday: _imagesToday(), maxImagesPerDay: MAX_IMAGES_PER_DAY, ...budget(cfg),
       reference: _reference() ? path.relative(ROOT, _reference()) : null };
   } catch (err) {
-    let studioCapUsd = null;
-    try { studioCapUsd = _setting('studio_budget_usd'); } catch (_) { /* table absente */ }
-    return { configured: false, reason: oa().redact(String(err.message).replace(os.homedir(), '~')), studioCapUsd: studioCapUsd == null ? null : Number(studioCapUsd) };
+    const cap = aiSpendCap.policy();
+    return { configured: false, reason: oa().redact(String(err.message).replace(os.homedir(), '~')), capEnabled: cap.enabled, capUsd: cap.capUsd };
   }
 }
 
-/** Plafond propre à l'atelier (USD, null = plafond global seul). Ne peut pas dépasser le global. */
-function setStudioBudget(value) {
-  if (value === null || value === '') {
-    conn().prepare('DELETE FROM icon_studio_settings WHERE key = ?').run('studio_budget_usd');
-    return status();
+/** Plafond de dépense IA de tout Dig (⚙ Config) : { enabled, capUsd }. Jamais modifié automatiquement. */
+function setSpendCap({ enabled, capUsd } = {}) {
+  try {
+    aiSpendCap.setPolicy({ enabled: enabled === undefined ? undefined : !!enabled, capUsd });
+  } catch (err) {
+    throw new StudioError(err.status || 400, err.message);
   }
-  const v = Number(value);
-  if (!Number.isFinite(v) || v < 0 || v > 1000) throw new StudioError(400, 'Plafond attendu entre 0 et 1000 USD (vide = plafond global seul).');
-  conn().prepare(`INSERT INTO icon_studio_settings (key, value, updated_at) VALUES ('studio_budget_usd', ?, datetime('now'))
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`).run(String(Math.round(v * 100) / 100));
+  _event('budget:spend-cap', 'spend-cap', null, aiSpendCap.policy());
   return status();
 }
 
@@ -649,6 +659,29 @@ function buildPrompt(kind, brief, instruction = '', identity = null) {
     + (instruction ? ` Specific adjustment requested for this attempt (keep the same common style): ${instruction}` : '');
 }
 
+// Style et contraintes du gabarit (tools/icons/prompt-master.md), résumés en français pour la relecture
+const STYLE_FR = {
+  item: 'Rendu 3D low-poly stylisé de jeu, silhouette réelle de l\'objet conservée (jamais transformé en pierre ou en cristal), lumière chaude venant d\'en haut à gauche, vue de trois quarts.',
+  block: 'Icône de ressource 3D low-poly stylisée, lumière chaude venant d\'en haut à gauche, vue de trois quarts.',
+  ui: 'Pictogramme d\'interface 3D low-poly, une seule forme simple et contrastée, lisible à 24-32 pixels.',
+};
+const CONSTRAINTS_FR = 'Un seul objet isolé ; ni texte, ni cadre, ni socle, ni décor ; fond transparent ; carré 1024 × 1024, objet ≈ 75 % de l\'image.';
+
+/**
+ * Résumé lisible de la consigne (recette du 03/11 : « trop de texte à vérifier ») : quatre champs
+ * distincts. Sujet, forme et couleurs sont ceux de la consigne enregistrée (dans la langue où elle est
+ * écrite) ; style et contraintes résument en français le gabarit commun. Le texte exact reste `prompt`.
+ */
+function promptSummary(kind, brief, identity = null) {
+  return {
+    object: identity ? (identity.fr || identity.name) : null,
+    subject: brief.subject,
+    shape: brief.details || '',
+    colors: String(brief.palette || '').replace(/^\s*palette\s*:\s*/i, ''),
+    style: `${STYLE_FR[kind === 'badge' ? 'item' : kind] ?? STYLE_FR.item} ${CONSTRAINTS_FR}${_reference() ? ' Même style que l\'icône de référence validée (pierre), sans en reprendre la forme.' : ''}`,
+  };
+}
+
 // ── Génération : une seule image par action de l'admin ────────────────────────
 
 let _job = null;     // génération en cours ou dernière terminée (mémoire du processus)
@@ -688,16 +721,12 @@ function _checkBudget(images, extraUsd = 0) {
   try { cfg = config(); } catch (err) { throw new StudioError(503, `API d'images non configurée : ${oa().redact(String(err.message).replace(os.homedir(), '~'))}`); }
   const b = budget(cfg);
   const planned = images * b.reserve.usd + extraUsd;
-  if (planned > b.remainingUsd + 1e-9) {
-    const how = b.reserve.basis === 'measured'
-      ? `${b.reserve.usd.toFixed(2)} USD réservés par image (plus cher des derniers coûts réels, ${b.reserve.measuredMaxUsd.toFixed(3)} USD, + 25 %)`
-      : `${b.reserve.usd.toFixed(2)} USD réservés par image (estimation configurée DIG_IMAGE_EST_COST_USD)`;
-    throw new StudioError(402, `Plafond de dépense IA atteint : la prochaine image n'est pas lancée. Il reste ${b.remainingUsd.toFixed(2)} USD sous le plafond, `
-      + `il faut ${planned.toFixed(2)} USD (${how}${extraUsd ? ', contrôle du sujet compris' : ''}). Ce n'est pas le coût d'une image : `
-      + `le cumul (${b.globalSpentUsd.toFixed(2)} USD) additionne toutes les générations depuis le début, scripts #22 et blocs compris. `
-      + (b.limitedBy === 'studio'
-        ? `Pour continuer, relevez la limite de l'atelier dans ⚙ Config → Budget IA (${b.studioSpentUsd.toFixed(2)} / ${b.studioCapUsd} USD).`
-        : `Pour continuer, relevez le plafond du serveur (${b.globalSpentUsd.toFixed(2)} / ${b.globalCapUsd} USD) : DIG_IMAGE_BUDGET_USD dans ~/.config/dig/openai.env, pris en compte sans redémarrage.`));
+  // Plafond désactivé par défaut (décision du 03/11) : refus seulement s'il a été réactivé dans ⚙ Config
+  const why = aiSpendCap.refusal(b.globalSpentUsd, planned);
+  if (why) {
+    throw new StudioError(402, `${why} Réservation : ${b.reserve.usd.toFixed(4)} USD pour l'image`
+      + (b.reserve.basis === 'measured' ? ` (plus cher des derniers coûts réels, ${b.reserve.measuredMaxUsd.toFixed(4)} USD, + 25 %)` : ' (estimation configurée)')
+      + (extraUsd ? ` + ${extraUsd.toFixed(4)} USD pour le contrôle du sujet` : '') + '.');
   }
   return { cfg, planned };
 }
@@ -917,15 +946,21 @@ function seriesPlan(seriesId) {
   return { seriesId, name: series.names?.fr || seriesId, icon: series.icon, items, todo,
     estPerImageUsd: perImage, estTotalUsd: perImage == null ? null : +(todo * perImage).toFixed(2),
     measuredPerImageUsd: avg.c == null ? null : +avg.c.toFixed(4), measuredSeconds: avg.d == null ? null : Math.round(avg.d / 1000),
-    remainingUsd: b?.remainingUsd ?? null, limitedBy: b?.limitedBy ?? null,
-    // Images que le plafond permet avant l'arrêt (estimation configurée, prudente)
-    affordable: perImage ? Math.min(todo, Math.floor((b.remainingUsd + 1e-9) / perImage)) : 0 };
+    remainingUsd: b?.remainingUsd ?? null, capEnabled: !!b?.capEnabled,
+    // Lot réservé au cas où un plafond est actif (décision du 03/11 : sans plafond, une image par clic seulement)
+    batchAllowed: !!b?.capEnabled,
+    // Images que le plafond permet avant l'arrêt (réservation prudente)
+    affordable: perImage && b?.capEnabled ? Math.min(todo, Math.floor((b.remainingUsd + 1e-9) / perImage)) : 0 };
 }
 
 function generateSeries(seriesId, { client = null } = {}) {
   _assertClient(client, `series:${seriesId}`);
   _assertIdle();
   const plan = seriesPlan(seriesId);
+  if (!plan.batchAllowed) {
+    throw new StudioError(409, 'Génération par lot désactivée tant qu\'aucun plafond de dépense n\'est actif (décision du 03/11) : '
+      + 'ouvrez chaque objet et cliquez « Générer une image », une image par clic. Un plafond se réactive dans ⚙ Config → Budget IA.');
+  }
   if (!plan.todo) throw new StudioError(409, 'Aucun objet à générer dans cette collection : chaque objet a déjà une image ou une proposition à examiner.');
   _checkBudget(1, _checkEst());      // au moins une image possible, sinon refus immédiat expliqué
   const job = { id: ++_jobSeq, kind: 'series', status: 'running', target: `series:${seriesId}`, seriesId, name: plan.name,
@@ -1045,7 +1080,8 @@ function getTarget(key) {
     briefIgnored: !!brief.ignored,
   } : {};
   const { conflicts: subjectConflicts, references: subjectReferences } = _subjectAnalysis(t, _subjectSources('', brief));
-  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), identity: _identity(t), subjectConflicts, subjectReferences,
+  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), promptSummary: promptSummary(t.kind, brief, _identity(t)),
+    identity: _identity(t), subjectConflicts, subjectReferences,
     assets, history, ...itemExtra,
     costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : null };
 }
@@ -1126,6 +1162,6 @@ function subjectCheck(key, { instruction = '', subject = null, details = null } 
 }
 
 module.exports = {
-  StudioError, UI_TARGETS, init, status, setStudioBudget, listTargets, getTarget, setBrief, generate, jobView, waitJob,
-  upload, mark, apply, subjectCheck, reserveFromCosts, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
+  StudioError, UI_TARGETS, init, status, setSpendCap, listTargets, getTarget, setBrief, generate, jobView, waitJob,
+  upload, mark, apply, subjectCheck, promptSummary, reserveFromCosts, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
 };
