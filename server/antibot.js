@@ -430,6 +430,48 @@ function getTimings() {
 
 // ── Vue admin ────────────────────────────────────────────────────────────────
 
+/**
+ * Familles d'événements du journal de sécurité (filtres et synthèse admin). Seules les
+ * anomalies sont journalisées : une sauvegarde normale ne crée AUCUN événement (le dernier
+ * contrôle de chaque joueur se lit dans les états de validation, voir `checks`).
+ */
+const EVENT_GROUPS = {
+  player: [...Object.keys(SIGNALS), 'risk_level'],
+  admin:  ['admin_action', 'admin_config', 'admin_login', 'admin_login_failed'],
+  system: ['standings_frozen', 'standings_freeze_failed'],
+};
+
+/** Périodes proposées par le filtre du journal (jours ; null = tout l'historique conservé). */
+const EVENT_PERIODS = [1, 7, 30];
+
+/** Dernier contrôle serveur de chaque joueur de la saison (profondeur #9/#25, anti-autoclic #10). */
+function _seasonChecks(seasonId, riskByUser) {
+  const rows = getDb().prepare(`
+    SELECT d.user_id, u.username, d.updated_ms, d.accepted_depth, d.last_gap, d.dmg_gap,
+           c.last_save_at AS ac_at, c.last_manual_clicks, c.accepted_blocks
+    FROM player_depth_tracking d
+    LEFT JOIN users u ON u.id = d.user_id
+    LEFT JOIN player_click_tracking c ON c.user_id = d.user_id AND c.season_id = d.season_id
+    WHERE d.season_id = ?
+    ORDER BY d.updated_ms DESC
+  `).all(seasonId);
+  return rows.map(r => {
+    const risk = riskByUser.get(r.user_id);
+    return {
+      userId:        r.user_id,
+      username:      r.username ?? `user_${r.user_id}`,
+      lastCheck:     new Date(r.updated_ms).toISOString(),
+      acceptedDepth: r.accepted_depth,
+      depthGap:      r.last_gap ?? 0,                     // profondeur déclarée − retenue (m)
+      budgetGap:     Math.round((r.dmg_gap ?? 0) * 10) / 10, // écart inexpliqué du budget (m)
+      clicks:        r.last_manual_clicks ?? null,
+      acceptedBlocks: r.accepted_blocks ?? null,
+      score:         risk ? Math.round(risk.score * 10) / 10 : 0,
+      level:         risk ? risk.level : 0,
+    };
+  });
+}
+
 /** Résumé pour le panel admin : modes, comptes par niveau, événements récents par type. */
 function buildSummary(seasonId, config, nowMs = Date.now()) {
   const db = getDb();
@@ -439,6 +481,7 @@ function buildSummary(seasonId, config, nowMs = Date.now()) {
     WHERE r.season_id = ?
   `).all(seasonId);
   const levels = [0, 0, 0, 0, 0];
+  const riskByUser = new Map();
   const accounts = rows.map(r => {
     let comps = {};
     try { comps = JSON.parse(r.components) ?? {}; } catch (_) {}
@@ -446,6 +489,7 @@ function buildSummary(seasonId, config, nowMs = Date.now()) {
     const score = _total(c);
     const level = riskLevel(score);
     levels[level] += 1;
+    riskByUser.set(r.user_id, { score, level });
     const round = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, Math.round(v * 10) / 10]));
     return { userId: r.user_id, username: r.username ?? `user_${r.user_id}`, score: Math.round(score * 10) / 10, level, components: round };
   }).filter(a => a.score > 0).sort((a, b) => b.score - a.score).slice(0, 50);
@@ -455,6 +499,24 @@ function buildSummary(seasonId, config, nowMs = Date.now()) {
     WHERE created_at >= datetime('now', '-7 days') GROUP BY type ORDER BY n DESC
   `).all();
 
+  // Événements par famille et par période (24 h, 7 j, 30 j, tout l'historique conservé)
+  const groupCase = Object.entries(EVENT_GROUPS)
+    .map(([g, types]) => `WHEN type IN (${types.map(t => `'${t}'`).join(',')}) THEN '${g}'`).join(' ');
+  const periodRows = db.prepare(`
+    SELECT CASE ${groupCase} ELSE 'other' END AS grp,
+           SUM(created_at >= datetime('now', '-1 days'))  AS d1,
+           SUM(created_at >= datetime('now', '-7 days'))  AS d7,
+           SUM(created_at >= datetime('now', '-30 days')) AS d30,
+           COUNT(*) AS total
+    FROM security_events GROUP BY grp
+  `).all();
+  const eventsByGroup = {};
+  for (const g of [...Object.keys(EVENT_GROUPS), 'other']) eventsByGroup[g] = { d1: 0, d7: 0, d30: 0, total: 0 };
+  for (const r of periodRows) eventsByGroup[r.grp] = { d1: r.d1 ?? 0, d7: r.d7 ?? 0, d30: r.d30 ?? 0, total: r.total };
+
+  const checks = seasonId == null ? [] : _seasonChecks(seasonId, riskByUser);
+  const dayAgo = nowMs - 24 * 3600_000;
+
   return {
     antibotMode:      getAntibotMode(config),
     damageBudgetMode: getDamageBudgetMode(config),
@@ -463,15 +525,26 @@ function buildSummary(seasonId, config, nowMs = Date.now()) {
     levels,            // nombre de comptes de la saison par niveau 0..4 (non appliqués)
     accounts,          // comptes au score > 0, du plus élevé au plus faible (50 max)
     eventsLast7Days: byType,
+    eventGroups:      EVENT_GROUPS,
+    eventsByGroup,     // { player, admin, system, other } × { d1, d7, d30, total }
+    trackedAccounts:  checks.length,
+    checkedLast24h:   checks.filter(c => Date.parse(c.lastCheck) >= dayAgo).length,
+    checks:           checks.slice(0, 50), // dernier contrôle par joueur, du plus récent au plus ancien
+    sanctionsApplied: false,               // lot C non réalisé : aucun niveau n'est appliqué
     timings: getTimings(),
   };
 }
 
 /** Événements de sécurité, du plus récent au plus ancien. */
-function listEvents({ limit = 100, offset = 0, type = null, userId = null } = {}) {
+function listEvents({ limit = 100, offset = 0, type = null, group = null, sinceDays = null, userId = null } = {}) {
   const where = [];
   const args  = [];
   if (type)   { where.push('e.type = ?');    args.push(type); }
+  else if (group && EVENT_GROUPS[group]) {
+    where.push(`e.type IN (${EVENT_GROUPS[group].map(() => '?').join(',')})`);
+    args.push(...EVENT_GROUPS[group]);
+  }
+  if (sinceDays) { where.push(`e.created_at >= datetime('now', ?)`); args.push(`-${sinceDays} days`); }
   if (userId) { where.push('e.user_id = ?'); args.push(userId); }
   const sqlWhere = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const db = getDb();
@@ -496,5 +569,5 @@ module.exports = {
   configure, hashIp, logSecurityEvent, purgeOldEvents, startPurgeScheduler,
   SIGNALS, CATEGORY_CAPS, riskLevel, getRisk, recordSignals,
   forgedCounters, normalizeTelemetry, telemetrySignals, TELEMETRY_BINS,
-  recordTiming, getTimings, buildSummary, listEvents,
+  recordTiming, getTimings, buildSummary, listEvents, EVENT_GROUPS, EVENT_PERIODS,
 };

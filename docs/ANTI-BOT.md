@@ -330,3 +330,40 @@ aucun bannissement, CAPTCHA ni sanction hors A/B). Code : `server/antibot.js`, b
 - Un bot qui respecte toutes les bornes physiques (20 clics/s, dégâts réels) reste possible : il
   progresse au plus au rythme du meilleur joueur théorique ; le lot C/E et la revue des scores
   traitent ce cas.
+
+### 10.5 Journaux et couverture des contrôles (recette propriétaire du 03/11/2026)
+
+Deux journaux distincts, tous deux limités aux **anomalies** — une sauvegarde normale ne crée
+aucune ligne, par conception (journaliser chaque sauvegarde ou chaque clic n'apporterait rien et
+grossirait la base) :
+
+| Journal | Table | Écran admin | Contenu |
+|---|---|---|---|
+| Anomalies anti-autoclicker (#9/#10) | `anticheat_logs` | Ligues & Saisons → « Journal des anomalies anti-autoclicker » | `flagged`, `reduced`, `rejected`, `depth_capped`, `depth_rejected`, `damage_capped`, `admin_fix` |
+| Journal de sécurité (#25) | `security_events` (90 j) | 🛡 Anti-bot → « Journal de sécurité » | anomalies joueur (signaux du score + `risk_level`), audit admin (`admin_action`, `admin_config`, `admin_login`, `admin_login_failed`), système (`standings_frozen`, `standings_freeze_failed`) |
+
+Chaîne vérifiée : sauvegarde cloud (`POST /api/me/save`, télémétrie jointe) → `syncPlayerRanking`
+→ `validateDepth` (seaux #9 + budget) / `forgedCounters` / `telemetrySignals` / `processAntiCheat`
+→ `recordSignals` (score décroissant, plafond par catégorie : un indice déjà au plafond de sa
+catégorie ne crée pas de nouvel événement) → `security_events` / `risk_scores`. Les plafonnements
+`damage_budget` et `depth_capped` ne sont journalisés qu'au **passage** du seuil (5 m), pas à chaque
+sauvegarde tant que l'écart persiste.
+
+**Dernier contrôle par joueur** : il existe déjà côté serveur sans journal — `player_depth_tracking`
+(`updated_ms`, profondeur retenue, écart déclaré − retenu, écart du budget) et
+`player_click_tracking` (`last_save_at`, clics, blocs validés). L'onglet Anti-bot les présente
+(« Derniers contrôles des joueurs », saison active, 50 plus récents) avec le score courant ; le
+journal anti-autoclicker affiche le nombre de joueurs suivis, contrôlés sur 24 h et l'heure du
+dernier contrôle. Aucune IP ni donnée nouvelle n'est stockée.
+
+Corrections faites : le filtre du journal anti-autoclicker ne portait que sur les 100 dernières
+lignes côté navigateur (une anomalie plus ancienne d'un autre type était masquée et le total ne
+reflétait pas le filtre) → filtre SQL + `matching` ; le filtre du journal de sécurité ne proposait
+pas `admin_login`, `admin_login_failed`, `standings_frozen`, `standings_freeze_failed` (émis mais
+introuvables) → familles « Anomalies joueur / Audit admin / Système », période (24 h, 7 j, 30 j,
+tout), états vides explicites. Un test (`test/antibot-journals.test.js`) vérifie que les types
+émis par le code, les familles et les options du filtre restent identiques.
+
+**Limite** : zéro anomalie signifie qu'aucun seuil n'a été franchi par les joueurs réels ; les
+détecteurs sont éprouvés par les tests sur données synthétiques (base isolée), pas en production.
+La largeur et le centrage de la page relèvent de #62.

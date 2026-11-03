@@ -60,6 +60,7 @@ const {
   getAllLeaguesWithStats,
   getAntiCheatLogs,
   countAntiCheatLogs,
+  getAntiCheatCoverage,
   correctSeasonRanking,
   insertAntiCheatLog,
 } = require('./db');
@@ -1544,18 +1545,26 @@ app.get('/api/admin/config', requireAdmin, (req, res) => {
   catch (err) { console.error('[GET /api/admin/config]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
+/** Actions consignées dans le journal anti-autoclicker (anomalies et corrections admin uniquement). */
+const ANTICHEAT_ACTIONS = ['flagged', 'reduced', 'rejected', 'depth_capped', 'depth_rejected', 'damage_capped', 'admin_fix'];
+
 /**
- * GET /api/admin/anticheat/logs?limit=100&offset=0&action=all
- * Journal des événements anti-autoclicker.
- * Filtre optionnel : ?action=flagged|reduced|none
+ * GET /api/admin/anticheat/logs?limit=100&offset=0&action=
+ * Journal des ANOMALIES anti-autoclicker : les sauvegardes normales (action « none ») ne sont
+ * pas consignées. `total` = toutes les lignes, `matching` = lignes du filtre, `coverage` =
+ * contrôles de la saison active (joueurs suivis, dernier contrôle), lus sans journaliser.
+ * Filtre optionnel : ?action=<une de ANTICHEAT_ACTIONS>
  */
 app.get('/api/admin/anticheat/logs', requireAdmin, (req, res) => {
   try {
     const limit  = intParam(req.query.limit,  { def: 100, min: 1, max: 500 });
     const offset = intParam(req.query.offset, { def: 0, min: 0 });
-    const logs   = getAntiCheatLogs(limit, offset);
+    const action = ANTICHEAT_ACTIONS.includes(req.query.action) ? req.query.action : null;
+    const logs   = getAntiCheatLogs(limit, offset, action);
     const total  = countAntiCheatLogs();
-    res.json({ logs, total, limit, offset });
+    const matching = action ? countAntiCheatLogs(action) : total;
+    const season = getActiveSeason();
+    res.json({ logs, total, matching, action, limit, offset, coverage: { seasonId: season?.id ?? null, ...getAntiCheatCoverage(season?.id ?? null) } });
   } catch (err) {
     console.error('[GET /api/admin/anticheat/logs]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -1631,7 +1640,7 @@ app.get('/api/admin/security/summary', requireAdmin, (req, res) => {
 });
 
 /**
- * GET /api/admin/security/events?limit=100&offset=0&type=&userId=
+ * GET /api/admin/security/events?limit=100&offset=0&type=&group=player|admin|system&days=1|7|30&userId=
  * Journal de sécurité (signaux, changements de niveau, audit admin), du plus récent au plus ancien.
  */
 app.get('/api/admin/security/events', requireAdmin, (req, res) => {
@@ -1640,7 +1649,10 @@ app.get('/api/admin/security/events', requireAdmin, (req, res) => {
     const offset = intParam(req.query.offset, { def: 0, min: 0 });
     const type   = typeof req.query.type === 'string' && /^[a-z_]{1,40}$/.test(req.query.type) ? req.query.type : null;
     const userId = /^\d{1,10}$/.test(String(req.query.userId ?? '')) ? parseInt(req.query.userId, 10) : null;
-    res.json(antibot.listEvents({ limit, offset, type, userId }));
+    const group  = Object.hasOwn(antibot.EVENT_GROUPS, String(req.query.group ?? '')) ? req.query.group : null;
+    const days   = parseInt(req.query.days, 10);
+    const sinceDays = antibot.EVENT_PERIODS.includes(days) ? days : null;
+    res.json(antibot.listEvents({ limit, offset, type, group, sinceDays, userId }));
   } catch (err) { console.error('[GET /api/admin/security/events]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 

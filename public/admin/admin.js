@@ -875,15 +875,21 @@ async function loadAntiCheatLogs() {
     return;
   }
 
-  // Filtrage côté client si ?action ne filtre pas au niveau SQL (selon l'API)
-  const logs = action
-    ? (data.logs ?? []).filter(l => l.action_taken === action)
-    : (data.logs ?? []);
-
-  totalEl.textContent = `${data.total ?? 0} événements au total — ${logs.length} affichés`;
+  // Filtre appliqué en SQL par le serveur (toutes les lignes, pas seulement les 100 dernières)
+  const logs = data.logs ?? [];
+  const cov  = data.coverage;
+  document.getElementById('ac-coverage').textContent = cov && cov.seasonId != null
+    ? `Saison ${cov.seasonId} : ${cov.players} joueur(s) suivi(s), ${cov.checkedLast24h} contrôlé(s) dans les 24 dernières heures` +
+      (cov.lastCheckAt ? ` — dernier contrôle le ${cov.lastCheckAt.replace('T', ' ').substring(0, 16)} UTC.` : '.')
+    : 'Aucune saison active.';
+  const last = logs[0]?.logged_at ? ` — dernière anomalie le ${logs[0].logged_at.replace('T', ' ').substring(0, 16)} UTC` : '';
+  totalEl.textContent = action
+    ? `${data.matching ?? 0} anomalie(s) de ce type sur ${data.total ?? 0} au total — ${logs.length} affichée(s)${last}`
+    : `${data.total ?? 0} anomalie(s) consignée(s) au total — ${logs.length} affichée(s)${last}`;
 
   if (!logs.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucun événement correspondant.</td></tr>';
+    if (action) tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucune anomalie de ce type consignée.</td></tr>';
+    else tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucune anomalie consignée. Les sauvegardes normales ne sont pas journalisées.</td></tr>';
     return;
   }
 
@@ -910,6 +916,7 @@ async function loadAntiCheatLogs() {
     const BADGES = {
       flagged:        ['badge-flagged', '⚠ flagged'],
       reduced:        ['badge-reduced', '↓ reduced'],
+      rejected:       ['badge-flagged', '✖ rejected'],
       depth_capped:   ['badge-reduced', '↓ profondeur plafonnée'],
       depth_rejected: ['badge-flagged', '✖ profondeur rejetée'],
       damage_capped:  ['badge-reduced', '↓ budget de dégâts'],
@@ -1115,22 +1122,33 @@ document.getElementById('btn-confirm-player-reset').addEventListener('click', as
 
 const SEC_LEVELS = ['0 — rien', '1 — journaliser', '2 — limiter', '3 — défi', '4 — suspension'];
 
+const SEC_GROUP_LABELS = { player: 'Anomalies joueur', admin: 'Audit admin', system: 'Système', other: 'Autres' };
+
 async function loadSecurity() {
-  const type = document.getElementById('sec-filter-type').value;
+  const filter = document.getElementById('sec-filter-type').value;
+  const days   = document.getElementById('sec-filter-days').value;
+  const params = new URLSearchParams({ limit: '100' });
+  if (filter.startsWith('group:')) params.set('group', filter.slice(6));
+  else if (filter) params.set('type', filter);
+  if (days) params.set('days', days);
   const [sum, ev] = await Promise.all([
     api('GET', '/api/admin/security/summary'),
-    api('GET', '/api/admin/security/events?limit=100' + (type ? `&type=${encodeURIComponent(type)}` : '')),
+    api('GET', '/api/admin/security/events?' + params),
   ]);
 
   const status = document.getElementById('sec-status');
   status.innerHTML = '';
   if (sum.ok) {
     const s = sum.data;
+    const g = s.eventsByGroup ?? {};
+    const per = k => { const v = g[k] ?? { d1: 0, d7: 0, d30: 0 }; return `${v.d1} (24 h) · ${v.d7} (7 j) · ${v.d30} (30 j)`; };
     const lines = [
-      `Mode observation : ${s.antibotMode}${s.envOverride ? ' (forcé par ANTIBOT=off)' : ''}`,
+      `Mode observation : ${s.antibotMode}${s.envOverride ? ' (forcé par ANTIBOT=off)' : ''} — sanctions : ${s.sanctionsApplied ? 'appliquées' : 'désactivées (aucun niveau appliqué)'}`,
       `Budget de dégâts : ${s.damageBudgetMode}`,
-      `Saison : ${s.seasonId ?? '—'} — comptes par niveau : ${s.levels.map((n, i) => `N${i} ${n}`).join(' · ')}`,
-      `Événements (7 j) : ${s.eventsLast7Days.map(e => `${e.type} ${e.n}`).join(' · ') || 'aucun'}`,
+      `Saison : ${s.seasonId ?? '—'} — ${s.trackedAccounts} compte(s) suivi(s), ${s.checkedLast24h} contrôlé(s) dans les 24 dernières heures`,
+      `Comptes par niveau de risque (non appliqués) : ${s.levels.map((n, i) => `N${i} ${n}`).join(' · ')}`,
+      `Anomalies joueur : ${per('player')}`,
+      `Audit admin : ${per('admin')} — système : ${per('system')}`,
       `Calcul par sauvegarde : ${s.timings.avgMs.toFixed(2)} ms en moyenne, ${s.timings.maxMs.toFixed(2)} ms max (${s.timings.saves} sauvegardes depuis ${s.timings.since.slice(0, 16).replace('T', ' ')})`,
     ];
     for (const l of lines) {
@@ -1138,9 +1156,26 @@ async function loadSecurity() {
       p.textContent = l;
       status.appendChild(p);
     }
+
+    const checks = document.getElementById('sec-checks-body');
+    checks.innerHTML = '';
+    if (!s.checks.length) checks.innerHTML = '<tr><td colspan="8" class="muted">Aucun joueur contrôlé dans la saison active.</td></tr>';
+    for (const c of s.checks) {
+      const tr = document.createElement('tr');
+      addCell(tr, c.username);
+      addCell(tr, c.lastCheck.replace('T', ' ').substring(0, 19)).className = 'muted';
+      addCell(tr, `${c.acceptedDepth} m`);
+      addCell(tr, c.depthGap ? `${c.depthGap} m` : '0');
+      addCell(tr, c.budgetGap ? `${c.budgetGap} m` : '0');
+      addCell(tr, c.clicks == null ? '—' : `${c.clicks} / ${c.acceptedBlocks}`);
+      addCell(tr, c.score);
+      addCell(tr, c.score > 0 ? `indices (N${c.level}, non appliqué)` : c.depthGap > 0 ? 'en attente de crédit' : 'normal');
+      checks.appendChild(tr);
+    }
+
     const body = document.getElementById('sec-accounts-body');
     body.innerHTML = '';
-    if (!s.accounts.length) body.innerHTML = '<tr><td colspan="4" class="muted">Aucun compte à risque.</td></tr>';
+    if (!s.accounts.length) body.innerHTML = '<tr><td colspan="4" class="muted">Aucun compte à risque : aucun indice ni preuve sur la saison (score 0 pour tous).</td></tr>';
     for (const a of s.accounts) {
       const tr = document.createElement('tr');
       addCell(tr, a.username);
@@ -1156,16 +1191,32 @@ async function loadSecurity() {
     status.appendChild(p);
   }
 
+  const groups = (sum.ok && sum.data.eventGroups) || {};
   const tbody = document.getElementById('sec-events-body');
   tbody.innerHTML = '';
   if (!ev.ok) { tbody.innerHTML = '<tr><td colspan="5" class="error">Erreur lors du chargement.</td></tr>'; return; }
-  document.getElementById('sec-events-total').textContent = `${ev.data.total} événements au total — ${ev.data.events.length} affichés`;
-  if (!ev.data.events.length) tbody.innerHTML = '<tr><td colspan="5" class="muted">Aucun événement.</td></tr>';
+  const sel     = document.getElementById('sec-filter-type');
+  const label   = filter ? sel.options[sel.selectedIndex].textContent : 'tous types';
+  const period  = days ? document.getElementById('sec-filter-days').selectedOptions[0].textContent.toLowerCase() : 'tout l\'historique';
+  document.getElementById('sec-events-total').textContent =
+    `${ev.data.total} événement(s) — filtre : ${label}, ${period} — ${ev.data.events.length} affiché(s)`;
+  if (!ev.data.events.length) {
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.className = 'muted';
+    td.textContent = filter.startsWith('group:admin') || filter.startsWith('admin')
+      ? 'Aucune action administrative sur cette période.'
+      : `Aucune anomalie détectée dans cette catégorie sur cette période (${label}, ${period}). Les sauvegardes normales ne créent pas d'entrée.`;
+    const tr = document.createElement('tr');
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
   for (const e of ev.data.events) {
     const tr = document.createElement('tr');
     addCell(tr, (e.created_at ?? '').substring(0, 19)).className = 'muted';
-    addCell(tr, e.type);
-    addCell(tr, e.username ?? (e.user_id ? `user_${e.user_id}` : 'admin'));
+    const group = Object.entries(groups).find(([, types]) => types.includes(e.type))?.[0];
+    addCell(tr, group ? `${e.type} (${SEC_GROUP_LABELS[group]})` : e.type);
+    addCell(tr, e.username ?? (e.user_id ? `user_${e.user_id}` : group === 'player' ? '' : 'admin / système'));
     addCell(tr, e.score_after == null ? '' : `${e.score_before ?? 0} → ${e.score_after}`);
     addCell(tr, e.details ?? '').style.fontSize = '0.75rem';
     tbody.appendChild(tr);
@@ -1174,6 +1225,7 @@ async function loadSecurity() {
 
 document.getElementById('btn-refresh-sec').addEventListener('click', loadSecurity);
 document.getElementById('sec-filter-type').addEventListener('change', loadSecurity);
+document.getElementById('sec-filter-days').addEventListener('change', loadSecurity);
 
 // ── Concours au mérite (#30) ──────────────────────────────────────────────────
 
