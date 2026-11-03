@@ -575,7 +575,7 @@ Attendu : aucune popup grise du navigateur, aucun article ni point modifié.
 - Traduction automatique des textes d'article **non ajoutée** : elle demanderait un appel IA payant
   (hors périmètre sans accord) ; les onglets indiquent les langues à traduire, le français est affiché
   à défaut.
-- Italien pilote complété à la main (17 textes, « relu ») : aucun appel payant ; le contrôle `tools/i18n`
+- Italien pilote complété à la main (19 textes, « relu ») : aucun appel payant ; le contrôle `tools/i18n`
   est à 100 %.
 
 ### Décisions demandées au propriétaire
