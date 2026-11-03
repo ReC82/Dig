@@ -52,6 +52,7 @@ header h1 { font-size: 1.1rem; }
 
 .admin-nav {
   display: flex;
+  flex-wrap: wrap; /* 17 onglets : retour à la ligne plutôt qu'un défilement horizontal de toute la page */
   gap: 2px;
   padding: 8px 16px;
   background: var(--surface);
@@ -728,3 +729,17 @@ table:has(.visually-hidden) { position: relative; }
 .nw-lang label { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
 .news-admin-preview { list-style: none; padding: 0; margin: 6px 0 0; }
 .news-admin-item { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 3px; }
+
+/* Badges — relecture d'une proposition IA (#38, recette du 02/11) */
+.bg-rv-ref { font-size: 0.8rem; margin: 0 0 10px; overflow-wrap: anywhere; }
+.bg-rv-wait { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px dashed var(--border); border-radius: 8px; margin: 0 0 12px; }
+.bg-rv-wait p { margin: 4px 0 0; font-size: 0.8rem; }
+.bg-rv-card { display: flex; gap: 12px; align-items: center; margin: 0 0 10px; }
+.bg-rv-art { font-size: 2.4rem; width: 64px; }
+.bg-rv-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 0.85rem; margin: 0 0 10px; }
+.bg-rv-facts dt { color: var(--muted); }
+.bg-rv-facts dd { margin: 0; overflow-wrap: anywhere; }
+#bg-review-dialog details { margin: 0 0 8px; }
+#bg-review-dialog .bk-table th, #bg-review-dialog .bk-table td { white-space: normal; overflow-wrap: anywhere; }
+#bg-review-dialog summary { cursor: pointer; font-size: 0.82rem; }
+@media (max-width: 480px) { .bg-rv-facts { grid-template-columns: 1fr; } .bg-rv-facts dd { margin-bottom: 4px; } }

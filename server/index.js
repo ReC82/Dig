@@ -1113,6 +1113,8 @@ app.put('/api/admin/badges/ai/proposals/:id', requireAdmin, badgeRoute('PUT /api
   req => ({ proposal: badgeAi.updateProposal(Number(req.params.id), req.body ?? {}) })));
 app.post('/api/admin/badges/ai/proposals/:id/draft', requireAdmin, badgeRoute('POST /api/admin/badges/ai/proposals/:id/draft',
   req => badgeAi.addToDraft(Number(req.params.id))));
+app.post('/api/admin/badges/ai/proposals/:id/redo', requireAdmin, badgeRoute('POST /api/admin/badges/ai/proposals/:id/redo',
+  req => ({ proposal: badgeAi.redoProposal(Number(req.params.id)).proposal })));
 app.delete('/api/admin/badges/ai/proposals/:id', requireAdmin, badgeRoute('DELETE /api/admin/badges/ai/proposals/:id',
   req => { badgeAi.discardProposal(Number(req.params.id)); return { ok: true }; }));
 

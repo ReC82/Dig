@@ -174,7 +174,7 @@ test('routes : protégées, parcours complet, badge désactivé', async (t) => {
     return { status: res.status, body: await res.json().catch(() => null) };
   };
   for (const [m, u] of [['GET', '/api/admin/badges/ai'], ['POST', '/api/admin/badges/ai/proposals'], ['GET', '/api/admin/badges/ai/proposals/1'],
-    ['PUT', '/api/admin/badges/ai/proposals/1'], ['POST', '/api/admin/badges/ai/proposals/1/draft'], ['DELETE', '/api/admin/badges/ai/proposals/1']]) {
+    ['PUT', '/api/admin/badges/ai/proposals/1'], ['POST', '/api/admin/badges/ai/proposals/1/draft'], ['POST', '/api/admin/badges/ai/proposals/1/redo'], ['DELETE', '/api/admin/badges/ai/proposals/1']]) {
     assert.strictEqual((await call(m, u, m === 'GET' ? undefined : {}, { auth: false })).status, 401, `${m} ${u}`);
   }
   const st = await call('GET', '/api/admin/badges/ai');
@@ -231,4 +231,57 @@ test('fiches Badges : fermeture sans effet, choix IA / manuel, nouveau badge tou
   assert.match(JS, /api\('POST', '\/api\/admin\/badges', \{ \.\.\.body, status: 'inactive' \}\)/);
   assert.match(JS, /getElementById\('btn-bg-add-ai'\)\.disabled = !st\.configured/);
   assert.doesNotMatch(dialog('bg-ai-dialog'), /type="checkbox"/, 'pas d\'image dans la création IA');
+});
+
+// ── Recette du 02/11 : vue d'attente, relecture synthétique, « Refaire », période non imposée ──
+
+test('« Refaire la proposition » : nouvelle proposition sur la même demande, l\'ancienne abandonnée ; refus si en cours ou conservée', async () => {
+  const p = await propose('Mineur débutant, profondeur 100 m');
+  const { proposal, job } = ai.redoProposal(p.id);
+  assert.deepStrictEqual([proposal.status, proposal.concept, proposal.id > p.id], ['pending', p.concept, true]);
+  assert.throws(() => ai.redoProposal(proposal.id), e => e.status === 409, 'pas de refaire pendant la génération');
+  await job;
+  assert.strictEqual(ai.getProposal(proposal.id).status, 'open');
+  assert.ok(!ai.listProposals().some(x => x.id === p.id), 'ancienne abandonnée');
+  assert.throws(() => ai.redoProposal(p.id), e => e.status === 409);
+  assert.throws(() => ai.redoProposal(99999), e => e.status === 404);
+  // Lancement refusé (description invalide) : l'ancienne reste intacte
+  conn().prepare("UPDATE badge_ai_proposals SET concept = 'x' WHERE id = ?").run(proposal.id);
+  assert.throws(() => ai.redoProposal(proposal.id), e => e.status === 400);
+  assert.strictEqual(ai.getProposal(proposal.id).status, 'open');
+  ai.discardProposal(proposal.id);
+});
+
+test('période d\'événement : aucune par défaut ; si l\'IA en propose une, avertissement explicite', async () => {
+  const p = await propose('Badge permanent');
+  assert.deepStrictEqual([p.data.badge.startsAt, p.data.badge.endsAt], [null, null]);
+  assert.ok(!p.warnings.some(w => /Période/.test(w)));
+  answer = { ...reply(), event: { startsAt: '2026-10-31T00:00:00Z', endsAt: '2026-11-02T00:00:00Z' } };
+  const q = await propose('Badge du week-end');
+  answer = null;
+  assert.ok(q.warnings.some(w => /Période d'événement proposée \(2026-10-31T00:00:00Z → 2026-11-02T00:00:00Z\)/.test(w)));
+  assert.doesNotMatch(HTML, /placeholder="20\d\d-\d\d-\d\dT/, 'pas de date fictive en placeholder');
+  assert.match(dialog('bg-dialog'), /<details class="co-fs" id="bg-period-box"><summary[^>]*>Options avancées : période/);
+  ai.discardProposal(p.id); ai.discardProposal(q.id);
+});
+
+test('création IA : vue d\'attente puis relecture synthétique ; formulaire complet seulement après « Modifier »', () => {
+  const rv = dialog('bg-review-dialog');
+  for (const f of ['bg-id', 'bg-fr-name', 'bg-condition', 'bg-threshold', 'bg-starts']) assert.doesNotMatch(rv, new RegExp(`id="${f}"`), `${f} dans la relecture`);
+  assert.doesNotMatch(rv, /<input|<textarea|<select/, 'aucun champ de saisie dans la relecture');
+  assert.match(rv, /id="bg-rv-wait"[\s\S]*Génération en cours/);
+  assert.match(rv, /<details class="co-fs"><summary class="muted">Traductions<\/summary>/);
+  assert.match(rv, /<details class="co-fs"><summary class="muted">Visuel : consigne d'illustration<\/summary>/);
+  for (const [id, label] of [['btn-bg-rv-keep', 'Conserver en brouillon'], ['btn-bg-rv-edit', 'Modifier'], ['btn-bg-rv-redo', '↻ Refaire la proposition'], ['btn-bg-rv-cancel', 'Annuler la proposition']]) {
+    assert.match(rv, new RegExp(`id="${id}"[^>]*>${label}<`), label);
+  }
+  // « Proposer » ouvre la relecture (vue d'attente), jamais la fiche complète ; le suivi ne remplace pas la fiche « Modifier »
+  const gen = JS.slice(JS.indexOf("getElementById('btn-bg-ai-generate').addEventListener"));
+  assert.match(gen.slice(0, 1200), /bgReviewOpen\(data\.proposal/);
+  assert.doesNotMatch(gen.slice(0, 1200), /bgOpenSheet|bgPropOpen/);
+  const poll = JS.slice(JS.indexOf('async function bgAiPoll'), JS.indexOf('async function bgPropOpen'));
+  assert.doesNotMatch(poll, /bgOpenSheet/);
+  assert.match(JS, /async function bgPropOpen[\s\S]{0,250}bgReviewOpen\(data\.proposal, opener\)/);
+  assert.match(JS, /api\('POST', `\/api\/admin\/badges\/ai\/proposals\/\$\{p\.id\}\/redo`\)/);
+  assert.doesNotMatch(JS, /Proposition IA n° \$\{p\.id\}/, 'titre sans compteur ambigu');
 });

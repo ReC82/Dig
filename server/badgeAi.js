@@ -195,6 +195,10 @@ function _warnings(data) {
   const w = data.unsupported.map(u => `Non pris en charge : ${u}`);
   const miss = LANGS.filter(l => l !== 'fr' && (!data.badge.names[l] || !data.badge.descriptions[l]));
   if (miss.length) w.push(`Nom ou description manquant en ${miss.join(', ').toUpperCase()} (le français sera affiché).`);
+  // Recette du 02/11 : un badge permanent ne doit pas recevoir de période sans demande explicite.
+  if (data.badge.startsAt || data.badge.endsAt) {
+    w.push(`Période d'événement proposée (${data.badge.startsAt || '…'} → ${data.badge.endsAt || '…'}) : le badge ne s'obtiendra que pendant cette période. Videz-la (« Modifier ») s'il doit être permanent.`);
+  }
   return w;
 }
 
@@ -302,8 +306,24 @@ function discardProposal(id) {
   conn().prepare("UPDATE badge_ai_proposals SET status = 'discarded', updated_at = datetime('now') WHERE id = ?").run(id);
 }
 
+/**
+ * « Refaire la proposition » (recette du 02/11) : nouvelle proposition sur la même description, puis
+ * l'ancienne est abandonnée (seulement si la nouvelle a pu être lancée : quota ou appel en cours → 4xx,
+ * l'ancienne reste intacte). Rend `{ proposal, job }` comme startProposal.
+ */
+function redoProposal(id) {
+  const p = getProposal(id);
+  if (!p) throw new BadgeAiError(404, 'Proposition introuvable.');
+  if (!['open', 'error'].includes(p.status)) {
+    throw new BadgeAiError(409, p.status === 'pending' ? 'Proposition en cours de génération : patientez.' : 'Cette proposition ne peut plus être refaite.');
+  }
+  const next = startProposal({ concept: p.concept });
+  conn().prepare("UPDATE badge_ai_proposals SET status = 'discarded', updated_at = datetime('now') WHERE id = ?").run(id);
+  return next;
+}
+
 function waitJob(id) { return _jobs.get(id) ?? Promise.resolve(); }
 
 module.exports = {
-  BadgeAiError, METRICS, init, startProposal, getProposal, listProposals, updateProposal, addToDraft, discardProposal, waitJob,
+  BadgeAiError, METRICS, init, startProposal, getProposal, listProposals, updateProposal, addToDraft, discardProposal, redoProposal, waitJob,
 };
