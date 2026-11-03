@@ -824,28 +824,37 @@ async function showChestOdds(chestId, opener) {
     return `<tr><td class="odds-chance">${pct(row.chance)}</td><td>${label}</td></tr>`;
   }).join('');
 
+  // Sous le tableau : une phrase de synthèse lisible, puis le détail des règles replié par défaut
+  // (retour du propriétaire du 03/11 : sur téléphone, la longue liste était illisible).
   const types = new Set(def.table.map(r => r.type));
   const { fragments, collection } = Balance.chestRules;
-  const rules = [t('chest_odds.rule_draw')];
-  if (types.has('coins')) rules.push(t('chest_odds.rule_coins'));
+  const sections = [[t('chest_odds.sec_draw'), [t('chest_odds.rule_draw')]]];
+  if (types.has('coins')) sections.push([t('chest_odds.sec_coins'), [t('chest_odds.rule_coins')]]);
   if (types.has('relics')) {
-    rules.push(t('chest_odds.rule_fragments', {
-      mult: fragments.multiplier !== 1 ? t('chest_odds.rule_fragments_mult', { mult: Upgrades.formatMult(fragments.multiplier) }) : '',
-    }));
+    sections.push([t('chest_odds.sec_fragments'), [
+      t('chest_odds.rule_fragments', {
+        mult: fragments.multiplier !== 1 ? t('chest_odds.rule_fragments_mult', { mult: Upgrades.formatMult(fragments.multiplier) }) : '',
+      }),
+      t('chest_odds.rule_fragments_you', { level: Math.min(shardLevel, fragments.shardMagnetBonus.length), max: fragments.shardMagnetBonus.length }),
+    ]]);
   }
-  if (types.has('boost')) rules.push(t('chest_odds.rule_boost'));
+  if (types.has('boost')) sections.push([t('chest_odds.sec_boost'), [t('chest_odds.rule_boost')]]);
   if (types.has('collection')) {
     const missing = collection.itemIds.filter(id => !GameState.collection.includes(id)).length;
-    rules.push(missing > 0
+    sections.push([t('chest_odds.sec_collection'), [missing > 0
       ? t('chest_odds.rule_collection', { total: collection.itemIds.length, missing, pct: Number(100 / missing).toLocaleString(lang, { maximumFractionDigits: 1 }), n: collection.consolationFragments })
-      : t('chest_odds.rule_collection_full', { total: collection.itemIds.length, n: collection.consolationFragments }));
+      : t('chest_odds.rule_collection_full', { total: collection.itemIds.length, n: collection.consolationFragments })]]);
   }
 
   body.innerHTML = `<table class="odds-table">
       <thead><tr><th scope="col">${escapeHtml(t('chest_odds.col_chance'))}</th><th scope="col">${escapeHtml(t('chest_odds.col_reward'))}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
-    <ul class="odds-rules">${rules.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
+    <p class="odds-summary">${escapeHtml(t('chest_odds.summary'))}</p>
+    <details class="odds-details">
+      <summary>${escapeHtml(t('chest_odds.how'))}</summary>
+      ${sections.map(([title, lines]) => `<section class="odds-section"><h3>${escapeHtml(title)}</h3>${lines.map(l => `<p>${escapeHtml(l)}</p>`).join('')}</section>`).join('')}
+    </details>`;
 }
 
 /**

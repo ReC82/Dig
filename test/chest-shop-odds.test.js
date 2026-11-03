@@ -269,3 +269,98 @@ test('ligne de récompense : « = total » insécable, calcul autorisé à passe
   // Montants jamais abrégés (pas de notation compacte « 1,2 M » ambiguë)
   assert.doesNotMatch(main, /notation:\s*'compact'/);
 });
+
+// ── Fenêtre « Récompenses et chances » lisible sur téléphone (recette du 03/11/2026) ─────────
+
+/** Exécute showChestOdds (extrait de main.js) avec un DOM minimal ; renvoie les éléments remplis. */
+async function renderOdds(chestId, { shardLevel = 0, owned = [] } = {}) {
+  const main = fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8');
+  const src  = main.slice(main.indexOf('async function showChestOdds('), main.indexOf('function _applyShopChestReward('));
+  const els = {};
+  const el = id => (els[id] ??= { id, textContent: '', innerHTML: '', hidden: true, focus() {}, isConnected: true });
+  const ctx = vm.createContext({
+    Math, Object, Array, Number, String, Boolean, JSON, Date, Set,
+    t: (k, p) => k + (p ? JSON.stringify(p) : ''),
+    I18n: { getCurrent: () => 'fr' },
+    document: { getElementById: el },
+  });
+  for (const f of ['gameState.js', 'balance.js', 'upgrades.js', 'escapeHtml.js']) {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8'), ctx, { filename: f });
+  }
+  vm.runInContext(`Balance.applyChestCatalog(${JSON.stringify(describeChests({}))});
+    GameState.collection = ${JSON.stringify(owned)};
+    var Relics = { getLevel: id => id === 'shard_magnet' ? ${shardLevel} : 0 };
+    var _loadChestCatalog = async () => true;
+    ${src}`, ctx);
+  await vm.runInContext(`showChestOdds('${chestId}', null)`, ctx);
+  return els;
+}
+
+test('fenêtre des chances : tableau d\'abord, synthèse courte, règles repliées par défaut, pas d\'achat', async () => {
+  for (const chest of describeChests({}).chests) {
+    const els  = await renderOdds(chest.id, { shardLevel: 2 });
+    const html = els['odds-modal-body'].innerHTML;
+    assert.strictEqual(els['odds-modal'].hidden, false);
+    const iTable = html.indexOf('<table class="odds-table">');
+    const iSum   = html.indexOf('<p class="odds-summary">chest_odds.summary</p>');
+    const iDet   = html.indexOf('<details class="odds-details">');
+    assert.ok(iTable >= 0 && iTable < iSum && iSum < iDet, `${chest.id} : tableau, puis synthèse, puis détail`);
+    assert.doesNotMatch(html, /<details[^>]*\sopen/, 'détail replié par défaut');
+    assert.match(html, /<summary>chest_odds\.how<\/summary>/);
+    assert.doesNotMatch(html, /<ul class="odds-rules"|<button/i, 'plus de longue liste, aucun bouton d\'achat');
+    // Toutes les lignes de la table restent visibles avec leur probabilité exacte
+    const total = chest.table.reduce((s, r) => s + r.weight, 0);
+    assert.strictEqual((html.match(/<td class="odds-chance">/g) || []).length, chest.table.length);
+    for (const r of chest.table) {
+      assert.ok(html.includes(Number(r.weight / total * 100).toLocaleString('fr', { maximumFractionDigits: 4 }) + ' %'));
+    }
+    // Une sous-section courte par type de récompense présent, plus le tirage
+    const types = new Set(chest.table.map(r => r.type));
+    const want = ['sec_draw', ...['coins', 'relics', 'boost', 'collection'].filter(x => types.has(x))
+      .map(x => ({ coins: 'sec_coins', relics: 'sec_fragments', boost: 'sec_boost', collection: 'sec_collection' })[x])];
+    const got = [...html.matchAll(/<h3>chest_odds\.(sec_\w+)<\/h3>/g)].map(m => m[1]);
+    assert.deepStrictEqual(got, want);
+    if (types.has('relics')) assert.match(html, /chest_odds\.rule_fragments_you\{&quot;level&quot;:2,&quot;max&quot;:5\}/);
+  }
+  // Collection : % par objet selon ce qui manque au joueur
+  const rare = (await renderOdds('rare', { owned: COLLECTION_ITEM_IDS.slice(0, 4) }))['odds-modal-body'].innerHTML;
+  assert.match(rare, /rule_collection\{&quot;total&quot;:8,&quot;missing&quot;:4,&quot;pct&quot;:&quot;25&quot;/);
+  const full = (await renderOdds('antique', { owned: COLLECTION_ITEM_IDS }))['odds-modal-body'].innerHTML;
+  assert.match(full, /rule_collection_full/);
+});
+
+test('fenêtre des chances : textes courts présents en FR/EN/NL/ES avec les mêmes variables', () => {
+  const { builtinDictionaries } = require('../tools/i18n/lib');
+  const dicts = builtinDictionaries();
+  const keys = ['summary', 'how', 'sec_draw', 'rule_draw', 'sec_coins', 'rule_coins', 'sec_fragments', 'rule_fragments',
+    'rule_fragments_mult', 'rule_fragments_you', 'sec_boost', 'rule_boost', 'sec_collection', 'rule_collection', 'rule_collection_full'];
+  const vars = s => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort().join(',');
+  for (const k of keys) {
+    const fr = dicts.fr.chest_odds[k];
+    assert.ok(fr, `fr.${k}`);
+    for (const lang of ['en', 'nl', 'es']) {
+      const v = dicts[lang].chest_odds[k];
+      assert.ok(v, `${lang}.${k}`);
+      assert.strictEqual(vars(v), vars(fr), `${lang}.${k} : variables`);
+    }
+    // Synthèse et règles : phrases courtes (lisibles sur téléphone)
+    if (!/mult$/.test(k)) assert.ok(fr.length <= 200, `fr.${k} trop long (${fr.length})`);
+  }
+});
+
+test('fenêtre des chances : police et contraste suffisants sur téléphone', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public/css/style.css'), 'utf8');
+  const start = css.indexOf('/* Fenêtre « Récompenses et chances » (#20) */');
+  const block = css.slice(start, css.indexOf('/* Confirmation de la boutique de cadeaux', start));
+  // Aucun texte de la fenêtre sous 0,78rem, ni en gris --muted (contraste insuffisant sur fond sombre)
+  for (const m of block.matchAll(/font-size:\s*([\d.]+)rem/g)) {
+    assert.ok(Number(m[1]) >= 0.72, `font-size ${m[1]}rem`);
+  }
+  for (const sel of ['.odds-section p', '.odds-summary', '.odds-table {', '#odds-modal-meta', '.odds-you']) {
+    const rule = block.slice(block.indexOf(sel), block.indexOf('}', block.indexOf(sel)));
+    assert.doesNotMatch(rule, /var\(--muted\)/, sel);
+    const fs_ = rule.match(/font-size:\s*([\d.]+)rem/);
+    if (fs_) assert.ok(Number(fs_[1]) >= 0.82, `${sel} : ${fs_[1]}rem`);
+  }
+  assert.match(block, /\.odds-details > summary \{[^}]*min-height: 44px/);
+});

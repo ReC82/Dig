@@ -1311,6 +1311,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "chest_odds.how": {
+   "text": "ℹ️ Come funzionano le ricompense?",
+   "src": "fa7d2a7f6cc8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
   "chest_odds.jackpot": {
    "text": "jackpot",
    "src": "0ea54a12804d",
@@ -1358,53 +1365,102 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "chest_odds.rule_boost": {
-   "text": "Boost: moltiplica le monete guadagnate sui blocchi per tutta la sua durata (non i forzieri).",
-   "src": "9407a6418606",
+   "text": "Moltiplica le monete guadagnate rompendo i blocchi, per la durata indicata. Non quelle dei forzieri.",
+   "src": "d7fbb59b44d7",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
   },
   "chest_odds.rule_coins": {
-   "text": "Monete: importo estratto a caso nell’intervallo, con pari probabilità. Non vengono moltiplicate né dalla Sacca, né dalle reliquie, né dai boost.",
-   "src": "0acd289ad367",
+   "text": "Importo casuale nell’intervallo indicato. La Sacca, le reliquie e i boost non lo aumentano.",
+   "src": "a1b30f8c47d5",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
   },
   "chest_odds.rule_collection": {
-   "text": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora ({missing} per te, cioè {pct} % ciascuno). Collezione completa: {n} frammenti al suo posto (senza bonus).",
-   "src": "791a3fb0b9a2",
+   "text": "Un oggetto che non hai ancora, a caso: te ne mancano {missing} su {total}, cioè {pct} % ciascuno. Collezione completa: {n} frammenti al suo posto (senza bonus della Calamita).",
+   "src": "1b567bd9e959",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
   },
   "chest_odds.rule_collection_full": {
-   "text": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora. La tua collezione è completa: riceveresti {n} frammenti al suo posto (senza bonus).",
-   "src": "efc0201c0d45",
+   "text": "La tua collezione di {total} oggetti è completa: ricevi {n} frammenti al suo posto (senza bonus della Calamita).",
+   "src": "11d4c333e196",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
   },
   "chest_odds.rule_draw": {
-   "text": "Un’apertura = una sola estrazione. La percentuale è la probabilità di ottenere quel tipo di ricompensa; la quantità ricevuta è indicata accanto.",
-   "src": "9d604d008638",
+   "text": "Ogni riga della tabella ha la sua probabilità; in totale fanno 100 %. La quantità ricevuta è scritta accanto.",
+   "src": "0077b868134c",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
   },
   "chest_odds.rule_fragments": {
-   "text": "Frammenti ricevuti = (quantità + bonus della Calamita di schegge, da +1 a +5 secondo il livello){mult}, arrotondato, almeno 1.",
-   "src": "60a2c172b833",
+   "text": "La Calamita di schegge (una reliquia) aggiunge da 1 a 5 frammenti secondo il suo livello{mult}. Ricevi sempre almeno 1 frammento.",
+   "src": "1c14bb561400",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
   },
   "chest_odds.rule_fragments_mult": {
-   "text": " × {mult} (bonus frammenti del gioco)",
-   "src": "b40d2b9b91ee",
+   "text": ", poi il totale viene moltiplicato per {mult} (bonus del gioco) e arrotondato",
+   "src": "9c4690cd763c",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
+  "chest_odds.rule_fragments_you": {
+   "text": "La tua Calamita di schegge: livello {level} su {max}. La tabella mostra già quanto ricevi.",
+   "src": "68895e7febac",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
+  "chest_odds.sec_boost": {
+   "text": "⚡ Boost",
+   "src": "3b3c48aaed9c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
+  "chest_odds.sec_coins": {
+   "text": "💰 Monete",
+   "src": "ccd4d5ac8090",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
+  "chest_odds.sec_collection": {
+   "text": "📿 Oggetto da collezione",
+   "src": "d568122a3ed7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
+  "chest_odds.sec_draw": {
+   "text": "🎲 L’estrazione",
+   "src": "67572e5c75cf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
+  "chest_odds.sec_fragments": {
+   "text": "🔮 Frammenti e Calamita di schegge",
+   "src": "6b49fe8a7eb3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
+  },
+  "chest_odds.summary": {
+   "text": "Un’apertura = una sola ricompensa, estratta a sorte secondo queste probabilità. Le monete di un forziere non vengono moltiplicate né dalla Sacca né dai boost.",
+   "src": "66fff37eda05",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #20)",
+   "at": "2026-11-03T20:18:48.416Z"
   },
   "chest_odds.title": {
    "text": "{name} — ricompense e probabilità",
