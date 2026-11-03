@@ -601,7 +601,9 @@ function proposeCalendar(year, nowMs = Date.now()) {
   for (let m = 1; m <= 12; m++) {
     const inMonth = hs.filter(h => h.month === m).sort((a, b) => PRIORITY.indexOf(a.key) - PRIORITY.indexOf(b.key));
     const main = inMonth[0] ?? null;
-    const monthStart = Date.UTC(year, m - 1, 1), monthEnd = Date.UTC(year, m, 1);
+    const pad = n => String(n).padStart(2, '0');   // bornes du mois en heure de Bruxelles
+    const monthStart = Date.parse(brusselsToUtc(`${year}-${pad(m)}-01T00:00`));
+    const monthEnd = Date.parse(brusselsToUtc(m === 12 ? `${year + 1}-01-01T00:00` : `${year}-${pad(m + 1)}-01T00:00`));
     const covering = events.filter(e => Date.parse(e.startsAt) < monthEnd && Date.parse(e.endsAt) > monthStart)
       .map(e => ({ id: e.id, icon: e.icon, name: e.names.fr, state: e.state, audience: e.audience }));
     const start = main ? main.window[0] : null;

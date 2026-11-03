@@ -272,6 +272,9 @@ test('redémarrage : init idempotent, données conservées ; contenu préparé i
   assert.strictEqual(noel.startsAt, '2026-11-30T23:00:00Z');
   assert.strictEqual(noel.endsAt, '2026-12-31T23:00:00Z');
   assert.deepStrictEqual(ev.readiness(noel).blocking, [], 'Noël complet en 4 langues');
+  const cal = ev.proposeCalendar(2026).months;
+  assert.ok(cal[11].events.some(e => e.id === 'noel_2026'));
+  assert.deepStrictEqual(cal[10].events.filter(e => e.id === 'noel_2026'), [], 'bornes du mois en heure de Bruxelles');
 });
 
 test('Noël 2026 : contenu préparé complet, humoristique, consignes d\'image distinctes', () => {
