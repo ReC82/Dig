@@ -95,3 +95,20 @@ test('liste : pleine largeur, colonnes dimensionnées, cartes sur mobile', () =>
   assert.match(CSS, /\.news-table td\[data-label\]::before \{ content: attr\(data-label\)/);
   assert.match(fn('renderNews'), /td\.dataset\.label = label/);
 });
+
+test('onglet principal retenu après F5 (recette #50-F) : fragment d’URL, sans stockage, historique ni action', () => {
+  assert.match(fn('admRememberTab'), /history\.replaceState\(/);
+  assert.doesNotMatch(JS, /history\.pushState\(/);
+  const r = fn('admRestoreTab');
+  assert.match(r, /admTabBtn\(location\.hash\.slice\(1\)\)/);
+  assert.match(JS, /const admTabBtn = id => id && \/\^\[a-z-\]\+\$\/\.test\(id\)/);   // fragment arbitraire jamais injecté dans un sélecteur
+  assert.match(fn('adminShowApp'), /admRestoreTab\(\);/);
+  assert.match(JS, /addEventListener\('click', \(\) => \{\n    admRememberTab\(btn\.dataset\.tab\);/);
+  // un changement de fragment ne quitte jamais une fiche ouverte
+  assert.match(JS, /addEventListener\('hashchange', \(\) => \{\n  if \(document\.querySelector\('dialog\[open\]'\)/);
+});
+
+test('fermeture protégée : le dialogue cite le vrai libellé du bouton d\'enregistrement (recette #50-G)', () => {
+  assert.match(fn('nwRequestClose'), /\$\{document\.getElementById\('btn-nw-save'\)\.textContent\}/);
+  assert.doesNotMatch(fn('nwRequestClose'), /puis « 💾 Enregistrer le brouillon »/);
+});

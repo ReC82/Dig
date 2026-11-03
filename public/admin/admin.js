@@ -181,6 +181,7 @@ function adminShowApp(info) {
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('admin-app').classList.remove('hidden');
   adminSessionInfo(info);
+  admRestoreTab();
 }
 
 function adminShowLogin(message) {
@@ -260,8 +261,26 @@ document.getElementById('logout-all-btn').addEventListener('click', async () => 
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
+// Onglet principal retenu après F5 (recette #50-F) : fragment d'URL (#news, lien direct possible), aucun stockage
+// navigateur dans le panel. replaceState : aucune entrée d'historique, le retour navigateur ne saute pas d'onglet en
+// onglet (et ne contourne donc pas les fiches protégées). Restauration = simple affichage de l'onglet et de sa liste :
+// aucune fiche rouverte, aucune action relancée ; fragment inconnu → onglet par défaut (Saisons).
+const admTabBtn = id => id && /^[a-z-]+$/.test(id) ? document.querySelector(`.tab-btn[data-tab="${id}"]`) : null;
+function admRememberTab(id) {
+  if (location.hash.slice(1) !== id) history.replaceState(null, '', `${location.pathname}${location.search}#${id}`);
+}
+function admRestoreTab() {
+  const btn = admTabBtn(location.hash.slice(1));
+  if (btn && !btn.classList.contains('active')) btn.click();
+}
+window.addEventListener('hashchange', () => {
+  if (document.querySelector('dialog[open]') || document.getElementById('admin-app').classList.contains('hidden')) return;
+  admRestoreTab();
+});
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
+    admRememberTab(btn.dataset.tab);
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(s => s.classList.add('hidden'));
     btn.classList.add('active');
@@ -6720,7 +6739,7 @@ async function nwRequestClose() {
   if (nwDirty() && !await admConfirm({
     title: 'Modifications non enregistrées',
     text: 'Cette fiche contient des saisies qui ne sont pas enregistrées (notes, textes ou réglages).',
-    impact: ['« Abandonner » ferme la fiche et perd ces saisies (une mise en forme IA non enregistrée serait à refaire).', 'Pour les garder : « Continuer à modifier », puis « 💾 Enregistrer le brouillon ».'],
+    impact: ['« Abandonner » ferme la fiche et perd ces saisies (une mise en forme IA non enregistrée serait à refaire).', `Pour les garder : « Continuer à modifier », puis « ${document.getElementById('btn-nw-save').textContent} ».`],
     ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
   })) return;
   _nwSnap = null;
@@ -6836,7 +6855,7 @@ document.getElementById('btn-nw-ai')?.addEventListener('click', async e => {
     if (p.status !== 'open') { state.textContent = `❌ ${p.error ?? 'Échec de la mise en forme.'}`; return; }
     nwFill({ ...nwCollect(), ...p.data.item });
     _nwProposal = _nwEditing ? null : p.id;
-    state.textContent = '✅ Fiche remplie : relis chaque langue (FR, EN, NL, ES), corrige si besoin, puis « 💾 Enregistrer le brouillon ».';
+    state.textContent = `✅ Fiche remplie : relis chaque langue (FR, EN, NL, ES), corrige si besoin, puis « ${document.getElementById('btn-nw-save').textContent} ».`;
     nwAiNotes(p.data);
   } finally { b.disabled = false; }
 });
