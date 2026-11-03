@@ -117,12 +117,12 @@ const errors = [];
   let release;
   await a.route('**/api/admin/beta', async route => { await new Promise(r => { release = r; }); await route.continue(); });
   await a.click('#btn-refresh-beta');
-  await a.waitForFunction(() => document.getElementById('btn-refresh-beta').disabled);
+  await a.waitForFunction(() => document.getElementById('btn-refresh-beta').getAttribute('aria-disabled') === 'true');   // #60 : indisponible sans perdre le focus
   assert.match(await a.textContent('#btn-refresh-beta'), /Actualisation/);
   await a.screenshot({ path: `${OUT}/f3-refresh-pending.png`, clip: { x: 0, y: 0, width: 1280, height: 300 } });
   release();
   await a.waitForFunction(() => /Données à jour à \d\d:\d\d:\d\d/.test(document.getElementById('beta-refresh-status').textContent));
-  assert.strictEqual(await a.isDisabled('#btn-refresh-beta'), false);
+  assert.strictEqual(await a.getAttribute('#btn-refresh-beta', 'aria-disabled'), null);
   assert.strictEqual(await note.inputValue(), 'note non enregistrée', 'note en cours conservée');
   assert.strictEqual(await a.inputValue('#beta-known'), 'bug connu en cours de saisie', 'bugs connus en cours conservés');
   assert.ok(await a.$eval('#beta-advanced', d => d.open), 'sections ouvertes conservées');

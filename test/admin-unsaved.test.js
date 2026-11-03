@@ -100,7 +100,8 @@ test('départ de la page : un seul contrôle pour toutes les fiches et zones', (
 test('échec réseau : échec ordinaire, la fiche reste ouverte avec ses saisies', () => {
   const a = fn('api');
   assert.match(a, /try \{ res = await fetch\(path, opts\); \}/);
-  assert.match(a, /catch \{ return \{ ok: false, status: 0, data: \{ error: 'Serveur injoignable/);
+  // (#60 : l'échec est aussi relevé pour le bouton « Rafraîchir » en cours)
+  assert.match(a, /catch \{\s+admRefreshNote\([^\n]+\);\s+return \{ ok: false, status: 0, data: \{ error: 'Serveur injoignable/);
   // Les enregistrements ne ferment la fiche qu'en cas de succès
   const from = JS.indexOf("getElementById('btn-co-s-save').addEventListener");
   const save = JS.slice(from, JS.indexOf("getElementById('btn-co-s-remove').addEventListener", from));

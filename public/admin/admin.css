@@ -1086,3 +1086,8 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 /* Petits écrans : l'aperçu (compact) passe au-dessus des champs ; « non enregistrées » sur sa propre ligne. */
 @media (max-width: 860px) { .bg-sheet .nw-preview-col { order: -1; } }
 @media (max-width: 480px) { .bg-sheet .nw-foot #bg-dirty { flex-basis: 100%; } }
+
+/* Boutons « Rafraîchir » communs (#60) : indisponibles pendant l'attente sans perdre le focus clavier */
+.btn.is-busy, .btn[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
+.refresh-status:empty { display: none; }
+.adm-toast.is-err { background: #b91c1c; color: #fff; }
