@@ -1323,7 +1323,8 @@ app.get('/api/admin/icons', requireAdmin, iconRoute('GET /api/admin/icons', () =
 app.get('/api/admin/icons/job', requireAdmin, iconRoute('GET /api/admin/icons/job', () => ({ job: iconStudio.jobView(), status: iconStudio.status() })));
 
 app.put('/api/admin/icons/budget', requireAdmin, limit.icons, iconRoute('PUT /api/admin/icons/budget',
-  req => ({ status: iconStudio.setStudioBudget(req.body?.studioBudgetUsd ?? null) })));
+  // Plafond de dépense IA de tout Dig (décision du 03/11) : désactivé par défaut, réactivable ici
+  req => ({ status: iconStudio.setSpendCap({ enabled: req.body?.enabled, capUsd: req.body?.capUsd }) })));
 
 // Une seule image par action (refonte UX du 31/10) : génération en arrière-plan, suivie par GET …/job.
 app.post('/api/admin/icons/targets/:key/generate', requireAdmin, limit.icons, iconRoute('POST /api/admin/icons/targets/:key/generate',

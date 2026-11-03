@@ -540,7 +540,7 @@ function adminView(now = new Date()) {
   const spent = (() => {
     try {
       const st = require('./iconStudio').status();
-      const pick = ['configured', 'reason', 'studioSpentUsd', 'studioCapUsd', 'globalSpentUsd', 'globalCapUsd', 'remainingUsd', 'perImageUsd', 'imagesToday', 'maxImagesPerDay'];
+      const pick = ['configured', 'reason', 'studioSpentUsd', 'capEnabled', 'capUsd', 'globalSpentUsd', 'remainingUsd', 'perImageUsd', 'imagesToday', 'maxImagesPerDay'];
       return Object.fromEntries(pick.filter(k => st[k] !== undefined).map(k => [k, st[k]]));
     } catch (_) { return null; }
   })();

@@ -2432,7 +2432,7 @@ async function loadAi() {
   if (!ok) { st.textContent = st2.textContent = data.error || 'Erreur.'; return; }
   const s = data.status;
   st.textContent = st2.textContent = s.configured
-    ? `API IA : texte ${s.textModel}, image ${s.imageModel}${s.fake ? ' (MODE TEST, aucun appel réel)' : ''} — dépense ${s.spentUsd} / ${s.budgetUsd} USD (≈ ${s.estImageUsd} USD par image)`
+    ? `API IA : texte ${s.textModel}, image ${s.imageModel}${s.fake ? ' (MODE TEST, aucun appel réel)' : ''} — dépensé ${s.spentUsd} USD (cumul de tout Dig)${s.capEnabled ? ` sur un plafond de ${s.budgetUsd} USD` : ', aucun plafond bloquant'} (≈ ${s.estImageUsd} USD par image)`
       + ` — ${s.callsToday}/${s.maxCallsPerDay} appels sur 24 h${s.imageProcessing ? '' : ' — traitement d\'image indisponible'}.`
     : `API IA non configurée : ${s.reason}. La génération est désactivée (la clé reste côté serveur, jamais dans le navigateur).`;
   document.getElementById('btn-ai-generate').disabled = !s.configured;
@@ -3440,13 +3440,13 @@ async function coAiLoad() {
   aiBtn.disabled = !st.configured;
   // Recette du 02/11 : mention simple dans les fiches ; modèle, budget et quota dans l'aide technique repliée
   // (et ⚙ Config → Budget IA). Les limites restent appliquées par le serveur.
-  const limited = st.configured && (st.remainingUsd < st.estTextUsd || st.callsToday >= st.maxCallsPerDay);
+  const limited = st.configured && ((st.capEnabled && st.remainingUsd < st.estTextUsd) || st.callsToday >= st.maxCallsPerDay);
   document.getElementById('co-ai-status').textContent = !st.configured
     ? 'IA non configurée : création manuelle seulement.'
     : limited ? 'Limite IA atteinte pour le moment (détails : ⚙ Config → Budget IA). La création manuelle reste possible.'
     : 'La génération IA peut entraîner un coût ; rien n\'est publié automatiquement.';
   document.getElementById('co-ai-status-2').textContent = st.configured
-    ? `Modèle ${st.textModel}${st.fake ? ' (mode test)' : ''} — budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
+    ? `Modèle ${st.textModel}${st.fake ? ' (mode test)' : ''} — ${st.capEnabled ? `budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD` : `dépensé ${st.spentUsd} USD, aucun plafond bloquant`}, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
     : `IA non configurée : ${st.reason}.`;
   document.getElementById('co-ai-limit').textContent = limited ? 'Limite IA atteinte pour le moment : la demande sera refusée (détails dans l\'aide technique).' : '';
   document.getElementById('btn-co-ai-generate').disabled = !st.configured;
@@ -4021,8 +4021,40 @@ function icThumb(t, size, url = null) {
   if (t.kind === 'block' && /^#[0-9a-f]{6}$/i.test(t.background?.accent ?? '')) box.style.borderColor = t.background.accent;
   const src = url ?? t.image ?? t.v1?.url;
   if (src) box.appendChild(aiEl('img', { src, alt: '', style: t.kind === 'block' ? 'width:78%;height:78%' : '' }));
-  else { box.textContent = t.emoji || '⬜'; box.classList.add('bk-thumb--emoji'); }
+  else if (t.emoji && icEmojiShown(t.emoji)) { box.textContent = t.emoji; box.classList.add('bk-thumb--emoji'); }
+  else {
+    // Recette du 03/11 : pas de carré ⬜/□ — emoji absent ou non affichable sur cet appareil (ex. 🪶 sous Windows 10)
+    box.classList.add('ic-thumb--none');
+    box.appendChild(aiEl('span', { class: 'ic-thumb-none', style: `font-size:${Math.max(9, Math.round(size * 0.14))}px` }, 'Pas encore d\'image'));
+    if (t.emoji) box.title = `Emoji ${t.emoji} non affichable sur cet appareil`;
+  }
   return box;
+}
+
+/** Vrai si l'emoji est dessiné en couleur par une police de l'appareil (sinon carré de remplacement). */
+const _icEmojiOk = new Map();
+function icEmojiShown(e) {
+  if (_icEmojiOk.has(e)) return _icEmojiOk.get(e);
+  // Dessiné en couleur, ou du moins différent du carré d'un caractère inexistant (U+10FFFD) : affichable
+  let ok = true;
+  try {
+    const draw = ch => {
+      const c = document.createElement('canvas'); c.width = c.height = 24;
+      const g = c.getContext('2d', { willReadFrequently: true });
+      g.fillStyle = '#000'; g.textBaseline = 'top'; g.font = '20px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      g.fillText(ch, 0, 0);
+      return g.getImageData(0, 0, 24, 24).data;
+    };
+    const d = draw(e), tofu = draw('\u{10FFFD}');
+    let colored = false, same = true;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] && (d[i] || d[i + 1] || d[i + 2])) colored = true;
+      if (d[i + 3] !== tofu[i + 3]) same = false;
+    }
+    ok = colored || !same;
+  } catch (_) { ok = true; }
+  _icEmojiOk.set(e, ok);
+  return ok;
 }
 
 function icNotice(el, text, cls = '') {
@@ -4048,21 +4080,20 @@ function icRenderNotice() {
   icNotice(el, '');
 }
 
-/** Trois chiffres distincts (retour du 03/11) : coût réel d'une image, cumul de toutes les générations, plafond. */
+/** Réservation (estimation avant l'appel), distincte du coût réel journalisé après l'appel (retours du 03/11). */
 function icReserveText(s) {
   const r = s.reserve;
   if (!r) return '';
+  const check = s.checkEstUsd ? ` + contrôle du sujet ${s.checkEstUsd.toFixed(4)} USD` : '';
   return r.basis === 'measured'
-    ? `réservation ${r.usd.toFixed(2)} USD par image (coût réel le plus élevé des ${r.samples} dernières : ${r.measuredMaxUsd.toFixed(3)} USD, + 25 %)`
-    : `réservation ${r.usd.toFixed(2)} USD par image (estimation configurée, en attendant 2 coûts réels mesurés)`;
+    ? `estimation avant l'appel : ${r.usd.toFixed(4)} USD par image${check} (coût réel le plus élevé des ${r.samples} dernières, ${r.measuredMaxUsd.toFixed(4)} USD, + 25 %)`
+    : `estimation avant l'appel : ${r.usd.toFixed(4)} USD par image${check} (estimation configurée, en attendant 2 coûts réels mesurés)`;
 }
+/** Plafond réactivé dans ⚙ Config et atteint : montants non arrondis, réservation détaillée. */
 function icBudgetHelp(s) {
-  const last = s.lastImage ? ` Coût réel de la dernière image : ${Number(s.lastImage.cost_usd).toFixed(3)} USD.` : '';
-  const head = `Plafond atteint : la prochaine image n'est pas lancée (${icReserveText(s)}, il reste ${s.remainingUsd.toFixed(2)} USD).${last} `;
-  return head + (s.limitedBy === 'studio'
-    ? `Limite de l'atelier : ${s.studioSpentUsd.toFixed(2)} / ${s.studioCapUsd} USD cumulés. Pour continuer, relevez cette limite dans ⚙ Config → Budget IA.`
-    : `Plafond du serveur : ${s.globalSpentUsd.toFixed(2)} / ${s.globalCapUsd} USD cumulés depuis le début (toutes les générations, scripts et blocs compris ; ce n'est pas le coût d'une image). `
-      + 'Pour continuer, relevez DIG_IMAGE_BUDGET_USD dans ~/.config/dig/openai.env (pris en compte sans redémarrage).');
+  const last = s.lastImage ? ` Coût réel de la dernière image : ${Number(s.lastImage.cost_usd).toFixed(4)} USD.` : '';
+  return `Plafond de dépense atteint (réglé dans ⚙ Config → Budget IA) : ${s.globalSpentUsd.toFixed(4)} USD dépensés par tout Dig sur ${Number(s.capUsd).toFixed(2)} USD, `
+    + `il reste ${s.remainingUsd.toFixed(4)} USD ; ${icReserveText(s)}.${last} Pour continuer, relevez ou désactivez ce plafond dans ⚙ Config → Budget IA.`;
 }
 
 async function loadIcons() {
@@ -4073,7 +4104,8 @@ async function loadIcons() {
   icRenderGrid();
   const s = data.status;
   document.getElementById('ic-tech').textContent = s.configured
-    ? `Modèle ${s.imageModel}${s.fake ? ' (mode test)' : ''} · ${s.lastImage ? `dernière image : ${Number(s.lastImage.cost_usd).toFixed(3)} USD · ` : ''}${icReserveText(s)} · ${s.imagesToday}/${s.maxImagesPerDay} images sur 24 h · référence de style : ${s.reference ?? 'aucune'}.`
+    ? `Modèle ${s.imageModel}${s.fake ? ' (mode test)' : ''} · ${s.lastImage ? `coût réel de la dernière image : ${Number(s.lastImage.cost_usd).toFixed(4)} USD · ` : ''}${icReserveText(s)} · `
+      + `${s.capEnabled ? `plafond ${Number(s.capUsd).toFixed(2)} USD (⚙ Config)` : 'aucun plafond bloquant'} · ${s.imagesToday}/${s.maxImagesPerDay} images sur 24 h · référence de style : ${s.reference ?? 'aucune'}.`
     : `API non configurée : ${s.reason}.`;
   const cb = document.getElementById('ic-calls-body');
   cb.textContent = '';
@@ -4133,8 +4165,12 @@ function icRenderSeries() {
   if ((kind && kind !== 'item') || !_ic?.series?.length) return;
   const running = _icJob?.status === 'running';
   const head = aiEl('div', { class: 'ic-series-head' });
-  head.appendChild(aiEl('strong', {}, 'Collections : une image par objet, enchaînées automatiquement'));
-  head.appendChild(aiEl('span', { class: 'muted' }, ' — seuls les objets sans image ni proposition à examiner sont générés ; vous ne corrigez ensuite que ceux signalés.'));
+  // Décision du 03/11 : sans plafond de dépense actif, aucun lot (une image par clic, objet par objet)
+  const batch = !!_ic.status?.capEnabled;
+  head.appendChild(aiEl('strong', {}, batch ? 'Collections : une image par objet, enchaînées automatiquement' : 'Collections : images à faire'));
+  head.appendChild(aiEl('span', { class: 'muted' }, batch
+    ? ' — seuls les objets sans image ni proposition à examiner sont générés ; vous ne corrigez ensuite que ceux signalés.'
+    : ' — ouvrez un objet et cliquez « Générer une image » : une image par clic. Génération en lot désactivée tant qu\'aucun plafond de dépense n\'est actif (⚙ Config → Budget IA).'));
   box.appendChild(head);
   for (const p of _ic.series) {
     const row = aiEl('div', { class: 'ic-series-row' });
@@ -4143,7 +4179,7 @@ function icRenderSeries() {
     const parts = [`${p.items.length} objets`, p.todo ? `${p.todo} à générer` : 'aucun à générer',
       n('has_image') && `${n('has_image')} avec image`, n('has_proposal') && `${n('has_proposal')} à examiner`, n('conflict') && `${n('conflict')} en conflit de sujet`].filter(Boolean);
     row.appendChild(aiEl('span', { class: 'muted' }, parts.join(' · ')));
-    if (p.todo) {
+    if (p.todo && batch) {
       const b = icButton(row, `Générer les ${p.todo} image${p.todo > 1 ? 's' : ''} manquante${p.todo > 1 ? 's' : ''}`, () => icSeriesStart(p.seriesId), 'btn ic-main');
       b.disabled = running || !_ic.status?.configured;
     }
@@ -4204,7 +4240,7 @@ async function icSeriesStart(seriesId) {
     `• Objets : ${todo.map(i => i.name).join(', ')}.`,
     skipped.length ? `• Ignorés : ${skipped.join(' ; ')}.` : '',
     `• Coût : ${measured} (réservé avant chaque image : ${icUsd(p.estPerImageUsd)}, contrôle compris).`,
-    `• Budget restant sous le plafond : ${icUsd(p.remainingUsd)} → ${p.affordable >= todo.length ? 'suffisant' : `au moins ${p.affordable} image(s) ; la génération s'arrêtera d'elle-même au plafond, qui n'est jamais relevé automatiquement`}.`,
+    `• Reste sous le plafond (⚙ Config) : ${icUsd(p.remainingUsd)} → ${p.affordable >= todo.length ? 'suffisant' : `au moins ${p.affordable} image(s) ; la génération s'arrêtera d'elle-même au plafond, qui n'est jamais relevé automatiquement`}.`,
     `• Durée : ${p.measuredSeconds ? `≈ ${p.measuredSeconds} s` : 'environ 40 s'} par image, l'une après l'autre ; vous pouvez quitter la page.`,
     '• Chaque image est contrôlée automatiquement (objet reconnu ?). Rien n\'est conservé ni publié sans vous.'].filter(Boolean).join('\n');
   if (!confirm(msg)) return;
@@ -4327,7 +4363,8 @@ function icItemBrief(parent, t) {
     w.appendChild(aiEl('p', {}, `ℹ ${t.briefSharedWith.join(', ')} portent encore cette même consigne : elle n'est utilisée que pour « ${t.name} », eux repartent de leur nom et de leur histoire.`));
     icButton(w, 'Repartir du nom et de l\'histoire', async () => {
       for (const k of Object.keys(els)) { els[k].value = t.defaultBrief?.[k] ?? ''; memo[k] = els[k].value; }
-      els.subject.focus();
+      paint(); refresh();
+      if (edit.classList.contains('hidden')) toggle.click(); else els.subject.focus();
     });
     wrap.appendChild(w);
   }
@@ -4338,17 +4375,73 @@ function icItemBrief(parent, t) {
       : t.brief.custom ? '✓ Enregistrée pour cet objet.' : 'Consigne par défaut (nom et histoire de l\'objet), rien d\'enregistré.';
     state.classList.toggle('is-dirty', changed);
   };
+  // Recette du 03/11 (« trop de texte à vérifier ») : résumé en quatre champs par défaut, champs modifiables
+  // sur demande, texte exact envoyé à l'IA replié et copiable.
+  const sum = t.promptSummary ?? {};
+  const summary = aiEl('dl', { class: 'ic-summary' });
+  const edit = aiEl('div', { class: 'ic-brief-edit hidden' });
+  const row = (label, value, cls = '') => {
+    summary.appendChild(aiEl('dt', {}, label));
+    const dd = aiEl('dd', { class: cls }, value || '—');
+    summary.appendChild(dd);
+    return dd;
+  };
+  const show = {};
+  show.subject = row('Sujet', '');
+  show.details = row('Forme et matière', '');
+  show.palette = row('Couleurs', '');
+  row('Style et contraintes', sum.style ?? '', 'muted');
+  const paint = () => {
+    const v = k => els[k]?.value.trim() ?? '';
+    show.subject.textContent = (sum.object ? `${sum.object} — ` : '') + (v('subject') || '—');
+    show.details.textContent = v('details') || '—';
+    show.palette.textContent = v('palette').replace(/^\s*palette\s*:\s*/i, '') || '—';
+  };
   for (const [k, label, max] of [['subject', 'Sujet', 300], ['details', 'Forme et matière', 600], ['palette', 'Couleurs', 300]]) {
     const [l, el] = aiInput(label, memo[k] ?? t.brief[k], { maxlength: String(max) });
     l.classList.add('ic-field');
-    el.addEventListener('input', () => { memo[k] = el.value; refresh(); icLiveConflict(); });
+    el.addEventListener('input', () => { memo[k] = el.value; refresh(); paint(); icLiveConflict(); });
     els[k] = el;
-    wrap.appendChild(l);
+    edit.appendChild(l);
   }
+  wrap.appendChild(summary);
+  const tools = aiEl('div', { class: 'form-actions ic-summary-tools' });
+  const toggle = icButton(tools, '✎ Modifier la consigne', () => {
+    const open = edit.classList.toggle('hidden') === false;
+    toggle.textContent = open ? 'Masquer les champs' : '✎ Modifier la consigne';
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) els.subject.focus();
+  }, 'btn btn-outline');
+  toggle.setAttribute('aria-expanded', 'false');
+  wrap.appendChild(tools);
+  wrap.appendChild(edit);
+  // Modification en cours (non enregistrée) : champs ouverts d'office
+  if (['subject', 'details', 'palette'].some(k => memo[k] !== undefined && memo[k] !== (t.brief[k] ?? ''))) toggle.click();
+  paint();
   refresh();
   wrap.appendChild(state);
+  wrap.appendChild(icExactPrompt(t));
   parent.appendChild(wrap);
   return els;
+}
+
+/** Texte exact envoyé à l'IA (consigne enregistrée, hors précision ponctuelle), replié et copiable. */
+function icExactPrompt(t) {
+  const d = aiEl('details', { class: 'ic-exact' });
+  d.appendChild(aiEl('summary', { class: 'muted' }, 'Texte exact envoyé à l\'IA'));
+  d.appendChild(aiEl('p', { class: 'muted ic-hint' }, 'Inutile de le relire pour générer : il assemble la consigne ci-dessus (telle qu\'enregistrée) et le style commun. '
+    + 'Une précision saisie pour une génération s\'ajoute à la fin.'));
+  const pre = aiEl('pre', { class: 'ic-prompt' }, t.prompt ?? '');
+  d.appendChild(pre);
+  const tools = aiEl('div', { class: 'form-actions' });
+  const msg = aiEl('span', { class: 'muted', role: 'status' });
+  icButton(tools, '📋 Copier le texte', async () => {
+    try { await navigator.clipboard.writeText(t.prompt ?? ''); msg.textContent = 'Copié.'; }
+    catch (_) { getSelection().selectAllChildren(pre); msg.textContent = 'Texte sélectionné : Ctrl+C pour copier.'; }
+  }, 'btn btn-outline');
+  tools.appendChild(msg);
+  d.appendChild(tools);
+  return d;
 }
 
 /** Enregistre la consigne de l'objet si elle a été modifiée (avant de générer). */
@@ -4513,9 +4606,15 @@ function icRenderSheet() {
       icButton(row, '✓ Conserver cette image', () => icApply(t, sel.sha, { doubtful: !!sel.warning }), sel.warning ? 'btn btn-outline' : 'btn ic-main');
     } else if (t.applicable && sel.inDraft) {
       row.appendChild(aiEl('span', { class: 'ic-kept' }, sel.published ? '✓ Cette image est en jeu.' : '✓ Conservée dans le brouillon.'));
-      if (!sel.published) icButton(row, `Publier dans ${t.kind === 'block' ? '🧱 Blocs' : '📿 Collections'} →`, async () => {
-        document.querySelector(`.tab-btn[data-tab="${t.kind === 'block' ? 'blocks' : 'collections'}"]`).click();
-      }, 'btn ic-main');
+      // Recette du 03/11 : ce bouton ne publie rien, il ouvre l'onglet où la publication reste une décision manuelle
+      if (!sel.published) {
+        const tab = t.kind === 'block' ? '🧱 Blocs' : '📿 Collections';
+        const go = icButton(row, `Ouvrir l'onglet ${tab} →`, async () => {
+          document.querySelector(`.tab-btn[data-tab="${t.kind === 'block' ? 'blocks' : 'collections'}"]`).click();
+        }, 'btn btn-outline');
+        go.title = `Ne publie rien : ouvre ${tab}, où le brouillon se relit et se publie manuellement (la série et ses drops restent inchangés).`;
+        row.appendChild(aiEl('span', { class: 'muted' }, `Rien n'est publié ici : la publication se décide dans l'onglet ${tab}.`));
+      }
     }
     step.appendChild(row);
     const redo = aiEl('div', { class: 'ic-redo' });
@@ -4635,10 +4734,7 @@ function icOptions(t, sel) {
     if (ok) icOpen(t.key, { keepSel: true }); else icRenderSheet();
   });
   brief.appendChild(ba);
-  const pr = aiEl('details');
-  pr.appendChild(aiEl('summary', { class: 'muted' }, 'Texte complet envoyé à l\'IA'));
-  pr.appendChild(aiEl('p', { class: 'muted ic-prompt' }, t.prompt));
-  brief.appendChild(pr);
+  if (t.kind !== 'item') brief.appendChild(icExactPrompt(t));   // objets : déjà sous leur consigne
   more.appendChild(brief);
   return more;
 }
@@ -4758,36 +4854,49 @@ document.getElementById('ic-sheet').addEventListener('keydown', e => {
   (step?.querySelector('.ic-redo .btn') ?? step?.querySelector('.ic-main'))?.click();
 });
 
-// ── Budget IA (⚙ Config) : consommé, plafond du serveur, limite facultative de l'atelier ──
+// ── Budget IA (⚙ Config) : dépenses journalisées, plafond facultatif (désactivé par défaut, décision du 03/11) ──
 
 async function loadAiBudget() {
   const { ok, data } = await api('GET', '/api/admin/icons/job');
-  const sum = document.getElementById('aib-summary');
-  if (!ok) { sum.textContent = data.error || 'Erreur.'; return; }
+  const state = document.getElementById('aib-cap-state');
+  const dl = document.getElementById('aib-totals');
+  if (!ok) { state.textContent = data.error || 'Erreur.'; return; }
   const s = data.status;
   const reached = document.getElementById('aib-reached');
   const input = document.getElementById('ic-budget');
-  if (document.activeElement !== input) input.value = s.studioCapUsd ?? '';
+  const on = document.getElementById('aib-cap-on');
+  if (document.activeElement !== input) input.value = s.capUsd ?? '';
+  if (document.activeElement !== on) on.checked = !!s.capEnabled;
+  dl.textContent = '';
+  const meter = document.getElementById('aib-meter-wrap');
   if (!s.configured) {
-    sum.textContent = 'API d\'images non configurée sur le serveur : aucune dépense possible.';
-    document.getElementById('aib-meter').style.width = '0';
+    state.textContent = 'API IA non configurée sur le serveur : aucune dépense possible.';
+    meter.classList.add('hidden');
     icNotice(reached, '');
     return;
   }
-  const usd = v => `${Number(v).toFixed(2)} USD`;
-  sum.textContent = `Dépensé : ${usd(s.globalSpentUsd)} sur ${usd(s.globalCapUsd)} (plafond du serveur)`
-    + (s.studioCapUsd != null ? ` · atelier d'icônes : ${usd(s.studioSpentUsd)} sur ${usd(s.studioCapUsd)}` : '')
-    + ` · reste ${usd(s.remainingUsd)}, soit au moins ${Math.floor(s.remainingUsd / (s.perImageUsd || s.estImageUsd) + 1e-9)} image(s).`
-    + ` Le montant dépensé est le cumul de toutes les générations depuis le début, pas le coût d'une image`
-    + `${s.lastImage ? ` (dernière image : ${Number(s.lastImage.cost_usd).toFixed(3)} USD)` : ''} ; ${icReserveText(s)}.`;
-  document.getElementById('aib-meter').style.width = `${Math.min(100, s.globalCapUsd ? (s.globalSpentUsd / s.globalCapUsd) * 100 : 100)}%`;
+  const usd = v => `${Number(v).toFixed(4)} USD`;
+  const tt = s.totals ?? {};
+  const month = tt.month ? new Date(`${tt.month}-15T00:00:00Z`).toLocaleDateString('fr-BE', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
+  state.textContent = s.capEnabled
+    ? `Plafond bloquant actif : ${Number(s.capUsd).toFixed(2)} USD sur le cumul de tout Dig — il reste ${usd(s.remainingUsd)}.`
+    : 'Aucun plafond bloquant. Rien ne part sans votre clic : une image par clic, un appel à la fois, aucune génération en lot.';
+  const row = (k, v) => { dl.appendChild(aiEl('dt', {}, k)); dl.appendChild(aiEl('dd', {}, v)); };
+  row(`Ce mois-ci (${month}, UTC)`, `${usd(tt.monthUsd ?? 0)} — ${tt.monthCalls ?? 0} appel(s)`);
+  row('Cumul de tout Dig', `${usd(tt.totalUsd ?? s.globalSpentUsd)} — ${tt.calls ?? 0} appel(s)${tt.since ? ` depuis le ${icWhen(tt.since)}` : ''} (images ${usd(tt.imagesUsd ?? 0)}, textes ${usd(tt.textUsd ?? 0)})`);
+  row('Atelier d\'icônes seul', usd(s.studioSpentUsd));
+  row('Dernière image', s.lastImage ? `${usd(s.lastImage.cost_usd)} (coût calculé après l'appel)` : 'aucune');
+  row('Avant chaque image', icReserveText(s) || '—');
+  meter.classList.toggle('hidden', !s.capEnabled);
+  document.getElementById('aib-meter').style.width = `${Math.min(100, s.capEnabled && s.capUsd ? (s.globalSpentUsd / s.capUsd) * 100 : 0)}%`;
   icNotice(reached, s.budgetReached ? icBudgetHelp(s) : '', 'warn');
 }
 
 document.getElementById('btn-ic-budget').addEventListener('click', async () => {
   const v = document.getElementById('ic-budget').value.trim();
-  const { ok, data } = await api('PUT', '/api/admin/icons/budget', { studioBudgetUsd: v === '' ? null : Number(v) });
-  ptMessage('aib-msg', ok ? 'Limite enregistrée.' : (data.error || 'Erreur.'), ok);
+  const enabled = document.getElementById('aib-cap-on').checked;
+  const { ok, data } = await api('PUT', '/api/admin/icons/budget', { enabled, ...(v === '' ? {} : { capUsd: Number(v) }) });
+  ptMessage('aib-msg', ok ? (enabled ? 'Plafond activé.' : 'Plafond désactivé : aucun appel n\'est bloqué par le montant.') : (data.error || 'Erreur.'), ok);
   if (ok) loadAiBudget();
 });
 
@@ -5123,7 +5232,7 @@ async function bgAiLoad() {
   document.getElementById('btn-bg-add-ai').disabled = !st.configured;
   document.getElementById('btn-bg-ai-generate').disabled = !st.configured;
   const txt = st.configured
-    ? `IA : ${st.textModel}${st.fake ? ' (mode test)' : ''} — budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
+    ? `IA : ${st.textModel}${st.fake ? ' (mode test)' : ''} — ${st.capEnabled ? `budget restant ≈ ${st.remainingUsd.toFixed(2)} / ${st.budgetUsd} USD` : `dépensé ${st.spentUsd} USD, aucun plafond bloquant`}, texte ≈ ${st.estTextUsd} USD par proposition ; ${st.callsToday}/${st.maxCallsPerDay} appels sur 24 h.`
     : `IA non configurée : ${st.reason}. Création manuelle seulement.`;
   document.getElementById('bg-ai-status').textContent = txt;
   document.getElementById('bg-ai-status-2').textContent = txt;
@@ -6220,7 +6329,7 @@ function stMore(data) {
   const b = data.imageBudget;
   box.appendChild(aiEl('h4', {}, 'Images (atelier d\'icônes)'));
   box.appendChild(aiEl('p', { class: 'muted st-small' }, !b ? 'Atelier indisponible.' : b.configured === false ? `API d'images non configurée : ${b.reason ?? ''}`
-    : `Dépensé atelier : ${b.studioSpentUsd ?? 0} $${b.studioCapUsd != null ? ` / plafond ${b.studioCapUsd} $` : ''} · reste ${b.remainingUsd ?? '—'} $ · aujourd'hui ${b.imagesToday ?? 0}/${b.maxImagesPerDay ?? '—'} images. Aucune image n'est générée automatiquement : lancement par « Illustrer ».`));
+    : `Dépensé atelier : ${b.studioSpentUsd ?? 0} $ · ${b.capEnabled ? `plafond ${b.capUsd} $, reste ${b.remainingUsd ?? '—'} $` : 'aucun plafond bloquant'} · aujourd'hui ${b.imagesToday ?? 0}/${b.maxImagesPerDay ?? '—'} images. Aucune image n'est générée automatiquement : lancement par « Illustrer ».`));
   // Journal
   box.appendChild(aiEl('h4', {}, 'Journal'));
   const jl = aiEl('ul', { class: 'st-list st-journal' });

@@ -133,24 +133,30 @@
     <button class="btn" id="btn-save-config">Enregistrer</button>
     <p id="config-msg" class="success hidden">Sauvegardé !</p>
 
-    <!-- Budget IA (#40) : réglage séparé de l'atelier d'icônes -->
+    <!-- Budget IA (#40) : dépenses réelles journalisées ; plafond désactivé par défaut (décision du 03/11) -->
     <div class="overview-card ic-budget-card" id="ai-budget-card">
       <h3 class="overview-card-title">🤖 Budget IA</h3>
-      <p id="aib-summary">—</p>
-      <div class="ic-meter" aria-hidden="true"><span id="aib-meter"></span></div>
+      <p id="aib-cap-state">—</p>
+      <dl id="aib-totals" class="ic-summary"></dl>
+      <div class="ic-meter hidden" aria-hidden="true" id="aib-meter-wrap"><span id="aib-meter"></span></div>
       <p id="aib-reached" class="ic-notice hidden" role="status"></p>
       <div class="form-actions">
-        <label>Limite de l'atelier d'icônes (USD, facultative)
-          <input type="number" id="ic-budget" min="0" max="1000" step="0.5" placeholder="aucune">
+        <label class="contest-check"><input type="checkbox" id="aib-cap-on"> Activer un plafond bloquant</label>
+        <label>Montant du plafond (USD, cumul de tout Dig)
+          <input type="number" id="ic-budget" min="0.01" max="1000" step="0.5" placeholder="ex. 10">
         </label>
-        <button class="btn" id="btn-ic-budget">Enregistrer la limite</button>
+        <button class="btn" id="btn-ic-budget">Enregistrer</button>
       </div>
       <p id="aib-msg" class="form-msg"></p>
       <details>
-        <summary class="muted">Comment relever le plafond du serveur ?</summary>
-        <p class="muted">Le plafond du serveur protège toutes les dépenses d'images (atelier d'icônes et création de blocs). Il n'est jamais relevé automatiquement.
-          Pour le modifier : changez <code>DIG_IMAGE_BUDGET_USD</code> dans <code>~/.config/dig/openai.env</code> sur le serveur ; la nouvelle valeur est prise en compte sans redémarrage.
-          La limite de l'atelier ci-dessus ne peut que réduire ce plafond (laisser vide = plafond du serveur seul).</p>
+        <summary class="muted">Que mesurent ces montants ?</summary>
+        <p class="muted">Chaque appel IA du panel (images de l'atelier, textes des blocs, collections, badges, actualités) et des scripts d'icônes est inscrit dans un journal, avec son coût.
+          Ce coût est <strong>calculé par Dig</strong> à partir des jetons renvoyés par l'API et des tarifs configurés sur le serveur : c'est une estimation de la facture, pas la facture elle-même.
+          Le tableau de bord OpenAI fait foi ; il peut différer (tarifs, arrondis, et autres projets ou outils qui utiliseraient la même clé ou la même organisation).
+          « Ce mois-ci » se compare à « November spend » d'OpenAI (mois en UTC) ; le cumul part du premier appel journalisé, il n'est jamais remis à zéro et survit aux redémarrages.</p>
+        <p class="muted">Sans plafond, rien ne part sans votre clic : une image par clic, un appel à la fois, au plus 40 images et 40 appels texte par 24 h, aucune génération en lot.
+          Avec un plafond, un appel est refusé si « cumul + estimation de l'appel » dépasse le montant ; il n'est jamais relevé automatiquement.
+          Le fichier du serveur (<code>DIG_IMAGE_BUDGET_USD</code>) ne limite plus que les scripts hors ligne d'icônes.</p>
       </details>
     </div>
   </section>

@@ -28,6 +28,7 @@ const path   = require('path');
 
 const db = require('./db');
 const catalog = require('./blockCatalog');
+const aiSpendCap = require('./aiSpendCap');
 
 const ROOT = path.join(__dirname, '..');
 const API = 'https://api.openai.com/v1';
@@ -46,6 +47,7 @@ const conn = () => db.getDb();
 // ── Schéma (ajout seul pour images et appels) ─────────────────────────────────
 
 function init() {
+  aiSpendCap.init();                // réglages du plafond de dépense IA (désactivé par défaut)
   conn().exec(`
     CREATE TABLE IF NOT EXISTS block_ai_proposals (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,7 +154,10 @@ function status() {
     const spent = _spent();
     return {
       configured: true, fake: !!cfg.fake, imageModel: cfg.editModel || cfg.model, textModel: cfg.textModel,
-      budgetUsd: cfg.budgetUsd, spentUsd: Number(spent.toFixed(4)), remainingUsd: Number((cfg.budgetUsd - spent).toFixed(4)),
+      // Plafond désactivé par défaut (décision du 03/11, server/aiSpendCap.js) : budgetUsd/remainingUsd null
+      ...(() => { const p = aiSpendCap.policy(); return { capEnabled: p.enabled, budgetUsd: p.enabled ? p.capUsd : null,
+        remainingUsd: p.enabled ? Number(Math.max(0, p.capUsd - spent).toFixed(4)) : null }; })(),
+      spentUsd: Number(spent.toFixed(4)),
       estImageUsd: cfg.estCostUsd, estTextUsd: cfg.textEstCostUsd, imageProcessing: _sharpAvailable(),
       callsToday: _callsToday(), maxCallsPerDay: MAX_CALLS_PER_DAY,
     };
@@ -169,17 +174,15 @@ function _callsToday() {
   return conn().prepare("SELECT COUNT(*) n FROM block_ai_calls WHERE created_at >= datetime('now', '-1 day')").get().n;
 }
 
-/** Garde-fous avant tout appel payant : un seul appel à la fois, quota journalier, plafond. */
+/** Garde-fous avant tout appel payant : un seul appel à la fois, quota journalier, plafond s'il est activé (⚙ Config). */
 let _busy = false;
 function _precheck(estUsd) {
   if (_busy) throw new AiError(429, 'Une génération est déjà en cours : patientez.');
   if (_callsToday() >= MAX_CALLS_PER_DAY) throw new AiError(429, `Quota atteint : ${MAX_CALLS_PER_DAY} appels IA par 24 h.`);
   let cfg;
   try { cfg = config(); } catch (err) { throw new AiError(503, `API IA non configurée : ${oa().redact(err.message.replace(os.homedir(), '~'))}`); }
-  const spent = _spent();
-  if (spent + estUsd > cfg.budgetUsd + 1e-9) {
-    throw new AiError(402, `Plafond de dépense IA atteint (${spent.toFixed(2)} / ${cfg.budgetUsd} USD) : relever DIG_IMAGE_BUDGET_USD dans la configuration.`);
-  }
+  const why = aiSpendCap.refusal(_spent(), estUsd);
+  if (why) throw new AiError(402, why);
   return cfg;
 }
 
