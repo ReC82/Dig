@@ -1,5 +1,102 @@
 # Ticket #43 — [P1] SMTP du jeu — vérification d'adresse, mot de passe oublié et notifications
 
+## Mise à jour du 03/11/2026 — diagnostic pré-bêta (inscription et mot de passe oublié)
+
+Demande du propriétaire (commentaire du 02/11) : vérifier ce qui fonctionne aujourd'hui, distinguer
+OAuth, SMTP absent et compte de test, proposer un parcours d'inscription réellement utilisable pour
+une pré-bêta de 3 à 5 proches avec des avertissements précis, et classer le blocage de la récupération.
+
+### État réel
+
+**Déployé en production (SHA `cfa125c`, 03/11 03:14 Bruxelles) — en attente de recette.**
+Aucune configuration SMTP n'a été créée ni simulée ; aucun identifiant demandé ni journalisé.
+
+### Diagnostic (production, 03/11, mesuré et non supposé)
+
+| Parcours | État aujourd'hui | Preuve |
+|---|---|---|
+| Inscription nom + e-mail + mot de passe | **Fonctionne.** Compte créé et connecté tout de suite ; aucune vérification d'adresse exigée pour jouer. | Mode d'inscription `open` (`/api/beta/config`) ; essai complet inscription → déconnexion → reconnexion sur un serveur de test avec le code déployé. |
+| Connexion par mot de passe | **Fonctionne.** | Même essai. |
+| Vérification de l'adresse e-mail | **Inactive.** L'adresse est enregistrée mais jamais vérifiée ; le bouton « Vérifier » n'apparaît pas. | `/api/me` → `"mail":false`. |
+| Mot de passe oublié (libre-service) | **Impossible.** Le lien est masqué et l'API répond 503 « Envoi d'e-mails indisponible ». | `POST /api/auth/password/forgot` → 503 sur le serveur de test. |
+| Mot de passe oublié (par toi) | **Fonctionne.** Panel admin → fiche du joueur → « Mot de passe temporaire » (saisie du nom pour confirmer, affiché une seule fois, sessions fermées). Le joueur le change ensuite dans Paramètres → Compte. | Route `POST /api/admin/players/:id/temp-password` (#57), couverte par les tests. |
+| Google (OAuth via Auth0) | **Pas un parcours d'inscription.** Mode `link` limité à une liste de comptes : pas de bouton public, pas de création de compte « Google seul ». | `/api/me` → `social.loginButton:false`, `canLink:false`. |
+| Compte de test | Aucun compte de test dédié n'est nécessaire : un compte créé normalement par l'inscription suffit. La base ne contient aujourd'hui qu'**un seul compte**. | Empreintes de déploiement (`users` : 1 ligne). |
+| DNS d'envoi | Inchangé : `lodygames.com` et `lodylands.com` ont toujours un MX nul (`0 .`), ni SPF ni DMARC. | Requête DNS publique du 03/11. |
+
+### Changement livré (petit, côté joueur)
+
+Quand les e-mails sont inactifs, l'écran Paramètres → Compte dit précisément quoi faire :
+
+- **Onglet « Créer un compte »** : « ⚠️ Bêta : la récupération du mot de passe par e-mail n'est pas
+  encore active. Note bien ton mot de passe. Ton adresse n'est pas vérifiée pour l'instant. »
+- **Onglet « Connexion »** : « Mot de passe oublié ? La récupération par e-mail n'est pas encore
+  active : contacte l'organisateur de la bêta, qui peut te donner un mot de passe temporaire (à
+  changer ensuite dans Paramètres). » + bouton Discord **seulement si** un lien Discord est
+  enregistré dans le panel (onglet Bêta) — aucun lien inventé.
+- FR, EN, NL, ES. Dès que les e-mails seront actifs (`mail:true`), ces textes disparaissent et le
+  lien « Mot de passe oublié ? » automatique revient, sans nouveau déploiement.
+
+Fichiers : `public/js/main.js` (`_noMailForgotHtml`, deux conditions dans le formulaire),
+`public/js/beta.js` (lecture du lien Discord), `public/js/i18n.js` (2 clés × 4 langues),
+`test/account-forms.test.js` (nouveau test). Aucune modification serveur, aucune migration.
+
+### Classement du blocage
+
+- **Pré-bêta à 3–5 proches : NON bloquant.** Tu connais chaque joueur et tu peux lui donner un mot
+  de passe temporaire depuis le panel en une minute. Les joueurs sont prévenus à l'inscription.
+- **MVP public : BLOQUANT** (inchangé). Un inconnu qui oublie son mot de passe n'a aucun moyen
+  autonome de récupérer son compte, et tu ne peux pas vérifier son identité.
+
+### Parcours recommandé pour la pré-bêta
+
+1. Envoie le lien `https://dig.lodygames.com` à tes proches (inscription ouverte) ou, si tu veux
+   limiter l'accès, passe l'inscription en « Sur invitation » dans le panel (onglet Bêta) et
+   envoie un code à chacun.
+2. Demande-leur d'utiliser une vraie adresse e-mail (elle servira à la récupération quand le SMTP
+   sera actif) et de noter leur mot de passe.
+3. Optionnel : enregistre le lien Discord de la bêta dans le panel → il apparaît sous l'avertissement
+   « Mot de passe oublié ? ».
+4. Oubli : panel → Joueurs → fiche → « Mot de passe temporaire » → transmets-le en privé.
+
+### Vérifications
+
+- `npm test` 454/454 sur la branche, sur `develop` (`cfa125c`) et sur la release exacte.
+- Navigateur headless (serveur de test, puis production) en 1280×900 et 390×844 : les deux textes
+  s'affichent, pas de lien « Mot de passe oublié » automatique, aucune erreur JavaScript.
+- Copie de la base de production démarrée en mode production : empreintes identiques avant/après.
+- Déploiement `fbc83f7 → cfa125c` : sauvegarde vérifiée
+  `~/backups/dig/dig-20261103-031357-pre-deploy-cfa125c.sqlite` ; 2 domaines 200 ;
+  `/api/version` = `1.0.0+cfa125c` ; journal sans erreur ; `quick_check` ok ; empreintes joueurs
+  identiques à la sauvegarde pré-déploiement. Aucune génération IA en cours au moment du
+  redémarrage (dernier appel admin à 00:26).
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep fbc83f7` + `sudo systemctl restart dig`
+  (aucune dépendance ni donnée modifiée).
+
+### Test fonctionnel à faire (5 minutes)
+
+1. Fenêtre privée → https://dig.lodygames.com → ⚙️ Paramètres → Compte.
+   Attendu : sous « Se connecter », le texte « Mot de passe oublié ? La récupération par e-mail
+   n'est pas encore active… ».
+2. Onglet « Créer un compte » → attendu : l'avertissement ⚠️ Bêta sous les indications.
+3. Crée un compte de test (ex. `test-preb1`, une de tes adresses), joue un peu, déconnecte-toi.
+4. Panel → Joueurs → `test-preb1` → « Mot de passe temporaire » → reconnecte-toi avec ce mot de
+   passe → Paramètres → change-le. Attendu : progression conservée.
+
+### Décisions demandées (inchangées, nécessaires seulement pour le MVP public)
+
+1. Fournisseur d'envoi : A) compte SMTP existant, B) Brevo (UE, gratuit jusqu'à 300 e-mails/jour),
+   C) Amazon SES (exclu sans validation AWS). **Recommandation : B.**
+2. Adresse d'expédition : a) `no-reply@mail.lodygames.com` avec SPF/DKIM/DMARC, b) domaine
+   principal (retirer le MX nul). **Recommandation : a**, avec `MAIL_REPLY_TO` vers ton support.
+3. Puis lancer toi-même en SSH : `sudo bash /home/ubuntu/Dig/scripts/dig-smtp-config.sh`.
+
+### Restant
+
+- MVP public : choix du fournisseur + DNS + lancement du script (propriétaire).
+- Après lancement : rien d'autre dans ce ticket.
+
+
 Lien : https://github.com/ReC82/Dig/issues/43
 
 ## 1. État réel (30/10/2026, 19:35 Bruxelles)
