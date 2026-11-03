@@ -8,7 +8,7 @@ Réponse aux deux commentaires du propriétaire du 03/11 : « NUIT 03/11 — ver
 
 ### 1. État réel
 
-**Déployé en production (SHA `@@DEPLOY@@`), en attente de recette.** Le panneau 🧪 Bêta a été réorganisé et le parcours de l'invité simplifié. **Aucun réglage de production n'a été modifié** : en production, l'inscription reste « ouverte à tous », le bandeau est masqué et aucun lien Discord n'est configuré, jusqu'à ce que tu passes par « Configurer la bêta ». Aucune invitation n'a été créée ni envoyée.
+**Déployé en production (SHA `2b6c457`), en attente de recette.** Le panneau 🧪 Bêta a été réorganisé et le parcours de l'invité simplifié. **Aucun réglage de production n'a été modifié** : en production, l'inscription reste « ouverte à tous », le bandeau est masqué et aucun lien Discord n'est configuré, jusqu'à ce que tu passes par « Configurer la bêta ». Aucune invitation n'a été créée ni envoyée.
 
 ### 2. Verdict par audience
 
@@ -63,8 +63,8 @@ Cohérence de **toutes** les voies d'inscription (point 5 de la recette) :
 
 ### 4. SHA et procédure de test
 
-- Branche `feature/57-beta-fermee`, commit `@@BRANCH@@`, intégré dans `develop` : `@@DEV@@`.
-- `npm test` : @@TESTS@@.
+- Branche `feature/57-beta-fermee`, commit `045bc5b`, intégré dans `develop` : `2b6c457`.
+- `npm test` : 435/435 dans le worktree et dans la release `2b6c457` (nouveaux : état du lien d'invitation, vague courante, aucune autre voie de création de compte, route `GET /api/beta/invite/:code`).
 - Essai navigateur (hors `npm test`, base neuve) :
   `PW=…/playwright-core CHROME=…/chrome-headless-shell BASE=http://127.0.0.1:3157 ADMIN=<secret de test> OUT=/tmp/x node test/e2e/beta-invite.e2e.js`.
   Résultat : 8 étapes ✓ (tableau de bord sans configuration, configuration avec aperçu et toast, invitation en 2 clics avec copie vérifiée dans le presse-papiers, invité mobile en navigation privée sans code, lien réutilisé, refus sans lien, mode fermé, aucune erreur JavaScript).
@@ -81,7 +81,11 @@ Captures (avant / après), dans `docs/claude-reports/img/` :
 
 ### 6. Déploiement et recette de 3 minutes
 
-@@DEPLOYBLOCK@@
+**Déployé : `2b6c457`** (avant : `3722008`), le 03/11 à 01:08 (Bruxelles), par `scripts/deploy.sh`.
+- Sauvegarde vérifiée avant déploiement : `~/backups/dig/dig-20261103-010757-pre-deploy-2b6c457.sqlite`.
+- Avant : copie de la production démarrée en `NODE_ENV=production`. `/health` et `/api/version` répondent, les empreintes des 6 tables joueurs sont identiques, aucune table n'est ajoutée ni supprimée.
+- Après : les 2 domaines répondent 200 avec la version `1.0.0+2b6c457`, `/health` renvoie `db:true`, `quick_check` vaut `ok`, aucune erreur dans le journal, et les empreintes de production sont identiques à la sauvegarde pré-déploiement. Chromium sur la production (1280×900 et 390×844) avec un lien d'invitation inconnu : aucune erreur JavaScript, aucun bandeau, aucun message (inscription encore « ouverte à tous »).
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 3722008` puis `sudo systemctl restart dig` (aucune migration, donc rien à défaire dans la base).
 
 **Recette de 3 minutes (toi) :**
 1. Panel → 🧪 Bêta. Tu vois seulement un tableau de bord : « Inscriptions ouvertes à tous » et un avertissement.
