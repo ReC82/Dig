@@ -883,7 +883,24 @@
         <h3 class="overview-card-title" id="bk-form-title">Nouveau bloc</h3>
         <button type="button" class="btn btn-outline" id="btn-bk-close" aria-label="Fermer la fiche">✕ Fermer</button>
       </div>
-      <p id="bk-sheet-summary" class="bk-sheet-summary"></p>
+
+      <!-- Synthèse (recette du 03/11) : valeurs principales lisibles sans défiler, mises à jour pendant la saisie. -->
+      <section class="bk-overview" aria-label="Synthèse du bloc">
+        <div id="bk-ov-thumb" class="bk-thumb bk-ov-thumb"></div>
+        <div class="bk-ov-main">
+          <p class="bk-ov-name"><strong id="bk-ov-name">—</strong> <span id="bk-sheet-summary" class="bk-sheet-summary"></span></p>
+          <dl class="bk-ov-facts">
+            <div><dt>Catégorie</dt><dd id="bk-ov-cat">—</dd></div>
+            <div><dt>Rareté</dt><dd id="bk-ov-rarity">—</dd></div>
+            <div><dt>Profondeur mini</dt><dd id="bk-ov-min">—</dd></div>
+            <div class="bk-ov-odds"><dt><label for="bk-ov-depth">Probabilité à</label> <input id="bk-ov-depth" type="number" min="1" value="250" aria-describedby="bk-ov-odds"> m</dt><dd id="bk-ov-odds">—</dd></div>
+            <div><dt>PV de base</dt><dd id="bk-ov-hp">—</dd></div>
+            <div><dt>Récompense</dt><dd id="bk-ov-reward">—</dd></div>
+          </dl>
+          <small id="bk-ov-visual" class="bk-ov-visual"></small>
+        </div>
+      </section>
+
       <div id="bk-sheet-draft" class="bk-sheet-draft hidden">
         <p id="bk-sheet-draft-text"></p>
         <table class="bk-sheet-diff"><thead><tr><th>Champ</th><th id="bk-diff-pub">Version publiée</th><th>Brouillon</th></tr></thead><tbody id="bk-sheet-diff-body"></tbody></table>
@@ -891,46 +908,59 @@
           <button type="button" class="btn" id="btn-bk-revert">↺ Annuler les modifications de ce bloc</button>
           <button type="button" class="btn btn-ghost" id="btn-bk-remove">Retirer ce nouveau bloc du brouillon</button>
           <button type="button" class="btn btn-ghost btn-danger-text" id="btn-bk-discard-all">Abandonner tout le brouillon…</button>
+          <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-draft" aria-label="Aide : annuler ou abandonner">ⓘ</button>
         </div>
-        <small class="muted">« Annuler les modifications de ce bloc » remet ce seul bloc à sa version publiée, sans rien publier ; les autres changements du brouillon restent. « Abandonner tout le brouillon » supprime tous les changements non publiés de tous les blocs.</small>
+        <small id="bk-h-draft" class="bk-hint" hidden>« Annuler les modifications de ce bloc » remet ce seul bloc à sa version publiée, sans rien publier ; les autres changements du brouillon restent. « Abandonner tout le brouillon » supprime tous les changements non publiés de tous les blocs.</small>
       </div>
 
-      <fieldset class="bk-sec"><legend>Identité et traductions</legend>
+      <details class="bk-sec bk-acc" id="bk-acc-spawn"><summary><span class="bk-acc-title">Apparition et probabilités</span> <span class="bk-acc-sum" id="bk-acc-spawn-sum"></span></summary>
         <div class="bk-grid">
-          <div class="bk-field"><label><span>Identifiant stable <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-id" aria-label="Aide">ⓘ</button></span><input id="bk-id" type="text" maxlength="40" placeholder="obsidienne"></label><small id="bk-h-id" class="bk-hint" hidden>Nom technique définitif (a-z, 0-9, _), utilisé par les sauvegardes des joueurs : il ne peut plus changer une fois créé.</small></div>
-          <div class="bk-field"><label>Nom FR<input id="bk-name-fr" type="text" maxlength="40"></label><small id="bk-name-src-fr" class="bk-name-src"></small></div>
-          <div class="bk-field"><label>Nom EN<input id="bk-name-en" type="text" maxlength="40"></label><small id="bk-name-src-en" class="bk-name-src"></small></div>
-          <div class="bk-field"><label>Nom NL<input id="bk-name-nl" type="text" maxlength="40"></label><small id="bk-name-src-nl" class="bk-name-src"></small></div>
-          <div class="bk-field"><label>Nom ES<input id="bk-name-es" type="text" maxlength="40"></label><small id="bk-name-src-es" class="bk-name-src"></small></div>
+          <div class="bk-field"><label><span>Catégorie <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-cat" aria-label="Aide : catégorie">ⓘ</button></span><select id="bk-category"></select></label><small id="bk-h-cat" class="bk-hint" hidden></small></div>
+          <div class="bk-field"><label><span>Rareté (étiquette) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-rarity" aria-label="Aide : rareté">ⓘ</button></span><select id="bk-rarity"></select></label><small id="bk-h-rarity" class="bk-hint" hidden>La rareté est une étiquette : elle ne fixe pas la fréquence (c'est le poids). Deux effets réels : la Chance du joueur multiplie le poids des blocs rare, épique et légendaire (+10 % par niveau), et pour un coffre elle choisit la table de récompenses.</small></div>
+          <div class="bk-field"><label><span>Profondeur minimale (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-min" aria-label="Aide : profondeur minimale">ⓘ</button></span><input id="bk-min" type="number" min="1"></label><small id="bk-h-min" class="bk-hint" hidden>Le bloc peut apparaître à partir de cette profondeur, et ensuite à toutes les profondeurs plus grandes (il n'existe pas de maximum). Exemple : 25 → absent de 1 à 24 m, possible dès 25 m.</small></div>
+          <div class="bk-field"><label><span>Poids d'apparition <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-weight" aria-label="Aide : poids">ⓘ</button></span><input id="bk-weight" type="number" min="0.001" step="any"></label><small id="bk-h-weight" class="bk-hint" hidden>Fréquence relative. À une profondeur donnée, probabilité = poids du bloc ÷ somme des poids de tous les blocs disponibles à cette profondeur. Exemple : poids 5 parmi des blocs totalisant 100 → 5 %. Ajouter un bloc fait baisser la part de tous les autres.</small></div>
         </div>
+        <div id="bk-eff" class="bk-eff" aria-live="polite"></div>
+        <details class="bk-sub" id="bk-acc-eff"><summary>Tableau détaillé par profondeur et atténuation en profondeur</summary>
+          <div id="bk-eff-detail" class="bk-eff"></div>
+          <div class="bk-grid">
+            <div class="bk-field"><label><span>Atténué au-delà de (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-fade" aria-label="Aide : atténuation">ⓘ</button></span><input id="bk-fade-from" type="number" min="1" placeholder="jamais"></label><small id="bk-h-fade" class="bk-hint" hidden>Facultatif. Au-delà de cette profondeur, le bloc utilise le « poids atténué » au lieu du poids normal : il devient rare en profondeur sans disparaître. Exemple : terre, atténuée au-delà de 50 m avec un poids 0,5 au lieu de 40. Vide = jamais atténué.</small></div>
+            <div class="bk-field"><label><span>Poids atténué (&gt; 0, &lt; poids) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-fadew" aria-label="Aide : poids atténué">ⓘ</button></span><input id="bk-fade-weight" type="number" min="0.001" step="any"></label><small id="bk-h-fadew" class="bk-hint" hidden>Poids utilisé au-delà de la profondeur d'atténuation. Obligatoire si une profondeur d'atténuation est saisie ; doit être plus petit que le poids normal et supérieur à 0.</small></div>
+          </div>
+        </details>
+      </details>
+
+      <details class="bk-sec bk-acc" id="bk-acc-reward"><summary><span class="bk-acc-title">Points de vie et récompense</span> <span class="bk-acc-sum" id="bk-acc-reward-sum"></span></summary>
+        <div class="bk-grid">
+          <div class="bk-field"><label><span>PV de base <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-hp" aria-label="Aide : PV">ⓘ</button></span><input id="bk-hp" type="number" min="1"></label><small id="bk-h-hp" class="bk-hint" hidden>Points de vie à 1 m. Le jeu les multiplie par 1 + 0,12 × (profondeur − 1). Exemple : 100 PV de base → 100 PV à 1 m, 1 288 PV à 100 m.</small></div>
+          <div class="bk-field"><label><span>Récompense de base (pièces) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-reward" aria-label="Aide : récompense">ⓘ</button></span><input id="bk-reward" type="number" min="0"></label><small id="bk-h-reward" class="bk-hint" hidden>Pièces gagnées en cassant le bloc à 1 m. Le jeu les multiplie par 1 + 0,05 × (profondeur − 1), avant les bonus du joueur. Exemple : 20 → 20 pièces à 1 m, 119 à 100 m.</small></div>
+          <div class="bk-field"><label class="bk-check"><input type="checkbox" id="bk-gem-reward" checked> Rapporte 1 gemme à chaque bloc cassé</label><small id="bk-gem-note" class="bk-hint-static"></small></div>
+        </div>
+      </details>
+
+      <details class="bk-sec bk-acc" id="bk-acc-names"><summary><span class="bk-acc-title">Identifiant et traductions</span> <span class="bk-acc-sum" id="bk-acc-names-sum"></span></summary>
+        <div class="bk-field bk-id-field"><label><span>Identifiant stable <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-id" aria-label="Aide : identifiant">ⓘ</button></span><input id="bk-id" type="text" maxlength="40" placeholder="obsidienne"></label><small id="bk-h-id" class="bk-hint" hidden>Nom technique définitif (a-z, 0-9, _), utilisé par les sauvegardes des joueurs : il ne peut plus changer une fois créé.</small></div>
+        <div class="bk-lang-row">
+          <div class="co-lang-switch" id="bk-langs" role="group" aria-label="Langue affichée">
+            <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true">FR</button>
+            <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false">EN</button>
+            <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false">NL</button>
+            <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false">ES</button>
+          </div>
+          <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-names" aria-label="Aide : traductions">ⓘ</button>
+        </div>
+        <small id="bk-h-names" class="bk-hint" hidden>● nom personnalisé (prioritaire) · ✓ traduction intégrée au jeu · ○ manquante (le jeu affiche alors le nom FR). Un champ vide n'est donc pas forcément une traduction manquante : la ligne sous le champ indique le nom réellement affiché. L'IA ne remplit que les langues manquantes, comme proposition à relire, et n'enregistre rien.</small>
+        <div class="bk-field bk-lang-field" data-lang="fr"><label>Nom FR<input id="bk-name-fr" type="text" maxlength="40"></label><small id="bk-name-src-fr" class="bk-name-src"></small></div>
+        <div class="bk-field bk-lang-field hidden" data-lang="en"><label>Nom EN<input id="bk-name-en" type="text" maxlength="40"></label><small id="bk-name-src-en" class="bk-name-src"></small></div>
+        <div class="bk-field bk-lang-field hidden" data-lang="nl"><label>Nom NL<input id="bk-name-nl" type="text" maxlength="40"></label><small id="bk-name-src-nl" class="bk-name-src"></small></div>
+        <div class="bk-field bk-lang-field hidden" data-lang="es"><label>Nom ES<input id="bk-name-es" type="text" maxlength="40"></label><small id="bk-name-src-es" class="bk-name-src"></small></div>
         <div class="form-actions bk-translate-row">
           <button type="button" class="btn btn-outline" id="btn-bk-translate">✨ Générer les traductions manquantes avec l'IA</button>
           <small id="bk-translate-msg" class="muted"></small>
         </div>
-        <small class="muted">En jeu, chaque langue affiche : le nom personnalisé de cette langue, sinon la traduction intégrée au jeu, sinon le nom FR. Un champ vide n'est donc pas forcément une traduction manquante : la ligne sous chaque champ indique le nom réellement affiché et sa provenance. L'IA ne remplit que les langues manquantes, comme proposition à relire, et n'enregistre rien.</small>
-      </fieldset>
+      </details>
 
-      <fieldset class="bk-sec"><legend>Apparition et rareté</legend>
-        <div class="bk-grid">
-          <div class="bk-field"><label><span>Catégorie <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-cat" aria-label="Aide">ⓘ</button></span><select id="bk-category"></select></label><small id="bk-h-cat" class="bk-hint" hidden></small></div>
-          <div class="bk-field"><label><span>Rareté (étiquette) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-rarity" aria-label="Aide">ⓘ</button></span><select id="bk-rarity"></select></label><small id="bk-h-rarity" class="bk-hint" hidden>La rareté est une étiquette : elle ne fixe pas la fréquence (c'est le poids). Deux effets réels : la Chance du joueur multiplie le poids des blocs rare, épique et légendaire (+10 % par niveau), et pour un coffre elle choisit la table de récompenses. La probabilité réelle est affichée ci-dessous.</small></div>
-          <div class="bk-field"><label><span>Profondeur minimale (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-min" aria-label="Aide">ⓘ</button></span><input id="bk-min" type="number" min="1"></label><small id="bk-h-min" class="bk-hint" hidden>Le bloc peut apparaître à partir de cette profondeur, et ensuite à toutes les profondeurs plus grandes (il n'existe pas de maximum). Exemple : 25 → absent de 1 à 24 m, possible dès 25 m.</small></div>
-          <div class="bk-field"><label><span>Poids d'apparition <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-weight" aria-label="Aide">ⓘ</button></span><input id="bk-weight" type="number" min="0.001" step="any"></label><small id="bk-h-weight" class="bk-hint" hidden>Fréquence relative. À une profondeur donnée, probabilité = poids du bloc ÷ somme des poids de tous les blocs disponibles à cette profondeur. Exemple : poids 5 parmi des blocs totalisant 100 → 5 %. Ajouter un bloc fait baisser la part de tous les autres.</small></div>
-          <div class="bk-field"><label><span>Atténué au-delà de (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-fade" aria-label="Aide">ⓘ</button></span><input id="bk-fade-from" type="number" min="1" placeholder="jamais"></label><small id="bk-h-fade" class="bk-hint" hidden>Facultatif. Au-delà de cette profondeur, le bloc utilise le « poids atténué » au lieu du poids normal : il devient rare en profondeur sans disparaître. Exemple : terre, atténuée au-delà de 50 m avec un poids 0,5 au lieu de 40. Vide = jamais atténué.</small></div>
-          <div class="bk-field"><label><span>Poids atténué (&gt; 0, &lt; poids) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-fadew" aria-label="Aide">ⓘ</button></span><input id="bk-fade-weight" type="number" min="0.001" step="any"></label><small id="bk-h-fadew" class="bk-hint" hidden>Poids utilisé au-delà de la profondeur d'atténuation. Obligatoire si une profondeur d'atténuation est saisie ; doit être plus petit que le poids normal et supérieur à 0.</small></div>
-        </div>
-        <div id="bk-eff" class="bk-eff" aria-live="polite"></div>
-      </fieldset>
-
-      <fieldset class="bk-sec"><legend>Récompenses et gemmes</legend>
-        <div class="bk-grid">
-          <div class="bk-field"><label><span>PV de base <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-hp" aria-label="Aide">ⓘ</button></span><input id="bk-hp" type="number" min="1"></label><small id="bk-h-hp" class="bk-hint" hidden>Points de vie à 1 m. Le jeu les multiplie par 1 + 0,12 × (profondeur − 1). Exemple : 100 PV de base → 100 PV à 1 m, 1 288 PV à 100 m.</small></div>
-          <div class="bk-field"><label><span>Récompense de base (pièces) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-reward" aria-label="Aide">ⓘ</button></span><input id="bk-reward" type="number" min="0"></label><small id="bk-h-reward" class="bk-hint" hidden>Pièces gagnées en cassant le bloc à 1 m. Le jeu les multiplie par 1 + 0,05 × (profondeur − 1), avant les bonus du joueur. Exemple : 20 → 20 pièces à 1 m, 119 à 100 m.</small></div>
-          <div class="bk-field"><label class="bk-check"><input type="checkbox" id="bk-gem-reward" checked> Rapporte 1 gemme à chaque bloc cassé</label><small id="bk-gem-note" class="bk-hint-static"></small></div>
-        </div>
-      </fieldset>
-
-      <fieldset class="bk-sec"><legend>Visuel</legend>
+      <details class="bk-sec bk-acc" id="bk-acc-visual"><summary><span class="bk-acc-title">Visuel</span> <span class="bk-acc-sum" id="bk-acc-visual-sum"></span></summary>
         <div class="bk-visual-row">
           <div class="bk-preview-col">
             <div id="bk-preview" class="bk-thumb"></div>
@@ -939,27 +969,40 @@
           <div id="bk-sheet-art" class="bk-sheet-art">
             <p id="bk-sheet-art-text"></p>
             <button type="button" class="btn" id="btn-bk-studio">🎨 Ouvrir dans l'atelier d'icônes</button>
+            <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-visual" aria-label="Aide : priorité d'affichage">ⓘ</button>
           </div>
         </div>
-        <small class="muted">Priorité d'affichage en jeu : 1. image personnalisée du catalogue (options avancées) ; 2. icône de la bibliothèque validée (v1) ; 3. l'emoji, seulement en secours si aucune image n'existe ou ne se charge.</small>
-      </fieldset>
+        <small id="bk-h-visual" class="bk-hint" hidden>Priorité d'affichage en jeu : 1. image personnalisée du catalogue (section Avancé) ; 2. icône de la bibliothèque validée (v1) ; 3. l'emoji, seulement en secours si aucune image n'existe ou ne se charge.</small>
+      </details>
 
-      <details class="bk-sec bk-adv"><summary>Options avancées (emoji de secours, image, couleurs, activation)</summary>
+      <details class="bk-sec bk-acc bk-adv" id="bk-acc-adv"><summary><span class="bk-acc-title">Avancé</span> <span class="bk-acc-sum" id="bk-acc-adv-sum">emoji de secours, image, couleurs, activation</span></summary>
         <div class="bk-grid">
-          <div class="bk-field"><label><span>Emoji de secours <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-icon" aria-label="Aide">ⓘ</button></span><input id="bk-icon" type="text" maxlength="8"></label><small id="bk-h-icon" class="bk-hint" hidden>Affiché seulement si aucune image (personnalisée ou bibliothèque validée) n'est disponible ou ne se charge pas. Obligatoire comme filet de sécurité.</small></div>
-          <div class="bk-field"><label><span>Image personnalisée (facultatif) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-image" aria-label="Aide">ⓘ</button></span><input id="bk-image" type="text" maxlength="200"></label><small id="bk-h-image" class="bk-hint" hidden>Chemin /assets/….webp|png|svg ou /media/blocks/….webp. Prioritaire sur la bibliothèque v1. Normalement rempli par l'atelier d'icônes, pas à la main.</small></div>
+          <div class="bk-field"><label><span>Emoji de secours <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-icon" aria-label="Aide : emoji">ⓘ</button></span><input id="bk-icon" type="text" maxlength="8"></label><small id="bk-h-icon" class="bk-hint" hidden>Affiché seulement si aucune image (personnalisée ou bibliothèque validée) n'est disponible ou ne se charge pas. Obligatoire comme filet de sécurité.</small></div>
+          <div class="bk-field"><label><span>Image personnalisée (facultatif) <button type="button" class="bk-info" aria-expanded="false" aria-controls="bk-h-image" aria-label="Aide : image">ⓘ</button></span><input id="bk-image" type="text" maxlength="200"></label><small id="bk-h-image" class="bk-hint" hidden>Chemin /assets/….webp|png|svg ou /media/blocks/….webp. Prioritaire sur la bibliothèque v1. Normalement rempli par l'atelier d'icônes, pas à la main.</small></div>
           <div class="bk-field"><label>Couleur de fond (#… ou linear-gradient)<input id="bk-color" type="text" maxlength="80"></label></div>
           <div class="bk-field"><label>Accent / bordure (#…)<input id="bk-accent" type="text" maxlength="9"></label></div>
-          <div class="bk-field"><label class="bk-check"><input type="checkbox" id="bk-active" checked> Actif (peut apparaître)</label><small class="bk-hint-static">Désactiver un bloc publié l'empêche d'apparaître à nouveau ; les sauvegardes qui le contiennent restent valides.</small></div>
+          <div class="bk-field"><label class="bk-check"><input type="checkbox" id="bk-active" checked> Actif (peut apparaître)</label><small class="bk-hint-static">Désactivé : n'apparaît plus ; les sauvegardes qui le contiennent restent valides.</small></div>
         </div>
       </details>
 
-      <div class="form-actions bk-sheet-actions">
-        <button class="btn" id="btn-bk-save">Enregistrer dans le brouillon</button>
-        <span id="bk-dirty" class="bk-dirty hidden">● modifications non enregistrées</span>
+      <details class="bk-help-full" id="bk-help-full"><summary>❔ Aide complète de la fiche (facultatif)</summary>
+        <ul>
+          <li><strong>Rien n'est modifié à l'ouverture.</strong> « Enregistrer dans le brouillon » ne change rien pour les joueurs : la mise en jeu se fait par « Publier » (section Brouillon et publication, sous la liste).</li>
+          <li><strong>Probabilité</strong> = poids du bloc ÷ somme des poids des blocs disponibles à cette profondeur, calculée sur tout le catalogue de travail et cette fiche telle que saisie. La rareté ne fixe pas la fréquence ; la Chance du joueur favorise seulement rare, épique et légendaire (+10 % de poids par niveau).</li>
+          <li><strong>Traductions</strong> : en jeu, chaque langue affiche le nom personnalisé, sinon la traduction intégrée, sinon le nom FR.</li>
+          <li><strong>Visuel</strong> : image personnalisée, sinon icône v1 validée, sinon emoji de secours. L'atelier d'icônes ne remplace rien sans votre accord.</li>
+          <li><strong>Aides ⓘ</strong> : un clic ouvre l'explication d'un réglage (une seule à la fois), un second la referme.</li>
+        </ul>
+      </details>
+
+      <div class="bk-sheet-actions">
+        <div class="form-actions">
+          <button class="btn" id="btn-bk-save">Enregistrer dans le brouillon</button>
+          <button type="button" class="btn btn-outline" id="btn-bk-cancel">Annuler</button>
+          <span id="bk-dirty" class="bk-dirty hidden">● modifications non enregistrées</span>
+        </div>
+        <p id="bk-form-msg" class="hidden"></p>
       </div>
-      <p id="bk-form-msg" class="hidden"></p>
-      <p class="muted" style="font-size:0.75rem">L'ouverture de la fiche ne modifie rien. « Enregistrer dans le brouillon » ne change rien pour les joueurs : la mise en jeu se fait par « Publier » (section Brouillon et publication, sous la liste).</p>
     </dialog>
 
     <dialog id="bk-leave-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="bk-leave-title">
