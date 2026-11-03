@@ -2044,13 +2044,16 @@ function shPreview(it) {
     it.valid_until ? `Jusqu'au ${it.valid_until.slice(0, 10)}` : ''].filter(Boolean).join(' · ');
   if (facts) body.appendChild(aiEl('div', { class: 'sh-prev-facts' }, facts));
   li.appendChild(body);
-  const off = it.unavailable || it.stock_remaining === 0 || it.kind === 'real';
-  const label = it.kind === 'real' ? 'Bientôt' : it.unavailable ? 'Indisponible' : it.stock_remaining === 0 ? 'Épuisé' : 'Échanger';
+  // Recette #34-L : un article incomplet ou masqué ne montre pas « Échanger » (le joueur ne pourrait pas l'échanger).
+  const missing = [!(it.cost >= 1) ? 'prix' : '', !it.texts.fr.title.trim() ? 'titre français' : ''].filter(Boolean);
+  const label = missing.length ? 'À compléter' : !it.visible ? 'Masqué' : it.kind === 'real' ? 'Bientôt'
+    : it.unavailable ? 'Indisponible' : it.stock_remaining === 0 ? 'Épuisé' : 'Échanger';
   const buy = aiEl('div', { class: 'sh-prev-buy' });
-  buy.appendChild(aiEl('span', { class: 'sh-prev-cost' }, it.cost ? shPts(it.cost) : '? pts'));
-  buy.appendChild(aiEl('span', { class: `sh-prev-btn${off ? ' off' : ''}` }, label));
+  buy.appendChild(aiEl('span', { class: `sh-prev-cost${it.cost >= 1 ? '' : ' unset'}` }, it.cost >= 1 ? shPts(it.cost) : 'Prix à définir'));
+  buy.appendChild(aiEl('span', { class: `sh-prev-btn${label === 'Échanger' ? '' : ' off'}` }, label));
   li.appendChild(buy);
   document.getElementById('sh-prev-state').textContent = [
+    missing.length ? `✏️ À compléter : ${missing.join(', ')}` : '',
     it.visible ? '✅ Visible dans Saison → Boutique de cadeaux' : '🙈 Masqué : les joueurs ne le voient pas',
     it.kind === 'real' ? 'cadeau réel : non échangeable tant que #27 est verrouillé' : '',
     'Un joueur sans assez de points voit « Il manque … ».'].filter(Boolean).join(' · ');

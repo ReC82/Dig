@@ -101,6 +101,11 @@ test('admin : fiche article structurée, une langue à la fois, champs réels co
   assert.doesNotMatch(r, /\.value = ''/, 'changer de sorte ne vide aucun champ');
   assert.match(r, /sh-real-kept/);
   assert.match(body(adminJs, 'shLang'), /d\.dataset\.lang !== l/);
+  // Recette #34-L : aperçu « Prix à définir », pas de « Échanger » pour un article incomplet ou masqué
+  const p = body(adminJs, 'shPreview');
+  assert.match(p, /'Prix à définir'/);
+  assert.doesNotMatch(p, /'\? pts'/);
+  assert.match(p, /missing\.length \? 'À compléter' : !it\.visible \? 'Masqué'/);
 });
 
 test('admin : sélecteur d\'emoji (catégories, recherche, choix au clic, saisie libre)', () => {
