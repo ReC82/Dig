@@ -318,16 +318,114 @@ async function api(method, path, body) {
     method,
     headers: { 'Content-Type': 'application/json', 'X-Dig-Admin': '1', 'X-Dig-Admin-Build': ADMIN_BUILD },
     credentials: 'same-origin',
+    cache: 'no-store',
   };
   if (body) opts.body = JSON.stringify(body);
   // Réseau coupé ou réponse interrompue (#61) : échec ordinaire (ok: false, status 0) ; l'appelant affiche l'erreur
   // et laisse la fiche ouverte avec ses saisies, pour une nouvelle tentative.
   let res;
   try { res = await fetch(path, opts); }
-  catch { return { ok: false, status: 0, data: { error: 'Serveur injoignable ou réponse interrompue : rien n\'est perdu, la fiche reste ouverte ; réessayez.' } }; }
+  catch {
+    admRefreshNote(method, path, false, { error: 'serveur injoignable' });
+    return { ok: false, status: 0, data: { error: 'Serveur injoignable ou réponse interrompue : rien n\'est perdu, la fiche reste ouverte ; réessayez.' } };
+  }
   const data = await res.json().catch(() => ({ error: `Réponse inattendue du serveur (${res.status}).` }));
   if (res.status === 401 && data.code === 'admin_auth') adminSessionLost();
+  admRefreshNote(method, path, res.ok, data);
   return { ok: res.ok, data, status: res.status };
+}
+
+// ── Boutons « Rafraîchir » communs (#60) ─────────────────────────────────────
+// Même retour partout que la bêta #57 (validé) : clic → bouton indisponible et « ↻ Actualisation… »
+// → « ✓ Données à jour à HH:MM:SS » (avec « aucun changement » ou « nouvelles données ») ou
+// « ⚠️ Échec de l'actualisation (raison) ». Les lectures (GET, sans cache) faites pendant le
+// rechargement sont relevées par api() : un échec n'est jamais présenté comme « à jour ». Les
+// chargeurs ne remplacent pas les saisies en cours (#61) : filtres, fiche ouverte et brouillons restent.
+const admClock = d => d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const _admRefreshRuns = new Set();
+const _admGetSigs = new Map();   // chemin GET → empreinte de la dernière réponse reçue
+
+function admSig(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return `${(h >>> 0).toString(36)}:${text.length}`;
+}
+
+/** Relevé par api() : lectures, échecs et écritures pendant un « Rafraîchir » en cours. */
+function admRefreshNote(method, path, ok, data) {
+  if (method !== 'GET') { for (const run of _admRefreshRuns) run.writes++; return; }
+  let sig = null;
+  if (ok) { try { sig = admSig(JSON.stringify(data)); } catch { sig = null; } }
+  const prev = _admGetSigs.get(path);
+  if (sig) _admGetSigs.set(path, sig);
+  for (const run of _admRefreshRuns) {
+    run.reads++;
+    if (!ok) run.errors.push(data?.error || 'erreur du serveur');
+    else if (prev === undefined || !sig) run.unknown++;
+    else if (prev !== sig) run.changed++;
+  }
+}
+
+/**
+ * Branche un bouton « ↻ Rafraîchir » sur son chargeur, avec l'état visible commun. La ligne d'état
+ * (aria-live) est celle qui suit le bouton (`.refresh-status`), créée au besoin.
+ */
+function admRefreshButton(id, loader, label) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  const idle = btn.textContent;
+  let st = btn.nextElementSibling?.classList.contains('refresh-status') ? btn.nextElementSibling : null;
+  if (!st) {
+    st = document.createElement('span');
+    st.className = 'refresh-status';
+    st.setAttribute('role', 'status');
+    st.setAttribute('aria-live', 'polite');
+    btn.after(st);
+  }
+  if (!st.id) st.id = `${id}-status`;
+  btn.setAttribute('aria-describedby', st.id);
+  let loadedAt = null, toastAt = 0;
+  btn.addEventListener('click', async () => {
+    // Bouton indisponible sans `disabled` : le focus clavier reste sur le bouton pendant l'attente
+    if (btn.getAttribute('aria-disabled') === 'true') return;
+    const run = { reads: 0, changed: 0, unknown: 0, writes: 0, errors: [] };
+    _admRefreshRuns.add(run);
+    btn.setAttribute('aria-disabled', 'true');
+    btn.setAttribute('aria-busy', 'true');
+    btn.classList.add('is-busy');
+    btn.textContent = '↻ Actualisation…';
+    st.className = 'refresh-status';
+    st.textContent = 'Chargement…';
+    const started = Date.now();
+    let thrown = null;
+    try { await loader({ manual: true }); }
+    catch (e) { thrown = e; console.error(`[Rafraîchir ${label}]`, e); }
+    _admRefreshRuns.delete(run);
+    // Attente visible au moins un instant, même quand le serveur répond en quelques millisecondes
+    const wait = 400 - (Date.now() - started);
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    btn.removeAttribute('aria-disabled');
+    btn.removeAttribute('aria-busy');
+    btn.classList.remove('is-busy');
+    btn.textContent = idle;
+    const now = new Date();
+    const error = thrown ? 'erreur inattendue de l’affichage' : run.errors[0];
+    // Toast de réussite bref, pas plus d'un toutes les 5 s par bouton (la ligne d'état suffit lors de clics
+    // rapides) ; un échec est toujours signalé et remplace un toast de réussite encore affiché.
+    const toast = text => { if (Date.now() - toastAt > 5000) { toastAt = Date.now(); admToast(text); } };
+    if (error) {
+      st.className = 'refresh-status is-err';
+      st.textContent = `⚠️ Échec de l’actualisation (${error}) — ${loadedAt ? `données affichées : ${admClock(loadedAt)}` : 'données affichées non actualisées'}`;
+      toastAt = 0;
+      admToast(`⚠️ ${label} : échec de l’actualisation.`, { error: true });
+      return;
+    }
+    loadedAt = now;
+    const change = run.changed ? ' — nouvelles données affichées' : run.unknown || !run.reads ? '' : ' — aucun changement';
+    st.className = 'refresh-status';
+    st.textContent = `✓ Données à jour à ${admClock(now)}${change}`;
+    toast(`${label} : données à jour à ${admClock(now)}${change ? ` (${change.slice(3)})` : ''}.`);
+  });
 }
 
 function adminShowApp(info) {
@@ -674,7 +772,7 @@ async function correctRanking(r) {
   loadLeaderboard();
 }
 
-document.getElementById('btn-refresh-lb').addEventListener('click', loadLeaderboard);
+admRefreshButton('btn-refresh-lb', loadLeaderboard, 'Classement');
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -873,7 +971,7 @@ document.getElementById('btn-save-params').addEventListener('click', async () =>
   setTimeout(() => msgEl.classList.add('hidden'), 3000);
 });
 
-document.getElementById('btn-refresh-overview').addEventListener('click', loadSeasonOverview);
+admRefreshButton('btn-refresh-overview', loadSeasonOverview, 'Saison en cours');
 
 // ── Date de fin de la saison active (#44) ────────────────────────────────────
 
@@ -1136,7 +1234,7 @@ function formatLogDetails(raw) {
   return '';
 }
 
-document.getElementById('btn-refresh-ac').addEventListener('click', loadAntiCheatLogs);
+admRefreshButton('btn-refresh-ac', loadAntiCheatLogs, 'Journal anti-autoclicker');
 document.getElementById('ac-filter-action').addEventListener('change', loadAntiCheatLogs);
 
 // ── Économie & Joueurs ───────────────────────────────────────────────────────
@@ -1489,7 +1587,7 @@ async function loadSecurity() {
   }
 }
 
-document.getElementById('btn-refresh-sec').addEventListener('click', loadSecurity);
+admRefreshButton('btn-refresh-sec', loadSecurity, 'Anti-bot');
 document.getElementById('sec-filter-type').addEventListener('change', loadSecurity);
 document.getElementById('sec-filter-days').addEventListener('change', loadSecurity);
 
@@ -1958,7 +2056,7 @@ async function loadContestAudit(winnerId) {
   }
 }
 
-document.getElementById('btn-refresh-contest').addEventListener('click', loadContest);
+admRefreshButton('btn-refresh-contest', loadContest, 'Concours');
 document.getElementById('btn-save-contest').addEventListener('click', saveContestSettings);
 document.getElementById('btn-ct-edit').addEventListener('click', () => ctShowForm(true));
 document.getElementById('btn-ct-cancel').addEventListener('click', ctCancelEdit);
@@ -2048,10 +2146,8 @@ function ptScaleFromEditor() {
   catch (e) { ptMessage('pt-scale-msg', `JSON invalide : ${e.message}`, false); return null; }
 }
 
-document.getElementById('btn-refresh-points').addEventListener('click', () => {
-  delete document.getElementById('pt-scale').dataset.dirty;
-  loadPoints();
-});
+// Rafraîchir relit les portefeuilles et attributions ; un barème en cours de saisie est conservé (#60)
+admRefreshButton('btn-refresh-points', loadPoints, 'Points');
 document.getElementById('pt-scale').addEventListener('input', e => { e.target.dataset.dirty = '1'; });
 admZone(document.getElementById('pt-scale'), { dirty: () => !!document.getElementById('pt-scale').dataset.dirty });   // départ de la page (#61)
 
@@ -2370,7 +2466,7 @@ async function shopTransition(o, to) {
   if (ok) { document.getElementById('sh-order-note').value = ''; loadShop(); }
 }
 
-document.getElementById('btn-refresh-shop').addEventListener('click', loadShop);
+admRefreshButton('btn-refresh-shop', loadShop, 'Boutique');
 document.getElementById('sh-order-filter').addEventListener('change', loadShop);
 admDialogSetup('sh-dialog', { canClose: shCanClose, dirty: () => shDirty() });
 document.getElementById('sh-dialog').addEventListener('input', shRefresh);
@@ -3141,7 +3237,7 @@ async function bkRollback(version) {
   if (ok) loadBlocks();
 }
 
-document.getElementById('btn-refresh-blocks').addEventListener('click', loadBlocks);
+admRefreshButton('btn-refresh-blocks', loadBlocks, 'Blocs');
 
 // ── Création de blocs assistée par IA (#37) ─────────────────────────────────
 
@@ -3830,42 +3926,25 @@ function coRenderItems() {
   document.getElementById('co-items-count').textContent = `— ${shown} / ${items.length}`;
 }
 
-const coClock = d => d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const coClock = admClock;
 let _coLoadedAt = null;
 
-// Chaque chargement relit la base (GET /api/admin/collections, sans cache). « Rafraîchir » montre
-// l'attente, puis l'heure de mise à jour ou l'erreur ; filtres, recherche et fiche ouverte sont
-// conservés (même retour que la bêta #57, recette du 03/11).
+// Chaque chargement relit la base (GET /api/admin/collections, sans cache). « Rafraîchir » : état
+// commun (admRefreshButton, #60) ; filtres, recherche et fiche ouverte sont conservés.
 async function loadCollections({ manual = false } = {}) {
-  const btn = document.getElementById('btn-refresh-collections');
-  const st  = document.getElementById('co-refresh-status');
-  if (manual) {
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-    btn.textContent = '↻ Actualisation…';
-    st.className = 'refresh-status';
-    st.textContent = 'Chargement…';
-  }
-  let res;
-  try { res = await api('GET', '/api/admin/collections'); }
-  catch { res = { ok: false, data: { error: 'serveur inaccessible' } }; }
-  if (manual) {
-    btn.disabled = false;
-    btn.removeAttribute('aria-busy');
-    btn.textContent = '↻ Rafraîchir';
-  }
-  const { ok, data } = res;
+  const st = document.getElementById('co-refresh-status');
+  const { ok, data } = await api('GET', '/api/admin/collections');
   if (!ok) {
-    st.className = 'refresh-status is-err';
-    st.textContent = `⚠️ Échec de l’actualisation (${data.error || 'erreur'})${_coLoadedAt ? ` — données affichées : ${coClock(_coLoadedAt)}` : ''}`;
-    if (!manual) coNotice(data.error || 'Erreur lors du chargement.', false);
+    if (!manual) {
+      st.className = 'refresh-status is-err';
+      st.textContent = `⚠️ Échec du chargement (${data.error || 'erreur'})${_coLoadedAt ? ` — données affichées : ${coClock(_coLoadedAt)}` : ''}`;
+      coNotice(data.error || 'Erreur lors du chargement.', false);
+    }
     return;
   }
   _co = data;
   _coLoadedAt = new Date();
-  st.className = 'refresh-status';
-  st.textContent = `✓ Données à jour à ${coClock(_coLoadedAt)}`;
-  if (manual) admToast(`Collections : données à jour à ${coClock(_coLoadedAt)}.`);
+  if (!manual) { st.className = 'refresh-status'; st.textContent = `✓ Données à jour à ${coClock(_coLoadedAt)}`; }
   const w = coWorking();
   const p = data.published;
 
@@ -4048,7 +4127,7 @@ async function coRollback(version) {
   if (ok) loadCollections();
 }
 
-document.getElementById('btn-refresh-collections').addEventListener('click', () => loadCollections({ manual: true }));
+admRefreshButton('btn-refresh-collections', loadCollections, 'Collections');
 document.getElementById('co-filter-text').addEventListener('input', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-series').addEventListener('change', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-state').addEventListener('change', () => { if (_co) coRenderItems(); });
@@ -5582,7 +5661,7 @@ async function loadIconsQuiet() {
 
 ['ic-kind', 'ic-state'].forEach(id => document.getElementById(id).addEventListener('change', icRenderGrid));
 document.getElementById('ic-search').addEventListener('input', icRenderGrid);
-document.getElementById('btn-refresh-icons').addEventListener('click', loadIcons);
+admRefreshButton('btn-refresh-icons', loadIcons, 'Atelier d’icônes');
 // Ctrl+Entrée (ou ⌘+Entrée) dans le champ de consigne = action principale ; Entrée seule = retour à la ligne
 document.getElementById('ic-sheet').addEventListener('keydown', e => {
   if (e.key !== 'Enter' || !(e.ctrlKey || e.metaKey) || e.target.id !== 'ic-instruction') return;
@@ -5913,7 +5992,7 @@ document.querySelectorAll('#bg-langs .co-lang-btn').forEach((b, k, all) => {
   });
 });
 for (const id of ['bg-filter-text', 'bg-filter-category', 'bg-filter-status']) document.getElementById(id).addEventListener('input', bgRenderList);
-document.getElementById('btn-refresh-badges').addEventListener('click', loadBadges);
+admRefreshButton('btn-refresh-badges', loadBadges, 'Badges');
 
 document.getElementById('btn-bg-add').addEventListener('click', e => {
   const ai = document.getElementById('btn-bg-add-ai');
@@ -6340,7 +6419,7 @@ async function loadAds() {
   renderAds(data);
 }
 
-document.getElementById('btn-refresh-ads').addEventListener('click', loadAds);
+admRefreshButton('btn-refresh-ads', loadAds, 'Publicité');
 
 document.getElementById('btn-ad-settings').addEventListener('click', async () => {
   const { ok, data } = await api('PUT', '/api/admin/ads/settings', {
@@ -6404,7 +6483,7 @@ async function betaCopy(text, btn, label) {
 }
 
 /** Confirmation brève en bas de l'écran (aucune action requise). */
-function admToast(text) {
+function admToast(text, { error = false } = {}) {
   let el = document.getElementById('adm-toast');
   if (!el) {
     el = document.createElement('div');
@@ -6414,6 +6493,7 @@ function admToast(text) {
     document.body.appendChild(el);
   }
   el.textContent = text;
+  el.classList.toggle('is-err', error);
   el.classList.add('is-shown');
   clearTimeout(el._t);
   el._t = setTimeout(() => el.classList.remove('is-shown'), 3200);
@@ -6566,42 +6646,27 @@ function betaSetUnlessEdited(el, value) {
   el.dataset.saved = String(value);
 }
 
-const betaClock = d => d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const betaClock = admClock;
 let _betaLoadedAt = null;
 
-// Chaque chargement relit l'état depuis la base (GET /api/admin/beta, sans cache). « Rafraîchir »
-// montre l'attente (bouton désactivé), puis l'heure de mise à jour ou l'erreur (recette du 03/11).
+// Chaque chargement relit l'état depuis la base (GET /api/admin/beta, sans cache). « Rafraîchir » :
+// état commun (admRefreshButton, #60) ; notes et statuts en cours de saisie sont conservés.
 async function loadBeta({ manual = false } = {}) {
-  const btn = document.getElementById('btn-refresh-beta');
-  const st  = document.getElementById('beta-refresh-status');
-  if (manual) {
-    btn.disabled = true;
-    btn.setAttribute('aria-busy', 'true');
-    btn.textContent = '↻ Actualisation…';
-    st.className = 'refresh-status';
-    st.textContent = 'Chargement…';
-  }
-  let res;
-  try { res = await api('GET', '/api/admin/beta'); }
-  catch { res = { ok: false, data: { error: 'serveur inaccessible' } }; }
-  if (manual) {
-    btn.disabled = false;
-    btn.removeAttribute('aria-busy');
-    btn.textContent = '↻ Rafraîchir';
-  }
+  const st = document.getElementById('beta-refresh-status');
+  const res = await api('GET', '/api/admin/beta');
   if (!res.ok) {
-    st.className = 'refresh-status is-err';
-    st.textContent = `⚠️ Échec de l’actualisation (${res.data.error || 'erreur'})${_betaLoadedAt ? ` — données affichées : ${betaClock(_betaLoadedAt)}` : ''}`;
+    if (!manual) {
+      st.className = 'refresh-status is-err';
+      st.textContent = `⚠️ Échec du chargement (${res.data.error || 'erreur'})${_betaLoadedAt ? ` — données affichées : ${betaClock(_betaLoadedAt)}` : ''}`;
+    }
     return;
   }
   renderBeta(res.data);
   _betaLoadedAt = new Date();
-  st.className = 'refresh-status';
-  st.textContent = `✓ Données à jour à ${betaClock(_betaLoadedAt)}`;
-  if (manual) admToast(`Données à jour à ${betaClock(_betaLoadedAt)}.`);
+  if (!manual) { st.className = 'refresh-status'; st.textContent = `✓ Données à jour à ${betaClock(_betaLoadedAt)}`; }
 }
 
-document.getElementById('btn-refresh-beta').addEventListener('click', () => loadBeta({ manual: true }));
+admRefreshButton('btn-refresh-beta', loadBeta, 'Bêta');
 document.getElementById('btn-beta-feedback').addEventListener('click', () => {
   const card = document.getElementById('beta-feedback-card');
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -7150,7 +7215,7 @@ async function loadSeasonThemes() {
   stMore(data);
 }
 
-document.getElementById('btn-st-refresh')?.addEventListener('click', loadSeasonThemes);
+admRefreshButton('btn-st-refresh', loadSeasonThemes, 'Thèmes de saison');
 
 // ── Centre d'actualités (#50) ─────────────────────────────────────────────────
 // Liste d'abord ; « ＋ Ajouter » ouvre la fiche. Toute annonce est enregistrée en BROUILLON (y compris
@@ -7556,7 +7621,7 @@ if (document.getElementById('news-dialog')) {
   });
   document.getElementById('btn-nw-print').addEventListener('click', nwPrint);
   document.getElementById('btn-news-add').addEventListener('click', e => nwOpen(null, e.currentTarget));
-  document.getElementById('btn-news-refresh').addEventListener('click', loadNews);
+  admRefreshButton('btn-news-refresh', loadNews, 'Actualités');
   document.getElementById('news-filter').addEventListener('change', loadNews);
 }
 
@@ -8277,7 +8342,7 @@ document.getElementById('btn-ev-ai')?.addEventListener('click', async () => {
   loadEvents();
 });
 
-document.getElementById('btn-ev-refresh')?.addEventListener('click', loadEvents);
+admRefreshButton('btn-ev-refresh', loadEvents, 'Événements');
 document.getElementById('btn-ev-item-add')?.addEventListener('click', e => eviOpen(-1, e.currentTarget));
 document.getElementById('btn-ev-save')?.addEventListener('click', evSave);
 document.getElementById('btn-ev-sim')?.addEventListener('click', evSimulate);
