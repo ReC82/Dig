@@ -139,8 +139,8 @@ test('route d\'annulation protégée et fonctionnelle (serveur de test)', async 
 test('balisage de la fiche : sections, aide, annulation par bloc / tout le brouillon, confirmation de fermeture', () => {
   const html = fs.readFileSync(path.join(ROOT, 'public/admin/index.html'), 'utf8');
   const sheet = html.slice(html.indexOf('<dialog id="bk-dialog"'), html.indexOf('</dialog>', html.indexOf('<dialog id="bk-dialog"')));
-  for (const legend of ['Identité et traductions', 'Apparition et rareté', 'Récompenses et gemmes', 'Visuel', 'Options avancées']) {
-    assert.ok(sheet.includes(legend), legend);
+  for (const legend of ['Apparition et probabilités', 'Points de vie et récompense', 'Identifiant et traductions', 'Visuel', 'Avancé']) {
+    assert.ok(sheet.includes(`<span class="bk-acc-title">${legend}</span>`), legend);
   }
   for (const id of ['btn-bk-revert', 'btn-bk-discard-all', 'btn-bk-translate', 'bk-eff', 'bk-name-src-en', 'bk-h-weight', 'bk-h-fade', 'bk-h-rarity', 'bk-h-cat']) {
     assert.ok(sheet.includes(`id="${id}"`), id);
@@ -152,6 +152,38 @@ test('balisage de la fiche : sections, aide, annulation par bloc / tout le broui
   assert.match(js, /addEventListener\('cancel'[\s\S]{0,80}bkDirty\(\)/, 'Échap passe par la confirmation');
   assert.match(js, /e\.target\.id === 'bk-dialog'\) bkRequestClose\(\)/, 'clic sur le fond passe par la confirmation');
   assert.match(js, /'beforeunload'/);
+});
+
+test('fiche simplifiée (recette du 03/11) : synthèse, accordéons, une langue et une aide à la fois, pied fixe, réglages conservés', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'public/admin/index.html'), 'utf8');
+  const sheet = html.slice(html.indexOf('<dialog id="bk-dialog"'), html.indexOf('</dialog>', html.indexOf('<dialog id="bk-dialog"')));
+  // Synthèse lisible sans défiler, avant toute section
+  const ov = sheet.indexOf('class="bk-overview"');
+  assert.ok(ov > 0 && ov < sheet.indexOf('<details'), 'synthèse en tête');
+  for (const id of ['bk-ov-thumb', 'bk-ov-name', 'bk-ov-cat', 'bk-ov-rarity', 'bk-ov-min', 'bk-ov-depth', 'bk-ov-odds', 'bk-ov-hp', 'bk-ov-reward']) {
+    assert.ok(sheet.includes(`id="${id}"`), id);
+  }
+  // Tableau détaillé repliable dans « Apparition et probabilités »
+  assert.match(sheet, /id="bk-acc-spawn"[\s\S]*<details class="bk-sub" id="bk-acc-eff">[\s\S]*id="bk-eff-detail"[\s\S]*id="bk-fade-from"[\s\S]*id="bk-fade-weight"/);
+  // Une langue à la fois
+  assert.match(sheet, /id="bk-langs"[\s\S]*data-lang="es"/);
+  assert.strictEqual((sheet.match(/class="bk-field bk-lang-field hidden"/g) || []).length, 3, 'FR seul visible à l\'ouverture');
+  // Aucun paragraphe d'explication permanent hors aides repliées et aide complète facultative
+  assert.ok(!/<small class="muted">/.test(sheet), 'plus de grands paragraphes fixes');
+  assert.match(sheet, /id="bk-help-full"/);
+  // Pied d'action fixe : enregistrer, annuler, indicateur de modification, message
+  const foot = sheet.slice(sheet.indexOf('class="bk-sheet-actions"'));
+  for (const id of ['btn-bk-save', 'btn-bk-cancel', 'bk-dirty', 'bk-form-msg']) assert.ok(foot.includes(`id="${id}"`), id);
+  const css = fs.readFileSync(path.join(ROOT, 'public/admin/admin.css'), 'utf8');
+  assert.match(css, /\.bk-sheet-actions \{ position: sticky; bottom:/);
+  // Aucun réglage supprimé : tous les champs lus par bkReadForm existent toujours
+  const js = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
+  const read = js.slice(js.indexOf('function bkReadForm()'), js.indexOf('function bkFillList'));
+  for (const [, id] of read.matchAll(/(?:getElementById\(|num\()'(bk-[a-z-]+)'/g)) assert.ok(sheet.includes(`id="${id}"`), id);
+  for (const l of ['fr', 'en', 'nl', 'es']) assert.ok(sheet.includes(`id="bk-name-${l}"`));
+  // Une seule aide ouverte à la fois ; Annuler passe par la confirmation
+  assert.match(js, /une seule aide à la fois/);
+  assert.match(js, /'btn-bk-cancel'\)\.addEventListener\('click', \(\) => bkRequestClose\(\)\)/);
 });
 
 test('brouillon déjà identique en base (remis à la main avant le correctif) : vue « aucun brouillon », sans écriture', () => {

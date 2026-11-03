@@ -2029,7 +2029,11 @@ function bkPreview() {
     icon: document.getElementById('bk-icon').value, color: document.getElementById('bk-color').value.trim(),
     accent: document.getElementById('bk-accent').value.trim(),
   };
-  bkDrawVisual(document.getElementById('bk-preview'), caption, t);
+  const v = bkDrawVisual(document.getElementById('bk-preview'), caption, t);
+  bkDrawVisual(document.getElementById('bk-ov-thumb'), null, t);
+  const vis = { v1: 'Icône v1 validée', catalog: 'Image personnalisée', emoji: 'Emoji de secours (pas d\'illustration)' }[v.kind] ?? v.label;
+  document.getElementById('bk-ov-visual').textContent = `Visuel : ${vis}`;
+  document.getElementById('bk-acc-visual-sum').textContent = vis;
   if (image && (typeof IconLibrary === 'undefined' || !IconLibrary.catalogImage(t))) {
     caption.textContent = `Chemin d'image non accepté (attendu /assets/….webp|png|svg ou /media/blocks/….webp) — ${caption.textContent}`;
     caption.classList.add('bk-src--warn');
@@ -2218,6 +2222,12 @@ function bkOpenSheet(t, opener) {
   bkZoomHide();
   _bkSheetOpener = opener ?? document.activeElement;
   document.getElementById('bk-form-msg').classList.add('hidden');
+  // Consultation d'abord : fiche existante repliée ; nouveau bloc : sections à remplir ouvertes.
+  // (À l'ouverture seulement : après un enregistrement, les sections dépliées le restent.)
+  for (const d of document.querySelectorAll('#bk-dialog details')) d.open = !t && ['bk-acc-spawn', 'bk-acc-reward', 'bk-acc-names'].includes(d.id);
+  for (const h of document.querySelectorAll('#bk-dialog .bk-hint')) bkHint(h, false);
+  bkLang('fr');
+  document.getElementById('bk-ov-depth').value = Math.max(1, Number(document.getElementById('bk-odds-depth').value) || 250);
   bkFillForm(t);
   const dlg = document.getElementById('bk-dialog');
   if (!dlg.open) dlg.showModal();
@@ -2229,10 +2239,9 @@ function bkFillSheet(t) {
   const sum = document.getElementById('bk-sheet-summary');
   const art = document.getElementById('bk-sheet-art');
   bkFillDraftState(t);
-  if (!t) { sum.textContent = 'Nouveau bloc : il sera ajouté au brouillon, invisible des joueurs jusqu\'à la publication.'; art.classList.add('hidden'); return; }
+  if (!t) { sum.textContent = '· nouveau : ajouté au brouillon, invisible des joueurs jusqu\'à la publication'; art.classList.add('hidden'); return; }
   const changed = (_bk.draft?.changes ?? []).some(c => c.id === t.id);
-  sum.textContent = `${bkNameFr(t) ?? t.id} · ${BK_RARITY[t.rarity] ?? t.rarity} · ${t.category} · dès ${t.minDepth} m`
-    + ` · ${t.active ? 'actif' : 'désactivé'}${changed ? ' · modifié dans le brouillon' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau (jamais publié)'}`;
+  sum.textContent = `· ${t.id} · ${t.active ? 'actif' : 'désactivé'}${changed ? ' · modifié dans le brouillon' : ''}${_bk.publishedIds.includes(t.id) ? '' : ' · nouveau (jamais publié)'}`;
   const v = bkVisual(t);
   art.classList.remove('hidden');
   art.classList.toggle('bk-sheet-art--todo', v.kind === 'emoji' || v.kind === 'missing');
@@ -2316,6 +2325,16 @@ function bkNamesSources() {
     else if (l === 'fr') el.textContent = '⚠ manquante : nom FR obligatoire';
     else { missing++; el.textContent = u.name ? `⚠ manquante : le jeu affiche le nom FR « ${u.name} »` : '⚠ manquante'; }
   }
+  const marks = { custom: '●', builtin: '✓', missing: '○' };
+  const states = [];
+  for (const b of document.querySelectorAll('#bk-langs .co-lang-btn')) {
+    const l = b.dataset.lang;
+    const u = bkNameUsed(id, names, l);
+    b.textContent = `${marks[u.src]} ${l.toUpperCase()}`;
+    b.title = document.getElementById(`bk-name-src-${l}`).textContent;
+    states.push(`${marks[u.src]} ${l.toUpperCase()}`);
+  }
+  document.getElementById('bk-acc-names-sum').textContent = `${id || 'identifiant à saisir'} · ${states.join(' ')}`;
   const btn = document.getElementById('btn-bk-translate');
   btn.disabled = !missing || !(names.fr || bkBuiltInName(id, 'fr'));
   btn.title = missing ? `${missing} langue(s) sans traduction` : 'Toutes les langues ont une traduction (personnalisée ou intégrée).';
@@ -2348,13 +2367,30 @@ function bkEffective() {
   document.getElementById('bk-gem-reward').closest('label').classList.toggle('hidden', !isGem);
   bkCategoryHelp();
   box.textContent = '';
+  const detail = document.getElementById('bk-eff-detail');
+  detail.textContent = '';
+  const depthIn = Math.max(1, Number(document.getElementById('bk-ov-depth').value) || 250);
+  const ov = (id, v) => { document.getElementById(id).textContent = v ?? '—'; };
+  const catSel = document.getElementById('bk-category');
+  ov('bk-ov-name', f.names?.fr || bkBuiltInName(f.id, 'fr') || f.id || 'Nouveau bloc');
+  ov('bk-ov-cat', catSel.selectedOptions[0]?.textContent || f.category);
+  ov('bk-ov-rarity', BK_RARITY[f.rarity] ?? f.rarity);
+  ov('bk-ov-min', f.minDepth != null ? `${f.minDepth} m` : null);
+  ov('bk-ov-hp', f.hpBase != null ? `${f.hpBase} PV` : null);
+  ov('bk-ov-reward', f.reward != null ? `${f.reward} pièces` + (isGem && f.gemReward ? ' + 1 gemme' : '') : null);
+  ov('bk-ov-odds', null);
+  document.getElementById('bk-acc-reward-sum').textContent = [f.hpBase != null ? `${f.hpBase} PV` : null,
+    f.reward != null ? `${f.reward} pièces` : null, isGem ? (f.gemReward ? '1 gemme' : 'sans gemme') : null].filter(Boolean).join(' · ');
+  document.getElementById('bk-acc-adv-sum').textContent = `emoji ${f.icon || '—'}${f.image ? ' · image personnalisée' : ''} · ${f.active ? 'actif' : 'désactivé'}`;
+  const spawnSum = document.getElementById('bk-acc-spawn-sum');
+  spawnSum.textContent = [f.minDepth != null ? `dès ${f.minDepth} m` : null, f.weight != null ? `poids ${f.weight}` : null,
+    f.fadeFrom != null ? `atténué > ${f.fadeFrom} m` : null].filter(Boolean).join(' · ');
   if (!f.id || !(f.weight > 0) || !(f.minDepth >= 1)) {
-    box.textContent = 'Renseignez la profondeur minimale et le poids pour voir la probabilité réelle.';
+    box.textContent = 'Renseignez l\'identifiant, la profondeur minimale et le poids pour voir la probabilité réelle.';
     gem.textContent = isGem ? 'Modèle actuel : 1 gemme à chaque bloc cassé (100 %). Probabilité × quantité : voir #49.' : 'Seuls les blocs de catégorie « gemme » rapportent une gemme.';
     return;
   }
   const types = bkWorking().filter(t => t.id !== f.id).concat([{ ...f, active: true }]);
-  const depthIn = Math.max(1, Number(document.getElementById('bk-odds-depth').value) || 250);
   const depths = [...new Set([...BK_EFF_DEPTHS, depthIn])].sort((a, b) => a - b);
   const luckOdds = (depth, lvl) => {
     const mult = 1 + lvl * 0.10;
@@ -2369,6 +2405,9 @@ function bkEffective() {
     : `À ${depthIn} m : n'apparaît pas (profondeur minimale ${f.minDepth} m).`;
   if (!f.active) head.textContent += ' Bloc désactivé : en réalité il n\'apparaît pas ; calcul fait comme s\'il était actif.';
   box.appendChild(head);
+  const p10 = luckOdds(depthIn, 10);
+  ov('bk-ov-odds', p0 ? `${bkPct(p0)} · Chance 10 : ${bkPct(p10)}` : 'absent');
+  spawnSum.textContent += ` · ${p0 ? bkPct(p0) : 'absent'} à ${depthIn} m`;
   const tbl = document.createElement('table');
   tbl.className = 'bk-eff-table';
   const hr = document.createElement('tr');
@@ -2384,14 +2423,14 @@ function bkEffective() {
     tb.appendChild(tr);
   }
   tbl.appendChild(tb);
-  box.appendChild(tbl);
+  detail.appendChild(tbl);
   const note = document.createElement('small');
   note.className = 'muted';
   note.textContent = (BK_BOOSTED.has(f.rarity)
     ? `Rareté « ${BK_RARITY[f.rarity]} » : la Chance du joueur augmente son poids de 10 % par niveau (colonne « avec Chance 10 » : ×2).`
     : `Rareté « ${BK_RARITY[f.rarity] ?? f.rarity} » : non favorisée par la Chance (sa part baisse un peu quand la Chance favorise les blocs rares).`)
-    + ' Les probabilités tiennent compte de tous les blocs du brouillon/catalogue de travail et de cette fiche telle que saisie. Profondeur de référence : champ « Probabilités à … m » de la liste.';
-  box.appendChild(note);
+    + ' Calcul sur tous les blocs du catalogue de travail et cette fiche telle que saisie ; profondeur surlignée : celle choisie dans la synthèse.';
+  detail.appendChild(note);
   gem.textContent = !isGem ? 'Seuls les blocs de catégorie « gemme » rapportent une gemme.'
     : f.gemReward ? `Modèle actuel : 1 gemme à chaque bloc cassé (100 %). À ${depthIn} m, ≈ ${(p0 * 1000).toFixed(2)} gemme(s) pour 1 000 blocs cassés. Un modèle « probabilité × quantité » est en attente d'arbitrage économique (#49) : rien n'est modifié ici.`
       : 'Ne rapporte aucune gemme (traité comme un minerai en jeu).';
@@ -2403,9 +2442,30 @@ document.getElementById('bk-dialog').addEventListener('click', e => {
   if (!b) return;
   e.preventDefault();
   const h = document.getElementById(b.getAttribute('aria-controls'));
-  h.hidden = !h.hidden;
-  b.setAttribute('aria-expanded', String(!h.hidden));
+  const show = h.hidden;
+  for (const o of document.querySelectorAll('#bk-dialog .bk-hint')) bkHint(o, false);   // une seule aide à la fois
+  bkHint(h, show);
 });
+function bkHint(h, show) {
+  h.hidden = !show;
+  document.querySelector(`#bk-dialog .bk-info[aria-controls="${h.id}"]`)?.setAttribute('aria-expanded', String(show));
+}
+
+// Traductions : une langue à la fois (comme les Actualités #50) ; ← → entre les langues.
+function bkLang(l, focus = false) {
+  for (const b of document.querySelectorAll('#bk-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const d of document.querySelectorAll('#bk-dialog .bk-lang-field')) d.classList.toggle('hidden', d.dataset.lang !== l);
+  if (focus) document.querySelector(`#bk-langs .co-lang-btn[data-lang="${l}"]`).focus();
+}
+document.querySelectorAll('#bk-langs .co-lang-btn').forEach((b, k, all) => {
+  b.addEventListener('click', () => bkLang(b.dataset.lang));
+  b.addEventListener('keydown', e => {
+    const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (d) { e.preventDefault(); bkLang(all[(k + d + all.length) % all.length].dataset.lang, true); }
+  });
+});
+document.getElementById('bk-ov-depth').addEventListener('input', () => bkEffective());
+document.getElementById('btn-bk-cancel').addEventListener('click', () => bkRequestClose());
 
 // Modifications non enregistrées : confirmation avant toute fermeture (✕, Échap, fond, atelier, page).
 let _bkSnapshot = null;
@@ -2440,7 +2500,7 @@ document.getElementById('bk-dialog').addEventListener('cancel', e => {
 window.addEventListener('beforeunload', e => { if (bkDirty()) { e.preventDefault(); e.returnValue = ''; } });
 document.getElementById('bk-dialog').addEventListener('input', e => {
   if (e.target.id?.startsWith('bk-name-') || e.target.id === 'bk-id') bkNamesSources();
-  if (e.target.closest('.bk-sec') && !e.target.id?.startsWith('bk-name-')) bkEffective();
+  if (e.target.closest('.bk-sec') && e.target.id !== 'bk-ov-depth') bkEffective();
   bkDirtyUpdate();
 });
 document.getElementById('bk-dialog').addEventListener('change', () => { bkEffective(); bkDirtyUpdate(); });
@@ -2780,9 +2840,15 @@ for (const id of ['bk-id', 'bk-icon', 'bk-image', 'bk-color', 'bk-accent']) docu
 
 document.getElementById('btn-bk-save').addEventListener('click', async () => {
   const type = bkReadForm();
-  if (!type.id) { ptMessage('bk-form-msg', 'Identifiant requis.', false); return; }
+  if (!type.id) {
+    document.getElementById('bk-acc-names').open = true;
+    document.getElementById('bk-id').focus();
+    ptMessage('bk-form-msg', 'Identifiant requis.', false);
+    return;
+  }
   const { ok, data } = await api('PUT', `/api/admin/blocks/draft/types/${encodeURIComponent(type.id)}`, { type });
-  if (!ok) { ptMessage('bk-form-msg', data.error || 'Erreur.', false); return; }
+  // Refus : sections dépliées pour que le champ en cause soit visible (aucune valeur n'est perdue).
+  if (!ok) { for (const d of document.querySelectorAll('#bk-dialog .bk-acc, #bk-acc-eff')) d.open = true; ptMessage('bk-form-msg', data.error || 'Erreur.', false); return; }
   // Message après le rechargement : la fiche affiche déjà l'état enregistré (plus de « non enregistré »).
   await loadBlocks();
   bkFillForm(bkWorking().find(t => t.id === data.type.id));
@@ -2854,6 +2920,7 @@ document.getElementById('btn-bk-translate').addEventListener('click', async () =
     el.classList.add('bk-ai-filled');
     filled.push(l.toUpperCase());
   }
+  if (filled.length) bkLang(filled[0].toLowerCase());   // première proposition affichée pour relecture
   msg.textContent = (filled.length ? `Proposition IA dans ${filled.join(', ')} (champs surlignés) : relisez, corrigez, puis « Enregistrer dans le brouillon ». Rien n'est enregistré.` : 'Aucune proposition utilisable.')
     + (data.warnings.length ? ` ⚠ ${data.warnings.join(' ')}` : '');
   bkNamesSources();
