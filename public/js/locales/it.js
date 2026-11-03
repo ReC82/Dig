@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 623/623 textes. Absents → français. */
+/* Italian (preview) : 631/631 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -199,6 +199,7 @@ I18n.registerLocale("it", {
   "col_reward": "Ricompensa",
   "collection": "📿 1 oggetto da collezione",
   "error": "Impossibile caricare le probabilità al momento. Riprova tra un attimo.",
+  "how": "ℹ️ Come funzionano le ricompense?",
   "jackpot": "jackpot",
   "limit": "Massimo {max} aperture per stagione ({n}/{max} in questa stagione).",
   "loading": "Caricamento…",
@@ -209,13 +210,20 @@ I18n.registerLocale("it", {
    "other": "🔮 {n} frammenti"
   },
   "relics_you": "ne ricevi {n}",
-  "rule_boost": "Boost: moltiplica le monete guadagnate sui blocchi per tutta la sua durata (non i forzieri).",
-  "rule_coins": "Monete: importo estratto a caso nell’intervallo, con pari probabilità. Non vengono moltiplicate né dalla Sacca, né dalle reliquie, né dai boost.",
-  "rule_collection": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora ({missing} per te, cioè {pct} % ciascuno). Collezione completa: {n} frammenti al suo posto (senza bonus).",
-  "rule_collection_full": "Oggetto da collezione: estratto con pari probabilità tra i {total} oggetti delle origini che non possiedi ancora. La tua collezione è completa: riceveresti {n} frammenti al suo posto (senza bonus).",
-  "rule_draw": "Un’apertura = una sola estrazione. La percentuale è la probabilità di ottenere quel tipo di ricompensa; la quantità ricevuta è indicata accanto.",
-  "rule_fragments": "Frammenti ricevuti = (quantità + bonus della Calamita di schegge, da +1 a +5 secondo il livello){mult}, arrotondato, almeno 1.",
-  "rule_fragments_mult": " × {mult} (bonus frammenti del gioco)",
+  "rule_boost": "Moltiplica le monete guadagnate rompendo i blocchi, per la durata indicata. Non quelle dei forzieri.",
+  "rule_coins": "Importo casuale nell’intervallo indicato. La Sacca, le reliquie e i boost non lo aumentano.",
+  "rule_collection": "Un oggetto che non hai ancora, a caso: te ne mancano {missing} su {total}, cioè {pct} % ciascuno. Collezione completa: {n} frammenti al suo posto (senza bonus della Calamita).",
+  "rule_collection_full": "La tua collezione di {total} oggetti è completa: ricevi {n} frammenti al suo posto (senza bonus della Calamita).",
+  "rule_draw": "Ogni riga della tabella ha la sua probabilità; in totale fanno 100 %. La quantità ricevuta è scritta accanto.",
+  "rule_fragments": "La Calamita di schegge (una reliquia) aggiunge da 1 a 5 frammenti secondo il suo livello{mult}. Ricevi sempre almeno 1 frammento.",
+  "rule_fragments_mult": ", poi il totale viene moltiplicato per {mult} (bonus del gioco) e arrotondato",
+  "rule_fragments_you": "La tua Calamita di schegge: livello {level} su {max}. La tabella mostra già quanto ricevi.",
+  "sec_boost": "⚡ Boost",
+  "sec_coins": "💰 Monete",
+  "sec_collection": "📿 Oggetto da collezione",
+  "sec_draw": "🎲 L’estrazione",
+  "sec_fragments": "🔮 Frammenti e Calamita di schegge",
+  "summary": "Un’apertura = una sola ricompensa, estratta a sorte secondo queste probabilità. Le monete di un forziere non vengono moltiplicate né dalla Sacca né dai boost.",
   "title": "{name} — ricompense e probabilità",
   "unlimited": "Aperture illimitate."
  },
