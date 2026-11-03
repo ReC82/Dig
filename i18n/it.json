@@ -1709,10 +1709,10 @@
   },
   "giftshop.b_short": {
    "text": "Mancano {n} pt",
-   "src": "f54b59c1f8d4",
+   "src": "5a46855b6c4f",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
   },
   "giftshop.b_unavailable": {
    "text": "Non disponibile",
@@ -1728,16 +1728,51 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "giftshop.c_after": {
+   "text": "Saldo dopo il rimborso",
+   "src": "d78fcf44ccac",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.c_back": {
+   "text": "Tieni l’ordine",
+   "src": "ae0ddbabb0a2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.c_note": {
+   "text": "L’articolo torna disponibile e l’ordine resta nel tuo storico («Annullato»).",
+   "src": "9d47e153112e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.c_ok": {
+   "text": "Annulla l’ordine",
+   "src": "8c14b35689d0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.c_refund": {
+   "text": "Rimborso",
+   "src": "68a232e606d3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.c_title": {
+   "text": "Annullare l’ordine #{id}?",
+   "src": "30b5aff1d50f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
   "giftshop.cancel": {
    "text": "Annulla",
    "src": "af12de10a27c",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
-  },
-  "giftshop.cancel_confirm": {
-   "text": "Annullare questo ordine? I punti verranno rimborsati.",
-   "src": "97a55deb05e5",
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
@@ -1749,19 +1784,12 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
-  "giftshop.confirm": {
-   "text": "Scambiare {cost} con «{title}»?\n\nSaldo dopo lo scambio: {after}.\nPuoi annullare finché l’ordine è «in attesa» (punti rimborsati).",
-   "src": "07bff9059c64",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
-  },
   "giftshop.cost": {
    "text": "{n} pt",
-   "src": "963a5051cc8d",
+   "src": "5e2f6b7603a2",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
   },
   "giftshop.done": {
    "text": "Scambio registrato: «{title}». Segui il tuo ordine in «I miei scambi».",
@@ -1804,6 +1832,55 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "giftshop.m_after": {
+   "text": "Saldo dopo lo scambio",
+   "src": "d801b80cc06c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.m_back": {
+   "text": "Annulla",
+   "src": "af12de10a27c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.m_before": {
+   "text": "Saldo attuale",
+   "src": "fc08d5f3e154",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.m_cost": {
+   "text": "Costo",
+   "src": "ab90a4f9c145",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.m_note": {
+   "text": "Puoi annullare finché l’ordine è «In attesa»: i tuoi punti vengono allora rimborsati.",
+   "src": "55a648ed88d3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.m_ok": {
+   "text": "Conferma lo scambio",
+   "src": "8f7f3591883b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
+  },
+  "giftshop.m_title": {
+   "text": "Conferma lo scambio",
+   "src": "8f7f3591883b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
   },
   "giftshop.min_age": {
    "text": "Dai {n} anni",
@@ -2372,10 +2449,10 @@
   },
   "points.potential": {
    "text": "Se la stagione finisse ora: posizione #{rank} su {n} → {tier}: +{pts} pt",
-   "src": "df7a160697d9",
+   "src": "7085f5046b3c",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
   },
   "points.potential_none": {
    "text": "Rompi blocchi a mano e scendi in profondità per guadagnare punti a fine stagione.",
@@ -2386,10 +2463,10 @@
   },
   "points.pts": {
    "text": "{n} pt",
-   "src": "963a5051cc8d",
+   "src": "5e2f6b7603a2",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
   },
   "points.rules": {
    "text": "Punti conservati da una stagione all’altra. Non convertibili in monete, gemme o denaro, non trasferibili. Si scambiano nel negozio dei regali qui sotto.",
@@ -2974,18 +3051,24 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "season.last.me_points": {
-   "text": "+{n} pt accreditati",
-   "src": "1f01a2bb1cd9",
+   "text": {
+    "one": "+{n} pt accreditato",
+    "other": "+{n} pt accreditati"
+   },
+   "src": "d9c345dc4279",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
   },
   "season.last.me_points_sim": {
-   "text": "+{n} pt (simulazione, non accreditati)",
-   "src": "1497bbcc2d48",
+   "text": {
+    "one": "+{n} pt (simulazione, non accreditato)",
+    "other": "+{n} pt (simulazione, non accreditati)"
+   },
+   "src": "839b83e4801b",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #34, relu)",
+   "at": "2026-11-03T17:27:35.010Z"
   },
   "season.last.me_rank": {
    "text": "Il tuo risultato: posizione #{rank} su {n} · {depth} m",

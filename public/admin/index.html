@@ -757,47 +757,106 @@
     <dialog id="sh-dialog" class="bk-dialog adm-dialog" aria-labelledby="sh-form-title">
       <div class="section-header bk-dialog-head">
         <h3 class="overview-card-title" id="sh-form-title">Nouvel article</h3>
+        <span id="sh-dirty" class="bk-dirty hidden" role="status">● Modifications non enregistrées</span>
         <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
       </div>
       <input type="hidden" id="sh-id">
-      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
-        <label>Sorte<select id="sh-kind"><option value="virtual">Virtuel</option><option value="real">Réel (verrouillé)</option></select></label>
-        <label>Coût (points)<input id="sh-cost" type="number" min="1"></label>
-        <label>Stock restant (vide = illimité)<input id="sh-stock" type="number" min="0"></label>
-        <label>Max. par joueur (vide = illimité)<input id="sh-max" type="number" min="1"></label>
-        <label>Icône (emoji)<input id="sh-icon" type="text" maxlength="8" placeholder="🎁"></label>
-        <label>Image (/chemin ou https://…)<input id="sh-image" type="text" maxlength="300"></label>
-        <label>Valeur faciale (centimes)<input id="sh-face" type="number" min="0"></label>
-        <label>Devise (EUR…)<input id="sh-currency" type="text" maxlength="3"></label>
-        <label>Territoires (BE,FR… ; vide = non précisé)<input id="sh-territories" type="text" maxlength="200"></label>
-        <label>Âge minimal (vide = aucun)<input id="sh-age" type="number" min="0" max="99"></label>
-        <label>Début de validité (UTC)<input id="sh-from" type="text" placeholder="AAAA-MM-JJ HH:MM:SS"></label>
-        <label>Fin de validité (UTC)<input id="sh-until" type="text" placeholder="AAAA-MM-JJ HH:MM:SS"></label>
-        <label>Ordre d'affichage<input id="sh-sort" type="number" value="0"></label>
-        <label><input type="checkbox" id="sh-visible"> Visible des joueurs</label>
-        <label><input type="checkbox" id="sh-unavailable"> Indisponible (affiché, non échangeable)</label>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:8px">
-        <fieldset><legend>FR (obligatoire)</legend>
-          <input id="sh-fr-title" type="text" maxlength="80" placeholder="Titre" style="width:100%">
-          <textarea id="sh-fr-description" rows="2" maxlength="500" placeholder="Description" style="width:100%"></textarea>
-          <textarea id="sh-fr-conditions" rows="2" maxlength="1000" placeholder="Conditions" style="width:100%"></textarea>
-        </fieldset>
-        <fieldset><legend>EN</legend>
-          <input id="sh-en-title" type="text" maxlength="80" placeholder="Title" style="width:100%">
-          <textarea id="sh-en-description" rows="2" maxlength="500" placeholder="Description" style="width:100%"></textarea>
-          <textarea id="sh-en-conditions" rows="2" maxlength="1000" placeholder="Conditions" style="width:100%"></textarea>
-        </fieldset>
-        <fieldset><legend>NL</legend>
-          <input id="sh-nl-title" type="text" maxlength="80" placeholder="Titel" style="width:100%">
-          <textarea id="sh-nl-description" rows="2" maxlength="500" placeholder="Beschrijving" style="width:100%"></textarea>
-          <textarea id="sh-nl-conditions" rows="2" maxlength="1000" placeholder="Voorwaarden" style="width:100%"></textarea>
-        </fieldset>
-        <fieldset><legend>ES</legend>
-          <input id="sh-es-title" type="text" maxlength="80" placeholder="Título" style="width:100%">
-          <textarea id="sh-es-description" rows="2" maxlength="500" placeholder="Descripción" style="width:100%"></textarea>
-          <textarea id="sh-es-conditions" rows="2" maxlength="1000" placeholder="Condiciones" style="width:100%"></textarea>
-        </fieldset>
+      <div class="sh-wrap">
+        <div class="sh-form">
+          <div class="nw-sec" role="group" aria-labelledby="sh-sec-id">
+            <h4 id="sh-sec-id">1. Article</h4>
+            <div class="sh-grid">
+              <label>Sorte<select id="sh-kind"><option value="virtual">Virtuel (titre, badge… remis par l'équipe)</option><option value="real">Réel (verrouillé tant que #27 n'est pas validé)</option></select></label>
+              <div class="sh-icon-field">
+                <label for="sh-icon">Icône (emoji)</label>
+                <div class="sh-icon-row">
+                  <span id="sh-icon-show" class="sh-icon-show" aria-hidden="true">🎁</span>
+                  <input id="sh-icon" type="text" maxlength="8" placeholder="🎁" aria-describedby="sh-icon-help">
+                  <button type="button" class="btn btn-outline" id="btn-sh-emoji" aria-expanded="false" aria-controls="sh-emoji-panel">😀 Choisir…</button>
+                </div>
+                <p id="sh-icon-help" class="muted sh-help">Cliquez « Choisir… » pour un emoji, ou collez-en un. Vide = 🎁.</p>
+              </div>
+            </div>
+            <div id="sh-emoji-panel" class="sh-emoji-panel hidden" role="group" aria-label="Choisir un emoji">
+              <input id="sh-emoji-search" type="search" placeholder="Rechercher : trophée, couronne, étoile, pioche…" aria-label="Rechercher un emoji">
+              <div id="sh-emoji-cats" class="sh-emoji-cats" role="group" aria-label="Catégories"></div>
+              <div id="sh-emoji-grid" class="sh-emoji-grid"></div>
+              <p class="muted sh-help">Une illustration sur mesure ? Préparez-la dans l'onglet 🎨 Icônes, puis indiquez son chemin dans « Image » (options avancées). Rien n'est généré automatiquement.</p>
+            </div>
+          </div>
+
+          <div class="nw-sec" role="group" aria-labelledby="sh-sec-price">
+            <h4 id="sh-sec-price">2. Prix et disponibilité</h4>
+            <div class="sh-grid">
+              <label>Coût (points)<input id="sh-cost" type="number" min="1"></label>
+              <label>Stock restant (vide = illimité)<input id="sh-stock" type="number" min="0"></label>
+              <label>Max. par joueur (vide = illimité)<input id="sh-max" type="number" min="1"></label>
+            </div>
+            <div class="sh-checks">
+              <label><input type="checkbox" id="sh-visible"> Visible des joueurs</label>
+              <label><input type="checkbox" id="sh-unavailable"> Indisponible (affiché, non échangeable)</label>
+            </div>
+          </div>
+
+          <div class="nw-sec" role="group" aria-labelledby="sh-sec-text">
+            <h4 id="sh-sec-text">3. Textes affichés aux joueurs</h4>
+            <div class="co-lang-switch" id="sh-langs" role="group" aria-label="Langue éditée">
+              <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true"><span class="sh-lang-state" aria-hidden="true"></span>FR</button>
+              <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false"><span class="sh-lang-state" aria-hidden="true"></span>EN</button>
+              <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false"><span class="sh-lang-state" aria-hidden="true"></span>NL</button>
+              <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false"><span class="sh-lang-state" aria-hidden="true"></span>ES</button>
+            </div>
+            <p class="muted sh-help">● titre saisi · ○ à traduire : le texte français est alors affiché aux joueurs de cette langue.</p>
+            <p id="sh-fr-ref" class="muted co-prop-ref hidden"><strong>Français :</strong> <span id="sh-fr-ref-text"></span></p>
+            <div class="sh-lang-fields" data-lang="fr">
+              <label>Titre (FR) — obligatoire<input id="sh-fr-title" type="text" maxlength="80"></label>
+              <label>Description (FR)<textarea id="sh-fr-description" rows="2" maxlength="500"></textarea></label>
+              <label>Conditions (FR)<textarea id="sh-fr-conditions" rows="2" maxlength="1000"></textarea></label>
+            </div>
+            <div class="sh-lang-fields hidden" data-lang="en">
+              <label>Title (EN)<input id="sh-en-title" type="text" maxlength="80"></label>
+              <label>Description (EN)<textarea id="sh-en-description" rows="2" maxlength="500"></textarea></label>
+              <label>Conditions (EN)<textarea id="sh-en-conditions" rows="2" maxlength="1000"></textarea></label>
+            </div>
+            <div class="sh-lang-fields hidden" data-lang="nl">
+              <label>Titel (NL)<input id="sh-nl-title" type="text" maxlength="80"></label>
+              <label>Beschrijving (NL)<textarea id="sh-nl-description" rows="2" maxlength="500"></textarea></label>
+              <label>Voorwaarden (NL)<textarea id="sh-nl-conditions" rows="2" maxlength="1000"></textarea></label>
+            </div>
+            <div class="sh-lang-fields hidden" data-lang="es">
+              <label>Título (ES)<input id="sh-es-title" type="text" maxlength="80"></label>
+              <label>Descripción (ES)<textarea id="sh-es-description" rows="2" maxlength="500"></textarea></label>
+              <label>Condiciones (ES)<textarea id="sh-es-conditions" rows="2" maxlength="1000"></textarea></label>
+            </div>
+          </div>
+
+          <details id="sh-real-box" class="nw-sec hidden">
+            <summary>Cadeau réel — valeur, pays, âge <span id="sh-real-sum" class="muted"></span></summary>
+            <div class="sh-grid">
+              <label>Valeur faciale (centimes)<input id="sh-face" type="number" min="0"></label>
+              <label>Devise (EUR…)<input id="sh-currency" type="text" maxlength="3"></label>
+              <label>Territoires (BE,FR… ; vide = non précisé)<input id="sh-territories" type="text" maxlength="200"></label>
+              <label>Âge minimal (vide = aucun)<input id="sh-age" type="number" min="0" max="99"></label>
+            </div>
+          </details>
+          <p id="sh-real-kept" class="muted sh-help hidden">Des réglages de cadeau réel sont conservés (masqués pour un article virtuel).</p>
+
+          <details id="sh-adv-box" class="nw-sec">
+            <summary>Calendrier et options avancées <span id="sh-adv-sum" class="muted"></span></summary>
+            <div class="sh-grid">
+              <label>Début de validité (UTC)<input id="sh-from" type="text" placeholder="AAAA-MM-JJ HH:MM:SS"></label>
+              <label>Fin de validité (UTC)<input id="sh-until" type="text" placeholder="AAAA-MM-JJ HH:MM:SS"></label>
+              <label>Ordre d'affichage<input id="sh-sort" type="number" value="0"></label>
+              <label>Image (/chemin ou https://…)<input id="sh-image" type="text" maxlength="300"></label>
+            </div>
+          </details>
+        </div>
+
+        <details id="sh-preview-box" class="nw-sec sh-preview" open>
+          <summary>👁 Aperçu joueur <span id="sh-prev-lang" class="muted"></span></summary>
+          <ul class="sh-prev-list"><li id="sh-preview" class="sh-prev-item"></li></ul>
+          <p id="sh-prev-state" class="muted sh-help"></p>
+        </details>
       </div>
       <div class="form-actions" style="margin-top:8px">
         <button class="btn btn-primary" id="btn-sh-save" type="button">Enregistrer l'article</button>

@@ -24,10 +24,13 @@ function addCell(tr, value) {
 // ── Fiches modales communes (UX du panel, 31/10) : la page montre d'abord les données ; « ＋ Ajouter »
 // ou un clic sur une ligne ouvre une fiche <dialog> (Échap, clic sur le fond, Annuler : fermeture sans
 // effet ; le focus revient à l'élément d'origine, retrouvé par data-adm-key si la liste a été re-rendue).
-function admDialogSetup(id) {
+// `canClose` (facultatif, #61) : fonction asynchrone appelée avant ✕ / Annuler / fond / Échap ; false = la fiche reste ouverte.
+function admDialogSetup(id, { canClose } = {}) {
   const dlg = document.getElementById(id);
-  dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => dlg.close()));
-  dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+  const request = async () => { if (!canClose || await canClose()) dlg.close(); };
+  dlg.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', request));
+  dlg.addEventListener('click', e => { if (e.target === dlg) request(); });
+  if (canClose) dlg.addEventListener('cancel', e => { e.preventDefault(); request(); });
   dlg.addEventListener('close', () => {
     const o = dlg._admOpener;
     dlg._admOpener = null;
@@ -1956,6 +1959,11 @@ function shFillForm(item) {
   for (const lang of SH_LANGS) for (const f of ['title', 'description', 'conditions']) {
     document.getElementById(`sh-${lang}-${f}`).value = item?.texts?.[lang]?.[f] ?? '';
   }
+  document.getElementById('sh-adv-box').open = false;
+  document.getElementById('sh-real-box').open = (item?.kind === 'real');
+  shEmojiToggle(false);
+  shLang('fr');
+  shRefresh();
 }
 
 function shReadForm() {
@@ -1973,6 +1981,146 @@ function shReadForm() {
   }
   return item;
 }
+
+// Une langue à la fois (onglets FR/EN/NL/ES) ; ● titre saisi · ○ à traduire. Le français reste visible en rappel.
+let _shLang = 'fr';
+function shLang(l, focus = false) {
+  _shLang = l;
+  for (const b of document.querySelectorAll('#sh-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const d of document.querySelectorAll('#sh-dialog .sh-lang-fields')) d.classList.toggle('hidden', d.dataset.lang !== l);
+  if (focus) document.querySelector(`#sh-langs .co-lang-btn[data-lang="${l}"]`).focus();
+  shRefresh();
+}
+document.querySelectorAll('#sh-langs .co-lang-btn').forEach((b, k, all) => {
+  b.addEventListener('click', () => shLang(b.dataset.lang));
+  b.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    shLang(all[(k + (e.key === 'ArrowRight' ? 1 : all.length - 1)) % all.length].dataset.lang, true);
+  });
+});
+
+const shPts = n => `${Number(n).toLocaleString('fr-BE')} ${Math.abs(Number(n)) < 2 ? 'pt' : 'pts'}`;
+
+/** Sorte, résumés des sections repliées, états des langues, aperçu joueur et indicateur de modifications. */
+function shRefresh() {
+  const it = shReadForm();
+  const real = it.kind === 'real';
+  // Champs du cadeau réel : affichés seulement pour un article réel ; leurs valeurs restent intactes sinon.
+  const realBox = document.getElementById('sh-real-box');
+  realBox.classList.toggle('hidden', !real);
+  const realSet = it.face_value_cents !== null || it.currency || it.territories || it.min_age !== null;
+  document.getElementById('sh-real-kept').classList.toggle('hidden', real || !realSet);
+  document.getElementById('sh-real-sum').textContent = `— ${[
+    it.face_value_cents !== null ? `${(it.face_value_cents / 100).toFixed(2)} ${it.currency || '?'}` : 'valeur non précisée',
+    it.territories ? `pays ${it.territories}` : '', it.min_age !== null ? `dès ${it.min_age} ans` : ''].filter(Boolean).join(' · ')}`;
+  document.getElementById('sh-adv-sum').textContent = `— ${[
+    it.valid_from || it.valid_until ? `du ${it.valid_from || '…'} au ${it.valid_until || '…'}` : 'toujours valable',
+    `ordre ${it.sort ?? 0}`, it.image_url ? 'image personnalisée' : ''].filter(Boolean).join(' · ')}`;
+  for (const b of document.querySelectorAll('#sh-langs .co-lang-btn')) {
+    b.querySelector('.sh-lang-state').textContent = it.texts[b.dataset.lang].title.trim() ? '●' : '○';
+  }
+  const ref = document.getElementById('sh-fr-ref');
+  ref.classList.toggle('hidden', _shLang === 'fr' || !it.texts.fr.title.trim());
+  document.getElementById('sh-fr-ref-text').textContent = [it.texts.fr.title, it.texts.fr.description].filter(s => s.trim()).join(' — ');
+  document.getElementById('sh-icon-show').textContent = it.icon || '🎁';
+  for (const b of document.querySelectorAll('#sh-emoji-grid button')) b.setAttribute('aria-pressed', String(b.textContent === it.icon));
+  shPreview(it);
+  document.getElementById('sh-dirty').classList.toggle('hidden', !shDirty());
+}
+
+/** Aperçu de la carte vue par un joueur (langue éditée, repli sur le français comme dans le jeu). */
+function shPreview(it) {
+  const tx = f => it.texts[_shLang][f].trim() || it.texts.fr[f].trim();
+  const li = document.getElementById('sh-preview');
+  li.textContent = '';
+  document.getElementById('sh-prev-lang').textContent = `(${_shLang.toUpperCase()})`;
+  if (it.image_url) li.appendChild(aiEl('img', { class: 'sh-prev-icon', src: it.image_url, alt: '' }));
+  else li.appendChild(aiEl('span', { class: 'sh-prev-icon', 'aria-hidden': 'true' }, it.icon || '🎁'));
+  li.appendChild(aiEl('div', { class: 'sh-prev-title' }, tx('title') || '(titre français manquant)'));
+  const body = aiEl('div', {});
+  if (tx('description')) body.appendChild(aiEl('div', { class: 'sh-prev-desc' }, tx('description')));
+  const facts = [it.stock_remaining !== null ? `Stock : ${it.stock_remaining}` : '', it.max_per_user ? `Max. ${it.max_per_user} par joueur` : '',
+    it.valid_until ? `Jusqu'au ${it.valid_until.slice(0, 10)}` : ''].filter(Boolean).join(' · ');
+  if (facts) body.appendChild(aiEl('div', { class: 'sh-prev-facts' }, facts));
+  li.appendChild(body);
+  const off = it.unavailable || it.stock_remaining === 0 || it.kind === 'real';
+  const label = it.kind === 'real' ? 'Bientôt' : it.unavailable ? 'Indisponible' : it.stock_remaining === 0 ? 'Épuisé' : 'Échanger';
+  const buy = aiEl('div', { class: 'sh-prev-buy' });
+  buy.appendChild(aiEl('span', { class: 'sh-prev-cost' }, it.cost ? shPts(it.cost) : '? pts'));
+  buy.appendChild(aiEl('span', { class: `sh-prev-btn${off ? ' off' : ''}` }, label));
+  li.appendChild(buy);
+  document.getElementById('sh-prev-state').textContent = [
+    it.visible ? '✅ Visible dans Saison → Boutique de cadeaux' : '🙈 Masqué : les joueurs ne le voient pas',
+    it.kind === 'real' ? 'cadeau réel : non échangeable tant que #27 est verrouillé' : '',
+    'Un joueur sans assez de points voit « Il manque … ».'].filter(Boolean).join(' · ');
+}
+
+// Sélecteur d'emoji (#34-F) : catégories, recherche par mot-clé, choix au clic ; saisie ou collage libre toujours possible.
+const SH_EMOJIS = {
+  'Cadeaux': [['🎁', 'cadeau paquet'], ['🎀', 'ruban noeud'], ['🎉', 'fête confettis'], ['🎊', 'fête boule'], ['🎈', 'ballon'], ['🛍️', 'sac boutique achat'], ['🎫', 'ticket billet'], ['🎟️', 'ticket entrée'], ['💌', 'lettre carte'], ['📦', 'colis boîte coffre']],
+  'Honneur': [['🏆', 'trophée coupe victoire'], ['🥇', 'médaille or premier'], ['🥈', 'médaille argent deuxième'], ['🥉', 'médaille bronze troisième'], ['🏅', 'médaille sport'], ['🎖️', 'décoration militaire médaille'], ['👑', 'couronne roi reine'], ['📜', 'parchemin titre diplôme'], ['🔰', 'débutant badge'], ['🎗️', 'ruban mémoire']],
+  'Trésor': [['💎', 'diamant gemme'], ['💍', 'bague anneau'], ['🪙', 'pièce monnaie'], ['💰', 'sac argent trésor'], ['🗝️', 'clé ancienne'], ['🔑', 'clé'], ['⚱️', 'urne relique'], ['🏺', 'amphore relique'], ['🔮', 'boule cristal magie'], ['🧿', 'amulette talisman']],
+  'Mine': [['⛏️', 'pioche mine'], ['⚒️', 'marteau pioche'], ['🪓', 'hache'], ['🛠️', 'outils'], ['🔦', 'lampe torche'], ['🪨', 'pierre roche'], ['🧱', 'brique bloc'], ['🪵', 'bois'], ['🧨', 'dynamite explosif'], ['🗺️', 'carte trésor']],
+  'Étoiles': [['⭐', 'étoile'], ['🌟', 'étoile brillante'], ['✨', 'étincelles brillant'], ['💫', 'vertige étoile'], ['🔥', 'feu flamme'], ['⚡', 'éclair énergie'], ['❤️', 'coeur rouge'], ['💜', 'coeur violet'], ['💙', 'coeur bleu'], ['💚', 'coeur vert']],
+  'Objets': [['🎮', 'manette jeu vidéo'], ['🕹️', 'joystick jeu'], ['🎲', 'dé jeu'], ['🧩', 'puzzle'], ['🎨', 'palette art peinture'], ['🖼️', 'tableau cadre image'], ['👕', 't-shirt vêtement'], ['🧢', 'casquette'], ['🎧', 'casque audio'], ['📱', 'téléphone']],
+};
+const shNorm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+let _shEmojiCat = 'Cadeaux';
+function shEmojiRender() {
+  const q = shNorm(document.getElementById('sh-emoji-search').value.trim());
+  const cats = document.getElementById('sh-emoji-cats');
+  cats.textContent = '';
+  for (const c of Object.keys(SH_EMOJIS)) {
+    const b = aiEl('button', { type: 'button', 'aria-pressed': String(!q && c === _shEmojiCat) }, c);
+    b.addEventListener('click', () => { _shEmojiCat = c; document.getElementById('sh-emoji-search').value = ''; shEmojiRender(); });
+    cats.appendChild(b);
+  }
+  const list = q ? Object.values(SH_EMOJIS).flat().filter(([, k]) => shNorm(k).includes(q)) : SH_EMOJIS[_shEmojiCat];
+  const grid = document.getElementById('sh-emoji-grid');
+  grid.textContent = '';
+  if (!list.length) grid.appendChild(aiEl('p', { class: 'muted sh-help' }, 'Aucun emoji pour cette recherche : collez-en un dans le champ.'));
+  const cur = document.getElementById('sh-icon').value.trim();
+  for (const [e, k] of list) {
+    const b = aiEl('button', { type: 'button', title: k, 'aria-label': `${e} ${k}`, 'aria-pressed': String(e === cur) }, e);
+    b.addEventListener('click', () => {
+      document.getElementById('sh-icon').value = e;
+      shEmojiToggle(false);
+      document.getElementById('btn-sh-emoji').focus();
+      shRefresh();
+    });
+    grid.appendChild(b);
+  }
+}
+function shEmojiToggle(open) {
+  const btn = document.getElementById('btn-sh-emoji');
+  document.getElementById('sh-emoji-panel').classList.toggle('hidden', !open);
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) { document.getElementById('sh-emoji-search').value = ''; shEmojiRender(); document.getElementById('sh-emoji-search').focus(); }
+}
+document.getElementById('btn-sh-emoji').addEventListener('click', e => shEmojiToggle(e.currentTarget.getAttribute('aria-expanded') !== 'true'));
+document.getElementById('sh-emoji-search').addEventListener('input', shEmojiRender);
+document.getElementById('sh-emoji-panel').addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  e.preventDefault(); e.stopPropagation();   // Échap ferme le sélecteur, pas la fiche
+  shEmojiToggle(false);
+  document.getElementById('btn-sh-emoji').focus();
+});
+
+// Saisies non enregistrées (#61) : confirmation Dig avant ✕, Annuler, clic sur le fond, Échap ou départ de la page.
+let _shSnap = null;
+const shDirty = () => document.getElementById('sh-dialog').open && _shSnap !== null && JSON.stringify(shReadForm()) !== _shSnap;
+async function shCanClose() {
+  if (shDirty() && !await admConfirm({
+    title: 'Modifications non enregistrées',
+    text: 'Cette fiche d\'article contient des saisies qui ne sont pas enregistrées.',
+    impact: ['« Abandonner » ferme la fiche et perd ces saisies ; le catalogue ne change pas.', 'Pour les garder : « Continuer à modifier », puis « Enregistrer l\'article ».'],
+    ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
+  })) return false;
+  _shSnap = null;
+  return true;
+}
+window.addEventListener('beforeunload', e => { if (shDirty()) { e.preventDefault(); e.returnValue = ''; } });
 
 async function loadShop() {
   const status = document.getElementById('sh-order-filter').value;
@@ -2000,7 +2148,7 @@ async function loadShop() {
   }
 
   document.getElementById('sh-totals').textContent = data.totals.length
-    ? data.totals.map(x => `${SH_STATUS[x.status] || x.status} : ${x.n} (${x.points} pts)`).join(' · ')
+    ? data.totals.map(x => `${SH_STATUS[x.status] || x.status} : ${x.n} (${shPts(x.points)})`).join(' · ')
     : 'Aucune commande.';
   const ob = document.getElementById('sh-orders-body');
   ob.textContent = '';
@@ -2038,8 +2186,15 @@ async function loadShopAudit() {
 }
 
 async function shopTransition(o, to) {
-  const label = to === 'cancelled' ? `Annuler la commande n° ${o.id} et rembourser ${o.cost} pts ?` : `Passer la commande n° ${o.id} à « ${SH_STATUS[to]} » ?`;
-  if (!confirm(label)) return;
+  const cancel = to === 'cancelled';
+  if (!await admConfirm({
+    title: cancel ? `Annuler la commande n° ${o.id} ?` : `Passer la commande n° ${o.id} à « ${SH_STATUS[to]} » ?`,
+    text: `${o.icon || '🎁'} ${o.texts.fr.title} — ${o.username ?? `joueur #${o.userId}`} — ${shPts(o.cost)}`,
+    impact: cancel
+      ? [`Le joueur est remboursé de ${shPts(o.cost)} et l'article revient en stock.`, 'La commande reste dans l\'historique (« Annulé »).']
+      : [`Le joueur verra le statut « ${SH_STATUS[to]} » dans « Mes échanges ».`, 'La note facultative ci-dessus est jointe au journal.'],
+    ok: cancel ? 'Annuler et rembourser' : `Passer à « ${SH_STATUS[to]} »`, cancel: 'Ne rien changer', danger: cancel,
+  })) return;
   const note = document.getElementById('sh-order-note').value;
   const { ok, data } = await api('POST', `/api/admin/shop/orders/${encodeURIComponent(o.id)}/status`, { status: to, note });
   shMessage('sh-order-msg', ok ? `Commande n° ${o.id} : ${SH_STATUS[data.order.status]}.` : (data.error || 'Erreur.'), ok);
@@ -2048,11 +2203,19 @@ async function shopTransition(o, to) {
 
 document.getElementById('btn-refresh-shop').addEventListener('click', loadShop);
 document.getElementById('sh-order-filter').addEventListener('change', loadShop);
-admDialogSetup('sh-dialog');
+admDialogSetup('sh-dialog', { canClose: shCanClose });
+document.getElementById('sh-dialog').addEventListener('input', shRefresh);
+document.getElementById('sh-dialog').addEventListener('change', shRefresh);
+document.getElementById('sh-kind').addEventListener('change', () => {
+  if (document.getElementById('sh-kind').value === 'real') document.getElementById('sh-real-box').open = true;
+});
 function shOpenSheet(item, opener) {
+  _shSnap = null;
   shFillForm(item);
   document.getElementById('sh-item-msg').classList.add('hidden');
-  admDialogOpen('sh-dialog', opener, item ? document.querySelector('#sh-dialog [data-close]') : 'sh-cost');
+  admDialogOpen('sh-dialog', opener, item ? document.querySelector('#sh-dialog [data-close]') : 'sh-fr-title');
+  _shSnap = JSON.stringify(shReadForm());
+  shRefresh();
 }
 document.getElementById('btn-sh-new').addEventListener('click', e => shOpenSheet(null, e.currentTarget));
 
@@ -2070,6 +2233,7 @@ document.getElementById('btn-sh-save').addEventListener('click', async () => {
     ? await api('PUT', `/api/admin/shop/items/${encodeURIComponent(id)}`, { item })
     : await api('POST', '/api/admin/shop/items', { item });
   if (!ok) return shMessage('sh-item-msg', data.error || 'Erreur.', false);
+  _shSnap = null;
   document.getElementById('sh-dialog').close();
   shMessage('sh-list-msg', `Article #${data.item.id} enregistré.`, true);
   loadShop();

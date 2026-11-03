@@ -986,3 +986,42 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .player-ac-list li { padding: 6px 10px; cursor: pointer; }
 .player-ac-list li[aria-selected="true"], .player-ac-list li[role="option"]:hover { background: var(--accent-soft, rgba(255, 200, 80, .18)); }
 .player-ac-list .player-ac-empty { cursor: default; }
+
+/* ── Fiche article de la boutique (#34, recettes E/F du 03/11) : sections, une langue à la fois,
+   champs « réel » seulement si Réel, options repliées, aperçu joueur, sélecteur d'emoji ─────────── */
+.sh-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 12px; align-items: start; }
+@media (max-width: 760px) { .sh-wrap { grid-template-columns: minmax(0, 1fr); } .sh-preview { order: -1; } }
+.sh-form { min-width: 0; }
+.sh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+.sh-checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; }
+.sh-checks label { flex-direction: row !important; align-items: center; }
+.sh-help { font-size: 0.75rem; margin: 4px 0 0; }
+.sh-lang-fields { display: flex; flex-direction: column; gap: 8px; }
+.sh-lang-fields input, .sh-lang-fields textarea { width: 100%; }
+.sh-lang-state { margin-right: 4px; }
+.nw-sec > summary { cursor: pointer; }
+.sh-icon-field { display: flex; flex-direction: column; gap: 4px; }
+.sh-icon-row { display: flex; gap: 6px; align-items: center; }
+.sh-icon-row input { width: 5em; flex: 0 0 auto; }
+.sh-icon-show { font-size: 1.6rem; width: 1.6em; text-align: center; }
+.sh-emoji-panel { border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sh-emoji-panel input[type="search"] { width: 100%; }
+.sh-emoji-cats { display: flex; flex-wrap: wrap; gap: 4px; }
+.sh-emoji-cats button { font: inherit; font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: inherit; cursor: pointer; }
+.sh-emoji-cats button[aria-pressed="true"] { background: var(--gold); color: #111; border-color: var(--gold); }
+.sh-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; max-height: 180px; overflow-y: auto; }
+.sh-emoji-grid button { font-size: 1.4rem; min-height: 40px; border: 1px solid transparent; border-radius: 6px; background: transparent; cursor: pointer; }
+.sh-emoji-grid button:hover, .sh-emoji-grid button:focus-visible { border-color: var(--gold); outline: none; }
+.sh-emoji-grid button[aria-pressed="true"] { border-color: var(--gold); background: rgba(255, 200, 0, 0.12); }
+@media (min-width: 761px) { .sh-preview { position: sticky; top: 0; background: var(--surface); z-index: 1; } }
+.sh-prev-list { list-style: none; margin: 0; padding: 0; }
+.sh-prev-item { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 8px; align-items: start; }
+.sh-prev-item .sh-prev-icon { font-size: 1.8rem; text-align: center; grid-row: span 2; }
+.sh-prev-item img.sh-prev-icon { width: 40px; height: 40px; object-fit: contain; }
+.sh-prev-title { font-weight: 700; overflow-wrap: anywhere; }
+.sh-prev-desc, .sh-prev-facts { font-size: 0.78rem; overflow-wrap: anywhere; }
+.sh-prev-facts { color: var(--muted); }
+.sh-prev-buy { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+.sh-prev-cost { font-weight: 700; color: var(--gold); }
+.sh-prev-btn { font-size: 0.78rem; padding: 4px 10px; border-radius: 8px; background: var(--gold); color: #111; font-weight: 700; }
+.sh-prev-btn.off { background: transparent; color: var(--muted); border: 1px solid var(--border); }

@@ -58,7 +58,7 @@ test('chaque fiche se ferme sans effet (✕ et Annuler data-close, Échap natif)
     const d = dialog(id);
     assert.match(d, new RegExp(`<dialog id="${id}" class="bk-dialog adm-dialog[^"]*" aria-labelledby="[^"]+">`));
     assert.ok((d.match(/data-close/g) || []).length >= 2, `${id} : ✕ et Annuler`);
-    assert.match(JS, new RegExp(`admDialogSetup\\('${id}'\\)`));
+    assert.match(JS, new RegExp(`admDialogSetup\\('${id}'(, \\{ canClose: \\w+ \\})?\\)`));
   }
   const setup = JS.slice(JS.indexOf('function admDialogSetup('), JS.indexOf('function admDialogOpen('));
   assert.match(setup, /\[data-close\]/);

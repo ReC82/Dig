@@ -94,7 +94,8 @@ test('i18n : EN, NL et ES ont toutes les clés FR, et les clés utilisées exist
   const flat = (o, p = '', out = {}) => {
     for (const [k, v] of Object.entries(o)) {
       const key = p ? `${p}.${k}` : k;
-      if (v && typeof v === 'object') flat(v, key, out); else out[key] = v;
+      // une forme plurielle { one, other } est UNE clé (comme tools/i18n/lib.isPlural)
+      if (v && typeof v === 'object' && typeof v.other !== 'string') flat(v, key, out); else out[key] = v;
     }
     return out;
   };
