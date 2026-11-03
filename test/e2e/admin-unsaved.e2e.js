@@ -7,7 +7,7 @@
  *   ADMIN_SECRET=$(openssl rand -hex 24) DB_FILE=test-61.sqlite PORT=3101 node server/index.js
  * puis une série de brouillon « saint_martin » (PUT /api/admin/collections/draft/series/saint_martin), et
  *   DIG_E2E_BASE=http://127.0.0.1:3101 DIG_E2E_SECRET_FILE=<fichier contenant ADMIN_SECRET> \
- *   NODE_PATH=<dossier contenant playwright-core> node tools/e2e/admin-unsaved.js
+ *   NODE_PATH=<dossier contenant playwright-core> node test/e2e/admin-unsaved.e2e.js
  * Le parcours enregistre une seule fois le nom de la série (PC) : la base de test change, jamais une autre.
  */
 const { chromium } = require('playwright-core');

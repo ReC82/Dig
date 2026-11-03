@@ -7,7 +7,7 @@
  * - suivi générique des champs (valeur relevée avant la première action, comparée ensuite) ; retour à l'état initial = propre ;
  * - échec réseau = échec ordinaire (fiche ouverte, saisie conservée) ; formulaires de page conservés au rechargement ;
  * - départ de la page protégé (beforeunload) pour toute fiche ou zone modifiée.
- * Parcours Chromium réels (PC 1280×900 et 390×844) : tools/e2e/admin-unsaved.js.
+ * Parcours Chromium réels (PC 1280×900 et 390×844) : test/e2e/admin-unsaved.e2e.js.
  */
 const test = require('node:test');
 const assert = require('node:assert');
