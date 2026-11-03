@@ -2,6 +2,68 @@
 
 Lien : https://github.com/ReC82/Dig/issues/48 — session du 03/11/2026 (nuit).
 
+## Mise à jour du 03/11/2026 (midi) : recette #48-D — onglet Saison du joueur plus lisible
+
+### 1. État réel
+
+**Déployé en production (SHA `33aac1b`). En attente de recette.** Branche : `feature/48-saisons-thematiques` (commit `c226575`). Classement : **Après lancement** (lisibilité, aucune règle ni donnée modifiée).
+
+### 2. Retour du propriétaire traité
+
+Recette #48-D (03/11, 10:39) : **affichage joueur de l'onglet Saison validé**. Sont validés : la séparation thème/ligue, les dates, le classement, les historiques et l'explication de la saison. Restent à recetter plus tard, comme demandé : l'annonce J-1, la bascule réelle du 09/11, les points à la clôture et les promotions. Ce qui vient d'être validé n'est pas à retester.
+
+Retour ergonomique : la page est très dense. Le propriétaire préfère une synthèse en haut et des sections repliables pour les explications. Il demande aussi de vérifier la mise en page réelle avant de conclure que les textes collés (`22m`, `Rang 1 :lody5 m`, `Points de récompenseSolde`) révèlent un bug.
+
+**Constat sur la mise en page réelle** (captures Chromium à 1280 et 390 px, copie de la base de production, compte `testeur`) : à l'écran, les espaces sont bien là (« Solde : 0 pts » séparé du titre, pseudo et profondeur dans des colonnes distinctes). Les concaténations viennent du copier-coller de blocs mis en page (flex), pas de l'affichage. Seul vrai écart typographique : la profondeur était écrite `22m` (carte joueur et classement). Elle s'écrit désormais `22 m`, comme dans le résultat archivé.
+
+### 3. Changements réalisés (affichage seul : `public/js/main.js`, `public/css/style.css`)
+
+Nouvel ordre de l'onglet 🏆 Saison :
+1. **Synthèse, toujours visible** : thème de la semaine, fin de saison, annonce de la saison suivante (quand elle existe), carte joueur (rang, ligue, profondeur, blocs), points de récompense (solde et prévision), puis **classement**.
+2. **Sections repliées par défaut**, avec un titre informatif même repliées :
+   - « 🏁 Résultat — Saison … » : le titre affiche ton résultat (rang ou « pas participé ») ; un clic déplie le podium, la date de clôture et la preuve SHA-256.
+   - « 🎁 Boutique de cadeaux » avec le solde : un clic déplie le catalogue et « Mes échanges ». Le bouton « Ouvrir la boutique » de la carte Points la déplie et y descend. Elle reste dépliée après un échange.
+   - « ℹ️ Comment fonctionne la saison ? » et « Saisons précédentes », désormais en bas de page.
+3. Les règles des points (conservés, non convertibles…) sont déplacées dans « Barème de fin de saison ».
+4. L'état déplié ou replié de chaque section est conservé lors de l'actualisation automatique (toutes les 30 s).
+
+Aucun texte ajouté ni retraduit (les titres existants servent de résumés) : les 5 langues restent complètes. Aucune route serveur, donnée, règle, date ou barème modifiés.
+
+### 4. Tests
+
+- `npm test` **521/521** sur la branche, sur `develop` et sur la release `33aac1b`. Le test statique de l'onglet Saison vérifie le nouvel ordre et les sections repliables.
+- Essai navigateur `test/e2e/season-player-fold.e2e.js` (hors `npm test`), sur une copie de la base de production avec le compte `testeur`, en 1280×900 et 390×844. Il vérifie : l'ordre synthèse → classement → sections repliées, le résultat et la boutique repliés par défaut, « 22 m », le lien qui déplie la boutique, l'état déplié conservé après l'actualisation automatique, l'absence de défilement horizontal et 0 erreur JS. Copie supprimée ensuite.
+
+### 5. Déploiement
+
+- Copie de la base de production démarrée en `NODE_ENV=production` : santé ok, version `1.0.0+33aac1b`, empreintes des 6 tables identiques avant et après. Copie supprimée.
+- Aucune génération IA en cours (dernier appel admin à 11:17, pas d'atelier).
+- `scripts/deploy.sh` : `6fb4032 → 33aac1b`, sauvegarde vérifiée `~/backups/dig/dig-20261103-120759-pre-deploy-33aac1b.sqlite`, santé et version ok.
+- Après le déploiement : les 2 domaines répondent 200 avec `1.0.0+33aac1b`, la nouvelle feuille de style est servie, le journal est sans erreur et `quick_check` = ok. `users`, `seasons` et `leagues` sont identiques à la sauvegarde. Sur `user_saves`, `season_rankings` et `player_click_tracking`, une partie était en cours : sauvegarde v331 → v332 et profondeur 31 → 32 m. C'est une progression, pas une perte.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 6fb4032` puis `sudo systemctl restart dig` (code seul, aucune base).
+
+**Test fonctionnel à faire par le propriétaire (≈ 2 min, lecture seule)** : jeu (Ctrl+F5), connecté, onglet 🏆 Saison, sur téléphone puis sur PC.
+1. En haut, sans défiler beaucoup : thème, fin de saison, carte « Rang #… · Ligue … · Prof. max : 22 m », points, puis le **Classement**.
+2. En dessous, 4 lignes repliées : « 🏁 Résultat — Saison 44-2026 · 2 » (avec ton résultat dans le titre), « 🎁 Boutique de cadeaux · Solde », « ℹ️ Comment fonctionne la saison ? », « Saisons précédentes ».
+3. Toucher une ligne la déplie (chevron tourné) ; elle reste dépliée après 30 s.
+4. Carte Points → « 🎁 Ouvrir la boutique de cadeaux » : la boutique se déplie et l'écran y descend.
+
+### 6. Choix techniques faits seul
+
+- J'ai remonté le classement juste sous les points. C'est le cœur de la page, et il passe avant le résultat de la saison précédente, qui est archivé.
+- La carte Points reste dépliée (solde et prévision font partie de la synthèse). Seules ses règles longues sont rangées dans le barème.
+- J'ai gardé des `<details>` natifs, comme pour l'info saison : accessibles au clavier et au lecteur d'écran, sans script.
+
+### 7. Décisions demandées au propriétaire
+
+Inchangées : 1) seuil de promotion en pré-bêta, recommandé (a) ; 2) illustrer et publier Saint-Martin avant le 09/11 ; 3) un 4ᵉ pack pour la S48.
+
+### 8. Restant à réaliser
+
+- Recette de cette mise en page.
+- Recettes différées : annonce J-1 (dimanche 08/11), bascule du lundi 09/11 01:00 (Bruxelles), points à la clôture, promotions.
+- Décisions 1 à 3.
+
 ## Mise à jour du 03/11/2026 (fin de matinée) : recette du 03/11 10:04 — onglet Ligues & Saisons pleine largeur et centré
 
 ### 1. État réel
