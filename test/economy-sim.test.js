@@ -1,0 +1,108 @@
+/**
+ * Tests de l'outil d'audit économique tools/balance/economy-sim.js (ticket #49) : le tirage
+ * rapide reproduit les probabilités exactes du jeu (Blocks.spawn), les coffres de la boutique
+ * suivent server/chestShop.rollChest, les sources de gemmes sont celles du code, la simulation
+ * est reproductible et les variantes proposées ne modifient pas le jeu.
+ * Aucun serveur ni base de données.
+ * Lancer : npm test
+ */
+
+'use strict';
+
+const test   = require('node:test');
+const assert = require('node:assert');
+const path   = require('path');
+
+const sim = require(path.join(__dirname, '..', 'tools', 'balance', 'economy-sim.js'));
+const { SHOP_CHESTS, rollChest } = require(path.join(__dirname, '..', 'server', 'chestShop'));
+
+test('economy-sim : catalogue v3 publié (22 blocs) et gemmes réelles', () => {
+  const { G } = sim;
+  assert.strictEqual(G.Blocks.TYPES.length, 22);
+  const rules = sim.currentRules();
+  // 1 gemme par bloc qui en rapporte ; saphir, améthyste et cristal ancien n'en rapportent pas
+  assert.deepStrictEqual(rules.gemsPerBlock, { rubis: 1, emeraude: 1, diamant: 1 });
+  assert.deepStrictEqual(Array.from(rules.dailyGems), [0, 0, 1, 0, 2, 0, 4]);
+  assert.deepStrictEqual(Array.from(rules.autodigCosts, c => c.gems), [0, 0, 4, 8, 18, 35]);
+  assert.strictEqual(rules.questGems, 1);
+  assert.strictEqual(rules.economy.chestCosts.simple, 800);   // réglage de production du 02/11
+});
+
+test('economy-sim : le tirage rapide suit Blocks.spawn (nature avec Chance, PV sans Chance)', () => {
+  const { G } = sim;
+  const depth = 122, luck = 5;
+  G.GameState.upgrades.luck = luck;
+  G.GameState.relicBonuses = {};
+  G.GameState.blockSeed = 12345;
+  G.GameState.blockSeq = 0;
+  const N = 40_000;
+  let gemReal = 0, hpReal = 0;
+  for (let i = 0; i < N; i++) {
+    const b = G.Blocks.spawn(depth);
+    if (b.type.isGem) gemReal++;
+    hpReal += b.hp;
+  }
+  const odds = sim.oddsAt(depth, luck, 0);
+  const random = sim.rng(1);
+  let gemFast = 0, hpFast = 0;
+  for (let i = 0; i < N; i++) {
+    let x = random() * odds.type.cum.at(-1);
+    const type = odds.type.types[odds.type.cum.findIndex(c => x <= c)];
+    x = random() * odds.hp.cum.at(-1);
+    const hpType = odds.hp.types[odds.hp.cum.findIndex(c => x <= c)];
+    if (type.isGem) gemFast++;
+    hpFast += Math.ceil(hpType.hpBase * (1 + (depth - 1) * 0.12));
+  }
+  const exact = sim.exactOdds(depth, luck).gem;
+  assert.ok(Math.abs(gemReal / N - exact) < 0.004, `jeu ${gemReal / N} vs exact ${exact}`);
+  assert.ok(Math.abs(gemFast / N - exact) < 0.004, `outil ${gemFast / N} vs exact ${exact}`);
+  assert.ok(Math.abs(hpFast / hpReal - 1) < 0.03, `PV moyens outil/jeu ${hpFast / hpReal}`);
+});
+
+test('economy-sim : espérance des coffres de la boutique = rollChest', () => {
+  const N = 30_000;
+  let coins = 0, frags = 0;
+  const data = { coins: 0, relicFragments: 0, relics: { shard_magnet: 2 }, collection: [] };
+  for (let i = 0; i < N; i++) {
+    data.coins = 1_000; data.shopChestsBought = {}; data.relicFragments = 0;
+    const { reward } = rollChest('simple', data, { chest_cost_simple: '1000' });
+    if (reward.type === 'coins') coins += reward.amount;
+    frags += data.relicFragments;
+  }
+  const e = sim.chestExpectation(SHOP_CHESTS.simple.table, 2, 1, true);
+  assert.ok(Math.abs(coins / N / e.coins - 1) < 0.03, `pièces ${coins / N} vs ${e.coins}`);
+  assert.ok(Math.abs(frags / N / e.frags - 1) < 0.05, `fragments ${frags / N} vs ${e.frags}`);
+});
+
+test('economy-sim : simulation reproductible et cohérente', () => {
+  const rules = sim.currentRules();
+  const run = () => sim.simulatePlayers({ profile: sim.PROFILES.regulier, rules, runs: 3, seasons: 2, seed: 11 });
+  const a = run(), b = run();
+  assert.deepStrictEqual(a, b);
+  for (const player of a) {
+    for (const m of player) {
+      const earned = m.gems.blocks + m.gems.daily + m.gems.missions + m.gems.quest + m.gems.mineChests;
+      assert.strictEqual(m.gemsEarned, earned);
+      assert.strictEqual(m.gems.mineChests, 0);                 // aucune gemme en coffre aujourd'hui
+      assert.ok(m.gemsSpent <= 65, 'Auto-Dig 3→6 : 65 gemmes au plus par saison');
+      assert.ok(m.maxDepth > 100);
+    }
+  }
+  // Fin de saison : gemmes plafonnées à 100 (gems_cap)
+  const s = sim.simulatePlayers({ profile: sim.PROFILES.assidu, rules, runs: 2, seasons: 4, seed: 3 });
+  for (const player of s) {
+    for (const m of player) if (m.gemsBeforeCap > 100) assert.strictEqual(m.gemsLostCap, m.gemsBeforeCap - 100);
+  }
+});
+
+test('economy-sim : les variantes A et B ne modifient pas les règles du jeu', () => {
+  const before = JSON.stringify(sim.currentRules().gemsPerBlock);
+  const A = sim.VARIANTS.A(sim.currentRules());
+  const B = sim.VARIANTS.B(sim.currentRules());
+  assert.strictEqual(A.gemsPerBlock.saphir, 1);
+  assert.strictEqual(B.autodigCosts[5].gems, 60);
+  assert.strictEqual(JSON.stringify(sim.currentRules().gemsPerBlock), before);
+  assert.deepStrictEqual(Array.from(sim.G.Balance.AUTODIG, c => c.gems), [0, 0, 4, 8, 18, 35]);
+  const h = sim.hourAt({ ...sim.FIXED[1], rules: A }, 20);
+  assert.ok(h.meters.p50 > 100 && h.gems.mean > 0);
+});
