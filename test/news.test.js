@@ -174,6 +174,7 @@ test('fin de saison et faits joueurs : classement figé, accord, risque, plafond
   const end = conn().prepare('SELECT * FROM news_items WHERE auto_key = ?').get(`season_end:${sid}`);
   assert.ok(end, 'fin de saison annoncée');
   assert.match(JSON.parse(end.summaries).fr, /3 mineurs classés · record de la saison : 420 m/);
+  assert.strictEqual(JSON.parse(end.titles).fr, 'Fin de la saison test fin', 'nom technique sans « Saison » répété');
   assert.ok(!conn().prepare("SELECT 1 FROM news_items WHERE auto_key LIKE 'rank:%'").get(), 'faits joueurs désactivés par défaut');
 
   db.setAdminConfig('news_player_events', 'true');

@@ -556,7 +556,8 @@ function _seasonNames(season) {
     const th = require('./seasonThemes').themeForSeason(season.id);
     if (th?.names?.fr) return th.names;
   } catch (_) { /* thèmes indisponibles */ }
-  return { fr: season.name, en: season.name, nl: season.name, es: season.name };
+  const n = String(season.name).replace(/^saison\s+/i, '');   // « Saison 44-2026 » → « la saison 44-2026 »
+  return { fr: n, en: n, nl: n, es: n };
 }
 
 /** Crée une annonce automatique publiée si la clé n'existe pas encore (rejouable). */
