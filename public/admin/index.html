@@ -570,31 +570,63 @@
       <p id="ct-settings-msg" class="hidden"></p>
     </div>
 
-    <div class="overview-card">
+    <!-- Aperçu d'abord, action persistante à part (recette #30-D du propriétaire, 03/11). -->
+    <div class="overview-card" id="ct-preview-card">
       <div class="section-header" style="margin-bottom:12px">
         <h3 class="overview-card-title" style="margin:0">Saison : aperçu et attribution</h3>
         <div class="form-actions">
-          <select id="ct-season" class="league-select"></select>
-          <select id="ct-mode" class="league-select">
+          <select id="ct-season" class="league-select" aria-label="Saison"></select>
+          <select id="ct-mode" class="league-select" aria-label="Mode">
             <option value="simulation">Simulation</option>
             <option value="real">Réel</option>
           </select>
           <button class="btn btn-sm" id="btn-ct-preview">Aperçu</button>
         </div>
       </div>
-      <div id="ct-preview-info"></div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Pos.</th><th>Rang</th><th>Joueur</th><th>Prof.</th><th>Blocs</th><th>Risque</th><th>Concours</th><th>Lot</th><th></th></tr></thead>
-          <tbody id="ct-preview-body"><tr><td colspan="9" class="muted">Choisir une saison.</td></tr></tbody>
+      <p class="ct-pv-note">👁 Aperçu sans effet : rien n'est enregistré, aucun lot n'est attribué.</p>
+      <div class="ct-pv-cards" id="ct-pv-cards"></div>
+      <div id="ct-pv-blockers"></div>
+      <details class="bk-acc ct-acc" id="ct-pv-proof"><summary><span class="bk-acc-title">Preuve et détails techniques</span> <span class="bk-acc-sum">empreinte, période UTC, critères appliqués</span></summary>
+        <dl class="ct-summary" id="ct-pv-tech"></dl>
+      </details>
+      <div class="ct-pv-table-wrap">
+        <table class="ct-pv-table">
+          <thead><tr><th>Place</th><th>Joueur</th><th>Profondeur max.</th><th>Blocs minés</th><th>Risque anti-bot</th><th>Concours</th><th>Lot (aperçu)</th><th>Action</th></tr></thead>
+          <tbody id="ct-preview-body"><tr><td colspan="8" class="muted">Choisir une saison.</td></tr></tbody>
         </table>
       </div>
-      <p class="muted" style="font-size:0.78rem;margin-top:10px">Simulation : inscrit le ou les gagnants fictifs dans le suivi ci-dessous (mode simulation) et dans le journal — aucun stock consommé, aucun message au joueur, aucun point ni cadeau. Possible seulement sur une saison close et figée, une fois par saison ; la ligne reste dans l'historique (elle peut être passée à « expiré », jamais supprimée).</p>
-      <div class="form-actions" style="margin-top:8px">
-        <button class="btn" id="btn-ct-attribute" disabled>Attribuer les lots</button>
+
+      <div class="ct-commit" id="ct-commit">
+        <h4 class="ct-commit-title">Action persistante</h4>
+        <p class="ct-commit-text" id="ct-commit-text">Enregistre le résultat de cet aperçu dans l'historique des gagnants. Une seule fois par saison, ligne non supprimable.</p>
+        <div class="form-actions">
+          <button class="btn" id="btn-ct-attribute" disabled>Enregistrer une attribution simulée</button>
+        </div>
+        <p id="ct-attr-msg" class="hidden"></p>
+        <details class="ct-help"><summary>Aide : que fait exactement la simulation ?</summary>
+          <p class="muted">Simulation : inscrit le ou les gagnants fictifs dans le suivi ci-dessous (mode simulation) et dans le journal — aucun stock consommé, aucun message au joueur, aucun point ni cadeau. Possible seulement sur une saison close et figée, une fois par saison ; la ligne reste dans l'historique (elle peut être passée à « expiré », jamais supprimée).</p>
+          <p class="muted">Exclure un joueur : le retire du concours pour cette saison seulement (motif obligatoire, journalisé). Son classement, sa progression et ses récompenses de jeu ne changent pas ; « Réintégrer » annule l'exclusion. Une attribution déjà enregistrée n'est jamais modifiée.</p>
+        </details>
       </div>
-      <p id="ct-attr-msg" class="hidden"></p>
     </div>
+
+    <dialog id="ct-exclude-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="ct-exclude-title">
+      <h3 class="overview-card-title" id="ct-exclude-title">Exclure du concours</h3>
+      <p id="ct-exclude-text"></p>
+      <ul class="adm-confirm-impact">
+        <li>Le joueur ne peut pas recevoir de lot de ce concours pour cette saison ; le lot passe au suivant éligible.</li>
+        <li>Son classement, sa progression et ses récompenses de jeu ne changent pas.</li>
+        <li>Réversible avec « Réintégrer » ; motif inscrit au journal. Une attribution déjà enregistrée n'est pas modifiée.</li>
+      </ul>
+      <div class="adm-form">
+        <label>Motif (obligatoire, sans donnée personnelle) <textarea id="ct-exclude-reason" rows="2" maxlength="200"></textarea></label>
+      </div>
+      <p id="ct-exclude-msg" class="error hidden"></p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" id="btn-ct-exclude-no">Annuler</button>
+        <button type="button" class="btn btn-danger" id="btn-ct-exclude-yes" disabled>Exclure ce joueur</button>
+      </div>
+    </dialog>
 
     <div class="overview-card">
       <div class="section-header" style="margin-bottom:12px">

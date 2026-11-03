@@ -1530,68 +1530,157 @@ async function saveContestSettings() {
   loadContest();
 }
 
+/** Carte de synthèse de l'aperçu : petit libellé, valeur lisible, détail facultatif. */
+function ctPvCard(label, value, detail, tone) {
+  const c = document.createElement('div');
+  c.className = `ct-pv-card${tone ? ` ct-pv-card--${tone}` : ''}`;
+  c.append(Object.assign(document.createElement('span'), { className: 'ct-pv-label', textContent: label }),
+    Object.assign(document.createElement('strong'), { className: 'ct-pv-value', textContent: value }));
+  if (detail) c.appendChild(Object.assign(document.createElement('span'), { className: 'ct-pv-detail', textContent: detail }));
+  return c;
+}
+
+/** Cellule libellée : sur téléphone, le tableau devient une liste et chaque valeur garde son libellé. */
+function ctPvCell(tr, label, value) {
+  const td = addCell(tr, value);
+  td.dataset.label = label;
+  return td;
+}
+
+const ctPlural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
+
 async function loadContestPreview() {
   const seasonId = document.getElementById('ct-season').value;
   const mode = document.getElementById('ct-mode').value;
-  const info = document.getElementById('ct-preview-info');
+  const cards = document.getElementById('ct-pv-cards');
+  const blockersEl = document.getElementById('ct-pv-blockers');
+  const tech = document.getElementById('ct-pv-tech');
   const tbody = document.getElementById('ct-preview-body');
   const btn = document.getElementById('btn-ct-attribute');
   btn.disabled = true;
   _ctPreview = null;
-  info.textContent = '';
-  if (!seasonId) { tbody.innerHTML = '<tr><td colspan="9" class="muted">Aucune saison.</td></tr>'; return; }
+  cards.textContent = '';
+  blockersEl.textContent = '';
+  tech.textContent = '';
+  if (!seasonId) { tbody.innerHTML = '<tr><td colspan="8" class="muted">Aucune saison.</td></tr>'; return; }
   const { ok, data } = await api('GET', `/api/admin/contest/seasons/${encodeURIComponent(seasonId)}/preview?mode=${encodeURIComponent(mode)}`);
   tbody.innerHTML = '';
-  if (!ok) { tbody.innerHTML = '<tr><td colspan="9" class="error">Erreur lors du chargement.</td></tr>'; return; }
+  if (!ok) { tbody.innerHTML = '<tr><td colspan="8" class="error">Erreur lors du chargement.</td></tr>'; return; }
   _ctPreview = data;
+  const real = data.mode === 'real';
+  const who = x => x.username ?? `#${x.userId}`;
 
-  const lines = [
-    `${data.season.name} — ${data.season.startAt} → ${data.season.endAt} (UTC) — source : ${data.source === 'snapshot' ? 'classement figé' : 'classement vivant'}`,
-    data.snapshot ? `Empreinte du classement figé : ${data.snapshot.hash}` : 'Pas encore de classement figé.',
-    `${data.counts.participants} participant(s), ${data.counts.eligible} éligible(s) au concours, ${data.counts.lots} lot(s) à attribuer (${data.criteria.lotsPerSeason} prévu(s)).`,
-  ];
-  for (const b of data.blockers) lines.push(`⛔ ${CT_BLOCKER[b] || b}`);
-  if (!data.blockers.length && data.attributable) lines.push(`✅ Attribution possible en mode ${data.mode === 'real' ? 'RÉEL' : 'simulation'}.`);
-  for (const l of lines) {
-    const p = document.createElement('p');
-    p.className = l.startsWith('⛔') ? 'error' : 'muted';
-    p.style.fontSize = '0.8rem';
-    p.textContent = l;
-    info.appendChild(p);
+  // 1. Synthèse humaine en cartes (dates de Bruxelles) ; le technique va dans « Preuve et détails ».
+  const frozen = data.source === 'snapshot';
+  const winners = data.participants.filter(x => x.lotNo);
+  const recorded = data.winners?.length ?? 0;
+  cards.append(
+    ctPvCard('Saison', frozen ? 'Saison figée' : 'Saison non figée',
+      `${data.season.name} · ${admBrussels(data.season.startAt)} → ${admBrussels(data.season.endAt)}`, frozen ? 'ok' : 'warn'),
+    ctPvCard('Participants', `${ctPlural(data.counts.participants, 'participant', 'participants')} · ${ctPlural(data.counts.eligible, 'éligible', 'éligibles')}`,
+      `profondeur min. ${data.criteria.minDepth} m · risque ${ctRisk(data.criteria.maxRiskLevel)}`),
+    ctPvCard(winners.length > 1 ? 'Bénéficiaires potentiels' : 'Bénéficiaire potentiel',
+      winners.length ? winners.map(who).join(', ') : 'aucun', 'selon cet aperçu, rien n\'est attribué', winners.length ? 'win' : ''),
+    ctPvCard(real ? 'Lots réels' : 'Lots simulables', real ? ctPlural(data.counts.lots, 'lot réel', 'lots réels') : ctPlural(data.counts.lots, 'lot simulable', 'lots simulables'),
+      `${ctPlural(data.criteria.lotsPerSeason, 'prévu', 'prévus')} par saison${recorded ? ` · ${ctPlural(recorded, 'déjà enregistré', 'déjà enregistrés')}` : ''}`),
+    ctPvCard('Source du classement', frozen ? 'Classement figé' : 'Classement vivant',
+      frozen ? (data.blockers.includes('snapshot_verification_failed') ? 'empreinte NON vérifiée' : 'empreinte vérifiée') : 'indicatif, peut encore changer',
+      frozen && !data.blockers.includes('snapshot_verification_failed') ? 'ok' : 'warn'),
+  );
+  for (const b of data.blockers) {
+    blockersEl.appendChild(Object.assign(document.createElement('p'), { className: 'ct-pv-blocker', textContent: `⛔ ${CT_BLOCKER[b] || b}` }));
   }
 
-  if (!data.participants.length) tbody.innerHTML = '<tr><td colspan="9" class="muted">Aucun participant.</td></tr>';
+  // 2. Preuve et détails techniques (repliés par défaut).
+  const techRows = [
+    ['Période (UTC)', `${data.season.startAt} → ${data.season.endAt}`],
+    ['Source', frozen ? 'classement figé (#29)' : 'classement vivant'],
+    ['Empreinte SHA-256 du classement figé', data.snapshot ? data.snapshot.hash : 'pas encore de classement figé'],
+    ['Figé le (UTC)', data.snapshot ? data.snapshot.createdAt : '—'],
+    ['Critères appliqués', `profondeur ≥ ${data.criteria.minDepth} m · risque ${ctRisk(data.criteria.maxRiskLevel)} · ${data.criteria.cooldownSeasons ? `${data.criteria.cooldownSeasons} saison(s) sans nouveau gain` : 'aucun délai entre gains'}`],
+    ['Identifiant de saison', String(data.season.id)],
+  ];
+  for (const [k, v] of techRows) {
+    const d = document.createElement('div');
+    d.append(Object.assign(document.createElement('dt'), { textContent: k }), Object.assign(document.createElement('dd'), { textContent: v }));
+    tech.appendChild(d);
+  }
+
+  // 3. Tableau : ligne du bénéficiaire potentiel mise en valeur ; exclusion protégée par une fiche de confirmation.
+  if (!data.participants.length) tbody.innerHTML = '<tr><td colspan="8" class="muted">Aucun participant.</td></tr>';
   for (const x of data.participants) {
     const tr = document.createElement('tr');
-    addCell(tr, x.position);
-    addCell(tr, x.rank ?? '—');
-    addCell(tr, x.username ?? `#${x.userId}`);
-    addCell(tr, `${x.maxDepth} m`);
-    addCell(tr, x.manualBlocks);
-    addCell(tr, `N${x.riskLevel}`);
+    if (x.lotNo) tr.className = 'ct-pv-win';
+    else if (x.reason) tr.className = 'ct-pv-out';
+    ctPvCell(tr, 'Place', x.rank ? `${x.rank}${x.rank === 1 ? 'er' : 'e'}` : `${x.position}`).title = `Position ${x.position} · rang ${x.rank ?? '—'}`;
+    ctPvCell(tr, 'Joueur', who(x)).classList.add('ct-pv-player');
+    ctPvCell(tr, 'Profondeur max.', `${x.maxDepth} m`);
+    ctPvCell(tr, 'Blocs minés', x.manualBlocks);
+    ctPvCell(tr, 'Risque anti-bot', `N${x.riskLevel}`);
     const why = x.reason ? (CT_REASON[x.reason] || x.reason) : 'éligible';
-    addCell(tr, x.exclusion ? `${why} : ${x.exclusion}` : why).className = x.reason ? 'muted' : '';
-    addCell(tr, x.lotNo ? `🎁 lot ${x.lotNo}` : '');
-    if (data.source !== 'snapshot') addCell(tr, '');
-    else if (x.reason === 'admin_excluded') addButtonCell(tr, 'Réintégrer', () => contestUnexclude(x));
-    else addButtonCell(tr, 'Exclure', () => contestExclude(x));
+    ctPvCell(tr, 'Concours', x.exclusion ? `${why} : ${x.exclusion}` : why);
+    ctPvCell(tr, 'Lot (aperçu)', x.lotNo ? `🎁 lot ${x.lotNo} — potentiel` : '—');
+    const td = ctPvCell(tr, 'Action', '');
+    if (frozen) {
+      const b = document.createElement('button');
+      b.className = 'btn-ghost btn-sm';
+      if (x.reason === 'admin_excluded') {
+        b.textContent = 'Réintégrer';
+        b.addEventListener('click', () => contestUnexclude(x, b));
+      } else {
+        b.textContent = 'Exclure…';
+        b.title = 'Retirer ce joueur du concours pour cette saison (confirmation et motif demandés)';
+        b.addEventListener('click', () => contestExclude(x, b));
+      }
+      td.appendChild(b);
+    }
     tbody.appendChild(tr);
   }
+
+  // 4. Action persistante, séparée de l'aperçu.
   btn.disabled = !data.attributable;
-  btn.textContent = data.mode === 'real' ? 'Attribuer les lots RÉELS' : 'Attribuer les lots (simulation)';
+  btn.className = real ? 'btn btn-danger' : 'btn';
+  btn.textContent = real ? 'Attribuer les lots RÉELS' : 'Enregistrer une attribution simulée';
+  document.getElementById('ct-commit-text').textContent = real
+    ? 'Attribue les lots RÉELS : stock consommé, gagnant à contacter. Une seule fois par saison, ligne non supprimable.'
+    : 'Inscrit le résultat de cet aperçu dans l\'historique des gagnants, en simulation : aucun cadeau, message, point ni stock. Une seule fois par saison, ligne non supprimable.';
 }
 
-async function contestExclude(x) {
-  const reason = prompt(`Motif de l'exclusion de ${x.username ?? '#' + x.userId} pour cette saison (journalisé) :`);
-  if (!reason) return;
+function contestExclude(x, opener) {
+  const dlg = document.getElementById('ct-exclude-dialog');
+  const reason = document.getElementById('ct-exclude-reason');
+  dlg._ctTarget = x;
+  document.getElementById('ct-exclude-text').textContent =
+    `Exclure ${x.username ?? '#' + x.userId} du concours de la saison ${_ctPreview.season.name} ?`;
+  reason.value = '';
+  document.getElementById('btn-ct-exclude-yes').disabled = true;
+  admShowError(document.getElementById('ct-exclude-msg'), '');
+  admDialogOpen('ct-exclude-dialog', opener, reason);
+}
+
+async function contestExcludeConfirm() {
+  const dlg = document.getElementById('ct-exclude-dialog');
+  const x = dlg._ctTarget;
+  const reason = document.getElementById('ct-exclude-reason').value.trim();
+  if (!x || !_ctPreview || reason.length < 3) return;
+  const yes = document.getElementById('btn-ct-exclude-yes');
+  yes.disabled = true;
   const { ok, data } = await api('POST', `/api/admin/contest/seasons/${_ctPreview.season.id}/exclusions`, { userId: x.userId, reason });
-  if (!ok) { alert(data.error || 'Erreur.'); return; }
+  if (!ok) { admShowError(document.getElementById('ct-exclude-msg'), data.error || 'Erreur.'); yes.disabled = false; return; }
+  dlg._ctTarget = null;
+  dlg.close();
   loadContestPreview();
   loadContestAudit();
 }
 
 async function contestUnexclude(x) {
-  if (!confirm(`Réintégrer ${x.username ?? '#' + x.userId} ?`)) return;
+  const name = x.username ?? '#' + x.userId;
+  if (!await admConfirm({
+    title: 'Réintégrer au concours',
+    text: `Réintégrer ${name} au concours de la saison ${_ctPreview.season.name} ?`,
+    impact: ['Le joueur redevient éligible pour cette saison (selon les critères).', 'Retrait inscrit au journal ; une attribution déjà enregistrée n\'est pas modifiée.'],
+    ok: 'Réintégrer',
+  })) return;
   const { ok, data } = await api('DELETE', `/api/admin/contest/seasons/${_ctPreview.season.id}/exclusions/${x.userId}`);
   if (!ok) { alert(data.error || 'Erreur.'); return; }
   loadContestPreview();
@@ -1601,10 +1690,21 @@ async function contestUnexclude(x) {
 async function contestAttribute() {
   if (!_ctPreview || !_ctPreview.attributable) return;
   const p = _ctPreview;
+  const real = p.mode === 'real';
   const names = p.participants.filter(x => x.lotNo).map(x => x.username ?? `#${x.userId}`).join(', ');
-  if (!confirm(`Attribuer ${p.counts.lots} lot(s) (${p.mode}) pour ${p.season.name} à : ${names} ?\nDéfinitif : une saison ne peut pas être attribuée deux fois.`)) return;
+  if (!await admConfirm({
+    title: real ? 'Attribuer les lots RÉELS' : 'Enregistrer une attribution simulée',
+    text: `${p.season.name} : ${p.counts.lots} lot(s) ${real ? 'RÉEL(S)' : 'simulé(s)'} pour ${names}.`,
+    impact: real
+      ? ['Stock consommé, gagnant(s) à contacter pour la remise.', 'Définitif : une saison ne peut pas être attribuée deux fois, ligne non supprimable.']
+      : ['Écrit une ligne « simulation » dans l\'historique des gagnants et le journal.',
+         'Aucun cadeau réel, aucun message au joueur, aucun point, aucun stock consommé.',
+         'Définitif : une seule fois par saison, ligne non supprimable (seulement passable à « expiré »).'],
+    ok: real ? 'Attribuer les lots réels' : 'Enregistrer la simulation',
+    danger: true,
+  })) return;
   const { ok, data } = await api('POST', `/api/admin/contest/seasons/${p.season.id}/attribute`, { mode: p.mode });
-  ctMessage('ct-attr-msg', ok ? `${data.winners.length} lot(s) attribué(s).` : (data.error || 'Erreur.'), ok);
+  ctMessage('ct-attr-msg', ok ? `${data.winners.length} lot(s) ${real ? 'attribué(s)' : 'simulé(s) enregistré(s)'}.` : (data.error || 'Erreur.'), ok);
   loadContest();
 }
 
@@ -1701,6 +1801,12 @@ document.getElementById('btn-ct-preview').addEventListener('click', loadContestP
 document.getElementById('ct-season').addEventListener('change', loadContestPreview);
 document.getElementById('ct-mode').addEventListener('change', loadContestPreview);
 document.getElementById('btn-ct-attribute').addEventListener('click', contestAttribute);
+admDialogSetup('ct-exclude-dialog');
+document.getElementById('btn-ct-exclude-no').addEventListener('click', () => document.getElementById('ct-exclude-dialog').close());
+document.getElementById('btn-ct-exclude-yes').addEventListener('click', contestExcludeConfirm);
+document.getElementById('ct-exclude-reason').addEventListener('input', e => {
+  document.getElementById('btn-ct-exclude-yes').disabled = e.target.value.trim().length < 3;
+});
 document.getElementById('ct-winners-mode').addEventListener('change', loadContestWinners);
 
 // ── Points de récompense (#33) ────────────────────────────────────────────────
