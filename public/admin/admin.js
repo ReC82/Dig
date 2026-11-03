@@ -1346,7 +1346,10 @@ async function loadPoints() {
   const v = data.verification;
   document.getElementById('pt-totals').textContent =
     `Portefeuilles : ${data.totals.wallets} — solde total ${data.totals.balance} pts (gagnés ${data.totals.earned}, dépensés ${data.totals.spent}). `
-    + `Contrôle du registre : ${v.ok ? 'OK' : `ÉCART (${v.mismatches.length} portefeuille(s), ${v.orphanUsers} orphelin(s))`}.`;
+    + `Contrôle du registre : ${v.ok ? 'OK' : `ÉCART (${v.mismatches.length} portefeuille(s), ${v.orphanUsers} orphelin(s))`}. `
+    + (data.audit ? `Contrôle des clôtures (classement figé ↔ attributions ↔ registre) : ${data.audit.ok
+      ? `OK (${data.audit.checked} saison(s))`
+      : `ÉCART — ${data.audit.problems.map(p => `saison ${p.seasonId} : ${p.problems.join(', ')}`).join(' ; ')}`}.` : '');
 
   const sel = document.getElementById('pt-preview-season');
   const keep = sel.value;
