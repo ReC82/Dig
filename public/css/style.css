@@ -2857,6 +2857,18 @@ h1 {
 .points-list li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .points-rules { margin: 0; color: var(--muted); font-size: 0.74rem; }
 
+/* Sections repliables de l'onglet Saison : résultat archivé, boutique (recette #48-D) */
+.season-fold { display: block; }
+.season-fold > summary { list-style: none; cursor: pointer; align-items: center; min-height: 32px; user-select: none; }
+.season-fold > summary::-webkit-details-marker { display: none; }
+.season-fold > summary::after { content: '›'; margin-left: auto; font-size: 1rem; line-height: 1; color: var(--muted); transition: transform 0.2s; }
+.season-fold[open] > summary::after { transform: rotate(90deg); }
+.season-fold > summary .points-balance { margin-left: auto; }
+.shop-card.season-fold > summary::after { margin-left: 0; }
+.season-fold-sub { flex-basis: 100%; order: 3; color: var(--text); font-size: 0.8rem; }
+.season-fold-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+#season-last:not(:empty) { margin-top: 12px; }
+
 /* ── Info saison (collapsible) ── */
 .season-info-card {
   background: rgba(255,255,255,0.03);

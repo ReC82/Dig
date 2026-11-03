@@ -1857,7 +1857,7 @@ function renderSeasonView(apiData, lbData) {
           ${leagueBadge}
         </div>
         <div class="season-player-stats">
-          <span>⛏ ${t('season.depth_label')} : <strong>${escapeHtml(player.maxDepth)}m</strong></span>
+          <span>⛏ ${t('season.depth_label')} : <strong>${t('season.last.depth', { n: escapeHtml(player.maxDepth) })}</strong></span>
           <span>👆 ${t('season.blocks_label')} : <strong>${escapeHtml(player.manualBlocks)}</strong></span>
         </div>
       </div>`;
@@ -1902,7 +1902,8 @@ function renderSeasonView(apiData, lbData) {
       </div>
     </details>`;
 
-  // Charger le leaderboard
+  // Synthèse en haut (thème, fin, joueur, points, classement) ; résultat archivé, boutique,
+  // explications et historique repliés en dessous (recette #48-D du 03/11).
   const lbId = 'season-lb-body';
   const scrollTop = el.scrollTop;
   const historyOpen = !!el.querySelector('.season-history')?.open;
@@ -1912,14 +1913,14 @@ function renderSeasonView(apiData, lbData) {
     <p class="season-ends-in">${endsIn}</p>
     ${_nextSeasonHtml(apiData.next)}
     ${playerHtml}
-    <div id="season-last">${_lastResultHtml()}</div>
     <div id="season-points">${_pointsHtml()}</div>
-    <div id="season-shop">${_shopHtml()}</div>
-    ${infoHtml}
     <h3 class="season-section-title">${t('season.leaderboard')}</h3>
     <div class="season-leaderboard" id="${lbId}">
       ${lbData ? _leaderboardHtml(lbData) : `<p class="season-loading">${t('season.loading')}</p>`}
     </div>
+    <div id="season-last">${_lastResultHtml()}</div>
+    <div id="season-shop">${_shopHtml()}</div>
+    ${infoHtml}
     ${_seasonHistoryHtml(apiData.history, historyOpen)}`;
   el.scrollTop = scrollTop;
   _markSeasonAnnouncementSeen(apiData.next);
@@ -2037,6 +2038,7 @@ function _lastResultHtml() {
   const { season, snapshot, standings, me } = r.data;
   const n = v => Number(v).toLocaleString(I18n.getCurrent());
   const open = document.querySelector('#season-last .last-proof')?.open ? ' open' : '';
+  const foldOpen = document.querySelector('#season-last > .season-fold')?.open ? ' open' : '';
 
   const podium = standings.filter(x => x.eligible && x.rank <= 3).map(x => {
     const medal = ['🥇', '🥈', '🥉'][x.rank - 1];
@@ -2060,21 +2062,23 @@ function _lastResultHtml() {
   }
 
   return `
-    <section class="points-card last-card" aria-labelledby="last-title">
-      <div class="points-head">
-        <h3 class="points-title" id="last-title">${t('season.last.title', { name: escapeHtml(season.name ?? '') })}</h3>
-      </div>
+    <details class="points-card last-card season-fold"${foldOpen}>
+      <summary class="points-head">
+        <h3 class="points-title">${t('season.last.title', { name: escapeHtml(season.name ?? '') })}</h3>
+        ${mine ? `<span class="season-fold-sub last-mine">${mine}</span>` : ''}
+      </summary>
+      <div class="season-fold-body">
       <p class="points-note">${t('season.last.frozen', { date: escapeHtml(_fmtUtc(snapshot.createdAt, { dateStyle: 'medium', timeStyle: 'short' })), p: n(snapshot.participants), e: n(snapshot.eligible) })}</p>
       ${snapshot.eligible ? `<ol class="points-list last-podium" aria-label="${t('season.last.podium')}">${podium}</ol>`
         : `<p class="points-empty">${t('season.last.nobody')}</p>`}
-      ${mine ? `<p class="points-potential last-mine">${mine}</p>` : ''}
       <details class="points-details last-proof"${open}>
         <summary>${t('season.last.proof_toggle')}</summary>
         <p class="points-note">${t('season.last.proof_text')}</p>
         <p class="points-note">${t('season.last.hash')} <code class="last-hash">${escapeHtml(snapshot.hash)}</code></p>
         <p class="points-note"><a href="/api/seasons/${encodeURIComponent(season.id)}/standings" target="_blank" rel="noopener">${t('season.last.proof_link')}</a></p>
       </details>
-    </section>`;
+      </div>
+    </details>`;
 }
 
 // ── Points de récompense saisonniers (#33) ───────────────────────────────────
@@ -2160,12 +2164,12 @@ function _pointsHtml() {
         <summary>${t('points.scale_toggle')}</summary>
         <table class="points-table">${scaleRows}</table>
         ${notes}
+        <p class="points-rules">${t('points.rules')}</p>
       </details>
       <details class="points-details points-history"${open('.points-history')}>
         <summary>${t('points.history_toggle')}</summary>
         <ul class="points-list">${histHtml}</ul>
       </details>
-      <p class="points-rules">${t('points.rules')}</p>
     </div>`;
 }
 
@@ -2186,6 +2190,7 @@ function _shopHtml() {
   const lang = I18n.getCurrent();
   const n = v => Number(v).toLocaleString(lang);
   const open = sel => document.querySelector(`#season-shop ${sel}`)?.open ? ' open' : '';
+  const foldOpen = document.querySelector('#season-shop > .season-fold')?.open || _shopMsg ? ' open' : '';
   const fmtDate = v => { const x = new Date(String(v).replace(' ', 'T') + 'Z'); return isNaN(x) ? v : x.toLocaleDateString(lang); };
 
   const items = d.items.map(it => {
@@ -2232,11 +2237,12 @@ function _shopHtml() {
     : `<li class="points-empty">${t('giftshop.orders_empty')}</li>`;
 
   return `
-    <div class="points-card shop-card">
-      <div class="points-head">
+    <details class="points-card shop-card season-fold"${foldOpen}>
+      <summary class="points-head">
         <span class="points-title">${t('giftshop.title')}</span>
         <span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
-      </div>
+      </summary>
+      <div class="season-fold-body">
       <p class="points-note">${t('giftshop.intro')}</p>
       ${d.notice ? `<p class="points-sim-banner">${escapeHtml(d.notice)}</p>` : ''}
       ${_shopMsg ? `<p class="${_shopMsg.ok ? 'points-live-banner' : 'points-sim-banner'}" role="status">${escapeHtml(_shopMsg.text)}</p>` : ''}
@@ -2247,7 +2253,8 @@ function _shopHtml() {
         <ul class="points-list">${orders}</ul>
       </details>
       <p class="points-rules">${t('giftshop.help')}</p>
-    </div>`;
+      </div>
+    </details>`;
 }
 
 function _shopRequestId() {
@@ -2297,6 +2304,7 @@ document.addEventListener('click', (e) => {
   if (cancel) { _shopCancel(Number(cancel.dataset.shopCancel)); return; }
   if (e.target.closest?.('[data-scroll-shop]')) {
     const sh = document.querySelector('#season-shop .shop-card');
+    if (sh) sh.open = true;
     sh?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     sh?.querySelector('button:not([disabled]), summary')?.focus({ preventScroll: true });
     return;
@@ -2322,7 +2330,7 @@ function _leaderboardHtml(data) {
       return `<div class="lb-row${isMe ? ' lb-row-me' : ''}">
         <span class="lb-rank">${medal}</span>
         <span class="lb-name">${league}${escapeHtml(row.username)}</span>
-        <span class="lb-depth">${escapeHtml(row.maxDepth)}m</span>
+        <span class="lb-depth">${t('season.last.depth', { n: escapeHtml(row.maxDepth) })}</span>
         <span class="lb-blocks">👆${escapeHtml(row.manualBlocks)}</span>
       </div>`;
   }).join('');
