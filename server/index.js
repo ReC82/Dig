@@ -1774,7 +1774,7 @@ function eventRoute(label, fn) {
   return (req, res) => {
     try { res.setHeader('Cache-Control', 'no-store'); res.json(fn(req)); }
     catch (err) {
-      if (err instanceof monthlyEvents.EventError) return res.status(err.status).json({ error: err.message });
+      if (err instanceof monthlyEvents.EventError) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
     }
   };
@@ -1794,7 +1794,11 @@ app.post('/api/admin/events/simulate', requireAdmin, eventRoute('POST /api/admin
     { depth: intParam(req.body?.depth, { def: 50, min: 0, max: 100000 }), blocksPerDay: intParam(req.body?.blocksPerDay, { def: 300, min: 1, max: 100000 }) })));
 app.put('/api/admin/events/:id', requireAdmin, eventRoute('PUT /api/admin/events/:id', req => ({ event: monthlyEvents.updateEvent(eventId(req), req.body ?? {}) })));
 app.post('/api/admin/events/:id/schedule', requireAdmin, eventRoute('POST /api/admin/events/:id/schedule',
-  req => ({ event: monthlyEvents.scheduleEvent(eventId(req), { confirmRates: req.body?.confirmRates === true, confirmPublic: req.body?.confirmPublic === true }) })));
+  req => ({ event: monthlyEvents.scheduleEvent(eventId(req), { confirmRates: req.body?.confirmRates === true, confirmPublic: req.body?.confirmPublic === true,
+    confirmElapsed: req.body?.confirmElapsed === true }) })));
+// Recette #56-C : événement TEST en brouillon → bornes recalées sur maintenant + planification, atomiquement.
+app.post('/api/admin/events/:id/start-now', requireAdmin, eventRoute('POST /api/admin/events/:id/start-now',
+  req => ({ event: monthlyEvents.startTestNow(eventId(req), { minutes: req.body?.minutes }) })));
 app.post('/api/admin/events/:id/unschedule', requireAdmin, eventRoute('POST /api/admin/events/:id/unschedule', req => ({ event: monthlyEvents.unscheduleEvent(eventId(req)) })));
 app.get('/api/admin/events/:id/revisions', requireAdmin, eventRoute('GET /api/admin/events/:id/revisions', req => ({ revisions: monthlyEvents.listRevisions(eventId(req)) })));
 app.post('/api/admin/events/:id/restore', requireAdmin, eventRoute('POST /api/admin/events/:id/restore',

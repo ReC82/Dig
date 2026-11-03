@@ -53,7 +53,7 @@ const ANNOUNCE_DAYS = 7;            // annonce « à venir » dans le centre d'a
 const CONTENT_DIR = path.join(__dirname, 'content', 'events');
 
 class EventError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, code = null) { super(message); this.status = status; this.code = code; }
 }
 
 const J = (v, d) => { try { return v == null ? d : JSON.parse(v); } catch (_) { return d; } };
@@ -229,8 +229,7 @@ function normalizeEvent(input = {}) {
   if (dur < 10 * 60_000) throw new EventError(400, 'La fin doit suivre le début d\'au moins 10 minutes.');
   if (dur > MAX.durationDays * 86_400_000) throw new EventError(400, `Durée maximale : ${MAX.durationDays} jours.`);
   const audience = input.audience === 'public' ? 'public' : 'test';
-  const testers = Array.isArray(input.testers) ? [...new Set(input.testers.map(x => _str(x, 40)).filter(Boolean))] : [];
-  if (testers.length > MAX.testers) throw new EventError(400, `${MAX.testers} testeurs au plus.`);
+  const testers = resolveTesters(input.testers);
   const items = Array.isArray(input.items) ? input.items : [];
   if (items.length > MAX.items) throw new EventError(400, `${MAX.items} objets au plus.`);
   const norm = items.map((it, i) => normalizeItem(it, `Objet ${i + 1}`));
@@ -240,6 +239,56 @@ function normalizeEvent(input = {}) {
     ids.add(it.id);
   }
   return { id, icon: _emoji(input.icon, '🎉'), names, taglines: _texts(input.taglines, MAX.tagline), startsAt, endsAt, audience, testers, items: norm };
+}
+
+// ── Testeurs (recette #56-B) : identifiant de compte stable, pseudo seulement affiché ─────────────
+// Forme enregistrée : [{ id, username }]. Les anciens événements ([« pseudo »]) restent lisibles :
+// le pseudo est résolu à la lecture, sans réécrire la ligne (seule une action admin l'enregistre).
+
+/** Entrées admin (ID, { id }, ou pseudo hérité) → [{ id, username }] ; compte inconnu = erreur 400. */
+function resolveTesters(raw) {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) throw new EventError(400, 'Liste de testeurs invalide.');
+  const byId = conn().prepare('SELECT id, username FROM users WHERE id = ?');
+  const byName = conn().prepare('SELECT id, username FROM users WHERE username = ? COLLATE NOCASE');
+  const out = new Map();
+  for (const x of raw) {
+    const id = typeof x === 'number' ? x : (x && typeof x === 'object' ? Number(x.id) : null);
+    const u = Number.isInteger(id) && id > 0 ? byId.get(id) : (typeof x === 'string' && x.trim() ? byName.get(x.trim().slice(0, 40)) : null);
+    if (!u) {
+      const label = typeof x === 'string' ? x.trim().slice(0, 40) : (x?.username ?? x?.id ?? x);
+      throw new EventError(400, `Testeur introuvable : « ${label} ». Choisissez un compte dans la liste.`);
+    }
+    out.set(u.id, { id: u.id, username: u.username });
+  }
+  if (out.size > MAX.testers) throw new EventError(400, `${MAX.testers} testeurs au plus.`);
+  return [...out.values()];
+}
+
+/** Lecture d'une ligne : pseudo courant (renommage) ; entrée héritée par pseudo résolue si le compte existe. */
+function _readTesters(raw) {
+  const list = J(raw, []);
+  if (!Array.isArray(list) || !list.length) return [];
+  const byId = conn().prepare('SELECT username FROM users WHERE id = ?');
+  const byName = conn().prepare('SELECT id, username FROM users WHERE username = ? COLLATE NOCASE');
+  return list.map(x => {
+    if (x && typeof x === 'object') { const u = byId.get(Number(x.id)); return { id: Number(x.id), username: u?.username ?? x.username ?? `#${x.id}`, missing: !u }; }
+    const u = byName.get(String(x));
+    return u ? { id: u.id, username: u.username, legacy: true } : { id: null, username: String(x), legacy: true, missing: true };
+  });
+}
+
+/** Comptes proposés pour un événement TEST : inscrits de la bêta (#57) et testeurs déjà utilisés. Ni e-mail ni autre donnée. */
+function testerSuggestions() {
+  const seen = new Map();
+  const add = (id, username, why) => { if (id && !seen.has(id)) seen.set(id, { id, username, why }); };
+  try {
+    for (const r of conn().prepare(`SELECT u.id, u.username FROM beta_invite_uses x JOIN users u ON u.id = x.user_id ORDER BY x.id DESC LIMIT 50`).all()) add(r.id, r.username, 'bêta');
+  } catch (_) { /* table bêta absente (base ancienne) */ }
+  for (const r of conn().prepare("SELECT testers FROM monthly_events WHERE audience = 'test' ORDER BY updated_at DESC LIMIT 50").all()) {
+    for (const t of _readTesters(r.testers)) if (!t.missing) add(t.id, t.username, 'déjà testeur');
+  }
+  return [...seen.values()].slice(0, 30);
 }
 
 /** Points à régler avant de planifier (bloquants) et avertissements. */
@@ -255,6 +304,7 @@ function readiness(ev) {
     }
   }
   if (ev.audience === 'test' && !ev.testers.length) blocking.push('Événement TEST sans testeur : personne ne le verrait.');
+  for (const t of ev.testers) if (t.missing) blocking.push(`Testeur « ${t.username} » introuvable : retirez-le ou choisissez un compte existant.`);
   if (ev.audience === 'public') {
     for (const it of ev.items) if (!it.image) warnings.push(`« ${it.names.fr} » : pas d'illustration (l'icône emoji sera affichée).`);
     if (Date.parse(ev.startsAt) - Date.now() < ANNOUNCE_DAYS * 86_400_000) warnings.push(`Début dans moins de ${ANNOUNCE_DAYS} jours : annonce tardive.`);
@@ -280,7 +330,7 @@ function stateOf(ev, nowMs = Date.now()) {
 function _eventRow(r, nowMs = Date.now()) {
   if (!r) return null;
   const ev = { id: r.id, status: r.status, audience: r.audience, icon: r.icon, names: J(r.names, {}), taglines: J(r.taglines, {}),
-    startsAt: r.starts_at, endsAt: r.ends_at, testers: J(r.testers, []), source: r.source, revision: r.revision,
+    startsAt: r.starts_at, endsAt: r.ends_at, testers: _readTesters(r.testers), source: r.source, revision: r.revision,
     createdAt: r.created_at, updatedAt: r.updated_at,
     items: conn().prepare('SELECT * FROM monthly_event_items WHERE event_id = ? ORDER BY sort, id').all(r.id).map(_itemRow) };
   ev.state = stateOf(ev, nowMs);
@@ -291,7 +341,7 @@ function getEvent(id, nowMs) { return _eventRow(conn().prepare('SELECT * FROM mo
 function listEvents(nowMs) { return conn().prepare('SELECT * FROM monthly_events ORDER BY starts_at DESC, id').all().map(r => _eventRow(r, nowMs)); }
 
 const _content = ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt, endsAt: ev.endsAt,
-  audience: ev.audience, testers: ev.testers, items: ev.items });
+  audience: ev.audience, testers: ev.testers.map(t => (t.id ? { id: t.id, username: t.username } : t.username)), items: ev.items });
 
 // ── Écriture ──────────────────────────────────────────────────────────────────
 
@@ -305,7 +355,7 @@ function _write(ev, { status, source, action }) {
         taglines = excluded.taglines, starts_at = excluded.starts_at, ends_at = excluded.ends_at, testers = excluded.testers,
         revision = excluded.revision, updated_at = datetime('now')`)
     .run(ev.id, status, ev.audience, ev.icon, JSON.stringify(ev.names), JSON.stringify(ev.taglines), ev.startsAt, ev.endsAt,
-      JSON.stringify(ev.testers), source, revision);
+      JSON.stringify(_content(ev).testers), source, revision);
   c.prepare('DELETE FROM monthly_event_items WHERE event_id = ?').run(ev.id);   // objets de la fiche (définition admin, jamais les trouvailles)
   const ins = c.prepare(`INSERT INTO monthly_event_items (event_id, id, sort, icon, image, brief, names, descs, rarity, chance_pct, min_depth, drop_from, enabled)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
@@ -350,18 +400,48 @@ function updateEvent(id, input) {
  * Planifie (publie) un événement : figé, visible et actif à ses dates.
  * Public : barème confirmé (`confirmRates`) et confirmation de publication (`confirmPublic`).
  */
-function scheduleEvent(id, { confirmRates = false, confirmPublic = false, nowMs = Date.now() } = {}) {
+function scheduleEvent(id, { confirmRates = false, confirmPublic = false, confirmElapsed = false, nowMs = Date.now() } = {}) {
   return db.runTransaction(() => {
     const ev = getEvent(id, nowMs);
     if (!ev) throw new EventError(404, 'Événement introuvable.');
     if (ev.status === 'scheduled') return ev;
-    if (Date.parse(ev.endsAt) <= nowMs) throw new EventError(409, 'Date de fin passée : changez les dates.');
+    if (Date.parse(ev.endsAt) <= nowMs) {
+      throw new EventError(409, ev.audience === 'test'
+        ? 'Période expirée : utilisez « Démarrer le test maintenant » ou changez les dates.'
+        : 'Date de fin passée : changez les dates.', 'expired');
+    }
+    if (Date.parse(ev.startsAt) < nowMs && !confirmElapsed) {
+      const left = Math.round((Date.parse(ev.endsAt) - nowMs) / 60_000);
+      throw new EventError(409, `La période a déjà commencé : il ne reste que ${left} min. Confirmez, ou démarrez maintenant pour une durée complète.`, 'elapsed');
+    }
     const r = readiness(ev);
     if (!r.ready) throw new EventError(409, `Événement incomplet : ${r.blocking.join(' ')}`);
     if (ev.audience === 'public' && !(confirmRates && confirmPublic)) {
       throw new EventError(409, 'Événement public : cochez « barème validé » et « publication validée par le propriétaire ».');
     }
     _write(ev, { status: 'scheduled', source: ev.source, action: ev.audience === 'public' ? 'schedule_public' : 'schedule_test' });
+    return getEvent(id, nowMs);
+  });
+}
+
+/**
+ * Recette #56-C : « Démarrer le test maintenant pour N minutes » — événement TEST en brouillon
+ * uniquement ; bornes recalées sur maintenant et planification dans la même transaction (audience
+ * TEST conservée, jamais élargie). Les anciennes dates restent dans la révision précédente.
+ */
+function startTestNow(id, { minutes = 60, nowMs = Date.now() } = {}) {
+  return db.runTransaction(() => {
+    const cur = getEvent(id, nowMs);
+    if (!cur) throw new EventError(404, 'Événement introuvable.');
+    if (cur.audience !== 'test') throw new EventError(409, 'Réservé aux événements TEST : un événement public se planifie à ses dates.');
+    if (cur.status !== 'draft') throw new EventError(409, 'Événement déjà planifié : repassez-le en brouillon d\'abord.');
+    const dur = Math.round(Number(minutes));
+    if (!Number.isFinite(dur) || dur < 10 || dur > 7 * 24 * 60) throw new EventError(400, 'Durée : de 10 minutes à 7 jours.');
+    const ev = { ...cur, startsAt: _iso(nowMs), endsAt: _iso(nowMs + dur * 60_000) };
+    const r = readiness(ev);
+    if (!r.ready) throw new EventError(409, `Événement incomplet : ${r.blocking.join(' ')}`);
+    _write(ev, { status: 'scheduled', source: cur.source, action: 'start_test_now' });
+    _log(id, 'start_test_now_dates', { minutes: dur, previous: { startsAt: cur.startsAt, endsAt: cur.endsAt } });
     return getEvent(id, nowMs);
   });
 }
@@ -404,13 +484,7 @@ function listLog(limit = 100) {
 
 // ── Drops (serveur) ───────────────────────────────────────────────────────────
 
-function _userIdsOf(usernames) {
-  if (!usernames.length) return new Set();
-  const q = conn().prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE');
-  return new Set(usernames.map(u => q.get(u)?.id).filter(Boolean));
-}
-
-function _isTester(ev, userId) { return _userIdsOf(ev.testers).has(userId); }
+function _isTester(ev, userId) { return ev.testers.some(t => t.id === userId && !t.missing); }
 
 /** Événements actifs visibles par ce joueur (public, ou TEST dont il est testeur). */
 function activeFor(userId, nowMs = Date.now()) {
@@ -783,13 +857,13 @@ function adminView(nowMs = Date.now()) {
   const events = listEvents(nowMs).map(ev => ({ ...ev, startsLocal: utcToBrussels(ev.startsAt), endsLocal: utcToBrussels(ev.endsAt),
     readiness: readiness(ev), stats: stats(ev.id) }));
   const y = new Date(nowMs).getUTCFullYear();
-  return { timezone: TZ, rarities: RARITIES, categories: CATEGORIES, langs: LANGS, events,
+  return { timezone: TZ, now: _iso(nowMs), rarities: RARITIES, categories: CATEGORIES, langs: LANGS, events, testerSuggestions: testerSuggestions(),
     calendar: [proposeCalendar(y, nowMs), proposeCalendar(y + 1, nowMs)], ai: listAiJobs(), log: listLog(60) };
 }
 
 module.exports = {
   EventError, LANGS, RARITIES, CATEGORIES, init, brusselsToUtc, utcToBrussels, normalizeEvent, readiness, stateOf,
-  getEvent, listEvents, createEvent, updateEvent, scheduleEvent, unscheduleEvent, listRevisions, restoreRevision, listLog,
+  getEvent, listEvents, createEvent, updateEvent, scheduleEvent, startTestNow, unscheduleEvent, resolveTesters, testerSuggestions, listRevisions, restoreRevision, listLog,
   activeFor, processSave, publicView, categoryShare, simulate, stats, holidays, proposeCalendar, createTestEvent, importPrepared,
   startAiDraft, getAiJob, listAiJobs, adminView, MAX_BLOCKS_PER_SAVE,
 };
