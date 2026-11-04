@@ -733,10 +733,19 @@ table:has(.visually-hidden) { position: relative; }
 .co-lang-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
 .co-lang-row > label { flex: 1 1 220px; }
 .co-lang-switch { display: inline-flex; gap: 4px; margin-bottom: 8px; }
+/* Onglets de langue : un <button> n'hérite pas de la couleur du texte — sans couleur explicite,
+   texte et coche restaient noirs sur fond sombre (#56). Inactif = texte clair sur fond « surface »
+   avec contour visible ; actif = fond or, texte foncé, plus gras. Les états de complétude
+   (co-lang--ok / name / none) colorent texte et contour des onglets inactifs. */
 .co-lang-btn { font: inherit; font-size: 0.8rem; font-weight: 600; min-width: 44px; min-height: 36px; padding: 4px 8px; cursor: pointer;
-  background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
-.co-lang-btn[aria-pressed="true"] { background: var(--gold); color: #111; border-color: var(--gold); }
-.co-lang-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  color: var(--text); background: var(--surface); border: 1px solid #5a5a5a; border-radius: 6px; }
+.co-lang-btn.co-lang--ok { color: #86efac; border-color: #22c55e; }
+.co-lang-btn.co-lang--name { color: #fcd34d; border-color: #d97706; }
+.co-lang-btn.co-lang--none { color: #b8b8b8; border-color: #5a5a5a; }
+.co-lang-btn:hover { background: #2f2f2f; border-color: var(--gold); }
+.co-lang-btn[aria-pressed="true"], .co-lang-btn[aria-pressed="true"]:hover { background: var(--gold); color: #111; border-color: var(--gold); font-weight: 700;
+  box-shadow: 0 0 0 1px var(--gold); }
+.co-lang-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .co-prop-fields { display: flex; flex-direction: column; gap: 10px; }
 .co-prop-fields details > summary { cursor: pointer; }
 .co-prop-fields > .btn { align-self: flex-start; }

@@ -8841,7 +8841,7 @@ function evLangTabs(boxId, current, isDone, onPick) {
   box.textContent = '';
   for (const l of EV_LANGS) {
     const done = isDone(l);
-    const b = aiEl('button', { type: 'button', class: 'co-lang-btn', 'data-lang': l, 'aria-pressed': String(l === current),
+    const b = aiEl('button', { type: 'button', class: `co-lang-btn co-lang--${done ? 'ok' : 'none'}`, 'data-lang': l, 'aria-pressed': String(l === current),
       title: done ? 'Traduction complète' : 'Traduction à compléter' }, `${l.toUpperCase()} ${done ? '✓' : '·'}`);
     b.addEventListener('click', () => onPick(l));
     box.appendChild(b);
