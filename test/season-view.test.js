@@ -26,11 +26,12 @@ function load({ account = { username: 'lody' }, points = null, lang = 'fr' } = {
     console, Date, JSON, Math, Number, String, Array, Object, isNaN, encodeURIComponent,
     localStorage: { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) },
     navigator: { language: lang },
-    document: { querySelector: () => null, getElementById: () => null, documentElement: {}, querySelectorAll: () => [] },
+    document: { querySelector: () => null, getElementById: () => null, documentElement: {}, querySelectorAll: () => [], addEventListener: () => {} },
   });
   ctx.window = ctx;
   vm.runInContext(read('public/js/escapeHtml.js'), ctx);
   vm.runInContext(`${read('public/js/i18n.js')}\nthis.I18n = I18n;`, ctx);
+  vm.runInContext(`${read('public/js/uiIcons.js')}\nthis.UiIcons = UiIcons;`, ctx);   // médailles (#67) : emoji d'origine sans image appliquée
   ctx.I18n.init?.();
   ctx.t = (k, p) => ctx.I18n.t(k, p);
   ctx._account = account;
