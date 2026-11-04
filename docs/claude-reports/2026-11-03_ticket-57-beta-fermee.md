@@ -2,6 +2,76 @@
 
 Lien : https://github.com/ReC82/Dig/issues/57
 
+## Session du 04/11/2026 — verdict GO/NO-GO actualisé et clôture du lot de préparation
+
+**Demande traitée** : commentaire du propriétaire du 04/11 (14:48, #issuecomment-6633713713) — verdict GO/NO-GO en deux périmètres et décision de clôture du lot de préparation, sans refaire de recette et sans changer la configuration de production.
+
+**État réel** : constat seulement. Aucun code, aucun déploiement, aucun réglage de production modifié. Production : `1.0.0+7b2ea8f`.
+
+### État de la production relevé en lecture seule (04/11, ~16:25 Bruxelles)
+
+- Réglages Bêta : bandeau BÊTA actif, inscription en mode `invite` (réglé pendant la recette du 03/11 à 08:39), signalements actifs, lien Discord vide, politique de reset et problèmes connus vides (textes par défaut affichés).
+- Invitations : **1 seule**, 1 utilisation sur 1, **épuisée** (expiration 17/11, non révoquée). Une seule inscription par invitation a eu lieu. **Aucune nouvelle inscription n'est donc possible aujourd'hui** sans action du propriétaire.
+- Comptes : 2 au total. Sauvegarde vérifiée avant le dernier déploiement (`7b2ea8f`, 04/11 15:55) ; timer quotidien actif (prochaine sauvegarde le 05/11 à 03:30).
+- **Rien n'a été modifié.** Je n'ai ni créé, ni révoqué, ni prolongé d'invitation, et je n'ai pas changé le mode d'inscription.
+
+### Verdict — périmètre 1 : bêta privée 3–5 proches
+
+**GO technique préparatoire.** Ce n'est pas une autorisation de lancement.
+
+| Capacité | État | Preuve |
+|---|---|---|
+| Inscription par invitation, liens à usage limité, révocation, vagues | ✅ | Recettes #57-A à #57-G validées par le propriétaire (03/11 et 04/11) |
+| Connexion, sauvegarde, session conservée | ✅ | Recette du 03/11 |
+| Feedback en jeu, signalements, protection des saisies | ✅ | Recette #57-F |
+| Panel Bêta : tableau de bord, invitation en 2 clics, « Configurer la bêta » | ✅ | Recette #57-G |
+| Mot de passe oublié | ⚠️ sans e-mail | Mot de passe temporaire via le panel (#43, contournement accepté pour des proches) |
+| Sauvegardes | ⚠️ locales seulement | Quotidiennes et avant chaque déploiement. La copie hors machine (#36) n'est pas encore faite |
+| Ligues | ✅ seuil appliqué | Seuil 3 actifs appliqué en production le 04/11 à 15:55 (#19, `7b2ea8f`). C'était encore en attente au moment du commentaire |
+
+Pour lancer réellement, il faudra une **validation explicite et écrite du propriétaire**. Il créera ensuite lui-même les invitations (une par proche) dans Admin → Bêta. Avant d'inviter, il est conseillé de renseigner la politique de reset et, si possible, le lien Discord. Rien de cela n'est fait ni autorisé à ce stade.
+
+### Verdict — périmètre 2 : vague 10–20 testeurs, puis public
+
+**NO-GO.** Dépendances bloquantes :
+
+| Ticket | Pourquoi c'est bloquant | État au 04/11 |
+|---|---|---|
+| #43 SMTP | Un inconnu ne peut pas récupérer son compte seul | En attente du choix du fournisseur (reco Brevo) |
+| #36 Sauvegarde hors machine | Perte totale si l'instance disparaît | Rôle IAM associé par le propriétaire le 04/11 ; vérification et test de restauration à faire |
+| #25 Anti-bot | Un classement ouvert à des inconnus doit être protégé | En cours de recette (#25-E) |
+| #19 Ligues | Promotions avec peu de joueurs | Seuil 3 appliqué ; recette en jeu à faire |
+| #27 Conformité | Points et lots pour des joueurs non proches | Vérification différée (décision du 30/10) ; à refaire avant toute récompense publique |
+
+### Décision de clôture du lot de préparation
+
+Je recommande de **clore le lot « préparation de la bêta fermée »**. Tout le périmètre outillage de #57 est livré, déployé (dernier code #57 : `feecf11`) et validé par le propriétaire. Rien ne reste à développer dans #57.
+
+Le lancement réel n'est pas inclus dans ce lot. Il relève d'une décision séparée du propriétaire, prise en dehors de ce ticket, et l'ouverture 10–20 puis publique suit les tickets listés ci-dessus.
+
+Options :
+- A) Clore #57 maintenant. Les dépendances restent suivies dans leurs propres tickets. **Recommandé.**
+- B) Garder #57 ouvert comme ticket de suivi du GO 10–20.
+
+La clôture appartient au propriétaire.
+
+### Décisions demandées au propriétaire
+
+1. Clôture de #57 : A ou B (reco A).
+2. Questions toujours ouvertes, à trancher seulement avant d'inviter :
+   - points de récompense pendant la bêta, réels ou simulation (reco simulation) ;
+   - politique de reset « peut être ajustée » (reco) ;
+   - badge « Testeur fondateur » sans bonus, oui ou non ;
+   - fournisseur e-mail pour #43 (bloquant pour 10–20).
+
+### Test fonctionnel
+
+Aucun. Le propriétaire a demandé de ne pas refaire les recettes déjà validées.
+
+### Classement
+
+Préparation #57 : livrée. Bêta 3–5 proches : non bloquante. Vague 10–20 et MVP public : bloqués par #43, #36, #25, #19 (recette) et #27.
+
 ## Session du 03/11/2026 (3) — recette #57-F : signalement protégé, session admin au F5, « Rafraîchir » explicite
 
 Réponse au commentaire du propriétaire « Recette réelle #57-F » (03/11, 09:00 UTC) : parcours de signalement validé, trois défauts UX à corriger.
