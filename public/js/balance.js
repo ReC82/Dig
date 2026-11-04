@@ -60,10 +60,12 @@ const Balance = {
   // ── Reroll de bloc (coin sink, ~illimité) ─────────────────────────────────
   // Coût doublé tous les 10 achats saisonniers.
   // Exemples : achats 0-9 : 400 🪙 | 10-19 : 800 🪙 | 20-29 : 1 600 🪙 …
+  // Prix de base et palier de doublement : barème publié dans l'admin (#69, Upgrades.applyCatalog).
+  REROLL: { base: 400, every: 10 },
   getRerollCost(level) {
     if (level >= 99) return null;
-    const tier = Math.floor(level / 10);
-    return { coins: 400 * Math.pow(2, tier), gems: 0 };
+    const tier = Math.floor(level / this.REROLL.every);
+    return { coins: this.REROLL.base * Math.pow(2, tier), gems: 0 };
   },
 
   // ── Coffres achetables (coin sinks, récompenses aléatoires côté serveur) ───

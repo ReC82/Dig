@@ -4190,6 +4190,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "ui.btn_suspended": {
+   "text": "Sospeso",
+   "src": "3c6ebdeedcdf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #69, relu)",
+   "at": "2026-11-04T21:13:02.305Z"
+  },
   "ui.btn_unlock": {
    "text": "Sblocca",
    "src": "2e1585380404",
@@ -4799,6 +4806,20 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "upgrade.suspended_effects": {
+   "text": "Effetto sospeso temporaneamente — il tuo livello è conservato",
+   "src": "8101d609bcfd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #69, relu)",
+   "at": "2026-11-04T21:13:02.305Z"
+  },
+  "upgrade.suspended_purchases": {
+   "text": "Acquisti sospesi temporaneamente",
+   "src": "74c560cf9b1b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #69, relu)",
+   "at": "2026-11-04T21:13:02.305Z"
   }
  }
 }

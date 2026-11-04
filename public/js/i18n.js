@@ -235,6 +235,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Niveau {cur}\u00a0→\u00a0{next}', max_level: 'Niveau maximal atteint',
+        suspended_purchases: 'Achats suspendus temporairement', suspended_effects: 'Effet suspendu temporairement — votre niveau est conservé',
         pickaxe:  { name: 'Pioche',    desc: '{damage} dégât{s} par clic', effect: 'Dégâts par clic\u00a0: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Chance',    desc: 'Plus de rares, sans ralentir',
                     preview: 'À {depth}\u00a0m : {now}% de blocs rares\u00a0→\u00a0{next}%', preview_max: 'À {depth}\u00a0m : {now}% de blocs rares', preview_none: 'Aucun bloc rare avant 5\u00a0m', },
@@ -306,6 +307,7 @@ const I18n = (() => {
       ui: {
         btn_upgrade:          'Améliorer',
         btn_max:              'MAX',
+        btn_suspended:        'Suspendu',
         btn_claim:            'Réclamer la récompense',
         btn_mission_claim:    'Réclamer',
         btn_collect:          'Récupérer !',
@@ -880,6 +882,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Level {cur}\u00a0→\u00a0{next}', max_level: 'Maximum level reached',
+        suspended_purchases: 'Purchases temporarily paused', suspended_effects: 'Effect temporarily paused — your level is kept',
         pickaxe:  { name: 'Pickaxe',   desc: '{damage} damage per click', effect: 'Damage per click: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Luck',      desc: 'More rares, no slowdown',
                     preview: 'At {depth}\u00a0m: {now}% rare blocks\u00a0→\u00a0{next}%', preview_max: 'At {depth}\u00a0m: {now}% rare blocks', preview_none: 'No rare blocks before 5\u00a0m', },
@@ -951,6 +954,7 @@ const I18n = (() => {
       ui: {
         btn_upgrade:          'Upgrade',
         btn_max:              'MAX',
+        btn_suspended:        'Paused',
         btn_claim:            'Claim reward',
         btn_mission_claim:    'Claim',
         btn_collect:          'Collect!',
@@ -1525,6 +1529,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Niveau {cur}\u00a0→\u00a0{next}', max_level: 'Maximaal niveau bereikt',
+        suspended_purchases: 'Aankopen tijdelijk gepauzeerd', suspended_effects: 'Effect tijdelijk gepauzeerd — je niveau blijft behouden',
         pickaxe:  { name: 'Houweel',      desc: '{damage} schade per klik', effect: 'Schade per klik: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Geluk',        desc: 'Meer zeldzame blokken, zonder trager te graven',
                     preview: 'Op {depth}\u00a0m: {now}% zeldzame blokken\u00a0→\u00a0{next}%', preview_max: 'Op {depth}\u00a0m: {now}% zeldzame blokken', preview_none: 'Geen zeldzame blokken vóór 5\u00a0m', },
@@ -1596,6 +1601,7 @@ const I18n = (() => {
       ui: {
         btn_upgrade:          'Verbeteren',
         btn_max:              'MAX',
+        btn_suspended:        'Gepauzeerd',
         btn_claim:            'Beloning claimen',
         btn_mission_claim:    'Claimen',
         btn_collect:          'Ophalen!',
@@ -2170,6 +2176,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Nivel {cur} → {next}', max_level: 'Nivel máximo alcanzado',
+        suspended_purchases: 'Compras suspendidas temporalmente', suspended_effects: 'Efecto suspendido temporalmente — tu nivel se conserva',
         pickaxe:  { name: 'Pico',      desc: '{damage} de daño por clic', effect: 'Daño por clic: {cur} → {next}', },
         luck:     { name: 'Suerte',    desc: 'Más bloques raros, sin frenar',
                     preview: 'A {depth}\u00a0m: {now}% de bloques raros → {next}%', preview_max: 'A {depth}\u00a0m: {now}% de bloques raros', preview_none: 'Ningún bloque raro antes de 5\u00a0m', },
@@ -2241,6 +2248,7 @@ const I18n = (() => {
       ui: {
         btn_upgrade:          'Mejorar',
         btn_max:              'MÁX',
+        btn_suspended:        'Suspendido',
         btn_claim:            'Reclamar la recompensa',
         btn_mission_claim:    'Reclamar',
         btn_collect:          '¡Recoger!',

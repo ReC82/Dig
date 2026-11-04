@@ -240,7 +240,8 @@ const Blocks = {
   LUCK_PER_LEVEL: 0.10,
 
   /** Multiplicateur de poids des raretés boostées : Chance + relique Lentille fêlée. */
-  luckMultiplier(luckLevel = GameState.upgrades ? (GameState.upgrades.luck || 0) : 0) {
+  luckMultiplier(luckLevel = typeof Upgrades !== 'undefined' ? Upgrades.effectiveLevel('luck')   // effet suspendu (#69) : niveau 0
+    : (GameState.upgrades ? (GameState.upgrades.luck || 0) : 0)) {
     return 1 + luckLevel * this.LUCK_PER_LEVEL + (GameState.relicBonuses?.luckPct ?? 0);
   },
 

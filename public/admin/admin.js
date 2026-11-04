@@ -547,6 +547,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'rewards')         loadRewards();
     if (btn.dataset.tab === 'collections')     loadCollections();
     if (btn.dataset.tab === 'relics')          loadRelics();
+    if (btn.dataset.tab === 'upgrades')        loadUpgrades();
     if (btn.dataset.tab === 'missions')        loadMissions();
     if (btn.dataset.tab === 'icons')           loadIcons();
     if (btn.dataset.tab === 'config')          loadAiBudget();
@@ -5932,6 +5933,7 @@ function icRenderSheet() {
   icButton(head, '← Toutes les icônes', async () => icShowList());
   if (_icFrom?.kind === 'item' && t.key === `item:${_icFrom.id}`) icButton(head, '← Retour à la fiche de l\'objet', () => icBackToItem(_icFrom.id));
   if (_icFrom?.kind === 'relic' && t.key === `relic:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la relique', () => rlBackTo(_icFrom.id));
+  if (_icFrom?.kind === 'upgrade' && t.key === `ui:upgrade_${_icFrom.id}`) icButton(head, '← Retour à la fiche de l\'amélioration', () => upBackTo(_icFrom.id));
   if (_icFrom?.kind === 'mission' && t.key === `mission:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la mission', () => mqBackTo(_icFrom.id));
   if (t.kind === 'event' && t.event) icButton(head, '← Retour à la fiche de l\'objet d\'événement', () => evBackTo(t.event.id, t.event.itemId));
   const title = aiEl('div', { class: 'ic-sheet-title' });
@@ -10012,6 +10014,548 @@ async function rlBackTo(id) {
 }
 
 admRefreshButton('btn-refresh-relics', loadRelics, 'Reliques');
+
+// ── ⬆ Améliorations (#69) ──────────────────────────────────────────────────────
+// Barème versionné côté serveur (server/upgradeCatalog.js) : la version 1 = les six améliorations du jeu à l'identique.
+// Les fiches écrivent dans un brouillon ; seule « Publier… » change le jeu. La suspension d'urgence est séparée, immédiate
+// (nouveaux achats / effets / affichage), avec aperçu, motif et confirmation ; niveaux et sauvegardes jamais modifiés.
+let _up = null;          // vue admin (published, draft, versions, holders, controls, types…)
+let _upCur = null;       // identifiant de la fiche ouverte
+let _upLang = 'fr';
+let _upSnap = '';        // instantané de la fiche à l'ouverture (#61)
+let _upCtlId = null;     // amélioration de la boîte de suspension
+const UP_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
+const UP_FIELDS = { names: 'Noms', icon: 'Icône', maxLevel: 'Niveaux', costs: 'Prix (pièces)', gems: 'Prix (gemmes)', perLevel: 'Effet par niveau', reroll: 'Paliers du reroll' };
+const UP_CTL = [['purchases', 'Nouveaux achats'], ['effects', 'Effets'], ['hidden', 'Affichage']];
+
+const upWorking = () => _up?.draft?.upgrades ?? _up?.published?.upgrades ?? [];
+const upPublished = id => _up?.published?.upgrades.find(u => u.id === id) ?? null;
+const upType = id => _up?.types?.[id] ?? {};
+const upHolders = id => _up?.holders?.byUpgrade?.[id] ?? {};
+const upHolderTotal = id => Object.values(upHolders(id)).reduce((s, n) => s + n, 0);
+const upNum = n => Number(n).toLocaleString('fr-FR');
+const upScale = c => (c > 0 ? Math.ceil(c * (_up?.costMultiplier ?? 1)) : c);
+
+/** Prix du niveau `lvl` atteint (pièces brutes et gemmes), mêmes règles que public/js/upgrades.js. */
+function upCostAt(u, lvl) {
+  const ty = upType(u.id);
+  if (u.reroll) return { coins: u.reroll.base * Math.pow(2, Math.floor((lvl - 1) / u.reroll.every)), gems: 0 };
+  const i = lvl - ty.firstLevel - 1;
+  return { coins: u.costs?.[i] ?? 0, gems: u.gems?.[i] ?? 0 };
+}
+/** Effet réel au niveau donné (hors reliques et réglages), en texte. */
+function upEffectAt(u, lvl) {
+  switch (u.id) {
+    case 'pickaxe': return `${lvl} dégât${lvl > 1 ? 's' : ''}/clic`;
+    case 'luck': return `poids rares × ${(1 + lvl * (u.perLevel ?? 0)).toFixed(2)}`;
+    case 'bag': return `pièces × ${(1 + lvl * (u.perLevel ?? 0)).toFixed(2)}`;
+    case 'autodig': return lvl ? `${lvl} dégât${lvl > 1 ? 's' : ''}/s` : 'arrêté';
+    case 'fragment_shop': return `${lvl} fragment${lvl > 1 ? 's' : ''} acheté${lvl > 1 ? 's' : ''}`;
+    case 'block_reroll': return `${lvl} reroll${lvl > 1 ? 's' : ''}`;
+    default: return '';
+  }
+}
+/** Cumul des prix réels (×Config) du niveau de départ jusqu'à `upTo`. */
+function upTotals(u, upTo = u.maxLevel) {
+  let coins = 0, gems = 0;
+  for (let l = upType(u.id).firstLevel + 1; l <= upTo; l++) { const c = upCostAt(u, l); coins += upScale(c.coins); gems += c.gems; }
+  return { coins, gems };
+}
+function upDuration(min) {
+  if (!Number.isFinite(min)) return '—';
+  if (min < 60) return `${Math.max(1, Math.round(min))} min`;
+  if (min < 60 * 48) return `${Math.round(min / 6) / 10} h`;
+  return `${Math.round(min / 144) / 10} j`;
+}
+function upCtlText(c) {
+  const on = UP_CTL.filter(([k]) => c?.[k]).map(([, l]) => l.toLowerCase());
+  return on.length ? `Suspendue : ${on.join(', ')}` : 'Active';
+}
+function upFieldText(field, v) {
+  if (v == null) return '—';
+  if (field === 'costs' || field === 'gems') return v.map(upNum).join(' / ');
+  if (field === 'names') return UP_LANGS.map(l => `${l.toUpperCase()} : ${v[l] || '—'}`).join(' · ');
+  if (field === 'reroll') return `base ${upNum(v.base)}, ×2 tous les ${v.every} achats`;
+  return String(v);
+}
+function upArtNode(u, size = 32) {
+  const url = _up?.pictos?.[`upgrade_${u.id}`];
+  return url ? aiEl('img', { src: url, alt: '', width: String(size), height: String(size), loading: 'lazy' }) : document.createTextNode(u.icon);
+}
+
+async function loadUpgrades() {
+  const { ok, data } = await api('GET', '/api/admin/upgrades');
+  if (!ok) { ptMessage('up-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  _up = data;
+  const pub = data.published;
+  document.getElementById('up-version').textContent = `— version ${pub.version} en vigueur`;
+  document.getElementById('up-mult').textContent = `×${data.costMultiplier}`;
+  const suspended = Object.values(data.controls).filter(c => c.purchases || c.effects || c.hidden).length;
+  document.getElementById('up-summary').textContent =
+    `Version ${pub.version} en vigueur : ${pub.upgrades.length} améliorations, ${suspended} suspendue(s). ${data.holders.saves} sauvegarde(s) cloud analysée(s) pour l'usage.`;
+  upRenderControls();
+  upRenderDraft();
+  upRenderList();
+  upRenderVersions();
+  loadUpgradeAudit();
+}
+
+function upRenderControls() {
+  const body = document.getElementById('up-ctl-body');
+  body.textContent = '';
+  let n = 0;
+  for (const u of _up.published.upgrades) {
+    const c = _up.controls[u.id] ?? {};
+    const any = c.purchases || c.effects || c.hidden;
+    if (any) n++;
+    const tr = body.insertRow();
+    if (any) tr.className = 'up-row-suspended';
+    const name = addCell(tr, '');
+    name.append(upArtNode(u, 24), ` ${u.names?.fr ?? u.id}`);
+    for (const [k] of UP_CTL) {
+      const na = k === 'effects' && !upType(u.id).suspend;
+      addCell(tr, na ? '— (effet immédiat)' : c[k] ? '⏸ suspendu' : '✓ actif');
+    }
+    addCell(tr, String(upHolderTotal(u.id))).className = 'num';
+    addCell(tr, any ? `${c.reason ?? ''}${c.updatedAt ? ` (${admBrussels(c.updatedAt)})` : ''}` : '');
+    addButtonCell(tr, any ? 'Réactiver / modifier…' : 'Suspendre…', () => upCtlOpen(u.id));
+  }
+  document.getElementById('up-ctl-count').textContent = n ? `— ${n} suspendue(s)` : '— aucune suspension';
+}
+
+function upRenderDraft() {
+  const box = document.getElementById('up-draft');
+  const d = _up?.draft;
+  box.classList.toggle('hidden', !d);
+  if (!d) return;
+  document.getElementById('up-draft-meta').textContent = `— basé sur la version ${d.basedOn}, modifié le ${admBrussels(d.updatedAt)}`;
+  const errs = document.getElementById('up-draft-errors'), warns = document.getElementById('up-draft-warnings');
+  errs.textContent = ''; warns.textContent = '';
+  for (const e of d.errors) errs.appendChild(aiEl('li', {}, e));
+  for (const w of d.warnings) warns.appendChild(aiEl('li', {}, w));
+  errs.classList.toggle('hidden', !d.errors.length);
+  warns.classList.toggle('hidden', !d.warnings.length);
+  const body = document.getElementById('up-draft-body');
+  body.textContent = '';
+  for (const c of d.changes) {
+    const u = d.upgrades.find(x => x.id === c.id) ?? {};
+    for (const f of c.fields ?? []) {
+      const tr = body.insertRow();
+      addCell(tr, `${u.icon ?? ''} ${u.names?.fr ?? c.id}`); addCell(tr, UP_FIELDS[f.field] ?? f.field);
+      addCell(tr, upFieldText(f.field, f.before)); addCell(tr, upFieldText(f.field, f.after));
+    }
+  }
+  document.getElementById('btn-up-publish').disabled = !!d.errors.length || !d.changes.length;
+}
+
+function upRenderList() {
+  if (!_up) return;
+  const text = document.getElementById('up-filter-text').value.trim().toLowerCase();
+  const status = document.getElementById('up-filter-status').value;
+  const kind = document.getElementById('up-filter-kind').value;
+  const changed = new Set((_up.draft?.changes ?? []).map(c => c.id));
+  const isSusp = id => { const c = _up.controls[id] ?? {}; return c.purchases || c.effects || c.hidden; };
+  const list = upWorking().filter(u => {
+    const ty = upType(u.id);
+    if (status === 'active' && isSusp(u.id)) return false;
+    if (status === 'suspended' && !isSusp(u.id)) return false;
+    if (status === 'draft' && !changed.has(u.id)) return false;
+    if (kind && ty.kind !== kind) return false;
+    if (!text) return true;
+    return [u.id, ...Object.values(u.names ?? {}), ty.effect ?? '', ty.label ?? ''].some(s => String(s).toLowerCase().includes(text));
+  });
+  document.getElementById('up-count').textContent = `(${list.length}/${upWorking().length})`;
+  const body = document.getElementById('up-body');
+  body.textContent = '';
+  if (!list.length) { const tr = body.insertRow(); addCell(tr, 'Aucune amélioration.').colSpan = 10; return; }
+  for (const u of list) {
+    const ty = upType(u.id);
+    const tr = body.insertRow();
+    addCell(tr, '').appendChild(upArtNode(u));
+    const nameCell = addCell(tr, u.names?.fr ?? u.id);
+    nameCell.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.72rem' }, u.id));
+    addCell(tr, `${ty.kind === 'instant' ? 'Achat immédiat' : 'Permanent (saison)'} · ${ty.effect}`);
+    addCell(tr, String(u.maxLevel)).className = 'num';
+    const first = upCostAt(u, ty.firstLevel + 1), last = upCostAt(u, u.maxLevel);
+    const fmt = c => [c.coins ? `${upNum(upScale(c.coins))} 🪙` : '', c.gems ? `${c.gems} 💎` : ''].filter(Boolean).join(' + ') || '0';
+    addCell(tr, `${fmt(first)} → ${fmt(last)}`);
+    const tot = upTotals(u);
+    addCell(tr, `${upNum(tot.coins)} 🪙${tot.gems ? ` + ${tot.gems} 💎` : ''}`).className = 'num';
+    addCell(tr, `${upEffectAt(u, ty.firstLevel)} → ${upEffectAt(u, u.maxLevel)}`);
+    addCell(tr, String(upHolderTotal(u.id))).className = 'num';
+    addCell(tr, `${upCtlText(_up.controls[u.id])}${changed.has(u.id) ? ' · modifiée (brouillon)' : ''}`);
+    admRowOpen(tr, `up:${u.id}`, u.names?.fr ?? u.id, opener => upOpen(u, opener));
+  }
+}
+
+function upRenderVersions() {
+  const body = document.getElementById('up-versions-body');
+  body.textContent = '';
+  const current = _up.published.version;
+  for (const v of _up.versions) {
+    const tr = body.insertRow();
+    addCell(tr, `v${v.version}${v.version === current ? ' (en vigueur)' : ''}`);
+    addCell(tr, { origin: 'origine', publish: 'publication', rollback: `retour à v${v.fromVersion}` }[v.source] ?? v.source);
+    addCell(tr, v.note ?? '');
+    addCell(tr, v.createdAt);
+    if (v.version === current) addCell(tr, '');
+    else addButtonCell(tr, 'Revenir à cette version…', () => upRollback(v.version));
+  }
+}
+
+async function loadUpgradeAudit() {
+  const { ok, data } = await api('GET', '/api/admin/upgrades/audit?limit=100');
+  const body = document.getElementById('up-audit-body');
+  body.textContent = '';
+  if (!ok) return;
+  const labels = { migrate: 'version d\'origine', draft_update: 'modification (brouillon)', draft_revert: 'modification annulée',
+    draft_discard: 'brouillon abandonné', draft_clean: 'brouillon identique supprimé', publish: 'publication', rollback: 'retour arrière' };
+  const rows = [
+    ...data.audit.map(a => ({ at: a.created_at, action: labels[a.action] ?? a.action, what: a.version ? `v${a.version}` : (a.details?.id ?? ''),
+      details: [a.details?.to ? `vers v${a.details.to}` : '', (a.details?.changes ?? []).map(c => (c.field ? UP_FIELDS[c.field] ?? c.field : `${c.id} (${(c.fields ?? []).map(f => UP_FIELDS[f.field] ?? f.field).join(', ')})`)).join(', ')].filter(Boolean).join(' — ') })),
+    ...data.controls.map(c => {
+      const ch = UP_CTL.filter(([k]) => c.before[k] !== c.after[k]).map(([k, l]) => `${l} ${c.after[k] ? 'suspendu' : 'réactivé'}`);
+      return { at: c.created_at, action: '🚨 suspension', what: c.upgrade_id, details: `${ch.join(', ')} — motif : ${c.reason} (${c.holders ?? 0} joueur(s), via ${c.via ?? '?'})` };
+    }),
+  ].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  for (const r of rows) {
+    const tr = body.insertRow();
+    addCell(tr, r.at); addCell(tr, r.action); addCell(tr, r.what); addCell(tr, r.details);
+  }
+}
+
+// ── Fiche ──
+
+function upSetLang(l) {
+  _upLang = l;
+  for (const b of document.querySelectorAll('#up-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const f of document.querySelectorAll('#up-dialog .nw-lang-fields')) f.classList.toggle('hidden', f.dataset.lang !== l);
+}
+function upLangStates() {
+  for (const b of document.querySelectorAll('#up-langs .co-lang-btn')) {
+    const l = b.dataset.lang;
+    const st = document.getElementById(`up-${l}-name`).value.trim() ? 'full' : 'none';
+    b.className = `co-lang-btn co-lang--${st}`;
+    b.textContent = `${st === 'full' ? '●' : '○'} ${l.toUpperCase()}`;
+  }
+}
+
+function upRead() {
+  const id = _upCur;
+  const ty = upType(id);
+  const names = {};
+  for (const l of UP_LANGS) names[l] = document.getElementById(`up-${l}-name`).value.trim();
+  const u = { id, icon: document.getElementById('up-icon').value.trim(), names, maxLevel: Number(document.getElementById('up-max').value) };
+  if (ty.reroll) {
+    u.reroll = { base: Number(document.getElementById('up-rr-base').value), every: Number(document.getElementById('up-rr-every').value) };
+    return u;
+  }
+  u.costs = [...document.querySelectorAll('#up-levels-body [data-up="cost"]')].map(el => (el.value.trim() === '' ? null : Number(el.value)));
+  if (ty.gems) u.gems = [...(upPublished(id)?.gems ?? [])];
+  if (ty.perLevel) u.perLevel = Number(document.getElementById('up-per').value);
+  return u;
+}
+
+/** Lignes de niveaux : conserve les prix saisis quand le nombre de niveaux change. */
+function upRenderLevels(costs) {
+  const id = _upCur, ty = upType(id);
+  const body = document.getElementById('up-levels-body');
+  const prev = ty.reroll ? [] : upRead().costs ?? [];
+  costs = costs ?? prev;
+  body.textContent = '';
+  if (ty.reroll) { upRefresh(); return; }
+  const max = Math.min(ty.levels[1], Math.max(ty.levels[0], Number(document.getElementById('up-max').value) || ty.levels[0]));
+  const gems = upPublished(id)?.gems ?? [];
+  const holders = upHolders(id);
+  for (let lvl = ty.firstLevel + 1; lvl <= max; lvl++) {
+    const i = lvl - ty.firstLevel - 1;
+    const tr = body.insertRow();
+    addCell(tr, String(lvl)).className = 'num';
+    const c = aiEl('input', { type: 'number', min: '0', step: '1', 'data-up': 'cost', 'aria-label': `Prix du niveau ${lvl} en pièces` });
+    c.value = costs[i] ?? '';
+    addCell(tr, '').appendChild(c);
+    addCell(tr, ty.gems ? String(gems[i] ?? 0) : '—').className = 'num';
+    addCell(tr, '').className = 'num up-real';
+    addCell(tr, '').className = 'num up-cum';
+    addCell(tr, '').className = 'up-fx';
+    addCell(tr, String(holders[lvl] ?? 0)).className = 'num';
+  }
+  upRefresh();
+}
+
+/** Prix réels, cumuls, effets, simulation avant/après et comparaison (mêmes règles que le jeu). */
+function upRefresh() {
+  const u = upRead();
+  const ty = upType(u.id);
+  const pub = upPublished(u.id);
+  if (!ty.reroll) {
+    let cum = 0;
+    const rows = document.querySelectorAll('#up-levels-body tr');
+    rows.forEach((tr, i) => {
+      const lvl = ty.firstLevel + i + 1;
+      const real = upScale(u.costs[i] ?? 0);
+      cum += real;
+      tr.querySelector('.up-real').textContent = upNum(real);
+      tr.querySelector('.up-cum').textContent = upNum(cum);
+      tr.querySelector('.up-fx').textContent = upEffectAt(u, lvl);
+    });
+  }
+  // Simulation : coût total, temps pour le profil faible/fort, effet au maximum
+  const weak = Math.max(1, Number(document.getElementById('up-sim-weak').value) || 1);
+  const strong = Math.max(1, Number(document.getElementById('up-sim-strong').value) || 1);
+  const sim = document.getElementById('up-sim-body');
+  sim.textContent = '';
+  const safe = x => { try { return upTotals(x); } catch (_) { return { coins: NaN, gems: 0 }; } };
+  const upTo = ty.reroll ? 20 : null;
+  const a = pub ? (upTo ? upTotals(pub, upTo) : upTotals(pub)) : null;
+  const b = upTo ? safe({ ...u, maxLevel: upTo }) : safe(u);
+  const line = (label, av, bv, fmt = upNum) => {
+    const tr = sim.insertRow();
+    addCell(tr, label);
+    addCell(tr, av == null ? '—' : fmt(av)).className = 'num';
+    addCell(tr, Number.isFinite(bv) ? fmt(bv) : '—').className = 'num';
+    const r = av != null && Number.isFinite(bv) && av ? (bv / av - 1) * 100 : null;
+    const d = r == null ? null : Math.abs(r) < 1 ? Math.round(r * 100) / 100 : Math.round(r * 10) / 10;
+    addCell(tr, d == null ? '—' : bv === av ? '=' : `${r > 0 ? '+' : ''}${d.toLocaleString('fr-FR')} %`).className = 'num';
+  };
+  const label = upTo ? 'Coût des 20 premiers rerolls (pièces)' : 'Coût total jusqu\'au maximum (pièces)';
+  line(label, a?.coins, b.coins);
+  if (ty.gems) line('Gemmes jusqu\'au maximum', a?.gems, b.gems);
+  line(`Temps, profil faible (${upNum(weak)}/min)`, a ? a.coins / weak : null, b.coins / weak, upDuration);
+  line(`Temps, profil fort (${upNum(strong)}/min)`, a ? a.coins / strong : null, b.coins / strong, upDuration);
+  if (!ty.reroll) {
+    const tr = sim.insertRow();
+    addCell(tr, 'Effet au niveau maximum');
+    addCell(tr, pub ? upEffectAt(pub, pub.maxLevel) : '—').className = 'num';
+    addCell(tr, upEffectAt(u, u.maxLevel)).className = 'num';
+    addCell(tr, '');
+  }
+  // Comparaison avec la version en vigueur
+  const ul = document.getElementById('up-compare-list');
+  ul.textContent = '';
+  if (pub) {
+    for (const f of Object.keys(UP_FIELDS)) {
+      if (JSON.stringify(pub[f] ?? null) === JSON.stringify(u[f] ?? null)) continue;
+      ul.appendChild(aiEl('li', {}, `${UP_FIELDS[f]} : ${upFieldText(f, pub[f])} → ${upFieldText(f, u[f])}`));
+    }
+  }
+  document.getElementById('up-compare').classList.toggle('hidden', !ul.children.length);
+  const art = document.getElementById('up-art');
+  art.textContent = '';
+  art.appendChild(upArtNode({ ...u, icon: u.icon || '⬆' }, 56));
+  upLangStates();
+}
+
+function upOpen(upgrade, opener) {
+  const u = upgrade;
+  const ty = upType(u.id);
+  _upCur = u.id;
+  document.getElementById('up-form-title').textContent = `${u.icon} ${u.names?.fr ?? u.id}`;
+  for (const l of UP_LANGS) document.getElementById(`up-${l}-name`).value = u.names?.[l] ?? '';
+  document.getElementById('up-id').value = u.id;
+  document.getElementById('up-kind').value = ty.kind === 'instant' ? 'Achat à effet immédiat (compteur remis à zéro chaque saison)' : 'Effet permanent pendant la saison (niveau remis à zéro chaque saison)';
+  document.getElementById('up-icon').value = u.icon ?? '';
+  document.getElementById('up-studio-key').textContent = `ui:upgrade_${u.id}`;
+  document.getElementById('up-formula').textContent = `Calcul : ${ty.formula}`;
+  const locked = document.getElementById('up-locked');
+  locked.textContent = ty.locked ? `🔒 ${ty.locked}` : '';
+  locked.classList.toggle('hidden', !ty.locked);
+  const max = document.getElementById('up-max');
+  max.min = String(Math.max(ty.levels[0], _up.publishedMaxLevels?.[u.id] ?? 0));
+  max.max = String(ty.levels[1]);
+  max.value = u.maxLevel;
+  max.readOnly = ty.levels[0] === ty.levels[1];
+  document.getElementById('up-per-wrap').classList.toggle('hidden', !ty.perLevel);
+  if (ty.perLevel) {
+    document.getElementById('up-per-label').textContent = `Effet par niveau (${ty.unit}, ${ty.perLevel.min} à ${ty.perLevel.max})`;
+    const per = document.getElementById('up-per');
+    per.min = String(ty.perLevel.min); per.max = String(ty.perLevel.max);
+    per.value = u.perLevel;
+  }
+  for (const w of ['up-rr-base-wrap', 'up-rr-every-wrap']) document.getElementById(w).classList.toggle('hidden', !ty.reroll);
+  if (ty.reroll) {
+    document.getElementById('up-rr-base').value = u.reroll.base;
+    document.getElementById('up-rr-every').value = u.reroll.every;
+  }
+  upRenderLevels(u.costs ?? []);
+  const changed = (_up.draft?.changes ?? []).some(c => c.id === u.id);
+  const state = document.getElementById('up-state');
+  state.textContent = changed ? 'Cette amélioration a des modifications dans le brouillon (pas encore en jeu) : la comparaison montre l\'écart avec la version en vigueur.'
+    : `Valeurs en vigueur (version ${_up.published.version}), identiques à celles du jeu.`;
+  state.classList.remove('hidden');
+  const c = _up.controls[u.id] ?? {};
+  const cs = document.getElementById('up-ctl-state');
+  cs.textContent = `🚨 État : ${upCtlText(c)}${c.reason && (c.purchases || c.effects || c.hidden) ? ` — motif : ${c.reason}` : ''}. Si ses effets sont suspendus : ${ty.suspend ?? 'sans objet (effet immédiat à l\'achat)'}`;
+  cs.classList.remove('hidden');
+  document.getElementById('up-issues').classList.add('hidden');
+  document.getElementById('btn-up-revert').classList.toggle('hidden', !changed);
+  upSetLang('fr');
+  _upSnap = JSON.stringify(upRead());
+  admDialogOpen('up-dialog', opener, null);
+}
+
+admDialogSetup('up-dialog', { dirty: () => JSON.stringify(upRead()) !== _upSnap, keep: 'Enregistrer dans le brouillon' });
+
+function upIssues(data, id = 'up-issues') {
+  const ul = document.getElementById(id);
+  ul.textContent = '';
+  for (const e of [data.error, ...(data.details ?? [])].filter(Boolean)) ul.appendChild(aiEl('li', {}, e));
+  ul.classList.toggle('hidden', !ul.children.length);
+  ul.scrollIntoView?.({ block: 'nearest' });
+}
+
+document.getElementById('btn-up-add').addEventListener('click', () => admAlert(
+  'Chaque amélioration correspond à du code dans le moteur du jeu (dégâts, Chance, Sac, Auto-Dig, fragments, reroll). Une fiche sans code associé n\'aurait aucun effet réel : un nouveau type d\'amélioration se demande par un ticket (spécification de l\'effet, impact anti-bot #25 et économie #49), puis apparaît ici avec son barème.\n\nEn attendant, vous pouvez modifier prix, niveaux, effets et noms des six améliorations existantes (brouillon → publication), ou les suspendre en urgence.',
+  'Ajouter une amélioration'));
+document.getElementById('up-langs').addEventListener('click', e => { const b = e.target.closest('.co-lang-btn'); if (b) upSetLang(b.dataset.lang); });
+document.getElementById('up-max').addEventListener('input', () => upRenderLevels());
+document.getElementById('up-dialog').addEventListener('input', e => { if (e.target.id !== 'up-max') upRefresh(); });
+document.getElementById('up-filter-text').addEventListener('input', upRenderList);
+document.getElementById('up-filter-status').addEventListener('change', upRenderList);
+document.getElementById('up-filter-kind').addEventListener('change', upRenderList);
+
+document.getElementById('btn-up-save').addEventListener('click', async () => {
+  const upgrade = upRead();
+  const { ok, data } = await api('PUT', `/api/admin/upgrades/draft/upgrades/${encodeURIComponent(upgrade.id)}`, { upgrade });
+  if (!ok) return upIssues(data);
+  _upSnap = JSON.stringify(upRead());
+  document.getElementById('up-dialog').close();
+  ptMessage('up-msg', data.draftDropped
+    ? `« ${upgrade.id} » : identique à la version en vigueur, aucun brouillon en attente.`
+    : `« ${upgrade.id} » enregistrée dans le brouillon. Rien ne change pour les joueurs avant « Publier… ».`, true);
+  loadUpgrades();
+});
+
+document.getElementById('btn-up-revert').addEventListener('click', async () => {
+  const id = _upCur;
+  if (!id || !await admAsk(`Annuler les modifications de « ${id} » ?\nElle reprend dans le brouillon ses valeurs en vigueur ; les autres améliorations du brouillon ne bougent pas.`)) return;
+  const { ok, data } = await api('POST', `/api/admin/upgrades/draft/upgrades/${encodeURIComponent(id)}/revert`);
+  if (!ok) return upIssues(data);
+  document.getElementById('up-dialog').close();
+  ptMessage('up-msg', `« ${id} » : modifications annulées${data.draftDropped ? ' ; plus aucun brouillon en attente.' : '.'}`, true);
+  loadUpgrades();
+});
+
+document.getElementById('btn-up-discard').addEventListener('click', async () => {
+  if (!await admConfirm({ title: 'Abandonner le brouillon des améliorations ?', text: 'Toutes les modifications non publiées sont perdues.',
+    impact: ['Rien ne change pour les joueurs : la version en vigueur reste appliquée.', 'L\'action est tracée dans le journal.'], ok: 'Abandonner le brouillon', danger: true })) return;
+  const { ok, data } = await api('DELETE', '/api/admin/upgrades/draft');
+  ptMessage('up-msg', ok ? 'Brouillon abandonné : aucun changement pour les joueurs.' : (data.error || 'Erreur.'), ok);
+  loadUpgrades();
+});
+
+document.getElementById('btn-up-publish').addEventListener('click', async () => {
+  const d = _up?.draft;
+  if (!d) return;
+  const note = await admPrompt({ title: `Publier le barème (version ${_up.published.version + 1}) ?`,
+    text: `Améliorations concernées : ${d.changes.map(c => c.id).join(', ')}. Les nouveaux prix, niveaux et effets s'appliquent à TOUS les joueurs en moins d'une minute ; les niveaux possédés, pièces et gemmes ne sont jamais modifiés. Retour arrière possible : « Versions publiées → Revenir à cette version ».`,
+    label: 'Note de publication — obligatoire (raison, accord du propriétaire)', ok: 'Publier' });
+  if (note === null) return;
+  const { ok, data } = await api('POST', '/api/admin/upgrades/publish', { note, basedOn: d.basedOn });
+  if (!ok) { ptMessage('up-msg', [data.error, ...(data.details ?? [])].filter(Boolean).join(' '), false); return; }
+  ptMessage('up-msg', `Version ${data.version} publiée (${data.changes.length} amélioration(s) modifiée(s)).`, true);
+  loadUpgrades();
+});
+
+async function upRollback(version) {
+  if (!await admConfirm({ title: `Revenir à la version ${version} ?`, text: 'Une NOUVELLE version reprenant ce contenu est publiée immédiatement.',
+    impact: ['Les joueurs reçoivent ces prix et effets en moins d\'une minute ; niveaux possédés, pièces et gemmes inchangés.',
+      'Le nombre de niveaux ne baisse jamais.', 'Le brouillon éventuel est abandonné.'],
+    ok: `Revenir à la version ${version}`, danger: true })) return;
+  const { ok, data } = await api('POST', '/api/admin/upgrades/rollback', { version });
+  ptMessage('up-msg', ok ? `Version ${data.version} publiée (retour au contenu de la version ${data.restored}).` : [data.error, ...(data.details ?? [])].filter(Boolean).join(' '), ok);
+  loadUpgrades();
+}
+
+document.getElementById('btn-up-studio').addEventListener('click', async () => {
+  const id = _upCur;
+  const dlg = document.getElementById('up-dialog');
+  if (dlg._admDirty() && !await admConfirmDiscard({ keep: 'Enregistrer dans le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
+  _upSnap = JSON.stringify(upRead());
+  dlg.close();
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  _icFrom = { kind: 'upgrade', id };
+  icOpen(`ui:upgrade_${id}`);
+});
+
+/** Retour de l'atelier d'icônes vers la fiche de l'amélioration (vue rechargée : pictogramme appliqué). */
+async function upBackTo(id) {
+  _up = null;
+  document.querySelector('.tab-btn[data-tab="upgrades"]').click();
+  for (let k = 0; k < 50 && !_up; k++) await new Promise(r => setTimeout(r, 100));
+  const u = upWorking().find(x => x.id === id);
+  if (u) upOpen(u, document.querySelector(`[data-adm-key="${CSS.escape(`up:${id}`)}"]`));
+}
+
+// ── Suspension d'urgence ──
+
+function upCtlRead() {
+  return Object.fromEntries(UP_CTL.map(([k]) => [k, document.getElementById(`up-ctl-${k}`).checked]));
+}
+
+let _upCtlSeq = 0;
+/** Aperçu serveur des conséquences (rien n'est appliqué) ; affiche la confirmation par identifiant si nécessaire. */
+async function upCtlPreview() {
+  const id = _upCtlId;
+  const seq = ++_upCtlSeq;
+  const { ok, data } = await api('POST', `/api/admin/upgrades/${encodeURIComponent(id)}/controls/preview`, { controls: upCtlRead() });
+  if (seq !== _upCtlSeq) return;   // réponse périmée (cases recochées entre-temps)
+  const ul = document.getElementById('up-ctl-preview');
+  ul.textContent = '';
+  if (!ok) { ul.appendChild(aiEl('li', {}, data.error || 'Aperçu indisponible.')); return; }
+  if (data.after.hidden) document.getElementById('up-ctl-purchases').checked = true;
+  for (const line of data.consequences.length ? data.consequences : ['Aucun changement : cet état est déjà en vigueur.']) ul.appendChild(aiEl('li', {}, line));
+  document.getElementById('up-ctl-confirm-wrap').classList.toggle('hidden', !data.requiresConfirm);
+  document.getElementById('btn-up-ctl-apply').disabled = !data.changed.length;
+  const any = data.after.purchases || data.after.effects || data.after.hidden;
+  document.getElementById('btn-up-ctl-apply').textContent = any ? 'Appliquer maintenant' : 'Réactiver maintenant';
+}
+
+function upCtlOpen(id) {
+  _upCtlId = id;
+  const u = upPublished(id), ty = upType(id);
+  const c = _up.controls[id] ?? {};
+  document.getElementById('up-ctl-title').textContent = `🚨 ${u?.icon ?? ''} ${u?.names?.fr ?? id} — suspension d'urgence`;
+  for (const [k] of UP_CTL) document.getElementById(`up-ctl-${k}`).checked = !!c[k];
+  const fx = document.getElementById('up-ctl-effects');
+  fx.disabled = !ty.suspend;
+  document.getElementById('up-ctl-effects-help').textContent = ty.suspend ?? 'sans objet : l\'effet est immédiat à l\'achat (suspendez les nouveaux achats).';
+  document.getElementById('up-ctl-reason').value = '';
+  document.getElementById('up-ctl-confirm').value = '';
+  document.getElementById('up-ctl-confirm-label').textContent = `Recopiez « ${id} » pour confirmer`;
+  document.getElementById('up-ctl-issues').classList.add('hidden');
+  const sheet = document.getElementById('up-dialog');
+  if (sheet.open) sheet.close();   // fiche refermée (saisies déjà protégées) : la suspension est une action séparée
+  admDialogOpen('up-ctl-dialog', document.activeElement, 'up-ctl-purchases');
+  upCtlPreview();
+}
+
+admDialogSetup('up-ctl-dialog', { dirty: () => !!document.getElementById('up-ctl-reason').value.trim(), keep: 'Appliquer maintenant' });
+
+document.getElementById('up-ctl-dialog').addEventListener('change', e => { if (e.target.type === 'checkbox') upCtlPreview(); });
+document.getElementById('btn-up-ctl-open').addEventListener('click', async () => {
+  const dlg = document.getElementById('up-dialog');
+  if (dlg._admDirty() && !await admConfirmDiscard({ keep: 'Enregistrer dans le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre la suspension d\'urgence.' })) return;
+  _upSnap = JSON.stringify(upRead());
+  upCtlOpen(_upCur);
+});
+
+document.getElementById('btn-up-ctl-apply').addEventListener('click', async () => {
+  const id = _upCtlId;
+  const controls = upCtlRead();
+  const reason = document.getElementById('up-ctl-reason').value.trim();
+  if (reason.length < 5) return upIssues({ error: 'Motif obligatoire (au moins 5 caractères) : il figure au journal.' }, 'up-ctl-issues');
+  const { ok, data } = await api('POST', `/api/admin/upgrades/${encodeURIComponent(id)}/controls`,
+    { controls, reason, confirm: document.getElementById('up-ctl-confirm').value.trim() });
+  if (!ok) return upIssues(data, 'up-ctl-issues');
+  document.getElementById('up-ctl-reason').value = '';
+  document.getElementById('up-ctl-dialog').close();
+  const any = data.after.purchases || data.after.effects || data.after.hidden;
+  ptMessage('up-msg', `« ${id} » : ${any ? upCtlText(data.after).toLowerCase() : 'réactivée'}. Appliqué par le jeu en moins d'une minute ; niveaux des joueurs inchangés.`, true);
+  loadUpgrades();
+});
+
+admRefreshButton('btn-refresh-upgrades', loadUpgrades, 'Améliorations');
 
 // ── 🎯 Missions quotidiennes (#68, étape A) ─────────────────────────────────────
 // Catalogue versionné côté serveur (server/missionCatalog.js). La version 1 = les six missions du jeu à l'identique.

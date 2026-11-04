@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 676/676 textes. Absents → français. */
+/* Italian (preview) : 679/679 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -756,6 +756,7 @@ I18n.registerLocale("it", {
   "btn_play_here": "Gioca qui",
   "btn_reset": "Ricomincia la partita",
   "btn_skip_ad": "Salta ✕",
+  "btn_suspended": "Sospeso",
   "btn_unlock": "Sblocca",
   "btn_upgrade": "Potenzia",
   "btn_watch_ad": "Raddoppia la ricompensa",
@@ -889,6 +890,8 @@ I18n.registerLocale("it", {
    },
    "effect": "Danni per clic: {cur} → {next}",
    "name": "Piccone"
-  }
+  },
+  "suspended_effects": "Effetto sospeso temporaneamente — il tuo livello è conservato",
+  "suspended_purchases": "Acquisti sospesi temporaneamente"
  }
 });
