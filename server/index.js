@@ -95,6 +95,7 @@ const badgeAi = require('./badgeAi');
 const news    = require('./news');
 const monthlyEvents = require('./monthlyEvents');
 const rewardPoints = require('./rewardPoints');
+const gemLedger = require('./gemLedger');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
 const rewardTables = require('./rewardTables');
@@ -475,6 +476,9 @@ function savePayload(row, userId = null) {
   if (userId) {
     try { collectionPity.mergeInto(userId, data); }
     catch (err) { console.error('[savePayload] collection', err.message); }
+    // Registre de gemmes (#49) : le solde de référence ne fait foi qu'en mode `enforce` (désactivé par défaut)
+    try { gemLedger.mergeInto(userId, data); }
+    catch (err) { console.error('[savePayload] gemmes', err.message); }
   }
   return { data, revision: row.version, version: row.version, saved_at: row.saved_at };
 }
@@ -533,8 +537,13 @@ app.post('/api/me/save', limit.save, (req, res) => {
     let collectionFinds = [];
     try { collectionFinds = collectionPity.processSave(req.session.userId, data); }
     catch (err) { console.error('[POST /api/me/save] collection', err.message); }
+    // Registre de gemmes (#49) : observation après validation des blocs (badges) ; sauvegarde jamais modifiée.
+    // `gems` n'est renvoyé qu'en mode `enforce` (activation réservée au propriétaire).
+    let gemsAuthoritative = null;
+    try { if (gemLedger.observeSave(req.session.userId, data, { revision: version })) gemsAuthoritative = gemLedger.authoritativeBalance(req.session.userId); }
+    catch (err) { console.error('[POST /api/me/save] gemmes', err.message); }
     res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}), ...(eventFinds.length ? { eventFinds } : {}),
-      ...(collectionFinds.length ? { collectionFinds } : {}) });
+      ...(collectionFinds.length ? { collectionFinds } : {}), ...(gemsAuthoritative !== null ? { gems: gemsAuthoritative } : {}) });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -2073,6 +2082,7 @@ app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => 
     const revision = runTransaction(() => {
       const { version } = upsertUserSave(userId, JSON.stringify(data));
       logUserEvent(userId, 'admin_season_reset', { adminAction: true });
+      gemLedger.onAdminSeasonReset(userId, gemsCap, { revision: version });
       return version;
     });
 
@@ -2080,6 +2090,37 @@ app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => 
   } catch (err) {
     console.error('[POST /api/admin/players/:userId/season-reset]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// ── Registre de gemmes de référence (#49) ────────────────────────────────────
+
+/** GET /api/admin/economy/gems — mode, totaux, mouvements par motif, anomalies récentes, journal des modes. */
+app.get('/api/admin/economy/gems', requireAdmin, (req, res) => {
+  try { res.json(gemLedger.adminSummary()); }
+  catch (err) { console.error('[GET /api/admin/economy/gems]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** GET /api/admin/economy/gems/players/:userId — solde de référence et derniers mouvements d'un joueur. */
+app.get('/api/admin/economy/gems/players/:userId', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'userId invalide.' });
+  try { res.json(gemLedger.playerLedger(userId)); }
+  catch (err) { console.error('[GET /api/admin/economy/gems/players]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * POST /api/admin/economy/gems/mode — { mode: off|observe|enforce, confirm: true, note }
+ * `enforce` remplace les gemmes envoyées aux joueurs : exige en plus confirmText = "ENFORCE".
+ */
+app.post('/api/admin/economy/gems/mode', requireAdmin, (req, res) => {
+  const { mode, confirm, confirmText, note } = req.body ?? {};
+  if (confirm !== true) return res.status(400).json({ error: 'Confirmation requise (confirm: true).' });
+  if (mode === 'enforce' && confirmText !== 'ENFORCE') return res.status(400).json({ error: 'Mode « fait foi » : saisir ENFORCE pour confirmer.' });
+  try { res.json({ ok: true, ...gemLedger.setMode(mode, { note }) }); }
+  catch (err) {
+    if (err instanceof gemLedger.GemError) return res.status(err.status).json({ error: err.message });
+    console.error('[POST /api/admin/economy/gems/mode]', err); res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
@@ -2130,6 +2171,7 @@ collectionPity.init();           // chance croissante : compteurs par joueur et 
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_COLLECTIONS !== '0') collectionAi.importPrepared();
 seasonThemes.init();             // saisons thématiques : thèmes, noms réservés, journal ; préparation par le planificateur (#48)
 xLink.init();                    // compte X lié, historique, demandes de récompense (désactivées) (#51)
+gemLedger.init();                // registre de gemmes de référence, désactivé par défaut (#49)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
 news.init();                     // centre d'actualités : annonces, lu par compte, IA, faits joueurs (#50)

@@ -373,6 +373,45 @@
       <p id="eco-err" class="error hidden"></p>
     </div>
 
+    <!-- Registre de gemmes de référence (#49) -->
+    <div class="overview-card" id="gem-ledger-card">
+      <div class="section-header" style="margin-bottom:8px">
+        <h3 class="overview-card-title" style="margin:0">💎 Registre de gemmes (serveur)</h3>
+        <button class="btn btn-outline btn-sm" id="btn-refresh-gem-ledger">↻ Rafraîchir</button>
+      </div>
+      <p class="muted" style="margin-bottom:10px">Solde de référence tenu par le serveur à côté de la sauvegarde : ouverture = gemmes du joueur (rien retiré), crédits des seuls blocs gemmes validés, allocation journalière pour la série et les missions, dépenses Auto-Dig, plafond de saison.
+        <strong>Désactivé</strong> : rien n'est enregistré. <strong>Observation</strong> : écarts notés, sauvegardes et joueurs inchangés. <strong>Fait foi</strong> : le solde de référence remplace les gemmes envoyées aux joueurs (à n'activer qu'après recette de l'observation).</p>
+      <p>Mode actuel : <strong id="gl-mode">—</strong> · allocation déclarée <span id="gl-allowance">—</span> 💎/jour</p>
+      <div class="stat-grid" style="margin:10px 0">
+        <div class="stat-item"><span class="stat-label">Comptes suivis</span><span class="stat-value" id="gl-accounts">—</span></div>
+        <div class="stat-item"><span class="stat-label">Solde de référence total</span><span class="stat-value" id="gl-balance">—</span></div>
+        <div class="stat-item"><span class="stat-label">Soldes d'ouverture</span><span class="stat-value" id="gl-opening">—</span></div>
+        <div class="stat-item" title="Joueurs dont la sauvegarde déclare plus de gemmes que le solde de référence"><span class="stat-label">Joueurs au-dessus de la référence</span><span class="stat-value" id="gl-above">—</span></div>
+        <div class="stat-item"><span class="stat-label">Plus grand écart</span><span class="stat-value" id="gl-maxdrift">—</span></div>
+      </div>
+      <table id="gl-reasons-table" style="margin-bottom:10px">
+        <thead><tr><th>Mouvement</th><th>Nombre</th><th>Total 💎</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <table id="gl-anomalies-table" style="margin-bottom:10px">
+        <thead><tr><th>Date (UTC)</th><th>Joueur</th><th>Anomalie</th><th>💎</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="form-actions" style="flex-wrap:wrap;gap:8px">
+        <label>Nouveau mode
+          <select id="gl-mode-select">
+            <option value="off">Désactivé</option>
+            <option value="observe">Observation</option>
+            <option value="enforce">Fait foi</option>
+          </select>
+        </label>
+        <input type="text" id="gl-mode-note" placeholder="Note (raison du changement)" maxlength="300" style="min-width:220px">
+        <button class="btn btn-sm" id="btn-gl-mode">Changer le mode…</button>
+      </div>
+      <p id="gl-msg" class="success hidden"></p>
+      <p id="gl-err" class="error hidden"></p>
+    </div>
+
     <!-- Recherche de joueurs -->
     <div class="overview-card">
       <h3 class="overview-card-title">Debug joueur</h3>

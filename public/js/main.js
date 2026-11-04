@@ -1743,6 +1743,12 @@ async function _pushSave(retry) {
       Collection.addServerFinds(res.data.collectionFinds).forEach((f, i) => setTimeout(() => handleFindDrop(f), i * 600));
       Save.save();
     }
+    // Registre de gemmes en mode « fait foi » (#49, désactivé par défaut) : écart serveur appliqué,
+    // les gemmes gagnées depuis l'envoi restent acquises (elles seront validées à la sauvegarde suivante)
+    if (Number.isSafeInteger(res.data.gems) && res.data.gems !== (data.gems ?? 0)) {
+      GameState.gems = Math.max(0, GameState.gems + res.data.gems - (data.gems ?? 0));
+      Save.save();
+    }
     _refreshSeasonView();   // onglet Saison ouvert : chiffres serveur à jour après la sauvegarde
     return 'ok';
   }

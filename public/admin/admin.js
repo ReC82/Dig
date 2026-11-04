@@ -538,7 +538,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById(`tab-${btn.dataset.tab}`).classList.remove('hidden');
     if (btn.dataset.tab === 'leaderboard')     loadLeaderboard();
     if (btn.dataset.tab === 'season-overview') { loadSeasonOverview(); loadAntiCheatLogs(); }
-    if (btn.dataset.tab === 'economy')         loadEconomy();
+    if (btn.dataset.tab === 'economy')         { loadEconomy(); loadGemLedger(); }
     if (btn.dataset.tab === 'security')        loadSecurity();
     if (btn.dataset.tab === 'contest')         loadContest();
     if (btn.dataset.tab === 'points')          loadPoints();
@@ -1416,6 +1416,67 @@ document.getElementById('btn-save-economy').addEventListener('click', async () =
   admZoneClean(_ecoZone);
   msgEl.classList.remove('hidden');
   setTimeout(() => msgEl.classList.add('hidden'), 3000);
+});
+
+// ── Registre de gemmes de référence (#49) ─────────────────────────────────────
+
+const GL_MODES   = { off: 'Désactivé', observe: 'Observation', enforce: 'Fait foi' };
+const GL_REASONS = { opening: 'Ouverture (solde repris)', blocks: 'Blocs gemmes validés', declared: 'Série / missions (allocation)',
+  autodig: 'Dépense Auto-Dig', season_cap: 'Plafond de saison', purchase: 'Achat', admin_credit: 'Crédit admin' };
+const GL_KINDS   = { excess_declared: 'Gemmes déclarées au-delà de l\'allocation', client_loss: 'Baisse inexpliquée côté client',
+  spend_over_balance: 'Dépense supérieure au solde' };
+
+function _glRows(tbodySel, rows, cells) {
+  const tb = document.querySelector(tbodySel);
+  tb.replaceChildren();
+  if (!rows.length) {
+    const tr = document.createElement('tr'), td = document.createElement('td');
+    td.colSpan = 4; td.className = 'muted'; td.textContent = 'Aucune ligne.';
+    tr.append(td); tb.append(tr); return;
+  }
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    for (const v of cells(r)) { const td = document.createElement('td'); td.textContent = String(v ?? '—'); tr.append(td); }
+    tb.append(tr);
+  }
+}
+
+async function loadGemLedger() {
+  const { ok, data } = await api('GET', '/api/admin/economy/gems');
+  if (!ok) return;
+  document.getElementById('gl-mode').textContent = GL_MODES[data.mode] ?? data.mode;
+  document.getElementById('gl-allowance').textContent = data.dailyAllowance;
+  document.getElementById('gl-accounts').textContent = data.totals.accounts;
+  document.getElementById('gl-balance').textContent = data.totals.balance;
+  document.getElementById('gl-opening').textContent = data.totals.opening;
+  document.getElementById('gl-above').textContent = data.totals.aboveReference;
+  document.getElementById('gl-maxdrift').textContent = data.totals.maxDrift;
+  _glRows('#gl-reasons-table tbody', data.byReason, r => [GL_REASONS[r.reason] ?? r.reason, r.n, r.total]);
+  _glRows('#gl-anomalies-table tbody', data.anomalies, r => [r.createdAt, `${r.username ?? '?'} (#${r.userId})`, GL_KINDS[r.kind] ?? r.kind, r.amount]);
+  const sel = document.getElementById('gl-mode-select');
+  if (!admZoneDirty(_glZone)) sel.value = data.mode;
+}
+const _glZone = admZone(document.getElementById('gem-ledger-card'));
+admRefreshButton('btn-refresh-gem-ledger', loadGemLedger, 'Registre de gemmes');
+
+document.getElementById('btn-gl-mode').addEventListener('click', async () => {
+  const msgEl = document.getElementById('gl-msg'), errEl = document.getElementById('gl-err');
+  msgEl.classList.add('hidden'); errEl.classList.add('hidden');
+  const mode = document.getElementById('gl-mode-select').value;
+  const note = document.getElementById('gl-mode-note').value.trim();
+  const body = { mode, note, confirm: true };
+  if (mode === 'enforce') {
+    const typed = window.prompt('Mode « fait foi » : le solde de référence remplacera les gemmes envoyées aux joueurs. Réservé à la décision du propriétaire après recette. Saisir ENFORCE pour confirmer.');
+    if (typed === null) return;
+    body.confirmText = typed.trim();
+  } else if (!window.confirm(`Passer le registre de gemmes en mode « ${GL_MODES[mode]} » ?`)) return;
+  const { ok, data } = await api('POST', '/api/admin/economy/gems/mode', body);
+  if (!ok) { errEl.textContent = data.error ?? 'Erreur.'; errEl.classList.remove('hidden'); return; }
+  admZoneClean(_glZone);
+  document.getElementById('gl-mode-note').value = '';
+  msgEl.textContent = data.changed ? `Mode : ${GL_MODES[data.mode]}.` : 'Mode inchangé.';
+  msgEl.classList.remove('hidden');
+  loadGemLedger();
 });
 
 // ── Recherche de joueurs ──────────────────────────────────────────────────────
