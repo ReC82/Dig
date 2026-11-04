@@ -746,6 +746,26 @@ function initDb() {
       updated_ms INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (user_id, season_id)
     );
+    -- Fiche joueur anti-bot (#25, 04/11) : une ligne agrégée par sauvegarde contrôlée (compteurs
+    -- déclarés, profondeur retenue, résumé de télémétrie), pour les diagnostics futurs. Aucune IP,
+    -- aucune frappe horodatée ; bornée par joueur et purgée avec le journal (90 jours).
+    CREATE TABLE IF NOT EXISTS antibot_save_samples (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      season_id       INTEGER NOT NULL,
+      at_ms           INTEGER NOT NULL,
+      reported_depth  INTEGER,
+      accepted_depth  INTEGER,
+      budget_depth    INTEGER,
+      manual_clicks   INTEGER,
+      manual_blocks   INTEGER,
+      auto_blocks     INTEGER,
+      blocks_destroyed INTEGER,
+      autodig_level   INTEGER,
+      ac_action       TEXT,
+      tel             TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_antibot_samples_user ON antibot_save_samples (user_id, season_id, id DESC);
   `);
 
   // Session de jeu unique par compte (#35) : un seul contrôleur (onglet, appareil, PWA) peut

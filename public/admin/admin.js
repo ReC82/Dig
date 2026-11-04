@@ -2214,7 +2214,7 @@ async function loadSecurity() {
     if (!s.checks.length) checks.innerHTML = '<tr><td colspan="8" class="muted">Aucun joueur contrôlé dans la saison active.</td></tr>';
     for (const c of s.checks) {
       const tr = document.createElement('tr');
-      addCell(tr, c.username);
+      secPlayerCell(tr, c.username, c.userId);
       addCell(tr, c.lastCheck.replace('T', ' ').substring(0, 19)).className = 'muted';
       addCell(tr, `${c.acceptedDepth} m`);
       addCell(tr, c.depthGap ? `${c.depthGap} m` : '0');
@@ -2230,7 +2230,7 @@ async function loadSecurity() {
     if (!s.accounts.length) body.innerHTML = '<tr><td colspan="4" class="muted">Aucun compte à risque : aucun indice ni preuve sur la saison (score 0 pour tous).</td></tr>';
     for (const a of s.accounts) {
       const tr = document.createElement('tr');
-      addCell(tr, a.username);
+      secPlayerCell(tr, a.username, a.userId);
       addCell(tr, a.score);
       addCell(tr, SEC_LEVELS[a.level]);
       addCell(tr, Object.entries(a.components).map(([k, v]) => `${k} ${v}`).join(', '));
@@ -2268,7 +2268,8 @@ async function loadSecurity() {
     addCell(tr, (e.created_at ?? '').substring(0, 19)).className = 'muted';
     const group = Object.entries(groups).find(([, types]) => types.includes(e.type))?.[0];
     addCell(tr, group ? `${e.type} (${SEC_GROUP_LABELS[group]})` : e.type);
-    addCell(tr, e.username ?? (e.user_id ? `user_${e.user_id}` : group === 'player' ? '' : 'admin / système'));
+    if (e.user_id) secPlayerCell(tr, e.username ?? `user_${e.user_id}`, e.user_id);
+    else addCell(tr, group === 'player' ? '' : 'admin / système');
     addCell(tr, e.score_after == null ? '' : `${e.score_before ?? 0} → ${e.score_after}`);
     addCell(tr, e.details ?? '').style.fontSize = '0.75rem';
     tbody.appendChild(tr);
@@ -2276,6 +2277,240 @@ async function loadSecurity() {
 }
 
 admRefreshButton('btn-refresh-sec', loadSecurity, 'Anti-bot');
+
+// ── Fiche joueur anti-bot (#25, demande du 04/11) — lecture seule ────────────
+
+/** Cellule « pseudo + bouton Fiche ». */
+function secPlayerCell(tr, username, userId) {
+  const td = addCell(tr, username + ' ');
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'btn btn-sm btn-outline';
+  b.textContent = 'Fiche';
+  b.dataset.admKey = `sec-fiche-${userId}`;
+  b.setAttribute('aria-label', `Fiche anti-bot de ${username}`);
+  b.addEventListener('click', () => secOpenPlayer(String(userId), b));
+  td.appendChild(b);
+  return td;
+}
+
+const SEC_SRC = { server: ['serveur', 'Calculé ou mesuré par le serveur'], client: ['déclaré', 'Déclaré par la sauvegarde du navigateur, non vérifié'],
+  tele: ['télémétrie', 'Indice envoyé par le navigateur, falsifiable'], derived: ['déduit', 'Calculé ici à partir de valeurs déclarées'] };
+
+function secEl(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text !== undefined && text !== null) el.textContent = String(text);
+  return el;
+}
+function secSrc(kind) {
+  const [label, title] = SEC_SRC[kind];
+  const sp = secEl('span', `sec-src sec-src--${kind === 'derived' ? 'client' : kind}`, label);
+  sp.title = title;
+  return sp;
+}
+function secFmt(v, unit = '') {
+  if (v === null || v === undefined || v === '') return 'non disponible';
+  return typeof v === 'number' ? v.toLocaleString('fr-BE') + unit : String(v) + unit;
+}
+const secDate = iso => (iso ? String(iso).replace('T', ' ').substring(0, 19) + ' UTC' : 'non disponible');
+/** Liste de [libellé, valeur, source]. */
+function secKv(items) {
+  const dl = secEl('dl', 'sec-kv');
+  for (const [label, value, src] of items) {
+    const d = document.createElement('div');
+    d.appendChild(secEl('dt', '', label));
+    const dd = secEl('dd', '', value);
+    if (src) dd.appendChild(secSrc(src));
+    d.appendChild(dd);
+    dl.appendChild(d);
+  }
+  return dl;
+}
+function secTable(headers, rows, empty) {
+  const wrap = secEl('div', 'sec-wrap');
+  const t = document.createElement('table');
+  const tr = document.createElement('tr');
+  headers.forEach(h => tr.appendChild(secEl('th', '', h)));
+  const thead = document.createElement('thead');
+  thead.appendChild(tr);
+  t.appendChild(thead);
+  const tb = document.createElement('tbody');
+  if (!rows.length) {
+    const r = document.createElement('tr');
+    const td = secEl('td', 'muted', empty ?? 'Aucune donnée.');
+    td.colSpan = headers.length;
+    r.appendChild(td);
+    tb.appendChild(r);
+  }
+  for (const row of rows) {
+    const r = document.createElement('tr');
+    row.forEach(v => addCell(r, v));
+    tb.appendChild(r);
+  }
+  t.appendChild(tb);
+  wrap.appendChild(t);
+  return wrap;
+}
+
+let _secPlayer = { q: null, seasonId: null };
+
+async function secOpenPlayer(q, opener, seasonId = null) {
+  const err = document.getElementById('sec-player-err');
+  err.classList.add('hidden');
+  const params = new URLSearchParams({ q });
+  if (seasonId) params.set('seasonId', seasonId);
+  const { ok, data } = await api('GET', '/api/admin/security/player?' + params);
+  if (!ok) {
+    err.textContent = data?.error ?? 'Erreur lors du chargement de la fiche.';
+    err.classList.remove('hidden');
+    return false;
+  }
+  _secPlayer = { q: String(data.player.userId), seasonId: data.season?.id ?? null };
+  secRenderPlayer(data);
+  const dlg = document.getElementById('sec-player-dialog');
+  if (!dlg.open) admDialogOpen('sec-player-dialog', opener, dlg.querySelector('[data-close]'));
+  return true;
+}
+
+function secRenderPlayer(d) {
+  document.getElementById('sec-player-title').textContent = `Fiche joueur — ${d.player.username} (#${d.player.userId})`;
+  const sel = document.getElementById('sec-player-season');
+  sel.innerHTML = '';
+  for (const se of d.seasons) {
+    const o = secEl('option', '', `Saison ${se.id} — ${se.name} (${se.status})`);
+    o.value = se.id;
+    if (d.season && se.id === d.season.id) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.disabled = d.seasons.length < 2;
+
+  const body = document.getElementById('sec-player-body');
+  body.innerHTML = '';
+  const root = secEl('div', 'sec-fiche');
+  const h4 = t => root.appendChild(secEl('h4', '', t));
+  const note = t => root.appendChild(secEl('p', 'muted', t)).style.fontSize = '0.76rem';
+  const m = d.modes;
+
+  const banner = secEl('div', 'sec-banner');
+  banner.appendChild(secEl('p', '', `Anti-bot : ${m.antibotMode} — sanctions désactivées (applied:false) : les scores et niveaux sont seulement journalisés.`));
+  banner.appendChild(secEl('p', '', `Budget de dégâts : ${m.damageBudgetMode}${m.damageBudgetMode === 'enforce' ? ' — plafonne la profondeur CLASSÉE ; ne réduit ni les coups, ni les gains, ni les achats.' : ' — calcul et journal seulement.'}`));
+  banner.appendChild(secEl('p', '', '👆 du classement = blocs détruits manuellement et validés par le serveur, pas des coups de pioche.'));
+  root.appendChild(banner);
+
+  h4('Compte et activité');
+  const r = d.ranking;
+  root.appendChild(secKv([
+    ['Inscrit le', secDate(d.player.createdAt), 'server'],
+    ['Saison', d.season ? `${d.season.id} — ${d.season.name}` : 'aucune'],
+    ['Première activité de la saison', secDate(r?.firstSeen), 'server'],
+    ['Dernière mise à jour du classement', secDate(r?.lastUpdate), 'server'],
+    ['Dernière sauvegarde reçue', d.save ? `${secDate(d.save.savedAt)} (révision ${d.save.revision})` : 'aucune', 'server'],
+    ['Dernier contrôle de profondeur', secDate(d.depth?.lastCheck), 'server'],
+  ]));
+
+  h4('Progression de la saison');
+  const ss = d.save?.seasonStats;
+  root.appendChild(secKv([
+    ['Profondeur retenue (classement)', secFmt(r?.acceptedDepth ?? d.depth?.acceptedDepth, ' m'), 'server'],
+    ['Profondeur déclarée', secFmt(r?.reportedDepth ?? ss?.maxDepth, ' m'), 'client'],
+    ['Profondeur couverte par le budget de dégâts', secFmt(d.depth?.budgetDepth, ' m'), 'server'],
+    ['Écart déclaré − retenu', secFmt(d.depth?.depthGap, ' m'), 'server'],
+    ['Écart inexpliqué du budget', secFmt(d.depth?.budgetGap, ' m'), 'server'],
+    ['Coups de pioche manuels (manualClicks)', secFmt(ss?.manualClicks ?? r?.manualClicks), 'client'],
+    ['Blocs manuels déclarés', secFmt(ss?.manualBlocks ?? r?.manualBlocks), 'client'],
+    ['Blocs manuels validés (👆 classement)', secFmt(r?.validatedManualBlocks), 'server'],
+    ['Blocs Auto-Dig', secFmt(ss?.autoBlocks ?? r?.autoBlocks), 'client'],
+    ['Blocs détruits au total (partie)', secFmt(d.save?.blocksDestroyed), 'client'],
+    ['Blocs ni manuels ni Auto-Dig (clic jugé suspect)', secFmt(d.uncountedBlocks), 'derived'],
+    ['Clics jugés suspects par le navigateur', secFmt(ss?.suspiciousScore ?? r?.suspiciousClicks), 'client'],
+  ]));
+  note('Les blocs détruits par un clic que le navigateur juge suspect ne sont comptés ni manuels ni Auto-Dig, mais rapportent profondeur et gains (faille suivie dans #74). « Blocs détruits au total » vaut pour la partie entière (toutes saisons).');
+
+  h4('Partie déclarée (dernière sauvegarde)');
+  if (d.save) {
+    const sv = d.save;
+    const lv = o => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(', ') || 'aucune';
+    root.appendChild(secKv([
+      ['Profondeur de la partie', secFmt(sv.depth, ' m'), 'client'],
+      ['Pièces', secFmt(sv.coins), 'client'],
+      ['Gemmes', secFmt(sv.gems), 'client'],
+      ['Fragments de relique', secFmt(sv.relicFragments), 'client'],
+      ['Pioche (niveau / dégâts)', `${secFmt(sv.pickaxeLevel)} / ${secFmt(sv.damage)}`, 'client'],
+      ['Améliorations (niveaux)', lv(sv.upgrades), 'client'],
+      ['Reliques (niveaux)', lv(sv.relics), 'client'],
+      ['Pièces gagnées (cumul)', secFmt(sv.totalCoinsEarned), 'client'],
+      ['Améliorations achetées (cumul)', secFmt(sv.totalUpgradesBought), 'client'],
+      ['Coffres trouvés', secFmt(sv.chestsFound), 'client'],
+    ]));
+    note('La sauvegarde est remplacée à chaque envoi : aucun historique des achats n’existe côté serveur. Les sauvegardes de la base (avant déploiement, quotidiennes) contiennent les états antérieurs.');
+  } else note('Aucune sauvegarde cloud.');
+
+  h4(`Score de risque : ${d.risk.score} — niveau N${d.risk.level} (non appliqué)`);
+  root.appendChild(secTable(['Catégorie', 'Valeur actuelle', 'Plafond', 'Signaux (points)'],
+    d.risk.components.map(c => [c.cat, c.value, c.cap, c.signals.join(', ')])));
+  note(`Chaque signal ajoute ses points à sa catégorie, plafonnée ; le score est la somme (100 max), divisée par deux toutes les ${d.risk.halfLifeHours} h. Seuils : N1 ≥ 30, N2 ≥ 60, N3 ≥ 80, N4 ≥ 90. Ex. : rafales (4 pts, plafond 15) + CPS très élevé (6 pts, plafond 25) = 40 → N1. Le passage de niveau est journalisé avec applied:false : rien n’est appliqué au joueur.`);
+
+  h4('Contrôles : observation → action prévue → action effectivement appliquée');
+  root.appendChild(secTable(['Contrôle', 'Mode', 'Observation pour ce joueur', 'Action prévue', 'Action appliquée'],
+    d.responses.map(x => [x.control, x.mode, x.observation, x.planned, x.applied])));
+
+  h4('Alertes du joueur par type');
+  root.appendChild(secTable(['Type', 'Nombre', 'Première (UTC)', 'Dernière (UTC)'],
+    d.events.byType.map(e => [e.type, e.n, e.first, e.last]), 'Aucune alerte pour ce joueur sur cette saison.'));
+
+  h4('Télémétrie des clics');
+  const tel = d.samples.telemetry;
+  if (tel) {
+    const bins = ['<40', '40–60', '60–80', '80–100', '100–150', '150–250', '250–500', '≥500'];
+    const total = tel.h.reduce((a, b) => a + b, 0) || 1;
+    root.appendChild(secKv([
+      ['Sauvegardes avec télémétrie', secFmt(tel.saves), 'tele'],
+      ['Coups reçus en télémétrie', secFmt(tel.clicks), 'tele'],
+      ['Événements non fiables (isTrusted = false)', secFmt(tel.untrusted), 'tele'],
+      ['Origine souris / tactile / clavier / autre', `${tel.p.m} / ${tel.p.t} / ${tel.p.k} / ${tel.p.o}`, 'tele'],
+    ]));
+    root.appendChild(secTable(['Intervalle (ms)', ...bins], [['Coups', ...tel.h.map(v => `${v} (${Math.round(v * 100 / total)} %)`)]]));
+  } else note('Histogramme et origine des clics : non disponibles pour cette session (enregistrés seulement depuis la mise en service de la fiche).');
+  const b = d.burstFromEvents;
+  if (b.batches) note(`Rafales journalisées : ${b.batches} lot(s), ${b.clicks} coups dont ${b.under40ms} intervalles < 40 ms sur ${b.intervals}. « clicks » d'un lot = coups envoyés avec UNE sauvegarde (depuis la précédente réussie), pas des clics par seconde.`);
+
+  h4('Sauvegardes contrôlées (échantillons agrégés, plus récentes en premier)');
+  const rows = d.samples.rows.slice().reverse().slice(0, 60).map(x => [
+    secDate(x.at).replace(' UTC', ''), secFmt(x.dtSecs, ' s'), secFmt(x.dClicks), secFmt(x.serverCps),
+    `${secFmt(x.dManualBlocks)} / ${secFmt(x.dAutoBlocks)} / ${secFmt(x.dBlocksDestroyed)}`,
+    `${secFmt(x.reportedDepth)} / ${secFmt(x.acceptedDepth)} / ${secFmt(x.budgetDepth)}`,
+    secFmt(x.autodigLevel), x.tel ? `${x.tel.n} (<40 ms : ${x.tel.under40 ?? '—'}, non fiables ${x.tel.u})` : '—', x.acAction ?? '',
+  ]);
+  root.appendChild(secTable(['Heure (UTC)', 'Δt serveur', 'Δ coups', 'Coups/s (horloge serveur)', 'Δ blocs manuels / auto / total',
+    'Profondeur déclarée / retenue / budget', 'Auto-Dig', 'Télémétrie (coups)', 'Anti-autoclic'], rows,
+    'Non disponible pour cette session : les échantillons sont enregistrés à chaque sauvegarde depuis la mise en service de la fiche.'));
+  note('Δ coups et Δ blocs sont des compteurs déclarés ; Δt est mesuré par le serveur. Coups/s = Δ coups ÷ Δt serveur (fiable pour la durée, pas pour le compteur).');
+
+  h4('Fenêtres anti-autoclic (#10)');
+  root.appendChild(secTable(['Date (UTC)', 'Action', 'Durée (s)', 'Coups', 'Coups/s', 'Part retenue'],
+    d.anticheat.recent.map(a => [a.logged_at, a.action, a.secs, a.clicks, a.cps, a.ratio]), 'Aucune fenêtre journalisée.'));
+
+  h4('Chronologie des alertes (100 dernières)');
+  root.appendChild(secTable(['Date (UTC)', 'Type', 'Score', 'Détails'],
+    d.events.recent.map(e => [e.created_at, e.type, e.score_after == null ? '' : `${e.score_before ?? 0} → ${e.score_after}`, e.details ?? '']),
+    'Aucune alerte.'));
+
+  body.appendChild(root);
+}
+
+admDialogSetup('sec-player-dialog', { dirty: () => false });   // lecture seule : rien à perdre (cf. #72)
+document.getElementById('sec-player-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = document.getElementById('sec-player-q').value.trim();
+  if (q) secOpenPlayer(q, e.submitter);
+});
+document.getElementById('sec-player-season').addEventListener('change', e => {
+  if (_secPlayer.q) secOpenPlayer(_secPlayer.q, null, e.target.value);
+});
+/** Recharge la fiche ouverte (même joueur, même saison). */
+function loadSecPlayer() { return _secPlayer.q ? secOpenPlayer(_secPlayer.q, null, _secPlayer.seasonId) : null; }
+admRefreshButton('btn-sec-player-refresh', loadSecPlayer, 'Fiche joueur');
 document.getElementById('sec-filter-type').addEventListener('change', loadSecurity);
 document.getElementById('sec-filter-days').addEventListener('change', loadSecurity);
 

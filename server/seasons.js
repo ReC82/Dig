@@ -480,7 +480,9 @@ function processAntiCheat(userId, seasonId, seasonStats, config, username, nowMs
 
   console.log(`[anticheat] ${username ?? userId} : ${inferredCps.toFixed(1)} CPS (seuil=${maxCps}), ${deltaBlocks} blocs/${deltaClicks} clics → ${effectiveDelta} acceptés — ${action}`);
 
-  return { effectiveManualBlocks: newAccepted, action, effectiveRatio };
+  return { effectiveManualBlocks: newAccepted, action, effectiveRatio,
+    details: { clicks: deltaClicks, blocks: deltaBlocks, secs: parseFloat(windowSecs.toFixed(1)),
+               cps: parseFloat(inferredCps.toFixed(1)), maxCps, acceptedBlocks: effectiveDelta } };
 }
 
 // ── Validation serveur de la profondeur (ticket #9) ───────────────────────────
@@ -648,10 +650,10 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
         ...(budget ? { budgetDepth: budget.depth } : {}) },
     );
     console.log(`[anticheat] ${username ?? userId} : profondeur déclarée ${claimedDepth} → retenue ${accepted} — ${logAction}`);
-    return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: logAction, signals };
+    return { acceptedDepth: accepted, reportedDepth: claimedDepth, budgetDepth: budget?.depth ?? null, action: logAction, signals };
   }
 
-  return { acceptedDepth: accepted, reportedDepth: claimedDepth, action: gap > 0 ? 'capped' : action, signals };
+  return { acceptedDepth: accepted, reportedDepth: claimedDepth, budgetDepth: budget?.depth ?? null, action: gap > 0 ? 'capped' : action, signals };
 }
 
 // ── Utilitaires de stats saisonnières ────────────────────────────────────────
@@ -714,14 +716,14 @@ function recordAutoBreaks(userId, seasonId, autoBlocks) {
  * Dispatch vers recordManualBreaks ou recordAutoBreaks selon la source du bloc.
  * Appelle processAntiCheat pour calculer les blocs effectivement acceptés.
  */
-function syncPlayerRanking(userId, seasonStats, { telemetry = null, ip = null } = {}) {
+function syncPlayerRanking(userId, seasonStats, { telemetry = null, ip = null, save = null } = {}) {
   if (!seasonStats || typeof seasonStats !== 'object') return;
   const started = process.hrtime.bigint();
-  try { _syncPlayerRanking(userId, seasonStats, telemetry, ip); }
+  try { _syncPlayerRanking(userId, seasonStats, telemetry, ip, save); }
   finally { antibot.recordTiming(Number(process.hrtime.bigint() - started) / 1e6); }
 }
 
-function _syncPlayerRanking(userId, seasonStats, telemetry, ip) {
+function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
   const { seasonId, maxDepth, manualBlocks, autoBlocks, manualClicks, suspiciousScore } = seasonStats;
 
   // Validation minimale
@@ -749,12 +751,14 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip) {
   const config     = getAdminConfig();
 
   // ── Profondeur : validée côté serveur à chaque sauvegarde (ticket #9, budget #25) ─
-  const { acceptedDepth, reportedDepth, signals } = validateDepth(userId, season.id, seasonStats, config, user?.username);
+  const { acceptedDepth, reportedDepth, budgetDepth, signals } = validateDepth(userId, season.id, seasonStats, config, user?.username);
 
   // ── Observation anti-bot (#25, lot A) : indices et preuves, aucune réponse appliquée ──
   const forged = antibot.forgedCounters(seasonStats);
   if (forged.length) signals.push({ type: 'forged_counters', details: { fields: forged } });
-  signals.push(...antibot.telemetrySignals(antibot.normalizeTelemetry(telemetry)));
+  const tel = antibot.normalizeTelemetry(telemetry);
+  signals.push(...antibot.telemetrySignals(tel));
+  let acAction = null;
 
   // ── Blocs auto (jamais comptés dans le classement) ────────────────────────
   if ((autoBlocks ?? 0) > 0) {
@@ -774,12 +778,12 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip) {
     });
 
     // Calcule les blocs effectifs validés côté serveur
-    const { effectiveManualBlocks, action: acAction } = processAntiCheat(
-      userId, season.id, seasonStats, config, user?.username
-    );
-    if (acAction === 'rejected') signals.push({ type: 'blocks_gt_clicks' });
-    else if (acAction === 'flagged') signals.push({ type: 'cps_flagged' });
-    else if (acAction === 'reduced') signals.push({ type: 'cps_reduced' });
+    const ac = processAntiCheat(userId, season.id, seasonStats, config, user?.username);
+    const { effectiveManualBlocks } = ac;
+    acAction = ac.action;
+    if (acAction === 'rejected') signals.push({ type: 'blocks_gt_clicks', details: ac.details });
+    else if (acAction === 'flagged') signals.push({ type: 'cps_flagged', details: ac.details });
+    else if (acAction === 'reduced') signals.push({ type: 'cps_reduced', details: ac.details });
 
     // Met à jour le compteur effectif (utilisé pour le classement et les promotions).
     // Chaque bloc manuel fait descendre d'un mètre : blocs manuels ≤ profondeur retenue − 1.
@@ -789,6 +793,16 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip) {
   if (signals.length) {
     try { antibot.recordSignals(userId, season.id, signals, { config, ip }); }
     catch (err) { console.error('[antibot] score de risque', err.message); }
+  }
+
+  // Fiche joueur admin (#25) : une ligne agrégée par sauvegarde contrôlée, sans effet sur le jeu
+  if (antibot.getAntibotMode(config) !== 'off') {
+    try {
+      antibot.recordSaveSample(userId, season.id, {
+        reportedDepth, acceptedDepth, budgetDepth, seasonStats, acAction, telemetry: tel,
+        blocksDestroyed: save?.stats?.blocksDestroyed, autodigLevel: save?.upgrades?.autodig,
+      });
+    } catch (err) { console.error('[antibot] échantillon', err.message); }
   }
 }
 

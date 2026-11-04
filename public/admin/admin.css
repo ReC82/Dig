@@ -1198,3 +1198,19 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .up-row-suspended td { background: rgba(240, 180, 41, 0.12); }
 .up-ctl-switches { border: 1px solid var(--border, #333); border-radius: 8px; padding: 8px 12px; margin: 0 0 10px; display: grid; gap: 6px; }
 .up-ctl-switches legend { font-size: 0.8rem; padding: 0 4px; }
+
+/* Fiche joueur anti-bot (#25) */
+.sec-player-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.sec-player-form input { flex: 1 1 180px; max-width: 320px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); }
+.sec-fiche h4 { margin: 14px 0 6px; font-size: 0.9rem; }
+.sec-fiche .sec-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 14px; margin: 0; }
+.sec-fiche .sec-kv div { font-size: 0.82rem; }
+.sec-fiche .sec-kv dt { color: var(--muted, #999); font-size: 0.74rem; }
+.sec-fiche .sec-kv dd { margin: 0; }
+.sec-fiche .sec-src { font-size: 0.68rem; padding: 0 5px; border-radius: 4px; margin-left: 4px; border: 1px solid var(--border); white-space: nowrap; }
+.sec-fiche .sec-src--server { color: #7fd17f; border-color: #3f7f3f; }
+.sec-fiche .sec-src--client { color: #e0b050; border-color: #8a6a20; }
+.sec-fiche .sec-src--tele { color: #e08080; border-color: #8a3a3a; }
+.sec-fiche .sec-banner { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.82rem; margin: 6px 0; }
+.sec-fiche table { font-size: 0.78rem; }
+.sec-fiche .sec-wrap { overflow-x: auto; }
