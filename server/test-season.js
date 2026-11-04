@@ -34,6 +34,9 @@ const g = db.getDb();
 // Ce script injecte des profondeurs arbitraires pour tester tri et promotions : la validation
 // de plausibilité de la profondeur (ticket #9) est testée à part (test/ranking-depth.test.js).
 db.setAdminConfig('depth_validation_enabled', 'false');
+// Tests 9 et 10 décrivent le seuil historique de 10 actifs (le seuil bêta 3 du 04/11/2026 est
+// couvert par test/leagues-beta-threshold.test.js).
+db.setAdminConfig('min_active_players_per_league', '10');
 
 // ── Mini framework de test ────────────────────────────────────────────────────
 let _passed = 0, _failed = 0;
