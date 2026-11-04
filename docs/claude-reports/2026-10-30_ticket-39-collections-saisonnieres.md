@@ -1,5 +1,105 @@
 # Ticket #39 — Collections saisonnières : objets, fiches narratives et édition admin
 
+# Mise à jour du 04/11/2026, 17 h 30 (Bruxelles) — barème « chance croissante » implémenté côté serveur, modèle et simulation dans l'admin (rien publié)
+
+Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite la **décision du propriétaire du 04/11 à 15:20 UTC** ([commentaire](https://github.com/ReC82/Dig/issues/39#issuecomment-6634456766)) : barème **chance croissante** choisi, à implémenter et simuler, **sans publier ni activer aucune collection**.
+
+## A (04/11). État réel
+
+**Déployé en production (SHA `e9e1471`). La fonction reste inactive : aucun objet publié n'a de hausse, donc rien ne change pour les joueurs.** Production vérifiée après déploiement : catalogue public v5, aucun objet tiré par le serveur. La Saint-Martin reste en **brouillon** : je ne l'ai pas modifiée moi-même (aucune écriture dans la base de production hors `deploy.sh`), et elle n'est ni publiée ni activée.
+
+Classement : **« Bloquant pour la publication de la Saint-Martin (W46, 09/11) »**, pas pour le reste du MVP public.
+
+## B (04/11). Ce qui a été fait
+
+Trois étapes à bien distinguer :
+
+1. **Développement technique (fait, déployé, inactif).**
+   - `server/collectionPity.js` (nouveau). Un objet dont le drop porte une **hausse par tirage raté** (`pityStep` > 0) n'est plus tiré par le jeu : c'est le **serveur** qui le tire, après chaque sauvegarde acceptée, sur les **blocs validés** (les mêmes que ceux des badges #38 et des événements #56, limités par la profondeur retenue).
+     - **Tirage éligible** : bloc d'une catégorie source, pendant la saison de la série, profondeur retenue ≥ profondeur minimale, objet pas encore possédé.
+     - **Chance du (k+1)e tirage** = min(100 %, chance de départ + hausse × k), où k = tirages éligibles ratés jusque-là.
+     - **Compteur** : un par joueur et par objet, dans la table `collection_pity`. Il reste en base après un redémarrage.
+     - **Après la trouvaille** : le compteur est figé et l'objet n'est plus jamais tiré. Il n'y a qu'un exemplaire par objet, garanti par la clé primaire.
+   - **Anti-fraude.**
+     - Rejouer une sauvegarde ne donne rien : aucun nouveau bloc validé n'apparaît.
+     - Au premier passage, après une nouvelle publication ou un changement de saison, le curseur est recalé **sans tirage** : rien n'est attribué rétroactivement, et la migration n'attribue aucun objet.
+     - Une rafale de plus de 2 000 blocs en une sauvegarde ne déclenche aucun tirage.
+     - Une sauvegarde qui contient un objet que **seul le serveur** peut donner, alors qu'il ne l'a pas donné, est corrigée : l'objet est retiré. Un objet déjà tombé dans le jeu avant de passer en chance croissante est **conservé**.
+     - Session unique (#35) : un autre appareil ne peut ni sauvegarder ni déclencher de tirage.
+   - **Côté jeu.** Le catalogue public envoie ces objets avec `dropEnabled: false`, ce qui empêche tout second tirage local, même par un onglet resté sur l'ancienne version. L'objet trouvé par le serveur arrive dans la réponse de sauvegarde (`collectionFinds`) et le joueur voit l'annonce habituelle « 🔍 trouvaille ». L'objet est aussi réinjecté à chaque lecture ou écriture de la sauvegarde, donc il ne se perd pas.
+   - **Saisons clôturées et objets acquis.** Rien ne change pour eux. Une série terminée n'est plus tirée, et ses objets restent acquis.
+2. **Panel Admin → Collections → nouvelle carte « 🎲 Barème et simulation des drops ».**
+   - Pour chaque objet de la série choisie : le **type de barème** (*Fixe* ou *↗ Chance croissante*), le barème du brouillon, le barème que donnerait le modèle, et les compteurs des joueurs (joueurs suivis, objets trouvés, plus long compteur).
+   - Bouton **« Appliquer le modèle « chance croissante » au brouillon »**, avec une confirmation qui liste chaque changement. Les taux appliqués : communs 4 %, rare 2 % + 0,1 pt, légendaire 3 % + 0,3 pt. Les peu communs et les épiques restent **inchangés** : aucun taux n'est inventé. Les images, les textes et la case « Drop activé » ne changent pas.
+   - Bouton **« Lancer la simulation comparative »** (2 000 joueurs par profil par défaut, environ 1 à 2 minutes). Elle tourne en arrière-plan, dans un processus de basse priorité, et la page suit l'avancement. Elle compare la version publiée, le brouillon, le brouillon sans hausse et le modèle, sur tous les profils (dont l'entrant du vendredi). Pour chacun, elle donne : série complète, rare, légendaire et légendaire dès la fin du J1.
+   - Dans la fiche d'un objet : champ **« Hausse par tirage raté (points) »**. 0 = barème fixe, et le maximum est 5 points.
+3. **Enregistrement du brouillon Saint-Martin : à faire par le propriétaire, en un clic.** Publication : **non faite, interdite sans votre validation.**
+
+## C (04/11). Simulation de référence rejouée (2 000 joueurs par profil)
+
+Fichier complet : [`2026-11-04_ticket-39-simulation-chance-croissante.md`](2026-11-04_ticket-39-simulation-chance-croissante.md). Les chiffres du brouillon actuel sont **identiques** à ceux du 03/11 (non-régression). Avec le tirage serveur, la chance croissante tire l'objet **indépendamment** de la chaîne du jeu : un fossile trouvé sur la même gemme n'empêche plus le tirage du manteau. Ses chiffres changent donc un peu par rapport au 03/11 :
+
+| Profil (saison) | Série complète : brouillon → chance croissante | Rare | Légendaire (7 j) | Légendaire fin J1 |
+|---|---|---|---|---|
+| Lent, compte neuf | 26 % → **40 %** (37 % le 03/11) | 67 % → 98 % | 40 % → 42 % | 2 % → 2 % |
+| Lent, installé | 48 % → **65 %** (64 %) | 78 % → > 99 % | 62 % → 66 % | 20 % → 14 % |
+| Entrant du vendredi | 76 % → **93 %** (91 %) | 93 % → 100 % | 82 % → 93 % | 0 % → 0 % |
+| Auto-Dig, compte neuf | 83 % → 97 % | 95 % → 100 % | 87 % → 97 % | 3 % → 2 % |
+| Régulier, compte neuf | 96 % → > 99 % | 99 % → 100 % | 97 % → > 99 % | **38 % → 42 %** (38 % le 03/11) |
+| Régulier, installé | 99 % → 100 % | | | 77 % → 86 % |
+| Assidu, compte neuf | 100 % → 100 % | | | 74 % → 85 % |
+
+À noter : le repère « ne pas banaliser » (légendaire dès le J1 d'un régulier sur un compte neuf) passe de 38 % à **42 %** avec le tirage indépendant. La limite démontrée le 03/11 reste vraie : la semaine d'un joueur lent (environ 11 gemmes au-delà de 100 m) ne suffit pas pour que la hausse joue beaucoup sur le légendaire (40 → 42 %). Le gain du joueur lent vient surtout du rare.
+
+## D (04/11). SHA, tests, déploiement
+
+- Branche `feature/39-collections-saisonnieres` : `a494f0d`. **`develop` : `e9e1471`** (fusion, qui contient aussi le rapport #38 déjà fusionné).
+- `npm test` : **615/615** sur la branche, sur `develop` et sur la release `e9e1471`. Le nouveau fichier `test/collection-pity.test.js` contient 9 tests :
+  - barème borné et rétrocompatible ;
+  - modèle appliqué au brouillon seul, et idempotent ;
+  - aucun effet sans objet publié ;
+  - compteur par joueur et par objet ;
+  - profondeur et catégories ;
+  - hausse exacte (2,5 % puis 2,6 %), chance bornée à 100 % ;
+  - un seul exemplaire ;
+  - rejeu sans effet, pas de rétroactif ;
+  - rafale, fin de saison ;
+  - sauvegarde falsifiée ;
+  - simulateur reproductible ;
+  - jeu (vm) qui ne tire jamais l'objet localement ;
+  - HTTP de bout en bout : routes admin refusées sans clé (401), simulation en arrière-plan avec un seul calcul à la fois (409), objet donné à la sauvegarde, rejeu, **redémarrage** (trouvaille conservée), **session unique** (409).
+- Copie de la base de production : démarrage de `e9e1471` sur la copie, empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` **identiques** avant et après. Seules 2 tables sont ajoutées (`collection_pity`, `collection_pity_cursor`). Copie supprimée.
+- Déploiement `8d03dbb → e9e1471` par `scripts/deploy.sh`. Sauvegarde vérifiée : `~/backups/dig/dig-20261104-173022-pre-deploy-e9e1471.sqlite`. Les deux domaines répondent 200, version `1.0.0+e9e1471`, `quick_check` = ok, aucune erreur dans le journal. Une partie était en cours et sa sauvegarde a progressé normalement (révision 2500 → 2501). **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 8d03dbb` puis redémarrage. Les deux tables ajoutées restent sans effet.
+- Contrôle visuel (Chromium headless, serveur de test port 3101, base de test supprimée) sur PC 1280×900 et téléphone 390×844 : carte, confirmation, application du modèle (« Brouillon mis à jour : 4 objet(s) »), simulation à 100 joueurs, fiche objet (hausse = 0,3). Vérifié ensuite : aucune série publiée.
+
+## E (04/11). Test fonctionnel à faire par le propriétaire (aucune publication)
+
+1. Admin → **📿 Collections** → carte **« 🎲 Barème et simulation des drops »** → série **Les Trésors de la Saint-Martin**. Le tableau doit indiquer *Fixe* pour les 6 objets, et la colonne « Modèle » doit afficher lanterne et bonbon 4 %, manteau « ↗ 3 % + 0,3 pt/échec », fer « ↗ 2 % + 0,1 pt/échec », plume et lampion « = déjà appliqué ».
+2. **Lancer la simulation comparative** (2 000 joueurs, environ 1 à 2 min) : le tableau compare le brouillon et la chance croissante pour chaque profil.
+3. Si vous êtes d'accord : **Appliquer le modèle « chance croissante » au brouillon**. La confirmation liste les 4 changements, puis s'affiche « Brouillon mis à jour : 4 objet(s). Rien n'est publié. ». La bannière indique toujours un brouillon non visible des joueurs, et les 6 images sont inchangées.
+4. Ouvrez le manteau : le champ « Hausse par tirage raté (points) » vaut 0,3 et la case « Drop activé » est toujours décochée.
+5. **Ne publiez pas** tant que vous n'avez pas validé la simulation et la fiche prête à publier. La publication (étape suivante, avec votre accord écrit) demandera, comme avant, la case « Barème validé : j'active ces drops ».
+
+## F (04/11). Choix techniques faits seul
+
+- **Tirage serveur seulement pour les objets à hausse.** Les objets fixes restent tirés par le jeu, comme avant, ce qui évite de toucher aux séries publiées. Un compteur côté client aurait été falsifiable.
+- **Éligibilité jugée sur la profondeur retenue à la sauvegarde**, faute de profondeur par bloc. Une sauvegarde couvre quelques secondes de minage : l'écart est négligeable et documenté dans l'outil.
+- **Tirage indépendant de la chaîne « un objet par bloc » du jeu**, en conséquence du tirage serveur. Le simulateur suit désormais exactement cette règle.
+- **Le modèle ne modifie que la chance et la hausse** : sources, profondeurs et activation restent inchangées. Peu communs et épiques gardent leur taux.
+- **Résultat de simulation gardé en mémoire** : il est perdu au redémarrage et se relance en un clic.
+
+## G (04/11). Décisions demandées au propriétaire
+
+1. **Après votre test** : appliquer le modèle au brouillon Saint-Martin (étape 3 ci-dessus), puis valider la fiche prête à publier. La publication reste soumise à votre accord écrit explicite.
+2. Questions toujours ouvertes et **non traitées par ce lot** (inchangées, comme vous l'avez demandé) : rattacher « Les Objets trouvés de la Légende » à 2026-W47 (recommandé : oui) ; reporter « Trésors de la vieille mine » sur 2026-W48 (recommandé : oui) ; objets d'une saison terminée exclusifs et non trouvés affichés en grisé (recommandé : oui).
+
+## H (04/11). Reste à faire
+
+- Enregistrement du brouillon Saint-Martin (par vous), puis publication après validation (avant le 09/11, début de W46).
+- Après lancement : afficher au joueur une indication de progression (« chance en hausse »). Ce n'est pas demandé et c'est hors périmètre.
+
+---
+
 # Mise à jour du 03/11/2026, 17 h (Bruxelles) — fiche des souvenirs validée ; deux barèmes Saint-Martin plus accessibles aux joueurs lents (simulation seule)
 
 Ticket : [#39](https://github.com/ReC82/Dig/issues/39). Ce lot traite le commentaire du propriétaire de [14:23 UTC](https://github.com/ReC82/Dig/issues/39#issuecomment-6606311481) :
