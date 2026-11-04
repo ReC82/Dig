@@ -4,6 +4,104 @@ Lien : https://github.com/ReC82/Dig/issues/37 — rapport du 30/10/2026 (session
 
 ---
 
+# Mise à jour du 04/11/2026, 15 h 30 (Bruxelles) — tables de récompenses des coffres administrables, déployé aa40132
+
+Réponse aux deux recettes du propriétaire du 04/11. À 12:38 UTC, la fiche compacte « Minerai de fer » est acceptée. À 12:48 UTC, l'annulation d'une modification de bloc est validée et le propriétaire demande : « distinguer les capacités restantes […] du catalogue, des tables de récompenses et des paramètres de drop ; si elles ne sont pas livrées, traiter par Claude ». Ces deux recettes ne sont pas refaites.
+
+## A. État réel
+
+**Déployé en production (SHA `aa40132`) — en attente de recette.** Aucune valeur de jeu ne change : la version 1 des tables reprend à l'identique les tables codées jusqu'ici.
+
+## B. Bilan : ce qui est livré dans #37, ce qui restait
+
+| Objectif du ticket | État |
+|---|---|
+| 1. Catalogue de blocs : gestion, brouillon, publication, retour arrière, journal | Livré et recetté (fiche, simulations, annulation) |
+| 2. Découvertes : 8 minerais au-delà de 249 m, simulation | Livré (v2/v3). Reste l'écran « découvertes » côté joueur : **Après lancement** |
+| 3. Événements temporaires | Couvert par #56 (événements mensuels, onglet 🎉) |
+| 4. Tables de récompenses : contenu des coffres, poids, quantités, limites, gros lots | **Livré aujourd'hui** (voir C) |
+| 4. Fragments : multiplicateur global | Existant (⚙ Config, #20) |
+| 4. Gemmes par bloc | Case « gemme » par bloc ; le modèle « chance × quantité » attend la décision n° 1 (#49) |
+| 4. Objets de collection : chance par bloc et profondeur | Existant (📿 Collections, #39) |
+| 5. Brouillon → publication atomique, journal, retour arrière, routes protégées | Livré pour les blocs et désormais pour les coffres |
+| 6. Migration sûre | Respectée : tables ajoutées uniquement, empreintes joueurs identiques |
+
+## C. Changements : onglet admin « 🎲 Coffres & drops »
+
+- **Version en vigueur** des 6 coffres, avec pour chaque ligne la chance en % et la récompense, ainsi que les pièces et fragments moyens par ouverture (en % du prix pour la boutique) :
+  - boutique : simple, rare et antique, tirés par le serveur ; les chances sont montrées aux joueurs ;
+  - coffres trouvés en minant : vieille caisse, coffre en bois et coffre en fer.
+- **« ✎ Modifier ce coffre »** ouvre une fiche. On y règle le poids de chaque ligne, avec la conversion en % en direct. Types possibles :
+  - pièces (min/max, gros lot) ;
+  - fragments (quantité) ;
+  - boost (multiplicateur, minutes) ;
+  - objet de collection (boutique uniquement).
+
+  On peut aussi ajouter ou retirer une ligne et fixer la limite par saison. **« Enregistrer dans le brouillon »** n'a aucun effet en jeu. La fiche est protégée contre la perte de saisie (#61).
+- **Brouillon et publication** : écarts ligne par ligne, erreurs et avertissements, simulation de 10 000 ou 100 000 ouvertures (probabilité comparée à l'observé, moyennes), « Publier » avec une note, « Abandonner le brouillon ».
+- **Versions** : « Revenir à vN » publie une nouvelle version au contenu d'une ancienne. **Journal** en ajout seul.
+- **Garde-fous serveur** :
+  - types et bornes contrôlés (poids > 0, pièces 1 à 1 milliard, fragments 1 à 10 000, boost ×1,1 à ×5 et 1 à 240 min, 20 lignes au plus) ;
+  - **refus d'une table de boutique qui rendrait en moyenne au moins son prix** (boucle de profit), calculé avec le prix réel de ⚙ Config ; avertissement à partir de 80 % du prix ;
+  - pas d'ajout de nouveau coffre, car cela demande des traductions et un visuel.
+- **Effet en jeu après publication** :
+  - boutique : prochaines ouvertures, tirage serveur, et fenêtre « Récompenses et chances » ;
+  - coffres minés : table envoyée par `GET /api/shop/chests` (champ `mined`) et appliquée au chargement du jeu ; si la réponse est absente ou invalide, la table d'origine reste en place.
+- Fichiers :
+  - nouveaux : `server/rewardTables.js` et `test/reward-tables.test.js` (7 tests) ;
+  - modifiés : `server/chestShop.js`, `server/index.js`, `public/js/chests.js`, `public/js/main.js`, `public/admin/index.html`, `admin.js`, `admin.css`, `test/chest-shop.test.js` (champ `mined` pris en compte).
+
+## D. SHA, tests, déploiement
+
+- Branche `feature/37-catalogue-blocs-admin` : `bb3a0ac` ; **`develop` : `aa40132`** ; **déployé : `aa40132`**.
+- `npm test` : **596/596** sur la release `aa40132`. Le premier passage sur la branche a révélé 1 échec (`chest-shop` : réponse publique enrichie de `mined`), corrigé avant l'intégration.
+- Navigateur, serveur de test sur une base jetable :
+  - parcours complet sur ordinateur 1280×900 : ouverture d'une fiche, saisie, confirmation « Modifications non enregistrées », enregistrement dans le brouillon, simulation ;
+  - smartphone 390×844 : onglet affiché ;
+  - aucune erreur JS (seuls le 401 attendu avant connexion et le favicon).
+- Copie de la base de production : empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` identiques avant et après le démarrage ; seules 3 tables `reward_table_*` sont ajoutées (v1 = origine) ; `quick_check` ok ; copie supprimée.
+- Production :
+  - sauvegarde vérifiée : `~/backups/dig/dig-20261104-152537-pre-deploy-aa40132.sqlite` ;
+  - les 2 domaines répondent 200 et `/api/version` = `1.0.0+aa40132` ;
+  - `/api/admin/rewards` sans clé = 401 ;
+  - `/api/shop/chests` sert `mined` avec les poids d'origine ;
+  - journal sans erreur, `quick_check` ok, nombres de lignes des tables joueurs identiques à la sauvegarde ;
+  - jeu chargé sur ordinateur et smartphone, sans erreur JS.
+- Retour arrière :
+  - code : `git -C /home/ubuntu/Dig reset --keep 6eec3b4` puis redémarrage (l'ancien code ignore les tables ajoutées) ;
+  - contenu : « Revenir à v1 » dans l'onglet.
+
+### Test fonctionnel à faire par le propriétaire (3 min, sans rien publier)
+
+1. Ouvrir Admin → **🎲 Coffres & drops**. Attendu : « Version en vigueur : v1 — aucun brouillon ». Coffre antique : 30 / 25 / 18 / 10 / 12 / 4 / 1 %, « max 5 par saison ».
+2. « ✎ Modifier ce coffre » sur la **Vieille caisse** : passer le poids de la 1re ligne de 50 à 60. La colonne Chance se recalcule (54,55 %). Puis « Enregistrer dans le brouillon ». Attendu : bandeau « brouillon en cours », écart « ligne 1 … (poids 50) → (poids 60) ».
+3. « Simuler le brouillon » : les colonnes Probabilité et Observé sont proches.
+4. « Abandonner le brouillon » : retour à « aucun brouillon ». Rien n'a changé en jeu.
+
+Classement : **Après lancement** (le MVP fonctionne avec les tables actuelles) ; utile pour #49 (rééquilibrage) sans redéploiement.
+
+## E. Choix techniques faits seul
+
+- **Prix non dupliqués** : ils restent dans ⚙ Config (#20), où ils sont déjà réglables. Ils servent seulement au contrôle « boucle de profit ».
+- **Liste de coffres fixe** (3 + 3) : un nouveau coffre demande des noms traduits et un visuel. C'est une suite possible, non faite.
+- **Édition par fiche, un coffre à la fois**, puis enregistrement du contenu complet dans un brouillon unique. C'est le même modèle que les blocs : publication atomique, version périmée refusée.
+- Le rapport de nuit et ce rapport ne contiennent aucune donnée de joueur.
+
+## F. Décisions demandées au propriétaire
+
+Inchangées :
+1. Gemmes « chance × quantité » par bloc gemme, avec 100 % × 1 par défaut, et taux fixés dans #49 ? Recommandation : oui.
+2. Facteur de Chance par bloc ? Recommandation : après le lancement.
+3. Feu vert pour les illustrations payantes des 8 nouveaux minerais (#40) ? Recommandation : oui.
+
+## G. Restant à réaliser (Après lancement)
+
+- Écran « découvertes » côté joueur (blocs vus, « ??? dès X m »).
+- Chances des coffres minés visibles par les joueurs (seules celles de la boutique le sont).
+- Modèle gemmes chance × quantité (décision 1), puis taux dans #49.
+
+---
+
 # Mise à jour du 03/11/2026, 16 h 20 (Bruxelles) — fiche d'un bloc simplifiée, déployé 13af375
 
 Ce lot répond à la recette du propriétaire sur la fiche `minerai_fer` (commentaire du 03/11 14:49 UTC). Les données ont été validées, mais la fiche a été jugée « encore un peu trop surchargée ». Le commentaire de 14:39 UTC acceptait la livraison `7c0b521` (debug joueur) sans rien demander de plus.
