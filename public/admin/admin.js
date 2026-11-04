@@ -538,7 +538,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById(`tab-${btn.dataset.tab}`).classList.remove('hidden');
     if (btn.dataset.tab === 'leaderboard')     loadLeaderboard();
     if (btn.dataset.tab === 'season-overview') { loadSeasonOverview(); loadAntiCheatLogs(); }
-    if (btn.dataset.tab === 'economy')         { loadEconomy(); loadGemLedger(); }
+    if (btn.dataset.tab === 'economy')         { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); }
     if (btn.dataset.tab === 'security')        loadSecurity();
     if (btn.dataset.tab === 'contest')         loadContest();
     if (btn.dataset.tab === 'points')          loadPoints();
@@ -1422,7 +1422,7 @@ document.getElementById('btn-save-economy').addEventListener('click', async () =
 
 const GL_MODES   = { off: 'Désactivé', observe: 'Observation', enforce: 'Fait foi' };
 const GL_REASONS = { opening: 'Ouverture (solde repris)', blocks: 'Blocs gemmes validés', declared: 'Série / missions (allocation)',
-  autodig: 'Dépense Auto-Dig', season_cap: 'Plafond de saison', purchase: 'Achat', admin_credit: 'Crédit admin' };
+  autodig: 'Dépense Auto-Dig', season_cap: 'Plafond de saison', purchase: 'Achat', gem_shop: 'Achat boutique en gemmes', admin_credit: 'Crédit admin' };
 const GL_KINDS   = { excess_declared: 'Gemmes déclarées au-delà de l\'allocation', client_loss: 'Baisse inexpliquée côté client',
   spend_over_balance: 'Dépense supérieure au solde' };
 
@@ -1481,6 +1481,261 @@ document.getElementById('btn-gl-mode').addEventListener('click', async () => {
   msgEl.textContent = data.changed ? `Mode : ${GL_MODES[data.mode]}.` : 'Mode inchangé.';
   msgEl.classList.remove('hidden');
   loadGemLedger();
+});
+
+// ── Règles économiques versionnées (#49, lot 1.2) ────────────────────────────
+// Référence pilotable, sans effet en jeu tant que l'application n'est pas livrée (voir le serveur).
+
+const ER_GEM_ITEMS = { skin_golden: 'Pioche dorée (cosmétique)', skin_diamond: 'Pioche diamant (cosmétique)',
+  auto_collect: 'Ramassage automatique des coffres de la mine', coin_boost_30: 'Boost ×2 pièces 30 min' };
+const ER_SOURCES = { origin: 'Valeurs d\'origine', publish: 'Publication', rollback: 'Retour arrière' };
+let _erView = null;
+
+/** Libellé lisible d'un chemin de règle (gems.perBlock.rubis → « Gemmes par bloc · rubis »). */
+function _erLabel(path) {
+  const [a, b, c, d] = path.split('.');
+  if (a === 'gems') {
+    if (b === 'perBlock') return `Gemmes par bloc · ${c}`;
+    if (b === 'mineChest') return `Coffre de la mine ${c} · ${d === 'chance' ? 'chance (%)' : 'gemmes'}`;
+    if (b === 'dailyStreak') return `Série quotidienne · jour ${Number(c) + 1}`;
+    if (b === 'autodig') return `Auto-Dig niveau ${c} (💎)`;
+    if (b === 'missionSetBonus') return 'Bonus trois missions (💎)';
+    if (b === 'seasonCap') return 'Plafond de fin de saison (💎)';
+  }
+  if (a === 'coins') return 'Courbe des pièces';
+  if (a === 'shopChests') return `Coffre ${c === undefined ? b : b} · limite par saison`;
+  if (a === 'gemShop') return `${ER_GEM_ITEMS[c] ?? c} · ${d === 'price' ? 'prix 💎' : 'disponible'}`;
+  return path;
+}
+function _erCurveText(curve) {
+  return curve.length ? curve.map(s => `${s.until ?? '∞'}:${s.slope}`).join(', ') : '';
+}
+function _erParseCurve(txt) {
+  const t = txt.trim();
+  if (!t) return [];
+  return t.split(',').map(part => {
+    const [u, sl] = part.split(':').map(x => x.trim());
+    return { until: u === '∞' || u === '' ? null : Number(u), slope: Number(sl) };
+  });
+}
+function _erValue(v) {
+  if (v === null) return 'illimité';
+  if (Array.isArray(v)) return v.length && typeof v[0] === 'object' ? (_erCurveText(v) || '+5 %/m sans limite') : v.join(' / ');
+  if (typeof v === 'boolean') return v ? 'oui' : 'non';
+  return String(v);
+}
+
+/** Formulaire du brouillon (ou de la version publiée s'il n'y en a pas). */
+function _erRenderForm(r) {
+  const form = document.getElementById('er-form');
+  form.replaceChildren();
+  const group = (title, fields) => {
+    const fs = document.createElement('fieldset');
+    fs.className = 'er-group';
+    const lg = document.createElement('legend'); lg.textContent = title; fs.append(lg);
+    for (const [path, label, value, kind = 'number'] of fields) {
+      const lab = document.createElement('label');
+      lab.className = 'er-field';
+      lab.append(document.createTextNode(label + ' '));
+      const inp = document.createElement('input');
+      inp.dataset.path = path;
+      if (kind === 'checkbox') { inp.type = 'checkbox'; inp.checked = value; }
+      else { inp.type = kind; inp.value = value ?? ''; if (kind === 'number') inp.step = 'any'; inp.style.width = kind === 'text' ? '220px' : '80px'; }
+      if (kind === 'number' && path.startsWith('shopChests.')) inp.placeholder = 'illimité';
+      lab.append(inp);
+      fs.append(lab);
+    }
+    form.append(fs);
+  };
+  const g = r.gems;
+  group('Gemmes par bloc détruit', Object.entries(g.perBlock).map(([id, n]) => [`gems.perBlock.${id}`, id, n]));
+  group('Gemmes des coffres de la mine', Object.entries(g.mineChest).flatMap(([id, c]) => [
+    [`gems.mineChest.${id}.chance`, `${id} : chance %`, c.chance], [`gems.mineChest.${id}.gems`, `${id} : 💎`, c.gems]]));
+  group('Série, missions, plafond', [
+    ...g.dailyStreak.map((n, i) => [`gems.dailyStreak.${i}`, `Jour ${i + 1}`, n]),
+    ['gems.missionSetBonus', 'Bonus trois missions', g.missionSetBonus],
+    ['gems.seasonCap', 'Plafond de fin de saison', g.seasonCap]]);
+  group('Auto-Dig (coût en 💎)', Object.entries(g.autodig).map(([l, n]) => [`gems.autodig.${l}`, `Niveau ${l}`, n]));
+  group('Pièces et coffres de la boutique', [
+    ['coins.curve', 'Courbe (fin:pente, … ; vide = +5 %/m sans limite ; ex. 200:0.05, ∞:0.02)', _erCurveText(r.coins.curve), 'text'],
+    ...Object.entries(r.shopChests).map(([id, c]) => [`shopChests.${id}.maxPerSeason`, `${id} : limite / saison`, c.maxPerSeason])]);
+  group('Boutique en gemmes (prix de simulation)', Object.entries(r.gemShop.items).flatMap(([id, it]) => [
+    [`gemShop.items.${id}.price`, `${ER_GEM_ITEMS[id] ?? id} : prix`, it.price], [`gemShop.items.${id}.enabled`, 'disponible', it.enabled, 'checkbox']]));
+}
+
+function _erCollect() {
+  const r = structuredClone((_erView.draft ?? _erView.published).rules);
+  for (const inp of document.querySelectorAll('#er-form input[data-path]')) {
+    const path = inp.dataset.path.split('.');
+    let o = r;
+    for (const k of path.slice(0, -1)) o = o[k];
+    const last = path[path.length - 1];
+    if (inp.dataset.path === 'coins.curve') o[last] = _erParseCurve(inp.value);
+    else if (inp.type === 'checkbox') o[last] = inp.checked;
+    else if (inp.value.trim() === '') o[last] = inp.dataset.path.startsWith('shopChests.') ? null : '';
+    else o[last] = Number(inp.value);
+  }
+  return r;
+}
+
+function _erMsg(text, isErr = false, details = null) {
+  const msgEl = document.getElementById('er-msg'), errEl = document.getElementById('er-err');
+  msgEl.classList.add('hidden'); errEl.classList.add('hidden');
+  if (!text) return;
+  const el = isErr ? errEl : msgEl;
+  el.textContent = text + (details?.length ? ` — ${details.join(' ')}` : '');
+  el.classList.remove('hidden');
+}
+
+async function loadEconomyRules() {
+  const { ok, data } = await api('GET', '/api/admin/economy/rules');
+  if (!ok) return;
+  _erView = data;
+  document.getElementById('er-version').textContent = `v${data.published.version} (${data.published.createdAt})`;
+  document.getElementById('er-draft-state').textContent = data.draft
+    ? `basé sur v${data.draft.basedOn}, ${data.draft.changes.length} écart(s)${data.draft.errors.length ? `, ${data.draft.errors.length} erreur(s)` : ''}`
+    : 'aucun';
+  const gap = document.getElementById('er-game-gap');
+  gap.textContent = data.gameVsPublished.length
+    ? `⚠ Le jeu applique encore ${data.gameVsPublished.length} valeur(s) différente(s) de la version publiée (application non livrée) : ${data.gameVsPublished.slice(0, 6).map(c => `${_erLabel(c.path)} = ${_erValue(c.before)}`).join(' ; ')}${data.gameVsPublished.length > 6 ? '…' : ''}.`
+    : '';
+  gap.classList.toggle('hidden', !data.gameVsPublished.length);
+  const sel = document.getElementById('er-preset');
+  if (!sel.options.length) for (const p of data.presets) sel.append(new Option(p.label, p.id));
+  if (!admZoneDirty(_erZone)) { _erRenderForm((data.draft ?? data.published).rules); admZoneClean(_erZone); }
+  _glRows('#er-changes-table tbody', data.draft?.changes ?? [], c => [_erLabel(c.path), _erValue(c.before), _erValue(c.after)]);
+  const tb = document.querySelector('#er-versions-table tbody');
+  tb.replaceChildren();
+  for (const v of data.versions) {
+    const tr = document.createElement('tr');
+    for (const x of [`v${v.version}`, v.createdAt, ER_SOURCES[v.source] ?? v.source, v.note ?? '']) {
+      const td = document.createElement('td'); td.textContent = x; tr.append(td);
+    }
+    const td = document.createElement('td');
+    if (v.version !== data.published.version) {
+      const b = document.createElement('button');
+      b.className = 'btn btn-outline btn-sm'; b.textContent = 'Revenir à cette version…';
+      b.addEventListener('click', () => _erRollback(v.version));
+      td.append(b);
+    }
+    tr.append(td); tb.append(tr);
+  }
+}
+const _erZone = admZone(document.getElementById('eco-rules-card'));
+admRefreshButton('btn-refresh-eco-rules', loadEconomyRules, 'Règles économiques');
+
+document.getElementById('btn-er-save').addEventListener('click', async () => {
+  _erMsg('');
+  const { ok, data } = await api('PUT', '/api/admin/economy/rules/draft', { rules: _erCollect() });
+  if (!ok) return _erMsg(data.error ?? 'Erreur.', true, data.details);
+  admZoneClean(_erZone);
+  _erMsg(data.draft ? `Brouillon enregistré (${data.changes.length} écart(s)). Rien n'est publié.` : 'Identique à la version publiée : brouillon supprimé.');
+  loadEconomyRules();
+});
+
+document.getElementById('btn-er-preset').addEventListener('click', async () => {
+  _erMsg('');
+  if (admZoneDirty(_erZone) && !await admConfirmDiscard({ effect: 'applique le préréglage au brouillon enregistré ; les saisies non enregistrées sont perdues.' })) return;
+  const { ok, data } = await api('POST', '/api/admin/economy/rules/preset', { preset: document.getElementById('er-preset').value });
+  if (!ok) return _erMsg(data.error ?? 'Erreur.', true, data.details);
+  admZoneClean(_erZone);
+  _erMsg('Préréglage appliqué au brouillon. Rien n\'est publié.');
+  loadEconomyRules();
+});
+
+document.getElementById('btn-er-discard').addEventListener('click', async () => {
+  _erMsg('');
+  if (!await admConfirm({ title: 'Abandonner le brouillon des règles économiques', impact: ['Le brouillon est supprimé ; la version publiée ne change pas.'], danger: true })) return;
+  const { ok, data } = await api('DELETE', '/api/admin/economy/rules/draft');
+  if (!ok) return _erMsg(data.error ?? 'Erreur.', true);
+  admZoneClean(_erZone);
+  _erMsg(data.discarded ? 'Brouillon abandonné.' : 'Aucun brouillon.');
+  loadEconomyRules();
+});
+
+const _pct = (a, b) => (a ? `${b >= a ? '+' : ''}${Math.round((b - a) / a * 100)} %` : (b ? 'nouveau' : '='));
+const _fmtN = n => (n == null ? '—' : Number(n).toLocaleString('fr-FR'));
+document.getElementById('btn-er-simulate').addEventListener('click', async () => {
+  _erMsg('');
+  if (admZoneDirty(_erZone)) return _erMsg('Enregistrez d\'abord le brouillon : la simulation compare le brouillon enregistré.', true);
+  const state = document.getElementById('er-sim-state');
+  const btn = document.getElementById('btn-er-simulate');
+  btn.disabled = true; state.textContent = 'Simulation en cours (processus séparé, quelques secondes)…';
+  const { ok, data } = await api('POST', '/api/admin/economy/rules/simulate', { runs: Number(document.getElementById('er-sim-runs').value) });
+  btn.disabled = false;
+  if (!ok) { state.textContent = ''; return _erMsg(data.error ?? 'Erreur.', true, data.details); }
+  state.textContent = `${data.runs} joueurs par profil, mêmes graines, ${(data.ms / 1000).toFixed(1)} s. Chaque case : publiée → brouillon (écart).`;
+  const keys = ['gemsEarned', 'gemsPerH', 'gemsLostCap', 'fragsEarned', 'relicLevels', 'coinsEarned', 'maxDepthP50', 'shopChests'];
+  _glRows('#er-sim-table tbody', data.profiles, p => [p.label,
+    ...keys.map(k => `${_fmtN(p.before[k])} → ${_fmtN(p.after[k])} (${_pct(p.before[k], p.after[k])})`)]);
+  document.querySelectorAll('#er-sim-table tbody td.muted').forEach(td => { td.colSpan = 9; });
+  document.getElementById('er-sim-table').classList.remove('hidden');
+});
+
+document.getElementById('btn-er-publish').addEventListener('click', async () => {
+  _erMsg('');
+  if (!_erView?.draft) return _erMsg('Aucun brouillon à publier.', true);
+  if (admZoneDirty(_erZone)) return _erMsg('Enregistrez d\'abord le brouillon.', true);
+  const note = document.getElementById('er-publish-note').value.trim();
+  if (!note) return _erMsg('Une note de publication est obligatoire.', true);
+  if (!await admConfirm({ title: `Publier les règles économiques v${_erView.published.version + 1}`,
+    impact: [`${_erView.draft.changes.length} règle(s) changent dans la référence.`,
+      'Aucun effet en jeu aujourd\'hui : le jeu n\'applique pas encore ces règles (application séparée, après validation du propriétaire).',
+      'Réversible : « Revenir à cette version » publie une nouvelle version au contenu d\'une ancienne.'] })) return;
+  const { ok, data } = await api('POST', '/api/admin/economy/rules/publish', { note, basedOn: _erView.draft.basedOn, confirm: true });
+  if (!ok) return _erMsg(data.error ?? 'Erreur.', true, data.details);
+  document.getElementById('er-publish-note').value = '';
+  admZoneClean(_erZone);
+  _erMsg(`Version ${data.version} publiée (${data.changes.length} écart(s)).`);
+  loadEconomyRules(); loadGemShop();
+});
+
+async function _erRollback(version) {
+  _erMsg('');
+  if (!await admConfirm({ title: `Revenir aux règles économiques v${version}`,
+    impact: [`Publie une nouvelle version au contenu de la v${version} ; les versions existantes sont conservées.`, 'Aucun effet en jeu aujourd\'hui.'] })) return;
+  const { ok, data } = await api('POST', '/api/admin/economy/rules/rollback', { version, confirm: true });
+  if (!ok) return _erMsg(data.error ?? 'Erreur.', true, data.details);
+  _erMsg(`Version ${data.version} publiée (contenu de la v${data.restored}).`);
+  loadEconomyRules(); loadGemShop();
+}
+
+// ── Boutique en gemmes (#49, lot 2.6) ────────────────────────────────────────
+
+let _gsView = null;
+async function loadGemShop() {
+  const { ok, data } = await api('GET', '/api/admin/economy/gem-shop');
+  if (!ok) return;
+  _gsView = data;
+  document.getElementById('gs-state').textContent = data.open ? 'ouverte aux joueurs' : (data.flag ? 'drapeau activé, mais fermée (registre pas en « fait foi »)' : 'fermée');
+  document.getElementById('gs-ledger').textContent = GL_MODES[data.ledgerMode] ?? data.ledgerMode;
+  document.getElementById('gs-version').textContent = data.version;
+  const totals = Object.fromEntries(data.totals.map(t => [t.item_id, t.n]));
+  const KINDS = { cosmetic: 'Cosmétique', comfort: 'Confort', boost: 'Temporaire' };
+  _glRows('#gs-items-table tbody', data.items, i => [ER_GEM_ITEMS[i.id] ?? i.id, KINDS[i.kind] ?? i.kind, i.price, i.enabled ? 'oui' : 'non', totals[i.id] ?? 0]);
+  document.querySelectorAll('#gs-items-table tbody td.muted').forEach(td => { td.colSpan = 5; });
+  document.getElementById('btn-gs-toggle').textContent = data.flag ? 'Fermer la boutique…' : 'Ouvrir la boutique…';
+}
+admRefreshButton('btn-refresh-gem-shop', loadGemShop, 'Boutique en gemmes');
+
+document.getElementById('btn-gs-toggle').addEventListener('click', async () => {
+  const msgEl = document.getElementById('gs-msg'), errEl = document.getElementById('gs-err');
+  msgEl.classList.add('hidden'); errEl.classList.add('hidden');
+  const enabled = !_gsView?.flag;
+  const body = { enabled, confirm: true, note: document.getElementById('gs-note').value.trim() };
+  if (enabled) {
+    const typed = await admPrompt({ title: 'Ouvrir la boutique en gemmes',
+      text: 'Les joueurs pourront dépenser leurs gemmes de référence aux prix publiés. Réservé à la décision du propriétaire (prix validés, registre en « fait foi »).',
+      label: 'Saisir OUVRIR pour confirmer', ok: 'Ouvrir' });
+    if (typed === null) return;
+    body.confirmText = typed.trim();
+  } else if (!await admConfirm({ title: 'Fermer la boutique en gemmes', impact: ['Plus aucun achat possible ; les achats passés sont conservés.'] })) return;
+  const { ok, data } = await api('POST', '/api/admin/economy/gem-shop/flag', body);
+  if (!ok) { errEl.textContent = data.error ?? 'Erreur.'; errEl.classList.remove('hidden'); return; }
+  document.getElementById('gs-note').value = '';
+  msgEl.textContent = data.changed ? (data.enabled ? 'Boutique ouverte.' : 'Boutique fermée.') : 'Inchangé.';
+  msgEl.classList.remove('hidden');
+  loadGemShop();
 });
 
 // ── Recherche de joueurs ──────────────────────────────────────────────────────

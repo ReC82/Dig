@@ -96,6 +96,8 @@ const news    = require('./news');
 const monthlyEvents = require('./monthlyEvents');
 const rewardPoints = require('./rewardPoints');
 const gemLedger = require('./gemLedger');
+const economyRules = require('./economyRules');
+const gemShop = require('./gemShop');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
 const rewardTables = require('./rewardTables');
@@ -2124,6 +2126,63 @@ app.post('/api/admin/economy/gems/mode', requireAdmin, (req, res) => {
   }
 });
 
+// ── Règles économiques versionnées et boutique en gemmes (#49, lots 1.2 et 2.6) ─────────
+// Référence pilotable : publier une version n'a aucun effet en jeu (voir server/economyRules.js).
+
+function economyRoute(label, fn) {
+  return async (req, res) => {
+    try { res.json(await fn(req)); }
+    catch (err) {
+      if (err instanceof economyRules.EconomyRulesError) return res.status(err.status).json({ error: err.message, details: err.details });
+      if (err instanceof gemShop.GemShopError || err instanceof gemLedger.GemError) return res.status(err.status).json({ error: err.message, code: err.code });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+app.get('/api/admin/economy/rules', requireAdmin, economyRoute('GET /api/admin/economy/rules',
+  () => economyRules.buildAdminView()));
+app.put('/api/admin/economy/rules/draft', requireAdmin, economyRoute('PUT /api/admin/economy/rules/draft',
+  req => economyRules.saveDraft(req.body?.rules)));
+app.delete('/api/admin/economy/rules/draft', requireAdmin, economyRoute('DELETE /api/admin/economy/rules/draft',
+  () => ({ discarded: economyRules.discardDraft() })));
+app.post('/api/admin/economy/rules/preset', requireAdmin, economyRoute('POST /api/admin/economy/rules/preset',
+  req => economyRules.applyPreset(String(req.body?.preset ?? ''))));
+app.post('/api/admin/economy/rules/simulate', requireAdmin, economyRoute('POST /api/admin/economy/rules/simulate', async req => {
+  const draft = economyRules.getDraft();
+  if (!draft) throw new economyRules.EconomyRulesError(404, 'Aucun brouillon à comparer.');
+  const v = economyRules.validateRules(draft.rules);
+  if (v.errors.length) throw new economyRules.EconomyRulesError(400, 'Brouillon invalide.', v.errors);
+  return economyRules.simulateCompare(economyRules.getPublished().rules, v.rules,
+    { runs: Number(req.body?.runs ?? 300), seasons: Number(req.body?.seasons ?? 1) });
+}));
+app.post('/api/admin/economy/rules/publish', requireAdmin, economyRoute('POST /api/admin/economy/rules/publish', req => {
+  if (req.body?.confirm !== true) throw new economyRules.EconomyRulesError(400, 'Confirmation requise (confirm: true).');
+  return economyRules.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null });
+}));
+app.post('/api/admin/economy/rules/rollback', requireAdmin, economyRoute('POST /api/admin/economy/rules/rollback', req => {
+  if (req.body?.confirm !== true) throw new economyRules.EconomyRulesError(400, 'Confirmation requise (confirm: true).');
+  return economyRules.rollbackTo(Number(req.body?.version), { note: req.body?.note });
+}));
+app.get('/api/admin/economy/rules/audit', requireAdmin, economyRoute('GET /api/admin/economy/rules/audit',
+  () => ({ audit: economyRules.listAudit() })));
+
+app.get('/api/admin/economy/gem-shop', requireAdmin, economyRoute('GET /api/admin/economy/gem-shop',
+  () => gemShop.adminSummary()));
+/** POST /api/admin/economy/gem-shop/flag — { enabled, confirm: true, confirmText: "OUVRIR" pour ouvrir, note } */
+app.post('/api/admin/economy/gem-shop/flag', requireAdmin, economyRoute('POST /api/admin/economy/gem-shop/flag', req => {
+  const { enabled, confirm, confirmText, note } = req.body ?? {};
+  if (confirm !== true) throw new gemShop.GemShopError(400, 'Confirmation requise (confirm: true).');
+  if (enabled === true && confirmText !== 'OUVRIR') throw new gemShop.GemShopError(400, 'Ouverture : saisir OUVRIR pour confirmer.');
+  return { ok: true, ...gemShop.setEnabled(enabled === true, { note }) };
+}));
+
+// Joueur : fermée → { open: false } ; achats refusés tant que la boutique n'est pas ouverte.
+app.get('/api/gem-shop', requireUser, economyRoute('GET /api/gem-shop',
+  req => gemShop.playerView(req.session.userId)));
+app.post('/api/gem-shop/buy', limit.shop, requireUser, economyRoute('POST /api/gem-shop/buy',
+  req => gemShop.buy(req.session.userId, String(req.body?.itemId ?? ''), req.body?.requestId)));
+
 // Toute autre route /api/* (dont l'ancienne API /api/players/:token/*) : 404 JSON (#14)
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Route inconnue.' });
@@ -2172,6 +2231,8 @@ if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_COLLECTIONS !== 
 seasonThemes.init();             // saisons thématiques : thèmes, noms réservés, journal ; préparation par le planificateur (#48)
 xLink.init();                    // compte X lié, historique, demandes de récompense (désactivées) (#51)
 gemLedger.init();                // registre de gemmes de référence, désactivé par défaut (#49)
+economyRules.init();             // règles économiques v1 = valeurs en vigueur, barème A en brouillon (#49)
+gemShop.init();                  // boutique en gemmes, fermée par défaut (#49)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
 news.init();                     // centre d'actualités : annonces, lu par compte, IA, faits joueurs (#50)

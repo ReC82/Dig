@@ -1119,3 +1119,9 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .rw-chest table { margin-bottom: 6px; }
 .rw-inline { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; white-space: nowrap; }
 .rw-rows td { vertical-align: middle; }
+
+/* Règles économiques (#49) : groupes de champs compacts */
+.er-form { display: flex; flex-direction: column; gap: 8px; }
+.er-group { border: 1px solid var(--border, #333); border-radius: 8px; padding: 6px 10px 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.er-group legend { font-weight: 600; padding: 0 4px; }
+.er-field { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9em; }
