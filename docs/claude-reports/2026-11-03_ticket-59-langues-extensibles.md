@@ -1,8 +1,73 @@
 # Ticket #59 — [P1] Langues extensibles : traductions IA automatiques et pilote italien
 
 - Ticket : https://github.com/ReC82/Dig/issues/59
-- Branche : `feature/59-langues-extensibles` (dernier commit de correction `83e6f70`, develop `ba5ccfb`, déployé `ba5ccfb`)
-- Date : 03/11/2026
+- Branche : `feature/59-langues-extensibles` (dernier commit de correction `7d74a7c`, develop `6b5a981`, déployé `6b5a981`)
+- Dates : 03/11/2026, mise à jour le 04/11/2026
+
+## Mise à jour du 04/11/2026 — recettes #59-E à #59-H (écrans NL Verbeteringen et kansen van kisten)
+
+### État réel
+**Déployé en production (SHA `6b5a981`) — en attente de recette.** Classement : **Après lancement** (qualité linguistique, aucun blocage du MVP).
+
+### Recettes du propriétaire prises en compte
+- **#59-E** (Collection NL : `Evenementherinneringen`, `Schervenmagneet`, `5 scherven (nog 3 nodig)`) : validée, rien à changer.
+- **#59-F** (Dagelijks NL) : validation globale déclarative, rien à changer.
+- **#59-G** (Verbeteringen NL) : six cartes validées visuellement, textes NL à reprendre → corrigés.
+- **#59-H** (fenêtre « Eenvoudige kist — beloningen en kansen ») : probabilités validées visuellement, textes NL à reprendre → corrigés. Le coffre antique n'a pas été contrôlé par cette recette ; il n'est pas noté comme validé.
+
+### Changements (aucun coût, taux, montant ni effet modifié)
+| Écran | Avant | Après |
+|---|---|---|
+| Fragmenten | 1 reliek fragment kopen | **1 relikwiescherf kopen** |
+| Blok opnieuw | Huidig blok veranderen | **Huidig blok vervangen** (le reroll remplace le bloc courant par un autre tirage) |
+| Geluk | Meer zeldzame, niet trager | **Meer zeldzame blokken, zonder trager te graven** |
+| Auto-graven | 2 automatische schade/sec · Automatische schade/sec: 2 → 3 | **2 automatische schade per seconde · Automatische schade per seconde: 2 → 3** |
+| Guide des boutiques | Waar besteed je wat? | **Waar gebruik je welke valuta?** |
+| Kansen | Geen limiet op openen. | **Onbeperkt te openen.** |
+| Kansen | 🔮 1 scherf | **🔮 1 relikwiescherf** / 3 relikwiescherven |
+| Kansen | ⚡ Boost ×2 op blokmunten — 5 min | **⚡ 2× zoveel munten uit blokken — 5 min** |
+| Profondeur (toutes langues, IT comprise) | 75m, Op 75m, vóór 5m, 25m | **75 m, Op 75 m, vóór 5 m, 25 m** (espace insécable : jamais coupé) |
+
+Mise en page (toutes langues) : la description d'une amélioration tient désormais sur **2 lignes** au lieu d'être coupée par « … », et la ligne d'effet (« Automatische schade per seconde: 0 → 1 ») passe à la ligne au lieu de glisser sous le bouton « Verbeteren ». Ces deux défauts ne sont apparus qu'avec les textes plus longs : ils ont été vus en contrôle mobile avant déploiement et corrigés (`public/css/style.css`).
+
+Fichiers : `public/js/i18n.js`, `public/css/style.css`, `public/index.html` (valeur initiale « 1 m »), `i18n/it.json` + `public/js/locales/it.js` régénéré (`node tools/i18n/cli.js build it`, 651/651, 0 erreur), tests `test/i18n-languages.test.js` (nouveau test « recettes #59-G/H »), `test/luck.test.js` et `test/i18n-es.test.js` (attendus « 100 m », « 42 m »).
+
+### Vérification de la nature de « scherf » (#59-H)
+Le résultat « 1 scherf » du coffre simple est bien un **fragment de relique** (même compteur 🔮 que la Schervenmagneet et le coût des relikwieën). Le texte précise donc désormais « relikwiescherf », comme le message de gain du coffre (« 🔮 1 relikwiescherf »).
+
+### SHA et procédure de test
+- Branche `feature/59-langues-extensibles`, commit `7d74a7c` ; `develop` `6b5a981` ; production `1.0.0+6b5a981`.
+- `npm test` : **641/641** sur la branche intégrée et sur le SHA exact de la release.
+- Test ciblé : `node --test test/i18n-languages.test.js` (12/12).
+
+### Vérifications effectuées
+- Navigateur headless 390×844 sur un serveur de test (port 3101, base de test), puis **en production** (lecture seule, sans compte) : Verbeteringen et fenêtre des chances en NL conformes, HUD « 1234 m » lisible, **0 erreur JavaScript**.
+- Copie de la base de production démarrée en mode production (port 3122) : `/health` ok, version `6b5a981`, **empreintes identiques** avant et après démarrage ; copie supprimée.
+- Avant déploiement : aucune génération IA en cours (dernière activité 15:36 UTC, déploiement 18:16 UTC).
+
+### Déploiement
+- `main` avancé en avance rapide `0afba02 → 6b5a981`, `scripts/deploy.sh` de la release.
+- Sauvegarde vérifiée : `dig-20261104-191633-pre-deploy-6b5a981.sqlite`.
+- Les 2 domaines répondent 200 avec `1.0.0+6b5a981` ; journal sans erreur ; `quick_check` ok ; empreintes joueurs identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 0afba02` puis `sudo systemctl restart dig` (pas de changement de dépendances, aucune migration).
+- Données des joueurs : aucune migration, aucune écriture ; changement de textes et de CSS uniquement.
+
+### Test fonctionnel à faire par le propriétaire (smartphone, compte `testeur`, Nederlands, sans achat)
+1. **Verbeteringen** : lire les cartes Geluk (« Meer zeldzame blokken, zonder trager te graven », en entier sur 2 lignes), Auto-graven (« … automatische schade per seconde », la ligne dorée ne passe plus sous le bouton), Fragmenten (« 1 relikwiescherf kopen »), Blok opnieuw (« Huidig blok vervangen »). Le bandeau bas affiche « Waar gebruik je welke valuta? ».
+2. **Seizoenskisten → ℹ️ Beloningen en kansen** (coffre simple) : « Onbeperkt te openen. », « 🔮 1 relikwiescherf », « ⚡ 2× zoveel munten uit blokken — 5 min ». Les pourcentages et prix restent 45/30/15/10 %.
+3. En haut, la profondeur s'affiche « 75 m » (avec espace).
+
+### Choix techniques faits seul
+- **« relikwiescherf » plutôt que « reliekfragment »** : tout le jeu NL utilise « Relikwieën », « scherven » et « Schervenmagneet » (validés en #59-E) ; « reliek » n'apparaît nulle part. Si vous préférez « reliekfragment », c'est une modification d'une ligne, mais il faudrait alors l'appliquer partout pour rester cohérent.
+- La formulation longue de Geluk est conservée : la description passe sur 2 lignes (règle commune à toutes les langues) au lieu d'adopter une tournure raccourcie moins claire. Sur les écrans de moins de 380 px, la description reste masquée comme avant.
+- Espace insécable avant « m » dans les 5 langues (FR, EN, NL, ES, IT), conforme à « harmoniser sur autres écrans/langues ». L'admin (classement « 120m ») n'est pas modifié : il est hors du périmètre joueur.
+- Italien : les 5 textes de profondeur sont mis à jour dans `i18n/it.json` en gardant leur origine (IA relue) et l'empreinte de la nouvelle source, donc rien n'est marqué « à retraduire ».
+- Message de gain du boost (`ui.chest_reward_boost`, « ⚡ Boost ×2 munten — 5 min ») laissé tel quel : il ne fait pas partie de la fenêtre de recette.
+
+### Décisions demandées
+Inchangées (section 8 ci-dessous) : activation de l'italien, traduction OpenAI manuelle, russe.
+
+---
 
 ## Mise à jour du 03/11/2026 (soir) — corrections des recettes #59-A à #59-D
 
