@@ -716,12 +716,110 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "badges.cat.coffres": {
+   "text": "Forzieri",
+   "src": "1445c0297468",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cat.evenement": {
+   "text": "Evento",
+   "src": "27a229091a42",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.482Z"
+  },
+  "badges.cat.exploration": {
+   "text": "Esplorazione",
+   "src": "57014999b7bf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cat.fidelite": {
+   "text": "Fedeltà",
+   "src": "bcc04eb99ee5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.482Z"
+  },
+  "badges.cat.minage": {
+   "text": "Scavo",
+   "src": "cf9fba9f6b10",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cat.profondeur": {
+   "text": "Profondità",
+   "src": "dfe8cf20b9ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.category": {
+   "text": "Categoria",
+   "src": "4e9402180f2a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cond.blocks_of_type": {
+   "text": "{block}: blocchi rotti ≥ {n}",
+   "src": "a3056a121ad8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cond.blocks_total": {
+   "text": "Blocchi rotti ≥ {n}",
+   "src": "39c4ac4ccb3a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cond.chests_opened": {
+   "text": "Forzieri aperti scavando ≥ {n}",
+   "src": "fa05d9172fb7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cond.distinct_types": {
+   "text": "Tipi di blocco diversi ≥ {n}",
+   "src": "fe71c6cf3d73",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cond.max_depth": {
+   "text": "Profondità ≥ {n} m",
+   "src": "16434e124403",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.cond.play_days": {
+   "text": "Giorni di gioco ≥ {n}",
+   "src": "592b22dd785d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
   "badges.count": {
    "text": "{n} / {total} ottenuti",
    "src": "18b2c3a601d7",
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.criterion": {
+   "text": "Obiettivo",
+   "src": "743b4ee32572",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
   },
   "badges.earned_on": {
    "text": "Ottenuto il {date}",
@@ -758,12 +856,26 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "badges.hidden_crit": {
+   "text": "Obiettivo segreto: continua a scavare.",
+   "src": "6754f2afc517",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
   "badges.hidden_desc": {
    "text": "Continua a scavare per scoprirlo.",
    "src": "2d2390b9594b",
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.honorary": {
+   "text": "Badge onorifico: non dà monete, gemme, frammenti né punti.",
+   "src": "ec1f43367446",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
   },
   "badges.intro": {
    "text": "Badge onorifici: non danno né monete, né gemme, né punti. Registrati dal {date}.",
@@ -786,12 +898,26 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "badges.open": {
+   "text": "Vedi il badge {name}",
+   "src": "5e4ffa51033e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
   "badges.progress": {
    "text": "{value} / {target}",
    "src": "438c789da091",
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "badges.progress_label": {
+   "text": "Progressi: {value} / {target}",
+   "src": "3dfd52020207",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
   },
   "badges.section": {
    "text": "🏅 Badge e traguardi",
@@ -800,12 +926,26 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
-  "badges.toast": {
-   "text": "Badge ottenuto: {name}",
-   "src": "c096c76f7664",
+  "badges.status_earned": {
+   "text": "Ottenuto",
+   "src": "865bcd472bfa",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.status_locked": {
+   "text": "Da sbloccare",
+   "src": "12cf515f046b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
+  },
+  "badges.toast": {
+   "text": "Badge sbloccato: {name}!",
+   "src": "30b7faddcfd3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #38, relu)",
+   "at": "2026-11-04T15:31:00.481Z"
   },
   "beta.banner": {
    "text": "🧪 BETA — gioco in sviluppo",

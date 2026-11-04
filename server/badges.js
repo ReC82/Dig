@@ -144,6 +144,11 @@ function init() {
       value TEXT NOT NULL
     );
   `);
+  // Notification de déblocage (recette #38-E) : colonne ajoutée, 1 par défaut → les badges déjà
+  // obtenus comptent comme notifiés (aucune ligne réécrite, aucun toast rétroactif).
+  if (!conn().prepare('PRAGMA table_info(player_badges)').all().some(c => c.name === 'notified')) {
+    conn().exec('ALTER TABLE player_badges ADD COLUMN notified INTEGER NOT NULL DEFAULT 1');
+  }
   const seeded = conn().prepare("SELECT value FROM badge_meta WHERE key = 'seeded'").get();
   if (!seeded) {
     db.runTransaction(() => {
@@ -342,7 +347,7 @@ function adminSummary() {
   return {
     activatedAt: activatedAt(),
     conditions: CONDITIONS, categories: CATEGORIES, statuses: STATUSES, visibilities: VISIBILITY, langs: LANGS,
-    blockTypes: blockCatalog.getPublished().types.map(t => ({ id: t.id, name: t.names?.fr ?? t.id, icon: t.icon, category: t.category })),
+    blockTypes: blockCatalog.getPublished().types.map(t => ({ id: t.id, name: t.names?.fr ?? t.id, names: t.names ?? {}, icon: t.icon, category: t.category })),
     playersTracked: conn().prepare('SELECT COUNT(*) AS n FROM badge_tracking').get().n,
     badges: listBadges().map(b => ({ ...b, earnedCount: counts[b.id] ?? 0 })),
   };
@@ -385,7 +390,8 @@ function _inWindow(b, nowIso) {
 /**
  * Traite une sauvegarde acceptée : crédite les statistiques fiables et attribue les badges.
  * Ne lève jamais vers l'appelant pour une donnée client invalide (ignorée).
- * @returns {Array<{id, icon, names}>} badges obtenus par cette sauvegarde
+ * @returns {Array<{id, icon, names}>} badges obtenus et pas encore notifiés au joueur (cette sauvegarde
+ *   et les précédentes dont la réponse a été perdue) ; le client confirme par markNotified().
  */
 function processSave(userId, data, { nowMs = Date.now() } = {}) {
   const season = db.getActiveSeason();
@@ -441,8 +447,23 @@ function processSave(userId, data, { nowMs = Date.now() } = {}) {
         ON CONFLICT(user_id, stat) DO UPDATE SET value = excluded.value`);
     for (const [k, v] of Object.entries(after)) if (before[k] !== v) upsert.run(userId, k, v);
 
-    return _award(userId, before, after, nowMs);
+    _award(userId, before, after, nowMs);
+    return pendingNotifications(userId);
   });
+}
+
+/** Badges obtenus dont le joueur n'a pas encore confirmé la notification (plus anciens d'abord). */
+function pendingNotifications(userId) {
+  return conn().prepare(`SELECT b.id, b.icon, b.image, b.names FROM player_badges pb JOIN badges b ON b.id = pb.badge_id
+      WHERE pb.user_id = ? AND pb.notified = 0 ORDER BY pb.earned_at, b.id LIMIT 20`).all(userId)
+    .map(r => ({ id: r.id, icon: r.icon, image: r.image, names: JSON.parse(r.names) }));
+}
+
+/** Le client a affiché la notification (toast + historique #26) : elle n'est plus renvoyée. */
+function markNotified(userId, ids) {
+  const list = Array.isArray(ids) ? ids.filter(x => typeof x === 'string' && x.length <= 64).slice(0, 50) : [];
+  const upd = conn().prepare('UPDATE player_badges SET notified = 1 WHERE user_id = ? AND badge_id = ? AND notified = 0');
+  return db.runTransaction(() => list.reduce((n, id) => n + upd.run(userId, id).changes, 0));
 }
 
 function _award(userId, before, after, nowMs) {
@@ -450,7 +471,7 @@ function _award(userId, before, after, nowMs) {
   const owned = new Set(conn().prepare('SELECT badge_id FROM player_badges WHERE user_id = ?').all(userId).map(r => r.badge_id));
   const getBase = conn().prepare('SELECT base FROM badge_event_baselines WHERE user_id = ? AND badge_id = ?');
   const setBase = conn().prepare('INSERT OR IGNORE INTO badge_event_baselines (user_id, badge_id, base) VALUES (?, ?, ?)');
-  const insert  = conn().prepare('INSERT OR IGNORE INTO player_badges (user_id, badge_id, earned_at, value) VALUES (?, ?, ?, ?)');
+  const insert  = conn().prepare('INSERT OR IGNORE INTO player_badges (user_id, badge_id, earned_at, value, notified) VALUES (?, ?, ?, ?, 0)');
   const earned = [];
   for (const b of listBadges()) {
     if (b.status !== 'active' || owned.has(b.id) || !_inWindow(b, nowIso)) continue;
@@ -487,6 +508,8 @@ function playerView(userId, { nowMs = Date.now() } = {}) {
     badges.push({
       id: b.id, category: b.category, icon: hidden ? '❔' : b.icon, image: hidden ? null : b.image,
       names: hidden ? null : b.names, descriptions: hidden ? null : b.descriptions, hidden,
+      // Critère affiché dans la fiche du joueur (traduit côté client) ; jamais pour un badge secret non obtenu
+      criterion: hidden ? null : { condition: b.condition, blockId: b.blockId, threshold: b.threshold },
       earned: !!got, earnedAt: got?.earned_at ?? null,
       progress: got ? null : { value: Math.min(Math.max(0, value), b.threshold), target: b.threshold },
       event: windowed ? { startsAt: b.startsAt, endsAt: b.endsAt } : null,
@@ -499,6 +522,6 @@ function playerView(userId, { nowMs = Date.now() } = {}) {
 module.exports = {
   init, BadgeError, CONDITIONS, CATEGORIES, STATUSES, VISIBILITY, LANGS, SEED,
   normalizeBadge, listBadges, getBadgeRow, createBadge, updateBadge, setStatus, previewBadge, listAudit, adminSummary,
-  sanitizeCounts, processSave, playerView, activatedAt,
+  sanitizeCounts, processSave, pendingNotifications, markNotified, playerView, activatedAt,
   validatedStats: _getStats,   // statistiques fiables (blocs validés par type) : drops des événements mensuels (#56)
 };

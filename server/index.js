@@ -839,6 +839,14 @@ app.get('/api/me/badges', (req, res) => {
   } catch (err) { console.error('[GET /api/me/badges]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
+// Accusé d'affichage des notifications de déblocage (recette #38-E) : plus renvoyées ensuite.
+app.post('/api/me/badges/seen', limit.save, (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    res.json({ ok: true, marked: badges.markNotified(req.session.userId, req.body?.ids) });
+  } catch (err) { console.error('[POST /api/me/badges/seen]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
 function badgeRoute(label, fn) {
   return (req, res) => {
     try { res.json(fn(req)); }
