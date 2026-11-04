@@ -163,7 +163,10 @@ test('GET /api/shop/chests : public, lecture seule, table identique à celle du 
   const { describeChests, SHOP_CHESTS } = require('../server/chestShop');
   const r = await client()('GET', '/api/shop/chests');
   assert.strictEqual(r.status, 200);
-  assert.deepStrictEqual(r.body, JSON.parse(JSON.stringify(describeChests({}))));
+  // `mined` : tables des coffres minés publiées dans l'admin (#37), v1 = tables d'origine du client
+  const { mined, ...shopPart } = r.body;
+  assert.deepStrictEqual(shopPart, JSON.parse(JSON.stringify(describeChests({}))));
+  assert.deepStrictEqual(mined, require('../server/rewardTables').originTables().mined);
   for (const chest of r.body.chests) {
     assert.deepStrictEqual(chest.table.map(({ chance, ...row }) => row), SHOP_CHESTS[chest.id].table);
   }

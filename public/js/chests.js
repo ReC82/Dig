@@ -35,6 +35,24 @@ const Chests = {
     ],
   },
 
+  /**
+   * Remplace les tables par celles publiées dans l'admin (#37, GET /api/shop/chests → `mined`).
+   * Réponse absente ou incomplète → tables actuelles conservées (hors ligne : jeu inchangé).
+   * @returns {boolean} true si les tables ont été appliquées
+   */
+  applyTables(mined) {
+    if (!mined || typeof mined !== 'object') return false;
+    const ok = row => row && row.weight > 0 && (
+      (row.type === 'coins'  && Number.isInteger(row.min) && Number.isInteger(row.max) && row.min <= row.max) ||
+      (row.type === 'relics' && Number.isInteger(row.amount) && row.amount > 0) ||
+      (row.type === 'boost'  && row.mult > 1 && row.minutes > 0));
+    for (const key of Object.keys(this.TABLES)) {
+      if (!Array.isArray(mined[key]) || !mined[key].length || !mined[key].every(ok)) return false;
+    }
+    for (const key of Object.keys(this.TABLES)) this.TABLES[key] = mined[key];
+    return true;
+  },
+
   // ── Utilitaires ───────────────────────────────────────────────────────────
 
   _rand(min, max, random = Math.random) {

@@ -1112,3 +1112,10 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .btn.is-busy, .btn[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
 .refresh-status:empty { display: none; }
 .adm-toast.is-err { background: #b91c1c; color: #fff; }
+
+/* Coffres & drops (#37) */
+.rw-chest { margin-bottom: 14px; }
+.rw-chest h4 { margin: 6px 0 2px; }
+.rw-chest table { margin-bottom: 6px; }
+.rw-inline { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; white-space: nowrap; }
+.rw-rows td { vertical-align: middle; }

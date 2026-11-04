@@ -758,6 +758,7 @@ async function _loadChestCatalog() {
   try {
     const { ok, data } = await _apiFetch('GET', '/api/shop/chests');
     if (!ok || !Balance.applyChestCatalog(data)) return false;
+    Chests.applyTables(data.mined);   // coffres trouvés en minant : tables publiées dans l'admin (#37)
     if (isViewActive('upgrades')) renderShopChests();   // coffres affichés sous les améliorations
     return true;
   } catch (err) {
