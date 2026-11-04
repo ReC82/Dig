@@ -257,7 +257,8 @@ const Relics = {
     b.hpReduction = Math.min(b.hpReduction, 0.90);
 
     // GameState.damage est dérivé de pickaxeLevel + bonus plat permanent
-    GameState.damage = GameState.pickaxeLevel + b.damageFlat;
+    // Pioche dont l'effet est suspendu (#69) : dégâts du niveau 1, niveau possédé conservé
+    GameState.damage = (typeof Upgrades !== 'undefined' ? Upgrades.effectiveLevel('pickaxe') : GameState.pickaxeLevel) + b.damageFlat;
   },
 
   // ── Formatage du bonus ────────────────────────────────────────────────────

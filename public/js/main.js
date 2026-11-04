@@ -511,9 +511,13 @@ function renderUpgrades() {
   elUpgradesList.innerHTML = '';
 
   for (const def of Upgrades.DEFS) {
+    if (Upgrades.isHidden(def.id)) continue;   // carte masquée par l'admin (#69) : niveau et effet conservés
     const level  = Upgrades.getLevel(def.id);
     const cost   = Upgrades.getCost(def.id);
     const maxed  = cost === null;
+    const paused = !maxed && Upgrades.isPurchaseSuspended(def.id);
+    const effectOff = Upgrades.isEffectSuspended(def.id);
+    const name = escapeHtml(Upgrades.displayName(def));
 
     let costHtml = '';
     if (!maxed) {
@@ -525,26 +529,28 @@ function renderUpgrades() {
 
     const canAfford = !maxed && Upgrades.canAfford(def.id);
     const card = document.createElement('div');
-    card.className = 'upgrade-card';
+    card.className = `upgrade-card${paused || effectOff ? ' is-suspended' : ''}`;
+    const notices = [effectOff ? t('upgrade.suspended_effects') : '', paused ? t('upgrade.suspended_purchases') : ''].filter(Boolean);
     card.innerHTML = `
       <div class="upgrade-left">
         <div class="upgrade-icon">${UiIcons.html(`upgrade_${def.id}`, def.icon)}</div>
         <div class="upgrade-info">
           <div class="upgrade-name">
-            ${t(def.name)}
+            ${name}
             <span class="upgrade-level">${t('stats.pickaxe_val', { n: level })}${maxed ? ` <span class="maxed-tag">${t('ui.btn_max')}</span>` : ''}</span>
           </div>
-          <div class="upgrade-desc">${def.describe(level)}</div>
+          <div class="upgrade-desc">${def.describe(Upgrades.effectiveLevel(def.id))}</div>
+          ${notices.map(n => `<div class="upgrade-suspended" role="note">⏸ ${n}</div>`).join('')}
           <div class="upgrade-next">${_upgradeNextHtml(def)}</div>
           ${def.preview ? `<div class="upgrade-preview" data-id="${def.id}">${def.preview(level)}</div>` : ''}
         </div>
       </div>
       <button class="upgrade-btn${maxed ? ' is-maxed' : ''}" data-id="${def.id}"
-        ${maxed || !canAfford ? 'disabled' : ''} aria-label="${t('ui.btn_upgrade')} ${t(def.name)}">
-        ${maxed ? t('ui.btn_max') : `${t('ui.btn_upgrade')}<span class="btn-cost">${costHtml}</span>`}
+        ${maxed || !canAfford ? 'disabled' : ''} aria-label="${paused ? `${name} — ${t('upgrade.suspended_purchases')}` : `${t('ui.btn_upgrade')} ${name}`}">
+        ${maxed ? t('ui.btn_max') : paused ? t('ui.btn_suspended') : `${t('ui.btn_upgrade')}<span class="btn-cost">${costHtml}</span>`}
       </button>`;
 
-    if (!maxed) {
+    if (!maxed && !paused) {
       card.querySelector('.upgrade-btn').addEventListener('click', () => {
         if (Upgrades.buy(def.id)) {
           if (def.id === 'block_reroll') {
@@ -3918,6 +3924,7 @@ function init() {
   window.addEventListener('pagehide', _flushCloudOnExit);
   Blocks.loadCached();     // catalogue de blocs publié (#37) mémorisé, avant la reprise du bloc
   Relics.loadCached();     // catalogue de reliques publié (#64) mémorisé, avant le calcul des bonus
+  Upgrades.loadCached();   // barème et suspensions des améliorations (#69) mémorisés, avant le calcul des bonus
   Collection.loadCached(); // collections publiées (#39) mémorisées
   Save.load();
 
@@ -3968,6 +3975,15 @@ function init() {
   // Catalogue de blocs publié (#37) : s'applique aux prochains blocs, le bloc courant est conservé.
   Blocks.fetchCatalog(() => { if (Blocks.current && isViewActive('dig')) renderBlock(); });
   Relics.fetchCatalog(() => { renderRelics(); renderStats(); });
+  // Barème et suspension d'urgence des améliorations (#69) : relus chaque minute ; niveaux possédés et
+  // bloc en cours conservés, seuls les effets, prix et cartes sont recalculés.
+  const refreshUpgrades = () => Upgrades.fetchCatalog(() => {
+    Relics.applyBonuses();   // dégâts par clic recalculés (pioche suspendue ou rétablie)
+    renderUpgrades(); renderStats();
+    if (Blocks.current && isViewActive('dig')) renderBlock();
+  });
+  refreshUpgrades();
+  setInterval(refreshUpgrades, 60_000);
   // Collections publiées (#39) : séries, objets, fiches.
   Collection.fetchCatalog(() => { if (isViewActive('collection')) renderCollection(); });
   setInterval(() => Save.save(),  15_000);

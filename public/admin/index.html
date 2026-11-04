@@ -40,6 +40,7 @@
     <button class="tab-btn" data-tab="rewards">🎲 Coffres &amp; drops</button>
     <button class="tab-btn" data-tab="collections">📿 Collections</button>
     <button class="tab-btn" data-tab="relics">🔮 Reliques</button>
+    <button class="tab-btn" data-tab="upgrades">⬆ Améliorations</button>
     <button class="tab-btn" data-tab="missions">🎯 Missions</button>
     <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
     <button class="tab-btn" data-tab="badges">🏅 Badges</button>
@@ -1832,6 +1833,194 @@
         <button class="btn btn-outline hidden" id="btn-rl-revert" type="button">Annuler les modifications de cette relique</button>
         <button class="btn btn-outline hidden" id="btn-rl-remove" type="button">Retirer du brouillon</button>
         <button class="btn btn-outline" type="button" data-close>Fermer</button>
+      </div>
+    </dialog>
+  </section>
+
+  <section id="tab-upgrades" class="tab-content hidden">
+    <div class="section-header">
+      <h2>⬆ Améliorations</h2>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-up-add" type="button">＋ Ajouter une amélioration</button>
+        <button class="btn" id="btn-refresh-upgrades">↻ Rafraîchir</button>
+      </div>
+    </div>
+    <p id="up-msg" class="hidden" role="status"></p>
+    <details class="muted co-help" style="font-size:0.78rem">
+      <summary>Comment ça marche ?</summary>
+      <p>La version 1 reprend <strong>à l'identique</strong> les six améliorations du jeu (prix, niveaux, effets, noms). Une modification du barème va dans un <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier… » (comparaison avant/après, note obligatoire). Chaque publication crée une version ; « Revenir à cette version » republie une version antérieure. Le nombre de niveaux ne peut jamais baisser (niveaux possédés).</p>
+      <p>Seuls les réglages que le moteur lit réellement sont proposés. Les éléments verrouillés le sont pour une raison affichée dans la fiche (anti-bot #25, registre de gemmes #49). Les reliques (🔮 Reliques) et les consommables (coffres, boosts) ont leurs propres onglets et ne sont pas des améliorations.</p>
+      <p>La <strong>suspension d'urgence</strong> est séparée du barème et immédiate (sans publication ni redéploiement) : trois interrupteurs indépendants — <em>nouveaux achats</em>, <em>effets</em>, <em>affichage</em>. Les niveaux et sauvegardes des joueurs ne sont jamais modifiés : un effet suspendu est calculé comme au niveau de départ et revient tel quel à la réactivation. Le jeu relit l'état en moins d'une minute, sans déconnexion ni perte du bloc en cours. Motif obligatoire, journal complet.</p>
+    </details>
+
+    <div class="overview-card" id="up-ctl-card">
+      <h3 class="overview-card-title">🚨 Suspension d'urgence <span id="up-ctl-count" class="muted"></span></h3>
+      <p class="muted" style="font-size:0.78rem">Bouton « Suspendre… » : choix de ce qui est suspendu, aperçu des conséquences, motif, confirmation. Rien n'est suspendu sans cette confirmation.</p>
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead><tr><th>Amélioration</th><th>Nouveaux achats</th><th>Effets</th><th>Affichage</th><th class="num">Joueurs concernés</th><th>Dernier motif</th><th><span class="visually-hidden">Action</span></th></tr></thead>
+          <tbody id="up-ctl-body"><tr><td colspan="7" class="muted">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="up-draft" class="overview-card hidden">
+      <h3 class="overview-card-title">📝 Brouillon non publié <span id="up-draft-meta" class="muted"></span></h3>
+      <ul id="up-draft-errors" class="error hidden"></ul>
+      <ul id="up-draft-warnings" class="muted hidden" style="font-size:0.78rem"></ul>
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead><tr><th>Amélioration</th><th>Champ</th><th>En vigueur</th><th>Brouillon</th></tr></thead>
+          <tbody id="up-draft-body"></tbody>
+        </table>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-up-publish" type="button">Publier…</button>
+        <button class="btn btn-outline" id="btn-up-discard" type="button">Abandonner le brouillon</button>
+      </div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Améliorations <span id="up-count" class="muted"></span></h3>
+      <p id="up-summary" class="muted" style="font-size:0.78rem"></p>
+      <div class="form-actions bk-filters">
+        <input id="up-filter-text" type="search" placeholder="Rechercher (identifiant, nom, effet)" aria-label="Rechercher une amélioration">
+        <select id="up-filter-status" aria-label="État"><option value="">Tous les états</option><option value="active">Actives</option><option value="suspended">Suspendues</option><option value="draft">Modifiées dans le brouillon</option></select>
+        <select id="up-filter-kind" aria-label="Type"><option value="">Tous les types</option><option value="seasonal">Effet permanent (saison)</option><option value="instant">Achat à effet immédiat</option></select>
+      </div>
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead><tr><th>Visuel</th><th>Amélioration</th><th>Type / effet</th><th class="num">Niveaux</th><th>Prix 1er → dernier niveau</th><th class="num">Total jusqu'au max</th><th>Effet niv. départ → max</th><th class="num">Joueurs</th><th>État</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
+          <tbody id="up-body"><tr><td colspan="10" class="muted">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:0.75rem">Prix affichés multiplicateur de ⚙ Config inclus (<span id="up-mult">×1</span>). Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche. Ouvrir une fiche ne modifie rien.</p>
+    </div>
+
+    <details class="overview-card">
+      <summary class="overview-card-title">Versions publiées <span id="up-version" class="muted"></span></summary>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Version</th><th>Origine</th><th>Note</th><th>Date (UTC)</th><th></th></tr></thead>
+          <tbody id="up-versions-body"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="overview-card" id="up-audit-box">
+      <summary class="overview-card-title">Journal (barème et suspensions)</summary>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Action</th><th>Amélioration / version</th><th>Détails</th></tr></thead>
+          <tbody id="up-audit-body"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <dialog id="up-dialog" class="bk-dialog adm-dialog nw-dialog" aria-labelledby="up-form-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="up-form-title">Amélioration</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <div class="nw-scroll">
+        <p id="up-state" class="ic-notice hidden" role="status"></p>
+        <p id="up-ctl-state" class="ic-notice hidden" role="status"></p>
+        <ul id="up-issues" class="error hidden"></ul>
+        <div class="nw-text-fields">
+          <div role="group" class="nw-sec" aria-labelledby="up-sec-id">
+            <h4 id="up-sec-id">1. Identité</h4>
+            <div class="co-lang-switch" id="up-langs" role="group" aria-label="Langue éditée">
+              <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true">FR</button>
+              <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false">EN</button>
+              <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false">NL</button>
+              <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false">ES</button>
+            </div>
+            <div class="nw-lang-fields" data-lang="fr"><label>Nom (FR) — obligatoire<input id="up-fr-name" type="text" maxlength="40"></label></div>
+            <div class="nw-lang-fields hidden" data-lang="en"><label>Nom (EN)<input id="up-en-name" type="text" maxlength="40"></label></div>
+            <div class="nw-lang-fields hidden" data-lang="nl"><label>Nom (NL)<input id="up-nl-name" type="text" maxlength="40"></label></div>
+            <div class="nw-lang-fields hidden" data-lang="es"><label>Nom (ES)<input id="up-es-name" type="text" maxlength="40"></label></div>
+            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">La description de la carte est calculée par le jeu à partir de l'effet réel (traductions intégrées) : elle n'est pas éditable, pour ne jamais afficher une valeur fausse.</p>
+            <div class="nw-opts-grid">
+              <label>Identifiant moteur<input id="up-id" type="text" readonly></label>
+              <label>Type<input id="up-kind" type="text" readonly></label>
+            </div>
+          </div>
+          <div role="group" class="nw-sec" aria-labelledby="up-sec-art">
+            <h4 id="up-sec-art">2. Visuel</h4>
+            <div class="nw-opts-grid">
+              <div id="up-art" class="rl-art" aria-hidden="true"></div>
+              <label>Icône (emoji, repli du pictogramme)<input id="up-icon" type="text" maxlength="8"></label>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-outline" id="btn-up-studio" type="button">🎨 Pictogramme de la carte dans Icônes</button>
+            </div>
+            <p class="muted" style="font-size:0.75rem;margin:4px 0 0">Le pictogramme de la carte est la cible stable <code id="up-studio-key"></code> de l'atelier (#67) : une image par clic, téléversement, « Appliquer » / « Revenir à l'emoji ». L'image en jeu ne change qu'à « Appliquer ».</p>
+          </div>
+          <div role="group" class="nw-sec" aria-labelledby="up-sec-fx">
+            <h4 id="up-sec-fx">3. Effet, niveaux et prix</h4>
+            <p id="up-formula" class="muted" style="font-size:0.78rem;margin:4px 0"></p>
+            <p id="up-locked" class="muted hidden" style="font-size:0.75rem;margin:4px 0"></p>
+            <div class="nw-opts-grid">
+              <label>Nombre de niveaux<input id="up-max" type="number" step="1"></label>
+              <label id="up-per-wrap" class="hidden"><span id="up-per-label">Effet par niveau</span><input id="up-per" type="number" step="0.01"></label>
+              <label id="up-rr-base-wrap" class="hidden">Prix de base (pièces)<input id="up-rr-base" type="number" min="1" step="1"></label>
+              <label id="up-rr-every-wrap" class="hidden">Doublement tous les … achats<input id="up-rr-every" type="number" min="1" max="99" step="1"></label>
+            </div>
+            <div class="bk-table-wrap">
+              <table class="bk-table rl-levels">
+                <thead><tr><th class="num">Niveau atteint</th><th>Prix (pièces)</th><th class="num">Gemmes</th><th class="num">Prix réel (×Config)</th><th class="num">Cumul</th><th>Effet à ce niveau</th><th class="num">Joueurs à ce niveau</th></tr></thead>
+                <tbody id="up-levels-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div role="group" class="nw-sec" aria-labelledby="up-sec-sim">
+            <h4 id="up-sec-sim">4. Simulation avant / après</h4>
+            <div class="nw-opts-grid">
+              <label>Profil faible : pièces gagnées par minute<input id="up-sim-weak" type="number" min="1" step="1" value="300" data-adm-noguard></label>
+              <label>Profil fort : pièces gagnées par minute<input id="up-sim-strong" type="number" min="1" step="1" value="20000" data-adm-noguard></label>
+            </div>
+            <div class="bk-table-wrap">
+              <table class="bk-table">
+                <thead><tr><th></th><th class="num">En vigueur</th><th class="num">Fiche</th><th class="num">Écart</th></tr></thead>
+                <tbody id="up-sim-body"></tbody>
+              </table>
+            </div>
+            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Temps = cumul des prix réels ÷ revenu par minute (hors gemmes, sans dépense ailleurs) : ordre de grandeur pour comparer, pas une prévision.</p>
+            <div id="up-compare" class="hidden">
+              <p class="muted" style="font-size:0.75rem;margin:6px 0 2px"><strong>Comparaison avec la version en vigueur</strong> :</p>
+              <ul id="up-compare-list" style="font-size:0.78rem;margin:0"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-actions bk-dialog-foot">
+        <button class="btn btn-primary" id="btn-up-save" type="button">Enregistrer dans le brouillon</button>
+        <button class="btn btn-outline hidden" id="btn-up-revert" type="button">Annuler les modifications de cette amélioration</button>
+        <button class="btn btn-outline" id="btn-up-ctl-open" type="button">🚨 Suspendre / réactiver…</button>
+        <button class="btn btn-outline" type="button" data-close>Fermer</button>
+      </div>
+    </dialog>
+
+    <dialog id="up-ctl-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="up-ctl-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="up-ctl-title">Suspension</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <div class="nw-scroll">
+        <fieldset class="up-ctl-switches">
+          <legend>Suspendre (cocher) ou réactiver (décocher)</legend>
+          <label class="adm-check"><input id="up-ctl-purchases" type="checkbox"> <span><strong>Nouveaux achats</strong> — bouton « Suspendu », niveaux et effets conservés</span></label>
+          <label class="adm-check"><input id="up-ctl-effects" type="checkbox"> <span><strong>Effets</strong> — <span id="up-ctl-effects-help"></span></span></label>
+          <label class="adm-check"><input id="up-ctl-hidden" type="checkbox"> <span><strong>Affichage</strong> — carte masquée (achats bloqués), niveaux conservés</span></label>
+        </fieldset>
+        <div class="ic-notice" role="status"><strong>Conséquences</strong><ul id="up-ctl-preview" style="font-size:0.8rem;margin:4px 0 0"></ul></div>
+        <label>Motif (obligatoire, figure au journal)<textarea id="up-ctl-reason" rows="2" maxlength="300" placeholder="ex. : Sac trop puissant depuis la v3, en attente de correctif"></textarea></label>
+        <label id="up-ctl-confirm-wrap" class="hidden"><span id="up-ctl-confirm-label">Recopiez l'identifiant pour confirmer</span><input id="up-ctl-confirm" type="text" autocomplete="off"></label>
+        <ul id="up-ctl-issues" class="error hidden"></ul>
+      </div>
+      <div class="form-actions bk-dialog-foot">
+        <button class="btn btn-danger" id="btn-up-ctl-apply" type="button">Appliquer maintenant</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
       </div>
     </dialog>
   </section>

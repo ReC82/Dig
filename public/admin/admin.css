@@ -1148,3 +1148,8 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .mq-sim-profile h4 { margin: 10px 0 2px; font-size: 0.9rem; }
 .mq-table td:last-child { text-align: left; white-space: normal; }
 .mq-table td { vertical-align: top; }
+
+/* ⬆ Améliorations (#69) : suspension d'urgence */
+.up-row-suspended td { background: rgba(240, 180, 41, 0.12); }
+.up-ctl-switches { border: 1px solid var(--border, #333); border-radius: 8px; padding: 8px 12px; margin: 0 0 10px; display: grid; gap: 6px; }
+.up-ctl-switches legend { font-size: 0.8rem; padding: 0 4px; }

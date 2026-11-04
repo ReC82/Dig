@@ -21,7 +21,7 @@ const Upgrades = {
         return t('upgrade.pickaxe.desc', { damage, s: damage > 1 ? 's' : '' });
       },
       getCost(level) {
-        if (level >= 15) return null;
+        if (level >= this.maxLevel) return null;
         const c = Balance.PICKAXE[level - 1];
         return (c !== undefined) ? { coins: c, gems: 0 } : null;
       },
@@ -44,7 +44,7 @@ const Upgrades = {
         return t('upgrade.luck.preview', { depth: p.depth, now: fmt(p.now), next: fmt(p.next) });
       },
       getCost(level) {
-        if (level >= 12) return null;
+        if (level >= this.maxLevel) return null;
         const c = Balance.LUCK[level];
         return (c !== undefined) ? { coins: c, gems: 0 } : null;
       },
@@ -56,14 +56,14 @@ const Upgrades = {
       maxLevel: 12,
       /** Multiplicateur du Sac, facteur 🎒 de la récompense des blocs (getRewardBreakdown). */
       effect(level) {
-        return 1 + level * 0.3;
+        return 1 + level * Upgrades.BAG_PER_LEVEL;
       },
       describe(level) {
         if (level === 0) return t('upgrade.bag.desc_normal');
         return t('upgrade.bag.desc', { mult: Upgrades.formatMult(this.effect(level)) });
       },
       getCost(level) {
-        if (level >= 12) return null;
+        if (level >= this.maxLevel) return null;
         const c = Balance.BAG[level];
         return (c !== undefined) ? { coins: c, gems: 0 } : null;
       },
@@ -83,6 +83,7 @@ const Upgrades = {
         return t('upgrade.autodig.desc', { dmg, s: dmg > 1 ? 's' : '' });
       },
       getCost(level) {
+        if (level >= this.maxLevel) return null;
         return Balance.AUTODIG[level] ?? null;
       },
     },
@@ -98,7 +99,7 @@ const Upgrades = {
         return t('upgrade.fragment_shop.desc', { n: level });
       },
       getCost(level) {
-        if (level >= 10) return null;
+        if (level >= this.maxLevel) return null;
         const c = Balance.FRAGMENT_SHOP[level];
         return (c !== undefined) ? { coins: c, gems: 0 } : null;
       },
@@ -123,6 +124,101 @@ const Upgrades = {
     return GameState.upgrades[id] ?? 0;
   },
 
+  // ── Barème publié et suspension d'urgence (#69) ─────────────────────────
+  // La version 1 du serveur reprend ce barème à l'identique. Une version publiée depuis le panel
+  // remplace prix, nombre de niveaux, effet par niveau (Sac, Chance), paliers du reroll, noms et
+  // emoji ; mémorisée pour la visite suivante. Les suspensions arrivent avec le barème (relu chaque
+  // minute) : nouveaux achats bloqués, effets calculés comme au niveau de départ, ou carte masquée.
+  // Les niveaux possédés (GameState) ne sont JAMAIS modifiés : la réactivation rend l'effet tel quel.
+
+  /** Pièces par niveau de Sac (blocks.js porte l'équivalent de la Chance : LUCK_PER_LEVEL). */
+  BAG_PER_LEVEL: 0.3,
+  catalogVersion: 0,
+  controlsRev: -1,
+  controls: {},
+  CATALOG_URL: '/api/upgrades/catalog',
+  CATALOG_STORAGE_KEY: 'dig.upgradeCatalog.v1',
+  _TABLES: { pickaxe: 'PICKAXE', luck: 'LUCK', bag: 'BAG', fragment_shop: 'FRAGMENT_SHOP' },
+
+  /** Barème reçu valide (mêmes six améliorations, tableaux de la bonne longueur). */
+  _validCatalog(c) {
+    if (!c || !Number.isInteger(c.version) || !Array.isArray(c.upgrades)) return false;
+    return this.DEFS.every(def => {
+      const u = c.upgrades.find(x => x && x.id === def.id);
+      if (!u || !Number.isInteger(u.maxLevel) || u.maxLevel < 1) return false;
+      if (def.id === 'block_reroll') return Number.isInteger(u.reroll?.base) && u.reroll.base > 0 && Number.isInteger(u.reroll?.every) && u.reroll.every > 0;
+      const first = def.id === 'pickaxe' ? 1 : 0;
+      if (!Array.isArray(u.costs) || u.costs.length !== u.maxLevel - first || !u.costs.every(n => Number.isInteger(n) && n >= 0)) return false;
+      if (def.id === 'autodig' && (!Array.isArray(u.gems) || u.gems.length !== u.costs.length)) return false;
+      return u.perLevel === undefined || (Number.isFinite(u.perLevel) && u.perLevel > 0);
+    });
+  },
+
+  /** Applique barème + suspensions. Réponse invalide → rien n'est modifié. */
+  applyCatalog(catalog) {
+    if (!this._validCatalog(catalog)) return false;
+    for (const def of this.DEFS) {
+      const u = catalog.upgrades.find(x => x.id === def.id);
+      def.maxLevel = u.maxLevel;
+      def.names = u.names && typeof u.names === 'object' ? u.names : null;
+      if (u.icon) def.icon = String(u.icon);
+      if (def.id === 'block_reroll') Balance.REROLL = { base: u.reroll.base, every: u.reroll.every };
+      else if (def.id === 'autodig') Balance.AUTODIG = u.costs.map((coins, i) => ({ coins, gems: u.gems[i] }));
+      else Balance[this._TABLES[def.id]] = [...u.costs];
+      if (def.id === 'bag' && u.perLevel) this.BAG_PER_LEVEL = u.perLevel;
+      if (def.id === 'luck' && u.perLevel && typeof Blocks !== 'undefined') Blocks.LUCK_PER_LEVEL = u.perLevel;
+    }
+    const controls = {};
+    for (const [id, c] of Object.entries(catalog.controls && typeof catalog.controls === 'object' ? catalog.controls : {})) {
+      controls[id] = { purchases: c?.purchases === true || c?.hidden === true, effects: c?.effects === true, hidden: c?.hidden === true };
+    }
+    this.controls = controls;
+    this.catalogVersion = catalog.version;
+    this.controlsRev = Number.isInteger(catalog.controlsRev) ? catalog.controlsRev : 0;
+    return true;
+  },
+
+  loadCached(storage = typeof localStorage !== 'undefined' ? localStorage : null) {
+    try {
+      const raw = storage && storage.getItem(this.CATALOG_STORAGE_KEY);
+      return raw ? this.applyCatalog(JSON.parse(raw)) : false;
+    } catch (_) { return false; }
+  },
+
+  /** Lit le barème publié et les suspensions ; `onChange` est rappelé s'ils ont changé. */
+  fetchCatalog(onChange) {
+    if (typeof fetch === 'undefined') return Promise.resolve(false);
+    return fetch(this.CATALOG_URL, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(catalog => {
+        if (!catalog || (catalog.version === this.catalogVersion && catalog.controlsRev === this.controlsRev)) return false;
+        if (!this.applyCatalog(catalog)) return false;
+        try { localStorage.setItem(this.CATALOG_STORAGE_KEY, JSON.stringify(catalog)); } catch (_) { /* quota */ }
+        if (onChange) onChange();
+        return true;
+      })
+      .catch(() => false);
+  },
+
+  isHidden(id)            { return this.controls[id]?.hidden === true; },
+  isPurchaseSuspended(id) { return this.controls[id]?.purchases === true; },
+  isEffectSuspended(id)   { return this.controls[id]?.effects === true; },
+
+  /** Niveau qui produit l'effet : niveau possédé, ou niveau de départ si l'effet est suspendu. */
+  effectiveLevel(id) {
+    if (this.isEffectSuspended(id)) return id === 'pickaxe' ? 1 : 0;
+    return this.getLevel(id);
+  },
+
+  /** Nom affiché : barème publié dans la langue du joueur, puis traduction intégrée. */
+  displayName(def) {
+    const lang = typeof I18n !== 'undefined' ? I18n.getCurrent() : 'fr';
+    const own = def.names || {};
+    if (own[lang]) return own[lang];
+    const builtIn = typeof I18n !== 'undefined' && typeof I18n.has === 'function' && I18n.has(def.name, lang);
+    return builtIn ? t(def.name) : own.fr || t(def.name);
+  },
+
   /** Coût du prochain niveau, multiplicateur admin upgrade_cost_multiplier inclus (#20). */
   getCost(id) {
     const def = this.DEFS.find(d => d.id === id);
@@ -131,6 +227,7 @@ const Upgrades = {
   },
 
   canAfford(id) {
+    if (this.isPurchaseSuspended(id)) return false;
     const cost = this.getCost(id);
     if (!cost) return false;
     if (cost.coins > 0 && GameState.coins < cost.coins) return false;
@@ -147,7 +244,7 @@ const Upgrades = {
 
     if (id === 'pickaxe') {
       GameState.pickaxeLevel += 1;
-      GameState.damage = GameState.pickaxeLevel + (GameState.relicBonuses?.damageFlat ?? 0);
+      GameState.damage = this.effectiveLevel('pickaxe') + (GameState.relicBonuses?.damageFlat ?? 0);
     } else if (id === 'fragment_shop') {
       GameState.upgrades.fragment_shop = (GameState.upgrades.fragment_shop ?? 0) + 1;
       GameState.relicFragments         = (GameState.relicFragments ?? 0) + 1;
@@ -155,7 +252,7 @@ const Upgrades = {
       GameState.upgrades.block_reroll = (GameState.upgrades.block_reroll ?? 0) + 1;
       // Effet (spawn du nouveau bloc) géré par main.js après buy()
     } else {
-      GameState.upgrades[id] += 1;
+      GameState.upgrades[id] = (GameState.upgrades[id] ?? 0) + 1;
     }
 
     GameState.stats.totalUpgradesBought += 1;
@@ -164,7 +261,7 @@ const Upgrades = {
 
   /** Multiplicateur des pièces des blocs : sac × relique × coin_gain_multiplier (admin, #20). */
   getRewardMultiplier() {
-    return (1 + GameState.upgrades.bag * 0.3) * (1 + (GameState.relicBonuses?.coinsPct ?? 0))
+    return (1 + this.effectiveLevel('bag') * this.BAG_PER_LEVEL) * (1 + (GameState.relicBonuses?.coinsPct ?? 0))
       * Balance.economy.coinGainMultiplier;
   },
 
@@ -176,7 +273,7 @@ const Upgrades = {
    */
   getRewardBreakdown(blockReward, boostMult = 1) {
     const factors = [
-      { key: 'bag',   mult: 1 + GameState.upgrades.bag * 0.3 },
+      { key: 'bag',   mult: 1 + this.effectiveLevel('bag') * this.BAG_PER_LEVEL },
       { key: 'relic', mult: 1 + (GameState.relicBonuses?.coinsPct ?? 0) },
       { key: 'event', mult: Balance.economy.coinGainMultiplier },
       { key: 'boost', mult: boostMult },
@@ -219,6 +316,6 @@ const Upgrades = {
   },
 
   getAutoDigDamage() {
-    return GameState.upgrades.autodig + (GameState.relicBonuses?.autodigBonus ?? 0);
+    return this.effectiveLevel('autodig') + (GameState.relicBonuses?.autodigBonus ?? 0);
   },
 };

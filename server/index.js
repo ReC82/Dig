@@ -85,6 +85,7 @@ const contest   = require('./contest');
 const shop      = require('./shop');
 const blockCatalog = require('./blockCatalog');
 const relicCatalog = require('./relicCatalog');
+const upgradeCatalog = require('./upgradeCatalog');
 const missionCatalog = require('./missionCatalog');
 const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
@@ -816,12 +817,18 @@ app.get('/api/relics/catalog', (req, res) => {
   catch (err) { console.error('[GET /api/relics/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
+// Barème et suspensions des améliorations (#69) : relus par le jeu au démarrage puis chaque minute.
+app.get('/api/upgrades/catalog', (req, res) => {
+  try { res.set('Cache-Control', 'no-cache'); res.json(upgradeCatalog.publicCatalog()); }
+  catch (err) { console.error('[GET /api/upgrades/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
 function catalogRoute(label, fn) {
   return async (req, res) => {
     try { res.json(await fn(req)); }
     catch (err) {
       if (err instanceof blockCatalog.CatalogError || err instanceof blockAi.AiError || err instanceof relicCatalog.CatalogError
-        || err instanceof missionCatalog.CatalogError) {
+        || err instanceof missionCatalog.CatalogError || err instanceof upgradeCatalog.CatalogError) {
         return res.status(err.status).json({ error: err.message, details: err.details });
       }
       if (err instanceof rewardTables.RewardError) return res.status(err.status).json({ error: err.message, details: err.details });
@@ -1344,6 +1351,40 @@ app.post('/api/admin/relics/publish', requireAdmin, catalogRoute('POST /api/admi
 
 app.post('/api/admin/relics/rollback', requireAdmin, catalogRoute('POST /api/admin/relics/rollback',
   req => relicCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+// ── Améliorations (#69) : barème versionné (brouillon → publication) et suspension d'urgence ──
+app.get('/api/admin/upgrades', requireAdmin, catalogRoute('GET /api/admin/upgrades',
+  () => ({ ...upgradeCatalog.buildAdminView(), pictos: iconStudio.uiIconMap().icons ?? {} })));   // pictogrammes appliqués (#67)
+
+app.put('/api/admin/upgrades/draft/upgrades/:id', requireAdmin, catalogRoute('PUT /api/admin/upgrades/draft/upgrades/:id', req => {
+  const upgrade = req.body?.upgrade;
+  if (!upgrade || upgrade.id !== req.params.id) throw new upgradeCatalog.CatalogError(400, 'Identifiant incohérent.');
+  return upgradeCatalog.upsertDraftUpgrade(upgrade);
+}));
+
+app.post('/api/admin/upgrades/draft/upgrades/:id/revert', requireAdmin, catalogRoute('POST /api/admin/upgrades/draft/upgrades/:id/revert',
+  req => upgradeCatalog.revertDraftUpgrade(String(req.params.id))));
+
+app.delete('/api/admin/upgrades/draft', requireAdmin, catalogRoute('DELETE /api/admin/upgrades/draft',
+  () => ({ discarded: upgradeCatalog.discardDraft() })));
+
+app.post('/api/admin/upgrades/publish', requireAdmin, catalogRoute('POST /api/admin/upgrades/publish',
+  req => upgradeCatalog.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null })));
+
+app.post('/api/admin/upgrades/rollback', requireAdmin, catalogRoute('POST /api/admin/upgrades/rollback',
+  req => upgradeCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+app.get('/api/admin/upgrades/audit', requireAdmin, catalogRoute('GET /api/admin/upgrades/audit',
+  req => ({ audit: upgradeCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })), controls: upgradeCatalog.listControlAudit(100) })));
+
+// Aperçu des conséquences d'une suspension : rien n'est appliqué.
+app.post('/api/admin/upgrades/:id/controls/preview', requireAdmin, catalogRoute('POST /api/admin/upgrades/:id/controls/preview',
+  req => upgradeCatalog.previewControl(String(req.params.id), req.body?.controls)));
+
+// Suspension / réactivation immédiate : motif obligatoire, identifiant recopié pour effets et affichage.
+app.post('/api/admin/upgrades/:id/controls', requireAdmin, catalogRoute('POST /api/admin/upgrades/:id/controls',
+  req => upgradeCatalog.setControl(String(req.params.id), req.body?.controls,
+    { reason: req.body?.reason, confirm: req.body?.confirm, via: req.adminVia })));
 
 app.get('/api/admin/relics/audit', requireAdmin, catalogRoute('GET /api/admin/relics/audit',
   req => ({ audit: relicCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
@@ -2314,6 +2355,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 initDb();
 blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
 relicCatalog.init();             // catalogue de reliques v1 = 6 reliques d'origine, valeurs identiques (#64)
+upgradeCatalog.init();           // améliorations v1 = barème du jeu à l'identique, aucune suspension (#69)
 missionCatalog.init();           // missions quotidiennes v1 = 6 missions d'origine ; jeu inchangé, drapeau OFF (#68)
 rewardTables.init();             // tables de récompenses des coffres v1 = tables d'origine (#37)
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
