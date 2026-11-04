@@ -524,7 +524,7 @@ app.post('/api/me/save', limit.save, (req, res) => {
     const { version } = result;
     // Sync saisonnier piggybacked
     if (data.seasonStats) {
-      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats, { telemetry, ip: req.ip }); }
+      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats, { telemetry, ip: req.ip, save: data }); }
       catch (err) { console.error('[POST /api/me/save] sync saisonnier', err.message); }
     }
     // Badges honorifiques (#38) : statistiques bornées par la profondeur retenue, attribution unique
@@ -1862,6 +1862,20 @@ app.get('/api/admin/security/events', requireAdmin, (req, res) => {
     const sinceDays = antibot.EVENT_PERIODS.includes(days) ? days : null;
     res.json(antibot.listEvents({ limit, offset, type, group, sinceDays, userId }));
   } catch (err) { console.error('[GET /api/admin/security/events]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * GET /api/admin/security/player?q=<pseudo|id>&seasonId=
+ * Fiche diagnostique d'un joueur (lecture seule) : progression retenue vs déclarée, compteurs,
+ * score de risque expliqué, journal filtré, échantillons par sauvegarde, réponses appliquées.
+ */
+app.get('/api/admin/security/player', requireAdmin, (req, res) => {
+  try {
+    const found = antibot.findPlayer(req.query.q);
+    if (!found) return res.status(404).json({ error: 'Joueur introuvable (pseudo exact ou identifiant).' });
+    const seasonId = /^\d{1,10}$/.test(String(req.query.seasonId ?? '')) ? parseInt(req.query.seasonId, 10) : null;
+    res.json(antibot.playerReport(found.id, { seasonId, config: getAdminConfig() }));
+  } catch (err) { console.error('[GET /api/admin/security/player]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 // ── Coffres achetables ────────────────────────────────────────────────────────

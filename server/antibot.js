@@ -252,6 +252,7 @@ function purgeOldEvents() {
     `DELETE FROM security_events WHERE created_at < datetime('now', ?)`
   ).run(`-${EVENT_RETENTION_DAYS} days`);
   if (r.changes > 0) console.log(`[antibot] ${r.changes} événement(s) de sécurité de plus de ${EVENT_RETENTION_DAYS} jours purgé(s)`);
+  getDb().prepare('DELETE FROM antibot_save_samples WHERE at_ms < ?').run(Date.now() - EVENT_RETENTION_DAYS * 86400_000);
   return r.changes;
 }
 
@@ -558,7 +559,258 @@ function listEvents({ limit = 100, offset = 0, type = null, group = null, sinceD
   return { events, total, limit, offset };
 }
 
+// ── Fiche joueur (#25, demande du propriétaire du 04/11) ─────────────────────
+
+/** Échantillons conservés par joueur (≈ 1 par sauvegarde ; les plus anciens sont retirés). */
+const SAMPLES_PER_USER = 500;
+
+const _sampleInt = v => (Number.isSafeInteger(v) && v >= 0 && v <= COUNTER_MAX ? v : null);
+
+/**
+ * Une ligne agrégée par sauvegarde contrôlée : compteurs déclarés, profondeur retenue et résumé
+ * de télémétrie normalisé. Sert uniquement au diagnostic admin (aucun effet sur le jeu).
+ */
+function recordSaveSample(userId, seasonId, { reportedDepth, acceptedDepth, budgetDepth, seasonStats, blocksDestroyed, autodigLevel, acAction, telemetry }, nowMs = Date.now()) {
+  const db = getDb();
+  db.prepare(`
+    INSERT INTO antibot_save_samples (user_id, season_id, at_ms, reported_depth, accepted_depth, budget_depth,
+      manual_clicks, manual_blocks, auto_blocks, blocks_destroyed, autodig_level, ac_action, tel)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, seasonId, nowMs, _sampleInt(reportedDepth), _sampleInt(acceptedDepth), _sampleInt(budgetDepth),
+         _sampleInt(seasonStats?.manualClicks), _sampleInt(seasonStats?.manualBlocks), _sampleInt(seasonStats?.autoBlocks),
+         _sampleInt(blocksDestroyed), _sampleInt(autodigLevel), acAction ? String(acAction).slice(0, 20) : null,
+         telemetry ? JSON.stringify(telemetry) : null);
+  db.prepare(`
+    DELETE FROM antibot_save_samples WHERE user_id = ? AND id <= (
+      SELECT id FROM antibot_save_samples WHERE user_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?)
+  `).run(userId, userId, SAMPLES_PER_USER);
+}
+
+/** Joueur cherché par identifiant (« 12 », « #12 ») ou pseudo exact (insensible à la casse). */
+function findPlayer(query) {
+  const q = String(query ?? '').trim().replace(/^#/, '');
+  if (!q || q.length > 40) return null;
+  const db = getDb();
+  if (/^\d{1,10}$/.test(q)) {
+    const byId = db.prepare('SELECT id, username, created_at FROM users WHERE id = ?').get(parseInt(q, 10));
+    if (byId) return byId;
+  }
+  return db.prepare('SELECT id, username, created_at FROM users WHERE username = ?').get(q.toLowerCase()) ?? null;
+}
+
+const _r1 = v => (v == null ? null : Math.round(v * 10) / 10);
+const _utc = ms => (ms ? new Date(ms).toISOString() : null);
+const _json = t => { try { return t ? JSON.parse(t) : null; } catch (_) { return null; } };
+
+/** Niveau d'une amélioration dans la sauvegarde (nombre ou { level }). */
+const _lvl = v => (typeof v === 'number' ? v : (v && typeof v === 'object' && typeof v.level === 'number' ? v.level : 0));
+
+/**
+ * Fiche diagnostique d'un joueur pour une saison (lecture seule). Chaque valeur est qualifiée :
+ *   server  = calculé ou mesuré par le serveur (horloge serveur, validations) ;
+ *   client  = déclaré par la sauvegarde du navigateur (non vérifié) ;
+ *   tele    = télémétrie du navigateur (indice, falsifiable).
+ */
+function playerReport(userId, { seasonId = null, config = {}, nowMs = Date.now() } = {}) {
+  const db = getDb();
+  const user = db.prepare('SELECT id, username, created_at FROM users WHERE id = ?').get(userId);
+  if (!user) return null;
+  const active = db.prepare(`SELECT * FROM seasons WHERE status = 'active' ORDER BY id DESC LIMIT 1`).get();
+  const seasons = db.prepare(`
+    SELECT s.id, s.name, s.status FROM seasons s
+    WHERE s.id IN (SELECT season_id FROM season_rankings WHERE user_id = ?
+                   UNION SELECT season_id FROM security_events WHERE user_id = ? AND season_id IS NOT NULL
+                   UNION SELECT season_id FROM antibot_save_samples WHERE user_id = ?)
+       OR s.id = ?
+    ORDER BY s.id DESC
+  `).all(userId, userId, userId, active?.id ?? -1);
+  const sid = seasonId ?? active?.id ?? seasons[0]?.id ?? null;
+  const season = sid == null ? null : db.prepare('SELECT id, name, status, start_at, end_at FROM seasons WHERE id = ?').get(sid);
+
+  const ranking = sid == null ? null : db.prepare(`
+    SELECT max_depth, reported_max_depth, manual_blocks, effective_manual_blocks, auto_blocks, manual_clicks,
+           suspicious_score, is_active, created_at, updated_at
+    FROM season_rankings WHERE season_id = ? AND user_id = ?
+  `).get(sid, userId) ?? null;
+
+  const dt = db.prepare('SELECT * FROM player_depth_tracking WHERE user_id = ?').get(userId);
+  const ct = db.prepare('SELECT * FROM player_click_tracking WHERE user_id = ?').get(userId);
+  const depth = dt && dt.season_id === sid ? {
+    lastCheck: _utc(dt.updated_ms), acceptedDepth: dt.accepted_depth, depthGap: dt.last_gap ?? 0,
+    budgetDepth: dt.dmg_depth, budgetGap: _r1(dt.dmg_gap ?? 0), budgetCredit: _r1(dt.dmg_credit),
+    refClicks: dt.ref_clicks, refAuto: dt.ref_auto,
+  } : null;
+  const clicks = ct && ct.season_id === sid ? {
+    lastSave: ct.last_save_at ? ct.last_save_at.replace(' ', 'T') + 'Z' : null,
+    lastManualClicks: ct.last_manual_clicks, lastBlocks: ct.last_blocks, acceptedBlocks: ct.accepted_blocks,
+  } : null;
+
+  // Sauvegarde actuelle (déclarée par le client ; écrasée à chaque envoi, aucun historique)
+  const saveRow = db.prepare('SELECT data, version, saved_at FROM user_saves WHERE user_id = ?').get(userId);
+  let save = null;
+  const sd = _json(saveRow?.data);
+  if (sd && typeof sd === 'object') {
+    const ups = sd.upgrades && typeof sd.upgrades === 'object' ? sd.upgrades : {};
+    const rel = sd.relics && typeof sd.relics === 'object' ? sd.relics : {};
+    const st  = sd.stats && typeof sd.stats === 'object' ? sd.stats : {};
+    const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    save = {
+      revision: saveRow.version, savedAt: saveRow.saved_at.replace(' ', 'T') + 'Z',
+      depth: num(sd.depth), coins: num(sd.coins), gems: num(sd.gems), relicFragments: num(sd.relicFragments),
+      pickaxeLevel: num(sd.pickaxeLevel), damage: num(sd.damage),
+      upgrades: Object.fromEntries(Object.entries(ups).slice(0, 30).map(([k, v]) => [k.slice(0, 30), _lvl(v)])),
+      relics: Object.fromEntries(Object.entries(rel).slice(0, 30).map(([k, v]) => [k.slice(0, 30), _lvl(v)])),
+      blocksDestroyed: num(st.blocksDestroyed), totalCoinsEarned: num(st.totalCoinsEarned),
+      totalUpgradesBought: num(st.totalUpgradesBought), chestsFound: num(st.chestsFound), gemsFound: num(st.gemsFound),
+      seasonStats: sd.seasonStats?.seasonId === sid ? {
+        maxDepth: num(sd.seasonStats.maxDepth), manualBlocks: num(sd.seasonStats.manualBlocks),
+        autoBlocks: num(sd.seasonStats.autoBlocks), manualClicks: num(sd.seasonStats.manualClicks),
+        suspiciousScore: num(sd.seasonStats.suspiciousScore),
+      } : null,
+    };
+  }
+
+  // Score de risque : composantes décroissantes, plafonds par catégorie
+  const risk = sid == null ? { score: 0, level: 0, components: {} } : getRisk(userId, sid, nowMs);
+  const riskRow = sid == null ? null : db.prepare('SELECT updated_ms FROM risk_scores WHERE user_id = ? AND season_id = ?').get(userId, sid);
+
+  const evWhere = sid == null ? 'user_id = ?' : 'user_id = ? AND (season_id = ? OR season_id IS NULL)';
+  const evArgs  = sid == null ? [userId] : [userId, sid];
+  const byType = db.prepare(`
+    SELECT type, COUNT(*) AS n, MIN(created_at) AS first, MAX(created_at) AS last
+    FROM security_events WHERE ${evWhere} GROUP BY type ORDER BY n DESC
+  `).all(...evArgs);
+  const recent = db.prepare(`
+    SELECT id, created_at, type, score_before, score_after, details
+    FROM security_events WHERE ${evWhere} ORDER BY id DESC LIMIT 100
+  `).all(...evArgs);
+
+  // Rafales déjà journalisées (seule trace de télémétrie avant les échantillons)
+  const burst = { batches: 0, clicks: 0, under40ms: 0, intervals: 0 };
+  for (const e of recent) {
+    if (e.type !== 'burst_clicks') continue;
+    const d = _json(e.details);
+    if (!d) continue;
+    burst.batches += 1;
+    burst.clicks += d.clicks ?? 0;
+    burst.under40ms += d.under40ms ?? 0;
+    burst.intervals += d.intervals ?? 0;
+  }
+
+  const acByAction = sid == null ? [] : db.prepare(`
+    SELECT action_taken AS action, COUNT(*) AS n, SUM(period_clicks) AS clicks, SUM(period_seconds) AS secs,
+           MAX(inferred_cps) AS maxCps, MIN(logged_at) AS first, MAX(logged_at) AS last
+    FROM anticheat_logs WHERE user_id = ? AND season_id = ? GROUP BY action_taken ORDER BY n DESC
+  `).all(userId, sid);
+  const acRecent = sid == null ? [] : db.prepare(`
+    SELECT logged_at, action_taken AS action, period_seconds AS secs, period_clicks AS clicks,
+           inferred_cps AS cps, effective_ratio AS ratio
+    FROM anticheat_logs WHERE user_id = ? AND season_id = ? ORDER BY id DESC LIMIT 30
+  `).all(userId, sid);
+
+  // Échantillons par sauvegarde (depuis leur mise en service) : deltas calculés entre deux lignes
+  const sRows = sid == null ? [] : db.prepare(`
+    SELECT * FROM antibot_save_samples WHERE user_id = ? AND season_id = ? ORDER BY id DESC LIMIT 200
+  `).all(userId, sid).reverse();
+  const tel = { saves: 0, clicks: 0, untrusted: 0, h: new Array(TELEMETRY_BINS).fill(0), p: { m: 0, t: 0, k: 0, o: 0 } };
+  const samples = sRows.map((r, i) => {
+    const prev = i > 0 ? sRows[i - 1] : null;
+    const d = (a, b) => (prev && r[a] != null && prev[a] != null ? r[a] - prev[a] : null);
+    const t = _json(r.tel);
+    if (t) {
+      tel.saves += 1;
+      tel.clicks += t.n ?? 0;
+      tel.untrusted += t.u ?? 0;
+      if (Array.isArray(t.h)) t.h.forEach((v, j) => { tel.h[j] += v; });
+      if (t.p) for (const k of Object.keys(tel.p)) tel.p[k] += t.p[k] ?? 0;
+    }
+    const dtSecs = prev ? (r.at_ms - prev.at_ms) / 1000 : null;
+    const dClicks = d('manual_clicks');
+    return {
+      at: _utc(r.at_ms), dtSecs: _r1(dtSecs),
+      reportedDepth: r.reported_depth, acceptedDepth: r.accepted_depth, budgetDepth: r.budget_depth,
+      dDepth: d('accepted_depth'), dClicks, dManualBlocks: d('manual_blocks'), dAutoBlocks: d('auto_blocks'),
+      dBlocksDestroyed: d('blocks_destroyed'),
+      serverCps: dtSecs > 0 && dClicks != null ? _r1(dClicks / dtSecs) : null,
+      autodigLevel: r.autodig_level, acAction: r.ac_action,
+      tel: t ? { n: t.n, u: t.u, under40: t.h?.[0] ?? null, p: t.p ?? null } : null,
+    };
+  });
+
+  const declared = save?.seasonStats ?? null;
+  const uncountedBlocks = save?.blocksDestroyed != null && declared?.manualBlocks != null && declared?.autoBlocks != null
+    ? Math.max(0, save.blocksDestroyed - declared.manualBlocks - declared.autoBlocks) : null;
+
+  const budgetMode = getDamageBudgetMode(config);
+  const abMode = getAntibotMode(config);
+  const depthOn = String(config.depth_validation_enabled ?? 'true').toLowerCase() !== 'false';
+  const acOn = String(config.anti_autoclick_enabled ?? 'true').toLowerCase() !== 'false';
+  const count = type => byType.find(e => e.type === type)?.n ?? 0;
+  const acCount = a => acByAction.find(x => x.action === a)?.n ?? 0;
+  const notRanked = ranking ? Math.max(0, ranking.manual_blocks - ranking.effective_manual_blocks) : null;
+
+  // Tableau « contrôle → observation → action prévue → action effectivement appliquée »
+  const responses = [
+    { control: 'Validation de la profondeur (#9, seaux de jetons)', mode: depthOn ? 'actif' : 'désactivé',
+      observation: `${count('depth_rejected')} rejet(s) journalisé(s) ; écart actuel déclaré − retenu : ${depth?.depthGap ?? 0} m`,
+      planned: 'Borne la profondeur CLASSÉE par le temps serveur (clics ≤ depth_max_cps, Auto-Dig ≤ 1 bloc/s).',
+      applied: depthOn ? 'Profondeur classée plafonnée si l’écart > 0. La partie du joueur (profondeur affichée, pièces, achats) n’est pas modifiée.' : 'Aucune.' },
+    { control: 'Budget de dégâts (#25 lot B)', mode: budgetMode,
+      observation: `${count('damage_budget')} dépassement(s) journalisé(s), ${acCount('damage_capped')} plafonnement(s) ; écart inexpliqué actuel : ${_r1(depth?.budgetGap ?? 0)} m`,
+      planned: 'Borne la profondeur CLASSÉE par les dégâts maximum possibles (25 PV/clic, 20 PV/s Auto-Dig) contre les PV minimum des blocs.',
+      applied: budgetMode === 'enforce' ? 'Profondeur classée plafonnée en cas de dépassement. Ne réduit ni les coups, ni les gains, ni les achats.' : 'Aucune (calcul et journal seulement).' },
+    { control: 'Anti-autoclic (#10)', mode: acOn ? 'actif' : 'désactivé',
+      observation: `${acCount('flagged')} fenêtre(s) « flagged », ${acCount('reduced')} « reduced », ${acCount('rejected')} « rejected » ; blocs manuels déclarés non retenus : ${notRanked ?? '—'}`,
+      planned: 'Au-delà de max_effective_cps, réduit les blocs manuels VALIDÉS (classement #73).',
+      applied: acOn ? 'Blocs manuels classés réduits. Les clics, les dégâts, la profondeur et les gains de la partie ne sont pas réduits.' : 'Aucune.' },
+    { control: 'Clic suspect côté navigateur (_isSuspiciousCPS)', mode: 'client',
+      observation: `${declared?.suspiciousScore ?? ranking?.suspicious_score ?? '—'} clic(s) jugés suspects (déclaré) ; blocs détruits ni manuels ni Auto-Dig : ${uncountedBlocks ?? 'non disponible'}`,
+      planned: 'Un bloc détruit par un clic suspect n’est pas compté comme manuel.',
+      applied: 'Le bloc rapporte quand même profondeur et gains (faille suivie dans #74).' },
+    { control: 'Score de risque (lot A)', mode: abMode,
+      observation: `Score ${_r1(risk.score)} — niveau N${risk.level}`,
+      planned: 'Niveaux N1 journaliser · N2 limiter · N3 défi · N4 suspension (lot C, non réalisé).',
+      applied: 'Aucune : mode shadow, applied:false (aucun niveau n’est appliqué).' },
+    { control: 'Économie (pièces, améliorations, reliques, coffres)', mode: 'non validée',
+      observation: save ? `Déclaré : ${save.coins ?? '—'} pièces, Auto-Dig niv. ${save.upgrades.autodig ?? 0}, pioche niv. ${save.pickaxeLevel ?? '—'}` : 'Aucune sauvegarde.',
+      planned: 'Aucun contrôle serveur des gains et achats aujourd’hui (gemmes : registre #49, mode réglable).',
+      applied: 'Aucune : la sauvegarde du navigateur est acceptée telle quelle (correctif P0 suivi dans #74).' },
+  ];
+
+  return {
+    player: { userId: user.id, username: user.username, createdAt: user.created_at.replace(' ', 'T') + 'Z' },
+    season: season ? { id: season.id, name: season.name, status: season.status, startAt: season.start_at, endAt: season.end_at } : null,
+    seasons,
+    modes: { antibotMode: abMode, damageBudgetMode: budgetMode, depthValidation: depthOn, antiAutoclick: acOn,
+             maxEffectiveCps: parseFloat(config.max_effective_cps ?? config.cps_limit ?? '8'),
+             depthMaxCps: parseFloat(config.depth_max_cps ?? '20'), sanctionsApplied: false },
+    ranking: ranking ? {
+      acceptedDepth: ranking.max_depth, reportedDepth: ranking.reported_max_depth,
+      manualBlocks: ranking.manual_blocks, validatedManualBlocks: Math.min(ranking.effective_manual_blocks, ranking.manual_blocks),
+      autoBlocks: ranking.auto_blocks, manualClicks: ranking.manual_clicks, suspiciousClicks: ranking.suspicious_score,
+      isActive: !!ranking.is_active,
+      firstSeen: ranking.created_at.replace(' ', 'T') + 'Z', lastUpdate: ranking.updated_at.replace(' ', 'T') + 'Z',
+    } : null,
+    depth, clicks, save, uncountedBlocks,
+    risk: {
+      score: _r1(risk.score), level: risk.level, updatedAt: _utc(riskRow?.updated_ms),
+      components: Object.entries(CATEGORY_CAPS).map(([cat, cap]) => ({
+        cat, value: _r1(risk.components[cat] ?? 0), cap,
+        signals: Object.entries(SIGNALS).filter(([, d]) => d.cat === cat).map(([t, d]) => `${t} +${d.points}`),
+      })),
+      halfLifeHours: HALF_LIFE_MS / 3600_000,
+      thresholds: { 1: 30, 2: 60, 3: 80, 4: 90 },
+    },
+    events: { byType, recent },
+    burstFromEvents: burst,
+    anticheat: { byAction: acByAction, recent: acRecent },
+    samples: { rows: samples, telemetry: tel.saves ? tel : null, since: samples[0]?.at ?? null },
+    responses,
+  };
+}
+
 module.exports = {
+  recordSaveSample, findPlayer, playerReport, SAMPLES_PER_USER,
   // Lot B
   MAX_CLICK_DAMAGE, MAX_AUTODIG_DPS, AUTODIG_MARGIN, CLICK_MARGIN, MAX_HP_REDUCTION, HP_SCALE_PER_M,
   MIN_HP_SEGMENTS, DAMAGE_POOL_SECS, DAMAGE_LOG_GAP, setMinHpSegments, getMinHpSegments,

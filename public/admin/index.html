@@ -557,6 +557,15 @@
       <div id="sec-status"></div>
     </div>
     <div class="overview-card">
+      <h3 class="overview-card-title">Fiche d'un joueur</h3>
+      <p class="muted" style="font-size:0.78rem;margin-bottom:8px">Pseudo exact ou identifiant ; ou bouton « Fiche » dans les tableaux ci-dessous. Lecture seule : rien n'est modifié ni appliqué au joueur.</p>
+      <form id="sec-player-form" class="sec-player-form">
+        <input type="text" id="sec-player-q" maxlength="40" placeholder="Pseudo ou #ID" aria-label="Pseudo ou identifiant du joueur" autocomplete="off">
+        <button type="submit" class="btn btn-sm">Ouvrir la fiche</button>
+      </form>
+      <p id="sec-player-err" class="error hidden" role="alert"></p>
+    </div>
+    <div class="overview-card">
       <h3 class="overview-card-title">Derniers contrôles des joueurs (saison active)</h3>
       <p class="muted" style="font-size:0.78rem;margin-bottom:8px">État lu dans les données de validation, mis à jour à chaque sauvegarde. Écart de profondeur = déclarée − retenue (un petit écart temporaire est normal le temps que le crédit couvre la progression).</p>
       <div style="overflow-x:auto">
@@ -622,6 +631,19 @@
       </div>
     </div>
   </section>
+
+  <!-- Fiche joueur anti-bot (#25, 04/11) : lecture seule -->
+  <dialog id="sec-player-dialog" class="bk-dialog adm-dialog" aria-labelledby="sec-player-title">
+    <div class="section-header bk-dialog-head">
+      <h3 class="overview-card-title" id="sec-player-title">Fiche joueur</h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="sec-player-season" class="league-select" aria-label="Saison"></select>
+        <button type="button" class="btn btn-outline" id="btn-sec-player-refresh">↻ Rafraîchir</button>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
+    </div>
+    <div id="sec-player-body"></div>
+  </dialog>
 
   <!-- Tab Concours (#30) -->
   <section id="tab-contest" class="tab-content hidden">
