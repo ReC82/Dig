@@ -3219,11 +3219,11 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "season.blocks_label": {
-   "text": "Blocchi a mano",
-   "src": "2b065a3e597e",
+   "text": "Blocchi distrutti a mano",
+   "src": "1ef3f575252b",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
   },
   "season.collection": {
    "text": "Collezione della stagione: {name} ({n} oggetti)",
@@ -3379,6 +3379,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "season.last.blocks": {
+   "text": "{n} blocchi",
+   "src": "688612e03dd5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
+  },
   "season.last.deleted": {
    "text": "Account eliminato",
    "src": "d4689c4ecadc",
@@ -3421,6 +3428,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "season.last.me_ineligible_blocks": {
+   "text": "Non eri in classifica (nessun blocco manuale convalidato).",
+   "src": "3132416990d1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
+  },
   "season.last.me_points": {
    "text": {
     "one": "+{n} pt accreditato",
@@ -3447,6 +3461,13 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.last.me_rank_blocks": {
+   "text": "Il tuo risultato: posizione #{rank} su {n} · {blocks} blocchi a mano",
+   "src": "13dad4b270dd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
   },
   "season.last.nobody": {
    "text": "Nessun partecipante classificato: niente vincitore né punti per questa stagione.",
@@ -3497,12 +3518,47 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "season.lb.blocks": {
+   "text": "Blocchi a mano",
+   "src": "2b065a3e597e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
+  },
+  "season.lb.depth": {
+   "text": "Prof.",
+   "src": "c68c8c2f454b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
+  },
+  "season.lb.player": {
+   "text": "Giocatore",
+   "src": "a65f1997d3d5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
+  },
+  "season.lb.rule": {
+   "text": "La posizione dipende solo dai blocchi distrutti a mano e convalidati dal server. L’Auto-Dig non conta; la profondità è indicata a titolo informativo.",
+   "src": "4f092c3da3f7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
+  },
   "season.leaderboard": {
    "text": "Classifica",
    "src": "936810fc69cb",
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.leaderboard_blocks": {
+   "text": "Classifica — blocchi distrutti a mano",
+   "src": "ee686e7bcd85",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
   },
   "season.league_hint": {
    "text": "La tua lega è un livello duraturo: si sale con la promozione a fine stagione. Il tema, invece, cambia ogni settimana.",
@@ -3547,11 +3603,11 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "season.merit.order": {
-   "text": "Ordine per merito: profondità massima convalidata dal server, poi blocchi rotti a mano, poi chi è arrivato per primo a quella profondità. Nessuna estrazione a sorte.",
-   "src": "7363354bf0a9",
+   "text": "Ordine per merito: numero di blocchi distrutti a mano e convalidati dal server (l’Auto-Dig non conta), poi chi ha raggiunto per primo quel totale. La profondità non conta. Nessuna estrazione a sorte.",
+   "src": "ca47424342a3",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
   },
   "season.merit.points": {
    "text": "I punti premio vengono assegnati secondo la tabella dei punti, poi si scambiano nel negozio dei regali.",
@@ -3622,6 +3678,13 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "season.not_ranked": {
+   "text": "Non ancora in classifica",
+   "src": "56fcf0b8737a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #73)",
+   "at": "2026-11-04T23:00:00.000Z"
   },
   "season.period": {
    "text": "Dal {start} al {end}",

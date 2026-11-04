@@ -42,14 +42,14 @@ function load({ account = { username: 'lody' }, points = null, lang = 'fr' } = {
 
 const DATA = {
   season:   { id: 6, name: 'Saison 44-2026', startAt: '2026-10-26 00:00:00', endAt: '2026-10-30 15:45:00', status: 'closed' },
-  snapshot: { createdAt: '2026-10-30 15:45:11', source: 'close', participants: 4, eligible: 3, prizeMode: 'simulation', hash: 'a'.repeat(64) },
+  snapshot: { createdAt: '2026-10-30 15:45:11', source: 'close', algorithm: 'merit-v2', participants: 4, eligible: 3, prizeMode: 'simulation', hash: 'a'.repeat(64) },
   standings: [
-    { rank: 1, userId: 7, username: 'alice<b>', league: { icon: '🌼' }, maxDepth: 1279, eligible: true },
-    { rank: 2, userId: 1, username: 'lody', league: null, maxDepth: 279, eligible: true },
-    { rank: 3, userId: 9, username: null, league: null, maxDepth: 12, eligible: true },
-    { rank: null, userId: 4, username: 'zero', league: null, maxDepth: 0, eligible: false },
+    { rank: 1, userId: 7, username: 'alice<b>', league: { icon: '🌼' }, maxDepth: 12, manualBlocks: 900, eligible: true },
+    { rank: 2, userId: 1, username: 'lody', league: null, maxDepth: 279, manualBlocks: 41, eligible: true },
+    { rank: 3, userId: 9, username: null, league: null, maxDepth: 1279, manualBlocks: 7, eligible: true },
+    { rank: null, userId: 4, username: 'zero', league: null, maxDepth: 600, manualBlocks: 0, eligible: false },
   ],
-  me: { rank: 2, userId: 1, username: 'lody', maxDepth: 279, eligible: true },
+  me: { rank: 2, userId: 1, username: 'lody', maxDepth: 279, manualBlocks: 41, eligible: true },
 };
 
 test('résultat figé : podium échappé, rang du joueur, points crédités, preuve publique', () => {
@@ -62,10 +62,22 @@ test('résultat figé : podium échappé, rang du joueur, points crédités, pre
   assert.match(h, /Compte supprimé/);
   assert.ok(!h.includes('zero'), 'les non-classés ne sont pas sur le podium');
   assert.match(h, /class="last-me"/);
-  assert.match(h, /Ton résultat : rang #2 sur 3 · 279 m · \+117 pts crédités/);
+  assert.match(h, /Ton résultat : rang #2 sur 3 · 41 blocs manuels · \+117 pts crédités/);
+  assert.match(h, /900 blocs/, 'podium : critère du rang (#73), pas la profondeur');
+  assert.ok(!h.includes('1279 m') && !h.includes('1 279 m'));
   assert.ok(h.includes('a'.repeat(64)), 'empreinte affichée');
   assert.match(h, /href="\/api\/seasons\/6\/standings"/);
   assert.ok(!/tirage|probabilit|Amazon|carte cadeau/i.test(h), 'aucune probabilité ni prix réel annoncé');
+});
+
+test('résultat figé « merit-v1 » (saison close avant #73) : affiché tel quel, à la profondeur', () => {
+  const ctx = load({ points: { mode: 'live', awards: [] } });
+  ctx.setLast({ state: 'ok', data: { ...DATA, snapshot: { ...DATA.snapshot, algorithm: 'merit-v1' } } });
+  const h = ctx.html();
+  assert.match(h, /Ton résultat : rang #2 sur 3 · 279 m/);
+  assert.match(h, /12 m/);
+  ctx.setLast({ state: 'ok', data: { ...DATA, snapshot: { ...DATA.snapshot, algorithm: 'merit-v1' }, me: { ...DATA.standings[3] } } });
+  assert.match(ctx.html(), /Tu n'étais pas classé \(aucune profondeur validée\)/);
 });
 
 test('résultat figé : simulation, non participant, non classé, visiteur', () => {
@@ -78,7 +90,7 @@ test('résultat figé : simulation, non participant, non classé, visiteur', () 
   assert.match(ctx.html(), /Tu n'as pas participé à cette saison/);
 
   ctx.setLast({ state: 'ok', data: { ...DATA, me: { ...DATA.standings[3] } } });
-  assert.match(ctx.html(), /Tu n'étais pas classé/);
+  assert.match(ctx.html(), /Tu n'étais pas classé \(aucun bloc manuel validé\)/);
 
   ctx = load({ account: null });
   ctx.setLast({ state: 'ok', data: { ...DATA, me: null } });

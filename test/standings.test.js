@@ -43,12 +43,13 @@ function newUser() {
 }
 
 /** Ligne de classement imposée (valeurs exactes, y compris l'instant d'arrivée). */
-function putRanking(seasonId, userId, { depth, blocks, reachedAt = null, leagueId = null, active = 1 }) {
+/** reachedAt : instant où le total de blocs manuels validés a été atteint (départage #73). */
+function putRanking(seasonId, userId, { depth, blocks, effective = blocks, reachedAt = null, leagueId = null, active = 1 }) {
   conn().prepare(`
     INSERT INTO season_rankings (season_id, user_id, league_id, max_depth, reported_max_depth, manual_blocks,
-                                 effective_manual_blocks, is_active, max_depth_reached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(seasonId, userId, leagueId, depth, depth, blocks, blocks, active, reachedAt);
+                                 effective_manual_blocks, is_active, max_depth_reached_at, manual_blocks_reached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(seasonId, userId, leagueId, depth, depth, blocks, effective, active, reachedAt, reachedAt);
 }
 
 /** Crée une saison terminée (hors rotation) et la renvoie. */
@@ -65,13 +66,15 @@ test('computeStandings : éligibilité, rangs global et de ligue, exclusions vis
     { user_id: 1, league_id: 10, max_depth: 600, effective_manual_blocks: 500, manual_blocks: 500, user_exists: 1 },
     { user_id: 2, league_id: 20, max_depth: 300, effective_manual_blocks: 200, manual_blocks: 200, user_exists: 1 },
     { user_id: 3, league_id: 10, max_depth: 100, effective_manual_blocks: 50,  manual_blocks: 50,  user_exists: 1 },
-    { user_id: 4, league_id: 10, max_depth: 0,   effective_manual_blocks: 0,   manual_blocks: 3,   user_exists: 1 },
+    { user_id: 5, league_id: 10, max_depth: 0,   effective_manual_blocks: 2,   manual_blocks: 2,   user_exists: 1 },
+    { user_id: 4, league_id: 10, max_depth: 900, effective_manual_blocks: 0,   manual_blocks: 3,   user_exists: 1 },
   ], id => (id === 2 ? 3 : 0));
   assert.deepStrictEqual(rows.map(r => [r.position, r.rank, r.rank_in_league, r.eligible, r.exclusion_reason]), [
     [1, 1, 1, 1, null],
     [2, 2, 1, 1, null],
     [3, 3, 2, 1, null],
-    [4, null, null, 0, 'depth_zero'],
+    [4, 4, 3, 1, null],                         // profondeur nulle : sans effet (#73)
+    [5, null, null, 0, 'no_validated_blocks'],  // 900 m mais aucun bloc manuel validé
   ]);
   assert.strictEqual(rows[1].risk_level, 3, 'niveau de risque enregistré pour l\'audit');
   assert.strictEqual(rows[1].eligible, 1, 'risque observé : aucune exclusion automatique (sanctions non décidées, #25 lot C)');
@@ -106,13 +109,16 @@ test('clôture : classement figé au mérite, départage déterministe, idempote
   const season = db.getActiveSeason();
   conn().prepare('DELETE FROM season_rankings WHERE season_id = ?').run(season.id);
   const [a, b, c, d, e, f] = [newUser(), newUser(), newUser(), newUser(), newUser(), newUser()];
-  // b et c : même profondeur et mêmes blocs ; c (identifiant plus grand) est arrivé le premier.
-  putRanking(season.id, a, { depth: 600, blocks: 500, reachedAt: '2026-11-04 10:00:00.000' });
-  putRanking(season.id, b, { depth: 300, blocks: 200, reachedAt: '2026-11-04 12:00:00.500' });
+  const g = newUser();
+  // b, c, d : mêmes blocs (profondeurs différentes, sans effet) ; c (identifiant plus grand) est
+  // arrivé avant b ; d, sans date, a atteint son total avant l'activation de la règle (#73).
+  putRanking(season.id, a, { depth: 60,  blocks: 500, reachedAt: '2026-11-04 10:00:00.000' });
+  putRanking(season.id, b, { depth: 900, blocks: 200, reachedAt: '2026-11-04 12:00:00.500' });
   putRanking(season.id, c, { depth: 300, blocks: 200, reachedAt: '2026-11-04 12:00:00.100' });
-  putRanking(season.id, d, { depth: 300, blocks: 200, reachedAt: null });              // sans date : après
-  putRanking(season.id, e, { depth: 0,   blocks: 1 });                                  // profondeur nulle
+  putRanking(season.id, d, { depth: 250, blocks: 200, reachedAt: null });
+  putRanking(season.id, e, { depth: 0,   blocks: 1 });                                  // profondeur nulle : classé
   putRanking(season.id, f, { depth: 900, blocks: 0 });                                  // non participant (aucun bloc manuel)
+  putRanking(season.id, g, { depth: 800, blocks: 30, effective: 0 });                   // aucun bloc validé : exclu
 
   const now = new Date(cal.parseUtc(season.end_at).getTime() + 30_000);
   const result = seasons.closeActiveSeason(season.id, now);
@@ -123,19 +129,21 @@ test('clôture : classement figé au mérite, départage déterministe, idempote
   assert.strictEqual(snap.source, 'close');
   assert.strictEqual(snap.algorithm, standings.ALGORITHM);
   assert.strictEqual(snap.prize_mode, 'simulation', 'aucun prix réel : mode simulation');
-  assert.strictEqual(snap.participants, 5);
-  assert.strictEqual(snap.eligible, 4);
+  assert.strictEqual(snap.participants, 6);
+  assert.strictEqual(snap.eligible, 5);
   assert.strictEqual(snap.leader_user_id, a);
   assert.strictEqual(snap.season_end, db.getSeasonById(season.id).end_at);
 
   const rows = conn().prepare('SELECT * FROM season_standings WHERE season_id = ? ORDER BY position').all(season.id);
   assert.deepStrictEqual(rows.map(r => [r.user_id, r.rank, r.eligible]), [
-    [a, 1, 1], [c, 2, 1], [b, 3, 1], [d, 4, 1], [e, null, 0],
+    [a, 1, 1], [d, 2, 1], [c, 3, 1], [b, 4, 1], [e, 5, 1], [g, null, 0],
   ]);
+  assert.strictEqual(rows[5].exclusion_reason, 'no_validated_blocks');
+  assert.strictEqual(rows[2].manual_blocks_reached_at, '2026-11-04 12:00:00.100', 'départage figé');
   assert.ok(!rows.some(r => r.user_id === f), 'joueur sans bloc manuel exclu');
 
   // Le classement vivant suit le même ordre (ce que voyaient les joueurs à la clôture)
-  assert.deepStrictEqual(db.getSeasonLeaderboard(season.id, 50, 0).map(r => r.user_id), [a, c, b, d, e]);
+  assert.deepStrictEqual(db.getSeasonLeaderboard(season.id, 50, 0).map(r => r.user_id), [a, d, c, b, e]);
 
   assert.deepStrictEqual(standings.verifySnapshot(season.id), { ok: true, rowsHashOk: true, snapshotHashOk: true, chainOk: true });
 
@@ -143,7 +151,7 @@ test('clôture : classement figé au mérite, départage déterministe, idempote
   const again = standings.freezeSeasonStandings(season.id, { source: 'backfill' });
   assert.strictEqual(again.created, false);
   assert.strictEqual(again.snapshot.snapshot_hash, snap.snapshot_hash);
-  assert.strictEqual(conn().prepare('SELECT COUNT(*) n FROM season_standings WHERE season_id = ?').get(season.id).n, 5);
+  assert.strictEqual(conn().prepare('SELECT COUNT(*) n FROM season_standings WHERE season_id = ?').get(season.id).n, 6);
   assert.strictEqual(standings.freezeMissingSnapshots(now), 0);
 
   // Correction admin après la clôture : sans effet sur le résultat figé
@@ -176,7 +184,9 @@ test('falsification détectée : lignes et chaîne d\'empreintes', () => {
   assert.notDeepStrictEqual(rows, original);
   // Recalcul de l'empreinte des lignes falsifiées : elle ne correspond plus
   const ROW_FIELDS = ['position', 'rank', 'rank_in_league', 'user_id', 'league_id', 'max_depth',
-    'effective_manual_blocks', 'manual_blocks', 'max_depth_reached_at', 'eligible', 'exclusion_reason', 'risk_level'];
+    'effective_manual_blocks', 'manual_blocks', 'max_depth_reached_at', 'eligible', 'exclusion_reason', 'risk_level',
+    'manual_blocks_reached_at']; // merit-v2 (#73)
+  assert.deepStrictEqual(standings.ROW_FIELDS, ROW_FIELDS);
   const h = r => crypto.createHash('sha256').update(JSON.stringify(r.map(x => ROW_FIELDS.map(k => x[k] ?? null)))).digest('hex');
   assert.strictEqual(h(original), snap.rows_hash, 'forme canonique documentée = empreinte stockée');
   assert.notStrictEqual(h(rows), snap.rows_hash, 'falsification visible');
@@ -267,9 +277,10 @@ test('déterminisme : 200 ordres d\'insertion aléatoires → même classement e
   const byUser = new Map(users.map((u, i) => [u, specs[i]]));
   for (let k = 1; k < order.length; k++) {
     const p = byUser.get(order[k - 1]), q = byUser.get(order[k]);
-    const key = s => [-s.depth, -s.blocks, s.reachedAt === null ? 1 : 0, s.reachedAt ?? ''];
+    // #73 : blocs ↓, sans date d'abord (total atteint avant la règle), date ↑, identifiant ↑ ; profondeur ignorée
+    const key = s => [-s.blocks, s.reachedAt === null ? 0 : 1, s.reachedAt ?? ''];
     const kp = key(p), kq = key(q);
-    const cmp = kp[0] - kq[0] || kp[1] - kq[1] || kp[2] - kq[2] || (kp[3] < kq[3] ? -1 : kp[3] > kq[3] ? 1 : 0)
+    const cmp = kp[0] - kq[0] || kp[1] - kq[1] || (kp[2] < kq[2] ? -1 : kp[2] > kq[2] ? 1 : 0)
              || order[k - 1] - order[k];
     assert.ok(cmp < 0, `ordre au mérite respecté entre ${order[k - 1]} et ${order[k]}`);
   }

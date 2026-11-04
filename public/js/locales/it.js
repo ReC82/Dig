@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 679/679 textes. Absents → français. */
+/* Italian (preview) : 688/688 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -576,7 +576,7 @@ I18n.registerLocale("it", {
   }
  },
  "season": {
-  "blocks_label": "Blocchi a mano",
+  "blocks_label": "Blocchi distrutti a mano",
   "collection": "Collezione della stagione: {name} ({n} oggetti)",
   "depth_label": "Prof. max",
   "empty": "Nessun giocatore attivo per ora.",
@@ -602,12 +602,14 @@ I18n.registerLocale("it", {
    "toggle": "ℹ️ Come funziona la stagione?"
   },
   "last": {
+   "blocks": "{n} blocchi",
    "deleted": "Account eliminato",
    "depth": "{n} m",
    "frozen": "Classifica congelata il {date} · partecipanti: {p} · classificati: {e}",
    "hash": "Impronta SHA-256:",
    "me_absent": "Non hai partecipato a questa stagione.",
    "me_ineligible": "Non eri in classifica (nessuna profondità convalidata).",
+   "me_ineligible_blocks": "Non eri in classifica (nessun blocco manuale convalidato).",
    "me_points": {
     "one": "+{n} pt accreditato",
     "other": "+{n} pt accreditati"
@@ -617,6 +619,7 @@ I18n.registerLocale("it", {
     "other": "+{n} pt (simulazione, non accreditati)"
    },
    "me_rank": "Il tuo risultato: posizione #{rank} su {n} · {depth} m",
+   "me_rank_blocks": "Il tuo risultato: posizione #{rank} su {n} · {blocks} blocchi a mano",
    "nobody": "Nessun partecipante classificato: niente vincitore né punti per questa stagione.",
    "podium": "Podio della stagione precedente",
    "proof_link": "Vedi la classifica congelata completa",
@@ -625,7 +628,14 @@ I18n.registerLocale("it", {
    "rank_sr": "Posizione {n}:",
    "title": "🏁 Risultato — {name}"
   },
+  "lb": {
+   "blocks": "Blocchi a mano",
+   "depth": "Prof.",
+   "player": "Giocatore",
+   "rule": "La posizione dipende solo dai blocchi distrutti a mano e convalidati dal server. L’Auto-Dig non conta; la profondità è indicata a titolo informativo."
+  },
   "leaderboard": "Classifica",
+  "leaderboard_blocks": "Classifica — blocchi distrutti a mano",
   "league_hint": "La tua lega è un livello duraturo: si sale con la promozione a fine stagione. Il tema, invece, cambia ogni settimana.",
   "league_label": "Lega",
   "league_level": "livello {n}",
@@ -633,7 +643,7 @@ I18n.registerLocale("it", {
   "merit": {
    "freeze": "Il {date} la classifica viene congelata e pubblicata con un’impronta di controllo: non cambia più.",
    "join": "Per partecipare: essere connesso e rompere almeno un blocco a mano durante la stagione.",
-   "order": "Ordine per merito: profondità massima convalidata dal server, poi blocchi rotti a mano, poi chi è arrivato per primo a quella profondità. Nessuna estrazione a sorte.",
+   "order": "Ordine per merito: numero di blocchi distrutti a mano e convalidati dal server (l’Auto-Dig non conta), poi chi ha raggiunto per primo quel totale. La profondità non conta. Nessuna estrazione a sorte.",
    "points": "I punti premio vengono assegnati secondo la tabella dei punti, poi si scambiano nel negozio dei regali.",
    "title": "🏆 Come si stabilisce la classifica?"
   },
@@ -645,6 +655,7 @@ I18n.registerLocale("it", {
   "no_league": "Non classificato",
   "not_active": "Rompi almeno 1 blocco a mano per comparire in classifica.",
   "not_connected": "Accedi per partecipare alla classifica, guadagnare punti premio e accedere al negozio dei regali!",
+  "not_ranked": "Non ancora in classifica",
   "period": "Dal {start} al {end}",
   "rank": "Posizione #{n}",
   "retry": "Riprova",

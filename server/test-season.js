@@ -197,25 +197,25 @@ suite('Test 5 — Blocs auto-dig seuls → joueur non actif dans le classement')
 }
 
 // ── Test 6 ────────────────────────────────────────────────────────────────────
-suite('Test 6 — Classement trié par profondeur max DESC');
+suite('Test 6 — Classement trié par blocs manuels validés DESC, profondeur ignorée (#73)');
 {
   cleanUsers();
   const m  = mimosa();
   const s  = activeSeason();
-  const u1 = mkUser(m.id); syncManual(u1, s, 300, 100);  // 1er attendu
-  const u2 = mkUser(m.id); syncManual(u2, s, 100, 200);  // 3e attendu
+  const u1 = mkUser(m.id); syncManual(u1, s, 300, 100);  // le plus profond : 3e attendu
+  const u2 = mkUser(m.id); syncManual(u2, s, 250, 200);  // 1er attendu
   const u3 = mkUser(m.id); syncManual(u3, s, 200, 150);  // 2e attendu
   const ids = new Set([u1.id, u2.id, u3.id]);
   const lb  = db.getSeasonLeaderboard(s.id, 50, 0).filter(r => ids.has(r.user_id));
   ok('3 joueurs dans le classement', lb.length === 3, `count=${lb.length}`);
-  ok('1er = profondeur 300 (u1)', lb[0]?.user_id === u1.id, `user_id=${lb[0]?.user_id}`);
-  ok('2e  = profondeur 200 (u3)', lb[1]?.user_id === u3.id, `user_id=${lb[1]?.user_id}`);
-  ok('3e  = profondeur 100 (u2)', lb[2]?.user_id === u2.id, `user_id=${lb[2]?.user_id}`);
+  ok('1er = 200 blocs (u2)', lb[0]?.user_id === u2.id, `user_id=${lb[0]?.user_id}`);
+  ok('2e  = 150 blocs (u3)', lb[1]?.user_id === u3.id, `user_id=${lb[1]?.user_id}`);
+  ok('3e  = 100 blocs, 300 m (u1)', lb[2]?.user_id === u1.id, `user_id=${lb[2]?.user_id}`);
   cleanUsers();
 }
 
 // ── Test 7 ────────────────────────────────────────────────────────────────────
-suite('Test 7 — Égalité de profondeur → tri par blocs manuels effectifs DESC');
+suite('Test 7 — Même profondeur → tri par blocs manuels effectifs DESC');
 {
   cleanUsers();
   const m  = mimosa();

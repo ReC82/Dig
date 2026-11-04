@@ -972,7 +972,7 @@ async function loadLeaderboard() {
     const reported = r.reportedMaxDepth != null && r.reportedMaxDepth !== r.maxDepth
       ? `${r.reportedMaxDepth}m ⚠` : '—';
     [
-      `#${r.rank}`, r.username, `${r.maxDepth}m`, reported, r.manualBlocks,
+      r.rank != null ? `#${r.rank}` : '— (non classé)', r.username, r.manualBlocks, `${r.maxDepth}m`, reported,
       r.league ? `${r.league.icon} ${r.league.name}` : '—',
     ].forEach(v => addCell(tr, v));
     addButtonCell(tr, 'Corriger', () => correctRanking(r));
@@ -1500,7 +1500,7 @@ async function loadLeagueLeaderboardView() {
 
   data.leaderboard.forEach(r => {
     const tr = document.createElement('tr');
-    [`#${r.rank}`, r.username, `${r.maxDepth}m`, r.manualBlocks].forEach(v => addCell(tr, v));
+    [`#${r.rank}`, r.username, r.manualBlocks, `${r.maxDepth}m`].forEach(v => addCell(tr, v));
     tbody.appendChild(tr);
   });
 }
@@ -2286,7 +2286,7 @@ const CT_STATUS = {
   sent: 'Lot envoyé', confirmed: 'Confirmé', expired: 'Expiré',
 };
 const CT_REASON = {
-  depth_zero: 'profondeur nulle', account_deleted: 'compte supprimé', not_eligible: 'non éligible',
+  depth_zero: 'profondeur nulle', no_validated_blocks: 'aucun bloc manuel validé', account_deleted: 'compte supprimé', not_eligible: 'non éligible',
   below_min_depth: 'sous la profondeur minimale', risk_level: 'risque anti-bot trop élevé',
   admin_excluded: 'exclu par l\'admin', cooldown: 'a gagné récemment',
 };

@@ -43,12 +43,13 @@ function newUser() {
     .run(`points_user_${++userSeq}`, 'x').lastInsertRowid;
 }
 
-function putRanking(seasonId, userId, { depth, blocks, reachedAt = null, leagueId = null }) {
+/** Rang = blocs manuels validés (#73) ; reachedAt = instant où ce total a été atteint. */
+function putRanking(seasonId, userId, { depth, blocks, effective = blocks, reachedAt = null, leagueId = null }) {
   conn().prepare(`
     INSERT INTO season_rankings (season_id, user_id, league_id, max_depth, reported_max_depth, manual_blocks,
-                                 effective_manual_blocks, is_active, max_depth_reached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`)
-    .run(seasonId, userId, leagueId, depth, depth, blocks, blocks, reachedAt);
+                                 effective_manual_blocks, is_active, max_depth_reached_at, manual_blocks_reached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`)
+    .run(seasonId, userId, leagueId, depth, depth, blocks, effective, reachedAt, reachedAt);
 }
 
 /** Clôture la saison active (après sa fin) et renvoie son identifiant. */
@@ -136,7 +137,7 @@ test('par défaut : barème proposé en simulation, clôture → points calculé
   putRanking(season.id, players[0], { depth: 100, blocks: 80, reachedAt: '2026-11-04 10:00:00.000' });
   putRanking(season.id, players[1], { depth: 60,  blocks: 40, reachedAt: '2026-11-04 10:00:00.000' });
   putRanking(season.id, players[2], { depth: 30,  blocks: 20, reachedAt: '2026-11-04 10:00:00.000' });
-  putRanking(season.id, players[3], { depth: 0,   blocks: 1 });
+  putRanking(season.id, players[3], { depth: 300, blocks: 1, effective: 0 });   // aucun bloc manuel validé
   simSeason = closeActive();
 
   const runs = conn().prepare('SELECT * FROM reward_point_runs WHERE season_id = ?').all(simSeason);
@@ -159,8 +160,8 @@ test('live : crédit à la clôture suivante, une fois par joueur, sans rétroac
   points.setMode('live', new Date(cal.parseUtc(active.start_at).getTime() + 1000));
   assert.strictEqual(points.awardMissingSeasons(), 0, 'la saison simulée avant l\'activation n\'est pas créditée');
 
-  putRanking(active.id, players[0], { depth: 50, blocks: 30, reachedAt: '2026-11-11 10:00:00.000' });
-  putRanking(active.id, players[1], { depth: 70, blocks: 30, reachedAt: '2026-11-11 10:00:00.000' });
+  putRanking(active.id, players[0], { depth: 70, blocks: 20, reachedAt: '2026-11-11 10:00:00.000' });
+  putRanking(active.id, players[1], { depth: 50, blocks: 30, reachedAt: '2026-11-11 10:00:00.000' });
   const liveSeason = closeActive();
 
   const runs = conn().prepare('SELECT mode, recipients, total_points FROM reward_point_runs WHERE season_id = ? ORDER BY mode').all(liveSeason);
@@ -204,7 +205,7 @@ test('récompense potentielle (saison en cours) : même catégorie que la clôtu
   putRanking(season.id, a, { depth: 40, blocks: 30, reachedAt: '2026-11-20 10:00:00.000' });
   putRanking(season.id, b, { depth: 40, blocks: 30, reachedAt: '2026-11-20 11:00:00.000' });   // ex æquo parfait de a
   putRanking(season.id, c, { depth: 20, blocks: 10 });
-  putRanking(season.id, d, { depth: 0, blocks: 3 });                                          // non éligible
+  putRanking(season.id, d, { depth: 900, blocks: 3, effective: 0 });                         // non éligible (aucun bloc validé)
   const pot = u => { const p = points.potentialFor(u); return [p.rank, p.eligibleCount, p.tier, p.points]; };
   assert.deepStrictEqual(pot(a), [1, 3, 'first', 100]);
   assert.deepStrictEqual(pot(b), [2, 3, 'first', 100], 'ex æquo parfait : catégorie du premier');
@@ -307,9 +308,9 @@ test('décision du propriétaire (30/10/2026) : barème v1 validé, crédit rée
 
   // Prochaine clôture : crédit réel, une fois
   const [a, b, c] = [newUser(), newUser(), newUser()];
-  putRanking(active.id, a, { depth: 90, blocks: 40 });
-  putRanking(active.id, b, { depth: 60, blocks: 40 });
-  putRanking(active.id, c, { depth: 30, blocks: 40 });
+  putRanking(active.id, a, { depth: 40, blocks: 90 });
+  putRanking(active.id, b, { depth: 40, blocks: 60 });
+  putRanking(active.id, c, { depth: 40, blocks: 30 });
   closeActive();
   points.awardMissingSeasons();
   points.awardMissingSeasons();

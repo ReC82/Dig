@@ -137,9 +137,11 @@ function tierForRank(scale, rank, n) {
  * @param {object} scale       barème normalisé
  * @param {object[]} rows      lignes de season_standings (ordre de position)
  * @param {Map<number,number>} leagueLevels  league_id → niveau (bonus de ligue)
+ * @param {string} [algorithm]  algorithme de l'instantané : « merit-v1 » (saisons closes avant
+ *   #73, ex æquo = même profondeur et mêmes blocs) ; sinon ex æquo = mêmes blocs validés
  * @returns {{ eligible: number, awards: object[] }}
  */
-function computeAwards(scale, rows, leagueLevels = new Map()) {
+function computeAwards(scale, rows, leagueLevels = new Map(), algorithm = standings.ALGORITHM) {
   const elig = rows.filter(r => r.eligible && (scale.maxRiskLevel == null || (r.risk_level ?? 0) <= scale.maxRiskLevel))
     .sort((a, b) => a.position - b.position);
   const n = elig.length;
@@ -149,11 +151,13 @@ function computeAwards(scale, rows, leagueLevels = new Map()) {
     tier: tierForRank(scale, i + 1, n),
   }));
   if (scale.tiesShareTier) {
-    // Ex æquo parfaits (même profondeur, mêmes blocs validés : clés du tri RANK_ORDER) : la meilleure catégorie du groupe.
+    // Ex æquo parfaits (mêmes blocs manuels validés : clé de score de RANK_ORDER, #73 ; en
+    // « merit-v1 », même profondeur aussi) : la meilleure catégorie du groupe.
     // Les lignes sont triées au mérite : les ex æquo sont contigus et le premier a la meilleure.
+    const v1 = algorithm === 'merit-v1';
     for (let i = 1; i < awards.length; i++) {
       const a = awards[i - 1], b = awards[i];
-      if (a.max_depth === b.max_depth && a.blocks === b.blocks && a.tier) b.tier = a.tier;
+      if ((!v1 || a.max_depth === b.max_depth) && a.blocks === b.blocks && a.tier) b.tier = a.tier;
     }
   }
   for (const a of awards) {
@@ -404,7 +408,7 @@ function awardSeason(seasonId, { now = new Date() } = {}) {
 
   conn().transaction(() => {
     const rows = conn().prepare('SELECT * FROM season_standings WHERE season_id = ? ORDER BY position').all(seasonId);
-    const { eligible, awards } = computeAwards(settings.scale, rows, _leagueLevels());
+    const { eligible, awards } = computeAwards(settings.scale, rows, _leagueLevels(), snap.algorithm);
     const insAward = conn().prepare(`
       INSERT INTO reward_point_awards (season_id, mode, user_id, rank, eligible_count, tier, points, scale_version, ledger_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
@@ -482,7 +486,7 @@ function auditSeason(seasonId) {
     const scaleRow = _scaleRow(run.scale_version);
     const stored = c.prepare('SELECT * FROM reward_point_awards WHERE season_id = ? AND mode = ?').all(seasonId, mode);
     if (!scaleRow) { problems.push(`${tag} barème v${run.scale_version} introuvable`); continue; }
-    const expected = computeAwards(JSON.parse(scaleRow.scale), rows, levels);
+    const expected = computeAwards(JSON.parse(scaleRow.scale), rows, levels, snap.algorithm);
     const byUser = new Map(stored.map(a => [a.user_id, a]));
     let differ = 0;
     for (const e of expected.awards) {
@@ -555,9 +559,9 @@ function potentialFor(userId, settings = getSettings()) {
   if (!season || !settings.scale) return null;
   const n = conn().prepare(`
     SELECT COUNT(*) AS n FROM season_rankings r JOIN users u ON u.id = r.user_id
-    WHERE r.season_id = ? AND r.is_active = 1 AND r.manual_blocks > 0 AND r.max_depth > 0`).get(season.id).n;
+    WHERE r.season_id = ? AND r.is_active = 1 AND r.manual_blocks > 0 AND r.effective_manual_blocks > 0`).get(season.id).n;
   const entry = db.getPlayerSeasonEntry(season.id, userId);
-  if (!entry || !entry.is_active || !(entry.max_depth > 0) || !(entry.manual_blocks > 0)) {
+  if (!entry || !entry.is_active || !(entry.effective_manual_blocks > 0) || !(entry.manual_blocks > 0)) {
     return { seasonId: season.id, seasonEnd: season.end_at, eligibleCount: n, rank: null, tier: null, points: 0 };
   }
   const rankRow = db.getPlayerSeasonRank(season.id, userId);
@@ -565,9 +569,9 @@ function potentialFor(userId, settings = getSettings()) {
   // Ex æquo parfaits : même règle qu'à la clôture (catégorie du premier du groupe).
   const tieRank = settings.scale.tiesShareTier ? conn().prepare(`
     SELECT COUNT(*) + 1 AS r FROM season_rankings r JOIN users u ON u.id = r.user_id
-    WHERE r.season_id = ? AND r.is_active = 1 AND r.manual_blocks > 0 AND r.max_depth > 0
-      AND (r.max_depth > ? OR (r.max_depth = ? AND r.effective_manual_blocks > ?))`)
-    .get(season.id, entry.max_depth, entry.max_depth, entry.effective_manual_blocks).r : rank;
+    WHERE r.season_id = ? AND r.is_active = 1 AND r.manual_blocks > 0 AND r.effective_manual_blocks > 0
+      AND r.effective_manual_blocks > ?`)
+    .get(season.id, entry.effective_manual_blocks).r : rank;
   const tier = rank ? tierForRank(settings.scale, Math.min(rank, tieRank), n) : null;
   const level = entry.league_id ? (_leagueLevels().get(entry.league_id) ?? 0) : 0;
   const points = tier ? Math.floor(tier.points * (100 + settings.scale.leagueBonusPctPerLevel * level) / 100) : 0;
@@ -629,9 +633,10 @@ function seasonAwards(seasonId) {
 /** Aperçu admin : attributions qu'un barème (en cours d'édition) donnerait sur une saison figée. */
 function previewScale(input, seasonId) {
   const scale = validateScale(input);
-  if (!standings.getSnapshot(seasonId)) throw new PointsError(404, 'Saison non figée.');
+  const snap = standings.getSnapshot(seasonId);
+  if (!snap) throw new PointsError(404, 'Saison non figée.');
   const rows = conn().prepare('SELECT * FROM season_standings WHERE season_id = ? ORDER BY position').all(seasonId);
-  const { eligible, awards } = computeAwards(scale, rows, _leagueLevels());
+  const { eligible, awards } = computeAwards(scale, rows, _leagueLevels(), snap.algorithm);
   return {
     eligible,
     total: awards.reduce((s, a) => s + a.points, 0),

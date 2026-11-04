@@ -336,10 +336,9 @@ test('HTTP : POST maxDepth=1e9 ne change pas le classement ; outil admin de corr
     const lb = await (await fetch(`${BASE}/api/seasons/active/leaderboard`)).json();
     assert.strictEqual(lb.leaderboard[0].username, 'honest', JSON.stringify(lb.leaderboard));
     assert.strictEqual(lb.leaderboard[0].maxDepth, 4);
-    const cheatRow = lb.leaderboard.find(x => x.username === 'cheater');
-    assert.ok(cheatRow.maxDepth <= 1, JSON.stringify(cheatRow));
-    assert.strictEqual(cheatRow.reportedMaxDepth, undefined, 'valeur déclarée absente de l\'API publique');
-    assert.strictEqual(cheatRow.manualBlocks, 0, 'blocs effectifs non gonflés');
+    // #73 : aucun bloc manuel validé → absent du classement public
+    assert.ok(!lb.leaderboard.some(x => x.username === 'cheater'), JSON.stringify(lb.leaderboard));
+    assert.ok(lb.leaderboard.every(x => x.reportedMaxDepth === undefined), 'valeur déclarée absente de l\'API publique');
 
     const acl = await (await fetch(`${BASE}/api/admin/anticheat/logs`, { headers: admin })).json();
     assert.ok(acl.logs.some(l => l.username === 'cheater' && l.action_taken === 'depth_rejected'), JSON.stringify(acl.logs));
@@ -348,6 +347,9 @@ test('HTTP : POST maxDepth=1e9 ne change pas le classement ; outil admin de corr
     const alb = await (await fetch(`${BASE}/api/admin/seasons/${season.id}/leaderboard`, { headers: admin })).json();
     const adminRow = alb.leaderboard.find(x => x.username === 'cheater');
     assert.strictEqual(adminRow.reportedMaxDepth, 1e9);
+    assert.strictEqual(adminRow.rank, null, 'listé pour l\'admin, mais non classé');
+    assert.strictEqual(adminRow.manualBlocks, 0, 'blocs effectifs non gonflés');
+    assert.ok(adminRow.maxDepth <= 1, JSON.stringify(adminRow));
 
     // Correction admin : sans authentification → 401 ; valeurs invalides → 400 ; ligne absente → 404
     const url = `${BASE}/api/admin/seasons/${season.id}/rankings/${adminRow.userId}`;
