@@ -199,11 +199,11 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "account.header_aria": {
-   "text": "Profilo e account",
-   "src": "7545c2158bca",
+   "text": "Profilo",
+   "src": "d1bebceb4c8c",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.237Z"
   },
   "account.hint_change_email": {
    "text": "Il nuovo indirizzo sostituisce il vecchio dopo la conferma tramite il link ricevuto.",
@@ -2754,6 +2754,181 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "profile.btn_badges": {
+   "text": "Vedi i miei badge",
+   "src": "c66596f47289",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.btn_login": {
+   "text": "Accedi o crea un account",
+   "src": "f7a23ff7d599",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.btn_season": {
+   "text": "Vedi la stagione",
+   "src": "2841402c17e9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.btn_settings": {
+   "text": "Impostazioni dell’account ›",
+   "src": "320932e271c2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.device_note": {
+   "text": "Cifre della tua partita, così come registrate nel tuo salvataggio.",
+   "src": "f831497e14f7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.guest": {
+   "text": "Ospite",
+   "src": "770a706f8391",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.guest_hint": {
+   "text": "Stai giocando senza account: i tuoi progressi restano su questo dispositivo. Accedi o crea un account per salvarli online e comparire in classifica.",
+   "src": "fa056f02cfda",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.identity": {
+   "text": "Identità del giocatore",
+   "src": "8f99202bcf87",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.member_since": {
+   "text": "Membro dal {date}",
+   "src": "f2aa7fbefffa",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.privacy_title": {
+   "text": "Cosa è visibile",
+   "src": "568e0013778c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.private_info": {
+   "text": "Privato: il tuo indirizzo e-mail, le statistiche, i badge e i punti sono visibili solo a te.",
+   "src": "62d5ca576e87",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.progress_title": {
+   "text": "Progressi",
+   "src": "6076b127c0c4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.public_info": {
+   "text": "Pubblico: il tuo nome utente, la tua profondità e i blocchi scavati compaiono nella classifica della stagione.",
+   "src": "9683bd873046",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.rewards_title": {
+   "text": "Badge e stagione",
+   "src": "0a0fa9a7d69d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.stat_blocks": {
+   "text": "Blocchi distrutti",
+   "src": "b227a8da0998",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.stat_chests": {
+   "text": "Forzieri trovati",
+   "src": "115b1ed6fb02",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.stat_coins": {
+   "text": "Monete guadagnate in totale",
+   "src": "0ca2a7dc57be",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.stat_collection": {
+   "text": "Oggetti della collezione",
+   "src": "09753ab373ae",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.stat_damage": {
+   "text": "Danni per colpo",
+   "src": "341649f75989",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.stat_depth": {
+   "text": "Profondità",
+   "src": "dfe8cf20b9ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.stat_gems": {
+   "text": "Gemme trovate",
+   "src": "062b2467c753",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.stat_pickaxe": {
+   "text": "Piccone",
+   "src": "8c365a9e9e49",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
+  },
+  "profile.stat_relics": {
+   "text": "Reliquie sbloccate",
+   "src": "08f3e83c91bd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.stat_streak": {
+   "text": "Serie giornaliera (giorni)",
+   "src": "35c4e942063f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.239Z"
+  },
+  "profile.title": {
+   "text": "Profilo",
+   "src": "d1bebceb4c8c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #63, relu)",
+   "at": "2026-11-04T18:21:40.238Z"
   },
   "quest.break10.desc": {
    "text": "Rompi 10 blocchi",

@@ -1104,7 +1104,7 @@ function getUserByEmail(email) {
  */
 function getUserAuth(id) {
   return getDb()
-    .prepare('SELECT id, username, email, email_verified_at, auth_version, password_hash FROM users WHERE id = ?')
+    .prepare('SELECT id, username, email, email_verified_at, auth_version, password_hash, created_at FROM users WHERE id = ?')
     .get(id);
 }
 

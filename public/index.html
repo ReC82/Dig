@@ -36,9 +36,10 @@
       <!-- #41 : logo A « Lingot » choisi par le propriétaire (03/11/2026) ; ?logo=… reste un aperçu -->
       <h1 id="game-logo" class="logo-img"><img src="assets/logo/a-lingot.svg" alt="DIG!" width="102" height="40"></h1>
       <div class="header-btns">
-        <!-- #41 : Profil (personne pleine, pastille) ≠ Paramètres (engrenage ajouré, sans pastille) -->
+        <!-- #41 : Profil (personne pleine, pastille) ≠ Paramètres (engrenage ajouré, sans pastille).
+             #63 : deux vues distinctes — personne → Profil (#view-profile), engrenage → Paramètres (#view-settings). -->
         <button id="btn-account" class="hdr-btn hdr-btn-profile" type="button"
-          aria-label="Profil et compte" title="Profil et compte"
+          aria-label="Profil" title="Profil" aria-controls="view-profile"
           data-i18n-aria="account.header_aria" data-i18n-title="account.header_aria">
           <svg class="hdr-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <circle cx="12" cy="8.2" r="4.2"/>
@@ -46,7 +47,7 @@
           </svg>
         </button>
         <button id="btn-settings" class="hdr-btn hdr-btn-settings" type="button"
-          aria-label="Paramètres" title="Paramètres"
+          aria-label="Paramètres" title="Paramètres" aria-controls="view-settings"
           data-i18n-aria="settings.title" data-i18n-title="settings.title">
           <svg class="hdr-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path fill-rule="evenodd" d="M10.3 2h3.4l.5 2.6c.7.3 1.3.6 1.9 1.1l2.5-.9 1.7 2.9-2 1.7c.1.7.1 1.4 0 2.2l2 1.7-1.7 2.9-2.5-.9c-.6.5-1.2.8-1.9 1.1l-.5 2.6h-3.4l-.5-2.6c-.7-.3-1.3-.6-1.9-1.1l-2.5.9-1.7-2.9 2-1.7a7.3 7.3 0 0 1 0-2.2l-2-1.7 1.7-2.9 2.5.9c.6-.5 1.2-.8 1.9-1.1zM12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8z"/>
@@ -152,6 +153,9 @@
 
     <!-- Vue Quotidien -->
     <div id="view-daily" class="view hidden"></div>
+
+    <!-- Vue Profil (#63) : identité, progression, badges ; les réglages restent dans Paramètres -->
+    <div id="view-profile" class="view hidden"></div>
 
     <!-- Vue Paramètres -->
     <div id="view-settings" class="view hidden"></div>

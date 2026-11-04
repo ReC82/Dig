@@ -117,7 +117,8 @@ test('sans configuration e-mail : fonctions e-mail indisponibles (503), le reste
     const c = await registered('nomail');
     const me = await c.get('/api/me');
     assert.strictEqual(me.data.mail, false);
-    assert.deepStrictEqual(me.data.user, { id: me.data.user.id, username: 'nomail', email: 'nomail@example.com', emailVerified: false });
+    assert.match(me.data.user.createdAt, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/, 'ancienneté du Profil (#63), UTC ISO');
+    assert.deepStrictEqual({ ...me.data.user, createdAt: 0 }, { id: me.data.user.id, username: 'nomail', email: 'nomail@example.com', emailVerified: false, createdAt: 0 });
     assert.strictEqual((await c.post('/api/auth/email/send-verification')).status, 503);
     assert.strictEqual((await client().post('/api/auth/password/forgot', { identifier: 'nomail' })).status, 503);
     assert.strictEqual((await c.post('/api/me/email', { email: 'x@example.com', password: 'secret123' })).status, 503);
@@ -281,7 +282,7 @@ test('migration : base d\'avant #28 — comptes, sessions et identifiants conser
     const c = client();
     assert.strictEqual((await c.post('/api/login', { username: 'ancien', password: 'ancien-mdp' })).status, 200);
     const me = (await c.get('/api/me')).data.user;
-    assert.deepStrictEqual({ ...me, id: 0 }, { id: 0, username: 'ancien', email: 'ancien@example.com', emailVerified: false });
+    assert.deepStrictEqual({ ...me, id: 0, createdAt: !!me.createdAt }, { id: 0, username: 'ancien', email: 'ancien@example.com', emailVerified: false, createdAt: true });
 
     // Session ouverte avant #28 (sans authVersion) : toujours valable
     const sessDir = path.join(dir, 'sessions');

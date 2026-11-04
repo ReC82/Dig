@@ -28,7 +28,7 @@ const elRelics       = document.getElementById('stat-relics');
 // ── État interne ─────────────────────────────────────────────────────────────
 let blockAnimating = false;
 let toastTimer     = null;
-let _previousView  = 'dig';   // vue à restaurer quand on ferme les paramètres
+let _previousView  = 'dig';   // vue à restaurer quand on ferme le profil ou les paramètres
 let _account              = null;    // { id, username, email, emailVerified } si connecté, null sinon
 let _accountTab           = 'login'; // onglet actif : login | register | forgot | reset (#28)
 let _mailEnabled          = false;   // e-mails de compte disponibles côté serveur (#28)
@@ -215,13 +215,22 @@ function screenFlash(color) {
 
 let _goGiftShop = false;   // guide des boutiques (#34) : ouvrir la carte cadeaux dès qu'elle est rendue
 
+// Vues ouvertes depuis l'en-tête (#63) : Profil (personne) et Paramètres (engrenage)
+const HEADER_VIEWS = { profile: 'btn-account', settings: 'btn-settings' };
+
 function switchView(viewId) {
   if (viewId !== 'season') _goGiftShop = false;   // guide des boutiques : intention abandonnée
-  // La vue settings ne touche pas la nav — on la gère à part
-  if (viewId !== 'settings') {
+  // Les vues de l'en-tête ne touchent pas la nav : l'onglet d'origine reste actif pour le retour
+  if (!(viewId in HEADER_VIEWS)) {
     document.querySelectorAll('.nav-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === viewId);
     });
+  }
+  for (const [view, id] of Object.entries(HEADER_VIEWS)) {
+    const btn = document.getElementById(id);
+    if (!btn) continue;
+    btn.classList.toggle('is-active', view === viewId);
+    if (view === viewId) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
   }
 
   document.querySelectorAll('.view').forEach(v => {
@@ -262,6 +271,9 @@ function switchView(viewId) {
   }
   if (viewId === 'settings') {
     renderSettings();
+  }
+  if (viewId === 'profile') {
+    renderProfile();
   }
 }
 
@@ -1043,6 +1055,7 @@ async function renderBadges() {
   if (!res || !res.ok) { el.innerHTML = `<p class="badges-note">${escapeHtml(t('badges.error'))}</p>`; return; }
   el.dataset.loaded = '1';
   const { badges = [], activatedAt } = res.data;
+  _profileBadges = { uid: _account?.id, at: Date.now(), earned: badges.filter(b => b.earned).length, total: badges.length };
   const lang = I18n.getCurrent();
   const fmtDate = iso => new Date(iso).toLocaleDateString(lang);
   const fmtNum  = n => Number(n).toLocaleString(lang);
@@ -1567,6 +1580,7 @@ async function _fetchMe() {
     _account = null;
   }
   if (isViewActive('settings')) renderSettings();
+  if (isViewActive('profile'))  renderProfile();
   DigNews.refresh();   // non lues par compte une fois la session connue (#50)
   // Initialise seasonId et CPS limit même sans compte connecté
   _pollSeason();
@@ -2648,6 +2662,118 @@ async function _openSeasonView() {
   if (el && isViewActive('season')) el.innerHTML = `<div class="view-title-bar">${t('season.title')}</div>${_seasonErrorHtml()}`;
 }
 
+// ── Rendu profil (#63) ───────────────────────────────────────────────────────
+// Vue distincte des Paramètres : identité, progression et badges, rien de modifiable ici. Uniquement
+// des données existantes (sauvegarde locale, compte, badges) ; un seul appel réseau éventuel (badges,
+// partagé avec la Collection et gardé une minute), les points de saison seulement s'ils sont déjà chargés.
+
+let _profileBadges = null;   // { uid, at, earned, total } — dernier décompte des badges du compte
+let _profileBadgesReq = 0;
+const PROFILE_BADGES_TTL = 60_000;
+
+function renderProfile() {
+  const container = document.getElementById('view-profile');
+  if (!container) return;
+  const lang = I18n.intl();
+  const n = v => Number(v || 0).toLocaleString(lang);
+  const acc = _account;
+
+  const name = acc ? acc.username : t('profile.guest');
+  const initial = (Array.from(String(name).trim())[0] || '?').toUpperCase();
+  let since = '';
+  if (acc?.createdAt) {
+    const d = new Date(acc.createdAt);
+    if (!isNaN(d)) since = `<div class="profile-since">${escapeHtml(t('profile.member_since', {
+      date: d.toLocaleDateString(lang, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' }) }))}</div>`;
+  }
+  const x = acc && _xStatus?.linked
+    ? `<span class="profile-x">𝕏 @${escapeHtml(_xStatus.linked.username)} · ${t('account.x_verified')}</span>` : '';
+
+  const st = GameState.stats || {};
+  const relics = Object.values(GameState.relics || {}).filter(l => l > 0).length;
+  const rows = [
+    ['profile.stat_depth',    t('stats.depth_val', { n: GameState.depth })],
+    ['profile.stat_pickaxe',  t('stats.pickaxe_val', { n: GameState.pickaxeLevel })],
+    ['profile.stat_damage',   n(GameState.damage)],
+    ['profile.stat_blocks',   n(st.blocksDestroyed)],
+    ['profile.stat_coins',    n(st.totalCoinsEarned)],
+    ['profile.stat_chests',   n(st.chestsFound)],
+    ['profile.stat_gems',     n(st.gemsFound)],
+    ['profile.stat_relics',   n(relics)],
+    ['profile.stat_collection', n((GameState.collection || []).length)],
+    ['profile.stat_streak',   n(GameState.daily?.streakDay)],
+  ].map(([k, v]) => `<div class="profile-stat"><dt>${t(k)}</dt><dd>${v}</dd></div>`).join('');
+
+  const pts = acc && _pointsData ? `<p class="profile-line">${t('points.balance')} <strong>${t('points.pts', { n: n(_pointsData.balance) })}</strong></p>` : '';
+
+  container.innerHTML = `
+    <div class="view-title-bar">${t('profile.title')}</div>
+    <section class="settings-section profile-card" aria-label="${escapeHtml(t('profile.identity'))}">
+      <div class="profile-avatar" aria-hidden="true">${escapeHtml(initial)}</div>
+      <div class="profile-id">
+        <div class="profile-name">${escapeHtml(name)}</div>
+        ${since}${x}
+      </div>
+    </section>
+    ${acc ? '' : `<section class="settings-section profile-guest">
+      <p class="profile-line">${t('profile.guest_hint')}</p>
+      <button type="button" class="account-submit-btn profile-action" data-profile-go="settings">${t('profile.btn_login')}</button>
+    </section>`}
+    <section class="settings-section">
+      <div class="settings-section-label">${t('profile.progress_title')}</div>
+      <dl class="profile-stats">${rows}</dl>
+      <p class="profile-note">${t('profile.device_note')}</p>
+    </section>
+    <section class="settings-section">
+      <div class="settings-section-label">${t('profile.rewards_title')}</div>
+      <p class="profile-line" id="profile-badges">${acc ? _profileBadgesText() : t('badges.login')}</p>
+      ${pts}
+      <div class="profile-links">
+        <button type="button" class="profile-link" data-profile-go="badges">${t('profile.btn_badges')} ›</button>
+        <button type="button" class="profile-link" data-profile-go="season">${t('profile.btn_season')} ›</button>
+      </div>
+    </section>
+    <section class="settings-section">
+      <div class="settings-section-label">${t('profile.privacy_title')}</div>
+      <p class="profile-line">${t('profile.public_info')}</p>
+      <p class="profile-line">${t('profile.private_info')}</p>
+    </section>
+    <button type="button" class="settings-back-btn profile-to-settings" data-profile-go="settings">${t('profile.btn_settings')}</button>
+    <button type="button" class="settings-back-btn" id="btn-profile-back">${t('settings.btn_back')}</button>`;
+
+  container.querySelectorAll('[data-profile-go]').forEach(btn => btn.addEventListener('click', () => {
+    const go = btn.dataset.profileGo;
+    if (go === 'settings') { switchView('settings'); return; }
+    if (go === 'season') { switchView('season'); return; }
+    switchView('collection');
+    document.getElementById('badges-panel')?.scrollIntoView({ block: 'start' });
+  }));
+  document.getElementById('btn-profile-back').addEventListener('click', () => switchView(_previousView));
+
+  if (acc && !(_profileBadges?.uid === acc.id && Date.now() - _profileBadges.at < PROFILE_BADGES_TTL)) _loadProfileBadges();
+}
+
+function _profileBadgesText() {
+  const b = _profileBadges;
+  if (!b || b.uid !== _account?.id) return t('badges.loading');
+  if (b.error) return t('badges.error');
+  return t('badges.count', { n: b.earned, total: b.total });
+}
+
+async function _loadProfileBadges() {
+  const req = ++_profileBadgesReq;
+  const uid = _account?.id;
+  let res;
+  try { res = await _apiFetch('GET', '/api/me/badges'); } catch (_) { res = null; }
+  if (req !== _profileBadgesReq || uid !== _account?.id) return;
+  const badges = res?.ok ? (res.data.badges || []) : null;
+  _profileBadges = badges
+    ? { uid, at: Date.now(), earned: badges.filter(b => b.earned).length, total: badges.length }
+    : { uid, at: 0, error: true };
+  const el = document.getElementById('profile-badges');
+  if (el && isViewActive('profile')) el.textContent = _profileBadgesText();
+}
+
 // ── Rendu paramètres ─────────────────────────────────────────────────────────
 
 function renderSettings() {
@@ -3685,20 +3811,16 @@ document.getElementById('btn-bonus-boost').addEventListener('click', () => {
   );
 });
 
-// Bouton paramètres
-document.getElementById('btn-settings').addEventListener('click', () => {
-  // Mémorise la vue actuellement active avant d'ouvrir les paramètres
+// En-tête (#63) : personne → Profil, engrenage → Paramètres. Un second appui sur le bouton de la
+// vue ouverte ramène à l'onglet d'origine (la nav du bas n'a pas changé : bloc et partie intacts).
+function _toggleHeaderView(viewId) {
+  if (isViewActive(viewId)) { switchView(_previousView); return; }
   const activeBtn = document.querySelector('.nav-btn.active');
   _previousView = activeBtn ? activeBtn.dataset.view : 'dig';
-  switchView('settings');
-});
-
-// Bouton compte (raccourci direct vers les paramètres, section compte en premier)
-document.getElementById('btn-account').addEventListener('click', () => {
-  const activeBtn = document.querySelector('.nav-btn.active');
-  _previousView = activeBtn ? activeBtn.dataset.view : 'dig';
-  switchView('settings');
-});
+  switchView(viewId);
+}
+document.getElementById('btn-settings').addEventListener('click', () => _toggleHeaderView('settings'));
+document.getElementById('btn-account').addEventListener('click', () => _toggleHeaderView('profile'));
 
 // Reset
 elResetBtn.addEventListener('click', () => {
@@ -3768,6 +3890,7 @@ function init() {
   I18n.onLangChange(() => {
     if (isViewActive('dig'))        { renderBlock(); renderStats(); }
     if (isViewActive('settings'))   renderSettings();
+    if (isViewActive('profile'))    renderProfile();
     if (isViewActive('upgrades'))   { renderUpgrades(); renderShopChests(); renderQuests(); }
     if (isViewActive('collection')) { renderCollection(); renderRelics(); renderBadges(); }
     if (isViewActive('daily'))      renderDaily();

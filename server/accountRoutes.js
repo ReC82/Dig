@@ -45,6 +45,8 @@ function publicAccount(user) {
     username:      user.username,
     email:         user.email ?? null,
     emailVerified: !!user.email_verified_at,
+    // Ancienneté affichée dans le Profil (#63) : date d'inscription existante, UTC (« AAAA-MM-JJ HH:MM:SS »)
+    createdAt:     user.created_at ? `${String(user.created_at).replace(' ', 'T')}Z` : null,
   };
 }
 

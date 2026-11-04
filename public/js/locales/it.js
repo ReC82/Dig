@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 651/651 textes. Absents → français. */
+/* Italian (preview) : 676/676 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -30,7 +30,7 @@ I18n.registerLocale("it", {
   "err_wrong": "Credenziali errate.",
   "forgot_intro": "Inserisci il tuo nome utente o il tuo indirizzo e-mail: riceverai un link per scegliere una nuova password.",
   "forgot_sent": "Se esiste un account corrispondente, ti abbiamo appena inviato un’e-mail. Controlla anche lo spam.",
-  "header_aria": "Profilo e account",
+  "header_aria": "Profilo",
   "hint_change_email": "Il nuovo indirizzo sostituisce il vecchio dopo la conferma tramite il link ricevuto.",
   "hint_email": "esempio@email.com",
   "hint_password": "Almeno 6 caratteri",
@@ -469,6 +469,33 @@ I18n.registerLocale("it", {
   "tier_ranks": "Top {n}",
   "ties_note": "Pari merito perfetto: la categoria migliore per tutti.",
   "title": "🏅 Punti premio"
+ },
+ "profile": {
+  "btn_badges": "Vedi i miei badge",
+  "btn_login": "Accedi o crea un account",
+  "btn_season": "Vedi la stagione",
+  "btn_settings": "Impostazioni dell’account ›",
+  "device_note": "Cifre della tua partita, così come registrate nel tuo salvataggio.",
+  "guest": "Ospite",
+  "guest_hint": "Stai giocando senza account: i tuoi progressi restano su questo dispositivo. Accedi o crea un account per salvarli online e comparire in classifica.",
+  "identity": "Identità del giocatore",
+  "member_since": "Membro dal {date}",
+  "privacy_title": "Cosa è visibile",
+  "private_info": "Privato: il tuo indirizzo e-mail, le statistiche, i badge e i punti sono visibili solo a te.",
+  "progress_title": "Progressi",
+  "public_info": "Pubblico: il tuo nome utente, la tua profondità e i blocchi scavati compaiono nella classifica della stagione.",
+  "rewards_title": "Badge e stagione",
+  "stat_blocks": "Blocchi distrutti",
+  "stat_chests": "Forzieri trovati",
+  "stat_coins": "Monete guadagnate in totale",
+  "stat_collection": "Oggetti della collezione",
+  "stat_damage": "Danni per colpo",
+  "stat_depth": "Profondità",
+  "stat_gems": "Gemme trovate",
+  "stat_pickaxe": "Piccone",
+  "stat_relics": "Reliquie sbloccate",
+  "stat_streak": "Serie giornaliera (giorni)",
+  "title": "Profilo"
  },
  "quest": {
   "break10": {
