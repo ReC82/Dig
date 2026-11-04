@@ -96,7 +96,8 @@ const monthlyEvents = require('./monthlyEvents');
 const rewardPoints = require('./rewardPoints');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
-const { validateEconomyValue } = require('./economy');
+const rewardTables = require('./rewardTables');
+const { validateEconomyValue, getEconomy } = require('./economy');
 const security = require('./security');
 const { createRateLimiters, describeMailLimits } = require('./rateLimits');
 const antibot = require('./antibot');
@@ -787,6 +788,7 @@ function catalogRoute(label, fn) {
       if (err instanceof blockCatalog.CatalogError || err instanceof blockAi.AiError) {
         return res.status(err.status).json({ error: err.message, details: err.details });
       }
+      if (err instanceof rewardTables.RewardError) return res.status(err.status).json({ error: err.message, details: err.details });
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
     }
   };
@@ -1274,6 +1276,36 @@ app.post('/api/admin/blocks/publish', requireAdmin, catalogRoute('POST /api/admi
 
 app.post('/api/admin/blocks/rollback', requireAdmin, catalogRoute('POST /api/admin/blocks/rollback',
   req => blockCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+// Tables de récompenses des coffres (#37, objectif 4) : même cycle brouillon → publication → retour arrière.
+// Les coûts effectifs (⚙ Config, #20) servent à refuser une table qui rendrait plus que son prix.
+const chestCosts = () => getEconomy(getAdminConfig()).chestCosts;
+
+app.get('/api/admin/rewards', requireAdmin, catalogRoute('GET /api/admin/rewards',
+  () => rewardTables.buildAdminView({ costs: chestCosts() })));
+
+app.put('/api/admin/rewards/draft', requireAdmin, catalogRoute('PUT /api/admin/rewards/draft',
+  req => rewardTables.saveDraft(req.body?.tables, { costs: chestCosts() })));
+
+app.delete('/api/admin/rewards/draft', requireAdmin, catalogRoute('DELETE /api/admin/rewards/draft',
+  () => ({ discarded: rewardTables.discardDraft() })));
+
+app.post('/api/admin/rewards/simulate', requireAdmin, catalogRoute('POST /api/admin/rewards/simulate', req => {
+  const source = req.body?.source === 'draft' ? rewardTables.getDraft() : rewardTables.getPublished();
+  if (!source) throw new rewardTables.RewardError(404, 'Aucun brouillon.');
+  const v = rewardTables.validateTables(source.tables, { costs: chestCosts() });
+  if (v.errors.length) throw new rewardTables.RewardError(400, 'Tables invalides.', v.errors);
+  return { results: rewardTables.simulate(v.tables, { n: Number(req.body?.n ?? 10000) }) };
+}));
+
+app.post('/api/admin/rewards/publish', requireAdmin, catalogRoute('POST /api/admin/rewards/publish',
+  req => rewardTables.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null, costs: chestCosts() })));
+
+app.post('/api/admin/rewards/rollback', requireAdmin, catalogRoute('POST /api/admin/rewards/rollback',
+  req => rewardTables.rollbackTo(Number(req.body?.version), { note: req.body?.note, costs: chestCosts() })));
+
+app.get('/api/admin/rewards/audit', requireAdmin, catalogRoute('GET /api/admin/rewards/audit',
+  () => ({ audit: rewardTables.listAudit() })));
 
 // Création assistée par IA (#37) : propositions → corrections → brouillon ; jamais publiée ici.
 app.get('/api/admin/blocks/ai', requireAdmin, catalogRoute('GET /api/admin/blocks/ai',
@@ -2056,6 +2088,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
 blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
+rewardTables.init();             // tables de récompenses des coffres v1 = tables d'origine (#37)
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)

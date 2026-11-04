@@ -37,6 +37,7 @@
     <button class="tab-btn" data-tab="points">🏅 Points</button>
     <button class="tab-btn" data-tab="shop">🛍 Boutique</button>
     <button class="tab-btn" data-tab="blocks">🧱 Blocs</button>
+    <button class="tab-btn" data-tab="rewards">🎲 Coffres &amp; drops</button>
     <button class="tab-btn" data-tab="collections">📿 Collections</button>
     <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
     <button class="tab-btn" data-tab="badges">🏅 Badges</button>
@@ -1187,6 +1188,67 @@
   </section>
 
   <!-- Tab Collections saisonnières (#39) -->
+  <section id="tab-rewards" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🎲 Coffres &amp; drops</h2>
+      <button class="btn" id="btn-refresh-rewards">↻ Rafraîchir</button>
+    </div>
+    <p id="rw-banner" class="contest-banner"></p>
+    <p class="muted" style="font-size:0.8rem">Contenu des coffres : récompenses possibles, poids de tirage (convertis en %), quantités, gros lots et limite par saison.
+      Les modifications vont dans un <strong>brouillon</strong> sans effet en jeu ; elles s'appliquent après « Publier » (nouvelle version, retour arrière possible).
+      Les prix des coffres se règlent dans ⚙ Config. Les fragments affichés sont de base (hors Aimant à éclats et multiplicateur de fragments).</p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">🛍 Coffres de la boutique <span class="muted" style="font-weight:normal;font-size:0.8rem">— tirés par le serveur, chances affichées aux joueurs</span></h3>
+      <div id="rw-shop"></div>
+    </div>
+    <div class="overview-card">
+      <h3 class="overview-card-title">⛏ Coffres trouvés en minant <span class="muted" style="font-weight:normal;font-size:0.8rem">— selon la rareté du bloc coffre</span></h3>
+      <div id="rw-mined"></div>
+    </div>
+
+    <div class="overview-card" id="rw-draft-card">
+      <h3 class="overview-card-title">Brouillon et publication</h3>
+      <div id="rw-draft"></div>
+      <div class="form-actions">
+        <label>Tirages <select id="rw-sim-n" data-adm-noguard><option value="10000">10 000</option><option value="100000">100 000</option></select></label>
+        <button class="btn" id="btn-rw-sim-pub" type="button">Simuler la version en vigueur</button>
+        <button class="btn" id="btn-rw-sim-draft" type="button">Simuler le brouillon</button>
+        <button class="btn btn-primary" id="btn-rw-publish" type="button">Publier le brouillon</button>
+        <button class="btn btn-danger" id="btn-rw-discard" type="button">Abandonner le brouillon</button>
+      </div>
+      <p id="rw-msg" class="hidden"></p>
+      <div id="rw-sim"></div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Versions</h3>
+      <div style="overflow-x:auto"><table><thead><tr><th>Version</th><th>Origine</th><th>Note</th><th>Date (UTC)</th><th></th></tr></thead><tbody id="rw-versions"></tbody></table></div>
+    </div>
+    <details class="overview-card">
+      <summary class="overview-card-title">Journal</summary>
+      <div style="overflow-x:auto"><table><thead><tr><th>Date (UTC)</th><th>Action</th><th>Version</th><th>Détail</th></tr></thead><tbody id="rw-audit"></tbody></table></div>
+    </details>
+
+    <dialog id="rw-dialog" class="bk-dialog adm-dialog" aria-labelledby="rw-dialog-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="rw-dialog-title">Coffre</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
+      <p id="rw-dlg-summary" class="muted" style="font-size:0.85rem"></p>
+      <label id="rw-dlg-max-wrap">Limite par joueur et par saison (vide = illimité) <input id="rw-dlg-max" type="number" min="1" max="1000" step="1"></label>
+      <div style="overflow-x:auto"><table class="rw-rows"><thead><tr><th>Chance</th><th>Poids</th><th>Récompense</th><th>Valeurs</th><th></th></tr></thead><tbody id="rw-dlg-rows"></tbody></table></div>
+      <div class="form-actions">
+        <button class="btn" id="btn-rw-add-row" type="button">＋ Ajouter une récompense</button>
+      </div>
+      <p id="rw-dlg-error" class="error hidden"></p>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-rw-save" type="button">Enregistrer dans le brouillon</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      </div>
+    </dialog>
+  </section>
+
   <section id="tab-collections" class="tab-content hidden">
     <div class="section-header">
       <h2>📿 Collections saisonnières</h2>

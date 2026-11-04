@@ -544,6 +544,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'points')          loadPoints();
     if (btn.dataset.tab === 'shop')            loadShop();
     if (btn.dataset.tab === 'blocks')          { loadBlocks(); loadAi(); }
+    if (btn.dataset.tab === 'rewards')         loadRewards();
     if (btn.dataset.tab === 'collections')     loadCollections();
     if (btn.dataset.tab === 'icons')           loadIcons();
     if (btn.dataset.tab === 'config')          loadAiBudget();
@@ -6586,6 +6587,347 @@ document.getElementById('btn-ad-toggle').addEventListener('click', async () => {
   adMessage('ad-settings-msg', data.settings.enabled ? 'Interrupteur général ACTIVÉ.' : 'Interrupteur général désactivé.', true);
   renderAds(data);
 });
+
+// ── Coffres & drops (#37, objectif 4) ─────────────────────────────────────────
+// Tables de récompenses versionnées (server/rewardTables.js) : la page montre la version en vigueur
+// (ou le brouillon s'il existe) ; clic sur un coffre → fiche d'édition de ses lignes → « Enregistrer
+// dans le brouillon » ; publication et retour arrière comme pour les blocs.
+
+const RW_NAMES = {
+  shop:  { simple: '📦 Coffre simple', rare: '💎 Coffre rare', antique: '🏺 Coffre antique' },
+  mined: { commun: '🧰 Vieille caisse (bloc commun)', rare: '🪵 Coffre en bois (bloc rare)', epique: '🔩 Coffre en fer (bloc épique)' },
+};
+const RW_TYPES = { coins: '💰 Pièces', relics: '🔮 Fragments', boost: '⚡ Boost de gains', collection: '📿 Objet de collection' };
+const RW_ACTIONS = { migrate: 'création v1', draft_save: 'brouillon enregistré', draft_clean: 'brouillon identique retiré',
+  draft_discard: 'brouillon abandonné', publish: 'publication', rollback: 'retour arrière' };
+let _rw = null;          // vue GET /api/admin/rewards
+let _rwEdit = null;      // { family, id } du coffre ouvert dans la fiche
+
+const rwFmt = n => Number(n).toLocaleString('fr-BE');
+
+function rwRowLabel(r) {
+  if (r.type === 'coins')  return `${RW_TYPES.coins} ${rwFmt(r.min)}–${rwFmt(r.max)}${r.jackpot ? ' · gros lot' : ''}`;
+  if (r.type === 'relics') return `${RW_TYPES.relics} × ${rwFmt(r.amount)}`;
+  if (r.type === 'boost')  return `${RW_TYPES.boost} ×${r.mult}, ${r.minutes} min`;
+  return RW_TYPES.collection;
+}
+
+/** Tables affichées : brouillon s'il existe (et lisible), sinon version en vigueur. */
+function rwCurrentTables() {
+  return structuredClone(_rw.draft?.tables ?? _rw.published.tables);
+}
+
+function rwStats(table) {
+  const total = table.reduce((s, r) => s + (Number(r.weight) > 0 ? Number(r.weight) : 0), 0) || 1;
+  let coins = 0, fragments = 0;
+  const chances = table.map(r => {
+    const p = (Number(r.weight) > 0 ? Number(r.weight) : 0) / total;
+    if (r.type === 'coins') coins += p * (Number(r.min) + Number(r.max)) / 2;
+    if (r.type === 'relics') fragments += p * Number(r.amount);
+    return p * 100;
+  });
+  return { chances, coins: Math.round(coins), fragments: Math.round(fragments * 100) / 100 };
+}
+
+function rwChanged(family, id) {
+  return (_rw.draft?.changes ?? []).some(c => c.family === family && c.id === id);
+}
+
+function rwRenderFamily(family, el) {
+  const tables = rwCurrentTables();
+  el.textContent = '';
+  for (const id of (family === 'shop' ? _rw.shopIds : _rw.minedIds)) {
+    const def = family === 'shop' ? tables.shop[id] : { table: tables.mined[id] };
+    const st = rwStats(def.table);
+    const wrap = document.createElement('div');
+    wrap.className = 'rw-chest';
+    const h = document.createElement('h4');
+    const cost = family === 'shop' ? _rw.costs[id] : null;
+    h.textContent = `${RW_NAMES[family][id]}${rwChanged(family, id) ? ' — modifié dans le brouillon' : ''}`;
+    const meta = document.createElement('p');
+    meta.className = 'muted';
+    meta.style.fontSize = '0.8rem';
+    meta.textContent = [
+      cost ? `Prix ${rwFmt(cost)} pièces` : null,
+      family === 'shop' ? (def.maxPerSeason ? `max ${def.maxPerSeason} par saison` : 'illimité') : null,
+      `en moyenne ${rwFmt(st.coins)} pièces${cost ? ` (${Math.round(st.coins / cost * 100)} % du prix)` : ''} et ${st.fragments} fragments par ouverture`,
+    ].filter(Boolean).join(' · ');
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr><th>Chance</th><th>Récompense</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    def.table.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      addCell(tr, `${st.chances[i].toFixed(2)} %`);
+      addCell(tr, rwRowLabel(r));
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn';
+    btn.textContent = '✎ Modifier ce coffre';
+    btn.dataset.admKey = `rw-${family}-${id}`;
+    btn.addEventListener('click', () => rwOpen(family, id, btn));
+    wrap.append(h, meta, table, btn);
+    el.appendChild(wrap);
+  }
+}
+
+function rwRender() {
+  const d = _rw.draft;
+  document.getElementById('rw-banner').textContent = `Version en vigueur : v${_rw.published.version}` +
+    (d ? ` — brouillon en cours (${d.changes.length} coffre(s) modifié(s), non visible en jeu)` : ' — aucun brouillon');
+  rwRenderFamily('shop', document.getElementById('rw-shop'));
+  rwRenderFamily('mined', document.getElementById('rw-mined'));
+
+  const box = document.getElementById('rw-draft');
+  box.textContent = '';
+  if (!d) {
+    box.innerHTML = '<p class="muted">Aucun brouillon : modifiez un coffre pour en créer un.</p>';
+  } else {
+    const ul = document.createElement('ul');
+    for (const c of d.changes) {
+      const li = document.createElement('li');
+      const parts = c.rows.map(r => `ligne ${r.row} : ${r.before ? rwRowLabel(r.before) + ` (poids ${r.before.weight})` : '—'} → ${r.after ? rwRowLabel(r.after) + ` (poids ${r.after.weight})` : 'supprimée'}`);
+      if (c.maxPerSeason) parts.push(`limite par saison : ${c.maxPerSeason[0] ?? 'illimité'} → ${c.maxPerSeason[1] ?? 'illimité'}`);
+      li.textContent = `${RW_NAMES[c.family][c.id]} — ${parts.join(' ; ')}`;
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+    for (const [list, cls] of [[d.errors, 'error'], [d.warnings, 'muted']]) {
+      for (const e of list) { const p = document.createElement('p'); p.className = cls; p.textContent = (cls === 'error' ? '⛔ ' : '⚠ ') + e; box.appendChild(p); }
+    }
+  }
+  document.getElementById('btn-rw-sim-draft').disabled = !d;
+  document.getElementById('btn-rw-publish').disabled = !d || d.errors.length > 0;
+  document.getElementById('btn-rw-discard').disabled = !d;
+
+  const vb = document.getElementById('rw-versions');
+  vb.textContent = '';
+  for (const v of _rw.versions) {
+    const tr = document.createElement('tr');
+    const src = { origin: 'origine', publish: 'publication', rollback: `retour à v${v.fromVersion}` }[v.source] ?? v.source;
+    [`v${v.version}${v.version === _rw.published.version ? ' (en vigueur)' : ''}`, src, v.note ?? '', v.createdAt].forEach(x => addCell(tr, x));
+    const td = document.createElement('td');
+    if (v.version !== _rw.published.version) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-outline'; b.textContent = `Revenir à v${v.version}`;
+      b.addEventListener('click', () => rwRollback(v.version));
+      td.appendChild(b);
+    }
+    tr.appendChild(td);
+    vb.appendChild(tr);
+  }
+}
+
+async function loadRewards() {
+  const [view, audit] = await Promise.all([api('GET', '/api/admin/rewards'), api('GET', '/api/admin/rewards/audit')]);
+  if (!view.ok) { ptMessage('rw-msg', view.data.error || 'Erreur lors du chargement.', false); return; }
+  _rw = view.data;
+  rwRender();
+  const ab = document.getElementById('rw-audit');
+  ab.textContent = '';
+  for (const a of (audit.ok ? audit.data.audit : [])) {
+    const tr = document.createElement('tr');
+    const det = a.details?.changes ? a.details.changes.map(c => RW_NAMES[c.family]?.[c.id] ?? c.id).join(', ') : (a.details?.to ? `contenu de v${a.details.to}` : '');
+    [a.created_at, RW_ACTIONS[a.action] ?? a.action, a.version ? `v${a.version}` : '', det].forEach(x => addCell(tr, x));
+    ab.appendChild(tr);
+  }
+}
+
+admRefreshButton('btn-refresh-rewards', loadRewards, 'Coffres & drops');
+
+// ── Fiche d'un coffre ─────────────────────────────────────────────────────────
+
+const RW_FIELDS = {
+  coins:      [['min', 'Pièces min'], ['max', 'Pièces max']],
+  relics:     [['amount', 'Fragments']],
+  boost:      [['mult', 'Multiplicateur'], ['minutes', 'Minutes']],
+  collection: [],
+};
+
+function rwRowEditor(row) {
+  const tr = document.createElement('tr');
+  const chance = document.createElement('td');
+  chance.className = 'rw-chance';
+  const tdW = document.createElement('td');
+  const w = document.createElement('input');
+  w.type = 'number'; w.min = '0'; w.step = 'any'; w.value = row.weight; w.dataset.f = 'weight'; w.style.width = '6em';
+  w.setAttribute('aria-label', 'Poids de tirage');
+  tdW.appendChild(w);
+  const tdT = document.createElement('td');
+  const sel = document.createElement('select');
+  sel.dataset.f = 'type';
+  sel.setAttribute('aria-label', 'Type de récompense');
+  for (const t of (_rwEdit.family === 'shop' ? _rw.shopTypes : _rw.minedTypes)) sel.add(new Option(RW_TYPES[t], t, false, t === row.type));
+  tdT.appendChild(sel);
+  const tdV = document.createElement('td');
+  const fill = () => {
+    tdV.textContent = '';
+    for (const [k, label] of RW_FIELDS[sel.value]) {
+      const l = document.createElement('label');
+      l.className = 'rw-inline';
+      const i = document.createElement('input');
+      i.type = 'number'; i.step = k === 'mult' ? '0.1' : '1'; i.min = '0'; i.dataset.f = k; i.style.width = '7em';
+      i.value = row[k] ?? '';
+      l.append(`${label} `, i);
+      tdV.appendChild(l);
+    }
+    if (sel.value === 'coins' && _rwEdit.family === 'shop') {
+      const l = document.createElement('label');
+      l.className = 'rw-inline';
+      const c = document.createElement('input');
+      c.type = 'checkbox'; c.dataset.f = 'jackpot'; c.checked = !!row.jackpot;
+      l.append(c, ' gros lot');
+      tdV.appendChild(l);
+    }
+    if (sel.value === 'collection') tdV.append('1 objet manquant au hasard (sinon 5 fragments)');
+  };
+  sel.addEventListener('change', () => { fill(); rwDlgRefresh(); });
+  fill();
+  const tdX = document.createElement('td');
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'btn btn-outline'; x.textContent = '✕'; x.title = 'Retirer cette ligne';
+  x.setAttribute('aria-label', 'Retirer cette ligne');
+  x.addEventListener('click', () => { tr.remove(); rwDlgRefresh(); tr._rwRemoved = true; });
+  tdX.appendChild(x);
+  tr.append(chance, tdW, tdT, tdV, tdX);
+  return tr;
+}
+
+function rwDlgRows() {
+  return [...document.querySelectorAll('#rw-dlg-rows tr')].map(tr => {
+    const row = {};
+    for (const el of tr.querySelectorAll('[data-f]')) {
+      const f = el.dataset.f;
+      if (f === 'type') row.type = el.value;
+      else if (f === 'jackpot') { if (el.checked) row.jackpot = true; }
+      else row[f] = el.value === '' ? null : Number(el.value);
+    }
+    if (row.type === 'collection') row.amount = 1;
+    return row;
+  });
+}
+
+function rwDlgRefresh() {
+  const rows = rwDlgRows();
+  const st = rwStats(rows);
+  [...document.querySelectorAll('#rw-dlg-rows tr')].forEach((tr, i) => { tr.querySelector('.rw-chance').textContent = `${st.chances[i].toFixed(2)} %`; });
+  const cost = _rwEdit.family === 'shop' ? _rw.costs[_rwEdit.id] : null;
+  const sum = rows.reduce((s, r) => s + (Number(r.weight) > 0 ? Number(r.weight) : 0), 0);
+  document.getElementById('rw-dlg-summary').textContent = `Somme des poids : ${rwFmt(Math.round(sum * 10000) / 10000)} (convertie en 100 %) · en moyenne ${rwFmt(st.coins)} pièces` +
+    `${cost ? ` pour un prix de ${rwFmt(cost)} (${Math.round(st.coins / cost * 100)} %)` : ''} et ${st.fragments} fragments par ouverture.`;
+}
+
+function rwOpen(family, id, opener) {
+  _rwEdit = { family, id };
+  const tables = rwCurrentTables();
+  const def = family === 'shop' ? tables.shop[id] : { table: tables.mined[id] };
+  document.getElementById('rw-dialog-title').textContent = RW_NAMES[family][id];
+  document.getElementById('rw-dlg-max-wrap').classList.toggle('hidden', family !== 'shop');
+  document.getElementById('rw-dlg-max').value = def.maxPerSeason ?? '';
+  const tb = document.getElementById('rw-dlg-rows');
+  tb.textContent = '';
+  def.table.forEach(r => tb.appendChild(rwRowEditor(r)));
+  document.getElementById('rw-dlg-error').classList.add('hidden');
+  rwDlgRefresh();
+  admDialogOpen('rw-dialog', opener);
+}
+
+const _rwDlg = admDialogSetup('rw-dialog', { keep: 'Enregistrer dans le brouillon' });
+let _rwStructural = false;   // ligne ajoutée ou retirée (le suivi générique ne voit que les champs)
+_rwDlg.addEventListener('close', () => { _rwStructural = false; });
+_rwDlg._admDirty = (orig => () => _rwDlg.open && (_rwStructural || orig()))(_rwDlg._admDirty);
+document.getElementById('rw-dlg-rows').addEventListener('input', rwDlgRefresh);
+document.getElementById('rw-dlg-rows').addEventListener('click', e => { if (e.target.closest('button')) _rwStructural = true; });
+document.getElementById('btn-rw-add-row').addEventListener('click', () => {
+  _rwStructural = true;
+  document.getElementById('rw-dlg-rows').appendChild(rwRowEditor({ weight: 1, type: 'relics', amount: 1 }));
+  rwDlgRefresh();
+});
+
+document.getElementById('btn-rw-save').addEventListener('click', async () => {
+  const tables = rwCurrentTables();
+  const rows = rwDlgRows();
+  if (_rwEdit.family === 'shop') {
+    const max = document.getElementById('rw-dlg-max').value;
+    tables.shop[_rwEdit.id] = { maxPerSeason: max === '' ? null : Number(max), table: rows };
+  } else {
+    tables.mined[_rwEdit.id] = rows;
+  }
+  const err = document.getElementById('rw-dlg-error');
+  const { ok, data } = await api('PUT', '/api/admin/rewards/draft', { tables });
+  if (!ok) { err.textContent = [data.error, ...(data.details ?? [])].join(' '); err.classList.remove('hidden'); return; }
+  const mine = data.errors.filter(e => e.includes(_rwEdit.id));
+  _rwStructural = false;
+  _rwDlg.close();
+  await loadRewards();
+  admToast(data.draft ? (mine.length ? `Enregistré dans le brouillon, à corriger avant publication : ${mine.join(' ')}` : 'Enregistré dans le brouillon (rien ne change en jeu avant publication).')
+    : 'Identique à la version en vigueur : aucun brouillon.', { error: mine.length > 0 });
+});
+
+// ── Simulation, publication, retour arrière ───────────────────────────────────
+
+async function rwSimulate(source) {
+  const n = Number(document.getElementById('rw-sim-n').value);
+  const { ok, data } = await api('POST', '/api/admin/rewards/simulate', { source, n });
+  const box = document.getElementById('rw-sim');
+  box.textContent = '';
+  if (!ok) { ptMessage('rw-msg', [data.error, ...(data.details ?? [])].join(' '), false); return; }
+  const h = document.createElement('h4');
+  h.textContent = `Simulation ${source === 'draft' ? 'du brouillon' : 'de la version en vigueur'} — ${rwFmt(n)} ouvertures par coffre`;
+  const table = document.createElement('table');
+  table.innerHTML = '<thead><tr><th>Coffre</th><th>Récompense</th><th>Probabilité</th><th>Observé</th></tr></thead>';
+  const tb = document.createElement('tbody');
+  for (const r of data.results) {
+    r.rows.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      [i === 0 ? RW_NAMES[r.family][r.id] : '', rwRowLabel(row), `${row.chance.toFixed(2)} %`, `${row.observed.toFixed(2)} %`].forEach(x => addCell(tr, x));
+      tb.appendChild(tr);
+    });
+    const tr = document.createElement('tr');
+    tr.className = 'muted';
+    ['', 'Moyenne par ouverture', `${rwFmt(r.expectedCoins)} pièces · ${r.expectedFragments} fragments`, `${rwFmt(r.observedCoins)} pièces · ${r.observedFragments} fragments`].forEach(x => addCell(tr, x));
+    tb.appendChild(tr);
+  }
+  table.appendChild(tb);
+  const wrap = document.createElement('div');
+  wrap.style.overflowX = 'auto';
+  wrap.appendChild(table);
+  box.append(h, wrap);
+}
+document.getElementById('btn-rw-sim-pub').addEventListener('click', () => rwSimulate('published'));
+document.getElementById('btn-rw-sim-draft').addEventListener('click', () => rwSimulate('draft'));
+
+document.getElementById('btn-rw-publish').addEventListener('click', async () => {
+  const d = _rw?.draft;
+  if (!d) return;
+  const note = await admPrompt({ title: 'Publier les tables de coffres',
+    text: `Version v${_rw.published.version + 1} : ${d.changes.map(c => RW_NAMES[c.family][c.id]).join(', ')}. Visible des joueurs dès la publication (prochaines ouvertures) ; retour arrière possible.`,
+    label: 'Note (facultative)', ok: 'Publier' });
+  if (note === null) return;
+  const { ok, data } = await api('POST', '/api/admin/rewards/publish', { note, basedOn: _rw.published.version });
+  ptMessage('rw-msg', ok ? `Version v${data.version} publiée.` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  if (ok) loadRewards();
+});
+
+document.getElementById('btn-rw-discard').addEventListener('click', async () => {
+  if (!_rw?.draft) return;
+  if (!await admConfirm({ title: 'Abandonner le brouillon', text: 'Toutes les modifications non publiées des coffres sont perdues.',
+    impact: ['La version en vigueur ne change pas.'], ok: 'Abandonner le brouillon', danger: true })) return;
+  const { ok, data } = await api('DELETE', '/api/admin/rewards/draft');
+  ptMessage('rw-msg', ok ? 'Brouillon abandonné.' : data.error, ok);
+  if (ok) loadRewards();
+});
+
+async function rwRollback(version) {
+  if (!await admConfirm({ title: `Revenir à v${version}`, text: `Publie une nouvelle version reprenant le contenu de v${version}.`,
+    impact: ['Visible des joueurs dès la publication (prochaines ouvertures).', 'Les versions existantes ne sont pas modifiées : on peut revenir de nouveau.'],
+    ok: `Revenir à v${version}`, danger: true })) return;
+  const { ok, data } = await api('POST', '/api/admin/rewards/rollback', { version });
+  ptMessage('rw-msg', ok ? `Version v${data.version} publiée (contenu de v${data.restored}).` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  if (ok) loadRewards();
+}
 
 // ── Bêta fermée (#57) ─────────────────────────────────────────────────────────
 // Recette du 03/11 : le tableau de bord ne montre que l'état ENREGISTRÉ sur le serveur ; inviter

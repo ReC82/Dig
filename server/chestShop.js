@@ -82,6 +82,20 @@ const SHOP_CHESTS = {
   },
 };
 
+/**
+ * Tables en vigueur : celles publiées dans l'admin (server/rewardTables.js, #37) une fois la base
+ * initialisée, sinon les tables d'origine ci-dessus (tests unitaires sans base).
+ */
+let _provider = null;
+function setTablesProvider(fn) { _provider = fn; }
+
+/** { shop: { id: { maxPerSeason, table } }, mined: { rareté: table } | null } */
+function _tables() {
+  const t = _provider?.();
+  if (t?.shop) return t;
+  return { shop: SHOP_CHESTS, mined: null };
+}
+
 function _rand(min, max) {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
@@ -106,8 +120,8 @@ function _pick(table) {
  * @throws {Error}  Message lisible si la validation échoue
  */
 function rollChest(chestId, data, config = {}) {
-  const def = SHOP_CHESTS[chestId];
-  if (!def) throw new Error('Coffre inconnu.');
+  if (!SHOP_CHESTS[chestId]) throw new Error('Coffre inconnu.');
+  const def = { cost: SHOP_CHESTS[chestId].cost, ..._tables().shop[chestId] };
 
   // Coût et multiplicateur de fragments réglables dans l'admin (bornés, cf. economy.js)
   const economy = getEconomy(config);
@@ -175,7 +189,9 @@ function rollChest(chestId, data, config = {}) {
  */
 function describeChests(config = {}) {
   const economy = getEconomy(config);
-  const chests = Object.entries(SHOP_CHESTS).map(([id, def]) => {
+  const tables = _tables();
+  const chests = Object.keys(SHOP_CHESTS).map(id => {
+    const def = { cost: SHOP_CHESTS[id].cost, ...tables.shop[id] };
     const total = def.table.reduce((s, r) => s + r.weight, 0);
     return {
       id,
@@ -186,6 +202,8 @@ function describeChests(config = {}) {
   });
   return {
     chests,
+    // Coffres trouvés en minant (tirés par le jeu, public/js/chests.js) : tables publiées dans l'admin
+    ...(tables.mined ? { mined: tables.mined } : {}),
     fragments: {
       shardMagnetBonus: SHARD_MAGNET_BONUS,
       multiplier:       economy.fragmentDropMultiplier,
@@ -198,4 +216,4 @@ function describeChests(config = {}) {
   };
 }
 
-module.exports = { SHOP_CHESTS, rollChest, describeChests, COLLECTION_ITEM_IDS, COLLECTION_CONSOLATION_FRAGMENTS };
+module.exports = { SHOP_CHESTS, setTablesProvider, rollChest, describeChests, COLLECTION_ITEM_IDS, COLLECTION_CONSOLATION_FRAGMENTS };
