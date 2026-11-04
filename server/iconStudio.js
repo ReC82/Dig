@@ -41,6 +41,7 @@ const blockCatalog = require('./blockCatalog');
 const collectionCatalog = require('./collectionCatalog');
 const badges = require('./badges');
 const relicCatalog = require('./relicCatalog');
+const missionCatalog = require('./missionCatalog');
 const monthlyEvents = require('./monthlyEvents');
 const aiSpendCap = require('./aiSpendCap');
 const { APP_VERSION } = require('./version');
@@ -51,7 +52,7 @@ const INSTRUCTION_MAX = 1000;   // consigne artistique réelle (recette du 02/11
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const SHA_RE = /^[a-f0-9]{16}$/;
 // Objet d'événement (#65) : clé stable `event:<événement>/<objet>` (identifiants de #56, jamais réutilisés)
-const KEY_RE = /^(block|item|badge|relic|ui|event):([a-z][a-z0-9_]{1,39}|[a-z][a-z0-9_]{2,39}\/[a-z][a-z0-9_]{2,39})$/;
+const KEY_RE = /^(block|item|badge|relic|mission|ui|event):([a-z][a-z0-9_]{1,39}|[a-z][a-z0-9_]{2,39}\/[a-z][a-z0-9_]{2,39})$/;
 
 /** Pictogrammes d'interface (#41 pour l'application en jeu). Profil ≠ paramètres ≠ améliorations. */
 const UI_TARGETS = [
@@ -71,7 +72,7 @@ const PROMPT_VERSION = 'v1.3';
 // Contrôle du sujet : appel texte (vision) peu coûteux, réservé avant chaque image d'objet ou de badge
 const CHECK_EST_USD = 0.01;
 
-const KIND_LABELS = { block: 'Bloc', item: 'Objet de collection', badge: 'Badge', relic: 'Relique', event: 'Objet d\'événement', ui: 'Interface' };
+const KIND_LABELS = { block: 'Bloc', item: 'Objet de collection', badge: 'Badge', relic: 'Relique', mission: 'Mission quotidienne', event: 'Objet d\'événement', ui: 'Interface' };
 const _EV_STATES = { draft: 'brouillon', planned: 'planifié', active: 'en cours', ended: 'terminé' };
 
 class StudioError extends Error {
@@ -291,6 +292,17 @@ const _blockTypes = () => blockCatalog.getDraft()?.types ?? blockCatalog.getPubl
 const _collectionContent = () => collectionCatalog.getDraft() ?? collectionCatalog.getPublished();
 /** Reliques (#64) : brouillon du catalogue s'il existe, sinon version en vigueur. */
 const _relics = () => (relicCatalog.getDraft() ?? relicCatalog.getPublished()).relics;
+/** Missions quotidiennes (#68) : brouillon du catalogue s'il existe, sinon version en vigueur. */
+const _missions = () => (missionCatalog.getDraft() ?? missionCatalog.getPublished()).missions;
+/** Symbole par type de mission (#68) : emblème de la mission, distinct des pictogrammes d'interface (#67). */
+const _MISSION_SYMBOLS = {
+  break_blocks: 'a pickaxe striking a cracked stone block, small debris flying',
+  earn_coins: 'a small stack of gold coins, the top coin shining',
+  open_chests: 'an open wooden treasure chest with warm light coming out',
+  buy_upgrades: 'a hammer crossed with a cog wheel and a small upward arrow',
+  find_gems: 'a single faceted gemstone being unearthed from rock',
+  depth_gain: 'a rope ladder descending into a deep mine shaft',
+};
 /** Objet d'événement (#65) : { ev, it } ou null ; `it.image` = fiche, `it.publishedImage` = vue des joueurs. */
 function _eventItem(id) {
   const [evId, itemId] = String(id).split('/');
@@ -304,6 +316,7 @@ const _publishedImage = (kind, id) => (kind === 'block'
   ? blockCatalog.getPublished().types.find(t => t.id === id)
   : kind === 'badge' ? badges.getBadgeRow(id)
   : kind === 'relic' ? relicCatalog.getPublished().relics.find(r => r.id === id)
+  : kind === 'mission' ? missionCatalog.getPublished().missions.find(m => m.id === id)
   : kind === 'event' ? { image: _eventItem(id)?.it.publishedImage ?? null }
   : collectionCatalog.getPublished().items.find(i => i.id === id))?.image ?? null;
 
@@ -313,6 +326,10 @@ function _defaultBrief(kind, src) {
   if (kind === 'badge') {
     const what = String(src.descriptions?.en || src.descriptions?.fr || '').slice(0, 160);
     return { subject: `A round honorary medal emblem for the achievement "${en}"`, details: `No text or letters; a single clear symbol in the centre${what ? `, evoking: ${what}` : ''}.`, palette: '' };
+  }
+  if (kind === 'mission') {
+    const symbol = _MISSION_SYMBOLS[src.type] ?? 'a simple emblem of a mining task';
+    return { subject: `A daily mission emblem for "${en}": ${symbol}`, details: 'One clear symbol, readable at small size; no text, no numbers, no letters.', palette: '' };
   }
   if (kind === 'relic') {
     const what = String(src.descs?.en || src.descs?.fr || '').slice(0, 160);
@@ -357,6 +374,9 @@ function _target(key) {
   } else if (kind === 'badge') {
     src = badges.getBadgeRow(id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `badge · ${src.status}` };
+  } else if (kind === 'mission') {
+    src = _missions().find(m => m.id === id);
+    if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `mission · ${missionCatalog.TYPES[src.type]?.label ?? src.type}${src.active ? '' : ' · archivée'}` };
   } else if (kind === 'relic') {
     src = _relics().find(r => r.id === id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `relique · ${relicCatalog.EFFECTS[src.effect]?.label ?? src.effect}${src.active ? '' : ' · archivée'}` };
@@ -610,6 +630,12 @@ function _badgeKeys() {
 }
 
 /** Reliques (#64) ; aucune si le catalogue n'est pas initialisé (tests isolés). */
+/** Missions quotidiennes (#68) ; aucune si le catalogue n'est pas initialisé (tests isolés). */
+function _missionKeys() {
+  try { return _missions().map(m => `mission:${m.id}`); }
+  catch (err) { if (/no such table/.test(err.message)) return []; throw err; }
+}
+
 function _relicKeys() {
   try { return _relics().map(r => `relic:${r.id}`); }
   catch (err) { if (/no such table/.test(err.message)) return []; throw err; }
@@ -629,6 +655,7 @@ function listTargets() {
     ..._collectionContent().items.map(i => `item:${i.id}`),
     ..._badgeKeys(),
     ..._relicKeys(),
+    ..._missionKeys(),
     ..._eventKeys(),
     ...UI_TARGETS.map(u => `ui:${u.id}`),
   ];
@@ -697,7 +724,7 @@ function buildPrompt(kind, brief, instruction = '', identity = null) {
     if (!m) throw new Error(`gabarit ${tag} absent de prompt-master.md`);
     return m[1].trim();
   };
-  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' || kind === 'relic' || kind === 'event' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
+  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' || kind === 'relic' || kind === 'event' || kind === 'mission' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
   const who = identity
     ? `Object to depict: "${identity.name}"${identity.fr ? ` (French name: "${identity.fr}")` : ''}; the icon shows this exact object and nothing else. Visual description: `
     : '';
@@ -729,7 +756,7 @@ function promptSummary(kind, brief, identity = null) {
     subject: brief.subject,
     shape: brief.details || '',
     colors: String(brief.palette || '').replace(/^\s*palette\s*:\s*/i, ''),
-    style: `${STYLE_FR[kind === 'badge' || kind === 'relic' || kind === 'event' ? 'item' : kind] ?? STYLE_FR.item} ${CONSTRAINTS_FR}${_reference() ? ' Même style que l\'icône de référence validée (pierre), sans en reprendre la forme.' : ''}`,
+    style: `${STYLE_FR[kind === 'badge' || kind === 'relic' || kind === 'event' || kind === 'mission' ? 'item' : kind] ?? STYLE_FR.item} ${CONSTRAINTS_FR}${_reference() ? ' Même style que l\'icône de référence validée (pierre), sans en reprendre la forme.' : ''}`,
   };
 }
 
@@ -1137,7 +1164,7 @@ function getTarget(key) {
   return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), promptSummary: promptSummary(t.kind, brief, _identity(t)),
     identity: _identity(t), subjectConflicts, subjectReferences,
     assets, history, ...itemExtra, ...eventExtra,
-    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : t.kind === 'relic' || t.kind === 'event' ? t.src.descs?.fr ?? null : null };
+    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : t.kind === 'relic' || t.kind === 'event' || t.kind === 'mission' ? t.src.descs?.fr ?? null : null };
 }
 
 function _asset(key, sha) {
@@ -1180,11 +1207,12 @@ function apply(key, { sha = null, override = false, live = false, doubtful = fal
   if (t.kind === 'block') blockCatalog.upsertDraftType({ ...t.src, image: url });
   else if (t.kind === 'badge') badges.updateBadge(t.id, { image: url });
   else if (t.kind === 'relic') relicCatalog.upsertDraftRelic({ ...t.src, image: url });
+  else if (t.kind === 'mission') missionCatalog.upsertDraftMission({ ...t.src, image: url });
   else if (t.kind === 'event') monthlyEvents.setItemImage(t.src.eventId, t.src.id, url);
   else collectionCatalog.upsertDraftItem({ ...t.src, image: url });
   _event(key, sha ? 'applied' : 'reverted_to_emoji', sha, { before, after: url, override: !!override && !!t.validation, ...(doubtful ? { doubtful: true } : {}), ...(t.kind === 'badge' ? { live: t.src.status === 'active' } : {}) });
   if (t.kind === 'badge') return { target: getTarget(key), draft: t.src.status !== 'active', catalog: 'badges' };
-  return { target: getTarget(key), draft: true, catalog: t.kind === 'block' ? 'blocks' : t.kind === 'relic' ? 'relics' : t.kind === 'event' ? 'events' : 'collections' };
+  return { target: getTarget(key), draft: true, catalog: t.kind === 'block' ? 'blocks' : t.kind === 'relic' ? 'relics' : t.kind === 'mission' ? 'missions' : t.kind === 'event' ? 'events' : 'collections' };
 }
 
 function listCalls(limit = 50) {
