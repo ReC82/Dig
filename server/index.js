@@ -84,6 +84,7 @@ const standings = require('./standings');
 const contest   = require('./contest');
 const shop      = require('./shop');
 const blockCatalog = require('./blockCatalog');
+const relicCatalog = require('./relicCatalog');
 const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
@@ -808,11 +809,17 @@ app.get('/api/blocks/catalog', (req, res) => {
   catch (err) { console.error('[GET /api/blocks/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
+// Catalogue de reliques publié (#64) : lu par le jeu au démarrage (reliques archivées comprises).
+app.get('/api/relics/catalog', (req, res) => {
+  try { res.set('Cache-Control', 'no-cache'); res.json(relicCatalog.publicCatalog()); }
+  catch (err) { console.error('[GET /api/relics/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
 function catalogRoute(label, fn) {
   return async (req, res) => {
     try { res.json(await fn(req)); }
     catch (err) {
-      if (err instanceof blockCatalog.CatalogError || err instanceof blockAi.AiError) {
+      if (err instanceof blockCatalog.CatalogError || err instanceof blockAi.AiError || err instanceof relicCatalog.CatalogError) {
         return res.status(err.status).json({ error: err.message, details: err.details });
       }
       if (err instanceof rewardTables.RewardError) return res.status(err.status).json({ error: err.message, details: err.details });
@@ -1311,6 +1318,33 @@ app.post('/api/admin/blocks/publish', requireAdmin, catalogRoute('POST /api/admi
 
 app.post('/api/admin/blocks/rollback', requireAdmin, catalogRoute('POST /api/admin/blocks/rollback',
   req => blockCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+// Catalogue de reliques (#64) : brouillon validé, écarts, publication explicite, retour arrière, journal.
+app.get('/api/admin/relics', requireAdmin, catalogRoute('GET /api/admin/relics', () => relicCatalog.buildAdminView()));
+
+app.put('/api/admin/relics/draft/relics/:id', requireAdmin, catalogRoute('PUT /api/admin/relics/draft/relics/:id', req => {
+  const relic = req.body?.relic;
+  if (!relic || relic.id !== req.params.id) throw new relicCatalog.CatalogError(400, 'Identifiant incohérent.');
+  return relicCatalog.upsertDraftRelic(relic);
+}));
+
+app.delete('/api/admin/relics/draft/relics/:id', requireAdmin, catalogRoute('DELETE /api/admin/relics/draft/relics/:id',
+  req => { relicCatalog.removeDraftRelic(String(req.params.id)); return { ok: true }; }));
+
+app.post('/api/admin/relics/draft/relics/:id/revert', requireAdmin, catalogRoute('POST /api/admin/relics/draft/relics/:id/revert',
+  req => relicCatalog.revertDraftRelic(String(req.params.id))));
+
+app.delete('/api/admin/relics/draft', requireAdmin, catalogRoute('DELETE /api/admin/relics/draft',
+  () => ({ discarded: relicCatalog.discardDraft() })));
+
+app.post('/api/admin/relics/publish', requireAdmin, catalogRoute('POST /api/admin/relics/publish',
+  req => relicCatalog.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null })));
+
+app.post('/api/admin/relics/rollback', requireAdmin, catalogRoute('POST /api/admin/relics/rollback',
+  req => relicCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+app.get('/api/admin/relics/audit', requireAdmin, catalogRoute('GET /api/admin/relics/audit',
+  req => ({ audit: relicCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
 
 // Tables de récompenses des coffres (#37, objectif 4) : même cycle brouillon → publication → retour arrière.
 // Les coûts effectifs (⚙ Config, #20) servent à refuser une table qui rendrait plus que son prix.
@@ -2220,6 +2254,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 // Initialise la base (crée server/data/ + tables si absents)
 initDb();
 blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
+relicCatalog.init();             // catalogue de reliques v1 = 6 reliques d'origine, valeurs identiques (#64)
 rewardTables.init();             // tables de récompenses des coffres v1 = tables d'origine (#37)
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)

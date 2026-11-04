@@ -34,7 +34,7 @@
  * reste inférieure au prix (pas de boucle de profit, cf. test/chest-shop-odds.test.js).
  */
 
-const { DEFAULT_CHEST_COSTS, SHARD_MAGNET_BONUS, getEconomy, relicFragmentBonus } = require('./economy');
+const { DEFAULT_CHEST_COSTS, getEconomy, relicFragmentBonus, shardMagnetBonusValues } = require('./economy');
 
 const COLLECTION_ITEM_IDS = [
   'fossil', 'crystal', 'ancient_coin', 'relic',
@@ -205,7 +205,7 @@ function describeChests(config = {}) {
     // Coffres trouvés en minant (tirés par le jeu, public/js/chests.js) : tables publiées dans l'admin
     ...(tables.mined ? { mined: tables.mined } : {}),
     fragments: {
-      shardMagnetBonus: SHARD_MAGNET_BONUS,
+      shardMagnetBonus: shardMagnetBonusValues(),
       multiplier:       economy.fragmentDropMultiplier,
       minimum:          1,
     },

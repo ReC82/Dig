@@ -93,10 +93,16 @@ function relicFragmentBonus(data) {
     ? (relics.includes('shard_magnet') ? 1 : 0)
     : Number(relics?.shard_magnet ?? 0);
   if (!Number.isInteger(level) || level < 1) return 0;
-  return SHARD_MAGNET_BONUS[Math.min(level, SHARD_MAGNET_BONUS.length) - 1];
+  const values = shardMagnetBonusValues();
+  return values[Math.min(level, values.length) - 1];
+}
+
+/** Bonus de l'Aimant à éclats en vigueur : catalogue de reliques publié (#64), sinon valeurs d'origine. */
+function shardMagnetBonusValues() {
+  return require('./relicCatalog').shardMagnetValues() ?? SHARD_MAGNET_BONUS;
 }
 
 module.exports = {
   DEFAULT_CHEST_COSTS, ECONOMY_KEYS, SHARD_MAGNET_BONUS,
-  validateEconomyValue, getEconomy, relicFragmentBonus,
+  validateEconomyValue, getEconomy, relicFragmentBonus, shardMagnetBonusValues,
 };

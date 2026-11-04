@@ -1376,7 +1376,7 @@ function renderRelics() {
   if (!grid) return;
 
   const unlockedCount = Object.values(GameState.relics).filter(l => l >= 1).length;
-  const totalCount    = Relics.DEFS.length;
+  const totalCount    = Relics.DEFS.filter(d => Relics.isVisible(d)).length;
   if (info) {
     info.textContent = t('ui.relic_header', {
       count: unlockedCount,
@@ -1390,6 +1390,7 @@ function renderRelics() {
   grid.innerHTML = '';
 
   for (const def of Relics.DEFS) {
+    if (!Relics.isVisible(def)) continue;   // relique archivée jamais débloquée (#64)
     const level      = Relics.getLevel(def.id);
     const unlocked   = level >= 1;
     const maxed      = level >= def.maxLevel;
@@ -1406,7 +1407,7 @@ function renderRelics() {
 
     const card = document.createElement('div');
     card.className = `relic-card${unlocked ? ' relic-unlocked' : isAffordable ? ' relic-affordable' : ''}`;
-    card.title = t(def.desc);
+    card.title = Relics.displayDesc(def);
 
     const levelChip = unlocked
       ? `<span class="relic-level">${t('relic.level_label', { cur: level, max: def.maxLevel })}</span>`
@@ -1420,11 +1421,11 @@ function renderRelics() {
           ${!canUnlock ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
         </div>
         <button class="relic-unlock-btn" ${canUnlock ? '' : 'disabled'}
-          aria-label="${canUnlock ? `${t('ui.btn_unlock')} ${t(def.name)}` : t('ui.relic_shortfall', { n: shortfall })}">
+          aria-label="${canUnlock ? `${t('ui.btn_unlock')} ${escapeHtml(Relics.displayName(def))}` : t('ui.relic_shortfall', { n: shortfall })}">
           ${t('ui.btn_unlock')}
         </button>`;
-    } else if (maxed) {
-      actionHtml = `<div class="relic-max-badge">${t('ui.btn_max')}</div>`;
+    } else if (maxed || def.active === false) {
+      actionHtml = maxed ? `<div class="relic-max-badge">${t('ui.btn_max')}</div>` : '';
     } else {
       actionHtml = `
         <div class="relic-cost${canUpgrade ? ' can-afford' : ''}">
@@ -1432,14 +1433,14 @@ function renderRelics() {
           ${!canUpgrade ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
         </div>
         <button class="relic-upgrade-btn" ${canUpgrade ? '' : 'disabled'}
-          aria-label="${t('ui.btn_upgrade')} ${t(def.name)} ${t('relic.level_label', { cur: level + 1, max: def.maxLevel })}">
+          aria-label="${t('ui.btn_upgrade')} ${escapeHtml(Relics.displayName(def))} ${t('relic.level_label', { cur: level + 1, max: def.maxLevel })}">
           ${t('ui.btn_upgrade')}
         </button>`;
     }
 
     card.innerHTML = `
-      <div class="relic-icon">${def.icon}</div>
-      <div class="relic-name">${t(def.name)}${levelChip}</div>
+      <div class="relic-icon">${def.image ? `<img src="${escapeHtml(def.image)}" alt="" width="40" height="40" loading="lazy">` : escapeHtml(def.icon)}</div>
+      <div class="relic-name">${escapeHtml(Relics.displayName(def))}${levelChip}</div>
       <div class="relic-bonus">${Relics.formatBonus(def, level)}</div>
       ${actionHtml}`;
 
@@ -1452,7 +1453,7 @@ function renderRelics() {
     if (!unlocked && canUnlock) {
       card.querySelector('.relic-unlock-btn').addEventListener('click', () => {
         if (Relics.unlock(def.id)) {
-          showAchievement('🔮', t('notif.relic_unlocked', { name: t(def.name) }));
+          showAchievement('🔮', t('notif.relic_unlocked', { name: Relics.displayName(def) }));
           renderRelics();
           renderStats();
           _clearBadgeIfNeeded();
@@ -1462,7 +1463,7 @@ function renderRelics() {
     } else if (unlocked && !maxed && canUpgrade) {
       card.querySelector('.relic-upgrade-btn').addEventListener('click', () => {
         if (Relics.upgrade(def.id)) {
-          showAchievement('🔮', t('notif.relic_upgraded', { name: t(def.name), n: Relics.getLevel(def.id) }));
+          showAchievement('🔮', t('notif.relic_upgraded', { name: Relics.displayName(def), n: Relics.getLevel(def.id) }));
           renderRelics();
           renderStats();
           _clearBadgeIfNeeded();
@@ -3908,6 +3909,7 @@ function init() {
   });
   window.addEventListener('pagehide', _flushCloudOnExit);
   Blocks.loadCached();     // catalogue de blocs publié (#37) mémorisé, avant la reprise du bloc
+  Relics.loadCached();     // catalogue de reliques publié (#64) mémorisé, avant le calcul des bonus
   Collection.loadCached(); // collections publiées (#39) mémorisées
   Save.load();
 
@@ -3948,6 +3950,7 @@ function init() {
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
   // Catalogue de blocs publié (#37) : s'applique aux prochains blocs, le bloc courant est conservé.
   Blocks.fetchCatalog(() => { if (Blocks.current && isViewActive('dig')) renderBlock(); });
+  Relics.fetchCatalog(() => { renderRelics(); renderStats(); });
   // Collections publiées (#39) : séries, objets, fiches.
   Collection.fetchCatalog(() => { if (isViewActive('collection')) renderCollection(); });
   setInterval(() => Save.save(),  15_000);

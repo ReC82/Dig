@@ -75,13 +75,13 @@ test('registre : codes BCP 47 uniques, français actif et repli, statuts valides
 test('serveur : tous les modules de contenu lisent le registre (langues actives seulement)', () => {
   const { CONTENT_LANGS } = require('../server/languages');
   assert.deepStrictEqual([...CONTENT_LANGS], [...LANGS.ACTIVE]);
-  for (const m of ['shop', 'news', 'badges', 'collectionCatalog', 'blockCatalog']) {
+  for (const m of ['shop', 'news', 'badges', 'collectionCatalog', 'blockCatalog', 'relicCatalog']) {
     assert.deepStrictEqual([...require(`../server/${m}`).LANGS], [...CONTENT_LANGS], m);
   }
   // Une langue preview ne bloque aucune publication (non exigée dans les contenus)
   assert.ok(!CONTENT_LANGS.includes('it'));
   // Plus aucune liste « fr/en/nl/es » recodée en dur dans le serveur ni l'admin
-  for (const f of ['shop', 'news', 'badges', 'collectionCatalog', 'blockCatalog', 'monthlyEvents', 'seasonThemes', 'badgeAi', 'collectionAi', 'blockAi']) {
+  for (const f of ['shop', 'news', 'badges', 'collectionCatalog', 'blockCatalog', 'relicCatalog', 'monthlyEvents', 'seasonThemes', 'badgeAi', 'collectionAi', 'blockAi']) {
     assert.doesNotMatch(read(`server/${f}.js`), /\['fr', 'en', 'nl', 'es'\]|fr: 'French', en: 'English'/, f);
   }
   assert.doesNotMatch(read('public/admin/admin.js'), /_LANGS = \['fr', 'en', 'nl', 'es'\]/);
