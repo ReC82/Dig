@@ -3736,6 +3736,10 @@ let _coAi = null; // propositions IA (GET /api/admin/collections/ai)
 let _coAiTimer = null;
 let _coProp = null; // proposition ouverte dans la fiche de relecture
 
+/** Barème lisible : « 3 % » (fixe) ou « 3 % + 0,3 pt/échec » (chance croissante, #39). */
+const coPct = v => `${+(v * 100).toFixed(3)}`.replace('.', ',');
+const coDropRate = d => `${coPct(d.chance)} %${d.pityStep ? ` + ${coPct(d.pityStep)} pt/échec` : ''}`;
+
 function coWorking() {
   if (!_co) return { series: [], items: [] };
   return _co.draft ? { series: _co.draft.series, items: _co.draft.items } : { series: _co.published.series, items: _co.published.items };
@@ -3900,6 +3904,7 @@ function coFillItemForm(i) {
   for (const c of _co.categories) document.getElementById(`co-i-from-${c}`).checked = !!i?.drop.from.includes(c);
   document.getElementById('co-i-min').value = i ? i.drop.minDepth : '';
   document.getElementById('co-i-chance').value = i ? +(i.drop.chance * 100).toFixed(4) : '';
+  document.getElementById('co-i-pity').value = i?.drop.pityStep ? +(i.drop.pityStep * 100).toFixed(4) : '';
   document.getElementById('co-i-drop').checked = i ? i.dropEnabled : false;
   document.getElementById('co-i-active').checked = i ? i.active : true;
   document.getElementById('btn-co-i-remove').classList.toggle('hidden', !i || _co.publishedIds.items.includes(i.id));
@@ -3956,7 +3961,7 @@ document.querySelectorAll('#co-i-langs .co-lang-btn').forEach((b, k, all) => {
 
 function coReadItem() {
   const num = id => { const v = document.getElementById(id).value.trim(); return v === '' ? null : Number(v); };
-  const chance = num('co-i-chance');
+  const chance = num('co-i-chance'), pity = num('co-i-pity');
   return {
     id: document.getElementById('co-i-id').value.trim(),
     seriesId: document.getElementById('co-i-series').value,
@@ -3966,7 +3971,7 @@ function coReadItem() {
     icon: document.getElementById('co-i-icon').value.trim(),
     image: document.getElementById('co-i-image').value.trim() || null,
     drop: { from: _co.categories.filter(c => document.getElementById(`co-i-from-${c}`).checked),
-      minDepth: num('co-i-min'), chance: chance === null ? null : chance / 100 },
+      minDepth: num('co-i-min'), chance: chance === null ? null : chance / 100, ...(pity ? { pityStep: pity / 100 } : {}) },
     dropEnabled: document.getElementById('co-i-drop').checked,
     active: document.getElementById('co-i-active').checked,
   };
@@ -4038,7 +4043,7 @@ function coRenderItems() {
     const drop = addCell(tr, `${i.drop.from.join(' / ')} · dès ${i.drop.minDepth} m`);
     drop.className = 'bk-range';
     const chance = document.createElement('small');
-    chance.textContent = `${+(i.drop.chance * 100).toFixed(3)} %${i.dropEnabled ? '' : ' · inactif'}`;
+    chance.textContent = `${coDropRate(i.drop)}${i.dropEnabled ? '' : ' · inactif'}`;
     if (!i.dropEnabled) chance.className = 'muted';
     drop.appendChild(chance);
     const langs = addCell(tr, '');
@@ -4081,6 +4086,7 @@ async function loadCollections({ manual = false } = {}) {
   }
   _co = data;
   _coLoadedAt = new Date();
+  if (!_coPity) coLoadPity();
   if (!manual) { st.className = 'refresh-status'; st.textContent = `✓ Données à jour à ${coClock(_coLoadedAt)}`; }
   const w = coWorking();
   const p = data.published;
@@ -4121,6 +4127,7 @@ async function loadCollections({ manual = false } = {}) {
     sb.appendChild(tr);
   }
   coRenderItems();
+  coRenderPity();
 
   const d = data.draft;
   document.getElementById('co-draft-state').textContent = d
@@ -4140,7 +4147,7 @@ async function loadCollections({ manual = false } = {}) {
   const drops = d ? d.drops : [];
   document.getElementById('co-drops-box').classList.toggle('hidden', !drops.length);
   bkFillList(document.getElementById('co-drops-list'), drops.map(x =>
-    `${x.id} : ${x.drop.from.join('/')} dès ${x.drop.minDepth} m, ${+(x.drop.chance * 100).toFixed(3)} % par bloc — ${coSeasonLabel(x.seasonId, x.seasonWeek)}`));
+    `${x.id} : ${x.drop.from.join('/')} dès ${x.drop.minDepth} m, ${coDropRate(x.drop)} par bloc — ${coSeasonLabel(x.seasonId, x.seasonWeek)}`));
   document.getElementById('co-confirm-drops').checked = false;
   coRenderReadiness(d);
   const incomplete = (d?.readiness ?? []).filter(r => r.blocking.length);
@@ -4265,6 +4272,135 @@ async function coRollback(version) {
 }
 
 admRefreshButton('btn-refresh-collections', loadCollections, 'Collections');
+// ── Barème et simulation (#39, décision du propriétaire du 04/11 : chance croissante) ──────────
+// Le modèle ne touche qu'au BROUILLON ; la simulation tourne sur le serveur (processus enfant) et
+// compare la version publiée, le brouillon (avec et sans hausse) et le modèle « chance croissante ».
+let _coPity = null;      // dernier état GET /api/admin/collections/simulation
+let _coPityPoll = null;
+const CO_PITY_PRESET = 'croissant';
+
+function coPresetDrop(i) {
+  const r = _co?.pityPresets?.[CO_PITY_PRESET]?.rarities?.[i.rarity];
+  if (!r) return i.drop;
+  const { pityStep: _p, ...drop } = i.drop;
+  return { ...drop, chance: r.chance, ...(r.pityStep ? { pityStep: r.pityStep } : {}) };
+}
+
+function coRenderPity() {
+  if (!_co) return;
+  const w = coWorking();
+  coSelect('co-pity-series', w.series.map(s => [s.id, `${s.icon} ${s.names.fr}`]));
+  const sel = document.getElementById('co-pity-series');
+  if (!sel.dataset.touched) {   // série saisonnière la plus récente par défaut
+    const seasonal = w.series.filter(s => s.seasonId != null || s.seasonWeek);
+    if (seasonal.length) sel.value = seasonal[seasonal.length - 1].id;
+  }
+  const items = w.items.filter(i => i.seriesId === sel.value);
+  const counters = _coPity?.counters ?? {};
+  const body = document.getElementById('co-pity-body');
+  body.replaceChildren();
+  for (const i of items) {
+    const tr = document.createElement('tr');
+    const target = coPresetDrop(i);
+    const c = counters[i.id];
+    [`${i.icon} ${i.names?.fr ?? i.id}`, BK_RARITY[i.rarity] ?? i.rarity, `${i.drop.from.join(' / ')} · dès ${i.drop.minDepth} m`,
+      `${i.drop.pityStep ? '↗ Chance croissante' : 'Fixe'} : ${coDropRate(i.drop)}${i.dropEnabled ? '' : ' · inactif'}`,
+      JSON.stringify(target) === JSON.stringify(i.drop) ? '= déjà appliqué' : `${target.pityStep ? '↗' : 'Fixe'} ${coDropRate(target)}`,
+      c ? `${c.players} · ${c.found} trouvé(s) · max ${c.maxFails} échecs` : '—'].forEach(x => addCell(tr, x));
+    body.appendChild(tr);
+  }
+  coRenderPitySim();
+}
+
+const coPityPct = v => (v == null ? '—' : v >= 0.995 && v < 1 ? '> 99 %' : v > 0 && v < 0.005 ? '< 1 %' : `${Math.round(v * 100)} %`);
+
+function coRenderPitySim() {
+  const box = document.getElementById('co-pity-result');
+  const job = _coPity?.simulation;
+  const btn = document.getElementById('btn-co-pity-sim');
+  btn.disabled = job?.status === 'running';
+  box.replaceChildren();
+  if (!job) return;
+  const head = document.createElement('p');
+  head.className = job.status === 'error' ? 'error' : 'muted';
+  head.textContent = job.status === 'running'
+    ? `↻ Simulation en cours (série ${job.seriesId}, ${job.runs} joueurs par profil)${job.progress ? ` — ${job.progress.done}/${job.progress.total} profils` : ''}…`
+    : job.status === 'error' ? `⚠️ ${job.error}`
+    : `✓ Simulation du ${String(job.finishedAt).slice(0, 16).replace('T', ' ')} UTC — série ${job.seriesId}, ${job.runs} joueurs par profil (simulateur #49 : vrai code du jeu, 7 jours). Rien n'est publié.`;
+  box.appendChild(head);
+  if (job.status !== 'done') return;
+  const legend = document.createElement('ul');
+  legend.className = 'muted';
+  legend.style.fontSize = '0.78rem';
+  for (const sc of job.scales) {
+    const li = document.createElement('li');
+    li.textContent = `${sc.label}${sc.also.length ? ` (= ${sc.also.join(', ')})` : ''} : ${sc.items.map(i => `${i.id.split('_')[0]} ${coDropRate(i)}`).join(' · ')}`;
+    legend.appendChild(li);
+  }
+  box.appendChild(legend);
+  const wrap = document.createElement('div');
+  wrap.className = 'bk-table-wrap';
+  const table = document.createElement('table');
+  table.className = 'bk-table';
+  const thead = document.createElement('thead');
+  const h1 = document.createElement('tr'), h2 = document.createElement('tr');
+  for (const t of ['Profil', 'Saison']) { const th = document.createElement('th'); th.rowSpan = 2; th.textContent = t; h1.appendChild(th); }
+  for (const sc of job.scales) {
+    const th = document.createElement('th'); th.colSpan = 4; th.textContent = sc.label; h1.appendChild(th);
+    for (const t of ['Série complète (7 j)', 'Rare', 'Légendaire', 'Légendaire fin J1']) { const x = document.createElement('th'); x.textContent = t; h2.appendChild(x); }
+  }
+  thead.append(h1, h2);
+  const tb = document.createElement('tbody');
+  for (const r of job.result.rows) {
+    const tr = document.createElement('tr');
+    addCell(tr, r.label);
+    addCell(tr, r.season === 1 ? '1 (compte neuf)' : `${r.season} (installé)`);
+    for (const sc of job.scales) {
+      const v = r.scales[sc.key];
+      [v.all, v.rare, v.legendary, v.legendaryJ1].forEach(x => { addCell(tr, coPityPct(x)).className = 'num'; });
+    }
+    tb.appendChild(tr);
+  }
+  table.append(thead, tb);
+  wrap.appendChild(table);
+  box.appendChild(wrap);
+}
+
+async function coLoadPity() {
+  const { ok, data } = await api('GET', '/api/admin/collections/simulation');
+  if (!ok) return;
+  _coPity = data;
+  coRenderPity();
+  clearTimeout(_coPityPoll);
+  if (data.simulation?.status === 'running') _coPityPoll = setTimeout(coLoadPity, 3000);
+}
+
+document.getElementById('co-pity-series').addEventListener('change', e => { e.target.dataset.touched = '1'; coRenderPity(); });
+document.getElementById('btn-co-pity-preset').addEventListener('click', async () => {
+  const seriesId = document.getElementById('co-pity-series').value;
+  const s = coWorking().series.find(x => x.id === seriesId);
+  if (!s) return;
+  const changes = coWorking().items.filter(i => i.seriesId === seriesId && JSON.stringify(coPresetDrop(i)) !== JSON.stringify(i.drop));
+  if (!changes.length) return ptMessage('co-pity-msg', 'Le modèle « chance croissante » est déjà appliqué à cette série.', true);
+  if (!await admConfirm({ title: `Appliquer la chance croissante à « ${s.names.fr} » ?`,
+    text: 'Seul le brouillon change : rien n\'est publié, aucun drop n\'est activé, images et textes restent identiques.',
+    impact: changes.map(i => `${i.names?.fr ?? i.id} : ${coDropRate(i.drop)} → ${coDropRate(coPresetDrop(i))}`), ok: 'Appliquer au brouillon' })) return;
+  const { ok, data } = await api('POST', `/api/admin/collections/draft/series/${encodeURIComponent(seriesId)}/preset`, { preset: CO_PITY_PRESET });
+  ptMessage('co-pity-msg', ok ? `✓ Brouillon mis à jour : ${data.changed.length} objet(s). Rien n'est publié.` : (data.error || 'Erreur.'), ok);
+  if (ok) await loadCollections();
+});
+document.getElementById('btn-co-pity-sim').addEventListener('click', async () => {
+  const seriesId = document.getElementById('co-pity-series').value;
+  const runs = Number(document.getElementById('co-pity-runs').value) || 2000;
+  const { ok, data } = await api('POST', '/api/admin/collections/simulation', { seriesId, runs });
+  if (!ok) return ptMessage('co-pity-msg', data.error || 'Erreur.', false);
+  document.getElementById('co-pity-msg').className = 'hidden';
+  _coPity = { ...(_coPity ?? {}), ...data };
+  coRenderPitySim();
+  clearTimeout(_coPityPoll);
+  _coPityPoll = setTimeout(coLoadPity, 3000);
+});
+
 document.getElementById('co-filter-text').addEventListener('input', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-series').addEventListener('change', () => { if (_co) coRenderItems(); });
 document.getElementById('co-filter-state').addEventListener('change', () => { if (_co) coRenderItems(); });

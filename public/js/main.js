@@ -1738,6 +1738,11 @@ async function _pushSave(retry) {
     _setCloudMeta(res.data.revision);
     if (Array.isArray(res.data.badgesEarned) && res.data.badgesEarned.length) _onBadgesEarned(res.data.badgesEarned);
     if (Array.isArray(res.data.eventFinds) && res.data.eventFinds.length) _onEventFinds(res.data.eventFinds);
+    // Collection à chance croissante (#39) : objet tiré par le serveur, ajouté et annoncé comme un drop
+    if (Array.isArray(res.data.collectionFinds) && res.data.collectionFinds.length) {
+      Collection.addServerFinds(res.data.collectionFinds).forEach((f, i) => setTimeout(() => handleFindDrop(f), i * 600));
+      Save.save();
+    }
     _refreshSeasonView();   // onglet Saison ouvert : chiffres serveur à jour après la sauvegarde
     return 'ok';
   }
