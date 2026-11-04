@@ -296,3 +296,101 @@ après lancement.
 
 - Affichage distinct saison (nom, bornes, temps restant) / ligue / collection : **#48**.
 - Paquet ligues après lancement (relégation, bonus de ligue #33) : décision groupée inchangée.
+
+## Mise à jour du 04/11/2026 — seuil bêta 10 → 3 actifs par ligue (décision du propriétaire)
+
+Ticket : https://github.com/ReC82/Dig/issues/19 — décision du propriétaire :
+https://github.com/ReC82/Dig/issues/19#issuecomment-6633213553 (et recette du contrôle d'entier :
+https://github.com/ReC82/Dig/issues/19#issuecomment-6633178986, validée, rien à corriger).
+
+### État réel
+
+**Déployé en production (SHA `7b2ea8f`) — réglage appliqué et relu.** Ticket laissé ouvert : la
+promotion réelle n'a pas encore été observée (aucune clôture avec ≥ 3 actifs à ce jour).
+
+### Ce qui a été fait
+
+- **Ancienne valeur 10 → nouvelle valeur 3** (`min_active_players_per_league`), appliquée en
+  production le **04/11/2026 à 15:55:52 (heure de Bruxelles)** au démarrage du déploiement.
+- Je n'ai pas d'accès admin au panel et les règles de session interdisent d'écrire dans la base de
+  production autrement que par `scripts/deploy.sh`. Le changement passe donc par une **décision de
+  réglage appliquée une seule fois** au démarrage (`server/db.js`) :
+  - table ajoutée `admin_config_decisions` (journal : identifiant, clé, ancienne valeur, nouvelle
+    valeur, issue `applied`/`skipped`, date) ;
+  - la clé n'est changée **que si elle vaut encore 10** (un réglage modifié entre-temps dans le
+    panel est respecté → `skipped`) ;
+  - la décision n'est **jamais rejouée** : remettre 10 dans le panel reste acquis après redémarrage.
+- Rien d'autre : formule, `promotion_rate` (0,5), `difficulty_coefficient` (0,45), départage,
+  absence de relégation et de récompense, durée de saison, ligues et classements inchangés. La valeur
+  de repli pour un réglage illisible reste 10.
+- `docs/LIGUES.md` : seuil bêta et retour arrière documentés.
+- `server/test-season.js` (script historique) fixe explicitement le seuil 10 pour ses tests 9–10.
+
+### Preuves (relecture effective)
+
+- Journal du service : `[db] Décision issue19-beta-min-active-3 : min_active_players_per_league 10 → 3`.
+- Base de production (lecture seule) : `min_active_players_per_league|3|2026-11-04 14:55:52` (UTC) ;
+  `admin_config_decisions` : `issue19-beta-min-active-3|…|10|3|applied|2026-11-04 14:55:52`.
+- Comparaison complète de `admin_config` avec la sauvegarde pré-déploiement : **une seule ligne
+  différente**, celle du seuil.
+- Le moteur de promotion lit ce réglage à chaque clôture (`leagueSettings` dans `server/seasons.js`) ;
+  test automatisé : `leagueSettings(getAdminConfig()).minPlayers === 3` après la décision.
+
+### Tests (base isolée, aucun joueur créé en production, aucune clôture forcée)
+
+Nouveau `test/leagues-beta-threshold.test.js` (6 tests) :
+- base à 10 → 3 une seule fois, autres réglages identiques, redémarrages sans effet ;
+- retour à 10 depuis le panel conservé après redémarrage ; seuil déjà modifié (5) laissé tel quel ;
+- 0 actif → ligue ignorée ; 1 et 2 actifs → `not_enough_players`, 0 promu ; 3 actifs → 1 promu ;
+- formule inchangée : 4 actifs → 2, 7 → 3 (Mimosa) ; 3 → 1, 7 → 2 (niveau 1) ;
+- égalités : profondeur puis blocs manuels, auto-dig ignoré (compte 100 % auto-dig ni actif ni
+  promu) ; seconde clôture refusée, aucun double promu.
+
+`npm test` : **602/602** sur la branche, sur `develop` (`7b2ea8f`) et sur la release `7b2ea8f`.
+Copie de la base de production démarrée en `NODE_ENV=production` (port 3122) : santé et version OK,
+seuil 10 → 3, empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`,
+`player_click_tracking` identiques ; copie supprimée.
+
+### Déploiement
+
+- `develop` = `7b2ea8f` ; `main` avancé `aa40132 → 7b2ea8f` (avance rapide) ; `scripts/deploy.sh` OK.
+- Sauvegarde pré-déploiement vérifiée : `~/backups/dig/dig-20261104-155551-pre-deploy-7b2ea8f.sqlite`.
+- Avant : aucune génération IA en cours (dernière à 15:50, terminée et appliquée).
+- Après : `https://dig.lodygames.com` et `https://dig.lodylands.com` → 200, `/api/version` =
+  `1.0.0+7b2ea8f` ; journal sans erreur ; `pragma quick_check` = ok ; comptes, ligues, saisons
+  identiques ; classement identique ; une sauvegarde de partie en cours a progressé (version +1), aucune perte.
+- **Retour arrière simple** : Admin → Ligues & Saisons → « Joueurs actifs min par ligue » = 10
+  (sans redéploiement, conservé après redémarrage). Retour du code : `aa40132` (la table ajoutée est
+  ignorée par l'ancien code).
+
+### Test fonctionnel pour le propriétaire
+
+Aucun nouveau test d'interface (demande du propriétaire). Contrôle facultatif d'une minute :
+Admin → Ligues & Saisons → « Joueurs actifs min par ligue » affiche **3**. Le vrai résultat viendra
+de la **prochaine clôture** (dimanche soir) : avec ≥ 3 joueurs actifs (au moins un bloc manuel)
+dans Mimosa, le rapport de clôture doit montrer `promoted ≥ 1` et le premier du classement passe en
+ligue de niveau 1. Avec 2 actifs ou moins, aucun promu (attendu). Aucune promotion réelle n'a eu
+lieu à ce jour.
+
+**Classement : « Après lancement »** (aucun blocage MVP).
+
+### Choix techniques faits seul
+
+- Décision journalisée appliquée au démarrage plutôt qu'écriture directe en base : seul canal
+  autorisé (déploiement), traçable, idempotent, sans écraser un réglage du panel ni empêcher le
+  retour à 10.
+- La valeur par défaut des bases neuves suit la même décision (3), cohérente avec la production ;
+  la valeur de repli en cas de réglage illisible reste 10 (règle existante non modifiée).
+
+### Décisions demandées au propriétaire
+
+1. (Inchangée, plus tard, après lancement quand ≥ 5 joueurs actifs par semaine) activer le paquet
+   ligues (bonus points #33 +10 %/niveau, relégation 20 % des derniers + inactifs) : oui / non /
+   ajuster ? Reco : oui.
+
+La question du seuil bêta est **résolue** (3).
+
+### Restant
+
+- Observer une clôture réelle avec ≥ 3 actifs (rapport de clôture + ligue de niveau 1 créée).
+- Paquet ligues « après lancement » (question 1).
