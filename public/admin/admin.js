@@ -5384,6 +5384,8 @@ let _icConflict = null;  // génération refusée pour conflit de sujet { key, i
 let _icBriefEls = null;  // champs de la consigne d'illustration de la fiche affichée (objets)
 const IC_ACTIONS = { generated: 'Image générée', uploaded: 'Image téléversée', chosen: 'Retenue', rejected: 'Écartée', restored: 'Remise en proposition',
   validated: 'Verrouillée (validée)', applied: 'Conservée dans le brouillon', reverted_to_emoji: 'Retour à l\'emoji (brouillon)', brief: 'Description modifiée' };
+// #67 : pictogrammes d'interface, appliqués directement en jeu (pas de brouillon)
+const IC_UI_ACTIONS = { applied: 'Appliquée en jeu', reverted_to_emoji: 'Retour au pictogramme d\'origine (en jeu)' };
 const IC_BG_RE = /^linear-gradient\(\d+deg,\s*#[0-9a-f]{6},\s*#[0-9a-f]{6}\)$/i;
 const icEnc = k => encodeURIComponent(k);
 /** Date de la base (UTC, « AAAA-MM-JJ HH:MM:SS ») affichée à l'heure de Bruxelles. */
@@ -5534,7 +5536,8 @@ function icFiltered() {
   const kind = document.getElementById('ic-kind').value;
   const state = document.getElementById('ic-state').value;
   const q = document.getElementById('ic-search').value.trim().toLowerCase();
-  return (_ic?.targets ?? []).filter(t => (!kind || t.kind === kind) && (!state || icState(t).key === state)
+  const zone = document.getElementById('ic-zone')?.value ?? '';
+  return (_ic?.targets ?? []).filter(t => (!kind || t.kind === kind) && (!state || icState(t).key === state) && (!zone || t.zone === zone)
     && (!q || `${t.name} ${t.id}`.toLowerCase().includes(q)));
 }
 
@@ -5548,7 +5551,7 @@ function icRenderGrid() {
     const card = aiEl('button', { type: 'button', class: 'ic-card', 'aria-label': `Ouvrir la fiche ${t.name}` });
     card.appendChild(icThumb(t, 72));
     card.appendChild(aiEl('span', { class: 'ic-card-name' }, t.name));
-    card.appendChild(aiEl('span', { class: 'ic-card-kind' }, t.kindLabel));
+    card.appendChild(aiEl('span', { class: 'ic-card-kind' }, t.kind === 'ui' ? `${t.kindLabel} · ${t.zoneLabel ?? ''}${t.deployable === false ? ' · stockage seul' : ''}` : t.kindLabel));
     card.appendChild(icBadge(icState(t)));
     // Survol : aperçu agrandi (appareils à pointeur seulement, voir CSS)
     const zoom = aiEl('span', { class: 'ic-zoom', 'aria-hidden': 'true' });
@@ -5922,7 +5925,7 @@ function icRenderSheet() {
   const running = _icJob?.status === 'running';
   const mine = running && (_icJob.target === t.key || (_icJob.kind === 'series' && _icJob.items.some(i => i.key === t.key && i.state === 'running')));
   const canGenerate = !!_ic?.status?.configured && !_ic?.status?.budgetReached && !running;
-  const sel = t.assets.find(a => a.sha === _icSel) ?? null;
+  const sel = t.assets.find(a => a.sha === _icSel) ?? icReuseAsset(t, _icSel);
 
   // En-tête : retour, nom, état
   const head = aiEl('div', { class: 'ic-sheet-head' });
@@ -5938,7 +5941,10 @@ function icRenderSheet() {
   head.appendChild(aiEl('p', { class: 'muted ic-sheet-sub' }, `${t.kindLabel}${t.extra ? ` · ${t.extra}` : ''}`));
   box.appendChild(head);
   if (t.validated) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' }, '🔒 Icône validée : elle ne sera remplacée qu\'avec votre accord explicite.'));
-  if (!t.applicable) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' }, 'Pictogramme d\'interface : les images sont conservées ici ; leur mise en place dans le jeu viendra avec le logo et la navigation (#41).'));
+  // #67 : pictogramme d'interface raccordé au jeu (application immédiate, confirmée) ou seulement stocké
+  if (t.kind === 'ui' && !t.applicable) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' }, `Stockage seulement : ${t.notDeployable ?? 'ce pictogramme n\'est pas raccordé au jeu.'} Aucune image n'est appliquée automatiquement.`));
+  if (t.kind === 'ui' && t.applicable) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' }, `Emplacement en jeu : ${t.where}. Une proposition n'est jamais appliquée automatiquement : `
+    + '« Appliquer cette image » la met en jeu pour tous les joueurs après confirmation (aucune publication séparée), et « Revenir à l\'icône précédente » ou « Revenir au pictogramme d\'origine » l\'annule.'));
 
   // Comparaison : icône actuelle ↔ proposition affichée
   const cmp = aiEl('div', { class: 'ic-compare' });
@@ -5949,7 +5955,8 @@ function icRenderSheet() {
     cmp.appendChild(f);
     return f;
   };
-  fig(icThumb(t, 160), !t.applicable ? 'Actuelle' : t.neverPublished ? 'Actuelle (objet en brouillon, jamais publié)'
+  fig(icThumb(t, 160), t.kind === 'ui' ? (t.applicable ? (t.image ? 'Actuelle en jeu (image appliquée)' : `Actuelle en jeu (pictogramme d'origine ${t.emoji})`) : 'Actuelle')
+    : !t.applicable ? 'Actuelle' : t.neverPublished ? 'Actuelle (objet en brouillon, jamais publié)'
     : t.unpublished ? 'Actuelle (brouillon, pas encore en jeu)' : 'Actuelle en jeu');
   if (mine) {
     const wait = aiEl('span', { class: 'bk-thumb ic-thumb ic-wait', style: 'width:160px;height:160px;border-radius:26px' });
@@ -5957,10 +5964,13 @@ function icRenderSheet() {
     fig(wait, 'Génération en cours… (environ une minute)');
   } else if (sel) {
     const where = sel.published ? 'en jeu' : sel.inDraft ? 'dans le brouillon' : sel.status === 'rejected' ? 'écartée' : 'proposition';
-    const f = fig(icThumb(t, 160, sel.url), `${sel.source === 'ai' ? 'Proposition' : 'Image téléversée'} du ${icWhen(sel.createdAt)} (heure de Bruxelles) — ${where}`);
+    const f = fig(icThumb(t, 160, sel.url), `${sel.source === 'reuse' ? `Image de « ${sel.reusedFrom} », réutilisée` : sel.source === 'ai' ? 'Proposition' : 'Image téléversée'} du ${icWhen(sel.createdAt)} (heure de Bruxelles) — ${where}`);
     if (sel.source === 'ai') {
       // Provenance lisible : objet demandé (catalogue), version du prompt, précision de cette génération
-      f.appendChild(aiEl('p', { class: 'muted ic-fig-note' }, sel.identity
+      f.appendChild(aiEl('p', { class: 'muted ic-fig-note' }, sel.uiTarget
+        ? `Pictogramme demandé à l'IA : « ${sel.uiTarget.name} » (${sel.uiTarget.en}), avec son emplacement dans le jeu · prompt ${sel.promptVersion}`
+        : t.kind === 'ui' ? `Prompt ${sel.promptVersion ?? 'v1.1'} : ancienne version, le nom et l'emplacement du pictogramme n'étaient pas transmis à l'IA. L'image reste utilisable ; « Refaire » utilise la version actuelle.`
+        : sel.identity
         ? `Objet demandé à l'IA : « ${sel.identity.fr ?? sel.identity.name} » (${sel.identity.name}) · prompt ${sel.promptVersion}`
         : `Prompt ${sel.promptVersion ?? 'v1.0'} : ancienne version, le nom de l'objet n'était pas transmis à l'IA.`));
     }
@@ -6018,7 +6028,8 @@ function icRenderSheet() {
     g.disabled = !canGenerate;
   } else {
     const row = aiEl('div', { class: 'form-actions' });
-    if (t.applicable && !sel.inDraft) {
+    if (t.kind === 'ui') icUiActions(row, t, sel);
+    else if (t.applicable && !sel.inDraft) {
       icButton(row, '✓ Conserver cette image', () => icApply(t, sel.sha, { doubtful: !!sel.warning }), sel.warning ? 'btn btn-outline' : 'btn ic-main');
     } else if (t.applicable && sel.inDraft) {
       row.appendChild(aiEl('span', { class: 'ic-kept' }, sel.published ? '✓ Cette image est en jeu.' : '✓ Conservée dans le brouillon.'));
@@ -6078,8 +6089,12 @@ function icRenderSheet() {
     box.appendChild(strip);
   }
 
+  // #67 : réutiliser l'image d'un autre pictogramme (aucune génération)
+  if (t.kind === 'ui' && t.applicable && t.reusable?.length) box.appendChild(icReuseStrip(t));
+
   // Aperçu en jeu, taille réelle
-  if (sel) {
+  if (sel && t.kind === 'ui' && t.applicable) box.appendChild(icUiBeforeAfter(t, sel));
+  else if (sel) {
     const prev = aiEl('details', { class: 'ic-more' });
     prev.appendChild(aiEl('summary', {}, 'Aperçu en jeu (taille réelle smartphone)'));
     const wrap = aiEl('div', { class: 'ic-preview' });
@@ -6123,13 +6138,13 @@ function icOptions(t, sel) {
   });
   up.appendChild(file);
   acts.appendChild(up);
-  if (sel && sel.status !== 'validated') icButton(acts, '🔒 Verrouiller cette image (validée)', async () => {
+  if (sel && sel.source !== 'reuse' && sel.status !== 'validated') icButton(acts, '🔒 Verrouiller cette image (validée)', async () => {
     if (!await admAsk('Verrouiller cette image comme VALIDÉE ? Elle ne pourra ensuite être remplacée qu\'avec votre accord explicite.')) return;
     await icMark(t, sel.sha, 'validated', 'Image verrouillée.');
   });
-  if (sel && sel.status !== 'rejected' && !sel.inDraft) icButton(acts, 'Écarter cette proposition', () => icMark(t, sel.sha, 'rejected', 'Proposition écartée (conservée dans l\'historique).'));
+  if (sel && sel.source !== 'reuse' && sel.status !== 'rejected' && !sel.inDraft) icButton(acts, 'Écarter cette proposition', () => icMark(t, sel.sha, 'rejected', 'Proposition écartée (conservée dans l\'historique).'));
   if (sel && sel.status === 'rejected') icButton(acts, 'Remettre en proposition', () => icMark(t, sel.sha, 'candidate', 'Proposition rétablie.'));
-  if (t.applicable && t.image) icButton(acts, 'Revenir à l\'emoji d\'origine', () => icApply(t, null));
+  if (t.applicable && t.image && t.kind !== 'ui') icButton(acts, 'Revenir à l\'emoji d\'origine', () => icApply(t, null));   // ui : dans les actions principales
   if (t.key === 'ui:logo' && sel) acts.appendChild(aiEl('a', { class: 'btn btn-outline', href: `/?logo=media:${sel.sha}`, target: '_blank', rel: 'noopener' }, 'Voir dans le vrai en-tête ↗'));
   more.appendChild(acts);
 
@@ -6169,7 +6184,8 @@ function icHistory(t) {
   for (const h of t.history) {
     const tr = document.createElement('tr');
     addCell(tr, icWhen(h.at));
-    addCell(tr, `${IC_ACTIONS[h.action] ?? h.action}${h.details?.identity ? ` (objet demandé : ${h.details.identity})` : ''}${h.details?.instruction ? ` — précision « ${h.details.instruction} »` : ''}`);
+    const label = t.kind === 'ui' ? IC_UI_ACTIONS[h.action] ?? IC_ACTIONS[h.action] : IC_ACTIONS[h.action];
+    addCell(tr, `${label ?? h.action}${h.details?.reusedFrom ? ` (image de ${h.details.reusedFrom})` : ''}${h.details?.identity ? ` (objet demandé : ${h.details.identity})` : ''}${h.details?.instruction ? ` — précision « ${h.details.instruction} »` : ''}`);
     const ti = document.createElement('td');
     if (h.url) ti.appendChild(aiEl('img', { src: h.url, alt: '', width: '32', height: '32' }));
     tr.appendChild(ti);
@@ -6203,6 +6219,7 @@ async function icApply(t, sha, { doubtful = false } = {}) {
     override = true;
   }
   // Badge (#38) : pas de brouillon ; sur un badge actif, l'image est visible tout de suite → confirmation
+  if (t.kind === 'ui') return icApplyUi(t, sha, { override, doubtful });
   const live = t.kind === 'badge' && / active$/.test(String(t.extra ?? ''));
   if (live && !await admAsk(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
   const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live, doubtful });
@@ -6216,6 +6233,154 @@ async function icApply(t, sha, { doubtful = false } = {}) {
     : `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans le brouillon. Les joueurs la verront après la publication dans l'onglet ${where}.`;
   _icNote = { text: ok ? done : (data.error || 'Erreur.'), ok };
   if (ok) { await icOpen(t.key, { keepSel: true }); loadIconsQuiet(); } else icRenderSheet();
+}
+
+// ── Pictogrammes d'interface (#67) : Prévisualiser → Appliquer (confirmé) → Revenir ──
+
+/** Image d'un autre pictogramme sélectionnée pour réutilisation (aucune génération). */
+function icReuseAsset(t, sha) {
+  const r = t.kind === 'ui' && sha ? t.reusable?.find(x => x.sha === sha) : null;
+  return r ? { sha: r.sha, url: r.url, source: 'reuse', reusedFrom: r.name, createdAt: r.createdAt, status: 'candidate',
+    published: r.url === t.image, inDraft: r.url === t.image } : null;
+}
+
+/** Image précédente d'un pictogramme (avant la dernière application) : { sha } (null = pictogramme d'origine), ou null. */
+function icUiPrevious(t) {
+  const last = t.history.find(h => h.action === 'applied' || h.action === 'reverted_to_emoji');
+  if (!last || last.details?.before === undefined) return null;
+  const m = /\/media\/icons\/([a-f0-9]{16})\.webp$/.exec(last.details.before ?? '');
+  return { sha: m ? m[1] : null, url: last.details.before ?? null };
+}
+
+/** Actions d'un pictogramme d'interface sur la proposition affichée (distinctes de « Refaire »). */
+function icUiActions(row, t, sel) {
+  if (!t.applicable) {
+    row.appendChild(aiEl('span', { class: 'muted' }, 'Stockage seulement : cette image ne peut pas être appliquée depuis l\'atelier.'));
+    return;
+  }
+  if (sel.published) row.appendChild(aiEl('span', { class: 'ic-kept' }, '✓ Cette image est en jeu.'));
+  else {
+    icButton(row, '✓ Appliquer cette image dans le jeu…', () => icApplyUi(t, sel.sha, { doubtful: !!sel.warning }), sel.warning ? 'btn btn-outline' : 'btn ic-main');
+    row.appendChild(aiEl('a', { class: 'btn btn-outline', href: `/?uiicon=${encodeURIComponent(t.id)}:${sel.sha}`, target: '_blank', rel: 'noopener',
+      title: 'Ouvre le vrai jeu avec cette image à cet emplacement, pour vous seul et pour cette page seulement : rien n\'est appliqué.' }, 'Prévisualiser dans le jeu ↗'));
+  }
+  if (t.image) {
+    const prev = icUiPrevious(t);
+    if (prev && prev.url) icButton(row, '↩ Revenir à l\'icône précédente', () => icApply(t, prev.sha));
+    icButton(row, `Revenir au pictogramme d'origine ${t.emojiOriginal ?? t.emoji ?? ''}`, () => icApply(t, null));
+  }
+}
+
+/** Confirmation explicite puis application en jeu (ou retour au pictogramme d'origine si `sha` est null). */
+async function icApplyUi(t, sha, { override = false, doubtful = false } = {}) {
+  if (doubtful && !await admAsk(`Cette proposition est douteuse. L'appliquer quand même à « ${t.name} » ?`)) return;
+  const msg = [sha ? `Appliquer cette image à « ${t.name} » ?` : `Revenir au pictogramme d'origine ${t.emojiOriginal ?? t.emoji ?? ''} pour « ${t.name} » ?`, '',
+    `• Emplacement : ${t.where}.`,
+    '• Visible par tous les joueurs à leur prochain chargement de page (ordinateur, smartphone, application installée).',
+    `• Actuellement : ${t.image ? 'une image appliquée' : `le pictogramme d'origine ${t.emojiOriginal ?? t.emoji ?? ''}`}.`,
+    '• Annulable à tout moment : « Revenir à l\'icône précédente » ou « Revenir au pictogramme d\'origine ». Aucune image n\'est supprimée.'].join('\n');
+  if (!await admAsk(msg)) return;
+  const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live: true, doubtful });
+  _icNote = { text: ok ? (sha ? `Image appliquée en jeu (${t.where}). Les joueurs la verront au prochain chargement.` : `Pictogramme d'origine rétabli en jeu (${t.where}).`) : (data.error || 'Erreur.'), ok };
+  if (ok) { if (sha) _icSel = sha; await icOpen(t.key, { keepSel: true }); loadIconsQuiet(); } else icRenderSheet();
+}
+
+/** Images des autres pictogrammes, réutilisables sans nouvelle génération. */
+function icReuseStrip(t) {
+  const d = aiEl('details', { class: 'ic-more' });
+  d.appendChild(aiEl('summary', {}, `Réutiliser l'image d'un autre pictogramme (${t.reusable.length}) — sans nouvelle génération`));
+  d.appendChild(aiEl('p', { class: 'muted ic-hint' }, 'Choisir une image l\'affiche ici pour comparaison ; elle n\'est appliquée qu\'avec « Appliquer cette image ». L\'image d\'origine reste à son pictogramme.'));
+  const row = aiEl('div', { class: 'ic-strip' });
+  for (const r of t.reusable) {
+    const b = aiEl('button', { type: 'button', class: `ic-strip-item${r.sha === _icSel ? ' is-sel' : ''}`, 'aria-pressed': String(r.sha === _icSel), title: `Image de « ${r.name} »` });
+    b.appendChild(icThumb(t, 64, r.url));
+    b.appendChild(aiEl('span', {}, r.name));
+    b.addEventListener('click', () => { _icSel = r.sha; _icNote = null; icRenderSheet(); });
+    row.appendChild(b);
+  }
+  d.appendChild(row);
+  if (t.reusable.some(r => r.sha === _icSel)) d.open = true;
+  return d;
+}
+
+/** Pictogramme `id` tel qu'affiché en jeu : `url` (aperçu), sinon image appliquée, sinon emoji d'origine. */
+function icUiGlyph(id, px, url = null) {
+  const o = (_ic?.targets ?? []).find(x => x.key === `ui:${id}`);
+  const src = url ?? o?.image ?? null;
+  if (src) return aiEl('img', { src, alt: '', width: String(px), height: String(px), style: `width:${px}px;height:${px}px;object-fit:contain;vertical-align:middle` });
+  return aiEl('span', { style: `font-size:${Math.round(px * 0.8)}px;line-height:1;vertical-align:middle` }, o?.emoji ?? '');
+}
+
+/** Rendu d'un emplacement du jeu (même tailles que le jeu) avec le pictogramme de `t` remplacé par `url`. */
+function icUiScene(t, url) {
+  const g = (id, px) => icUiGlyph(id, px, id === t.id ? url : null);
+  const line = aiEl('div', { style: 'display:flex;align-items:center;gap:8px;width:100%;background:#1f2937;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px;font-size:14px;color:#e5e7eb' });
+  if (t.zone === 'nav') {
+    const nav = aiEl('div', { style: 'display:flex;justify-content:space-around;width:100%;background:#0b1220;border-radius:10px;padding:8px 0' });
+    for (const [id, label] of [['creuser', 'Dig'], ['ameliorations', 'Amélios'], ['collection', 'Collection'], ['quotidien', 'Quotidien'], ['boutique', 'Boutique'], ['saison', 'Saison']]) {
+      const c = aiEl('span', { style: `display:flex;flex-direction:column;align-items:center;gap:4px;font-size:8px;font-weight:600;color:${id === t.id ? '#f5c518' : '#9ca3af'}` });
+      c.appendChild(g(id, 26));
+      c.appendChild(aiEl('span', {}, label));
+      nav.appendChild(c);
+    }
+    return nav;
+  }
+  if (t.zone === 'header') {
+    const h = aiEl('div', { style: 'display:flex;align-items:center;justify-content:space-between;width:100%;background:#0b1220;border-radius:10px;padding:6px 10px' });
+    h.appendChild(g('actualites', 26));
+    h.appendChild(aiEl('strong', { style: 'color:#f5c518;font-size:18px' }, 'DIG!'));
+    const r = aiEl('span', { style: 'display:flex;gap:10px' });
+    r.appendChild(g('profil', 30));
+    r.appendChild(g('parametres', 26));
+    h.appendChild(r);
+    return h;
+  }
+  if (t.zone === 'ranking') {
+    line.appendChild(g(t.id === 'blocs_mines' ? 'medaille_or' : t.id, 18));
+    line.appendChild(aiEl('span', { style: 'flex:1;font-weight:600' }, 'Pseudo'));
+    line.appendChild(aiEl('span', { style: 'color:#f5c518' }, '120 m'));
+    const b = aiEl('span', { style: 'color:#9ca3af;font-size:12px' });
+    b.appendChild(g('blocs_mines', 15));
+    b.appendChild(document.createTextNode('345'));
+    line.appendChild(b);
+    return line;
+  }
+  if (t.zone === 'currency') {
+    for (const [id, txt] of [['pieces', '150'], ['gemmes', '2']]) {
+      line.appendChild(g(id, 17));
+      line.appendChild(aiEl('span', {}, txt));
+    }
+    if (!['pieces', 'gemmes'].includes(t.id)) { line.appendChild(aiEl('span', { class: 'muted' }, '·')); line.appendChild(g(t.id, 24)); }
+    return line;
+  }
+  // Cartes : missions, améliorations, objectifs
+  line.appendChild(g(t.id, 30));
+  line.appendChild(aiEl('span', { style: 'flex:1;font-weight:600' }, t.name.replace(/^[^:]+ : /, '')));
+  const rew = aiEl('span', { style: 'font-size:12px' });
+  rew.appendChild(g('pieces', 15));
+  rew.appendChild(document.createTextNode(' 100'));
+  line.appendChild(rew);
+  return line;
+}
+
+/** Aperçu comparatif avant / après, smartphone et ordinateur (rien n'est appliqué). */
+function icUiBeforeAfter(t, sel) {
+  const wrap = aiEl('section', { class: 'ic-uiprev', 'aria-label': 'Aperçu avant et après' });
+  wrap.appendChild(aiEl('h4', {}, sel.published ? 'En jeu actuellement' : 'Aperçu avant / après — rien n\'est appliqué'));
+  const frames = aiEl('div', { style: 'display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start' });
+  for (const [label, w] of [['Smartphone (390 px)', 390], ['Ordinateur (colonne du jeu, 440 px)', 440]]) {
+    const f = aiEl('div', { style: `width:${w}px;max-width:100%;background:#111827;border:1px solid #374151;border-radius:18px;padding:12px;display:flex;flex-direction:column;gap:8px` });
+    f.appendChild(aiEl('span', { class: 'muted', style: 'font-size:0.72rem' }, label));
+    f.appendChild(aiEl('span', { style: 'font-size:0.7rem;color:#9ca3af' }, 'Avant'));
+    f.appendChild(icUiScene(t, t.image ?? null));
+    if (!sel.published) {
+      f.appendChild(aiEl('span', { style: 'font-size:0.7rem;color:#f5c518' }, 'Après'));
+      f.appendChild(icUiScene(t, sel.url));
+    }
+    frames.appendChild(f);
+  }
+  wrap.appendChild(frames);
+  return wrap;
 }
 
 /** Aperçu « taille réelle smartphone » (390 px) : bloc en jeu, case de collection, barre de navigation. */
@@ -6266,7 +6431,7 @@ async function loadIconsQuiet() {
   if (!_icOpen) icRenderGrid();
 }
 
-['ic-kind', 'ic-state'].forEach(id => document.getElementById(id).addEventListener('change', icRenderGrid));
+['ic-kind', 'ic-state', 'ic-zone'].forEach(id => document.getElementById(id).addEventListener('change', icRenderGrid));
 document.getElementById('ic-search').addEventListener('input', icRenderGrid);
 admRefreshButton('btn-refresh-icons', loadIcons, 'Atelier d’icônes');
 // Ctrl+Entrée (ou ⌘+Entrée) dans le champ de consigne = action principale ; Entrée seule = retour à la ligne

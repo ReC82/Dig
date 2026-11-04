@@ -195,7 +195,9 @@ test('application au brouillon seulement, verrou des validées, retour à l\'emo
   const ok = studio.apply('block:diamant', { sha: null, override: true });
   assert.strictEqual(ok.target.history[0].details.override, true, 'remplacement d\'une validée tracé');
   // Pictogramme d'interface : stocké, application avec #41
-  assert.throws(() => studio.apply('ui:profil', { sha: null }), e => e.status === 409 && /#41/.test(e.message));
+  // #67 : pictogramme raccordé au jeu → confirmation « live » exigée ; logo (#41) → stockage seulement
+  assert.throws(() => studio.apply('ui:profil', { sha: null }), e => e.status === 409 && e.details?.code === 'live_required');
+  assert.throws(() => studio.apply('ui:logo', { sha: null, live: true }), e => e.status === 409 && /stockée ici/.test(e.message));
   // Ajout seul
   assert.throws(() => conn().prepare('DELETE FROM icon_studio_assets').run(), /ajout seul/);
   assert.throws(() => conn().prepare('UPDATE icon_studio_events SET action = 1').run(), /ajout seul/);

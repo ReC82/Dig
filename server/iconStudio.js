@@ -3,7 +3,7 @@
  *
  * Une seule interface pour TOUTES les icônes du jeu : blocs (minerais, pierres, coffres, gemmes —
  * catalogue #37), objets de collection et reliques (#39) et pictogrammes d'interface (profil,
- * paramètres, navigation — application en jeu avec #41). Badges : à brancher quand #38 existera.
+ * paramètres, navigation — application en jeu avec #67, registre server/uiIcons.js). Badges : à brancher quand #38 existera.
  *
  * Cycle d'une icône :
  *   brief (sujet/détails/palette, modifiable) → génération IA d'UNE image par action (consigne
@@ -54,21 +54,14 @@ const SHA_RE = /^[a-f0-9]{16}$/;
 // Objet d'événement (#65) : clé stable `event:<événement>/<objet>` (identifiants de #56, jamais réutilisés)
 const KEY_RE = /^(block|item|badge|relic|mission|ui|event):([a-z][a-z0-9_]{1,39}|[a-z][a-z0-9_]{2,39}\/[a-z][a-z0-9_]{2,39})$/;
 
-/** Pictogrammes d'interface (#41 pour l'application en jeu). Profil ≠ paramètres ≠ améliorations. */
-const UI_TARGETS = [
-  { id: 'profil', emoji: '👤', name: 'Profil / compte', subject: 'A friendly miner\'s portrait bust silhouette wearing a mining helmet with a small lamp', details: 'Head and shoulders only, clearly a PERSON (profile/account), never a gear or tool.', palette: 'Palette: warm amber helmet, slate-blue clothing, soft skin tone.' },
-  { id: 'parametres', emoji: '⚙', name: 'Paramètres', subject: 'A single settings gear combined with two small slider knobs', details: 'One cog wheel with six chunky teeth and two short horizontal slider bars in front: clearly SETTINGS, distinct from the profile portrait and from the upgrades pickaxe.', palette: 'Palette: cool steel gray with a teal accent on the slider knobs.' },
-  { id: 'ameliorations', emoji: '⚙', name: 'Améliorations', subject: 'A pickaxe with a glowing upward arrow', details: 'Short sturdy pickaxe crossed by a bold upward arrow meaning UPGRADE; must not look like a gear.', palette: 'Palette: wooden handle, steel head, bright golden arrow.' },
-  { id: 'creuser', emoji: '⛏', name: 'Creuser', subject: 'A single sturdy pickaxe', details: 'Classic miner\'s pickaxe, diagonal, chunky steel head and wooden handle.', palette: 'Palette: steel gray head, warm brown handle.' },
-  { id: 'collection', emoji: '📦', name: 'Collection', subject: 'A small open treasure crate showing a few collectible relics', details: 'Wooden crate, lid open, a fossil bone and a blue crystal peeking out.', palette: 'Palette: warm wood, hints of blue and bone white.' },
-  { id: 'quotidien', emoji: '📅', name: 'Récompense quotidienne', subject: 'A small calendar page with a gift ribbon', details: 'Single calendar sheet with a check mark and a red ribbon bow.', palette: 'Palette: off-white page, red ribbon, gold check.' },
-  { id: 'boutique', emoji: '🛒', name: 'Boutique', subject: 'A small mine cart full of gold coins', details: 'Rail mine cart seen in three-quarter view, heaped with coins.', palette: 'Palette: dark iron cart, shiny gold coins.' },
-  { id: 'logo', emoji: '⛏', name: 'Logo DIG! — emblème compact', subject: 'A compact square emblem for the DIG! mining game: a chunky faceted stone block with a golden pickaxe planted in its top', details: 'Badge-like square emblem that stays readable at 32 to 40 pixels in a phone header, placed just before the word DIG!; no text, no letters, no ribbon, no wide shape.', palette: 'Palette: cool stone gray block like the reference stone, bright gold pickaxe head, warm wooden handle.' },
-  { id: 'saison', emoji: '🏆', name: 'Saison / classement', subject: 'A golden trophy cup', details: 'Two-handled cup on a short base, faceted gold.', palette: 'Palette: rich gold with warm highlights.' },
-];
+/** Pictogrammes d'interface : appliqués en jeu par GET /api/ui-icons (#67). Profil ≠ paramètres ≠ améliorations. */
+// Pictogrammes d'interface (#67) : registre à part, identifiants stables, zone et emplacement exact en jeu
+const { UI_TARGETS, ZONES: UI_ZONES } = require('./uiIcons');
 
 // v1.2 : identité du catalogue en tête ; v1.3 : forme réelle de l'objet imposée (gabarit et consigne par défaut)
 const PROMPT_VERSION = 'v1.3';
+// Pictogrammes d'interface (#67) : le nom exact et l'emplacement dans le jeu sont transmis à l'IA
+const UI_PROMPT_VERSION = 'ui-v1.2';
 // Contrôle du sujet : appel texte (vision) peu coûteux, réservé avant chaque image d'objet ou de badge
 const CHECK_EST_USD = 0.01;
 
@@ -312,13 +305,45 @@ function _eventItem(id) {
 }
 /** Image actuellement en jeu (catalogue publié), pour distinguer « brouillon » et « publié ». */
 // Badge (#38) : pas de brouillon, l'image enregistrée sur le badge est celle du jeu (badge actif) ou de sa fiche.
-const _publishedImage = (kind, id) => (kind === 'block'
+const _publishedImage = (kind, id) => kind === 'ui' ? _uiApplied()[id] ?? null : (kind === 'block'
   ? blockCatalog.getPublished().types.find(t => t.id === id)
   : kind === 'badge' ? badges.getBadgeRow(id)
   : kind === 'relic' ? relicCatalog.getPublished().relics.find(r => r.id === id)
   : kind === 'mission' ? missionCatalog.getPublished().missions.find(m => m.id === id)
   : kind === 'event' ? { image: _eventItem(id)?.it.publishedImage ?? null }
   : collectionCatalog.getPublished().items.find(i => i.id === id))?.image ?? null;
+
+// ── Pictogrammes d'interface appliqués en jeu (#67) ───────────────────────────
+// État = dernier événement « applied » / « reverted_to_emoji » de chaque cible ui:… (journal en ajout
+// seul : historique et retour arrière sans table supplémentaire). Mémorisé, invalidé à chaque application.
+let _uiCache = null;
+function _uiApplied() {
+  if (_uiCache) return _uiCache;
+  const out = {};
+  for (const e of conn().prepare("SELECT target, action, asset_sha FROM icon_studio_events WHERE target LIKE 'ui:%' AND action IN ('applied', 'reverted_to_emoji') ORDER BY id").all()) {
+    const id = e.target.slice(3);
+    if (e.action === 'applied' && e.asset_sha) out[id] = imageUrl(e.asset_sha); else delete out[id];
+  }
+  return (_uiCache = out);
+}
+
+/**
+ * Pictogrammes servis au jeu (GET /api/ui-icons) : { icons: { <id>: url }, rev }. Seules les cibles
+ * déployables du registre ; un pictogramme sans image garde son emoji d'origine côté jeu.
+ */
+function uiIconMap() {
+  const applied = _uiApplied();
+  const icons = {};
+  for (const u of UI_TARGETS) if (u.deployable && applied[u.id]) icons[u.id] = applied[u.id];
+  // Emblèmes des missions du jour (#68) : image PUBLIÉE du catalogue, seulement une fois ce catalogue actif en jeu
+  if (missionCatalog.isLive()) for (const m of missionCatalog.getPublished().missions) if (m.image) icons[`mission_${m.id}`] = m.image;
+  const rev = crypto.createHash('sha256').update(JSON.stringify(icons)).digest('hex').slice(0, 12);
+  return { icons, rev };
+}
+
+/** Identité d'un pictogramme transmise à l'IA (#67) : nom exact et emplacement dans le jeu. */
+const _uiIdentity = t => (t.kind === 'ui' ? { ui: true, name: t.src.en || t.src.name, fr: t.src.name, context: t.src.context, where: t.src.where } : null);
+const _promptIdentity = t => _identity(t) ?? _uiIdentity(t);
 
 function _defaultBrief(kind, src) {
   const en = src.names?.en || src.names?.fr || src.id;
@@ -391,9 +416,10 @@ function _target(key) {
     src = _collectionContent().items.find(i => i.id === id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `${src.seriesId} · ${src.rarity}` };
   } else {
+    // Pictogramme d'interface (#67) : pas de brouillon, l'image appliquée est celle du jeu
     src = UI_TARGETS.find(u => u.id === id);
-    if (src) current = { emoji: src.emoji, image: null, name: src.name, extra: 'pictogramme d\'interface' };
-    applicable = false;
+    if (src) current = { emoji: src.emoji, image: src.deployable ? _uiApplied()[id] ?? null : null, name: src.name, extra: `${UI_ZONES[src.zone] ?? src.zone} · ${src.where}` };
+    applicable = !!src?.deployable;
   }
   if (!src) throw new StudioError(404, 'Cible introuvable.');
   if (applicable) current.publishedImage = _publishedImage(kind, id);
@@ -620,7 +646,9 @@ function _summary(t, counts) {
     background: t.kind === 'block' ? { color: t.src.color, accent: t.src.accent } : null,
     state: t.validation ? 'validée' : t.current.image ? 'image' : t.v1 ? `v1 ${t.v1.status}` : 'emoji provisoire',
     // Image du brouillon pas encore publiée (ou retour à l'emoji en attente) : publication à faire dans Blocs/Collections
-    unpublished: t.applicable && (t.current.image ?? null) !== (t.current.publishedImage ?? null) };
+    unpublished: t.applicable && (t.current.image ?? null) !== (t.current.publishedImage ?? null),
+    // Pictogramme d'interface (#67) : zone, emplacement exact, application possible ou non
+    ...(t.kind === 'ui' ? { zone: t.src.zone, zoneLabel: UI_ZONES[t.src.zone] ?? t.src.zone, where: t.src.where, deployable: !!t.src.deployable, notDeployable: t.src.notDeployable ?? null } : {}) };
 }
 
 /** Badges non archivés (#38) ; aucun si le module des badges n'est pas initialisé (tests isolés). */
@@ -725,7 +753,9 @@ function buildPrompt(kind, brief, instruction = '', identity = null) {
     return m[1].trim();
   };
   const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' || kind === 'relic' || kind === 'event' || kind === 'mission' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
-  const who = identity
+  const who = identity?.ui
+    ? `Interface pictogram to depict: "${identity.name}" (French label: "${identity.fr}"), the ${identity.context}; the icon must clearly evoke this function and nothing else. Visual description: `
+    : identity
     ? `Object to depict: "${identity.name}"${identity.fr ? ` (French name: "${identity.fr}")` : ''}; the icon shows this exact object and nothing else. Visual description: `
     : '';
   return who + between(tpl)
@@ -752,7 +782,7 @@ const CONSTRAINTS_FR = 'Un seul objet isolé ; ni texte, ni cadre, ni socle, ni 
  */
 function promptSummary(kind, brief, identity = null) {
   return {
-    object: identity ? (identity.fr || identity.name) : null,
+    object: identity?.ui ? `${identity.fr} (${identity.where})` : identity ? (identity.fr || identity.name) : null,
     subject: brief.subject,
     shape: brief.details || '',
     colors: String(brief.palette || '').replace(/^\s*palette\s*:\s*/i, ''),
@@ -822,7 +852,7 @@ function _logCall({ target, model, ok, error = null, cost, durationMs, usage = n
 async function _generateOne(t, brief, { instruction = '', basedOn = null, acknowledged, batch = null } = {}) {
   const { cfg } = _checkBudget(1, _identity(t) ? _checkEst() : 0);
   const identity = _identity(t);
-  const prompt = buildPrompt(t.kind, brief, instruction, identity);
+  const prompt = buildPrompt(t.kind, brief, instruction, _promptIdentity(t));
   const started = Date.now();
   let png, usage = null, model, cost, params = null;
   try {
@@ -843,7 +873,8 @@ async function _generateOne(t, brief, { instruction = '', basedOn = null, acknow
   // L'image a été facturée : l'appel est journalisé avec son coût, même si les contrôles la refusent.
   _logCall({ target: t.key, model, ok: true, cost, durationMs: Date.now() - started, usage });
   const done = await _process(png);
-  const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : identity ? PROMPT_VERSION : 'v1.1', identity,
+  const meta = { kind: t.kind, prompt, promptVersion: t.kind === 'block' ? 'v1.0' : identity ? PROMPT_VERSION : t.kind === 'ui' ? UI_PROMPT_VERSION : 'v1.1', identity,
+    ...(t.kind === 'ui' ? { uiTarget: { name: t.src.name, en: t.src.en, context: t.src.context } } : {}),
     brief: { subject: brief.subject, details: brief.details, palette: brief.palette, custom: !!brief.custom },
     model, params, reference: _reference() ? path.relative(ROOT, _reference()) : null, instruction: instruction || null, basedOn,
     ...(acknowledged ? { acknowledgedConflicts: acknowledged } : {}),
@@ -1142,7 +1173,8 @@ function getTarget(key) {
         model: meta.model ?? null, costUsd: meta.costUsd ?? 0, checks: meta.checks ?? null, prompt: meta.prompt ?? null,
         instruction: meta.instruction ?? null, basedOn: meta.basedOn ?? null,
         identity: meta.identity ?? null, promptVersion: meta.promptVersion ?? null, brief: meta.brief ?? null, warning: _assetWarning(t, meta),
-        subjectCheck: checks[a.sha] ?? null, currentPrompt: _isV13(meta.promptVersion) || a.source === 'upload' || !meta.identity,
+        subjectCheck: checks[a.sha] ?? null, uiTarget: meta.uiTarget ?? null,
+        currentPrompt: a.source === 'upload' || (t.kind === 'ui' ? meta.promptVersion === UI_PROMPT_VERSION : _isV13(meta.promptVersion) || !meta.identity),
         inDraft: imageUrl(a.sha) === t.current.image, published: imageUrl(a.sha) === t.current.publishedImage };
     });
   const history = conn().prepare('SELECT id, action, asset_sha, details, created_at FROM icon_studio_events WHERE target = ? ORDER BY id DESC LIMIT 100').all(key)
@@ -1158,12 +1190,13 @@ function getTarget(key) {
     briefIgnored: !!brief.ignored,
   } : {};
   // Objet d'événement (#65) : thème et fiche d'origine, pour le retour vers Événements
+  const uiExtra = t.kind === 'ui' ? { reusable: _uiReusable(key), emojiOriginal: t.src.emoji } : {};
   const eventExtra = t.kind === 'event' ? { event: { id: t.src.eventId, itemId: t.src.id, name: t.src.eventNameFr, state: t.src.eventState,
     audience: t.src.eventAudience, imageState: monthlyEvents.imageState(t.src) } } : {};
   const { conflicts: subjectConflicts, references: subjectReferences } = _subjectAnalysis(t, _subjectSources('', brief));
-  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), promptSummary: promptSummary(t.kind, brief, _identity(t)),
+  return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _promptIdentity(t)), promptSummary: promptSummary(t.kind, brief, _promptIdentity(t)),
     identity: _identity(t), subjectConflicts, subjectReferences,
-    assets, history, ...itemExtra, ...eventExtra,
+    assets, history, ...itemExtra, ...eventExtra, ...uiExtra,
     costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : t.kind === 'relic' || t.kind === 'event' || t.kind === 'mission' ? t.src.descs?.fr ?? null : null };
 }
 
@@ -1194,12 +1227,14 @@ function apply(key, { sha = null, override = false, live = false, doubtful = fal
     const w = row && _assetWarning(t, JSON.parse(row.meta));
     if (w && !doubtful) throw new StudioError(409, `${w.text} Conservation refusée sans confirmation explicite.`, { code: 'doubtful_asset' });
   }
-  if (!t.applicable) throw new StudioError(409, 'Pictogramme d\'interface : application en jeu prévue avec le ticket #41 (stocké et prêt ici).');
+  if (!t.applicable) throw new StudioError(409, `${t.src.notDeployable ?? 'Cible non raccordée au jeu : l\'image reste stockée ici.'} Rien n'a été appliqué.`);
   if (t.validation && !override) {
     throw new StudioError(409, `Icône validée (${t.validation.by === 'v1' ? 'bibliothèque v1' : 'atelier'}, ${t.validation.at}) : remplacement refusé sans accord explicite (« override »).`);
   }
-  const url = sha ? imageUrl(_asset(key, sha)) : null;
+  // Pictogramme d'interface (#67) : une image d'un AUTRE pictogramme peut être réutilisée (pas de doublon généré)
+  const url = sha ? imageUrl(t.kind === 'ui' ? _uiAsset(key, sha).sha : _asset(key, sha)) : null;
   const before = t.current.image;
+  if (t.kind === 'ui') return _applyUi(t, { url, sha, before, live, override, doubtful });
   // Badge (#38) : sans brouillon, l'image d'un badge ACTIF est visible tout de suite → accord explicite (« live »).
   if (t.kind === 'badge' && t.src.status === 'active' && !live) {
     throw new StudioError(409, 'Badge actif : la nouvelle image sera visible immédiatement par les joueurs. Confirmez (« live ») ou désactivez d\'abord le badge.');
@@ -1213,6 +1248,48 @@ function apply(key, { sha = null, override = false, live = false, doubtful = fal
   _event(key, sha ? 'applied' : 'reverted_to_emoji', sha, { before, after: url, override: !!override && !!t.validation, ...(doubtful ? { doubtful: true } : {}), ...(t.kind === 'badge' ? { live: t.src.status === 'active' } : {}) });
   if (t.kind === 'badge') return { target: getTarget(key), draft: t.src.status !== 'active', catalog: 'badges' };
   return { target: getTarget(key), draft: true, catalog: t.kind === 'block' ? 'blocks' : t.kind === 'relic' ? 'relics' : t.kind === 'mission' ? 'missions' : t.kind === 'event' ? 'events' : 'collections' };
+}
+
+/** Image utilisable par un pictogramme : la sienne, ou celle d'un autre pictogramme d'interface (réutilisation). */
+function _uiAsset(key, sha) {
+  if (!SHA_RE.test(String(sha))) throw new StudioError(400, 'Image invalide.');
+  const a = conn().prepare("SELECT sha, target FROM icon_studio_assets WHERE sha = ? AND (target = ? OR target LIKE 'ui:%')").get(sha, key);
+  if (!a) throw new StudioError(404, 'Image introuvable parmi les pictogrammes d\'interface.');
+  return a;
+}
+
+/**
+ * Pictogramme d'interface (#67) : pas de brouillon, l'image appliquée est servie au jeu tout de suite
+ * (GET /api/ui-icons) → accord explicite obligatoire (« live »). Retour arrière = nouvelle application
+ * (image d'avant, ou `sha` null = pictogramme d'origine). Rien n'est supprimé.
+ */
+function _applyUi(t, { url, sha, before, live, override, doubtful }) {
+  if (!live) {
+    throw new StudioError(409, `Pictogramme d'interface : l'image sera visible par tous les joueurs (${t.src.where}) dès leur prochain chargement. Confirmez (« live »).`, { code: 'live_required' });
+  }
+  if ((before ?? null) === url) throw new StudioError(409, url ? 'Cette image est déjà en jeu pour ce pictogramme.' : 'Le pictogramme d\'origine est déjà affiché.');
+  const from = sha ? _uiAsset(t.key, sha).target : null;
+  _event(t.key, sha ? 'applied' : 'reverted_to_emoji', sha, { before: before ?? null, after: url, live: true, override: !!override && !!t.validation,
+    ...(from && from !== t.key ? { reusedFrom: from } : {}), ...(doubtful ? { doubtful: true } : {}) });
+  _uiCache = null;
+  return { target: getTarget(t.key), draft: false, catalog: 'ui', rev: uiIconMap().rev };
+}
+
+/** Images des AUTRES pictogrammes d'interface, réutilisables sans nouvelle génération (#67). */
+function _uiReusable(key) {
+  const statuses = {};
+  const rows = conn().prepare("SELECT sha, target, created_at FROM icon_studio_assets WHERE target LIKE 'ui:%' AND target <> ? ORDER BY created_at DESC, rowid DESC LIMIT 200").all(key);
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    if (seen.has(r.sha)) continue;
+    seen.add(r.sha);
+    statuses[r.target] ??= _assetStatus(r.target);
+    if (statuses[r.target][r.sha] === 'rejected') continue;
+    const u = UI_TARGETS.find(x => `ui:${x.id}` === r.target);
+    out.push({ sha: r.sha, url: imageUrl(r.sha), target: r.target, name: u?.name ?? r.target, createdAt: r.created_at });
+  }
+  return out.slice(0, 60);
 }
 
 function listCalls(limit = 50) {
@@ -1247,5 +1324,5 @@ function subjectCheck(key, { instruction = '', subject = null, details = null } 
 
 module.exports = {
   StudioError, UI_TARGETS, init, status, setSpendCap, listTargets, getTarget, setBrief, generate, jobView, waitJob,
-  upload, mark, apply, subjectCheck, promptSummary, reserveFromCosts, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
+  upload, mark, apply, subjectCheck, uiIconMap, UI_PROMPT_VERSION, promptSummary, reserveFromCosts, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
 };

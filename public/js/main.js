@@ -489,16 +489,17 @@ function renderBlock() {
     // Montants entiers en toutes lettres (séparateurs de milliers, jamais abrégés) ; en cas de
     // manque de place, retour à la ligne entre deux facteurs, « = total » toujours d'un seul tenant.
     const lang = I18n.getCurrent();
+    const coin = UiIcons.html('pieces', '💰');
     if (factors.length > 0) {
       const ICONS = { bag: '🎒', relic: '💛', event: '✨', boost: '⚡' };
       const fmt   = m => Number(m).toLocaleString(lang, { maximumFractionDigits: 3 });
-      rewardHtml = `<span class="reward-base">💰 ${base.toLocaleString(lang)}</span>`
+      rewardHtml = `<span class="reward-base">${coin} ${base.toLocaleString(lang)}</span>`
                  + factors.map(f =>
                      ` <span class="reward-factor reward-factor-${f.key}" title="${t('ui.reward_factor.' + f.key)}">`
                    + `× ${ICONS[f.key]} ${fmt(f.mult)}</span>`).join('')
-                 + ` <span class="reward-result"><span class="reward-eq">=</span> <span class="reward-final">💰 ${total.toLocaleString(lang)}</span></span>`;
+                 + ` <span class="reward-result"><span class="reward-eq">=</span> <span class="reward-final">${coin} ${total.toLocaleString(lang)}</span></span>`;
     } else {
-      rewardHtml = `<span class="reward-value">💰 ${total.toLocaleString(lang)}</span>`;
+      rewardHtml = `<span class="reward-value">${coin} ${total.toLocaleString(lang)}</span>`;
     }
   }
   elBlockReward.innerHTML = `${t('ui.reward_label')} : ${rewardHtml}`;
@@ -517,8 +518,8 @@ function renderUpgrades() {
     let costHtml = '';
     if (!maxed) {
       const parts = [];
-      if (cost.coins > 0) parts.push(`💰&nbsp;${cost.coins}`);
-      if (cost.gems  > 0) parts.push(`💎&nbsp;${cost.gems}`);
+      if (cost.coins > 0) parts.push(`${UiIcons.html('pieces', '💰')}&nbsp;${cost.coins}`);
+      if (cost.gems  > 0) parts.push(`${UiIcons.html('gemmes', '💎')}&nbsp;${cost.gems}`);
       costHtml = parts.join(' + ');
     }
 
@@ -527,7 +528,7 @@ function renderUpgrades() {
     card.className = 'upgrade-card';
     card.innerHTML = `
       <div class="upgrade-left">
-        <div class="upgrade-icon">${def.icon}</div>
+        <div class="upgrade-icon">${UiIcons.html(`upgrade_${def.id}`, def.icon)}</div>
         <div class="upgrade-info">
           <div class="upgrade-name">
             ${t(def.name)}
@@ -596,13 +597,13 @@ function renderQuests() {
   for (const def of Quests.DEFS) {
     const done = Quests.isCompleted(def.id);
     const parts = [];
-    if (def.reward.coins > 0) parts.push(`💰 ${def.reward.coins}`);
-    if (def.reward.gems  > 0) parts.push(`💎 ${def.reward.gems}`);
+    if (def.reward.coins > 0) parts.push(`${UiIcons.html('pieces', '💰')} ${def.reward.coins}`);
+    if (def.reward.gems  > 0) parts.push(`${UiIcons.html('gemmes', '💎')} ${def.reward.gems}`);
 
     const card = document.createElement('div');
     card.className = `quest-card${done ? ' completed' : ''}`;
     card.innerHTML = `
-      <div class="quest-icon">${def.icon}</div>
+      <div class="quest-icon">${UiIcons.html(`quete_${def.id}`, def.icon)}</div>
       <div class="quest-info">
         <div class="quest-name">${t(def.name)}</div>
         <div class="quest-desc">${t(def.desc)}</div>
@@ -646,7 +647,7 @@ function renderShopChests() {
         </div>
         <div class="shop-chest-right">
           ${limitHtml}
-          <div class="shop-chest-cost${canAfford ? ' can-afford' : ''}">💰 ${def.cost.toLocaleString(I18n.getCurrent())}</div>
+          <div class="shop-chest-cost${canAfford ? ' can-afford' : ''}">${UiIcons.html('pieces', '💰')} ${def.cost.toLocaleString(I18n.getCurrent())}</div>
         </div>
       </div>
       <button class="shop-chest-btn" ${(canAfford && !maxed) ? '' : 'disabled'}
@@ -1289,6 +1290,9 @@ function _openItemSheet(o, opener) {
 
 // ── Rendu quotidien ───────────────────────────────────────────────────────────
 
+/** Récompenses de connexion (daily.js) : emoji → pictogramme d'interface (#67). */
+const DAILY_ICON_IDS = { '💰': 'pieces', '💎': 'gemmes', '⚡': 'boost', '🎁': 'cadeau' };
+
 function renderDaily() {
   const container = document.getElementById('view-daily');
   if (!container) return;
@@ -1315,7 +1319,7 @@ function renderDaily() {
     html += `
       <div class="streak-day ${state}">
         <div class="streak-circle">${(state === 'done' || state === 'claimed-today') ? '✓' : i}</div>
-        <div class="streak-icon">${r.icon}</div>
+        <div class="streak-icon">${UiIcons.html(DAILY_ICON_IDS[r.icon] ?? '', r.icon)}</div>
       </div>`;
   }
   html += `</div>`;
@@ -1508,14 +1512,14 @@ function renderDailyMissions() {
     const claimed  = m.claimed;
 
     const rewardParts = [];
-    if (m.reward.coins > 0) rewardParts.push(`💰\u202f${m.reward.coins}`);
-    if (m.reward.gems  > 0) rewardParts.push(`💎\u202f${m.reward.gems}`);
+    if (m.reward.coins > 0) rewardParts.push(`${UiIcons.html('pieces', '💰')}\u202f${m.reward.coins}`);
+    if (m.reward.gems  > 0) rewardParts.push(`${UiIcons.html('gemmes', '💎')}\u202f${m.reward.gems}`);
 
     const card = document.createElement('div');
     card.className = `mission-card${claimed ? ' mission-claimed' : done ? ' mission-done' : ''}`;
     card.innerHTML = `
       <div class="mission-header">
-        <span class="mission-icon">${def.icon}</span>
+        <span class="mission-icon">${UiIcons.html(`mission_${def.id}`, def.icon)}</span>
         <div class="mission-info">
           <div class="mission-name">${t(def.name)}</div>
           <div class="mission-desc">${def.descFn(m.target)}</div>
@@ -2242,6 +2246,10 @@ async function _loadLastResult() {
   if (el) el.innerHTML = _lastResultHtml();
 }
 
+/** Médailles du classement : pictogrammes d'interface (#67), emoji d'origine en repli. */
+const MEDAL_ICON_IDS = ['medaille_or', 'medaille_argent', 'medaille_bronze'];
+const _medalHtml = rank => UiIcons.html(MEDAL_ICON_IDS[rank - 1], ['🥇', '🥈', '🥉'][rank - 1]);
+
 function _lastResultHtml() {
   const r = _lastResult;
   if (!r || r.state === 'none') return '';
@@ -2252,7 +2260,7 @@ function _lastResultHtml() {
   const foldOpen = document.querySelector('#season-last > .season-fold')?.open ? ' open' : '';
 
   const podium = standings.filter(x => x.eligible && x.rank <= 3).map(x => {
-    const medal = ['🥇', '🥈', '🥉'][x.rank - 1];
+    const medal = _medalHtml(x.rank);
     const isMe  = me && x.userId === me.userId;
     return `<li class="${isMe ? 'last-me' : ''}"><span><span aria-hidden="true">${medal}</span>
         <span class="sr-only">${t('season.last.rank_sr', { n: n(x.rank) })}</span>
@@ -2605,14 +2613,14 @@ async function _loadLeaderboard(seasonId, containerId) {
 function _leaderboardHtml(data) {
   if (!data?.leaderboard?.length) return `<p class="season-empty">${escapeHtml(t('season.empty'))}</p>`;
   return data.leaderboard.map(row => {
-      const medal  = row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : `#${escapeHtml(row.rank)}`;
+      const medal  = row.rank >= 1 && row.rank <= 3 ? _medalHtml(row.rank) : `#${escapeHtml(row.rank)}`;
       const league = row.league ? `<span class="lb-league">${escapeHtml(row.league.icon)}</span>` : '';
       const isMe   = _account && row.username === _account.username;
       return `<div class="lb-row${isMe ? ' lb-row-me' : ''}">
         <span class="lb-rank">${medal}</span>
         <span class="lb-name">${league}${escapeHtml(row.username)}</span>
         <span class="lb-depth">${t('season.last.depth', { n: escapeHtml(row.maxDepth) })}</span>
-        <span class="lb-blocks">👆${escapeHtml(row.manualBlocks)}</span>
+        <span class="lb-blocks">${UiIcons.html('blocs_mines', '👆')}${escapeHtml(row.manualBlocks)}</span>
       </div>`;
   }).join('');
 }
@@ -3377,7 +3385,7 @@ function renderShop() {
   container.innerHTML = `
     <div class="view-title-bar">${t('ui.view_shop')}</div>
     <div class="shop-header">
-      <div class="shop-balance">💎 ${GameState.gems} ${t('stats.gems')}</div>
+      <div class="shop-balance">${UiIcons.html('gemmes', '💎')} ${GameState.gems} ${t('stats.gems')}</div>
       <div class="shop-balance-sub">${t('shop.balance_label')}</div>
     </div>
     ${_shopGuideHtml('gems')}
@@ -3945,6 +3953,15 @@ function init() {
       _accountTab = 'register';
       switchView('settings');
     } else if (isViewActive('settings')) renderSettings();
+  });
+  // Pictogrammes d'interface appliqués depuis l'atelier (#67) : barre du bas et en-tête tout de suite,
+  // vues dynamiques re-rendues seulement si la liste a changé (emoji d'origine en repli).
+  UiIcons.load(() => {
+    if (Blocks.current) renderBlock();
+    renderUpgrades(); renderQuests(); renderShopChests();
+    if (isViewActive('daily')) renderDaily();
+    if (isViewActive('season')) _refreshSeasonView();
+    if (isViewActive('shop')) renderShop();
   });
   // Bibliothèque d'icônes (v1 par défaut, library.json) : re-rendu du bloc une fois la configuration lue.
   IconLibrary.load(() => { if (Blocks.current) renderBlock(); });
