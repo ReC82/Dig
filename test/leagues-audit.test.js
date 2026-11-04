@@ -47,9 +47,9 @@ function play(seasonId, userId, depth, blocks, { reachedAt = null, autoBlocks = 
   sql().prepare(`
     INSERT INTO season_rankings
       (season_id, user_id, league_id, max_depth, reported_max_depth, manual_blocks,
-       effective_manual_blocks, manual_clicks, auto_blocks, is_active, max_depth_reached_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-  `).run(seasonId, userId, leagueId, depth, depth, blocks, blocks, blocks * 2, autoBlocks, reachedAt);
+       effective_manual_blocks, manual_clicks, auto_blocks, is_active, max_depth_reached_at, manual_blocks_reached_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+  `).run(seasonId, userId, leagueId, depth, depth, blocks, blocks, blocks * 2, autoBlocks, reachedAt, reachedAt);
 }
 
 const levelOf = uid => sql().prepare(
@@ -210,18 +210,18 @@ test('paramètres illisibles ou hors bornes : valeurs par défaut, minimum d\'un
 
 // ── Égalités et auto-dig ──────────────────────────────────────────────────────
 
-test('égalités : profondeur, puis blocs manuels validés, puis premier arrivé, puis compte ; auto-dig ignoré', () => {
+test('égalités (#73) : blocs manuels validés, puis premier arrivé, puis compte ; profondeur et auto-dig ignorés', () => {
   resetConfig();
   const lvl = leagueAt(0);
   const season = db.getActiveSeason();
   const ids = Array.from({ length: 10 }, () => newUser(lvl.id));
-  // Promus attendus : 5. Les 3 premiers ont la même profondeur (1000).
-  play(season.id, ids[0], 1000, 40, { reachedAt: '2026-11-03 10:00:00.000', autoBlocks: 0 });
-  play(season.id, ids[1], 1000, 40, { reachedAt: '2026-11-03 09:00:00.000', autoBlocks: 0 });   // même score, arrivé avant
-  play(season.id, ids[2], 1000, 39, { reachedAt: '2026-11-03 08:00:00.000', autoBlocks: 99999 }); // moins de blocs manuels, énorme auto-dig
-  play(season.id, ids[3], 900, 10);
+  // Promus attendus : 5. Les 2 premiers ont le même nombre de blocs manuels (40).
+  play(season.id, ids[0], 10, 40, { reachedAt: '2026-11-03 10:00:00.000', autoBlocks: 0 });
+  play(season.id, ids[1], 5, 40, { reachedAt: '2026-11-03 09:00:00.000', autoBlocks: 0 });       // même score, arrivé avant
+  play(season.id, ids[2], 1000, 39, { reachedAt: '2026-11-03 08:00:00.000', autoBlocks: 99999 }); // bien plus profond, moins de blocs manuels
+  play(season.id, ids[3], 5, 10);
   play(season.id, ids[4], 900, 10);   // ex æquo parfait avec ids[3] (sans date) : compte le plus ancien d'abord
-  play(season.id, ids[5], 900, 10);
+  play(season.id, ids[5], 2000, 10);  // le plus profond des trois, compte le plus récent
   for (let i = 6; i < 10; i++) play(season.id, ids[i], 100 - i, 1);
   // Joueur 100 % auto-dig (aucun bloc manuel) très profond : jamais classé ni promu.
   const bot = newUser(lvl.id);

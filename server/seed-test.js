@@ -151,6 +151,8 @@ for (const p of PLAYERS) {
     suspiciousScore: 0,
     leagueId:       league.id,
   });
+  // Blocs validés (rang aux blocs manuels validés, #73) : ici, tous les blocs déclarés
+  db.updateEffectiveBlocks(season.id, user.id, p.manual);
 
   // Enregistre les blocs auto (NE doit PAS modifier is_active ni le rang)
   if (p.auto > 0) seasons.recordAutoBreaks(user.id, season.id, p.auto);

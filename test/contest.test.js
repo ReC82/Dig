@@ -45,11 +45,12 @@ function newUser(email = null) {
     .run(`contest_user_${++userSeq}`, email, 'x').lastInsertRowid;
 }
 
-function putRanking(seasonId, userId, depth, blocks = Math.max(depth, 1), reachedAt = null) {
+// Classement aux blocs manuels validés (#73) : par défaut, autant de blocs que de mètres.
+function putRanking(seasonId, userId, depth, blocks = Math.max(depth, 1), reachedAt = null, effective = blocks) {
   conn().prepare(`
     INSERT INTO season_rankings (season_id, user_id, max_depth, reported_max_depth, manual_blocks,
                                  effective_manual_blocks, is_active, max_depth_reached_at)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?)`).run(seasonId, userId, depth, depth, blocks, blocks, reachedAt);
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?)`).run(seasonId, userId, depth, depth, blocks, effective, reachedAt);
 }
 
 let weekSeq = 0;
@@ -59,10 +60,10 @@ function pastSeason() {
   return db.createSeason(`Saison test ${weekSeq}`, cal.fmtUtc(start), cal.fmtUtc(end), 'closed');
 }
 
-/** Saison close et figée avec les profondeurs données (dans l'ordre des utilisateurs). */
+/** Saison close et figée : [userId, profondeur, blocs déclarés?, blocs validés?] par joueur. */
 function frozenSeason(rows) {
   const s = pastSeason();
-  for (const [userId, depth] of rows) putRanking(s.id, userId, depth);
+  for (const [userId, depth, blocks, effective] of rows) putRanking(s.id, userId, depth, blocks, null, effective);
   standings.freezeSeasonStandings(s.id);
   return s;
 }
@@ -117,7 +118,7 @@ test('notes du journal : ni e-mail ni code cadeau', () => {
 
 test('aperçu : ordre au mérite et critères du concours, sans rien écrire', () => {
   const [a, b, c, d] = [newUser(), newUser(), newUser(), newUser()];
-  const s = frozenSeason([[a, 300], [b, 200], [c, 5], [d, 0]]);
+  const s = frozenSeason([[a, 300], [b, 200], [c, 5], [d, 0, 1, 0]]);
 
   contest.updateSettings({ minDepth: 10, lotsPerSeason: 2 });
   contest.setExclusion(s.id, a, 'multi-compte avéré');
@@ -131,7 +132,7 @@ test('aperçu : ordre au mérite et critères du concours, sans rien écrire', (
     [a, 'admin_excluded', null],
     [b, null, 1],
     [c, 'below_min_depth', null],
-    [d, 'depth_zero', null],
+    [d, 'no_validated_blocks', null],
   ]);
   assert.strictEqual(p.counts.lots, 1, '2 lots prévus, 1 seul éligible');
   assert.ok(p.attributable);
@@ -175,7 +176,7 @@ test('attribution : premier éligible, idempotence refusée (double attribution)
   const s = frozenSeason([[a, 80], [b, 120]]);
   const winners = contest.attribute(s.id);
   assert.strictEqual(winners.length, 1);
-  assert.strictEqual(winners[0].userId, b, 'le plus profond gagne');
+  assert.strictEqual(winners[0].userId, b, 'le plus de blocs manuels validés gagne');
   assert.strictEqual(winners[0].status, 'designated');
   assert.strictEqual(winners[0].mode, 'simulation');
   assert.strictEqual(winners[0].prize.valueCents, 500);
@@ -196,6 +197,12 @@ test('attribution : premier éligible, idempotence refusée (double attribution)
   assert.strictEqual(ev.length, 1);
   assert.throws(() => conn().prepare('DELETE FROM contest_audit').run(), /ajout seul/);
   assert.throws(() => conn().prepare("UPDATE contest_audit SET action = 'x'").run(), /ajout seul/);
+});
+
+test('#73 : le lot suit les blocs manuels validés, pas la profondeur', () => {
+  const [deep, manual] = [newUser(), newUser()];
+  const s = frozenSeason([[deep, 900, 20], [manual, 40, 39]]);
+  assert.deepStrictEqual(contest.preview(s.id).participants.map(x => [x.userId, x.lotNo]), [[manual, 1], [deep, null]]);
 });
 
 test('saison sans éligible : aucun lot attribué', () => {

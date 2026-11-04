@@ -56,11 +56,12 @@ let userSeq = 0;
 const newUser = () => conn().prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
   .run(`audit_user_${++userSeq}`, 'x').lastInsertRowid;
 
-function putRanking(seasonId, userId, depth, blocks, reachedAt = '2027-01-05 10:00:00.000') {
+/** Rang = blocs manuels validés (#73) ; reachedAt = instant où ce total a été atteint. */
+function putRanking(seasonId, userId, depth, blocks, reachedAt = '2027-01-05 10:00:00.000', effective = blocks) {
   conn().prepare(`
     INSERT INTO season_rankings (season_id, user_id, max_depth, reported_max_depth, manual_blocks,
-                                 effective_manual_blocks, is_active, max_depth_reached_at)
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?)`).run(seasonId, userId, depth, depth, blocks, blocks, reachedAt);
+                                 effective_manual_blocks, is_active, max_depth_reached_at, manual_blocks_reached_at)
+    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`).run(seasonId, userId, depth, depth, blocks, effective, reachedAt, reachedAt);
 }
 
 /** Clôture la saison active 30 s après sa fin (comme le planificateur). */
@@ -88,10 +89,11 @@ test('clôture ordinaire : points = recalcul manuel depuis le classement figé, 
   quiet(() => seasons.checkAndRotateSeason(T0));
   const season = db.getActiveSeason();
   players = Array.from({ length: 13 }, newUser);
-  // 12 éligibles (dont un ex æquo parfait aux rangs 6-7) + 1 joueur sans profondeur (non éligible)
-  const depths = [120, 110, 100, 90, 80, 70, 70, 60, 50, 40, 30, 20];
-  depths.forEach((d, i) => putRanking(season.id, players[i], d, 50, i === 6 ? '2027-01-06 10:00:00.000' : undefined));
-  putRanking(season.id, players[12], 0, 5);
+  // 12 éligibles (dont un ex æquo parfait aux rangs 6-7) + 1 joueur sans bloc manuel validé
+  // (non éligible) ; profondeurs inversées : sans effet sur le rang (#73)
+  const blocks = [120, 110, 100, 90, 80, 70, 70, 60, 50, 40, 30, 20];
+  blocks.forEach((b, i) => putRanking(season.id, players[i], 200 - b, b, i === 6 ? '2027-01-06 10:00:00.000' : undefined));
+  putRanking(season.id, players[12], 900, 5, undefined, 0);
   s1 = closeActive();
 
   // Barème v1 sur 12 éligibles : 1er 100 ; top 10 % (≤ rang 2) 30 ; top 25 % (≤ 3) 20 ;
@@ -134,7 +136,7 @@ test('scores reçus après la clôture : classement figé et points inchangés',
 test('panne entre la clôture et l\'attribution : rattrapage au redémarrage, une seule fois', () => {
   const season = db.getActiveSeason();
   const trio = players.slice(0, 3);
-  trio.forEach((u, i) => putRanking(season.id, u, 30 - i * 10, 10));
+  trio.forEach((u, i) => putRanking(season.id, u, 10, 30 - i * 10));
   const before = balances(trio);
   const sid = closeActive({ awardFails: true });
   assert.strictEqual(db.getSeasonById(sid).status, 'closed');
@@ -153,7 +155,7 @@ test('panne entre la clôture et l\'attribution : rattrapage au redémarrage, un
 test('panne au milieu de l\'attribution : aucun crédit partiel, reprise complète ensuite', () => {
   const season = db.getActiveSeason();
   const trio = players.slice(3, 6);
-  trio.forEach((u, i) => putRanking(season.id, u, 30 - i * 10, 10));
+  trio.forEach((u, i) => putRanking(season.id, u, 10, 30 - i * 10));
   const sid = closeActive({ awardFails: true });
   const before = balances(trio);
   // Le 3e joueur fait échouer l'écriture alors que les deux premiers sont déjà crédités dans la transaction
@@ -173,7 +175,7 @@ test('panne au milieu de l\'attribution : aucun crédit partiel, reprise complè
 test('classement figé falsifié : attribution refusée, contrôle en écart, reprise une fois restauré', () => {
   const season = db.getActiveSeason();
   const duo = players.slice(6, 8);
-  duo.forEach((u, i) => putRanking(season.id, u, 20 - i * 10, 10));
+  duo.forEach((u, i) => putRanking(season.id, u, 10, 20 - i * 10));
   const sid = closeActive({ awardFails: true });
   const before = balances(duo);
   const trig = conn().prepare("SELECT sql FROM sqlite_master WHERE name = 'trg_standings_no_update'").get().sql;
@@ -258,11 +260,12 @@ test('serveur réel : échéance pendant un arrêt, kill -9 répétés, crédit 
   let sdb = new Database(httpDb);
   const sid = sdb.prepare("SELECT id FROM seasons WHERE status = 'active'").get().id;
   const uid = sdb.prepare("SELECT id FROM users WHERE username = 'mineur33'").get().id;
+  // Rang aux blocs manuels validés (#73), profondeur identique pour tous
   const ins = sdb.prepare(`INSERT INTO season_rankings (season_id, user_id, max_depth, reported_max_depth, manual_blocks,
-                           effective_manual_blocks, is_active, max_depth_reached_at) VALUES (?, ?, ?, ?, 30, 30, 1, '2026-01-01 10:00:00.000')`);
-  for (const [name, depth] of [['rival_a', 100], ['rival_b', 40], ['rival_c', 20]]) {
+                           effective_manual_blocks, is_active, max_depth_reached_at) VALUES (?, ?, 30, 30, ?, ?, 1, '2026-01-01 10:00:00.000')`);
+  for (const [name, blocks] of [['rival_a', 100], ['rival_b', 40], ['rival_c', 20]]) {
     const id = sdb.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run(name, 'x').lastInsertRowid;
-    ins.run(sid, id, depth, depth);
+    ins.run(sid, id, blocks, blocks);
   }
   ins.run(sid, uid, 60, 60);
   sdb.prepare('UPDATE seasons SET end_at = ? WHERE id = ?').run(cal.fmtUtc(new Date(Date.now() - 1000)), sid);

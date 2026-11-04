@@ -3115,7 +3115,7 @@ h1 {
   gap: 3px;
 }
 
-/* Rang | Nom  | Profondeur | Blocs */
+/* Rang | Nom | Blocs manuels (critère du rang, #73) | Profondeur (information) */
 .lb-row {
   display: grid;
   grid-template-columns: 2rem 1fr minmax(3rem, auto) minmax(2.8rem, auto);
@@ -3132,8 +3132,13 @@ h1 {
 
 .lb-rank   { font-weight: 700; color: var(--muted); text-align: center; font-size: 0.78rem; }
 .lb-name   { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.lb-depth  { text-align: right; color: var(--gold); font-weight: 600; font-size: 0.78rem; white-space: nowrap; }
-.lb-blocks { text-align: right; color: var(--muted); font-size: 0.74rem; white-space: nowrap; }
+.lb-blocks { text-align: right; color: var(--gold); font-weight: 700; font-size: 0.82rem; white-space: nowrap; }
+.lb-depth  { text-align: right; color: var(--muted); font-size: 0.72rem; white-space: nowrap; }
+.lb-head   { background: none; padding-top: 0; padding-bottom: 2px; font-size: 0.68rem; font-weight: 600; color: var(--muted); }
+.lb-head .lb-blocks, .lb-head .lb-depth, .lb-head .lb-name { font-size: 0.68rem; font-weight: 600; color: var(--muted); white-space: normal; line-height: 1.15; }
+.season-lb-rule { margin: -4px 0 6px; font-size: 0.74rem; color: var(--muted); }
+.season-player-score strong { color: var(--gold); }
+.season-player-stats .season-player-depth { color: var(--muted); }
 .lb-league { margin-right: 3px; font-size: 0.88em; }
 
 /* ── Responsive saison ── */
@@ -3145,14 +3150,14 @@ h1 {
     gap: 3px;
   }
   .lb-rank   { font-size: 0.72rem; }
-  .lb-depth  { font-size: 0.72rem; }
-  .lb-blocks { font-size: 0.68rem; }
+  .lb-blocks { font-size: 0.74rem; }
+  .lb-depth  { font-size: 0.68rem; }
   .season-player-stats { gap: 8px; font-size: 0.78rem; }
 }
 
 @media (max-width: 320px) {
-  /* Sur les très petits écrans, cacher la colonne blocs */
-  .lb-blocks { display: none; }
+  /* Sur les très petits écrans, cacher la profondeur (hors critère du rang) */
+  .lb-depth  { display: none; }
   .lb-row    { grid-template-columns: 1.6rem 1fr minmax(2.8rem, auto); }
 }
 

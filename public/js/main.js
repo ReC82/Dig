@@ -2073,12 +2073,12 @@ function renderSeasonView(apiData, lbData) {
     playerHtml = `
       <div class="season-player-card">
         <div class="season-player-card-top">
-          <div class="season-player-rank">${t('season.rank', { n: escapeHtml(player.rank ?? '?') })}</div>
+          <div class="season-player-rank">${player.rank != null ? t('season.rank', { n: escapeHtml(player.rank) }) : t('season.not_ranked')}</div>
           ${leagueBadge}
         </div>
         <div class="season-player-stats">
-          <span>⛏ ${t('season.depth_label')} : <strong>${t('season.last.depth', { n: escapeHtml(player.maxDepth) })}</strong></span>
-          <span>👆 ${t('season.blocks_label')} : <strong>${escapeHtml(player.manualBlocks)}</strong></span>
+          <span class="season-player-score">${t('season.blocks_label')} : <strong>${escapeHtml(player.manualBlocks)}</strong></span>
+          <span class="season-player-depth muted">${t('season.depth_label')} : ${t('season.last.depth', { n: escapeHtml(player.maxDepth) })}</span>
         </div>
       </div>`;
   }
@@ -2134,7 +2134,8 @@ function renderSeasonView(apiData, lbData) {
     ${_nextSeasonHtml(apiData.next)}
     ${playerHtml}
     <div id="season-points">${_pointsHtml()}</div>
-    <h3 class="season-section-title">${t('season.leaderboard')}</h3>
+    <h3 class="season-section-title">${t('season.leaderboard_blocks')}</h3>
+    <p class="season-lb-rule">${t('season.lb.rule')}</p>
     <div class="season-leaderboard" id="${lbId}">
       ${lbData ? _leaderboardHtml(lbData) : `<p class="season-loading">${t('season.loading')}</p>`}
     </div>
@@ -2265,25 +2266,29 @@ function _lastResultHtml() {
   const open = document.querySelector('#season-last .last-proof')?.open ? ' open' : '';
   const foldOpen = document.querySelector('#season-last > .season-fold')?.open ? ' open' : '';
 
+  // Critère du classement figé : profondeur avant #73 (« merit-v1 »), blocs manuels validés ensuite
+  const byDepth = snapshot.algorithm === 'merit-v1';
+  const score = x => byDepth ? t('season.last.depth', { n: n(x.maxDepth) }) : t('season.last.blocks', { n: n(x.manualBlocks) });
   const podium = standings.filter(x => x.eligible && x.rank <= 3).map(x => {
     const medal = _medalHtml(x.rank);
     const isMe  = me && x.userId === me.userId;
     return `<li class="${isMe ? 'last-me' : ''}"><span><span aria-hidden="true">${medal}</span>
         <span class="sr-only">${t('season.last.rank_sr', { n: n(x.rank) })}</span>
         ${x.league ? `<span aria-hidden="true">${escapeHtml(x.league.icon)}</span>` : ''}${escapeHtml(x.username ?? t('season.last.deleted'))}</span>
-      <span class="points-num">${t('season.last.depth', { n: n(x.maxDepth) })}</span></li>`;
+      <span class="points-num">${score(x)}</span></li>`;
   }).join('');
 
   let mine;
   if (!_account)           mine = '';
   else if (!me)            mine = t('season.last.me_absent');
-  else if (!me.eligible)   mine = t('season.last.me_ineligible');
+  else if (!me.eligible)   mine = t(byDepth ? 'season.last.me_ineligible' : 'season.last.me_ineligible_blocks');
   else {
     const award = (_pointsData?.awards ?? []).find(a => a.seasonId === season.id && (a.mode === 'live' || _pointsData.mode !== 'live'));
     const pts = !award ? '' : award.mode === 'live'
       ? ' · ' + t('season.last.me_points', { n: n(award.points) })
       : ' · ' + t('season.last.me_points_sim', { n: n(award.points) });
-    mine = t('season.last.me_rank', { rank: n(me.rank), n: n(snapshot.eligible), depth: n(me.maxDepth) }) + pts;
+    mine = (byDepth ? t('season.last.me_rank', { rank: n(me.rank), n: n(snapshot.eligible), depth: n(me.maxDepth) })
+                    : t('season.last.me_rank_blocks', { rank: n(me.rank), n: n(snapshot.eligible), blocks: n(me.manualBlocks) })) + pts;
   }
 
   return `
@@ -2616,17 +2621,23 @@ async function _loadLeaderboard(seasonId, containerId) {
   } catch (err) { console.warn('[saison] classement indisponible', err); }
 }
 
+// Rang = blocs détruits manuellement et validés par le serveur (#73) ; profondeur en donnée secondaire.
+// Pictogramme « blocs minés à la main » (#67) dans l'en-tête, à côté du libellé, sans repli 👆 ambigu.
 function _leaderboardHtml(data) {
   if (!data?.leaderboard?.length) return `<p class="season-empty">${escapeHtml(t('season.empty'))}</p>`;
-  return data.leaderboard.map(row => {
+  const head = `<div class="lb-row lb-head" aria-hidden="true">
+        <span class="lb-rank">#</span><span class="lb-name">${t('season.lb.player')}</span>
+        <span class="lb-blocks">${UiIcons.html('blocs_mines', '')}${t('season.lb.blocks')}</span><span class="lb-depth">${t('season.lb.depth')}</span>
+      </div>`;
+  return head + data.leaderboard.map(row => {
       const medal  = row.rank >= 1 && row.rank <= 3 ? _medalHtml(row.rank) : `#${escapeHtml(row.rank)}`;
       const league = row.league ? `<span class="lb-league">${escapeHtml(row.league.icon)}</span>` : '';
       const isMe   = _account && row.username === _account.username;
       return `<div class="lb-row${isMe ? ' lb-row-me' : ''}">
         <span class="lb-rank">${medal}</span>
         <span class="lb-name">${league}${escapeHtml(row.username)}</span>
+        <span class="lb-blocks" title="${escapeHtml(t('season.blocks_label'))}">${escapeHtml(row.manualBlocks)}<span class="sr-only"> ${t('season.blocks_label')}</span></span>
         <span class="lb-depth">${t('season.last.depth', { n: escapeHtml(row.maxDepth) })}</span>
-        <span class="lb-blocks">${UiIcons.html('blocs_mines', '👆')}${escapeHtml(row.manualBlocks)}</span>
       </div>`;
   }).join('');
 }

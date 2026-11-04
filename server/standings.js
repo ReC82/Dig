@@ -9,10 +9,13 @@
  * Attribution au mérite, sans aucun hasard (décision du propriétaire du 30/10/2026) :
  *   - participants : joueurs actifs de la saison avec au moins un bloc manuel (comme le
  *     classement affiché) ;
- *   - éligibles : participants avec une profondeur validée par le serveur > 0 et un compte
+ *   - éligibles : participants avec au moins un bloc manuel validé par le serveur et un compte
  *     existant ; les autres restent visibles dans l'instantané avec leur motif d'exclusion ;
- *   - ordre : profondeur ↓, blocs manuels validés ↓, premier à avoir atteint la profondeur ↑,
- *     identifiant ↑ (db.RANK_ORDER) ;
+ *   - ordre (« merit-v2 », décision du 04/11/2026, #73) : blocs détruits manuellement et validés
+ *     par le serveur ↓, premier à avoir atteint ce total ↑, identifiant ↑ (db.RANK_ORDER). La
+ *     profondeur reste enregistrée comme statistique, sans effet sur le rang ;
+ *   - instantanés « merit-v1 » (saisons closes avant #73, ordre à la profondeur) : conservés tels
+ *     quels, jamais recalculés ; leur empreinte se vérifie avec leurs propres colonnes ;
  *   - « leader » = 1er éligible. Mode `simulation` uniquement : aucun prix réel n'est attribué
  *     ici (points #33, boutique #34, interrupteur des cadeaux réels #30/#27).
  *
@@ -29,22 +32,28 @@ const db      = require('./db');
 const antibot = require('./antibot');
 const cal     = require('./seasonCalendar');
 
-const ALGORITHM  = 'merit-v1';
+const ALGORITHM  = 'merit-v2';
 const PRIZE_MODE = 'simulation';
 const PAGE_SIZE  = 50;
 
-/** Colonnes d'une ligne figée, dans l'ordre de la forme canonique (ne jamais réordonner). */
-const ROW_FIELDS = [
+/** Colonnes d'une ligne figée « merit-v1 », dans l'ordre de la forme canonique (ne jamais réordonner). */
+const ROW_FIELDS_V1 = [
   'position', 'rank', 'rank_in_league', 'user_id', 'league_id', 'max_depth',
   'effective_manual_blocks', 'manual_blocks', 'max_depth_reached_at', 'eligible',
   'exclusion_reason', 'risk_level',
 ];
+/** « merit-v2 » (#73) : + départage figé (date du total de blocs manuels validés). */
+const ROW_FIELDS = [...ROW_FIELDS_V1, 'manual_blocks_reached_at'];
+const fieldsFor = algorithm => (algorithm === 'merit-v1' ? ROW_FIELDS_V1 : ROW_FIELDS);
 
 const sha256 = s => crypto.createHash('sha256').update(s).digest('hex');
 
-function rowsHash(rows) {
-  return sha256(JSON.stringify(rows.map(r => ROW_FIELDS.map(f => r[f] ?? null))));
+function rowsHash(rows, fields = ROW_FIELDS) {
+  return sha256(JSON.stringify(rows.map(r => fields.map(f => r[f] ?? null))));
 }
+
+/** Blocs manuels validés retenus (jamais plus que les blocs déclarés). */
+const validatedBlocks = r => Math.min(r.effective_manual_blocks ?? 0, r.manual_blocks ?? 0);
 
 function snapshotHash(s) {
   return sha256(JSON.stringify([
@@ -71,7 +80,7 @@ function computeStandings(participants, riskOf = () => 0) {
   const perLeague = new Map();
   return participants.map((p, i) => {
     const reason = !p.user_exists ? 'account_deleted'
-                 : !(p.max_depth > 0) ? 'depth_zero'
+                 : !(validatedBlocks(p) > 0) ? 'no_validated_blocks'
                  : null;
     const eligible = reason ? 0 : 1;
     let rankInLeague = null;
@@ -90,6 +99,7 @@ function computeStandings(participants, riskOf = () => 0) {
       effective_manual_blocks: p.effective_manual_blocks ?? 0,
       manual_blocks:           p.manual_blocks ?? 0,
       max_depth_reached_at:    p.max_depth_reached_at ?? null,
+      manual_blocks_reached_at: p.manual_blocks_reached_at ?? null,
       eligible,
       exclusion_reason:        reason,
       risk_level:              riskOf(p.user_id) ?? 0,
@@ -148,7 +158,7 @@ function freezeSeasonStandings(seasonId, { source = 'close', now = new Date() } 
     snap.details = JSON.stringify({
       status: eligible ? 'ok' : 'no_eligible_participant',
       excluded: rows.filter(r => !r.eligible).length,
-      withoutReachTime: rows.filter(r => r.eligible && !r.max_depth_reached_at).length,
+      withoutReachTime: rows.filter(r => r.eligible && !r.manual_blocks_reached_at).length,
     });
     const cols = Object.keys(snap);
     conn.prepare(`INSERT INTO season_snapshots (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`)
@@ -197,7 +207,7 @@ function verifySnapshot(seasonId) {
   if (!snap) return null;
   const rows  = getSnapshotRows(seasonId);
   const prev  = db.getDb().prepare('SELECT snapshot_hash FROM season_snapshots WHERE seq < ? ORDER BY seq DESC LIMIT 1').get(snap.seq);
-  const rowsHashOk     = rowsHash(rows) === snap.rows_hash && rows.length === snap.participants;
+  const rowsHashOk     = rowsHash(rows, fieldsFor(snap.algorithm)) === snap.rows_hash && rows.length === snap.participants;
   const snapshotHashOk = snapshotHash(snap) === snap.snapshot_hash;
   const chainOk        = (prev ? prev.snapshot_hash : null) === (snap.prev_hash ?? null);
   return { ok: rowsHashOk && snapshotHashOk && chainOk, rowsHashOk, snapshotHashOk, chainOk };
@@ -225,7 +235,7 @@ function _formatStanding(r, names, leagueMap, admin) {
     username:        names.get(r.user_id) ?? null,
     league:          league ? { id: league.id, name: league.name, icon: league.icon } : null,
     maxDepth:        r.max_depth,
-    manualBlocks:    Math.min(r.effective_manual_blocks, r.manual_blocks),
+    manualBlocks:    validatedBlocks(r),
     maxDepthReachedAt: r.max_depth_reached_at,
     eligible:        !!r.eligible,
     exclusionReason: r.exclusion_reason,
@@ -291,6 +301,8 @@ function buildStandings(seasonRef, { page = 1, userId = null, admin = false } = 
 
 module.exports = {
   ALGORITHM,
+  ROW_FIELDS,
+  ROW_FIELDS_V1,
   PRIZE_MODE,
   computeStandings,
   freezeSeasonStandings,

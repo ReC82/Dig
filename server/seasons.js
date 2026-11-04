@@ -178,7 +178,8 @@ function _applyPromotions(season, config) {
       skipped:        false,
       nextLeagueId:   nextLeague.id,
       nextLeagueName: nextLeague.name,
-      promotedUsers:  toPromote.map(p => ({ userId: p.user_id, username: p.username, maxDepth: p.max_depth })),
+      promotedUsers:  toPromote.map(p => ({ userId: p.user_id, username: p.username,
+        manualBlocks: Math.min(p.effective_manual_blocks, p.manual_blocks), maxDepth: p.max_depth })),
     });
   }
 
@@ -907,8 +908,9 @@ function buildLeaderboard(seasonId, page = 1) {
  */
 function buildGlobalLeaderboard(seasonId, page = 1, { admin = false } = {}) {
   const offset  = (page - 1) * PAGE_SIZE;
-  const rows    = getSeasonLeaderboard(seasonId, PAGE_SIZE, offset);
-  const total   = countSeasonActivePlayers(seasonId);
+  // Admin : aussi les participants sans bloc manuel validé (rang null), pour l'outil de correction
+  const rows    = getSeasonLeaderboard(seasonId, PAGE_SIZE, offset, { includeUnranked: admin });
+  const total   = countSeasonActivePlayers(seasonId, { includeUnranked: admin });
   const leagues = getAllLeagues();
   const leagueMap = Object.fromEntries(leagues.map(l => [l.id, l]));
 
@@ -924,9 +926,9 @@ function buildGlobalLeaderboard(seasonId, page = 1, { admin = false } = {}) {
 /**
  * Classement intraligue paginé.
  * Règles strictes :
- *  1. Uniquement les joueurs avec manual_blocks > 0 (is_active = 1).
- *  2. Tri : max_depth DESC, manual_blocks DESC.
- *  3. auto_blocks jamais utilisé pour le tri.
+ *  1. Uniquement les joueurs classés (db RANKED_WHERE : au moins un bloc manuel validé).
+ *  2. Tri : db RANK_ORDER — blocs manuels validés ↓, premier arrivé à ce total, identifiant (#73).
+ *  3. Ni la profondeur ni auto_blocks ne participent au tri.
  *
  * @param {number} seasonId
  * @param {number} leagueId

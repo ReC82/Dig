@@ -643,7 +643,7 @@ app.get('/api/seasons/active/leaderboard', (req, res) => {
 /**
  * GET /api/seasons/:seasonId/leagues/:leagueId/leaderboard?page=1
  * Classement intraligue paginé.
- * Règles : manual_blocks > 0, tri depth DESC puis manual_blocks DESC.
+ * Règles : au moins un bloc manuel validé, tri aux blocs manuels validés (db RANK_ORDER, #73).
  * auto_blocks jamais utilisé pour le tri.
  */
 app.get('/api/seasons/:seasonId/leagues/:leagueId/leaderboard', (req, res) => {

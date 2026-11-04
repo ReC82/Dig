@@ -140,7 +140,7 @@ test('3 actifs et plus : formule actuelle par niveau', () => {
   }
 });
 
-test('égalités au seuil 3 : profondeur puis blocs manuels, auto-dig ignoré ; double clôture refusée', () => {
+test('seuil 3 (#73) : promotion aux blocs manuels validés, profondeur et auto-dig ignorés ; double clôture refusée', () => {
   const lvl = leagueAt(0);
   const season = db.getActiveSeason();
   const a = newUser(lvl.id), b = newUser(lvl.id), c = newUser(lvl.id), d = newUser(lvl.id);
@@ -155,11 +155,12 @@ test('égalités au seuil 3 : profondeur puis blocs manuels, auto-dig ignoré ; 
 
   const r = close()[0];
   assert.strictEqual(r.activePlayers, 4);
-  assert.deepStrictEqual(r.promotedUsers.map(p => p.userId), [b, a]);
-  assert.strictEqual(levelOf(c), 0);
+  assert.deepStrictEqual(r.promotedUsers.map(p => p.userId), [c, b], 'c (90 blocs, 399 m) devant les plus profonds');
+  assert.deepStrictEqual(r.promotedUsers.map(p => p.manualBlocks), [90, 11]);
+  assert.strictEqual(levelOf(a), 0, 'profondeur 400 m + énorme auto-dig : non promu');
   assert.strictEqual(levelOf(bot), 0);
   assert.throws(() => seasons.closeActiveSeason(season.id, new Date()), /déjà/);
-  assert.deepStrictEqual([a, b, c, d].map(levelOf), [1, 1, 0, 0]);
+  assert.deepStrictEqual([a, b, c, d].map(levelOf), [0, 1, 1, 0]);
 });
 
 test.after(() => {

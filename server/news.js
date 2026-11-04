@@ -538,6 +538,8 @@ const T = {
                   nl: '{user} eindigde als {pos} in seizoen {name}', es: '{user} terminó {pos} en la temporada {name}' },
   rank_sum:     { fr: 'Classement figé de fin de saison : {d} m.', en: 'Frozen end-of-season ranking: {d} m.',
                   nl: 'Vastgelegd eindklassement: {d} m.', es: 'Clasificación final congelada: {d} m.' },
+  rank_sum_blocks: { fr: 'Classement figé de fin de saison : {b} blocs détruits manuellement.', en: 'Frozen end-of-season ranking: {b} blocks destroyed by hand.',
+                  nl: 'Vastgelegd eindklassement: {b} blokken met de hand gebroken.', es: 'Clasificación final congelada: {b} bloques destruidos a mano.' },
 };
 
 // Événements mensuels (#56)
@@ -681,18 +683,20 @@ function _username(userId) {
 function _rankFacts(s, now) {
   if (!s.playerEvents || !s.rankTop) return 0;
   let created = 0;
-  const closed = conn().prepare(`SELECT s.* FROM seasons s JOIN season_snapshots p ON p.season_id = s.id
+  const closed = conn().prepare(`SELECT s.*, p.algorithm AS snapshot_algorithm FROM seasons s JOIN season_snapshots p ON p.season_id = s.id
     WHERE s.status != 'active' ORDER BY s.end_at DESC LIMIT 1`).all();
   for (const season of closed) {
     if (!_recent(parse(season.end_at), now)) continue;
-    const rows = conn().prepare('SELECT user_id, rank, max_depth FROM season_standings WHERE season_id = ? AND eligible = 1 AND rank <= ? ORDER BY rank').all(season.id, s.rankTop);
+    const rows = conn().prepare('SELECT user_id, rank, max_depth, MIN(effective_manual_blocks, manual_blocks) AS blocks FROM season_standings WHERE season_id = ? AND eligible = 1 AND rank <= ? ORDER BY rank').all(season.id, s.rankTop);
+    // Critère du classement figé : profondeur avant #73 (« merit-v1 »), blocs manuels validés ensuite
+    const v1 = season.snapshot_algorithm === 'merit-v1';
     for (const r of rows) {
       const user = _username(r.user_id);
       if (!user) continue;
       if (_playerFact(`rank:${season.id}:${r.user_id}`, r.user_id, season.id, {
         icon: r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : '🏆',
         titles: _tpl('rank_title', { user, pos: l => ORD[l](r.rank), name: _seasonNames(season) }),
-        summaries: _tpl('rank_sum', { d: r.max_depth }),
+        summaries: v1 ? _tpl('rank_sum', { d: r.max_depth }) : _tpl('rank_sum_blocks', { b: r.blocks }),
       }, s, now)) created++;
     }
   }
