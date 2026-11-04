@@ -2,6 +2,188 @@
 
 Lien : https://github.com/ReC82/Dig/issues/49
 
+## Session du 04/11/2026, soir (DIGORCH) — lot 1.2 (Admin → Économie) et lot 2.6 (boutique en gemmes fermée)
+
+Suite de la décision du propriétaire du 04/11 (commentaire 6632720020, déjà prise en compte par la
+session précédente). **Aucun prix, taux, plafond, limite, récompense ni solde n'a été modifié en
+production ; aucun drapeau économique n'est activé ; rien n'est publié.**
+
+### 1. État réel
+
+**Déployé en production (SHA `0b990a1`), inactif : en attente de recette.** Lots 1.1, 1.2, 2.3–2.5 et
+2.6 livrés. Il reste une étape : faire **appliquer par le jeu** les règles publiées (lot 1.3). Elle
+ne sera faite qu'après validation des résultats par le propriétaire.
+Classement : **Après lancement.**
+
+### 2. Changements réalisés
+
+**Règles économiques versionnées** : `server/economyRules.js`, sur le modèle des tables de récompenses #37.
+- Contenu : gemmes par bloc gemme, gemmes des coffres de la mine (chance et quantité), série
+  quotidienne (7 jours), bonus « trois missions », plafond de fin de saison, coûts Auto-Dig en
+  gemmes (niveaux 3 à 6), courbe des pièces (segments), limites par saison des coffres de la
+  boutique, prix et disponibilité des articles de la boutique en gemmes.
+- **v1 = valeurs en vigueur relevées à la migration** : rubis, émeraude et diamant à 1 ; saphir,
+  améthyste et cristal à 0 ; aucune gemme dans les coffres de la mine ; série 0/0/1/0/2/0/4 ;
+  bonus 0 ; plafond 100 (⚙ Config) ; Auto-Dig 4/8/18/35 ; courbe actuelle ; limites simple et rare
+  illimitées, antique 5 (tables #37). La boutique en gemmes reprend les prix de simulation
+  150/350/30/8.
+- **Barème A préparé en brouillon** (jamais publié) : gemmes par bloc 1/1/2/2/3/3, coffre de mine
+  épique 10 % → 1 💎, bonus trois missions +1, plafond 150, Auto-Dig inchangé.
+- Préréglages cumulables : barème A, limites 20/10, courbe b, courbe c, courbe actuelle.
+- Cycle de vie : brouillon validé (bornes, courbe cohérente) → **simulation comparative** →
+  **publication explicite** (confirmation et note obligatoires ; un brouillon périmé est refusé) →
+  **retour arrière** (nouvelle version qui reprend le contenu d'une ancienne). Les versions et le
+  journal sont en ajout seul : des déclencheurs SQLite bloquent toute modification ou suppression.
+- **Ces règles ne sont pas appliquées par le jeu.** Le jeu continue de suivre son code, ⚙ Config
+  et les tables #37. L'admin l'indique en toutes lettres, et signale les valeurs du jeu qui
+  diffèrent de la version publiée. Ainsi, le changement de code reste séparé de l'activation du
+  barème, comme demandé.
+
+**Simulation comparative** : `tools/balance/economy-rules-sim.js`.
+- Elle tourne dans un **processus séparé** (délai maximal 45 s, une seule à la fois) : le serveur
+  de jeu n'est jamais bloqué.
+- Elle compare la version publiée et le brouillon sur les mêmes graines, pour les 4 profils, avec
+  100 à 1 000 joueurs par profil. Indicateurs : 💎 gagnées, 💎/h, 💎 perdues au plafond,
+  fragments, niveaux de reliques, pièces, profondeur médiane, coffres achetés en boutique.
+
+**Boutique en gemmes** : `server/gemShop.js`, **fermée**.
+- Articles : pioche dorée, pioche diamant, ramassage automatique, boost ×2 30 min. Les prix
+  viennent de la version publiée des règles.
+- **Ouverture** : il faut à la fois le drapeau, avec la saisie `OUVRIR`, et le registre de gemmes
+  en mode « fait foi ». Sinon le serveur refuse avec un code 409. Tant qu'elle est fermée, le
+  joueur reçoit `{ open: false }` et tout achat est refusé avec un code 403.
+- **Achat atomique et idempotent**, dans une seule transaction : contrôle de l'article, débit du
+  registre (`gemLedger.spend`) et enregistrement de l'achat. Rejouer la même requête ne débite pas
+  une seconde fois. Un article permanent ne s'achète qu'une fois. Un solde insuffisant renvoie 409
+  sans rien écrire. Les achats sont en ajout seul.
+- **L'effet en jeu n'est pas branché** : skin, ramassage et boost restent côté client, pour le lot
+  suivant.
+
+**Admin → 💰 Économie & Joueurs** : deux nouvelles cartes, « 📐 Règles économiques (référence) » et
+« 🛒 Boutique en gemmes », plus le libellé « Achat boutique en gemmes » dans le registre.
+- Les cartes reprennent les confirmations Dig et le suivi des saisies non enregistrées (#61), et
+  les boutons Rafraîchir communs (#60).
+- Routes : `/api/admin/economy/rules` (GET), `…/draft` (PUT/DELETE), `…/preset`, `…/simulate`,
+  `…/publish`, `…/rollback`, `…/audit`, `/api/admin/economy/gem-shop` (GET), `…/flag` (POST), plus
+  les routes joueur `GET /api/gem-shop` et `POST /api/gem-shop/buy`.
+- Nouvelles tables, toutes ajoutées : `economy_rule_versions`, `economy_rule_draft`,
+  `economy_rule_audit`, `gem_shop_settings`, `gem_shop_purchases`, `gem_shop_audit`.
+
+### 3. Chiffres : simulation publiée (v1) → brouillon
+
+Résultats de l'admin, 300 joueurs par profil, 1 saison. Pour cet essai, le plafond du brouillon a
+été mis à 140 au lieu de 150. Écarts en pourcentage :
+
+| Profil | 💎 gagnées | 💎 perdues au plafond | Fragments | Pièces | Profondeur médiane |
+|---|---|---|---|---|---|
+| Débutant | 17,9 → 28,2 (+58 %) | 0 → 0 | +1 % | +3 % | 309 → 311 |
+| Régulier | 94,6 → 212,3 (+124 %) | 0 → 9,5 | +1 % | +2 % | 1 341 → 1 351 |
+| Assidu | 224,4 → 574,4 (+156 %) | 59 → 359 | 0 % | 0 % | 3 207 → 3 210 |
+| Automatique | 61,3 → 128,5 (+110 %) | 0 → 0 | 0 % | +21 % | 859 → 911 |
+
+Lecture :
+- Le barème A double ou triple les gemmes sans toucher à la profondeur des joueurs actifs.
+- Le joueur assidu perd beaucoup au plafond : la boutique en gemmes est donc nécessaire pour
+  donner un usage à ces gemmes.
+- Le profil automatique gagne +6 % de profondeur et +21 % de pièces, parce que l'Auto-Dig arrive
+  plus tôt.
+
+**Effet du ramassage automatique sur la progression** (vérification demandée ; règles actuelles,
+1 000 joueurs par profil) :
+- Régulier et Assidu : aucun effet mesurable (moins de 0,5 %).
+- Profil automatique (8 h d'onglet ouvert) : **profondeur médiane 693 → 720 (+4 %), pièces +10 %**.
+  Aujourd'hui, la fenêtre d'un coffre trouvé met l'Auto-Dig en pause jusqu'au clic.
+- C'est donc un article de **confort qui fait aussi progresser** les joueurs inactifs, ce qui
+  touche le classement de façon modérée.
+
+### 4. SHA, branche et procédure de test
+
+- SHA sur `develop` et en production : **`0b990a1`**. Commit de fonctionnalité `142cf5f`, branche
+  `feature/49-audit-economie`.
+- Tests :
+  - `npm test` : **636/636**, sur la branche et sur l'arbre exact de la release `0b990a1`.
+  - 7 nouveaux tests dans `test/economy-rules.test.js` : migration v1 = valeurs en vigueur, barème
+    A en brouillon, ajout seul, validation, préréglages, publication (note, version périmée),
+    retour arrière, simulation identique quand les règles sont identiques, boutique fermée,
+    ouverture refusée sans « fait foi », achat idempotent, article permanent, solde insuffisant,
+    HTTP (401, confirmations, 403 joueur).
+- Navigateur headless sur serveur de test (1280×900 et 390×844) :
+  - les cartes se chargent ; simulation en 5,7 s ; enregistrement du brouillon ;
+  - l'ouverture de la boutique est refusée avec le message attendu ;
+  - aucun débordement de page ; la seule erreur JS est un 401 attendu, avant la connexion.
+
+### 5. Vérifications, limites, données des joueurs
+
+- **Copie de la base de production** (port 3122) : santé et version correctes ; empreintes
+  identiques pour `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et
+  `player_click_tracking`. v1 correspond aux valeurs en vigueur, le brouillon part de v1,
+  la boutique est fermée et le registre est sur « off ». La copie a été supprimée.
+- Limites :
+  - le jeu n'applique pas les règles publiées ;
+  - les effets de la boutique ne sont pas branchés côté client ;
+  - la simulation utilise le catalogue de blocs v3 et les hypothèses d'ouverture de coffres du 04/11 ;
+  - les achats simultanés entre processus reposent sur `gemLedger.spend`, testé à 4 processus
+    lors de la session précédente.
+- Données des joueurs : aucune modification. Seules des tables vides ou de référence ont été
+  ajoutées.
+
+### 6. Déploiement
+
+- **SHA déployé : `0b990a1`**, de `020bad4` à `0b990a1`, avec `scripts/deploy.sh` de la release.
+- Sauvegarde vérifiée : `dig-20261104-183123-pre-deploy-0b990a1.sqlite`.
+- Les deux domaines répondent 200 avec `1.0.0+0b990a1`. Journal sans erreur, `quick_check` ok.
+- Hachages de `users`, `user_saves`, `season_rankings`, `seasons` et `leagues` identiques à la
+  sauvegarde.
+- En production : v1 seule, brouillon A non publié, boutique fermée, 0 achat, registre « off ».
+- Retour arrière : `git reset --keep 020bad4` puis redémarrage. Les nouvelles tables sont ignorées
+  par l'ancien code.
+
+**Test fonctionnel à faire par le propriétaire** (admin seulement, rien n'est visible en jeu) :
+1. Admin → 💰 Économie & Joueurs → « 📐 Règles économiques (référence) ». Attendu : version
+   publiée v1 et un brouillon « basé sur v1, 9 écarts », ce qui correspond au barème A (rubis 1,
+   saphir 1, émeraude 2, améthyste 2, diamant 3, cristal 3, coffre épique 10 % → 1, bonus +1,
+   plafond 150).
+2. Cliquer « Simuler publiée → brouillon » avec 300 joueurs. Attendu : un tableau de 4 profils en
+   moins de 10 s environ, avec les écarts du §3. Le jeu reste fluide pendant le calcul.
+3. Facultatif : appliquer le préréglage « Limites 20/10 » ou « Courbe b », puis simuler de nouveau
+   pour comparer. **Ne pas publier** tant que les résultats ne sont pas validés. Une publication
+   serait de toute façon sans effet en jeu et réversible.
+4. Carte « 🛒 Boutique en gemmes ». Attendu : « fermée », 4 articles (150/350/30/8), 0 achat. Le
+   bouton « Ouvrir » est refusé tant que le registre n'est pas en « fait foi ».
+
+### 7. Choix techniques faits seul
+
+- Les règles sont une référence et ne sont pas lues par le jeu. Brancher le client sur le barème
+  serait une activation, ce que la décision interdit avant validation.
+- v1 est relevée depuis les sources réelles : catalogue de blocs, ⚙ Config, tables #37,
+  `balance.js` et `daily.js`. Le brouillon A est créé une seule fois, à la migration.
+- La simulation tourne dans un processus enfant : un calcul de plusieurs secondes dans le
+  processus du jeu aurait figé tous les joueurs.
+- La boutique ne peut pas s'ouvrir sans le registre « fait foi » : sinon un solde écrit par le
+  navigateur pourrait acheter.
+- La publication exige une note et une confirmation. Les versions et le journal sont en ajout seul.
+
+### 8. Décisions demandées au propriétaire
+
+1. **Résultats du barème A** (§3) : valider A tel quel pour une future activation, ou d'abord
+   ajuster le plafond ? Avec 150, les assidus perdent environ 300 💎 par saison. Recommandation :
+   garder 150 tant que la boutique n'est pas ouverte, puis revoir.
+2. **Ramassage automatique** (+4 % de profondeur pour les joueurs inactifs) : (a) le garder à
+   30 💎, (b) le réserver au jeu actif (onglet visible), (c) le retirer de la première boutique.
+   Recommandation : **(b)**.
+3. **Limites 20/10 et courbe des pièces** : décision inchangée depuis le rapport précédent (§8
+   ci-dessous). Recommandation : limites (a) ou (b) avec un puits de pièces, courbe (a) pour
+   l'instant.
+4. **Activation** : quand les résultats sont validés, l'ordre proposé est : registre en
+   « Observation » une semaine → lot 1.3 (le jeu applique les règles publiées) → publication du
+   barème → registre « fait foi » → ouverture de la boutique. D'accord ?
+
+### 9. Reste à réaliser
+
+- Lot 1.3 : le jeu applique les règles publiées (client et registre), après accord.
+- Effets de la boutique côté client (skin, ramassage, boost) et affichage joueur, derrière le drapeau.
+- Registre en « Observation », puis « fait foi », sur décision du propriétaire.
+
 ## Session du 04/11/2026 (DIGORCH) — décision du propriétaire : lot 1 (registre de gemmes) et lot 2 (simulations)
 
 Décision du propriétaire du 04/11 (commentaire 6632720020) : barème A comme direction cible,
