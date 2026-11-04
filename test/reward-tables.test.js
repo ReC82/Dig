@@ -197,9 +197,8 @@ test('routes HTTP : protégées, cycle complet, catalogue public (serveur de tes
 test('panel admin : onglet Coffres & drops présent et branché', () => {
   const html = fs.readFileSync(path.join(ROOT, 'public/admin/index.html'), 'utf8');
   const js = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
-  assert.match(html, /data-tab="rewards"/);
+  assert.match(js, /\{ id: 'rewards',\s+group: 'game'[^\n]*load: \(\) => loadRewards\(\) \}/, 'rubrique du menu (#70), branchée');
   assert.match(html, /<section id="tab-rewards"[\s\S]*id="btn-refresh-rewards"[\s\S]*<dialog id="rw-dialog"/);
-  assert.match(js, /btn\.dataset\.tab === 'rewards'\)\s+loadRewards\(\)/);
   assert.match(js, /admRefreshButton\('btn-refresh-rewards'/);
   assert.match(js, /admDialogSetup\('rw-dialog'/);
 });

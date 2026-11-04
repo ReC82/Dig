@@ -25,30 +25,25 @@
     <button id="logout-btn" class="btn-sm btn-danger" type="button">Déconnexion</button>
   </header>
 
-  <nav class="admin-nav">
-    <button class="tab-btn active" data-tab="seasons">🗓 Saisons</button>
-    <button class="tab-btn" data-tab="leagues">🏅 Ligues</button>
-    <button class="tab-btn" data-tab="leaderboard">🏆 Classement</button>
-    <button class="tab-btn" data-tab="config">⚙ Config</button>
-    <button class="tab-btn" data-tab="season-overview">📊 Ligues &amp; Saisons</button>
-    <button class="tab-btn" data-tab="economy">💰 Économie &amp; Joueurs</button>
-    <button class="tab-btn" data-tab="security">🛡 Anti-bot</button>
-    <button class="tab-btn" data-tab="contest">🎁 Concours</button>
-    <button class="tab-btn" data-tab="points">🏅 Points</button>
-    <button class="tab-btn" data-tab="shop">🛍 Boutique</button>
-    <button class="tab-btn" data-tab="blocks">🧱 Blocs</button>
-    <button class="tab-btn" data-tab="rewards">🎲 Coffres &amp; drops</button>
-    <button class="tab-btn" data-tab="collections">📿 Collections</button>
-    <button class="tab-btn" data-tab="relics">🔮 Reliques</button>
-    <button class="tab-btn" data-tab="upgrades">⬆ Améliorations</button>
-    <button class="tab-btn" data-tab="missions">🎯 Missions</button>
-    <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
-    <button class="tab-btn" data-tab="badges">🏅 Badges</button>
-    <button class="tab-btn" data-tab="ads">📢 Publicité</button>
-    <button class="tab-btn" data-tab="beta">🧪 Bêta</button>
-    <button class="tab-btn" data-tab="news">📰 Actualités</button>
-    <button class="tab-btn" data-tab="events">🎉 Événements</button>
+  <!-- Navigation (#70) : construite par admin.js depuis le registre ADM_NAV (source unique des rubriques). -->
+  <div class="admin-shell" id="admin-shell">
+  <nav class="admin-nav" id="admin-nav" aria-label="Rubriques de l'administration">
+    <div class="nav-top">
+      <button id="nav-menu-btn" class="nav-menu-btn" type="button" aria-expanded="false" aria-controls="nav-panel">
+        <span aria-hidden="true">☰</span> <span class="nav-menu-label">Rubriques</span> <strong id="nav-current" class="nav-current"></strong>
+      </button>
+      <button id="nav-collapse-btn" class="nav-collapse-btn" type="button" aria-pressed="false" aria-controls="admin-nav"
+              title="Réduire le menu aux icônes" aria-label="Réduire le menu aux icônes"><span aria-hidden="true">«</span></button>
+    </div>
+    <div id="nav-panel" class="nav-panel">
+      <div class="nav-search-wrap">
+        <input id="nav-search" type="search" placeholder="Aller à une rubrique…" aria-label="Aller à une rubrique (Entrée : première rubrique trouvée)" autocomplete="off">
+      </div>
+      <p id="nav-search-empty" class="nav-search-empty muted hidden" role="status">Aucune rubrique ne correspond.</p>
+      <div id="nav-groups" class="nav-groups"></div>
+    </div>
   </nav>
+  <main class="admin-main" id="admin-main">
 
   <!-- Tab Saisons -->
   <section id="tab-seasons" class="tab-content">
@@ -3129,6 +3124,9 @@
       <div style="overflow-x:auto"><table><thead><tr><th>Rév.</th><th>Date (UTC)</th><th>Action</th><th>Statut</th><th>Objets</th><th></th></tr></thead><tbody id="ev-revisions"></tbody></table></div>
     </dialog>
   </section>
+
+  </main>
+  </div>
 
 </div>
 

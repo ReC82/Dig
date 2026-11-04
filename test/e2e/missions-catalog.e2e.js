@@ -15,6 +15,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 
 const { BASE, ADMIN } = process.env;
 const SHOTS = process.env.SHOTS || '/tmp';
@@ -30,7 +31,7 @@ async function steps(page, tag) {
   await page.click('#secret-btn');
   const before = await api('/api/admin/missions');
 
-  await page.click('.tab-btn[data-tab="missions"]');
+  await admOpenTab(page, 'missions');
   await page.waitForSelector('#mq-body tr.bk-row');
   assert.strictEqual(await page.locator('#mq-body tr.bk-row').count(), 6);
   assert.ok(!await page.locator('#mq-dialog').evaluate(d => d.open), 'aucune fiche ouverte au chargement');

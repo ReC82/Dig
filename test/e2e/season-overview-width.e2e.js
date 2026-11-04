@@ -14,6 +14,7 @@
 const assert = require('node:assert');
 const fs = require('node:fs');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 const BASE = process.env.BASE, ADMIN = process.env.ADMIN, OUT = process.env.OUT || '/tmp';
 const VIEWPORTS = [[1920, 1080], [1440, 900], [1280, 800], [390, 844]];
 const errors = [];
@@ -27,7 +28,7 @@ async function measure(b, [w, h], css, tag) {
   await page.fill('#secret-input', ADMIN);
   await page.click('#secret-btn');
   await page.waitForSelector('#admin-app:not(.hidden)');
-  await page.click('.tab-btn[data-tab="season-overview"]');
+  await admOpenTab(page, 'season-overview');
   await page.waitForSelector('#st-body .st-col');
   await page.waitForTimeout(300);
   const m = await page.evaluate(() => {
@@ -35,8 +36,10 @@ async function measure(b, [w, h], css, tag) {
     const sec = r(document.getElementById('tab-season-overview'));
     const cols = [...document.querySelectorAll('#st-body .st-col')].map(r);
     return {
-      vw: document.documentElement.clientWidth,
-      sectionW: Math.round(sec.width), left: Math.round(sec.left), right: Math.round(document.documentElement.clientWidth - sec.right),
+      // Centrage et largeur mesurés dans la zone de contenu, à droite du menu latéral (#70)
+      vw: Math.round(r(document.getElementById('admin-main')).width),
+      sectionW: Math.round(sec.width), left: Math.round(sec.left - r(document.getElementById('admin-main')).left),
+      right: Math.round(r(document.getElementById('admin-main')).right - sec.right),
       cards: cols.map(c => [Math.round(c.left), Math.round(c.top), Math.round(c.width)]),
       pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };

@@ -512,7 +512,7 @@ test('client et admin : panneau Événements, toast, textes 4 langues, rendu éc
   assert.match(html, /id="events-panel"/);
   assert.match(main, /eventFinds/);
   assert.match(main, /escapeHtml\(_badgeText\(ev\.names\)\)|escapeHtml\(title\)/);
-  assert.match(adminHtml, /data-tab="events"/);
+  assert.match(adminJs, /\{ id: 'events',\s+group: 'content'/, 'rubrique du menu (#70)');
   assert.match(adminJs, /loadEvents\(\)/);
   const evJs = adminJs.slice(adminJs.indexOf('// ── Événements mensuels (#56)'));
   assert.doesNotMatch(evJs, /innerHTML/, 'admin : DOM uniquement (#15)');

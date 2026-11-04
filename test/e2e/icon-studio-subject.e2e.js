@@ -14,6 +14,7 @@
 const assert = require('node:assert');
 const { execSync } = require('child_process');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 
 const BASE = process.env.BASE;
 const ADMIN = process.env.ADMIN;
@@ -36,7 +37,7 @@ async function main() {
     await page.goto(`${BASE}/admin/`);
     await page.fill('#secret-input', ADMIN);
     await page.click('#secret-btn');
-    await page.click('.tab-btn[data-tab="icons"]');
+    await admOpenTab(page, 'icons');
     await page.waitForSelector('#ic-grid .ic-card');
   };
   const open = async name => {

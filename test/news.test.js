@@ -294,7 +294,7 @@ test('interface : cloche à gauche du logo, panneau, onglet admin sans fiche ouv
   assert.match(html, /id="news-badge"[^>]*hidden/);
   assert.match(html, /<script src="js\/news.js"><\/script>/);
   const admin = fs.readFileSync(path.join(ROOT, 'public/admin/index.html'), 'utf8');
-  assert.match(admin, /data-tab="news"/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8'), /\{ id: 'news',\s+group: 'content'/, 'rubrique du menu (#70)');
   assert.match(admin, /<dialog id="news-dialog"/, 'fiche d\'ajout dans une boîte de dialogue fermée');
   const i18n = fs.readFileSync(path.join(ROOT, 'public/js/i18n.js'), 'utf8');
   assert.strictEqual((i18n.match(/^\s+news: \{/gm) || []).length, 4, 'textes FR/EN/NL/ES');

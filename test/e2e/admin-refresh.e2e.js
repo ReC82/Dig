@@ -13,6 +13,7 @@
  * Seule la base de test change (contrôles anti-bot de joueurs synthétiques « e2e60_… »).
  */
 const { chromium } = require('playwright-core');
+const { admOpenTab } = require('./_admin-nav');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
@@ -54,7 +55,7 @@ function simulatePlayerSave(name, depth) {
     await page.waitForSelector('#admin-app:not(.hidden)', { timeout: 8000 });
 
     const status = id => page.evaluate(i => document.getElementById(i).nextElementSibling?.textContent ?? '', id);
-    const openTab = async tab => { await page.click(`.tab-btn[data-tab="${tab}"]`); await page.waitForTimeout(700); };
+    const openTab = async tab => { await admOpenTab(page, tab); await page.waitForTimeout(700); };
     /** Clique « Rafraîchir » ; rend l'état pendant l'attente, l'état final et les requêtes émises. */
     const refresh = async (id, how = 'click') => {
       await page.evaluate(i => document.getElementById(i).scrollIntoView({ block: 'center' }), id);

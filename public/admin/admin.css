@@ -54,13 +54,77 @@ header { gap: 8px; flex-wrap: wrap; }
 .refresh-status { font-size: 0.75rem; color: var(--muted); margin-left: 8px; }
 .refresh-status.is-err { color: var(--red); }
 
+/* Navigation (#70) : menu latéral groupé (ordinateur, réductible aux icônes), menu déroulant sous l'en-tête en dessous
+   de 900 px. Construit par admin.js depuis ADM_NAV ; la page garde toute sa largeur utile (.tab-content, #62). */
+.admin-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); align-items: start; }
+.admin-shell.nav-collapsed { grid-template-columns: 58px minmax(0, 1fr); }
+.admin-main { min-width: 0; }
 .admin-nav {
-  display: flex;
-  flex-wrap: wrap; /* 17 onglets : retour à la ligne plutôt qu'un défilement horizontal de toute la page */
-  gap: 2px;
-  padding: 8px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; max-height: 100vh; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border-right: 1px solid var(--border); padding: 8px 8px 16px;
+  display: flex; flex-direction: column; gap: 6px; min-height: calc(100vh - 52px);
+}
+.nav-top { display: flex; justify-content: flex-end; }
+.nav-menu-btn { display: none; }
+.nav-collapse-btn { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px;
+  width: 30px; height: 28px; cursor: pointer; font-size: 0.9rem; }
+.nav-collapse-btn:hover { color: var(--text); border-color: var(--muted); }
+.nav-search-wrap input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; font-size: 0.82rem; }
+.nav-search-wrap input:focus { outline: none; border-color: var(--gold); }
+.nav-search-empty { font-size: 0.78rem; padding: 6px 4px; }
+.nav-groups { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.nav-group-btn { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 7px 8px 5px; border-radius: 6px; text-align: left; }
+.nav-group-btn:hover { color: var(--text); }
+.nav-group.has-active > .nav-group-btn { color: var(--text); }
+.nav-group-btn .nav-lbl { flex: 1; min-width: 0; }
+.nav-chev { transition: transform 0.15s; }
+.nav-group.is-closed:not(.is-searching) > .nav-group-items { display: none; }
+.nav-group.is-closed > .nav-group-btn .nav-chev { transform: rotate(-90deg); }
+.nav-group-items { display: flex; flex-direction: column; gap: 1px; }
+.nav-miss { display: none !important; }
+.tab-btn {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: 7px 10px; border-radius: 6px; font-size: 0.85rem; line-height: 1.25;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-ico { flex: 0 0 1.4em; text-align: center; }
+.tab-btn .nav-lbl { flex: 1; min-width: 0; }
+.nav-flag { color: var(--gold); font-size: 0.8rem; }
+.tab-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.tab-btn.active { background: rgba(251,191,36,0.15); color: var(--gold); font-weight: 600; box-shadow: inset 3px 0 0 var(--gold); }
+.tab-btn:focus-visible, .nav-group-btn:focus-visible, .nav-collapse-btn:focus-visible, .nav-menu-btn:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: -2px; }
+/* Réduit aux icônes : groupes tous dépliés, séparés par un trait ; libellés en infobulle (title) et pour les lecteurs
+   d'écran (texte masqué visuellement, pas supprimé). */
+.nav-collapsed .admin-nav { padding-inline: 6px; }
+.nav-collapsed .nav-top { justify-content: center; }
+.nav-collapsed .nav-search-wrap, .nav-collapsed .nav-search-empty, .nav-collapsed .nav-group-btn { display: none; }
+.nav-collapsed .nav-group > .nav-group-items { display: flex !important; }
+.nav-collapsed .nav-group + .nav-group { border-top: 1px solid var(--border); padding-top: 4px; }
+.nav-collapsed .tab-btn { justify-content: center; padding: 8px 4px; position: relative; }
+.nav-collapsed .tab-btn .nav-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.nav-collapsed .tab-btn .nav-flag { position: absolute; top: 2px; right: 2px; font-size: 0.65rem; }
+@media (max-width: 900px) {
+  .admin-shell, .admin-shell.nav-collapsed { display: block; }
+  .admin-nav { position: sticky; top: 0; z-index: 30; max-height: none; min-height: 0; overflow: visible;
+    border-right: none; border-bottom: 1px solid var(--border); padding: 6px 10px; }
+  .nav-top { justify-content: stretch; }
+  .nav-collapse-btn { display: none; }
+  .nav-menu-btn { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; background: var(--bg);
+    color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 0.9rem; text-align: left; }
+  .nav-menu-label { color: var(--muted); }
+  .nav-current { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--gold); }
+  .nav-panel { display: none; }
+  .admin-nav.is-open .nav-panel { display: block; max-height: calc(100vh - 64px); overflow-y: auto; overscroll-behavior: contain; padding: 8px 2px 6px; }
+  .nav-collapsed .nav-search-wrap, .nav-collapsed .nav-group-btn { display: flex; }
+  .nav-collapsed .nav-group > .nav-group-items { display: flex !important; }
+  .nav-collapsed .tab-btn { justify-content: flex-start; padding: 9px 10px; }
+  .nav-collapsed .tab-btn .nav-lbl { position: static; width: auto; height: auto; clip: auto; }
+  .tab-btn { padding: 9px 10px; font-size: 0.9rem; }
 }
 
 /* Conteneur commun de TOUS les onglets (#62) : largeur utile centrée (1440 px max) sur grand écran, marges latérales
@@ -99,18 +163,6 @@ header { gap: 8px; flex-wrap: wrap; }
   font-size: 0.78rem;
 }
 .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
-.tab-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 7px 14px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  transition: background 0.15s, color 0.15s;
-}
-.tab-btn:hover { background: rgba(255,255,255,0.05); color: var(--text); }
-.tab-btn.active { background: rgba(251,191,36,0.15); color: var(--gold); font-weight: 600; }
 
 /* ── Section ── */
 .section-header {
@@ -326,13 +378,6 @@ select.config-value { background: var(--bg); border: 1px solid var(--border); bo
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .admin-nav {
-    flex-wrap: wrap;
-    padding: 6px 8px;
-    gap: 4px;
-  }
-  .tab-btn { padding: 6px 10px; font-size: 0.8rem; }
-
   .tab-content { padding: 12px; }
 
   .section-header { flex-direction: column; align-items: flex-start; gap: 8px; }

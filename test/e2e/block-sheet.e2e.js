@@ -13,6 +13,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 
 const BASE = process.env.BASE;
 const ADMIN = process.env.ADMIN;
@@ -25,7 +26,7 @@ async function login(page) {
   await page.goto(`${BASE}/admin/`);
   await page.fill('#secret-input', ADMIN);
   await page.click('#secret-btn');
-  await page.click('.tab-btn[data-tab="blocks"]');
+  await admOpenTab(page, 'blocks');
   await page.waitForSelector('#bk-body tr[data-id="charbon"]');
 }
 

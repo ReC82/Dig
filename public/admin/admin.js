@@ -510,53 +510,278 @@ document.getElementById('logout-all-btn').addEventListener('click', async () => 
   adminShowLogin('');
 })();
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// ── Navigation (#70) ──────────────────────────────────────────────────────────
 
-// Onglet principal retenu après F5 (recette #50-F) : fragment d'URL (#news, lien direct possible), aucun stockage
-// navigateur dans le panel. replaceState : aucune entrée d'historique, le retour navigateur ne saute pas d'onglet en
-// onglet (et ne contourne donc pas les fiches protégées). Restauration = simple affichage de l'onglet et de sa liste :
-// aucune fiche rouverte, aucune action relancée ; fragment inconnu → onglet par défaut (Saisons).
-const admTabBtn = id => id && /^[a-z-]+$/.test(id) ? document.querySelector(`.tab-btn[data-tab="${id}"]`) : null;
+// Registre UNIQUE des rubriques : le menu (groupes, ordre, recherche, icônes) est construit à partir de ces deux
+// tableaux, plus aucun lien codé en dur dans index.html. Une nouvelle rubrique = une section <section id="tab-<id>">
+// + une ligne ici : { id, group, order, icon, label, keywords?, load?, available? }.
+// - load : chargement de la rubrique à chaque ouverture (comme avant) ;
+// - available : condition de disponibilité (rubrique masquée du menu ET des liens directs si elle renvoie false).
+// Choix de regroupement documentés dans docs/claude-reports/2026-11-04_ticket-70-navigation-admin.md.
+const ADM_NAV_GROUPS = [
+  { id: 'game',        icon: '⛏', label: 'Jeu & progression' },
+  { id: 'competition', icon: '🏆', label: 'Saisons & compétition' },
+  { id: 'content',     icon: '📰', label: 'Contenu & événements' },
+  { id: 'visuals',     icon: '🎨', label: 'Visuels' },
+  { id: 'ops',         icon: '🛠', label: 'Exploitation & paramètres' },
+];
+const ADM_NAV = [
+  { id: 'blocks',          group: 'game',        order: 10, icon: '🧱', label: 'Blocs',                    keywords: 'catalogue minerais matériaux ia',               load: () => { loadBlocks(); loadAi(); } },
+  { id: 'rewards',         group: 'game',        order: 20, icon: '🎲', label: 'Coffres & drops',          keywords: 'récompenses tables butin loot',                 load: () => loadRewards() },
+  { id: 'upgrades',        group: 'game',        order: 30, icon: '⬆', label: 'Améliorations',            keywords: 'niveaux barème suspension urgence',             load: () => loadUpgrades() },
+  { id: 'relics',          group: 'game',        order: 40, icon: '🔮', label: 'Reliques',                 keywords: 'effets coûts',                                  load: () => loadRelics() },
+  { id: 'missions',        group: 'game',        order: 50, icon: '🎯', label: 'Missions quotidiennes',    keywords: 'quêtes journalières',                           load: () => loadMissions() },
+  { id: 'economy',         group: 'game',        order: 60, icon: '💰', label: 'Économie & joueurs',       keywords: 'gemmes registre joueur fiche règles boutique de gemmes', load: () => { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); } },
+  { id: 'season-overview', group: 'competition', order: 10, icon: '📊', label: 'Saison en cours',          keywords: 'ligues & saisons pilotage thèmes date de fin zone critique anti-autoclicker journal', load: () => { loadSeasonOverview(); loadAntiCheatLogs(); } },
+  { id: 'seasons',         group: 'competition', order: 20, icon: '🗓', label: 'Historique des saisons',   keywords: 'saisons liste' },
+  { id: 'leagues',         group: 'competition', order: 30, icon: '🏅', label: 'Ligues',                   keywords: 'divisions' },
+  { id: 'leaderboard',     group: 'competition', order: 40, icon: '🏆', label: 'Classement',               keywords: 'top scores',                                    load: () => loadLeaderboard() },
+  { id: 'points',          group: 'competition', order: 50, icon: '⭐', label: 'Points de récompense',     keywords: 'mérite portefeuille',                           load: () => loadPoints() },
+  { id: 'shop',            group: 'competition', order: 60, icon: '🛍', label: 'Boutique de cadeaux',      keywords: 'lots échange commandes',                        load: () => loadShop() },
+  { id: 'contest',         group: 'competition', order: 70, icon: '🎁', label: 'Concours',                 keywords: 'gagnants lots hebdomadaire',                    load: () => loadContest() },
+  { id: 'news',            group: 'content',     order: 10, icon: '📰', label: 'Actualités',               keywords: 'annonces cloche discord',                       load: () => loadNews() },
+  { id: 'events',          group: 'content',     order: 20, icon: '🎉', label: 'Événements',               keywords: 'mensuels calendrier souvenirs',                 load: () => loadEvents() },
+  { id: 'collections',     group: 'content',     order: 30, icon: '📿', label: 'Collections',              keywords: 'objets séries fiches narratives',               load: () => loadCollections() },
+  { id: 'badges',          group: 'content',     order: 40, icon: '🎖', label: 'Badges',                   keywords: 'succès honorifiques',                           load: () => loadBadges() },
+  { id: 'icons',           group: 'visuals',     order: 10, icon: '🎨', label: 'Atelier d\'icônes',        keywords: 'images ia pictogrammes visuels coffres souvenirs', load: () => loadIcons() },
+  { id: 'beta',            group: 'ops',         order: 10, icon: '🧪', label: 'Bêta fermée',              keywords: 'invitations testeurs retours',                  load: () => loadBeta() },
+  { id: 'security',        group: 'ops',         order: 20, icon: '🛡', label: 'Anti-bot',                 keywords: 'sécurité triche autoclic sanctions',            load: () => loadSecurity() },
+  { id: 'ads',             group: 'ops',         order: 30, icon: '📢', label: 'Publicité',                keywords: 'adsense annonces',                              load: () => loadAds() },
+  { id: 'config',          group: 'ops',         order: 40, icon: '⚙', label: 'Configuration',            keywords: 'config réglages paramètres budget ia',          load: () => loadAiBudget() },
+];
+const ADM_NAV_DEFAULT = 'seasons';   // rubrique affichée sans fragment d'URL (inchangée)
+const admNavItem = id => ADM_NAV.find(t => t.id === id && (!t.available || t.available())) ?? null;
+
+// Préférences d'affichage du menu (replié aux icônes, groupes fermés) : seul état gardé dans le navigateur, purement
+// visuel ; la rubrique courante reste dans le fragment d'URL (#50-F). Aucune donnée d'administration n'y est stockée.
+const ADM_NAV_PREFS = 'dig-admin-nav';
+function admNavPrefs() {
+  try { const p = JSON.parse(localStorage.getItem(ADM_NAV_PREFS) || '{}'); return { collapsed: !!p.collapsed, closed: Array.isArray(p.closed) ? p.closed : [] }; }
+  catch { return { collapsed: false, closed: [] }; }
+}
+function admNavSavePrefs(p) { try { localStorage.setItem(ADM_NAV_PREFS, JSON.stringify(p)); } catch { /* stockage indisponible : préférences non retenues */ } }
+
+const admNavFold = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+function admNavBuild() {
+  const host = document.getElementById('nav-groups');
+  const prefs = admNavPrefs();
+  host.textContent = '';
+  for (const g of ADM_NAV_GROUPS) {
+    const items = ADM_NAV.filter(t => t.group === g.id && (!t.available || t.available())).sort((a, b) => a.order - b.order);
+    if (!items.length) continue;
+    const wrap = document.createElement('div');
+    wrap.className = 'nav-group';
+    wrap.dataset.group = g.id;
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'nav-group-btn';
+    head.setAttribute('aria-controls', `nav-g-${g.id}`);
+    head.title = g.label;
+    for (const [cls, txt] of [['nav-ico', g.icon], ['nav-lbl', g.label], ['nav-flag hidden', '⚠'], ['nav-chev', '▾']]) {
+      const s = document.createElement('span');
+      s.className = cls;
+      s.textContent = txt;
+      if (cls !== 'nav-lbl') s.setAttribute('aria-hidden', 'true');
+      head.appendChild(s);
+    }
+    const list = document.createElement('div');
+    list.className = 'nav-group-items';
+    list.id = `nav-g-${g.id}`;
+    list.setAttribute('role', 'group');
+    list.setAttribute('aria-label', g.label);
+    for (const t of items) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tab-btn';
+      btn.dataset.tab = t.id;
+      btn.title = t.label;
+      for (const [cls, txt] of [['nav-ico', t.icon], ['nav-lbl', t.label], ['nav-flag hidden', '⚠']]) {
+        const s = document.createElement('span');
+        s.className = cls;
+        s.textContent = txt;
+        if (cls !== 'nav-lbl') s.setAttribute('aria-hidden', 'true');
+        btn.appendChild(s);
+      }
+      list.appendChild(btn);
+    }
+    head.addEventListener('click', () => {
+      const open = head.getAttribute('aria-expanded') !== 'true';
+      admNavSetGroup(g.id, open);
+      const p = admNavPrefs();
+      p.closed = open ? p.closed.filter(x => x !== g.id) : [...new Set([...p.closed, g.id])];
+      admNavSavePrefs(p);
+    });
+    wrap.append(head, list);
+    host.appendChild(wrap);
+    admNavSetGroup(g.id, !prefs.closed.includes(g.id));
+  }
+  admNavCollapse(prefs.collapsed);
+}
+
+function admNavSetGroup(id, open) {
+  const wrap = document.querySelector(`.nav-group[data-group="${id}"]`);
+  if (!wrap) return;
+  wrap.querySelector('.nav-group-btn').setAttribute('aria-expanded', String(open));
+  wrap.classList.toggle('is-closed', !open);
+}
+
+/** Menu réduit aux icônes (ordinateur). */
+function admNavCollapse(on) {
+  document.getElementById('admin-shell').classList.toggle('nav-collapsed', on);
+  const b = document.getElementById('nav-collapse-btn');
+  const label = on ? 'Déplier le menu' : 'Réduire le menu aux icônes';
+  b.setAttribute('aria-pressed', String(on));
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  b.firstElementChild.textContent = on ? '»' : '«';
+}
+
+/** Menu déroulant (smartphone / fenêtre étroite). */
+function admNavMenu(open) {
+  document.getElementById('admin-nav').classList.toggle('is-open', open);
+  document.getElementById('nav-menu-btn').setAttribute('aria-expanded', String(open));
+}
+const admNavNarrow = () => getComputedStyle(document.getElementById('nav-menu-btn')).display !== 'none';
+
+/**
+ * Signal d'exploitation sur une rubrique (anomalie réelle uniquement, jamais de compteur décoratif) : petit ⚠ sur la
+ * rubrique et sur son groupe (visible même groupe fermé ou menu réduit), explication en infobulle. text = null : retiré.
+ */
+function admNavFlag(id, text) {
+  const btn = admTabBtn(id);
+  if (!btn) return;
+  const f = btn.querySelector('.nav-flag');
+  f.classList.toggle('hidden', !text);
+  btn.title = text ? `${admNavItem(id).label} — ${text}` : admNavItem(id).label;
+  btn.dataset.flag = text || '';
+  const wrap = btn.closest('.nav-group');
+  const any = [...wrap.querySelectorAll('.tab-btn')].filter(b => b.dataset.flag);
+  wrap.querySelector('.nav-group-btn .nav-flag').classList.toggle('hidden', !any.length);
+  wrap.querySelector('.nav-group-btn').title = any.length ? `${ADM_NAV_GROUPS.find(g => g.id === wrap.dataset.group).label} — ${any.map(b => b.dataset.flag).join(' ; ')}` : ADM_NAV_GROUPS.find(g => g.id === wrap.dataset.group).label;
+}
+
+function admNavFilter(q) {
+  const f = admNavFold(q.trim());
+  let shown = 0;
+  for (const wrap of document.querySelectorAll('.nav-group')) {
+    const g = ADM_NAV_GROUPS.find(x => x.id === wrap.dataset.group);
+    let n = 0;
+    for (const btn of wrap.querySelectorAll('.tab-btn')) {
+      const t = admNavItem(btn.dataset.tab);
+      const hit = !f || admNavFold(`${t.label} ${t.id} ${g.label} ${t.keywords ?? ''}`).includes(f);
+      btn.classList.toggle('nav-miss', !hit);
+      if (hit) n++;
+    }
+    wrap.classList.toggle('nav-miss', !n);
+    wrap.classList.toggle('is-searching', !!f);
+    shown += n;
+  }
+  document.getElementById('nav-search-empty').classList.toggle('hidden', !f || shown > 0);
+}
+
+// Rubrique retenue après F5 (recette #50-F) : fragment d'URL (#news, lien direct possible). replaceState : aucune
+// entrée d'historique, le retour navigateur ne saute pas de rubrique en rubrique (et ne contourne donc pas les fiches
+// protégées). Restauration = simple affichage de la rubrique et de sa liste : aucune fiche rouverte, aucune action
+// relancée ; fragment inconnu ou rubrique indisponible → rubrique par défaut. Changer de rubrique ne perd aucune
+// saisie : les rubriques sont seulement masquées (formulaires de page conservés, #60/#61) et une fiche ouverte est
+// modale (menu inaccessible tant qu'elle n'est pas fermée, avec confirmation si elle est modifiée).
+const admTabBtn = id => id && /^[a-z-]+$/.test(id) && admNavItem(id) ? document.querySelector(`.tab-btn[data-tab="${id}"]`) : null;
 function admRememberTab(id) {
   if (location.hash.slice(1) !== id) history.replaceState(null, '', `${location.pathname}${location.search}#${id}`);
 }
 function admRestoreTab() {
   const btn = admTabBtn(location.hash.slice(1));
   if (btn && !btn.classList.contains('active')) btn.click();
+  else if (!btn) admNavMark(document.querySelector('.tab-btn.active')?.dataset.tab ?? ADM_NAV_DEFAULT);
 }
 window.addEventListener('hashchange', () => {
   if (document.querySelector('dialog[open]') || document.getElementById('admin-app').classList.contains('hidden')) return;
   admRestoreTab();
 });
 
+/** Rubrique active : bouton, aria-current, groupe ouvert, intitulé du bouton de menu (smartphone). */
+function admNavMark(id) {
+  const t = admNavItem(id);
+  if (!t) return;
+  for (const b of document.querySelectorAll('.tab-btn')) {
+    const on = b.dataset.tab === id;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
+  for (const w of document.querySelectorAll('.nav-group')) w.classList.toggle('has-active', w.dataset.group === t.group);
+  admNavSetGroup(t.group, true);
+  document.getElementById('nav-current').textContent = `${t.icon} ${t.label}`;
+}
+
+admNavBuild();
+admNavMark(document.querySelector('.tab-content:not(.hidden)')?.id.slice(4) ?? ADM_NAV_DEFAULT);
+
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    admRememberTab(btn.dataset.tab);
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    admRememberTab(btn.dataset.tab);   // boutons construits depuis le registre : rubrique toujours disponible
+    const t = admNavItem(btn.dataset.tab);
     document.querySelectorAll('.tab-content').forEach(s => s.classList.add('hidden'));
-    btn.classList.add('active');
-    document.getElementById(`tab-${btn.dataset.tab}`).classList.remove('hidden');
-    if (btn.dataset.tab === 'leaderboard')     loadLeaderboard();
-    if (btn.dataset.tab === 'season-overview') { loadSeasonOverview(); loadAntiCheatLogs(); }
-    if (btn.dataset.tab === 'economy')         { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); }
-    if (btn.dataset.tab === 'security')        loadSecurity();
-    if (btn.dataset.tab === 'contest')         loadContest();
-    if (btn.dataset.tab === 'points')          loadPoints();
-    if (btn.dataset.tab === 'shop')            loadShop();
-    if (btn.dataset.tab === 'blocks')          { loadBlocks(); loadAi(); }
-    if (btn.dataset.tab === 'rewards')         loadRewards();
-    if (btn.dataset.tab === 'collections')     loadCollections();
-    if (btn.dataset.tab === 'relics')          loadRelics();
-    if (btn.dataset.tab === 'upgrades')        loadUpgrades();
-    if (btn.dataset.tab === 'missions')        loadMissions();
-    if (btn.dataset.tab === 'icons')           loadIcons();
-    if (btn.dataset.tab === 'config')          loadAiBudget();
-    if (btn.dataset.tab === 'badges')          loadBadges();
-    if (btn.dataset.tab === 'ads')             loadAds();
-    if (btn.dataset.tab === 'beta')            loadBeta();
-    if (btn.dataset.tab === 'news')            loadNews();
-    if (btn.dataset.tab === 'events')          loadEvents();
+    document.getElementById(`tab-${t.id}`).classList.remove('hidden');
+    admNavMark(t.id);
+    if (admNavNarrow() && document.getElementById('admin-nav').classList.contains('is-open')) {
+      admNavMenu(false);
+      document.getElementById('admin-nav').scrollIntoView({ block: 'start' });
+    }
+    t.load?.();
   });
+});
+
+document.getElementById('nav-menu-btn').addEventListener('click', () => {
+  admNavMenu(!document.getElementById('admin-nav').classList.contains('is-open'));
+});
+document.getElementById('nav-collapse-btn').addEventListener('click', () => {
+  const p = admNavPrefs();
+  p.collapsed = !p.collapsed;
+  admNavSavePrefs(p);
+  admNavCollapse(p.collapsed);
+});
+const _navSearch = document.getElementById('nav-search');
+_navSearch.addEventListener('input', () => admNavFilter(_navSearch.value));
+_navSearch.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const first = document.querySelector('.nav-group:not(.nav-miss) .tab-btn:not(.nav-miss)');
+    if (!first || !_navSearch.value.trim()) return;
+    _navSearch.value = '';
+    admNavFilter('');
+    first.click();
+    first.focus();
+  } else if (e.key === 'Escape' && _navSearch.value) {
+    e.preventDefault();
+    e.stopPropagation();
+    _navSearch.value = '';
+    admNavFilter('');
+  }
+});
+// Clavier dans le menu : ↑/↓ d'une entrée visible à l'autre, Échap ferme le menu déroulant (smartphone).
+document.getElementById('admin-nav').addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('admin-nav').classList.contains('is-open')) {
+    admNavMenu(false);
+    document.getElementById('nav-menu-btn').focus();
+    return;
+  }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const all = [_navSearch, ...document.querySelectorAll('.nav-group-btn, .tab-btn')].filter(b => b.offsetParent !== null);
+  const i = all.indexOf(document.activeElement);
+  if (i < 0) return;
+  e.preventDefault();
+  all[(i + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length].focus();
+});
+// « / » (hors champ de saisie) : aller à une rubrique.
+document.addEventListener('keydown', e => {
+  if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]')) return;
+  if (document.getElementById('admin-app').classList.contains('hidden')) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+  e.preventDefault();
+  if (admNavNarrow()) admNavMenu(true);
+  if (admNavPrefs().collapsed) { admNavSavePrefs({ ...admNavPrefs(), collapsed: false }); admNavCollapse(false); }
+  _navSearch.focus();
 });
 
 // ── Load all ──────────────────────────────────────────────────────────────────
@@ -996,11 +1221,14 @@ const SEASON_PARAMS = [
 
 async function loadSeasonOverview() {
   loadSeasonThemes();   // thème actuel / suivant (#48), indépendant du résumé
-  const { ok, data } = await api('GET', '/api/admin/seasons/active/summary');
+  const { ok, data, status } = await api('GET', '/api/admin/seasons/active/summary');
 
   const noSeasonEl = document.getElementById('no-active-season');
   const statsEl    = document.getElementById('season-stats');
 
+  // Seul signal d'exploitation calculé au chargement du panel (#70) : la rotation continue (#16) doit toujours
+  // laisser une saison active. Serveur injoignable : pas de faux signal.
+  if (ok || status === 404) admNavFlag('season-overview', ok ? null : 'aucune saison active');
   if (!ok || data.error) {
     noSeasonEl.classList.remove('hidden');
     statsEl.classList.add('hidden');
@@ -10091,6 +10319,7 @@ async function loadUpgrades() {
   document.getElementById('up-version').textContent = `— version ${pub.version} en vigueur`;
   document.getElementById('up-mult').textContent = `×${data.costMultiplier}`;
   const suspended = Object.values(data.controls).filter(c => c.purchases || c.effects || c.hidden).length;
+  admNavFlag('upgrades', suspended ? `${suspended} amélioration(s) suspendue(s) en urgence` : null);
   document.getElementById('up-summary').textContent =
     `Version ${pub.version} en vigueur : ${pub.upgrades.length} améliorations, ${suspended} suspendue(s). ${data.holders.saves} sauvegarde(s) cloud analysée(s) pour l'usage.`;
   upRenderControls();

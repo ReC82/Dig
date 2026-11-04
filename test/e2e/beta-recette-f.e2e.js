@@ -13,6 +13,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 const BASE = process.env.BASE, ADMIN = process.env.ADMIN, OUT = process.env.OUT || '/tmp';
 const log = (...a) => console.log('✓', ...a);
 const errors = [];
@@ -106,7 +107,7 @@ const errors = [];
   log('session admin : F5 sans ressaisie, cookie HttpOnly, clé gardée nulle part');
 
   // ── 3. Rafraîchir (onglet Bêta) ────────────────────────────────────────────
-  await a.click('.tab-btn[data-tab="beta"]');
+  await admOpenTab(a, 'beta');
   await a.waitForSelector('#beta-stats li');
   await a.waitForSelector('details.beta-report');
   const note = a.locator('details.beta-report input[placeholder="Note interne"]').first();

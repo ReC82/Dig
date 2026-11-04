@@ -12,6 +12,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 const BASE = process.env.BASE, ADMIN = process.env.ADMIN, OUT = process.env.OUT || '/tmp';
 const H = { Authorization: `Bearer ${ADMIN}`, 'Content-Type': 'application/json' };
 const log = (...a) => console.log('✓', ...a);
@@ -24,7 +25,7 @@ async function adminPage(b, w, h) {
   await p.goto(`${BASE}/admin/`);
   await p.fill('#secret-input', ADMIN);
   await p.click('#secret-btn');
-  await p.click('.tab-btn[data-tab="beta"]');
+  await admOpenTab(p, 'beta');
   await p.waitForSelector('#beta-stats li');
   return p;
 }

@@ -13,6 +13,7 @@
 const assert = require('node:assert');
 const fs = require('node:fs');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 const BASE = process.env.BASE, ADMIN = process.env.ADMIN, OUT = process.env.OUT || '/tmp';
 const VIEWPORTS = [[1920, 1080], [1440, 900], [1280, 800], [390, 844]];
 const SHOTS = ['config', 'security', 'icons', 'collections', 'economy'];
@@ -31,12 +32,14 @@ async function open(b, [w, h], css) {
 }
 
 async function measureTab(page, tab) {
-  await page.click(`.tab-btn[data-tab="${tab}"]`);
+  await admOpenTab(page, tab);
   await page.waitForTimeout(tab === 'config' ? 600 : 300);
   return page.evaluate(t => {
+    // Centrage mesuré dans la zone de contenu, à droite du menu latéral (#70)
     const sec = document.getElementById(`tab-${t}`).getBoundingClientRect();
+    const main = document.getElementById('admin-main').getBoundingClientRect();
     const vw = document.documentElement.clientWidth;
-    return { w: Math.round(sec.width), left: Math.round(sec.left), right: Math.round(vw - sec.right),
+    return { w: Math.round(sec.width), mainW: Math.round(main.width), left: Math.round(sec.left - main.left), right: Math.round(main.right - sec.right),
       overflow: document.documentElement.scrollWidth - vw };
   }, tab);
 }
@@ -79,7 +82,7 @@ async function configOverlaps(page) {
       console.log('après', vp[0], t, JSON.stringify(m));
       assert.ok(m.overflow <= 0, `${vp[0]} ${t} : défilement horizontal de la page (${m.overflow})`);
       if (vp[0] >= 1280) {
-        assert.ok(m.w <= 1440 && m.w >= Math.min(1440, vp[0]) - 2, `${vp[0]} ${t} : largeur ${m.w}`);
+        assert.ok(m.w <= 1440 && m.w >= Math.min(1440, m.mainW) - 2, `${vp[0]} ${t} : largeur ${m.w}`);
         assert.ok(Math.abs(m.left - m.right) <= 2, `${vp[0]} ${t} : centré (${m.left} / ${m.right})`);
       }
       if (t === 'config') {

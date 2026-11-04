@@ -156,8 +156,16 @@ test('HTTP : « Déconnecter partout » ferme toutes les sessions admin', async 
 });
 
 test('panel : la clé n’est jamais conservée côté navigateur', () => {
-  const js = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.ok(!/localStorage|sessionStorage/.test(js), 'aucun stockage navigateur dans le panel');
+  const all = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  // Seule exception (#70) : préférences d'affichage du menu (replié, groupes fermés), lues et écrites par deux
+  // fonctions dédiées qui ne stockent que ces deux champs ; rien d'autre ne touche au stockage du navigateur.
+  const prefs = all.slice(all.indexOf('function admNavPrefs('), all.indexOf('const admNavFold'));
+  assert.match(prefs, /return \{ collapsed: !!p\.collapsed, closed: Array\.isArray\(p\.closed\) \? p\.closed : \[\] \};/);
+  assert.match(prefs, /localStorage\.setItem\(ADM_NAV_PREFS, JSON\.stringify\(p\)\)/);
+  const js = all.replace(prefs, '');
+  const saves = [...js.matchAll(/admNavSavePrefs\(([^;]+)\);/g)].map(m => m[1]);
+  assert.ok(saves.length >= 2 && saves.every(a => /^(p|\{ \.\.\.admNavPrefs\(\), collapsed: false \})$/.test(a)), saves.join(' | '));
+  assert.ok(!/localStorage|sessionStorage/.test(js), 'aucun autre stockage navigateur dans le panel');
   assert.ok(!/_secret\b/.test(js), 'plus de variable gardant la clé');
   const apiFn = js.slice(js.indexOf('async function api('), js.indexOf('function adminShowApp'));
   assert.ok(!/Authorization/.test(apiFn), 'les requêtes du panel passent par la session, pas par la clé');

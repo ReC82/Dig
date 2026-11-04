@@ -40,7 +40,8 @@ test('conteneur commun : 1440 px max, centré, aucune largeur propre à un ongle
   assert.match(CSS, /\.tab-content > p, \.tab-content \.overview-card > p, \.tab-content details > p \{ max-width: 110ch; \}/);
   // chaque onglet utilise ce conteneur
   const sections = [...HTML.matchAll(/<section id="tab-([\w-]+)" class="tab-content/g)].map(m => m[1]);
-  const tabs = [...HTML.matchAll(/data-tab="([\w-]+)"/g)].map(m => m[1]);
+  const tabs = [...JS.matchAll(/^  \{ id: '([\w-]+)',\s+group:/gm)].map(m => m[1]);   // registre du menu (#70)
+  assert.ok(tabs.length >= 22, tabs.length);
   for (const t of tabs) assert.ok(sections.includes(t), t);
 });
 
