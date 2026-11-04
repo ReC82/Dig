@@ -547,6 +547,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'rewards')         loadRewards();
     if (btn.dataset.tab === 'collections')     loadCollections();
     if (btn.dataset.tab === 'relics')          loadRelics();
+    if (btn.dataset.tab === 'missions')        loadMissions();
     if (btn.dataset.tab === 'icons')           loadIcons();
     if (btn.dataset.tab === 'config')          loadAiBudget();
     if (btn.dataset.tab === 'badges')          loadBadges();
@@ -5928,6 +5929,7 @@ function icRenderSheet() {
   icButton(head, '← Toutes les icônes', async () => icShowList());
   if (_icFrom?.kind === 'item' && t.key === `item:${_icFrom.id}`) icButton(head, '← Retour à la fiche de l\'objet', () => icBackToItem(_icFrom.id));
   if (_icFrom?.kind === 'relic' && t.key === `relic:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la relique', () => rlBackTo(_icFrom.id));
+  if (_icFrom?.kind === 'mission' && t.key === `mission:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la mission', () => mqBackTo(_icFrom.id));
   if (t.kind === 'event' && t.event) icButton(head, '← Retour à la fiche de l\'objet d\'événement', () => evBackTo(t.event.id, t.event.itemId));
   const title = aiEl('div', { class: 'ic-sheet-title' });
   title.appendChild(aiEl('h3', {}, t.name));
@@ -6204,8 +6206,10 @@ async function icApply(t, sha, { doubtful = false } = {}) {
   const live = t.kind === 'badge' && / active$/.test(String(t.extra ?? ''));
   if (live && !await admAsk(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
   const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live, doubtful });
-  const where = data.catalog === 'blocks' ? '🧱 Blocs' : data.catalog === 'relics' ? '🔮 Reliques' : '📿 Collections';
-  const done = data.catalog === 'events'
+  const where = data.catalog === 'blocks' ? '🧱 Blocs' : data.catalog === 'relics' ? '🔮 Reliques' : data.catalog === 'missions' ? '🎯 Missions' : '📿 Collections';
+  const done = data.catalog === 'missions'
+    ? `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans le brouillon des missions (🎯 Missions). Le jeu n'utilise pas encore ce catalogue : rien ne change pour les joueurs.`
+    : data.catalog === 'events'
     ? `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans la fiche de l'événement (brouillon). Les joueurs la verront après « Publier les images » dans 🎉 Événements.`
     : data.catalog === 'badges'
     ? `${sha ? 'Image enregistrée' : 'Emoji rétabli'} sur le badge${data.draft ? ' (désactivé : les joueurs la verront après son activation dans 🏅 Badges)' : ' (actif : visible par les joueurs)'}.`
@@ -9843,3 +9847,587 @@ async function rlBackTo(id) {
 }
 
 admRefreshButton('btn-refresh-relics', loadRelics, 'Reliques');
+
+// ── 🎯 Missions quotidiennes (#68, étape A) ─────────────────────────────────────
+// Catalogue versionné côté serveur (server/missionCatalog.js). La version 1 = les six missions du jeu à l'identique.
+// Le jeu n'utilise PAS encore ce catalogue : on prépare, illustre et simule ; « Publier… » ne change rien en jeu
+// tant que l'activation n'est pas livrée (décision du propriétaire). Aucun appel IA ici : l'image passe par 🎨 Icônes.
+let _mq = null;          // vue admin (published, draft, versions, types, proposal, profiles…)
+let _mqCur = null;       // { id, isNew } de la fiche ouverte
+let _mqSnap = '';        // instantané de la fiche à l'ouverture (#61)
+let _mqRotSnap = '';
+let _mqPrevTimer = null;
+let _mqPrevSeq = 0;
+const MQ_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
+const MQ_FIELDS = { names: 'Noms', descs: 'Textes', icon: 'Icône', image: 'Image', active: 'Active', type: 'Type', category: 'Catégorie',
+  weight: 'Poids', minAccountDays: 'Ancienneté min.', maxAccountDays: 'Ancienneté max.', bands: 'Objectifs par profondeur', reward: 'Récompense' };
+const MQ_ROT_LABELS = { mode: 'Mode', perDay: 'Missions par jour', maxPerCategory: 'Au plus par catégorie', repeatDays: 'Anti-répétition (jours)',
+  repeatFactor: 'Anti-répétition (poids)', perPlayer: 'Propre à chaque joueur', dayBlocks: 'Journée de référence (blocs)', timezone: 'Changement de jour' };
+
+const mqWorking = () => _mq?.draft?.missions ?? _mq?.published?.missions ?? [];
+const mqRotation = () => _mq?.draft?.rotation ?? _mq?.published?.rotation ?? null;
+const mqPublished = id => _mq?.published?.missions.find(m => m.id === id) ?? null;
+const mqType = type => _mq?.types?.[type] ?? null;
+const mqFill = (desc, n) => String(desc ?? '').replace(/\{t\}/g, String(n)).replace(/\{s\}/g, n > 1 ? 's' : '');
+const mqBandsText = bands => (bands ?? []).map(b => `dès ${b.fromDepth} m : ${b.targets.join(', ')}`).join(' · ');
+function mqRewardText(r) {
+  if (!r) return '—';
+  const parts = [`${r.coinsPerUnit} 💰 par unité`];
+  if (r.gems) parts.push(`+${r.gems} 💎${r.gemsFromTarget > 1 ? ` dès ${r.gemsFromTarget}` : ''}`);
+  return parts.join(' ');
+}
+function mqRotValue(k, v) {
+  if (v == null) return '—';
+  if (k === 'mode') return v === 'adaptive' ? 'adaptative' : 'origine (jeu actuel)';
+  if (k === 'perPlayer') return v ? 'oui' : 'non (même rotation pour tous)';
+  if (k === 'timezone') return v === 'browser' ? 'minuit du navigateur' : 'minuit Europe/Bruxelles';
+  if (k === 'dayBlocks') return v ? `${v} blocs` : 'aucun plafond';
+  return String(v);
+}
+function mqFieldText(field, v) {
+  if (v == null) return '—';
+  if (field === 'names' || field === 'descs') return MQ_LANGS.map(l => `${l.toUpperCase()} : ${v[l] || '—'}`).join(' · ');
+  if (field === 'bands') return mqBandsText(v);
+  if (field === 'reward') return mqRewardText(v);
+  if (field === 'type') return mqType(v)?.label ?? v;
+  if (field === 'category') return _mq?.categories?.[v] ?? v;
+  if (field === 'active') return v ? 'oui' : 'non (archivée)';
+  if (field in MQ_ROT_LABELS) return mqRotValue(field, v);
+  return String(v);
+}
+
+async function loadMissions() {
+  const { ok, data } = await api('GET', '/api/admin/missions');
+  if (!ok) { ptMessage('mq-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  _mq = data;
+  document.getElementById('mq-live').classList.toggle('hidden', !!data.live);
+  const types = document.getElementById('mq-types');
+  types.textContent = '';
+  for (const [k, t] of Object.entries(data.types)) {
+    types.appendChild(aiEl('li', {}, `${t.label} (${k}) — événement : ${t.event} Validation : ${t.validation}${t.limits ? ` Limite : ${t.limits}` : ''}`));
+  }
+  const un = document.getElementById('mq-unavailable');
+  un.textContent = '';
+  for (const u of data.unavailable) un.appendChild(aiEl('li', {}, `${u.label} — ${u.reason}`));
+  if (!document.getElementById('mq-type').options.length) {
+    coSelect('mq-type', Object.entries(data.types).map(([k, t]) => [k, t.label]));
+    coSelect('mq-category', Object.entries(data.categories));
+    coSelect('mq-filter-type', Object.entries(data.types).map(([k, t]) => [k, t.label]), 1);
+    const box = document.getElementById('mq-sim-profiles');
+    for (const p of data.profiles) {
+      const lab = aiEl('label', { class: 'adm-check' });
+      const cb = aiEl('input', { type: 'checkbox', value: p.id });
+      cb.checked = p.id === 'debutant' || p.id === 'avance';
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(` ${p.label} — ${p.depth} m, ${p.blocksPerDay} blocs/jour`));
+      box.appendChild(lab);
+    }
+    const start = document.getElementById('mq-sim-start');
+    if (!start.value) start.value = new Date().toISOString().slice(0, 10);
+  }
+  const pub = data.published;
+  document.getElementById('mq-version').textContent = `— version ${pub.version} en vigueur`;
+  const active = pub.missions.filter(m => m.active).length;
+  document.getElementById('mq-summary').textContent =
+    `Version ${pub.version} en vigueur : ${pub.missions.length} mission(s), dont ${active} active(s). Rotation : ${mqRotValue('mode', pub.rotation.mode)}, ${pub.rotation.perDay} par jour.`;
+  mqRenderDraft();
+  mqRenderList();
+  mqRenderRotation();
+  mqRenderVersions();
+  loadMissionAudit();
+}
+
+function mqRenderDraft() {
+  const box = document.getElementById('mq-draft');
+  const d = _mq?.draft;
+  box.classList.toggle('hidden', !d);
+  if (!d) return;
+  document.getElementById('mq-draft-meta').textContent = `— basé sur la version ${d.basedOn}, modifié le ${admBrussels(d.updatedAt)}`;
+  const errs = document.getElementById('mq-draft-errors'), warns = document.getElementById('mq-draft-warnings');
+  errs.textContent = ''; warns.textContent = '';
+  for (const e of d.errors) errs.appendChild(aiEl('li', {}, e));
+  for (const w of d.warnings) warns.appendChild(aiEl('li', {}, w));
+  errs.classList.toggle('hidden', !d.errors.length);
+  warns.classList.toggle('hidden', !d.warnings.length);
+  const body = document.getElementById('mq-draft-body');
+  body.textContent = '';
+  for (const c of d.changes) {
+    const m = d.missions.find(x => x.id === c.id) ?? {};
+    const name = c.kind === 'rotation' ? '🔁 Rotation' : `${m.icon ?? ''} ${m.names?.fr ?? c.id}`;
+    if (c.kind === 'added') {
+      const tr = body.insertRow();
+      addCell(tr, name); addCell(tr, 'nouvelle mission'); addCell(tr, '—'); addCell(tr, `${mqType(m.type)?.label ?? m.type} · ${mqBandsText(m.bands)}`);
+      continue;
+    }
+    for (const f of c.fields) {
+      const tr = body.insertRow();
+      addCell(tr, name); addCell(tr, (c.kind === 'rotation' ? MQ_ROT_LABELS : MQ_FIELDS)[f.field] ?? f.field);
+      addCell(tr, mqFieldText(f.field, f.before)); addCell(tr, mqFieldText(f.field, f.after));
+    }
+  }
+  document.getElementById('btn-mq-publish').disabled = !!d.errors.length || !d.changes.length;
+}
+
+function mqRenderList() {
+  if (!_mq) return;
+  const text = document.getElementById('mq-filter-text').value.trim().toLowerCase();
+  const type = document.getElementById('mq-filter-type').value;
+  const status = document.getElementById('mq-filter-status').value;
+  const changed = new Set((_mq.draft?.changes ?? []).map(c => c.id));
+  const list = mqWorking().filter(m => {
+    if (type && m.type !== type) return false;
+    if (status === 'active' && !m.active) return false;
+    if (status === 'archived' && m.active) return false;
+    if (status === 'draft' && !changed.has(m.id)) return false;
+    if (!text) return true;
+    return [m.id, ...Object.values(m.names ?? {}), ...Object.values(m.descs ?? {})].some(s => String(s).toLowerCase().includes(text));
+  });
+  document.getElementById('mq-count').textContent = `(${list.length}/${mqWorking().length})`;
+  const body = document.getElementById('mq-body');
+  body.textContent = '';
+  if (!list.length) { const tr = body.insertRow(); addCell(tr, 'Aucune mission.').colSpan = 8; return; }
+  for (const m of list) {
+    const tr = body.insertRow();
+    const art = addCell(tr, '');
+    if (m.image) art.appendChild(aiEl('img', { src: m.image, alt: '', width: '32', height: '32', loading: 'lazy' }));
+    else art.textContent = m.icon;
+    const nameCell = addCell(tr, m.names?.fr ?? m.id);
+    nameCell.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.72rem' }, `${m.id} · « ${mqFill(m.descs?.fr, m.bands[0]?.targets[0] ?? 1)} »`));
+    addCell(tr, mqType(m.type)?.label ?? m.type);
+    addCell(tr, _mq.categories[m.category] ?? m.category);
+    addCell(tr, mqBandsText(m.bands));
+    addCell(tr, mqRewardText(m.reward));
+    addCell(tr, String(m.weight)).className = 'num';
+    const pubM = mqPublished(m.id);
+    addCell(tr, `${m.active ? 'Active' : 'Archivée'}${!pubM ? ' · nouvelle (brouillon)' : changed.has(m.id) ? ' · modifiée (brouillon)' : ''}`);
+    admRowOpen(tr, `mq:${m.id}`, m.names?.fr ?? m.id, opener => mqOpen(m, opener));
+  }
+}
+
+function mqRenderRotation() {
+  const rot = mqRotation();
+  document.getElementById('mq-rot-src').textContent = _mq.draft?.changes?.some(c => c.kind === 'rotation') ? '— brouillon (non publié)' : `— version ${_mq.published.version}`;
+  const ul = document.getElementById('mq-rot-view');
+  ul.textContent = '';
+  for (const k of Object.keys(MQ_ROT_LABELS)) ul.appendChild(aiEl('li', {}, `${MQ_ROT_LABELS[k]} : ${mqRotValue(k, rot[k])}`));
+}
+
+function mqRenderVersions() {
+  const body = document.getElementById('mq-versions-body');
+  body.textContent = '';
+  const current = _mq.published.version;
+  for (const v of _mq.versions) {
+    const tr = body.insertRow();
+    addCell(tr, `v${v.version}${v.version === current ? ' (en vigueur)' : ''}`);
+    addCell(tr, { origin: 'origine', publish: 'publication', rollback: `retour à v${v.fromVersion}` }[v.source] ?? v.source);
+    addCell(tr, v.note ?? '');
+    addCell(tr, v.createdAt);
+    if (v.version === current) addCell(tr, '');
+    else addButtonCell(tr, 'Revenir à cette version…', () => mqRollback(v.version));
+  }
+}
+
+async function loadMissionAudit() {
+  const { ok, data } = await api('GET', '/api/admin/missions/audit?limit=100');
+  const body = document.getElementById('mq-audit-body');
+  body.textContent = '';
+  if (!ok) return;
+  const labels = { migrate: 'version d\'origine', draft_add: 'ajout (brouillon)', draft_update: 'modification (brouillon)', draft_revert: 'modification annulée',
+    draft_remove: 'retrait du brouillon', draft_discard: 'brouillon abandonné', draft_clean: 'brouillon identique supprimé', draft_rotation: 'rotation (brouillon)',
+    draft_proposal: 'proposition adaptative chargée (brouillon)', publish: 'publication', rollback: 'retour arrière' };
+  for (const a of data.audit) {
+    const tr = body.insertRow();
+    addCell(tr, a.created_at); addCell(tr, labels[a.action] ?? a.action); addCell(tr, a.version ? `v${a.version}` : '');
+    const d = a.details;
+    const fields = d?.changes?.map?.(c => (c.field ? MQ_FIELDS[c.field] ?? MQ_ROT_LABELS[c.field] ?? c.field
+      : `${c.id} ${c.kind === 'added' ? '(nouvelle)' : `(${(c.fields ?? []).map(f => MQ_FIELDS[f.field] ?? MQ_ROT_LABELS[f.field] ?? f.field).join(', ')})`}`)) ?? [];
+    addCell(tr, [d?.id, d?.to ? `vers v${d.to}` : '', fields.join(', ')].filter(Boolean).join(' — '));
+  }
+}
+
+// ── Fiche ──
+
+function mqSetLang(l) {
+  for (const b of document.querySelectorAll('#mq-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const f of document.querySelectorAll('#mq-dialog .nw-lang-fields')) f.classList.toggle('hidden', f.dataset.lang !== l);
+}
+function mqLangStates() {
+  for (const b of document.querySelectorAll('#mq-langs .co-lang-btn')) {
+    const l = b.dataset.lang;
+    const n = document.getElementById(`mq-${l}-name`).value.trim(), d = document.getElementById(`mq-${l}-desc`).value.trim();
+    const st = n && d ? 'full' : n ? 'name' : 'none';
+    b.className = `co-lang-btn co-lang--${st}`;
+    b.textContent = `${{ full: '●', name: '◐', none: '○' }[st]} ${l.toUpperCase()}`;
+  }
+}
+
+function mqBandRow(b = { fromDepth: '', targets: [] }) {
+  const tr = document.getElementById('mq-bands-body').insertRow();
+  const from = aiEl('input', { type: 'number', min: '1', step: '1', 'data-mq': 'from', 'aria-label': 'À partir de (m)' });
+  from.value = b.fromDepth;
+  addCell(tr, '').appendChild(from);
+  const tg = aiEl('input', { type: 'text', 'data-mq': 'targets', 'aria-label': 'Objectifs possibles', placeholder: '20, 40, 75' });
+  tg.value = (b.targets ?? []).join(', ');
+  addCell(tr, '').appendChild(tg);
+  const td = addCell(tr, '');
+  const rm = aiEl('button', { type: 'button', class: 'btn-ghost', 'aria-label': 'Retirer cette tranche' }, '✕');
+  rm.addEventListener('click', () => { tr.remove(); mqRefresh(); });
+  td.appendChild(rm);
+}
+
+function mqRead() {
+  const names = {}, descs = {};
+  for (const l of MQ_LANGS) {
+    names[l] = document.getElementById(`mq-${l}-name`).value.trim();
+    descs[l] = document.getElementById(`mq-${l}-desc`).value.trim();
+  }
+  const bands = [...document.querySelectorAll('#mq-bands-body tr')].map(tr => ({
+    fromDepth: Number(tr.querySelector('[data-mq="from"]').value),
+    targets: tr.querySelector('[data-mq="targets"]').value.split(/[,;\s]+/).filter(Boolean).map(Number),
+  }));
+  const maxDays = document.getElementById('mq-max-days').value.trim();
+  return {
+    id: document.getElementById('mq-id').value.trim(),
+    active: document.getElementById('mq-active').checked,
+    type: document.getElementById('mq-type').value,
+    category: document.getElementById('mq-category').value,
+    icon: document.getElementById('mq-icon').value.trim(),
+    image: document.getElementById('mq-image').value.trim() || null,
+    names, descs,
+    weight: Number(document.getElementById('mq-weight').value),
+    minAccountDays: Number(document.getElementById('mq-min-days').value || 0),
+    maxAccountDays: maxDays === '' ? null : Number(maxDays),
+    bands,
+    reward: { coinsPerUnit: Number(document.getElementById('mq-coins').value), gems: Number(document.getElementById('mq-gems').value || 0),
+      gemsFromTarget: Number(document.getElementById('mq-gems-from').value || 1) },
+  };
+}
+
+function mqArt() {
+  const box = document.getElementById('mq-art');
+  box.textContent = '';
+  const img = document.getElementById('mq-image').value.trim();
+  if (img) box.appendChild(aiEl('img', { src: img, alt: '', width: '56', height: '56' }));
+  else box.textContent = document.getElementById('mq-icon').value || '🎯';
+  document.getElementById('btn-mq-noimage').classList.toggle('hidden', !img);
+}
+
+/** Aide du type, comparaison avec la version en vigueur, aperçu serveur par profondeur (différé). */
+function mqRefresh() {
+  const m = mqRead();
+  const t = mqType(m.type);
+  document.getElementById('mq-type-help').textContent = t
+    ? `Compteur : ${t.stat}. Événement suivi : ${t.event} Validation : ${t.validation}${t.limits ? ` Limite : ${t.limits}` : ''} Objectif maximal : ${t.cap} ${t.unit}.` : '';
+  document.getElementById('mq-studio-key').textContent = `mission:${m.id || '…'}`;
+  const pub = _mqCur ? mqPublished(_mqCur.id) : null;
+  const ul = document.getElementById('mq-compare-list');
+  ul.textContent = '';
+  if (pub && !_mqCur.isNew) {
+    for (const f of Object.keys(MQ_FIELDS)) {
+      if (JSON.stringify(pub[f] ?? null) === JSON.stringify(m[f] ?? null)) continue;
+      ul.appendChild(aiEl('li', {}, `${MQ_FIELDS[f]} : ${mqFieldText(f, pub[f])} → ${mqFieldText(f, m[f])}`));
+    }
+  }
+  document.getElementById('mq-compare').classList.toggle('hidden', !ul.children.length);
+  mqLangStates();
+  mqArt();
+  clearTimeout(_mqPrevTimer);
+  _mqPrevTimer = setTimeout(mqPreview, 300);
+}
+
+async function mqPreview() {
+  const seq = ++_mqPrevSeq;
+  const m = mqRead();
+  const body = document.getElementById('mq-preview-body');
+  const note = document.getElementById('mq-preview-note');
+  const { ok, data } = await api('POST', '/api/admin/missions/preview', { mission: { ...m, id: m.id || 'apercu', names: { ...m.names, fr: m.names.fr || 'Aperçu' } } });
+  if (seq !== _mqPrevSeq) return;   // une saisie plus récente a relancé l'aperçu
+  body.textContent = '';
+  if (!ok) { note.textContent = `Aperçu indisponible : ${data.error ?? 'erreur'}`; return; }
+  note.textContent = data.rotationIsProposal
+    ? 'La rotation en vigueur est celle d\'origine (sans adaptation) : l\'aperçu applique les règles de la proposition adaptative (journée de référence de '
+      + `${data.rotationUsed.dayBlocks} blocs) pour montrer ce que verrait chaque joueur après activation.`
+    : `Rotation adaptative du brouillon (journée de référence de ${data.rotationUsed.dayBlocks} blocs).`;
+  for (const r of data.rows) {
+    const tr = body.insertRow();
+    addCell(tr, `${r.profile.label} — ${r.profile.depth} m, compte de ${r.profile.accountDays} j`);
+    addCell(tr, r.ok ? `oui (tranche dès ${r.bandFrom} m${r.cap != null ? `, plafond ${r.cap}` : ''})` : `non — ${r.reason}`);
+    const cell = addCell(tr, r.rewards.length ? '' : '—');
+    for (const x of r.rewards) cell.appendChild(aiEl('div', {}, `« ${x.text} » → ${x.coins} 💰${x.gems ? ` + ${x.gems} 💎` : ''}`));
+  }
+}
+
+function mqOpen(mission, opener, isNew = false) {
+  _mqCur = { id: mission.id, isNew };
+  const m = mission;
+  document.getElementById('mq-form-title').textContent = isNew ? 'Nouvelle mission' : `${m.icon} ${m.names?.fr ?? m.id}`;
+  for (const l of MQ_LANGS) {
+    document.getElementById(`mq-${l}-name`).value = m.names?.[l] ?? '';
+    document.getElementById(`mq-${l}-desc`).value = m.descs?.[l] ?? '';
+  }
+  const idEl = document.getElementById('mq-id');
+  idEl.value = m.id ?? '';
+  idEl.readOnly = !isNew;
+  document.getElementById('mq-active').checked = m.active !== false;
+  document.getElementById('mq-type').value = m.type;
+  document.getElementById('mq-category').value = m.category;
+  document.getElementById('mq-icon').value = m.icon ?? '';
+  document.getElementById('mq-image').value = m.image ?? '';
+  document.getElementById('mq-weight').value = m.weight;
+  document.getElementById('mq-min-days').value = m.minAccountDays ?? 0;
+  document.getElementById('mq-max-days').value = m.maxAccountDays ?? '';
+  document.getElementById('mq-coins').value = m.reward?.coinsPerUnit ?? 0;
+  document.getElementById('mq-gems').value = m.reward?.gems ?? 0;
+  document.getElementById('mq-gems-from').value = m.reward?.gemsFromTarget ?? 1;
+  document.getElementById('mq-bands-body').textContent = '';
+  document.getElementById('mq-preview-body').textContent = '';   // pas d'aperçu d'une fiche précédente
+  for (const b of m.bands ?? []) mqBandRow(b);
+  const pub = mqPublished(m.id);
+  const changed = !!pub && !isNew && (_mq.draft?.changes ?? []).some(c => c.id === m.id);
+  const draftOnly = !isNew && !_mq.publishedIds.includes(m.id);
+  const state = document.getElementById('mq-state');
+  state.textContent = isNew ? 'Nouvelle mission : enregistrée dans le brouillon, jamais tirée avant publication ET activation du catalogue en jeu.'
+    : draftOnly ? 'Mission du brouillon, jamais publiée.'
+    : changed ? 'Cette mission a des modifications dans le brouillon : la comparaison montre l\'écart avec la version en vigueur.'
+    : `Valeurs en vigueur (version ${_mq.published.version}).`;
+  state.classList.remove('hidden');
+  document.getElementById('mq-issues').classList.add('hidden');
+  document.getElementById('btn-mq-revert').classList.toggle('hidden', !changed);
+  document.getElementById('btn-mq-remove').classList.toggle('hidden', !draftOnly);
+  document.getElementById('btn-mq-duplicate').classList.toggle('hidden', isNew);
+  for (const h of document.querySelectorAll('#mq-dialog .bk-hint')) h.hidden = true;
+  mqSetLang('fr');
+  mqRefresh();
+  _mqSnap = JSON.stringify(mqRead());
+  admDialogOpen('mq-dialog', opener, isNew ? 'mq-fr-name' : null);
+}
+
+admDialogSetup('mq-dialog', { dirty: () => JSON.stringify(mqRead()) !== _mqSnap, keep: 'Enregistrer dans le brouillon' });
+
+function mqIssues(data, id = 'mq-issues') {
+  const ul = document.getElementById(id);
+  ul.textContent = '';
+  for (const e of [data.error, ...(data.details ?? [])].filter(Boolean)) ul.appendChild(aiEl('li', {}, e));
+  ul.classList.toggle('hidden', !ul.children.length);
+  ul.scrollIntoView?.({ block: 'nearest' });
+}
+
+document.getElementById('mq-dialog').addEventListener('click', e => {
+  const b = e.target.closest('.bk-info');
+  if (!b) return;
+  e.preventDefault();
+  const h = document.getElementById(b.getAttribute('aria-controls'));
+  const show = h.hidden;
+  for (const o of document.querySelectorAll('#mq-dialog .bk-hint')) { o.hidden = true; }
+  for (const o of document.querySelectorAll('#mq-dialog .bk-info')) o.setAttribute('aria-expanded', 'false');
+  h.hidden = !show;
+  b.setAttribute('aria-expanded', String(show));
+});
+
+document.getElementById('btn-mq-add').addEventListener('click', e => {
+  if (!_mq) return;
+  mqOpen({ id: '', active: true, type: 'break_blocks', category: 'minage', icon: '🎯', image: null, names: {}, descs: { fr: 'Casser {t} blocs' },
+    weight: 10, minAccountDays: 0, maxAccountDays: null, bands: [{ fromDepth: 1, targets: [20, 40, 60] }],
+    reward: { coinsPerUnit: 4, gems: 0, gemsFromTarget: 1 } }, e.currentTarget, true);
+});
+document.getElementById('btn-mq-duplicate').addEventListener('click', async () => {
+  const dlg = document.getElementById('mq-dialog');
+  const src = mqRead();
+  if (dlg._admDirty() && !await admConfirmDiscard({ keep: 'Enregistrer dans le brouillon', effect: 'ouvre une copie de ces saisies ; la mission d\'origine n\'est pas modifiée.' })) return;
+  let id = `${src.id}_copie`.slice(0, 40);
+  for (let k = 2; mqWorking().some(m => m.id === id); k++) id = `${src.id.slice(0, 34)}_copie${k}`;
+  dlg.close();
+  mqOpen({ ...src, id, image: null, names: { ...src.names, fr: `${src.names.fr} (copie)`.slice(0, 40) } }, document.getElementById('btn-mq-add'), true);
+});
+document.getElementById('mq-langs').addEventListener('click', e => { const b = e.target.closest('.co-lang-btn'); if (b) mqSetLang(b.dataset.lang); });
+document.getElementById('mq-dialog').addEventListener('input', mqRefresh);
+document.getElementById('mq-type').addEventListener('change', () => {
+  const t = mqType(document.getElementById('mq-type').value);
+  if (t && _mqCur?.isNew) document.getElementById('mq-category').value = t.category;
+  mqRefresh();
+});
+document.getElementById('btn-mq-band-add').addEventListener('click', () => {
+  const rows = mqRead().bands;
+  mqBandRow({ fromDepth: (rows.at(-1)?.fromDepth || 0) + 50, targets: rows.at(-1)?.targets ?? [] });
+  mqRefresh();
+});
+document.getElementById('mq-filter-text').addEventListener('input', mqRenderList);
+document.getElementById('mq-filter-type').addEventListener('change', mqRenderList);
+document.getElementById('mq-filter-status').addEventListener('change', mqRenderList);
+document.getElementById('btn-mq-noimage').addEventListener('click', () => { document.getElementById('mq-image').value = ''; mqRefresh(); });
+
+document.getElementById('btn-mq-save').addEventListener('click', async () => {
+  const mission = mqRead();
+  if (!mission.id) return mqIssues({ error: 'Identifiant obligatoire (a-z, 0-9, _).' });
+  if (_mqCur.isNew && mqWorking().some(m => m.id === mission.id)) return mqIssues({ error: `« ${mission.id} » existe déjà.` });
+  const { ok, data } = await api('PUT', `/api/admin/missions/draft/missions/${encodeURIComponent(mission.id)}`, { mission });
+  if (!ok) return mqIssues(data);
+  _mqSnap = JSON.stringify(mqRead());
+  document.getElementById('mq-dialog').close();
+  ptMessage('mq-msg', data.draftDropped
+    ? `« ${mission.id} » : identique à la version en vigueur, aucun brouillon en attente.`
+    : `« ${mission.id} » enregistrée dans le brouillon. Rien ne change en jeu.`, true);
+  loadMissions();
+});
+
+document.getElementById('btn-mq-revert').addEventListener('click', async () => {
+  const id = _mqCur?.id;
+  if (!id || !await admAsk(`Annuler les modifications de « ${id} » ?\nElle reprend dans le brouillon ses valeurs en vigueur ; le reste du brouillon ne bouge pas.`)) return;
+  const { ok, data } = await api('POST', `/api/admin/missions/draft/missions/${encodeURIComponent(id)}/revert`);
+  if (!ok) return mqIssues(data);
+  document.getElementById('mq-dialog').close();
+  ptMessage('mq-msg', `« ${id} » : modifications annulées${data.draftDropped ? ' ; plus aucun brouillon en attente.' : '.'}`, true);
+  loadMissions();
+});
+
+document.getElementById('btn-mq-remove').addEventListener('click', async () => {
+  const id = _mqCur?.id;
+  if (!id || !await admAsk(`Retirer « ${id} » du brouillon ?\nElle n'a jamais été publiée.`)) return;
+  const { ok, data } = await api('DELETE', `/api/admin/missions/draft/missions/${encodeURIComponent(id)}`);
+  if (!ok) return mqIssues(data);
+  document.getElementById('mq-dialog').close();
+  ptMessage('mq-msg', `« ${id} » retirée du brouillon.`, true);
+  loadMissions();
+});
+
+// ── Rotation ──
+
+const MQ_ROT_KEYS = ['perDay', 'maxPerCategory', 'repeatDays', 'repeatFactor', 'dayBlocks'];
+function mqRotRead() {
+  const r = { mode: document.getElementById('mq-rot-mode').value, timezone: document.getElementById('mq-rot-timezone').value,
+    perPlayer: document.getElementById('mq-rot-perPlayer').checked };
+  for (const k of MQ_ROT_KEYS) r[k] = Number(document.getElementById(`mq-rot-${k}`).value);
+  return r;
+}
+admDialogSetup('mq-rot-dialog', { dirty: () => JSON.stringify(mqRotRead()) !== _mqRotSnap, keep: 'Enregistrer dans le brouillon' });
+document.getElementById('btn-mq-rotation').addEventListener('click', e => {
+  if (!_mq) return;
+  const rot = mqRotation();
+  document.getElementById('mq-rot-mode').value = rot.mode;
+  document.getElementById('mq-rot-timezone').value = rot.timezone;
+  document.getElementById('mq-rot-perPlayer').checked = !!rot.perPlayer;
+  for (const k of MQ_ROT_KEYS) document.getElementById(`mq-rot-${k}`).value = rot[k];
+  const help = document.getElementById('mq-rot-help');
+  help.textContent = '';
+  for (const [k, txt] of Object.entries(_mq.rotationFields)) help.appendChild(aiEl('li', {}, `${MQ_ROT_LABELS[k] ?? k} : ${txt}`));
+  document.getElementById('mq-rot-issues').classList.add('hidden');
+  _mqRotSnap = JSON.stringify(mqRotRead());
+  admDialogOpen('mq-rot-dialog', e.currentTarget, 'mq-rot-mode');
+});
+document.getElementById('btn-mq-rot-save').addEventListener('click', async () => {
+  const { ok, data } = await api('PUT', '/api/admin/missions/draft/rotation', { rotation: mqRotRead() });
+  if (!ok) return mqIssues(data, 'mq-rot-issues');
+  _mqRotSnap = JSON.stringify(mqRotRead());
+  document.getElementById('mq-rot-dialog').close();
+  ptMessage('mq-msg', data.draftDropped ? 'Rotation identique à la version en vigueur : aucun brouillon en attente.' : 'Rotation enregistrée dans le brouillon. Rien ne change en jeu.', true);
+  loadMissions();
+});
+document.getElementById('btn-mq-proposal').addEventListener('click', async () => {
+  if (!await admConfirm({ title: 'Charger la proposition adaptative dans le brouillon ?',
+    text: 'Objectifs par tranche de profondeur, poids et rotation adaptative (par joueur, anti-répétition, journée de référence) sont écrits dans le BROUILLON des six missions d\'origine.',
+    impact: ['Rien n\'est publié ni visible en jeu.', 'Récompenses par unité inchangées ; textes, icônes et missions ajoutées conservés.', 'Annulable : « Abandonner le brouillon ».'],
+    ok: 'Charger dans le brouillon' })) return;
+  const { ok, data } = await api('POST', '/api/admin/missions/draft/proposal');
+  ptMessage('mq-msg', ok ? 'Proposition chargée dans le brouillon : comparez-la dans le simulateur (source « Brouillon »).' : [data.error, ...(data.details ?? [])].filter(Boolean).join(' '), ok);
+  loadMissions();
+});
+
+// ── Brouillon : publier, abandonner, revenir ──
+
+document.getElementById('btn-mq-discard').addEventListener('click', async () => {
+  if (!await admConfirm({ title: 'Abandonner le brouillon des missions ?', text: 'Toutes les modifications non publiées sont perdues.',
+    impact: ['Rien ne change pour les joueurs.', 'L\'action est tracée dans le journal.'], ok: 'Abandonner le brouillon', danger: true })) return;
+  const { ok, data } = await api('DELETE', '/api/admin/missions/draft');
+  ptMessage('mq-msg', ok ? 'Brouillon abandonné.' : (data.error || 'Erreur.'), ok);
+  loadMissions();
+});
+
+document.getElementById('btn-mq-publish').addEventListener('click', async () => {
+  const d = _mq?.draft;
+  if (!d) return;
+  const note = await admPrompt({ title: `Publier le brouillon (version ${_mq.published.version + 1}) ?`,
+    text: `Éléments concernés : ${d.changes.map(c => c.id).join(', ')}. ${_mq.live ? 'Les missions des PROCHAINS jours suivront cette version ; les missions déjà attribuées aujourd\'hui ne changent pas.' : 'Le jeu n\'utilise pas encore ce catalogue : aucun joueur ne voit de changement.'} Retour arrière possible : « Versions publiées → Revenir à cette version ».`,
+    label: 'Note de publication (raison, accord du propriétaire)', ok: 'Publier' });
+  if (note === null) return;
+  const { ok, data } = await api('POST', '/api/admin/missions/publish', { note, basedOn: d.basedOn });
+  if (!ok) { ptMessage('mq-msg', [data.error, ...(data.details ?? [])].filter(Boolean).join(' '), false); return; }
+  ptMessage('mq-msg', `Version ${data.version} publiée (${data.changes.length} élément(s) modifié(s)).`, true);
+  loadMissions();
+});
+
+async function mqRollback(version) {
+  if (!await admConfirm({ title: `Revenir à la version ${version} ?`, text: 'Une NOUVELLE version reprenant ce contenu est publiée immédiatement.',
+    impact: ['Les missions ajoutées depuis sont gardées mais archivées.', 'Le brouillon éventuel est abandonné.'],
+    ok: `Revenir à la version ${version}`, danger: true })) return;
+  const { ok, data } = await api('POST', '/api/admin/missions/rollback', { version });
+  ptMessage('mq-msg', ok ? `Version ${data.version} publiée (retour au contenu de la version ${data.restored}).` : [data.error, ...(data.details ?? [])].filter(Boolean).join(' '), ok);
+  loadMissions();
+}
+
+// ── Simulateur ──
+
+document.getElementById('btn-mq-simulate').addEventListener('click', async () => {
+  const out = document.getElementById('mq-sim-out');
+  const ids = [...document.querySelectorAll('#mq-sim-profiles input:checked')].map(c => c.value);
+  if (!ids.length) { out.textContent = 'Cochez au moins un profil.'; return; }
+  const body = { source: document.getElementById('mq-sim-source').value, days: Number(document.getElementById('mq-sim-days').value) || 2,
+    start: document.getElementById('mq-sim-start').value || null, profiles: ids.map(id => ({ id })) };
+  out.textContent = 'Simulation…';
+  const { ok, data } = await api('POST', '/api/admin/missions/simulate', body);
+  out.textContent = '';
+  if (!ok) { out.appendChild(aiEl('p', { class: 'error' }, [data.error, ...(data.details ?? [])].filter(Boolean).join(' '))); return; }
+  out.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.75rem' },
+    `Source : ${data.version} · rotation ${mqRotValue('mode', data.rotation.mode)}, ${data.rotation.perDay}/jour${data.rotation.mode === 'adaptive' ? `, au plus ${data.rotation.maxPerCategory} par catégorie, anti-répétition ${data.rotation.repeatDays} j × ${data.rotation.repeatFactor}, journée de référence ${data.rotation.dayBlocks} blocs, ${data.rotation.perPlayer ? 'par joueur' : 'commune'}` : ''}.`));
+  for (const p of data.profiles) {
+    const box = aiEl('div', { class: 'mq-sim-profile' });
+    box.appendChild(aiEl('h4', {}, `${p.profile.label} — ${p.profile.depth} m, compte de ${p.profile.accountDays} j, ${p.profile.blocksPerDay} blocs/jour`));
+    box.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.72rem;margin:0 0 4px' },
+      `Activité estimée par jour : ${p.activity.meters} m, ${p.activity.chests.toLocaleString('fr-BE', { maximumFractionDigits: 1 })} coffres minés, ${p.activity.gems.toLocaleString('fr-BE', { maximumFractionDigits: 1 })} gemmes, ${p.activity.coins.toLocaleString('fr-BE')} pièces (hors reliques et boosts).`));
+    const wrap = aiEl('div', { class: 'bk-table-wrap' });
+    const table = aiEl('table', { class: 'bk-table mq-table' });
+    const head = table.createTHead().insertRow();
+    for (const h of ['Jour', 'Missions (✓ = atteignable avec cette activité)', 'Écartées']) head.appendChild(aiEl('th', {}, h));
+    const tb = table.createTBody();
+    for (const d of p.plan) {
+      const tr = tb.insertRow();
+      addCell(tr, d.date);
+      const cell = addCell(tr, '');
+      for (const m of d.missions) cell.appendChild(aiEl('div', {}, `${m.done ? '✓' : '✗'} ${m.icon} ${m.text} → ${m.reward.coins} 💰${m.reward.gems ? ` + ${m.reward.gems} 💎` : ''}${m.repeated ? ' (déjà hier)' : ''}`));
+      addCell(tr, d.excluded.map(x => `${x.id} : ${x.reason}`).join(' · ') || '—');
+    }
+    wrap.appendChild(table);
+    box.appendChild(wrap);
+    const s = p.stats;
+    box.appendChild(aiEl('p', { style: 'font-size:0.78rem;margin:4px 0 10px' },
+      `${s.assigned} missions, ${Math.round(s.completionRate * 100)} % atteignables · ${s.distinctDays}/${p.plan.length} journées différentes · ${s.repeatsFromYesterday} reprise(s) de la veille · `
+      + `récompenses si tout est fait : ${s.coinsIfCompleted.toLocaleString('fr-BE')} 💰, ${s.gemsIfCompleted} 💎 · fréquence : ${Object.entries(s.frequency).map(([k, n]) => `${k} ${n}`).join(', ')}.`));
+    out.appendChild(box);
+  }
+});
+
+// ── Atelier d'icônes ──
+
+document.getElementById('btn-mq-studio').addEventListener('click', async () => {
+  const id = _mqCur?.id;
+  if (!id || _mqCur.isNew || (!_mq.draft?.missions?.some(m => m.id === id) && !mqPublished(id))) {
+    return mqIssues({ error: 'Enregistrez d\'abord la mission dans le brouillon : l\'atelier travaille sur une mission existante.' });
+  }
+  const dlg = document.getElementById('mq-dialog');
+  if (dlg._admDirty() && !await admConfirmDiscard({ keep: 'Enregistrer dans le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
+  _mqSnap = JSON.stringify(mqRead());
+  dlg.close();
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  _icFrom = { kind: 'mission', id };
+  icOpen(`mission:${id}`);
+});
+
+/** Retour de l'atelier d'icônes vers la fiche de la mission (catalogue rechargé : image du brouillon). */
+async function mqBackTo(id) {
+  _mq = null;
+  document.querySelector('.tab-btn[data-tab="missions"]').click();
+  for (let k = 0; k < 50 && !_mq; k++) await new Promise(r => setTimeout(r, 100));
+  const m = mqWorking().find(x => x.id === id);
+  if (m) mqOpen(m, document.querySelector(`[data-adm-key="${CSS.escape(`mq:${id}`)}"]`));
+}
+
+admRefreshButton('btn-refresh-missions', loadMissions, 'Missions');

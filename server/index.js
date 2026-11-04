@@ -85,6 +85,7 @@ const contest   = require('./contest');
 const shop      = require('./shop');
 const blockCatalog = require('./blockCatalog');
 const relicCatalog = require('./relicCatalog');
+const missionCatalog = require('./missionCatalog');
 const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
@@ -819,7 +820,8 @@ function catalogRoute(label, fn) {
   return async (req, res) => {
     try { res.json(await fn(req)); }
     catch (err) {
-      if (err instanceof blockCatalog.CatalogError || err instanceof blockAi.AiError || err instanceof relicCatalog.CatalogError) {
+      if (err instanceof blockCatalog.CatalogError || err instanceof blockAi.AiError || err instanceof relicCatalog.CatalogError
+        || err instanceof missionCatalog.CatalogError) {
         return res.status(err.status).json({ error: err.message, details: err.details });
       }
       if (err instanceof rewardTables.RewardError) return res.status(err.status).json({ error: err.message, details: err.details });
@@ -1345,6 +1347,49 @@ app.post('/api/admin/relics/rollback', requireAdmin, catalogRoute('POST /api/adm
 
 app.get('/api/admin/relics/audit', requireAdmin, catalogRoute('GET /api/admin/relics/audit',
   req => ({ audit: relicCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
+
+// Catalogue de missions quotidiennes (#68, étape A) : brouillon, publication, retour arrière, journal,
+// aperçu par profondeur et simulateur de rotation. Le jeu n'utilise PAS encore ce catalogue (drapeau OFF).
+app.get('/api/admin/missions', requireAdmin, catalogRoute('GET /api/admin/missions', () => missionCatalog.buildAdminView()));
+
+app.put('/api/admin/missions/draft/missions/:id', requireAdmin, catalogRoute('PUT /api/admin/missions/draft/missions/:id', req => {
+  const mission = req.body?.mission;
+  if (!mission || mission.id !== req.params.id) throw new missionCatalog.CatalogError(400, 'Identifiant incohérent.');
+  return missionCatalog.upsertDraftMission(mission);
+}));
+
+app.delete('/api/admin/missions/draft/missions/:id', requireAdmin, catalogRoute('DELETE /api/admin/missions/draft/missions/:id',
+  req => { missionCatalog.removeDraftMission(String(req.params.id)); return { ok: true }; }));
+
+app.post('/api/admin/missions/draft/missions/:id/revert', requireAdmin, catalogRoute('POST /api/admin/missions/draft/missions/:id/revert',
+  req => missionCatalog.revertDraftMission(String(req.params.id))));
+
+app.put('/api/admin/missions/draft/rotation', requireAdmin, catalogRoute('PUT /api/admin/missions/draft/rotation',
+  req => missionCatalog.setDraftRotation(req.body?.rotation)));
+
+app.post('/api/admin/missions/draft/proposal', requireAdmin, catalogRoute('POST /api/admin/missions/draft/proposal',
+  () => missionCatalog.loadProposalIntoDraft()));
+
+app.delete('/api/admin/missions/draft', requireAdmin, catalogRoute('DELETE /api/admin/missions/draft',
+  () => ({ discarded: missionCatalog.discardDraft() })));
+
+app.post('/api/admin/missions/publish', requireAdmin, catalogRoute('POST /api/admin/missions/publish',
+  req => missionCatalog.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null })));
+
+app.post('/api/admin/missions/rollback', requireAdmin, catalogRoute('POST /api/admin/missions/rollback',
+  req => missionCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
+
+app.get('/api/admin/missions/audit', requireAdmin, catalogRoute('GET /api/admin/missions/audit',
+  req => ({ audit: missionCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
+
+app.post('/api/admin/missions/preview', requireAdmin, catalogRoute('POST /api/admin/missions/preview',
+  req => missionCatalog.previewMission(req.body?.mission, { rotation: req.body?.rotation ?? null })));
+
+app.post('/api/admin/missions/simulate', requireAdmin, catalogRoute('POST /api/admin/missions/simulate', req => {
+  const b = req.body ?? {};
+  return missionCatalog.simulate({ source: b.source, days: b.days ?? 7, start: b.start ?? null,
+    profiles: Array.isArray(b.profiles) && b.profiles.length ? b.profiles : undefined, playerKey: b.playerKey });
+}));
 
 // Tables de récompenses des coffres (#37, objectif 4) : même cycle brouillon → publication → retour arrière.
 // Les coûts effectifs (⚙ Config, #20) servent à refuser une table qui rendrait plus que son prix.
@@ -2257,6 +2302,7 @@ process.on('unhandledRejection', (r) => console.error('[unhandledRejection]', r)
 initDb();
 blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, budget anti-bot (#37)
 relicCatalog.init();             // catalogue de reliques v1 = 6 reliques d'origine, valeurs identiques (#64)
+missionCatalog.init();           // missions quotidiennes v1 = 6 missions d'origine ; jeu inchangé, drapeau OFF (#68)
 rewardTables.init();             // tables de récompenses des coffres v1 = tables d'origine (#37)
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)

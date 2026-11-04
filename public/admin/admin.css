@@ -1141,3 +1141,10 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .rl-levels input { width: 96px; }
 .rl-sim { font-size: 0.82rem; margin: 6px 0 0; }
 .rl-sim div { margin: 2px 0; }
+/* Missions quotidiennes (#68) : profils du simulateur, résultats par profil */
+.mq-profiles { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin: 6px 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.mq-profiles > label { display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 0.8rem; }
+.mq-profiles > legend { font-size: 0.8rem; color: var(--muted); padding: 0 4px; }
+.mq-sim-profile h4 { margin: 10px 0 2px; font-size: 0.9rem; }
+.mq-table td:last-child { text-align: left; white-space: normal; }
+.mq-table td { vertical-align: top; }
