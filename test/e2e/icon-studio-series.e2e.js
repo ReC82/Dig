@@ -13,6 +13,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 
 const BASE = process.env.BASE;
 const ADMIN = process.env.ADMIN;
@@ -39,7 +40,7 @@ async function main() {
   await page.goto(`${BASE}/admin/`);
   await page.fill('#secret-input', ADMIN);
   await page.click('#secret-btn');
-  await page.click('.tab-btn[data-tab="icons"]');
+  await admOpenTab(page, 'icons');
   await page.waitForSelector('#ic-series .ic-series-row');
   const row = page.locator('.ic-series-row', { hasText: 'Trésors de la vieille mine' });
   assert.match(await row.textContent(), /6 objets · 4 à générer · 2 avec image/);

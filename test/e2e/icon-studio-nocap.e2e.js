@@ -13,6 +13,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 
 const BASE = process.env.BASE;
 const ADMIN = process.env.ADMIN;
@@ -23,7 +24,7 @@ const api = async (p, method = 'GET', body) => (await fetch(`${BASE}${p}`, { met
 const NAME = 'La plume de l\'oie bavarde';
 
 async function openSheet(page, name) {
-  await page.click('.tab-btn[data-tab="icons"]');
+  await admOpenTab(page, 'icons');
   await page.fill('#ic-search', name);
   await page.click(`[aria-label="Ouvrir la fiche ${name}"]`);
   await page.waitForFunction(n => document.querySelector('#ic-sheet h3')?.textContent === n && document.querySelector('#ic-sheet').offsetParent, name);
@@ -88,7 +89,7 @@ async function steps(page, tag, generate) {
   assert.strictEqual(await page.locator('#ic-series button', { hasText: 'Générer les' }).count(), 0, 'aucun lot sans plafond');
 
   // 4. ⚙ Config → Budget IA : état, totaux, plafond activé puis désactivé sans redémarrage
-  await page.click('.tab-btn[data-tab="config"]');
+  await admOpenTab(page, 'config');
   await page.waitForFunction(() => /Aucun plafond bloquant/.test(document.getElementById('aib-cap-state')?.textContent ?? ''));
   const totals = await page.locator('#aib-totals dt').allTextContents();
   assert.ok(totals.some(t => /^Ce mois-ci/.test(t)) && totals.includes('Cumul de tout Dig'), JSON.stringify(totals));
@@ -101,7 +102,7 @@ async function steps(page, tag, generate) {
   // État rechargé à l'ouverture de l'onglet : attendre la fiche re-rendue avec le nouveau statut
   await page.waitForFunction(() => /Plafond de dépense atteint \(réglé dans ⚙ Config → Budget IA\)/.test(document.getElementById('ic-sheet')?.textContent ?? ''));
   assert.strictEqual(await page.locator('#ic-sheet button:visible', { hasText: /✨ Générer une image|↻ Refaire/ }).first().isDisabled(), true, 'plafond réactivé : bloqué');
-  await page.click('.tab-btn[data-tab="config"]');
+  await admOpenTab(page, 'config');
   await page.uncheck('#aib-cap-on');
   await page.click('#btn-ic-budget');
   await page.waitForFunction(() => /Aucun plafond bloquant/.test(document.getElementById('aib-cap-state')?.textContent ?? ''));

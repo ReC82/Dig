@@ -14,6 +14,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 const BASE = process.env.BASE, OUT = process.env.OUT || '/tmp', ADMIN = process.env.ADMIN;
 assert.ok(/^http:\/\/127\.0\.0\.1:31\d\d$/.test(BASE), 'serveur de test local uniquement (port 31xx)');
 const errors = [], dialogs = [];
@@ -109,7 +110,7 @@ const errors = [], dialogs = [];
     await page.goto(`${BASE}/admin/`);
     await page.fill('#secret-input', ADMIN);
     await page.click('#secret-btn');
-    await page.click('.tab-btn[data-tab="shop"]');
+    await admOpenTab(page, 'shop');
     await page.click('#btn-sh-new');
     const dlg = page.locator('#sh-dialog');
     await dlg.waitFor({ state: 'visible' });

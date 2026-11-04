@@ -16,6 +16,7 @@
  *   DIG_E2E_BASE=http://127.0.0.1:3101 ADMIN=<secret> NODE_PATH=<dossier contenant playwright-core> node test/e2e/ui-icons.e2e.js
  */
 const { chromium } = require('playwright-core');
+const { admOpenTab } = require('./_admin-nav');
 const fs = require('fs');
 const sharp = require('sharp');
 const BASE = process.env.DIG_E2E_BASE || 'http://127.0.0.1:3101';
@@ -56,7 +57,7 @@ async function upload(key, color) {
   await admin.fill('#secret-input', ADMIN);
   await admin.click('#secret-btn');
   await admin.waitForSelector('#admin-app:not(.hidden)');
-  await admin.click('.tab-btn[data-tab="icons"]');
+  await admOpenTab(admin, 'icons');
   await admin.waitForSelector('#ic-grid .ic-card');
   await admin.selectOption('#ic-zone', 'nav');
   const navCards = await admin.$$eval('#ic-grid .ic-card .ic-card-name', els => els.map(e => e.textContent));

@@ -11,6 +11,7 @@
  * Le parcours enregistre une seule fois le nom de la série (PC) : la base de test change, jamais une autre.
  */
 const { chromium } = require('playwright-core');
+const { admOpenTab } = require('./_admin-nav');
 const fs = require('fs');
 const BASE = process.env.DIG_E2E_BASE || 'http://127.0.0.1:3101';
 if (/:3000\b|lodygames|lodylands/.test(BASE)) throw new Error('Parcours réservé à un serveur de test.');
@@ -131,7 +132,7 @@ const check = (tag, name, cond, extra = '') => { results.push(`${cond ? 'OK  ' :
     await page.click('#adm-confirm-yes'); await page.waitForTimeout(200);
     check(tag, 'fiche objet abandonnée', !(await isOpen('co-item-dialog')));
     // Badges : fiche manuelle (suivi générique)
-    await page.click('button[data-tab="badges"]'); await page.waitForTimeout(700);
+    await admOpenTab(page, 'badges'); await page.waitForTimeout(700);
     await page.click('#btn-bg-add'); await page.waitForTimeout(200);
     await page.click('#btn-bg-add-manual'); await page.waitForTimeout(300);
     await page.fill('#bg-fr-name', 'Badge test');
@@ -140,15 +141,15 @@ const check = (tag, name, cond, extra = '') => { results.push(`${cond ? 'OK  ' :
     check(tag, 'fiche badge modifiée : clic extérieur → confirmation', await isOpen('bg-dialog') && await isOpen(CF));
     await page.click('#adm-confirm-yes'); await page.waitForTimeout(200);
     // Formulaire de page : Configuration conservée au changement d'onglet
-    await page.click('button[data-tab="config"]'); await page.waitForTimeout(700);
+    await admOpenTab(page, 'config'); await page.waitForTimeout(700);
     const cfg = page.locator('.config-value').first();
     const cfgBefore = await cfg.inputValue();
     await cfg.fill(cfgBefore + '9');
-    await page.click('button[data-tab="economy"]'); await page.waitForTimeout(500);
+    await admOpenTab(page, 'economy'); await page.waitForTimeout(500);
     await page.fill('#eco-coin-gain', '1.7');
-    await page.click('button[data-tab="config"]'); await page.waitForTimeout(700);
+    await admOpenTab(page, 'config'); await page.waitForTimeout(700);
     check(tag, 'Configuration : saisie conservée après changement d\'onglet', await page.locator('.config-value').first().inputValue() === cfgBefore + '9');
-    await page.click('button[data-tab="economy"]'); await page.waitForTimeout(700);
+    await admOpenTab(page, 'economy'); await page.waitForTimeout(700);
     check(tag, 'Économie : saisie conservée après rechargement de l\'onglet', await page.inputValue('#eco-coin-gain') === '1.7');
     check(tag, 'départ de la page protégé (admAnyDirty)', await page.evaluate(() => admAnyDirty()));
     // Petite fiche de saisie (remplace prompt)

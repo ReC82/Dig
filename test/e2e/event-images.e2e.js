@@ -15,6 +15,7 @@
 
 const assert = require('node:assert');
 const { chromium } = require(process.env.PW);
+const { admOpenTab } = require('./_admin-nav');
 
 const { BASE, ADMIN, EVENT, ITEM, NAME } = process.env;
 const SHOTS = process.env.SHOTS || '/tmp';
@@ -26,7 +27,7 @@ const imageCalls = async () => (await api('/api/admin/icons')).calls.filter(c =>
 const evOf = async id => (await api('/api/admin/events')).events.find(e => e.id === id);
 
 async function openItem(page) {
-  await page.click('.tab-btn[data-tab="events"]');
+  await admOpenTab(page, 'events');
   await page.click(`[data-adm-key="ev:${EVENT}"]`);
   await page.waitForSelector('#ev-dialog[open]');
   await page.click(`#ev-items tr:has-text("${NAME}")`);
