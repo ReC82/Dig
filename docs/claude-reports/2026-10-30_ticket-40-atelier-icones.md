@@ -1,6 +1,84 @@
 # Ticket #40 — Atelier d'icônes IA dans le panel : objets, reliques, blocs et cohérence graphique
 
-Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch ; dernière mise à jour le 03/11/2026, 13 h 45.
+Lien : https://github.com/ReC82/Dig/issues/40. Rapport du 30/10/2026, 19 h 20 (Bruxelles), rédigé par une session autonome digorch ; dernière mise à jour le 04/11/2026, 16 h 30.
+
+---
+
+# Mise à jour du 04/11/2026, 16 h 30 (Bruxelles) — audit final du périmètre, clôture proposée
+
+**État réel : Déjà livré.** Le socle de l'Atelier est en production depuis `d8d3e80`, et la production actuelle (`7b2ea8f`) le contient. Cette session ajoute **un test automatique seulement**, intégré dans `develop` et **non déployé** : il ne change rien au fonctionnement. Classement : **Après lancement** (outil d'administration, sans effet sur les joueurs).
+
+Demande traitée : [commentaire du propriétaire du 04/11, 14:48 UTC](https://github.com/ReC82/Dig/issues/40#issuecomment-6633711763). Il demandait un audit final du périmètre, sans appel IA, sans nouvelle génération et sans publication.
+
+## 1. Audit : demande initiale de #40 comparée à ce qui est livré
+
+| Demande du ticket | Livré | Preuve |
+|---|---|---|
+| Générer depuis le panel, via l'API, les icônes des blocs, objets/reliques de collection, badges et pictogrammes | Oui : 4 familles de cibles (`block`, `item`, `badge`, `ui`) | Test « inventaire » ; recette du propriétaire du 03/11 (série Saint-Martin 6/6) |
+| Style commun, référence aux icônes v1 (#22) | Oui : la pierre validée est jointe ; le gabarit des blocs est inchangé | Test « prompts » |
+| Génération unitaire | Oui : une image par clic, et « Refaire » avec une consigne | Tests « génération » ; #40-H validé le 04/11 |
+| Génération par lot | Livrée (collection entière), mais **refusée tant qu'aucun plafond n'est actif** (décision du 03/11) | Test « collection entière » |
+| Téléversement manuel | Oui : transparence réelle exigée, JPEG refusé, image normalisée | Test « téléversement » |
+| Contrôles de transparence, marges et cadrage, et du sujet | Oui : `tools/icons/process.js` sur l'image réelle, plus le contrôle du sujet | Tests « génération » et « recettes 02-03/11 » |
+| Aperçu à taille réelle sur mobile | Oui | Recette du 03/11 |
+| Coût estimé et réel, plafond configurable | Oui : plafond **désactivé par défaut** (décision du propriétaire), réglable dans ⚙ Config | Test « plafond (03/11) » |
+| Stockage et provenance | Oui : tables en ajout seul (images, appels, événements), empreinte, modèle, consigne et coût de chaque image | Test « ajout seul » |
+| **Historique et retour arrière** | Oui : historique par icône, « Revenir à l'icône d'avant », « Revenir à l'emoji d'origine », « Remettre en proposition » ; aucune image n'est supprimée | **Nouveau test « audit final (04/11) »** (ci-dessous) |
+| **Application à toutes les cibles prises en charge** | Bloc → brouillon du catalogue de blocs (#37). Objet → brouillon des collections (#39). Badge → image directe, avec confirmation obligatoire si le badge est actif (#38). Pictogramme d'interface → stocké seulement | Tests « application au brouillon », « audit final » ; `test/badge-ai.test.js` |
+| Ne pas modifier une icône validée sans accord | Oui : verrou (v1 ou atelier) et accord explicite tracé | Test « application au brouillon » |
+| Clé côté serveur, limitation de débit, accès admin | Oui : 401 sans session admin, gros envois acceptés seulement après authentification | Test « routes » |
+
+**Conclusion : le socle de #40 est intégralement livré.** Ce qui reste relève de tickets spécialisés ou de contenu, pas de l'Atelier :
+- application en jeu des pictogrammes Profil et Paramètres : **#63** ;
+- catalogue, effets et images des reliques (catalogue distinct des objets de collection) : **#64** ;
+- images des objets souvenirs d'événements : **#65** ;
+- largeur et centrage du panel : **#62** ;
+- remplacement effectif des icônes provisoires restantes : du contenu, à générer **sur décision du propriétaire, une image à la fois**.
+
+## 2. Changement réalisé (test seul)
+
+`test/icon-studio.test.js` : nouveau test « audit final (04/11) : retour arrière A → B → A ». Il couvre trois cibles : un objet (`item:crystal`), un bloc (`block:charbon`, accord explicite) et un badge actif (`badge:profondeur_100`, confirmation « live »). Pour chacune :
+1. il applique l'image A, puis l'image B ;
+2. il vérifie que l'historique enregistre bien l'avant (A) et l'après (B) ;
+3. il revient à A, comme le bouton « Revenir à l'icône d'avant » ;
+4. il revient ensuite à l'emoji d'origine.
+
+Il vérifie aussi que :
+- les deux images restent dans les propositions ;
+- les catalogues **publiés** de blocs et de collections ne changent pas ;
+- **aucune génération** n'a lieu (transport factice, aucun appel) ;
+- les deux boutons de retour arrière existent dans le panel.
+
+## 3. SHA, branche, procédure de test
+
+- Branche `feature/40-atelier-icones` ; SHA sur `develop` : voir le commentaire GitHub de cette session (fusion du test et de ce rapport).
+- `npm test`, ou seulement `node --test test/icon-studio.test.js` : 14/14 tests réussis.
+
+## 4. Vérifications, limites, données joueurs
+
+- Suite complète `npm test` sur la branche : **603/603 réussis**.
+- Aucun appel IA, aucune image générée, rien de publié. Base de production non touchée. Aucun impact sur les données des joueurs.
+- Non vérifié de nouveau en navigateur : le propriétaire a déjà validé le parcours en production les 03 et 04/11.
+- Petite incohérence de texte relevée, non corrigée (cosmétique, elle demanderait un déploiement) : « Conserver » sur un pictogramme d'interface renvoie au ticket « #41 » (clôturé). L'application en jeu relève maintenant de **#63**. À corriger avec #63.
+
+## 5. Déploiement
+
+**Non déployé, volontairement** : le changement ne touche que les tests, et la production (`7b2ea8f`) contient déjà tout le code de l'Atelier. Il n'y a donc rien à retester en jeu.
+
+## 6. Choix techniques faits seul
+
+- Images factices insérées directement dans la table des images (comme `test/badge-ai.test.js`), pour tester le retour arrière sans générer ni traiter d'image.
+- Badge de départ (`profondeur_100`) plutôt qu'un badge créé pour le test : c'est le cas le plus sensible (badge actif, visible tout de suite).
+
+## 7. Décisions demandées au propriétaire
+
+1. **Clôture de #40** : le socle est livré et vérifié par les tests. **Recommandé : clôturer**, sans nouveau test ni nouvelle génération. Les suites sont dans #62, #63, #64 et #65.
+2. (Facultatif, après lancement) Résumé de consigne entièrement en français : bouton « Traduire en français », un appel texte d'environ 0,001 USD par clic. **Recommandé : non pour l'instant.**
+3. (Facultatif) La clé OpenAI de Dig est-elle partagée avec un autre projet ? Cela expliquerait l'écart de novembre (0,96 USD chez OpenAI contre 0,77 USD dans Dig). **Recommandé : une clé dédiée à Dig.**
+
+## 8. Reste à faire
+
+Rien dans #40. Les suites sont dans #63, #64, #65 et #62. Une piste sans ticket : la demande initiale citait aussi les **coffres**, qui ne sont aujourd'hui pas une cible de l'Atelier. À ouvrir comme ticket séparé si vous le souhaitez (Après lancement).
 
 ---
 

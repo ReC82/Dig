@@ -449,6 +449,49 @@ test('collection entière (02/11) : une image par objet, enchaînées, plafond r
   studio.setFakeTransport({ image: fakeImage });
 });
 
+test('audit final (04/11) : retour arrière A → B → A tracé pour chaque cible applicable, sans appel IA', () => {
+  const badges = require('../server/badges');
+  badges.init();
+  const n = prompts.length;
+  const fake = key => {
+    const sha = crypto.randomBytes(8).toString('hex');
+    conn().prepare("INSERT INTO icon_studio_assets (sha, target, source, mime, bytes, meta) VALUES (?, ?, 'upload', 'image/webp', x'00', '{}')").run(sha, key);
+    return sha;
+  };
+  const cases = [
+    ['item:crystal', () => coll.getDraft()?.items.find(i => i.id === 'crystal').image ?? null, {}],
+    ['block:charbon', () => blocks.getDraft()?.types.find(t => t.id === 'charbon').image ?? null, { override: true }],
+    ['badge:profondeur_100', () => badges.getBadgeRow('profondeur_100').image ?? null, { live: true }],
+  ];
+  const pubBlocks = blocks.getPublished(), pubColl = coll.getPublished();
+  for (const [key, image, opts] of cases) {
+    const start = image();
+    const a = fake(key), b = fake(key);
+    studio.apply(key, { sha: a, ...opts });
+    studio.apply(key, { sha: b, ...opts });
+    assert.strictEqual(image(), studio.imageUrl(b), key);
+    // « Revenir à l'icône d'avant » (admin) = réappliquer details.before du dernier « applied »
+    const last = studio.getTarget(key).history[0];
+    assert.deepStrictEqual([last.action, last.details.before, last.details.after], ['applied', studio.imageUrl(a), studio.imageUrl(b)], key);
+    studio.apply(key, { sha: /([a-f0-9]{16})\.webp$/.exec(last.details.before)[1], ...opts });
+    assert.strictEqual(image(), studio.imageUrl(a), `${key} : retour à A`);
+    // Retour à l'emoji d'origine, puis à l'état de départ ; les images restent dans l'historique
+    studio.apply(key, { sha: null, ...opts });
+    assert.strictEqual(image(), null, `${key} : emoji`);
+    const t = studio.getTarget(key);
+    assert.strictEqual(t.history[0].action, 'reverted_to_emoji');
+    assert.ok([a, b].every(s => t.assets.some(x => x.sha === s)), `${key} : images conservées`);
+    if (start) studio.apply(key, { sha: /([a-f0-9]{16})\.webp$/.exec(start)[1], ...opts });
+  }
+  assert.deepStrictEqual(blocks.getPublished(), pubBlocks, 'blocs publiés inchangés');
+  assert.deepStrictEqual(coll.getPublished(), pubColl, 'collections publiées inchangées');
+  assert.strictEqual(prompts.length, n, 'aucune génération');
+  // Le panel propose bien le retour arrière depuis l'historique
+  const js = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
+  assert.match(js, /Revenir à l\\'icône d\\'avant/);
+  assert.match(js, /Revenir à l\\'emoji d\\'origine/);
+});
+
 test('routes : protégées, image servie, gros corps seulement après la clé admin', async (t) => {
   const server = spawn(process.execPath, ['server/index.js'], {
     cwd: ROOT,
