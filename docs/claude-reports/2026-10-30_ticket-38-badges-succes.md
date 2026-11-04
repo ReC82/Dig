@@ -7,7 +7,7 @@
 
 ## 1. État réel
 
-**Déployé en production (SHA `e393d44`) — en attente de recette.** Dernier lot : refonte de la fiche badge demandée lors de la recette #38-A du 03/11, mise en ligne le 03/11/2026 à 22:02 (Bruxelles) ; voir la section « 03/11/2026 (soir) » en fin de document. Lot précédent : ergonomie de la création IA (`a7919e6`, 03/11 à 06:51). Première livraison : `bee0df4`, mise en ligne le 30/10/2026 à 22:02 (Bruxelles). Lot du 31/10 (UX commune et création par IA) : `6e6f58a`, mis en ligne le 31/10/2026 à 22:55. Voir la section datée du 31/10 en fin de document.
+**Déployé en production (SHA `8d03dbb`) — en attente de recette.** Dernier lot (04/11/2026, 16:56 Bruxelles) : recettes #38-C/#38-E du propriétaire — fiche détail au clic sur un badge, notification de déblocage unique, critère traduit dans toutes les langues ; voir la section « 04/11/2026 » en fin de document. Lot précédent : refonte de la fiche badge demandée lors de la recette #38-A du 03/11, mise en ligne le 03/11/2026 à 22:02 (Bruxelles) ; voir la section « 03/11/2026 (soir) » en fin de document. Lot précédent : ergonomie de la création IA (`a7919e6`, 03/11 à 06:51). Première livraison : `bee0df4`, mise en ligne le 30/10/2026 à 22:02 (Bruxelles). Lot du 31/10 (UX commune et création par IA) : `6e6f58a`, mis en ligne le 31/10/2026 à 22:55. Voir la section datée du 31/10 en fin de document.
 
 ## 2. Résultat
 
@@ -452,3 +452,97 @@ Aucune nouvelle décision. Les questions précédentes restent ouvertes (paliers
 ### Reste à réaliser
 - La génération d'image depuis Badges reste bloquée par le plafond local de 3 USD : elle est suivie dans **#40**, hors de ce ticket.
 - L'attribution réelle d'un badge n'a pas été testée en jeu par le propriétaire (#38-B l'a noté). Elle sera à observer à la prochaine progression d'un joueur.
+
+## Mise à jour du 04/11/2026 — recettes #38-C, #38-D et #38-E du propriétaire
+
+### État réel
+**Déployé en production (SHA `8d03dbb`) — en attente de recette.** Mise en ligne le 04/11/2026 à 16:56 (Bruxelles).
+Classement : **Après lancement**. Les badges ne bloquent pas le MVP public.
+
+### Ce que le propriétaire a demandé
+- **#38-C** (validée sauf un point) : dans l'aperçu joueur EN de la fiche admin, le critère restait en français (« Profondeur ≥ 100 m »). Il fallait le traduire dans toutes les langues, pour tous les types de critère, sans toucher aux seuils.
+- **#38-D** : la fermeture protégée de la fiche admin est **validée**. Rien n'a été changé.
+- **#38-E** : l'attribution réelle est **validée** (badge « Cent mètres sous terre » obtenu). Deux demandes : (A) une fiche détail au clic sur un badge ; (B) une notification de déblocage enregistrée dans l'historique #26, sans doublon.
+
+### Changements réalisés
+1. **Critère traduit (C).** Nouvelles clés `badges.cond.*` en FR/EN/NL/ES et dans le pilote italien (`i18n/it.json` → `public/js/locales/it.js`, couverture 100 %). Elles couvrent les 6 critères : profondeur, blocs d'un type, total de blocs, types différents, coffres ouverts en minant, jours de jeu. Le vocabulaire reprend celui du jeu (« blocs cassés », *blocks broken*, *gebroken blokken*, *bloques rotos*). Exemples :
+   - EN : « Depth ≥ 100 m », « Stone: blocks broken ≥ 100 » ;
+   - NL : « Diepte ≥ 100 m ».
+   - **Aperçu admin** : `bgCondLabel(f, langue)` suit l'onglet actif (FR/EN/NL/ES). Le nom du bloc est traduit, et les nombres sont formatés selon la langue.
+   - **Fiche joueur** : même texte, dans la langue du joueur.
+   - Aucun seuil ni aucune règle n'a changé.
+2. **Fiche détail au clic (A).** Chaque carte de « 🏅 Badges et succès » est maintenant un bouton qui ouvre **la même fenêtre que les objets de collection #39**. Elle affiche :
+   - une grande icône, avec repli sur l'emoji si l'image manque ;
+   - le nom et la description dans la langue du joueur ;
+   - un statut **Acquis / À débloquer** ;
+   - la catégorie et l'**objectif** traduit ;
+   - pour un badge non obtenu, la **progression chiffrée avec une barre** ;
+   - pour un badge obtenu, la **date d'obtention** (heure de Bruxelles) ;
+   - le rappel « badge honorifique : ni pièces, ni gemmes, ni fragments, ni points ».
+
+   Un badge secret non obtenu ne révèle jamais son objectif (le serveur ne l'envoie pas). La fiche se ferme par le bouton, Échap ou un clic hors de la fenêtre, et le focus revient sur la carte. Aucune image n'est générée.
+3. **Notification unique (B).** Le toast affiche « 🏅 Badge débloqué : Cent mètres sous terre ! », traduit dans les 5 langues. Il est discret, n'interrompt pas le minage et s'enregistre dans **Paramètres → Historique des notifications (#26)**, sans nouveau système. Pour qu'il arrive **une seule fois** :
+   - le serveur renvoie le déblocage dans chaque réponse de sauvegarde tant que le jeu ne l'a pas confirmé (`POST /api/me/badges/seen`). Une réponse perdue (réseau, F5, fermeture) ne fait donc pas perdre la notification ;
+   - une fois la confirmation reçue, plus rien n'est renvoyé, ni après F5, ni après reconnexion, ni sur un autre appareil ;
+   - dans une même page, un renvoi avant confirmation ne relance pas de second toast.
+4. **Donnée ajoutée** : colonne `player_badges.notified INTEGER NOT NULL DEFAULT 1`, ajoutée seulement si elle manque (idempotent). Les badges **déjà obtenus valent « notifiés »** : aucun toast rétroactif, aucune ligne réécrite, le badge existant n'est pas réattribué. Les nouveaux déblocages s'insèrent avec `notified = 0`.
+
+Fichiers modifiés :
+- serveur : `server/badges.js`, `server/index.js` ;
+- client : `public/js/main.js`, `public/js/i18n.js`, `public/js/locales/it.js`, `i18n/it.json`, `public/index.html`, `public/css/style.css`, `public/admin/admin.js` ;
+- tests : `test/badges.test.js`, `test/e2e/badge-player.e2e.js` (nouveau), `test/e2e/badge-sheet.e2e.js`.
+
+### SHA, tests et procédure
+- Branche `feature/38-badges-succes` : commit `eb988d5`. Fusion dans `develop` : **`8d03dbb`**.
+- `npm test` : **606/606** sur la branche, sur `develop` et sur la release `8d03dbb`. `test/badges.test.js` passe de 11 à 14 tests :
+  - renvoi tant que la notification n'est pas confirmée, puis plus jamais ;
+  - confirmation rejouée sans effet, et impossible pour un autre joueur ;
+  - migration idempotente sans toast rétroactif ;
+  - critère exposé sauf pour un badge secret ;
+  - textes de critère présents pour chaque condition dans les 5 langues.
+- Parcours Chromium sur serveur de test (port 3101, base de test), PC 1280×900 et smartphone 390×844 :
+  - `test/e2e/badge-player.e2e.js` : **62/62**. Fiche d'un badge acquis et d'un badge à débloquer en EN, badge secret, repli emoji, Échap, clic hors fenêtre, Fermer, focus rendu à la carte, pas de défilement horizontal. Déblocage réel (ligne insérée dans la base de test) : toast « 🏅 Badge unlocked: 100 metres deep! », confirmation enregistrée côté serveur, une seule entrée dans l'historique, rien de renvoyé après F5, visible dans Paramètres. Aucune popup native, aucune erreur JS.
+  - `test/e2e/badge-sheet.e2e.js` (admin) : **60/60**, dont 8 nouveaux contrôles : critère de l'aperçu « Depth ≥ 100 m », « Diepte ≥ 100 m », « Profundidad ≥ 100 m », « Profondeur ≥ 100 m » selon l'onglet.
+- Pour relancer :
+  ```
+  DB_FILE=test-38.sqlite PORT=3101 node server/index.js
+  DIG_E2E_BASE=http://127.0.0.1:3101 DIG_E2E_DB=$PWD/server/data/test-38.sqlite NODE_PATH=<playwright-core> node test/e2e/badge-player.e2e.js
+  ```
+
+### Données des joueurs et déploiement
+- **Copie de la base de production** démarrée en `NODE_ENV=production` (port 3122). Empreintes identiques avant et après démarrage pour `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`, `badges`, `player_badges` (colonnes d'origine), `badge_player_stats` et `badge_ai_proposals`. Les 4 badges déjà obtenus ont `notified = 1`. La copie a été supprimée.
+- Avant le déploiement : aucune génération IA en cours (dernier appel de l'atelier terminé à 15:36 UTC).
+- `scripts/deploy.sh` (script de la release) : déploiement `7b2ea8f → 8d03dbb`.
+  - Sauvegarde vérifiée : `dig-20261104-165603-pre-deploy-8d03dbb.sqlite`.
+  - Santé et version OK.
+  - Le lot contenait aussi des commits déjà intégrés et testés dans `develop` : #19 (rapport), #40 (audit final), #57 (rapport). Ils sont couverts par les mêmes 606 tests.
+- Après le déploiement :
+  - les 2 domaines répondent 200 avec `1.0.0+8d03dbb` ;
+  - `journalctl` est propre et `quick_check` = ok ;
+  - les empreintes de production sont identiques à la sauvegarde pré-déploiement ;
+  - essai Chromium en production (PC et mobile, sans compte) : 0 erreur JS, critère EN « Depth ≥ 100 m ».
+- Retour arrière possible immédiatement : `git -C /home/ubuntu/Dig reset --keep 7b2ea8f` puis `sudo systemctl restart dig`. La colonne ajoutée est ignorée par l'ancien code.
+
+### Test fonctionnel à faire par le propriétaire (court)
+Inutile de refaire 100 m ou de retester ce qui est déjà validé (#38-C onglets, #38-D fermeture protégée, attribution #38-E).
+1. Sur smartphone, ouvrez **Collection → 🏅 Badges et succès** et touchez « Cent mètres sous terre ». Une fiche s'ouvre avec la grande icône, le statut **Acquis**, « Obtenu le 4 novembre 2026 », l'objectif « Profondeur ≥ 100 m » et le rappel honorifique. Fermez-la d'un toucher hors de la fenêtre.
+2. Touchez « Tailleur de pierre ». Attendu : statut **À débloquer**, objectif « Pierre : blocs cassés ≥ 100 », progression « 23 / 100 » (ou plus) avec une barre.
+3. **Vérification EN** : passez le jeu en anglais (drapeau). La fiche affiche « Goal: Depth ≥ 100 m ». Dans **Admin → Badges → Cent mètres sous terre → onglet EN**, l'aperçu joueur affiche « Depth ≥ 100 m ».
+4. Notification : elle apparaîtra au **prochain vrai déblocage** (par exemple « Tailleur de pierre » à 100 blocs de pierre). Attendu : toast « 🏅 Badge débloqué : Tailleur de pierre ! », présent une seule fois dans **Paramètres → Historique des notifications**, y compris après F5. Le badge déjà obtenu ne refait pas de toast : c'est voulu.
+
+### Choix techniques faits seul
+- **Confirmation par le client plutôt que « notifié dès l'envoi »** : une réponse de sauvegarde perdue aurait fait perdre la notification. Le prix est un éventuel renvoi, absorbé par le filtre de la page et par l'anti-doublon de #26.
+- **`DEFAULT 1` sur la nouvelle colonne** : aucune mise à jour des lignes existantes et aucun toast rétroactif pour les badges déjà obtenus (comme le demande la recette).
+- **Une seule source de textes de critère** (`badges.cond.*` dans les dictionnaires du jeu), réutilisée par l'admin via `I18n.get`. L'aperçu et le jeu ne peuvent donc plus diverger.
+- **Formulation neutre pour un type de bloc** (« Pierre : blocs cassés ≥ 100 ») : elle évite les accords incorrects (« Pierre cassés ») avec n'importe quel nom de bloc. La liste admin utilise désormais aussi ce libellé.
+- **Fenêtre existante des objets #39** étendue (statut, lignes complémentaires en texte seul, repli emoji si l'image ne charge pas) plutôt qu'une deuxième fenêtre.
+
+### Décisions demandées au propriétaire
+Aucune nouvelle décision n'est nécessaire pour ce lot. Les trois questions déjà posées restent ouvertes, sans urgence :
+1. Paliers à activer parmi 500 m, 1 000 m, 1 000 blocs, 10 types, premier coffre, 7 jours. Recommandation : Premier trésor, Explorateur, 500 m.
+2. Mise en avant de 3 badges : où ? Recommandation : à côté du pseudo dans le classement Saison, après le lancement.
+3. Les coffres achetés en boutique comptent-ils dans « coffres ouverts » ? Recommandation : non (comportement actuel).
+
+### Reste à réaliser (Après lancement)
+- Les traductions IT des nouveaux textes sont des traductions IA relues par la session, à faire relire par un locuteur natif avec le reste du pilote (#59).
+- Signalé, non fait : la liste des badges du joueur n'affiche pas encore l'objectif sous chaque carte (il est dans la fiche). À ajouter seulement si le propriétaire le souhaite.
