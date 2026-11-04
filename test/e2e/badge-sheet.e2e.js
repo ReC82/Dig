@@ -69,6 +69,13 @@ const check = (tag, name, cond, extra = '') => { results.push(`${cond ? 'OK  ' :
     const enName = await page.inputValue('#bg-en-name');
     check(tag, 'onglet EN : aperçu en anglais', (await page.textContent('#bg-pv-name')) === enName && /\(EN\)/.test(await page.textContent('#bg-pv-h')));
     check(tag, 'onglet EN : référence FR affichée', await page.isVisible('#bg-fr-ref'));
+    // Recette #38-C : le critère de l'aperçu suit la langue (plus de « Profondeur » dans l'aperçu EN)
+    check(tag, 'onglet EN : critère en anglais', (await page.textContent('#bg-pv-cond')).startsWith('Depth ≥ 100 m'), await page.textContent('#bg-pv-cond'));
+    for (const [l, word] of [['nl', 'Diepte ≥ 100 m'], ['es', 'Profundidad ≥ 100 m'], ['fr', 'Profondeur ≥ 100 m']]) {
+      await page.click(`#bg-langs [data-lang="${l}"]`);
+      check(tag, `onglet ${l.toUpperCase()} : critère traduit`, (await page.textContent('#bg-pv-cond')).startsWith(word), await page.textContent('#bg-pv-cond'));
+    }
+    await page.click('#bg-langs [data-lang="en"]');
     check(tag, 'onglet EN : nom FR masqué', !(await page.isVisible('#bg-fr-name')));
     // Clavier : flèche droite → NL
     await page.focus('#bg-langs [data-lang="en"]');

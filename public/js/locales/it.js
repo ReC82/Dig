@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 631/631 textes. Absents → français. */
+/* Italian (preview) : 651/651 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -108,19 +108,43 @@ I18n.registerLocale("it", {
  },
  "badges": {
   "archived": "Ritirato",
+  "cat": {
+   "coffres": "Forzieri",
+   "evenement": "Evento",
+   "exploration": "Esplorazione",
+   "fidelite": "Fedeltà",
+   "minage": "Scavo",
+   "profondeur": "Profondità"
+  },
+  "category": "Categoria",
+  "cond": {
+   "blocks_of_type": "{block}: blocchi rotti ≥ {n}",
+   "blocks_total": "Blocchi rotti ≥ {n}",
+   "chests_opened": "Forzieri aperti scavando ≥ {n}",
+   "distinct_types": "Tipi di blocco diversi ≥ {n}",
+   "max_depth": "Profondità ≥ {n} m",
+   "play_days": "Giorni di gioco ≥ {n}"
+  },
   "count": "{n} / {total} ottenuti",
+  "criterion": "Obiettivo",
   "earned_on": "Ottenuto il {date}",
   "empty": "Nessun badge per ora.",
   "error": "Badge non disponibili al momento.",
   "event_until": "Evento fino al {date}",
   "hidden": "Badge segreto",
+  "hidden_crit": "Obiettivo segreto: continua a scavare.",
   "hidden_desc": "Continua a scavare per scoprirlo.",
+  "honorary": "Badge onorifico: non dà monete, gemme, frammenti né punti.",
   "intro": "Badge onorifici: non danno né monete, né gemme, né punti. Registrati dal {date}.",
   "loading": "Caricamento dei badge…",
   "login": "Accedi per seguire i tuoi badge.",
+  "open": "Vedi il badge {name}",
   "progress": "{value} / {target}",
+  "progress_label": "Progressi: {value} / {target}",
   "section": "🏅 Badge e traguardi",
-  "toast": "Badge ottenuto: {name}"
+  "status_earned": "Ottenuto",
+  "status_locked": "Da sbloccare",
+  "toast": "Badge sbloccato: {name}!"
  },
  "beta": {
   "banner": "🧪 BETA — gioco in sviluppo",

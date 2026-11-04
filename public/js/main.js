@@ -931,11 +931,30 @@ function _badgeText(map) {
   return map[I18n.getCurrent()] || map.fr || '';
 }
 
-/** Toast discret (sans interrompre le minage), historisé dans Paramètres (#26). */
+/** Critère d'un badge dans la langue du joueur (recette #38-C) : « Depth ≥ 100 m », « Profondeur ≥ 100 m »… */
+function badgeCriterionText(c) {
+  if (!c || !c.condition) return '';
+  const type = c.blockId && typeof Blocks !== 'undefined' ? Blocks.byId(c.blockId) : null;
+  const block = type ? Blocks.displayName(type) : (c.blockId || '');
+  const key = `badges.cond.${c.condition}`;
+  return I18n.has(key) || I18n.has(key, 'fr') ? t(key, { n: Number(c.threshold).toLocaleString(I18n.intl()), block }) : '';
+}
+
+/**
+ * Déblocage (recette #38-E) : toast discret « 🏅 Badge débloqué : … » qui n'interrompt pas le minage,
+ * historisé dans Paramètres → Historique des notifications (#26), puis confirmé au serveur pour qu'il
+ * ne soit plus renvoyé (F5, reconnexion, autre appareil). Le serveur renvoie la notification tant
+ * qu'elle n'est pas confirmée : _badgeToasted évite un second toast dans la même page.
+ */
+const _badgeToasted = new Set();
 function _onBadgesEarned(list) {
-  list.forEach((b, i) => {
-    setTimeout(() => showAchievement(b.icon || '🏅', t('badges.toast', { name: _badgeText(b.names) }), 'success'), i * 600);
+  const fresh = list.filter(b => b && typeof b.id === 'string' && !_badgeToasted.has(b.id));
+  fresh.forEach((b, i) => {
+    _badgeToasted.add(b.id);
+    setTimeout(() => showAchievement('🏅', t('badges.toast', { name: _badgeText(b.names) || b.id }), 'success'), i * 600);
   });
+  const ids = list.map(b => b && b.id).filter(id => typeof id === 'string');
+  if (ids.length) _apiFetch('POST', '/api/me/badges/seen', { ids }).catch(() => {});   // échec : renvoyé à la prochaine sauvegarde
   if (isViewActive('collection')) renderBadges();
 }
 
@@ -1045,14 +1064,48 @@ async function renderBadges() {
     }
     const tags = (b.event && !b.earned && b.event.endsAt ? `<span class="badge-tag">${escapeHtml(t('badges.event_until', { date: fmtDate(b.event.endsAt) }))}</span>` : '')
       + (b.archived ? `<span class="badge-tag">${escapeHtml(t('badges.archived'))}</span>` : '');
-    return `<div class="badge-card${b.earned ? ' earned' : ''}">
+    return `<button type="button" class="badge-card${b.earned ? ' earned' : ''}" data-badge="${escapeHtml(b.id)}" aria-label="${escapeHtml(t('badges.open', { name }))}">
       <div class="badge-icon" aria-hidden="true">${icon}</div>
       <div class="badge-body"><div class="badge-name">${escapeHtml(name)}</div>
-        <div class="badge-desc">${escapeHtml(desc)}</div>${tags}${foot}</div></div>`;
+        <div class="badge-desc">${escapeHtml(desc)}</div>${tags}${foot}</div></button>`;
   }).join('');
   el.innerHTML = `<p class="badges-note">${escapeHtml(t('badges.count', { n: earned, total: badges.length }))}`
     + (activatedAt ? ` · ${escapeHtml(t('badges.intro', { date: fmtDate(activatedAt) }))}` : '') + '</p>'
     + (badges.length ? `<div class="badges-grid">${cards}</div>` : `<p class="badges-note">${escapeHtml(t('badges.empty'))}</p>`);
+  el.querySelectorAll('.badge-card').forEach(card => card.addEventListener('click', () => {
+    const b = badges.find(x => x.id === card.dataset.badge);
+    if (b) showBadgeSheet(b, card);
+  }));
+}
+
+/** « Libellé : valeur » en français, « Label: value » ailleurs. */
+function _labelSep() { return I18n.getCurrent() === 'fr' ? '\u00a0: ' : ': '; }
+
+/** Fiche d'un badge au clic (recette #38-E) : même fenêtre que les objets de collection (#39). */
+function showBadgeSheet(b, opener) {
+  const fmtNum = n => Number(n).toLocaleString(I18n.intl());
+  const fmtDay = iso => new Date(iso).toLocaleDateString(I18n.intl(), { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Brussels' });
+  const extra = [];
+  const crit = b.hidden ? '' : badgeCriterionText(b.criterion);
+  if (crit) extra.push({ label: t('badges.criterion'), text: crit });
+  else if (b.hidden) extra.push({ text: t('badges.hidden_crit') });   // secret : objectif jamais révélé
+  if (!b.earned && b.progress) {
+    extra.push({ text: t('badges.progress_label', { value: fmtNum(b.progress.value), target: fmtNum(b.progress.target) }), bar: b.progress });
+  }
+  if (b.event && !b.earned && b.event.endsAt) extra.push({ text: t('badges.event_until', { date: fmtDay(b.event.endsAt) }), note: true });
+  if (b.archived) extra.push({ text: t('badges.archived'), note: true });
+  extra.push({ text: t('badges.honorary'), note: true });
+  _openItemSheet({
+    found: !b.hidden,
+    image: b.image,
+    icon: b.icon || '🏅',
+    title: b.hidden ? t('badges.hidden') : _badgeText(b.names),
+    chip: b.earned ? { text: t('badges.status_earned'), cls: 'badge-status-earned' } : { text: t('badges.status_locked'), cls: 'badge-status-locked' },
+    context: I18n.has(`badges.cat.${b.category}`, 'fr') ? `${t('badges.category')}${_labelSep()}${t(`badges.cat.${b.category}`)}` : '',
+    foundText: b.earned && b.earnedAt ? t('badges.earned_on', { date: fmtDay(b.earnedAt) }) : '',
+    story: b.hidden ? t('badges.hidden_desc') : _badgeText(b.descriptions),
+    extra,
+  }, opener);
 }
 
 // ── Rendu collection ──────────────────────────────────────────────────────────
@@ -1161,6 +1214,7 @@ function _openItemSheet(o, opener) {
   if (o.found && o.image) {
     const img = document.createElement('img');
     img.src = o.image; img.alt = o.title;
+    img.onerror = () => { art.textContent = o.icon || '🎁'; };   // image absente : repli emoji
     art.appendChild(img);
   } else {
     art.textContent = o.found ? (o.icon || '🎁') : '❔';
@@ -1174,9 +1228,37 @@ function _openItemSheet(o, opener) {
     badge.textContent = t('rarity.' + o.rarity.replace('-', '_'));
     rarity.appendChild(badge);
   }
+  if (o.chip) {   // statut d'un badge (Acquis / À débloquer) à la place de la rareté
+    const chip = document.createElement('span');
+    chip.className = `rarity-badge ${o.chip.cls}`;
+    chip.textContent = o.chip.text;
+    rarity.appendChild(chip);
+  }
   $('find-modal-series').textContent = o.context || '';
   $('find-modal-found').textContent = o.foundText || '';
   $('find-modal-story').textContent = o.story || '';
+  // Lignes complémentaires (fiche badge) : texte seul, jamais de HTML venant des données
+  const extra = $('find-modal-extra');
+  extra.textContent = '';
+  for (const line of o.extra || []) {
+    const div = document.createElement('div');
+    div.className = line.note ? 'fm-note' : 'fm-line';
+    if (line.label) { const b = document.createElement('b'); b.textContent = `${line.label}${_labelSep()}`; div.appendChild(b); }
+    div.appendChild(document.createTextNode(line.text));
+    extra.appendChild(div);
+    if (line.bar) {
+      const bar = document.createElement('div');
+      bar.className = 'badge-bar';
+      bar.setAttribute('role', 'progressbar');
+      bar.setAttribute('aria-valuemin', '0');
+      bar.setAttribute('aria-valuemax', String(line.bar.target));
+      bar.setAttribute('aria-valuenow', String(line.bar.value));
+      const fill = document.createElement('span');
+      fill.style.width = `${Math.round((line.bar.value / line.bar.target) * 100)}%`;
+      bar.appendChild(fill);
+      extra.appendChild(bar);
+    }
+  }
   modal.hidden = false;
   const close = $('btn-find-modal-close');
   const hide = () => {

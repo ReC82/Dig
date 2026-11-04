@@ -41,7 +41,13 @@ function setAccepted(userId, depth, seasonId = season.id) {
     accepted_depth: depth, last_gap: 0, updated_ms: T0, dmg_depth: null, dmg_credit: null, dmg_ref_clicks: null, dmg_gap: 0 });
 }
 
-const save = (userId, minedByType, nowMs = T0) => badges.processSave(userId, { stats: { minedByType } }, { nowMs });
+const rawSave = (userId, minedByType, nowMs = T0) => badges.processSave(userId, { stats: { minedByType } }, { nowMs });
+/** Sauvegarde + confirmation d'affichage par le client (comme le jeu) : ne renvoie que les nouveaux badges. */
+const save = (userId, minedByType, nowMs = T0) => {
+  const r = rawSave(userId, minedByType, nowMs);
+  badges.markNotified(userId, r.map(b => b.id));
+  return r;
+};
 const stats = userId => Object.fromEntries(db.getDb().prepare('SELECT stat, value FROM badge_player_stats WHERE user_id = ?').all(userId).map(r => [r.stat, r.value]));
 const owned = userId => db.getDb().prepare('SELECT badge_id FROM player_badges WHERE user_id = ? ORDER BY badge_id').all(userId).map(r => r.badge_id);
 
@@ -79,16 +85,46 @@ test('pierre ×100 : crédit borné par les mètres retenus, badge attribué une
   assert.deepStrictEqual(save(u, { pierre: 150 }), []);
   assert.strictEqual(stats(u)['blocks:pierre'], 60, 'jamais plus de blocs crédités que de mètres retenus');
   setAccepted(u, 130);
-  const earned = save(u, { pierre: 150 });
+  const earned = rawSave(u, { pierre: 150 });
   assert.deepStrictEqual(earned.map(b => b.id).sort(), ['pierre_100', 'profondeur_100']);
   assert.strictEqual(stats(u)['blocks:pierre'], 130);
   assert.strictEqual(stats(u).max_depth, 130);
-  // Rejouer, renvoyer, monter encore : jamais une seconde attribution
+  // Réponse perdue (F5, réseau) : la notification est renvoyée tant que le client ne l'a pas confirmée
+  assert.deepStrictEqual(rawSave(u, { pierre: 150 }).map(b => b.id).sort(), ['pierre_100', 'profondeur_100']);
+  assert.strictEqual(badges.markNotified(u, ['pierre_100', 'profondeur_100', 'inconnu', 42]), 2);
+  assert.strictEqual(badges.markNotified(u, ['pierre_100']), 0, 'confirmation rejouée : sans effet');
+  // Rejouer, renvoyer, monter encore : jamais une seconde attribution ni une seconde notification
   setAccepted(u, 400);
   assert.deepStrictEqual(save(u, { pierre: 150 }), []);
   assert.deepStrictEqual(save(u, { pierre: 150 }), []);
   assert.deepStrictEqual(owned(u), ['pierre_100', 'profondeur_100']);
   assert.strictEqual(stats(u)['blocks:pierre'], 150);
+});
+
+test('notification de déblocage : badges déjà obtenus avant la colonne = notifiés, migration idempotente', () => {
+  const u = newUser();
+  // Ligne telle qu'écrite avant la recette #38-E (sans valeur pour notified)
+  db.getDb().prepare('INSERT INTO player_badges (user_id, badge_id, earned_at, value) VALUES (?, ?, ?, ?)').run(u, 'profondeur_100', new Date(T0).toISOString(), 100);
+  assert.deepStrictEqual(badges.pendingNotifications(u), [], 'aucun toast rétroactif');
+  badges.init();
+  badges.init();
+  assert.strictEqual(db.getDb().prepare('PRAGMA table_info(player_badges)').all().filter(c => c.name === 'notified').length, 1);
+  assert.deepStrictEqual(owned(u), ['profondeur_100']);
+  // Autre joueur : sa notification ne peut pas être confirmée par quelqu'un d'autre
+  const v = newUser();
+  setAccepted(v, 120);
+  assert.deepStrictEqual(rawSave(v, {}).map(b => b.id), ['profondeur_100']);
+  assert.strictEqual(badges.markNotified(u, ['profondeur_100']), 0);
+  assert.deepStrictEqual(badges.pendingNotifications(v).map(b => b.id), ['profondeur_100']);
+  assert.deepStrictEqual(Object.keys(badges.pendingNotifications(v)[0]).sort(), ['icon', 'id', 'image', 'names']);
+});
+
+test('vue joueur : critère exposé pour la fiche, jamais pour un badge secret non obtenu', () => {
+  const u = newUser();
+  const view = badges.playerView(u);
+  assert.deepStrictEqual(view.badges.find(b => b.id === 'profondeur_100').criterion, { condition: 'max_depth', blockId: null, threshold: 100 });
+  assert.deepStrictEqual(view.badges.find(b => b.id === 'pierre_100').criterion, { condition: 'blocks_of_type', blockId: 'pierre', threshold: 100 });
+  for (const b of view.badges.filter(x => x.hidden)) assert.strictEqual(b.criterion, null);
 });
 
 test('compteurs forgés : type inconnu, type hors de portée et profondeur déclarée ignorés', () => {
@@ -179,6 +215,7 @@ test('événement : seule la progression pendant la période compte ; badge cons
   assert.deepStrictEqual(save(u, { pierre: 50 }, T0 + 3700e3).map(x => x.id), []);   // début : base = 50
   const hidden = badges.playerView(u, { nowMs: T0 + 3700e3 }).badges.find(x => x.id === 'test_event');
   assert.ok(hidden.hidden && hidden.names === null && hidden.icon === '❔');
+  assert.strictEqual(hidden.criterion, null, 'critère d’un badge secret non obtenu jamais exposé');
   assert.deepStrictEqual(save(u, { pierre: 59 }, T0 + 4000e3).map(x => x.id), []);
   assert.deepStrictEqual(save(u, { pierre: 60 }, T0 + 4100e3).map(x => x.id), ['test_event']);
   const after = badges.playerView(u, { nowMs: T0 + 5 * 3600e3 }).badges.find(x => x.id === 'test_event');
@@ -253,7 +290,12 @@ test('HTTP : badge obtenu via /api/me/save, vue joueur, routes admin protégées
     assert.ok(r1.ok);
     assert.deepStrictEqual((r1.badgesEarned || []).map(b => b.id), ['http_terre'], JSON.stringify(r1));
     const r2 = await send({ maxDepth: 4, manualBlocks: 3, manualClicks: 6, autoBlocks: 0 }, { terre_meuble: 3 });
-    assert.strictEqual(r2.badgesEarned, undefined, 'une seule attribution');
+    assert.deepStrictEqual((r2.badgesEarned || []).map(b => b.id), ['http_terre'], 'non confirmée : renvoyée');
+    assert.strictEqual((await fetch(`${BASE}/api/me/badges/seen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"ids":["http_terre"]}' })).status, 401);
+    const seen = await fetch(`${BASE}/api/me/badges/seen`, { method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ['http_terre'] }) });
+    assert.deepStrictEqual(await seen.json(), { ok: true, marked: 1 });
+    const r3 = await send({ maxDepth: 4, manualBlocks: 3, manualClicks: 6, autoBlocks: 0 }, { terre_meuble: 3 });
+    assert.strictEqual(r3.badgesEarned, undefined, 'une seule attribution, une seule notification');
 
     const view = await (await fetch(`${BASE}/api/me/badges`, { headers: { Cookie: cookie } })).json();
     const got = view.badges.find(b => b.id === 'http_terre');
@@ -288,7 +330,29 @@ test('client : compteur par type, section Badges, textes FR/EN/NL, rendu échapp
   assert.match(main, /badgesEarned/);
   assert.match(html, /id="badges-panel"/);
   assert.match(saveJs, /minedByType/);
-  assert.strictEqual((i18n.match(/toast: '(Badge obtenu|Badge earned|Badge behaald)/g) || []).length, 3);
+  assert.strictEqual((i18n.match(/toast: '(Badge débloqué|Badge unlocked|Badge vrijgespeeld|Insignia desbloqueada)/g) || []).length, 4);
   const fn = main.slice(main.indexOf('async function renderBadges'), main.indexOf('// ── Rendu collection'));
   for (const field of ['name', 'desc', 'b.icon']) assert.ok(fn.includes(`escapeHtml(${field})`), field);
+});
+
+test('recette #38-C/E : critère traduit dans toutes les langues, fiche au clic, notification confirmée', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8');
+  const admin = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'public/index.html'), 'utf8');
+  const i18n = fs.readFileSync(path.join(ROOT, 'public/js/i18n.js'), 'utf8');
+  const it = fs.readFileSync(path.join(ROOT, 'public/js/locales/it.js'), 'utf8');
+  // Un modèle de critère par condition et par langue (FR/EN/NL/ES intégrées + pilote italien)
+  for (const c of badges.CONDITIONS) {
+    assert.strictEqual((i18n.match(new RegExp(`\\b${c}: '[^']*\\{n\\}`, 'g')) || []).length, 4, c);
+    assert.match(it, new RegExp(`"${c}": "[^"]*\\{n\\}`), `it ${c}`);
+  }
+  assert.match(i18n, /max_depth: 'Depth ≥ \{n\} m'/);
+  assert.match(admin, /bgCondLabel\(f, l\)/, 'aperçu admin : critère dans la langue éditée');
+  assert.match(html, /id="find-modal-extra"/);
+  const sheet = main.slice(main.indexOf('function _openItemSheet'), main.indexOf('// ── Rendu quotidien'));
+  assert.ok(!/innerHTML\s*=\s*[^'`]/.test(sheet.replace("rarity.innerHTML = '';", '')), 'fiche : texte seul');
+  assert.match(main, /class="badge-card[^"]*" data-badge=/);
+  assert.match(main, /showBadgeSheet\(b, card\)/);
+  assert.match(main, /'\/api\/me\/badges\/seen'/);
+  assert.match(main, /showAchievement\('🏅', t\('badges\.toast'/);
 });

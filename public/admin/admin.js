@@ -5891,11 +5891,16 @@ let _bgSheet = null;     // { mode: 'new' | 'edit' | 'proposal', badge?, proposa
 let _bgLang = 'fr';      // langue éditée dans la fiche (une seule visible à la fois, recette #38-A)
 let _bgRO = false;       // fiche en lecture seule (proposition déjà traitée)
 
-function bgCondLabel(b) {
+/** Critère lisible, dans la langue demandée (recette #38-C) : mêmes textes que la fiche du joueur
+ *  (clés badges.cond.* du jeu, repli français), nom du bloc traduit si le catalogue le fournit. */
+function bgCondLabel(b, lang = 'fr') {
   if (!b.condition) return '⚠ critère non pris en charge';
   const bt = (_bgData?.blockTypes || []).find(t => t.id === b.blockId);
-  return (BG_COND[b.condition] || b.condition).replace('{n}', Number(b.threshold).toLocaleString('fr'))
-    .replace('{block}', bt ? `${bt.icon} ${bt.name}` : (b.blockId || '?'));
+  const tpl = I18n.get(`badges.cond.${b.condition}`, lang) || I18n.get(`badges.cond.${b.condition}`, 'fr') || BG_COND[b.condition] || b.condition;
+  const blockName = bt ? (bt.names?.[lang] || I18n.get(`block.${bt.id}`, lang) || bt.name) : '';
+  const intl = DigLanguages.get(lang)?.intl || lang;
+  return tpl.replace('{n}', Number(b.threshold).toLocaleString(intl))
+    .replace('{block}', bt ? `${bt.icon} ${blockName}` : (b.blockId || '?'));
 }
 
 function bgArt(el, image, icon, size) {
@@ -5967,7 +5972,7 @@ function bgLivePreview() {
   document.getElementById('bg-pv-h').textContent = `Aperçu joueur (${l.toUpperCase()})${l !== 'fr' && !f.names[l] ? ' — texte français affiché' : ''}`;
   document.getElementById('bg-pv-name').textContent = f.names[l] || f.names.fr || '(nom FR obligatoire)';
   document.getElementById('bg-pv-desc').textContent = f.descriptions[l] || f.descriptions.fr || '(description FR obligatoire)';
-  document.getElementById('bg-pv-cond').textContent = `${bgCondLabel(f)}${f.visibility === 'hidden' ? ' · secret' : ''}${f.startsAt || f.endsAt ? ` · événement ${f.startsAt || '…'} → ${f.endsAt || '…'}` : ''}`;
+  document.getElementById('bg-pv-cond').textContent = `${bgCondLabel(f, l)}${f.visibility === 'hidden' ? ' · secret' : ''}${f.startsAt || f.endsAt ? ` · événement ${f.startsAt || '…'} → ${f.endsAt || '…'}` : ''}`;
   // Pastilles des langues
   for (const b of document.querySelectorAll('#bg-langs .co-lang-btn')) {
     const x = b.dataset.lang;
