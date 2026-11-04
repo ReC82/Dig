@@ -3,7 +3,7 @@
  *
  * Une seule interface pour TOUTES les icônes du jeu : blocs (minerais, pierres, coffres, gemmes —
  * catalogue #37), objets de collection et reliques (#39) et pictogrammes d'interface (profil,
- * paramètres, navigation — application en jeu avec #41). Badges : à brancher quand #38 existera.
+ * paramètres, navigation — application en jeu avec #67, registre server/uiIcons.js). Badges : à brancher quand #38 existera.
  *
  * Cycle d'une icône :
  *   brief (sujet/détails/palette, modifiable) → génération IA d'UNE image par action (consigne
@@ -54,7 +54,7 @@ const SHA_RE = /^[a-f0-9]{16}$/;
 // Objet d'événement (#65) : clé stable `event:<événement>/<objet>` (identifiants de #56, jamais réutilisés)
 const KEY_RE = /^(block|item|badge|relic|mission|ui|event):([a-z][a-z0-9_]{1,39}|[a-z][a-z0-9_]{2,39}\/[a-z][a-z0-9_]{2,39})$/;
 
-/** Pictogrammes d'interface (#41 pour l'application en jeu). Profil ≠ paramètres ≠ améliorations. */
+/** Pictogrammes d'interface : appliqués en jeu par GET /api/ui-icons (#67). Profil ≠ paramètres ≠ améliorations. */
 // Pictogrammes d'interface (#67) : registre à part, identifiants stables, zone et emplacement exact en jeu
 const { UI_TARGETS, ZONES: UI_ZONES } = require('./uiIcons');
 
@@ -335,6 +335,8 @@ function uiIconMap() {
   const applied = _uiApplied();
   const icons = {};
   for (const u of UI_TARGETS) if (u.deployable && applied[u.id]) icons[u.id] = applied[u.id];
+  // Emblèmes des missions du jour (#68) : image PUBLIÉE du catalogue, seulement une fois ce catalogue actif en jeu
+  if (missionCatalog.isLive()) for (const m of missionCatalog.getPublished().missions) if (m.image) icons[`mission_${m.id}`] = m.image;
   const rev = crypto.createHash('sha256').update(JSON.stringify(icons)).digest('hex').slice(0, 12);
   return { icons, rev };
 }

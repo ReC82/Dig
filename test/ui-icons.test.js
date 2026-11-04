@@ -68,7 +68,7 @@ test('registre : identifiants stables et uniques, zones, ids existants conservé
     assert.ok(u.emoji && u.name && u.en && u.where && u.context && u.subject, `fiche complète : ${u.id}`);
   }
   assert.strictEqual(UI_TARGETS.find(u => u.id === 'logo').deployable, false, 'logo (#41) : stockage seulement');
-  assert.ok(UI_TARGETS.filter(u => u.deployable).length >= 30, 'inventaire étendu (navigation, en-tête, monnaies, classement, missions, améliorations, objectifs)');
+  assert.ok(UI_TARGETS.filter(u => u.deployable).length >= 24, 'inventaire étendu (navigation, en-tête, monnaies, classement, améliorations, objectifs)');
   const keys = studio.listTargets().filter(t => t.kind === 'ui');
   assert.strictEqual(keys.length, UI_TARGETS.length);
   const col = keys.find(t => t.key === 'ui:collection');
@@ -84,10 +84,13 @@ test('raccordement : chaque pictogramme déployable est lu par le jeu au bon end
     if (u.zone === 'nav' || u.zone === 'header') wired = new RegExp(`data-ui-icon="${u.id}"`).test(html);
     else if (u.zone === 'upgrades') wired = /UiIcons\.html\(`upgrade_\$\{def\.id\}`/.test(main) && upgrades.includes(`id: '${u.id.slice(8)}'`);
     else if (u.zone === 'quests') wired = /UiIcons\.html\(`quete_\$\{def\.id\}`/.test(main) && quests.includes(`id: '${u.id.slice(6)}'`);
-    else if (u.zone === 'missions') wired = /UiIcons\.html\(`mission_\$\{def\.id\}`/.test(main) && missions.includes(`id: '${u.id.slice(8)}'`);
     else wired = main.includes(`'${u.id}'`);
     assert.ok(wired, `pictogramme raccordé au jeu : ${u.id}`);
   }
+  // Missions du jour : emblèmes du catalogue #68 (mission:<id>), lus par le jeu sous mission_<id>, sans doublon ui:
+  assert.ok(!UI_TARGETS.some(u => u.id.startsWith('mission_')), 'pas de cible ui:mission_* (doublon de #68)');
+  assert.match(main, /UiIcons\.html\(`mission_\$\{def\.id\}`/);
+  for (const id of ['break_blocks', 'earn_coins', 'open_chests', 'buy_upgrades', 'find_gems', 'depth_gain']) assert.ok(missions.includes(`id: '${id}'`));
   // Emplacements exacts : la cible Collection est l'onglet de navigation, pas un objet de collection
   assert.match(html, /data-view="collection"[\s\S]{0,200}<span class="nav-icon" data-ui-icon="collection">📦<\/span>/);
   assert.match(html, /id="btn-account"[\s\S]{0,400}data-ui-icon="profil"/);
@@ -157,13 +160,13 @@ test('application : accord « live » obligatoire, retour arrière A → B → A
 
 test('réutilisation : l\'image d\'un autre pictogramme sans nouvelle génération ; image d\'une autre famille refusée', () => {
   const n = prompts.length;
-  const C = fakeAsset('ui:mission_find_gems');
+  const C = fakeAsset('ui:medaille_argent');
   const t = studio.getTarget('ui:quete_find_gem');
-  assert.ok(t.reusable.some(r => r.sha === C && r.target === 'ui:mission_find_gems'));
+  assert.ok(t.reusable.some(r => r.sha === C && r.target === 'ui:medaille_argent'));
   const r = studio.apply('ui:quete_find_gem', { sha: C, live: true });
   assert.strictEqual(r.target.image, url(C));
-  assert.strictEqual(r.target.history[0].details.reusedFrom, 'ui:mission_find_gems');
-  assert.strictEqual(studio.uiIconMap().icons.mission_find_gems, undefined, 'la source n\'est pas appliquée pour autant');
+  assert.strictEqual(r.target.history[0].details.reusedFrom, 'ui:medaille_argent');
+  assert.strictEqual(studio.uiIconMap().icons.medaille_argent, undefined, 'la source n\'est pas appliquée pour autant');
   const item = fakeAsset('item:relic');
   assert.throws(() => studio.apply('ui:quete_find_gem', { sha: item, live: true }), e => e.status === 404);
   assert.strictEqual(prompts.length, n, 'aucune génération');
@@ -232,4 +235,19 @@ test('route publique GET /api/ui-icons : sans cache, seulement les pictogrammes 
   // Retour au pictogramme d'origine : la liste servie au jeu redevient vide
   await fetch(`${BASE}/api/admin/icons/targets/ui:collection/apply`, { method: 'POST', headers: H, body: JSON.stringify({ sha: null, live: true }) });
   assert.deepStrictEqual((await (await fetch(`${BASE}/api/ui-icons`)).json()).icons, {});
+});
+
+test('missions du jour (#68) : emblème publié servi au jeu seulement quand le catalogue est actif en jeu', () => {
+  const missionCatalog = require('../server/missionCatalog');
+  const orig = { isLive: missionCatalog.isLive, getPublished: missionCatalog.getPublished };
+  const img = url(fakeAsset('mission:break_blocks'));
+  const withImg = { missions: [{ id: 'break_blocks', icon: '⛏', image: img }, { id: 'earn_coins', icon: '💰', image: null }] };
+  try {
+    missionCatalog.getPublished = () => withImg;
+    assert.strictEqual(studio.uiIconMap().icons.mission_break_blocks, undefined, 'catalogue #68 inactif en jeu : rien ne change pour les joueurs');
+    missionCatalog.isLive = () => true;
+    assert.strictEqual(studio.uiIconMap().icons.mission_break_blocks, img);
+    assert.strictEqual(studio.uiIconMap().icons.mission_earn_coins, undefined, 'sans image : emoji d\'origine');
+  } finally { Object.assign(missionCatalog, orig); }
+  assert.strictEqual(studio.uiIconMap().icons.mission_break_blocks, undefined);
 });

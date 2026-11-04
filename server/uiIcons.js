@@ -19,7 +19,6 @@ const ZONES = {
   header: 'En-tête',
   currency: 'Monnaies et récompenses',
   ranking: 'Classement',
-  missions: 'Missions du jour',
   upgrades: 'Améliorations',
   quests: 'Objectifs',
 };
@@ -53,7 +52,7 @@ const UI_TARGETS = [
     subject: 'A compact square emblem for the DIG! mining game: a chunky faceted stone block with a golden pickaxe planted in its top', details: 'Badge-like square emblem that stays readable at 32 to 40 pixels in a phone header, placed just before the word DIG!; no text, no letters, no ribbon, no wide shape.', palette: 'Palette: cool stone gray block like the reference stone, bright gold pickaxe head, warm wooden handle.' },
 
   // ── Monnaies et récompenses (coûts, récompenses de missions, d'objectifs et de connexion) ──
-  { id: 'pieces', zone: 'currency', emoji: '💰', name: 'Pièces', en: 'Coins', where: 'devant chaque montant en pièces : coûts des améliorations, récompenses des missions, des objectifs et de la connexion quotidienne', context: 'small inline currency symbol shown before every coin amount (costs and rewards)',
+  { id: 'pieces', zone: 'currency', emoji: '💰', name: 'Pièces', en: 'Coins', where: 'devant chaque montant en pièces : récompense du bloc miné, coûts des améliorations et des coffres, récompenses des missions, des objectifs et de la connexion quotidienne', context: 'small inline currency symbol shown before every coin amount (costs and rewards)',
     subject: 'A small stack of three gold coins', details: 'Three thick round coins slightly fanned, readable at 16 pixels inline with text.', palette: 'Palette: bright gold with warm orange shading.' },
   { id: 'gemmes', zone: 'currency', emoji: '💎', name: 'Gemmes', en: 'Gems', where: 'devant chaque montant en gemmes : coûts, récompenses, solde de la boutique', context: 'small inline premium currency symbol shown before every gem amount',
     subject: 'A single brilliant-cut blue gem', details: 'Classic faceted diamond shape seen from the side, crisp facets, readable at 16 pixels inline with text.', palette: 'Palette: light cyan to deep blue facets with white glints.' },
@@ -72,19 +71,9 @@ const UI_TARGETS = [
   { id: 'blocs_mines', zone: 'ranking', emoji: '👆', name: 'Blocs minés à la main', en: 'Blocks mined by hand', where: 'nombre de blocs minés à la main, dans chaque ligne du classement', context: 'small symbol before the number of blocks a player broke by tapping, in each leaderboard row',
     subject: 'A pointing finger tapping a small stone block', details: 'Index finger pressing the top of a tiny cube of rock, small impact sparks.', palette: 'Palette: warm skin tone, gray stone, yellow sparks.' },
 
-  // ── Missions du jour (onglet Quotidien, public/js/dailyMissions.js) ──
-  { id: 'mission_break_blocks', zone: 'missions', emoji: '⛏', name: 'Mission : casser des blocs', en: 'Break blocks mission', where: 'carte de la mission du jour « casser des blocs »', context: 'icon of the daily mission "break N blocks"',
-    subject: 'A pickaxe striking a cracked stone block', details: 'Pickaxe head hitting the corner of a small cube of rock with visible cracks.', palette: 'Palette: steel and wood pickaxe, gray stone.' },
-  { id: 'mission_earn_coins', zone: 'missions', emoji: '💰', name: 'Mission : gagner des pièces', en: 'Earn coins mission', where: 'carte de la mission du jour « gagner des pièces »', context: 'icon of the daily mission "earn N coins"',
-    subject: 'A small open money bag spilling gold coins', details: 'Cloth sack tied at the neck, a few coins tumbling out.', palette: 'Palette: tan cloth, bright gold coins.' },
-  { id: 'mission_open_chests', zone: 'missions', emoji: '📦', name: 'Mission : ouvrir des coffres', en: 'Open chests mission', where: 'carte de la mission du jour « ouvrir des coffres »', context: 'icon of the daily mission "open N chests"',
-    subject: 'A small wooden chest with its lid popping open', details: 'Iron-banded chest, lid half open with a golden glow inside.', palette: 'Palette: warm wood, dark iron bands, golden light.' },
-  { id: 'mission_buy_upgrades', zone: 'missions', emoji: '⚙', name: 'Mission : acheter des améliorations', en: 'Buy upgrades mission', where: 'carte de la mission du jour « acheter des améliorations »', context: 'icon of the daily mission "buy N upgrades"',
-    subject: 'A wrench and a pickaxe crossed with a small plus sign', details: 'Two tools crossed, a bold green plus in a corner meaning improvement.', palette: 'Palette: steel tools, wooden handle, green plus.' },
-  { id: 'mission_find_gems', zone: 'missions', emoji: '💎', name: 'Mission : trouver des gemmes', en: 'Find gems mission', where: 'carte de la mission du jour « trouver des gemmes »', context: 'icon of the daily mission "find N gems"',
-    subject: 'A raw gem crystal sticking out of a small rock', details: 'Rough gray rock with a bright faceted crystal emerging from it.', palette: 'Palette: gray rock, vivid green and cyan crystal.' },
-  { id: 'mission_depth_gain', zone: 'missions', emoji: '🗺', name: 'Mission : descendre en profondeur', en: 'Dig deeper mission', where: 'carte de la mission du jour « descendre de N mètres »', context: 'icon of the daily mission "dig N meters deeper"',
-    subject: 'A bold downward arrow plunging into layered ground', details: 'Cross-section of three soil layers with a thick arrow pointing down through them.', palette: 'Palette: brown and gray layers, bright orange arrow.' },
+  // ── Missions du jour : PAS ici. Leurs emblèmes sont les cibles `mission:<id>` du catalogue #68 (même
+  //    identifiants que les six missions du jeu) ; uiIconMap() les sert au jeu (`mission_<id>`) dès que
+  //    le catalogue #68 est actif en jeu (missionCatalog.isLive()), jamais avant. Pas de doublon ici.
 
   // ── Améliorations (onglet Améliorations, public/js/upgrades.js) ──
   { id: 'upgrade_pickaxe', zone: 'upgrades', emoji: '⛏', name: 'Amélioration : pioche', en: 'Pickaxe upgrade', where: 'carte « Pioche » de l\'onglet Améliorations', context: 'icon of the "Pickaxe" upgrade card (more damage per tap)',

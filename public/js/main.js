@@ -489,16 +489,17 @@ function renderBlock() {
     // Montants entiers en toutes lettres (séparateurs de milliers, jamais abrégés) ; en cas de
     // manque de place, retour à la ligne entre deux facteurs, « = total » toujours d'un seul tenant.
     const lang = I18n.getCurrent();
+    const coin = UiIcons.html('pieces', '💰');
     if (factors.length > 0) {
       const ICONS = { bag: '🎒', relic: '💛', event: '✨', boost: '⚡' };
       const fmt   = m => Number(m).toLocaleString(lang, { maximumFractionDigits: 3 });
-      rewardHtml = `<span class="reward-base">💰 ${base.toLocaleString(lang)}</span>`
+      rewardHtml = `<span class="reward-base">${coin} ${base.toLocaleString(lang)}</span>`
                  + factors.map(f =>
                      ` <span class="reward-factor reward-factor-${f.key}" title="${t('ui.reward_factor.' + f.key)}">`
                    + `× ${ICONS[f.key]} ${fmt(f.mult)}</span>`).join('')
-                 + ` <span class="reward-result"><span class="reward-eq">=</span> <span class="reward-final">💰 ${total.toLocaleString(lang)}</span></span>`;
+                 + ` <span class="reward-result"><span class="reward-eq">=</span> <span class="reward-final">${coin} ${total.toLocaleString(lang)}</span></span>`;
     } else {
-      rewardHtml = `<span class="reward-value">💰 ${total.toLocaleString(lang)}</span>`;
+      rewardHtml = `<span class="reward-value">${coin} ${total.toLocaleString(lang)}</span>`;
     }
   }
   elBlockReward.innerHTML = `${t('ui.reward_label')} : ${rewardHtml}`;
@@ -3956,6 +3957,7 @@ function init() {
   // Pictogrammes d'interface appliqués depuis l'atelier (#67) : barre du bas et en-tête tout de suite,
   // vues dynamiques re-rendues seulement si la liste a changé (emoji d'origine en repli).
   UiIcons.load(() => {
+    if (Blocks.current) renderBlock();
     renderUpgrades(); renderQuests(); renderShopChests();
     if (isViewActive('daily')) renderDaily();
     if (isViewActive('season')) _refreshSeasonView();

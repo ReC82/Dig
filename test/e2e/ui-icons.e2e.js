@@ -4,7 +4,8 @@
  *     à #41, aperçu avant/après PC et smartphone, « Appliquer cette image dans le jeu… » distinct de
  *     « Refaire » ; Annuler la confirmation n'applique rien ; Confirmer l'applique.
  *  B. Jeu : l'onglet Collection affiche l'image, les autres onglets et le logo sont inchangés ; pictogrammes
- *     des missions, des coûts (pièces) et de la médaille d'or appliqués par la route du panel affichés.
+ *     des coûts (pièces), d'une amélioration et de la médaille d'or appliqués par la route du panel affichés ;
+ *     missions du jour : emoji d'origine (emblèmes du catalogue #68, inactif en jeu).
  *  C. Aperçu ?uiicon= (rien d'appliqué) et image introuvable → repli sur l'emoji d'origine.
  *  D. Retour arrière depuis le panel (« Revenir au pictogramme d'origine ») : le jeu réaffiche 📦.
  *  Aucune erreur console, pas de débordement horizontal.
@@ -43,7 +44,7 @@ async function upload(key, color) {
 
   // Préparation : une proposition (téléversée, aucune IA) pour Collection, une image pour les autres essais
   const col = await upload('ui:collection', '#a0602a');
-  const other = await upload('ui:mission_break_blocks', '#2a80c0');
+  const other = await upload('ui:medaille_argent', '#2a80c0');
   check('prep', 'propositions téléversées', !!col.sha && !!other.sha, JSON.stringify([col.error, other.error]));
   check('prep', 'rien appliqué au départ', Object.keys(await uiMap()).length === 0);
 
@@ -85,8 +86,8 @@ async function upload(key, color) {
   check('A', 'retour arrière proposé', await admin.locator('#ic-sheet button', { hasText: 'Revenir au pictogramme d\'origine' }).count() >= 1);
   await admin.screenshot({ path: `${SHOTS}/67-admin-collection-applique.png`, fullPage: true });
 
-  // Autres cibles variées, par la route du panel (même code serveur) : mission, monnaie, médaille
-  for (const id of ['mission_break_blocks', 'mission_earn_coins', 'mission_open_chests', 'mission_buy_upgrades', 'mission_find_gems', 'mission_depth_gain', 'pieces', 'medaille_or']) {
+  // Autres cibles variées, par la route du panel (même code serveur) : monnaie, amélioration, médaille
+  for (const id of ['pieces', 'upgrade_pickaxe', 'medaille_or']) {
     const r = await api('POST', `/api/admin/icons/targets/ui:${id}/apply`, { sha: other.sha, live: true });
     if (r.error) check('prep', `application ${id}`, false, r.error);
   }
@@ -106,15 +107,17 @@ async function upload(key, color) {
     check(tag, 'B autres onglets inchangés (emoji)', nav.filter(n => n[0] !== 'collection').every(n => !n[1].startsWith('/media/')), JSON.stringify(nav));
     const img = await page.$eval('.nav-icon[data-ui-icon="collection"] img', e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), e.complete && e.naturalWidth > 0]; });
     check(tag, 'B image chargée, taille d\'un pictogramme', img[2] && img[0] >= 20 && img[0] <= 32, img.join('×'));
-    check(tag, 'B logo inchangé', await page.$eval('#game-logo img', e => e.getAttribute('src')) === 'assets/logo/a-lingot.svg');
+    check(tag, 'B logo inchangé', await page.$eval('#game-logo img', e => e.getAttribute('src').split('?')[0]) === 'assets/logo/a-lingot.svg');
     check(tag, 'B en-tête inchangé (SVG d\'origine)', await page.$$eval('.hdr-ico-wrap svg', e => e.length) === 3);
     await page.screenshot({ path: `${SHOTS}/67-${tag}-jeu-collection.png` });
+    check(tag, 'B récompense du bloc : pictogramme « pièces »', await page.$$eval('#block-reward img.ui-ico', e => e.length) >= 1);
     await tap('.nav-btn[data-view="upgrades"]');
     check(tag, 'B coûts : pictogramme « pièces »', await page.$$eval('#upgrades-list img.ui-ico', e => e.length) > 0);
+    check(tag, 'B carte Pioche : image appliquée', await page.$$eval('#upgrades-list .upgrade-icon img.ui-ico', e => e.length) === 1);
     await tap('.nav-btn[data-view="daily"]');
     await page.waitForSelector('.mission-card');
-    const m = await page.$$eval('.mission-card', cards => cards.map(c => !!c.querySelector('.mission-icon img.ui-ico')));
-    check(tag, 'B missions du jour : pictogrammes appliqués', m.length > 0 && m.every(Boolean), JSON.stringify(m));
+    const m = await page.$$eval('.mission-card', cards => cards.map(c => [!!c.querySelector('.mission-icon img.ui-ico'), !!c.querySelector('.mission-reward-text img.ui-ico')]));
+    check(tag, 'B missions du jour : emblème d\'origine (catalogue #68 inactif), récompense en pièces = image', m.length > 0 && m.every(x => !x[0]) && m.some(x => x[1]), JSON.stringify(m));
     await page.screenshot({ path: `${SHOTS}/67-${tag}-jeu-missions.png` });
     check(tag, 'B pas de débordement horizontal', await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth));
 
