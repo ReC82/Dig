@@ -3547,3 +3547,22 @@ body.has-ad-top.ad-top-collapsed header { padding-top: calc(14px + env(safe-area
 .shop-guide-name { grid-column: 1; grid-row: 1; font-size: 0.82rem; font-weight: 700; line-height: 1.2; }
 .shop-guide-cur  { grid-column: 1; grid-row: 2; font-size: 0.76rem; color: #c9cbd6; line-height: 1.2; }
 .shop-guide-where { grid-column: 2; grid-row: 1 / span 2; font-size: 0.74rem; font-weight: 600; color: var(--gold); white-space: nowrap; }
+
+/* ── Pictogrammes d'interface appliqués depuis l'atelier d'icônes (#67) ──
+   Image carrée à la taille de l'emoji qu'elle remplace (suit la taille du texte) ; repli emoji/SVG
+   d'origine si l'image manque (public/js/uiIcons.js). */
+.ui-ico {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  object-fit: contain;
+  vertical-align: -0.25em;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.nav-icon.has-ui-ico { display: inline-flex; }
+.nav-icon .ui-ico { width: 1.6rem; height: 1.6rem; vertical-align: middle; }
+.hdr-ico-wrap { display: inline-flex; align-items: center; justify-content: center; }
+.hdr-ico-wrap .ui-ico { width: 30px; height: 30px; vertical-align: middle; }
+.upgrade-icon .ui-ico, .quest-icon .ui-ico, .mission-icon .ui-ico, .streak-icon .ui-ico { width: 1.35em; height: 1.35em; }
+.lb-rank .ui-ico { width: 1.4em; height: 1.4em; }

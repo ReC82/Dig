@@ -1458,6 +1458,18 @@ function iconRoute(label, fn) {
 }
 
 // Images de l'atelier : stockées dans la base, adressées par empreinte (immuables).
+// Pictogrammes d'interface appliqués depuis l'atelier (#67) : lus à chaque chargement du jeu, jamais
+// mis en cache (un retour arrière s'applique au rechargement suivant) ; les images, elles, sont immuables.
+app.get('/api/ui-icons', (_req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(iconStudio.uiIconMap());
+  } catch (err) {
+    console.error('[GET /api/ui-icons]', err.message);
+    res.status(500).json({ error: 'Pictogrammes indisponibles.' });
+  }
+});
+
 app.get('/media/icons/:file', (req, res) => {
   const m = /^([a-f0-9]{16})\.webp$/.exec(String(req.params.file));
   const img = m && iconStudio.getImage(m[1]);
