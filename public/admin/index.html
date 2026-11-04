@@ -1299,6 +1299,25 @@
     </div>
 
     <!-- Propositions IA existantes (données) : affichées seulement s'il y en a ; la création passe par « ＋ Ajouter ». -->
+    <div class="overview-card" id="co-pity-card">
+      <h3 class="overview-card-title">🎲 Barème et simulation des drops</h3>
+      <p class="muted" style="font-size:0.78rem">Type de barème de chaque objet : <strong>fixe</strong> (même chance à chaque bloc éligible, tirée par le jeu) ou <strong>chance croissante</strong> (chance de départ + hausse à chaque tirage éligible raté, tirée par le serveur, compteur par joueur et par objet, un seul exemplaire). Le modèle et la simulation ne changent que le <strong>brouillon</strong> : rien n'est publié ni activé ici.</p>
+      <div class="form-actions bk-filters">
+        <label>Série <select id="co-pity-series"></select></label>
+        <button type="button" class="btn" id="btn-co-pity-preset" title="Communs 4 %, rare 2 % + 0,1 point par échec, légendaire 3 % + 0,3 point par gemme ratée ; peu communs et épiques inchangés. Brouillon seulement.">Appliquer le modèle « chance croissante » au brouillon</button>
+        <label>Joueurs simulés par profil <input id="co-pity-runs" type="number" min="50" max="5000" step="50" value="2000" style="width:7em"></label>
+        <button type="button" class="btn" id="btn-co-pity-sim">Lancer la simulation comparative</button>
+      </div>
+      <div class="bk-table-wrap">
+      <table class="bk-table">
+        <thead><tr><th>Objet</th><th>Rareté</th><th>Source</th><th>Barème du brouillon</th><th>Modèle « chance croissante »</th><th><abbr title="Compteurs des joueurs (objets publiés à chance croissante) : joueurs suivis · objets trouvés · plus long compteur d'échecs">Joueurs</abbr></th></tr></thead>
+        <tbody id="co-pity-body"></tbody>
+      </table>
+      </div>
+      <p id="co-pity-msg" class="hidden" role="status"></p>
+      <div id="co-pity-result"></div>
+    </div>
+
     <details class="overview-card hidden" id="co-ai-card">
       <summary class="overview-card-title" id="co-ai-card-title">✨ Propositions IA</summary>
       <p class="muted" style="font-size:0.78rem">Ouvrez une proposition pour la relire, la corriger, puis « Enregistrer dans le brouillon ». <strong>Rien n'est publié automatiquement</strong> et les drops restent inactifs.</p>
@@ -1515,6 +1534,7 @@
               <div style="grid-column:1/-1"><span class="muted" style="font-size:0.78rem">Blocs sources</span> <span id="co-i-from"></span></div>
               <label>Dès (m)<input id="co-i-min" type="number" min="1"></label>
               <label title="Probabilité testée à chaque bloc de la catégorie source détruit à partir de la profondeur indiquée, tant que le joueur ne possède pas l'objet (ex. 3 % ≈ 1 bloc sur 33)">Chance par bloc (%) ⓘ<input id="co-i-chance" type="number" min="0.001" max="50" step="any"></label>
+              <label title="Chance croissante : points de pourcentage ajoutés à chaque tirage éligible raté (ex. 0,3 → 3 %, 3,3 %, 3,6 %…, au plus 100 %). Compteur par joueur et par objet, tiré par le serveur. 0 = barème fixe.">Hausse par tirage raté (points) ⓘ<input id="co-i-pity" type="number" min="0" max="5" step="any" placeholder="0 = fixe"></label>
               <label><input type="checkbox" id="co-i-drop"> Drop activé</label>
             </div>
           </fieldset>

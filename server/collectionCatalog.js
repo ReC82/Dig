@@ -43,6 +43,7 @@ const MAX_ITEMS  = 400;
 const MAX_SERIES = 60;
 const MAX_IMAGE_BYTES = 350 * 1024;
 const MAX_CHANCE = 0.5;
+const MAX_PITY_STEP = 0.05;   // chance croissante (#39, 04/11) : au plus +5 points par tirage raté
 
 const ID_RE    = /^[a-z][a-z0-9_]{1,39}$/;
 const WEEK_RE  = /^(\d{4})-W(\d{2})$/;
@@ -216,6 +217,24 @@ function getPublished() {
   return structuredClone(_publishedCache);
 }
 
+/**
+ * Objets à chance croissante qui n'ont JAMAIS pu tomber dans le jeu (aucune version publiée ne les
+ * a eus en drop actif sans hausse) : seul le serveur peut les donner, une sauvegarde qui les
+ * contient sans trouvaille serveur est falsifiée (collectionPity.mergeInto les retire).
+ */
+let _serverOnly = null;
+function serverOnlyIds() {
+  const v = getPublished().version;
+  if (_serverOnly?.version === v) return _serverOnly.ids;
+  const pity = new Set(getPublished().items.filter(isServerDrop).map(i => i.id));
+  for (const r of conn().prepare('SELECT content FROM collection_catalog_versions').all()) {
+    for (const i of JSON.parse(r.content).items) if (pity.has(i.id) && i.dropEnabled && !isServerDrop(i)) pity.delete(i.id);
+  }
+  for (const id of ORIGIN_ITEMS.map(i => i.id)) pity.delete(id);   // coffres de la boutique (chestShop.js)
+  _serverOnly = { version: v, ids: pity };
+  return pity;
+}
+
 function getVersion(version) {
   return _row(conn().prepare('SELECT * FROM collection_catalog_versions WHERE version = ?').get(version));
 }
@@ -297,10 +316,16 @@ function publicCatalog() {
     if (eff.pending) { pending.add(s.id); continue; }
     series.push(eff.seasonId === s.seasonId ? s : { ...s, seasonId: eff.seasonId });
   }
-  const items = pending.size ? p.items.filter(i => !pending.has(i.seriesId)) : p.items;
+  // Objet à chance croissante : tiré par le serveur (collectionPity.js). `dropEnabled: false` pour le
+  // client, y compris un onglet resté sur une ancienne version du jeu : jamais de second tirage local.
+  const items = (pending.size ? p.items.filter(i => !pending.has(i.seriesId)) : p.items)
+    .map(i => (isServerDrop(i) ? { ...i, dropEnabled: false, serverDrop: i.dropEnabled === true } : i));
   const seasonIds = [...new Set(series.map(s => s.seasonId).filter(id => id != null))];
   return { version: p.version, series, items, seasons: _seasonInfo(seasonIds) };
 }
+
+/** Objet tiré côté serveur (chance croissante) plutôt que par Collection.tryDrop. */
+const isServerDrop = item => (item?.drop?.pityStep ?? 0) > 0;
 
 function _publishedIds() {
   const series = new Set(), items = new Set();
@@ -371,8 +396,12 @@ function normalizeItem(input) {
   const minDepth = Number(d.minDepth), chance = Number(d.chance);
   if (!_int(minDepth, 1, 1e6)) throw new CatalogError(400, `${where} : profondeur minimale entière ≥ 1.`);
   if (!(Number.isFinite(chance) && chance > 0 && chance <= MAX_CHANCE)) throw new CatalogError(400, `${where} : chance par bloc entre 0 et ${MAX_CHANCE} (ex. 0.03 = 3 %).`);
+  // Chance croissante (#39, décision du 04/11) : + pityStep par tirage éligible raté, tirée par le serveur
+  const pityStep = d.pityStep === undefined || d.pityStep === null || d.pityStep === '' ? 0 : Number(d.pityStep);
+  if (!(Number.isFinite(pityStep) && pityStep >= 0 && pityStep <= MAX_PITY_STEP)) throw new CatalogError(400, `${where} : hausse par tirage raté entre 0 et ${MAX_PITY_STEP} (ex. 0.001 = +0,1 point).`);
+  const step = Math.round(pityStep * 1e5) / 1e5;
   return { id, seriesId, names, stories, rarity, icon: _icon(input.icon, where), image,
-    drop: { from, minDepth, chance: Math.round(chance * 1e5) / 1e5 },
+    drop: { from, minDepth, chance: Math.round(chance * 1e5) / 1e5, ...(step > 0 ? { pityStep: step } : {}) },
     dropEnabled: input.dropEnabled === true, active: input.active !== false };
 }
 
@@ -485,6 +514,56 @@ function _upsert(kind, normalize, input, max) {
 
 const upsertDraftSeries = input => _upsert('series', normalizeSeries, input, MAX_SERIES);
 const upsertDraftItem = input => _upsert('items', normalizeItem, input, MAX_ITEMS);
+
+/**
+ * Barème « chance croissante » choisi par le propriétaire le 04/11 (#39) : communs 4 %, rare 2 %
+ * + 0,1 point par tirage éligible raté, légendaire 3 % + 0,3 point par gemme éligible ratée. Les
+ * autres raretés (peu commun, épique) gardent leur taux : aucun taux inventé.
+ */
+const PITY_PRESETS = {
+  croissant: {
+    label: 'Chance croissante (choix du propriétaire, 04/11)',
+    rarities: { commun: { chance: 0.04 }, rare: { chance: 0.02, pityStep: 0.001 }, legendaire: { chance: 0.03, pityStep: 0.003 } },
+  },
+};
+
+/** Objets d'une série avec un modèle de barème appliqué (sources, profondeur, drop activé inchangés). */
+function presetItems(items, presetId) {
+  const preset = PITY_PRESETS[presetId];
+  if (!preset) throw new CatalogError(400, 'Modèle de barème inconnu.');
+  return items.map(i => {
+    const r = preset.rarities[i.rarity];
+    if (!r) return i;
+    const { pityStep: _old, ...drop } = i.drop;
+    return { ...i, drop: { ...drop, chance: r.chance, ...(r.pityStep ? { pityStep: r.pityStep } : {}) } };
+  });
+}
+
+/**
+ * Applique un modèle aux objets d'une série DANS LE BROUILLON (rien n'est publié ni activé : la
+ * case « Drop activé » et les images ne changent pas). @returns {{ changed: Array<{id, before, after}> }}
+ */
+function applyPresetToDraft(seriesId, presetId) {
+  return conn().transaction(() => {
+    const draft = _draftOrPublished();
+    if (!draft.series.some(s => s.id === seriesId)) throw new CatalogError(404, `Série « ${seriesId} » absente du brouillon.`);
+    const mine = draft.items.filter(i => i.seriesId === seriesId);
+    if (!mine.length) throw new CatalogError(400, `Série « ${seriesId} » sans objet.`);
+    const next = new Map(presetItems(mine, presetId).map(i => [i.id, normalizeItem(i)]));
+    const changed = [];
+    draft.items = draft.items.map(i => {
+      const n = next.get(i.id);
+      if (!n || JSON.stringify(n.drop) === JSON.stringify(i.drop)) return i;
+      changed.push({ id: i.id, before: i.drop, after: n.drop });
+      return n;
+    });
+    if (changed.length) {
+      _saveDraft(draft, draft.basedOn);
+      _audit('draft_preset', null, { seriesId, preset: presetId, changes: changed });
+    }
+    return { changed, preset: presetId };
+  })();
+}
 
 function removeDraftEntry(kind, id) {
   if (!['series', 'items'].includes(kind)) throw new CatalogError(400, 'Type invalide.');
@@ -808,6 +887,8 @@ function buildAdminView() {
     images: listImages(),
     categories: CATEGORIES,
     rarities: RARITIES,
+    pityPresets: PITY_PRESETS,
+    maxPityStep: MAX_PITY_STEP,
     langs: LANGS,
   };
 }
@@ -818,4 +899,5 @@ module.exports = {
   normalizeSeries, normalizeItem, validateContent, diff, dropChanges,
   upsertDraftSeries, upsertDraftItem, removeDraftEntry, discardDraft, publishDraft, publishSeries, seriesReadiness, rollbackTo, listAudit,
   storeImage, getImage, listImages, buildAdminView,
+  MAX_PITY_STEP, PITY_PRESETS, isServerDrop, serverOnlyIds, presetItems, applyPresetToDraft,
 };

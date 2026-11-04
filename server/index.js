@@ -88,6 +88,7 @@ const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
 const collectionAi = require('./collectionAi');
+const collectionPity = require('./collectionPity');
 const seasonThemes = require('./seasonThemes');
 const badges = require('./badges');
 const badgeAi = require('./badgeAi');
@@ -457,17 +458,25 @@ app.get('/api/me/save', (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
     const row = getUserSave(req.session.userId);
-    res.json({ save: savePayload(row) });
+    res.json({ save: savePayload(row, req.session.userId) });
   } catch (err) {
     console.error('[GET /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
-/** Sauvegarde renvoyée au client : `revision` = révision serveur (alias historique `version`). */
-function savePayload(row) {
+/**
+ * Sauvegarde renvoyée au client : `revision` = révision serveur (alias historique `version`).
+ * Objets de collection trouvés par le serveur (chance croissante, #39) réinjectés s'ils manquent.
+ */
+function savePayload(row, userId = null) {
   if (!row) return null;
-  return { data: JSON.parse(row.data), revision: row.version, version: row.version, saved_at: row.saved_at };
+  const data = JSON.parse(row.data);
+  if (userId) {
+    try { collectionPity.mergeInto(userId, data); }
+    catch (err) { console.error('[savePayload] collection', err.message); }
+  }
+  return { data, revision: row.version, version: row.version, saved_at: row.saved_at };
 }
 
 /**
@@ -495,11 +504,13 @@ app.post('/api/me/save', limit.save, (req, res) => {
     // contrôle par un autre appareil ne peut pas s'intercaler entre les deux.
     const result = runTransaction(() => {
       if (!playSession.mayWrite(req.session.userId, controllerId)) return { notController: true };
+      // Collection (#39) : objets donnés par le serveur gardés, objets « serveur seul » falsifiés retirés
+      collectionPity.mergeInto(req.session.userId, data, { strip: true });
       return upsertUserSave(req.session.userId, JSON.stringify(data), { expectedVersion: baseRevision });
     });
     if (result.notController) return res.status(409).json(NOT_CONTROLLER);
     if (result.conflict) {
-      return res.status(409).json({ error: 'Sauvegarde obsolète.', conflict: true, save: savePayload(result.current) });
+      return res.status(409).json({ error: 'Sauvegarde obsolète.', conflict: true, save: savePayload(result.current, req.session.userId) });
     }
     const { version } = result;
     // Sync saisonnier piggybacked
@@ -518,7 +529,12 @@ app.post('/api/me/save', limit.save, (req, res) => {
     let eventFinds = [];
     try { eventFinds = monthlyEvents.processSave(req.session.userId); }
     catch (err) { console.error('[POST /api/me/save] événements', err.message); }
-    res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}), ...(eventFinds.length ? { eventFinds } : {}) });
+    // Collection à chance croissante (#39) : tirage serveur sur les mêmes blocs validés, compteur par objet
+    let collectionFinds = [];
+    try { collectionFinds = collectionPity.processSave(req.session.userId, data); }
+    catch (err) { console.error('[POST /api/me/save] collection', err.message); }
+    res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}), ...(eventFinds.length ? { eventFinds } : {}),
+      ...(collectionFinds.length ? { collectionFinds } : {}) });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -550,7 +566,7 @@ app.post('/api/me/play/claim', limit.play, (req, res) => {
     if (!controllerId) return;
     const result = playSession.claim(req.session.userId, controllerId, { onlyIfFree: req.body.onlyIfFree === true });
     if (!result.ok) return res.status(409).json({ ...NOT_CONTROLLER, epoch: result.epoch });
-    res.json({ ...result, save: savePayload(getUserSave(req.session.userId)) });
+    res.json({ ...result, save: savePayload(getUserSave(req.session.userId), req.session.userId) });
   } catch (err) {
     console.error('[POST /api/me/play/claim]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -822,7 +838,7 @@ function collectionRoute(label, fn) {
   return (req, res) => {
     try { res.json(fn(req)); }
     catch (err) {
-      if (err instanceof collectionCatalog.CatalogError || err instanceof collectionAi.CollectionAiError) {
+      if (err instanceof collectionCatalog.CatalogError || err instanceof collectionAi.CollectionAiError || err instanceof collectionPity.PityError) {
         return res.status(err.status).json({ error: err.message, details: err.details });
       }
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
@@ -1434,6 +1450,14 @@ app.post('/api/admin/collections/publish', requireAdmin, collectionRoute('POST /
 app.post('/api/admin/collections/series/:id/publish', requireAdmin, collectionRoute('POST /api/admin/collections/series/:id/publish',
   req => collectionCatalog.publishSeries(String(req.params.id), { note: req.body?.note, expectedBasedOn: req.body?.expectedBasedOn,
     confirmDrops: req.body?.confirmDrops === true, confirmPermanent: req.body?.confirmPermanent === true })));
+// Chance croissante (#39, 04/11) : modèle appliqué au BROUILLON d'une série (rien publié ni activé),
+// simulation comparative en arrière-plan (processus enfant de basse priorité), compteurs des joueurs.
+app.post('/api/admin/collections/draft/series/:id/preset', requireAdmin, collectionRoute('POST /api/admin/collections/draft/series/:id/preset',
+  req => collectionCatalog.applyPresetToDraft(String(req.params.id), String(req.body?.preset ?? ''))));
+app.get('/api/admin/collections/simulation', requireAdmin, collectionRoute('GET /api/admin/collections/simulation',
+  () => ({ ...collectionPity.simulationStatus(), counters: collectionPity.adminStats() })));
+app.post('/api/admin/collections/simulation', requireAdmin, collectionRoute('POST /api/admin/collections/simulation',
+  req => collectionPity.startSimulation(String(req.body?.seriesId ?? ''), { runs: req.body?.runs ?? 2000 })));
 app.post('/api/admin/collections/rollback', requireAdmin, collectionRoute('POST /api/admin/collections/rollback',
   req => collectionCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
 app.post('/api/admin/collections/images', requireAdmin, collectionRoute('POST /api/admin/collections/images',
@@ -2101,6 +2125,7 @@ blockAi.init();                  // création de blocs assistée par IA : propos
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)
 collectionCatalog.init();        // collections v1 = 8 trouvailles d'origine, drops identiques (#39)
 collectionAi.init();             // propositions de collections assistées par IA (#39)
+collectionPity.init();           // chance croissante : compteurs par joueur et par objet (#39, 04/11)
 // Collections préparées (server/content/collections) → brouillon, une seule fois (#39) ; pas en test (bases neuves)
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_COLLECTIONS !== '0') collectionAi.importPrepared();
 seasonThemes.init();             // saisons thématiques : thèmes, noms réservés, journal ; préparation par le planificateur (#48)

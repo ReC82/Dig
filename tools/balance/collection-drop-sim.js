@@ -13,6 +13,11 @@
  *   - la série permanente « origines » (8 objets, actifs) passe avant la série saisonnière ;
  *     ses objets restent acquis d'une saison à l'autre.
  * Les gains hors ligne (main.js) ne détruisent pas de blocs : aucun drop hors ligne.
+ * Objets à chance croissante (`pityStep`, implémentés le 04/11 dans server/collectionPity.js) : tirés
+ * par le SERVEUR, indépendamment de la chaîne ci-dessus (un objet « jeu » trouvé sur le même bloc
+ * n'empêche pas leur tirage), chance = min(100 %, chance + pityStep × tirages éligibles ratés).
+ * Le serveur juge l'éligibilité sur la profondeur retenue à la sauvegarde (quelques secondes de
+ * minage) : écart négligeable avec la profondeur du bloc utilisée ici.
  * Hasard à graine (mulberry32) séparé de celui du jeu : mêmes options → mêmes chiffres, et le
  * barème testé ne modifie pas la partie simulée. Aucun accès réseau ni base de données ; rien
  * n'est activé ni publié : les barèmes ci-dessous sont des PROPOSITIONS à valider.
@@ -72,8 +77,8 @@ SCALES.EXIGEANT = variant('Alternative — exigeant (légendaire réservé aux p
 SCALES.ACCESSIBLE = variant('Variante « accessible » — valeurs seules (applicable telle quelle dans l\'admin)',
   'Communs 4 %, peu communs 2 %, rare 3 % dès 40 m (au lieu de 1,5 %), légendaire 6 % par gemme dès 100 m (au lieu de 5 %).',
   { commun: { chance: 0.04 }, rare: { chance: 0.03 }, legendaire: { chance: 0.06 } });
-SCALES.CROISSANT = variant('Variante « chance croissante » — demande une petite évolution du jeu',
-  'Communs 4 %, peu communs 2 % ; rare 2 % + 0,1 point par minerai éligible raté ; légendaire 3 % + 0,3 point par gemme éligible ratée (compteur par joueur et par objet, NON implémenté dans le jeu).',
+SCALES.CROISSANT = variant('Chance croissante — barème choisi par le propriétaire le 04/11',
+  'Communs 4 %, peu communs 2 % ; rare 2 % + 0,1 point par minerai éligible raté ; légendaire 3 % + 0,3 point par gemme éligible ratée (compteur serveur par joueur et par objet, server/collectionPity.js).',
   { commun: { chance: 0.04 }, rare: { chance: 0.02, pityStep: 0.001 }, legendaire: { chance: 0.03, pityStep: 0.003 } });
 
 const DAYS_ALL = [0, 1, 2, 3, 4, 5, 6];
@@ -105,14 +110,14 @@ function rng(seed) {
  * @returns {Object<string, object>} par barème : part des joueurs ayant chaque objet, la série
  *   complète, la série complète à la fin de chaque jour, et les blocs éligibles rencontrés.
  */
-function run(scaleKeys, profile, { runs = 2000, season = 0, seed = 39 } = {}) {
+function run(scaleKeys, profile, { runs = 2000, season = 0, seed = 39, scales: SC = SCALES } = {}) {
   const rules = sim.currentRules();
   const acc = Object.fromEntries(scaleKeys.map(k => [k, {
-    found: Object.fromEntries(SCALES[k].items.map(i => [i.id, 0])), all: 0, byDay: new Array(7).fill(0),
-    foundByDay: Object.fromEntries(SCALES[k].items.map(i => [i.id, new Array(7).fill(0)])) }]));
+    found: Object.fromEntries(SC[k].items.map(i => [i.id, 0])), all: 0, byDay: new Array(7).fill(0),
+    foundByDay: Object.fromEntries(SC[k].items.map(i => [i.id, new Array(7).fill(0)])) }]));
   const gem100 = [], maxDepth = [];
   for (let r = 0; r < runs; r++) {
-    const st = scaleKeys.map((k, n) => ({ k, items: SCALES[k].items, owned: new Set(), fails: {}, day: {}, random: rng((seed * 7919 + r) * 31 + n), doneDay: null }));
+    const st = scaleKeys.map((k, n) => ({ k, items: SC[k].items, owned: new Set(), fails: {}, day: {}, random: rng((seed * 7919 + r) * 31 + n), doneDay: null }));
     let seasonIdx = -1, last = Infinity, g100 = 0, maxD = 0;
     const onBlock = (type, depth, t) => {
       if (depth < last) seasonIdx++;                  // nouvelle saison : profondeur remise à 1
@@ -124,13 +129,17 @@ function run(scaleKeys, profile, { runs = 2000, season = 0, seed = 39 } = {}) {
       }
       for (const x of st) {
         const list = inSeason ? [...ORIGINES, ...x.items] : ORIGINES;
+        const eligible = f => !x.owned.has(f.id) && depth >= f.minDepth && f.from.includes(type.category);
+        const take = f => { x.owned.add(f.id); if (inSeason) x.day[f.id] = Math.min(6, Math.floor(t / 86_400)); };
         for (const f of list) {                       // Collection.tryDrop : au plus un objet par bloc
-          if (x.owned.has(f.id) || depth < f.minDepth || !f.from.includes(type.category)) continue;
-          // pityStep (variante « chance croissante », non implémentée dans le jeu) : +pityStep par
-          // tirage raté de cet objet, remis à zéro par la trouvaille (l'objet n'est plus tiré).
-          const chance = Math.min(1, f.chance + (f.pityStep || 0) * (x.fails[f.id] || 0));
-          if (x.random() < chance) { x.owned.add(f.id); if (inSeason) x.day[f.id] = Math.min(6, Math.floor(t / 86_400)); break; }
-          x.fails[f.id] = (x.fails[f.id] || 0) + 1;
+          if (f.pityStep || !eligible(f)) continue;
+          if (x.random() < f.chance) { take(f); break; }
+        }
+        for (const f of list) {                       // collectionPity.processSave : tirage serveur indépendant
+          if (!f.pityStep || !eligible(f)) continue;
+          // +pityStep par tirage éligible raté ; trouvé : l'objet n'est plus jamais tiré (un exemplaire)
+          if (x.random() < Math.min(1, f.chance + f.pityStep * (x.fails[f.id] || 0))) take(f);
+          else x.fails[f.id] = (x.fails[f.id] || 0) + 1;
         }
         if (inSeason && x.doneDay === null && x.items.every(i => x.owned.has(i.id))) x.doneDay = Math.min(6, Math.floor(t / 86_400));
       }
@@ -159,13 +168,43 @@ const pct = x => (x >= 0.995 && x < 1 ? '> 99 %' : x > 0 && x < 0.005 ? '< 1 %' 
 
 const PERIODS = [['entrant', [0]], ['debutant', [0, 3]], ['auto', [0, 3]], ['regulier', [0, 3]], ['assidu', [0, 3]]];
 
+/** Tous les profils et saisons du rapport. `onProgress(done, total)` après chaque profil. */
+function runAll(scaleKeys, { runs, scales = SCALES, onProgress } = {}) {
+  const results = {};
+  const todo = PERIODS.flatMap(([pid, seasons]) => seasons.map(season => [pid, season]));
+  todo.forEach(([pid, season], k) => {
+    results[`${pid}|${season}`] = run(scaleKeys, PROFILES[pid], { runs, season, scales });
+    if (onProgress) onProgress(k + 1, todo.length);
+  });
+  return results;
+}
+
+/**
+ * Résumé chiffré par barème, profil et saison (panel admin) : série complète (7 j, fin J3, fin J5),
+ * part des joueurs ayant chaque objet, le meilleur rare et le légendaire (7 j et fin J1).
+ */
+function summarize(results, scales) {
+  const rows = [];
+  for (const [pid, seasons] of PERIODS) for (const season of seasons) {
+    const per = results[`${pid}|${season}`];
+    const any = per[Object.keys(scales)[0]];
+    rows.push({ profile: pid, label: PROFILES[pid].label, season: season + 1, eligible: any.eligible,
+      scales: Object.fromEntries(Object.entries(scales).map(([k, sc]) => {
+        const r = per[k];
+        const leg = sc.items.filter(i => i.rarity === 'legendaire').map(i => i.id);
+        const rare = sc.items.filter(i => i.rarity === 'rare').map(i => i.id);
+        const best = ids => (ids.length ? Math.min(...ids.map(id => r.found[id])) : null);
+        return [k, { all: r.all, allJ3: r.byDay[2], allJ5: r.byDay[4], found: r.found,
+          rare: best(rare), legendary: best(leg), legendaryJ1: leg.length ? Math.min(...leg.map(id => r.foundByDay[id][0])) : null }];
+      })) });
+  }
+  return rows;
+}
+
 function report({ runs, scales = Object.keys(SCALES) }) {
   const out = [];
   const say = s => out.push(s);
-  const results = {};
-  for (const [pid, seasons] of PERIODS) {
-    for (const season of seasons) results[`${pid}|${season}`] = run(scales, PROFILES[pid], { runs, season });
-  }
+  const results = runAll(scales, { runs });
   say(`# Collection saisonnière — chances de découverte en 7 jours (#39)\n`);
   say(`${runs} joueurs simulés par profil ; saison 1 = premier compte (aucune relique, aucun objet permanent), saison 4 = joueur installé. Même flux de blocs pour tous les barèmes.\n`);
   say(`| Profil | Saison | Prof. max (méd. · 10 % les plus lents) | Gemmes ≥ 100 m rencontrées (méd. · 10 % les plus lents) |`);
@@ -195,11 +234,20 @@ function report({ runs, scales = Object.keys(SCALES) }) {
   return out.join('\n');
 }
 
-if (require.main === module) {
+// Processus enfant du panel admin (server/collectionPity.js) : { runs, scales } → { result } par IPC
+if (require.main === module && process.argv.includes('--ipc')) {
+  process.once('message', ({ runs, scales }) => {
+    try {
+      const keys = Object.keys(scales);
+      const results = runAll(keys, { runs, scales, onProgress: (done, total) => process.send({ progress: { done, total } }) });
+      process.send({ result: { runs, rows: summarize(results, scales) } }, () => process.exit(0));
+    } catch (err) { process.send({ error: err.message }, () => process.exit(1)); }
+  });
+} else if (require.main === module) {
   const argv = process.argv.slice(2);
   const runs = Number(argv[argv.indexOf('--runs') + 1]) || 2000;
   const only = argv.includes('--scale') ? [argv[argv.indexOf('--scale') + 1]] : undefined;
   console.log(report({ runs, scales: only }));
 }
 
-module.exports = { ORIGINES, SCALES, PROFILES, run, report };
+module.exports = { ORIGINES, SCALES, PROFILES, PERIODS, run, runAll, summarize, report };

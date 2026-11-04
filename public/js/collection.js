@@ -143,7 +143,8 @@ const Collection = {
       icon: String(c.icon || '❔'), image: typeof c.image === 'string' ? c.image : null,
       rarity: String(c.rarity || 'commun'), seriesId: String(c.seriesId || 'origines'),
       dropFrom: d.from.map(String), minDepth: d.minDepth, chance: d.chance,
-      dropEnabled: c.dropEnabled === true, active: c.active !== false,
+      // Chance croissante (#39) : tiré par le serveur à la sauvegarde, jamais ici (dropEnabled false)
+      dropEnabled: c.dropEnabled === true && c.serverDrop !== true, serverDrop: c.serverDrop === true, active: c.active !== false,
     };
   },
 
@@ -214,6 +215,20 @@ const Collection = {
     GameState.collectionMeta[id] = prev
       ? { ...prev, n: (prev.n || 1) + 1 }
       : { at: now, n: 1, season: this.currentSeasonId() };
+  },
+
+  /**
+   * Objets donnés par le serveur (chance croissante, réponse de sauvegarde). Ajoute ceux qui
+   * manquent ; @returns {object[]} les trouvailles nouvelles (à annoncer au joueur).
+   */
+  addServerFinds(list) {
+    const out = [];
+    for (const f of Array.isArray(list) ? list : []) {
+      if (!f || typeof f.itemId !== 'string' || GameState.collection.includes(f.itemId)) continue;
+      this.add(f.itemId);
+      out.push(this.getById(f.itemId) || { id: f.itemId, names: f.names || null, icon: f.icon || '❔' });
+    }
+    return out;
   },
 
   _lang() {
