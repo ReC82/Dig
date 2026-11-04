@@ -108,6 +108,10 @@ function currentRules(config = PROD_CONFIG) {
     missionGems: (def, target) => def.rewardFn(target).gems,
     questGems: G.Quests.DEFS.reduce((s, q) => s + (q.reward.gems || 0), 0),
     autodigCosts: G.Balance.AUTODIG.map(c => ({ ...c })),
+    /** Courbe des pièces des blocs : null = jeu (blocks.js : 1 + 0,05 × (prof − 1), sans limite). */
+    coinCurve: null,
+    /** Limites par saison des coffres de la boutique (null = illimité), lues dans server/chestShop.js. */
+    shopLimits: Object.fromEntries(Object.entries(SHOP_CHESTS).map(([id, d]) => [id, d.maxPerSeason])),
   };
 }
 
@@ -136,6 +140,59 @@ const VARIANTS = {
       { coins: 0, gems: 6 }, { coins: 0, gems: 14 }, { coins: 0, gems: 30 }, { coins: 0, gems: 60 }],
   }),
 };
+
+/**
+ * Simulations du 04/11 (#49) : limites des coffres de la boutique et courbe des pièces.
+ * Comme VARIANTS, ce sont des transformations de règles internes à l'outil ; rien n'est appliqué au jeu.
+ */
+const SHOP_LIMITS = {
+  illimite: { simple: null, rare: null, antique: 5 },     // production (server/chestShop.js)
+  l20_10:   { simple: 20,   rare: 10,   antique: 5 },     // proposition du propriétaire (04/11)
+};
+
+/**
+ * Courbes de la récompense des blocs : segments { until, slope } (pente par mètre jusqu'à la
+ * profondeur `until`). Multiplicateur = 1 + Σ pente × mètres parcourus dans le segment depuis 1 m.
+ *   actuelle : +5 %/m sans limite (blocks.js) ;
+ *   b        : +5 %/m jusqu'à 200 m puis +2 %/m (demande du propriétaire) ;
+ *   c        : +5 %/m jusqu'à 200 m puis +1 %/m (alternative : voir le rapport du 04/11).
+ */
+const COIN_CURVES = {
+  actuelle: null,
+  b: [{ until: 200, slope: 0.05 }, { until: Infinity, slope: 0.02 }],
+  c: [{ until: 200, slope: 0.05 }, { until: Infinity, slope: 0.01 }],
+};
+
+/** Multiplicateur de récompense d'un bloc détruit à la profondeur `depth` selon la courbe. */
+function coinScale(curve, depth) {
+  if (!curve) return 1 + (depth - 1) * 0.05;             // expression exacte de blocks.js
+  let m = 1, from = 1;
+  for (const { until, slope } of curve) {
+    if (depth <= from) break;
+    m += slope * (Math.min(depth, until) - from);
+    from = until;
+  }
+  return m;
+}
+
+const withLimits = (rules, id) => ({ ...rules, id: `${rules.id}+limites ${id}`, shopLimits: { ...SHOP_LIMITS[id] } });
+const withCurve  = (rules, id) => ({ ...rules, id: `${rules.id}+courbe ${id}`, coinCurve: COIN_CURVES[id] });
+
+/** Combinaisons demandées le 04/11 (A = direction cible). */
+const COMBOS = {
+  'Actuel':                    () => currentRules(),
+  'Actuel + limites 20/10':    () => withLimits(currentRules(), 'l20_10'),
+  'A seul':                    () => VARIANTS.A(currentRules()),
+  'A + limites 20/10':         () => withLimits(VARIANTS.A(currentRules()), 'l20_10'),
+  'A + limites + courbe (b)':  () => withCurve(withLimits(VARIANTS.A(currentRules()), 'l20_10'), 'b'),
+  'A + limites + courbe (c)':  () => withCurve(withLimits(VARIANTS.A(currentRules()), 'l20_10'), 'c'),
+};
+
+/**
+ * Ouvertures de coffres de la boutique qu'un joueur est prêt à faire par saison (temps passé à
+ * cliquer ; le limiteur autorise 30/min) : hypothèse de l'outil, utilisée par les sections du 04/11.
+ */
+const SHOP_OPENINGS = { debutant: 50, regulier: 300, assidu: 1_800, auto: 300 };
 
 // ── Profils de joueurs ───────────────────────────────────────────────────────
 
@@ -219,7 +276,9 @@ function newSeason(p) {
       coins: { blocks: 0, mineChests: 0, offline: 0, daily: 0, missions: 0, quest: 0, shopChests: 0 },
       autodigAt: [null, null, null, null, null, null],   // heures de jeu (actif + onglet) au déblocage
       maxedAt: null,                                     // heures de jeu : toutes les améliorations en pièces au maximum
+      maxedDepth: null,                                  // profondeur à ce moment
       shopChestsBought: 0,
+      shop: { simple: 0, rare: 0, antique: 0, openingsLeft: 0, hitLimit: false, blocked: false },   // achats du 04/11 (shopBuy)
     },
     gemsStart: p.gems,
   };
@@ -230,6 +289,7 @@ function spendFragments(p, s) {
   for (;;) {
     let best = null;
     for (const d of G.Relics.DEFS) {
+      if (p.skipRelics && p.skipRelics.includes(d.id)) continue;   // scénario « sans cette relique »
       const lvl = p.relics[d.id] || 0;
       if (lvl >= d.maxLevel) continue;
       const c = d.costs[lvl];
@@ -256,14 +316,14 @@ function buyUpgrades(p, s, rules, o, playedS) {
     const a0 = rules.autodigCosts[s.auto];
     const cheapest = Math.min(
       s.pick < 15 ? scale(B.PICKAXE[s.pick - 1]) : Infinity,
-      s.bag < 12 ? scale(B.BAG[s.bag]) : Infinity,
+      s.bag < (o.bagTarget ?? 12) ? scale(B.BAG[s.bag]) : Infinity,
       s.luck < (o.luckTarget ?? 12) ? scale(B.LUCK[s.luck]) : Infinity,
       s.shop < 10 ? scale(B.FRAGMENT_SHOP[s.shop]) : Infinity,
       a0 && a0.gems === 0 ? scale(a0.coins) : Infinity);
     if (cheapest > s.coins && !(a0 && a0.gems > 0 && a0.gems <= p.gems && !o.noGemAutodig)) return;
     const offers = [];
     if (s.pick < 15) offers.push({ k: 'pick', c: scale(B.PICKAXE[s.pick - 1]), g: 0 });
-    if (s.bag < 12)  offers.push({ k: 'bag',  c: scale(B.BAG[s.bag]), g: 0 });
+    if (s.bag < (o.bagTarget ?? 12)) offers.push({ k: 'bag',  c: scale(B.BAG[s.bag]), g: 0 });
     if (s.luck < (o.luckTarget ?? 12)) offers.push({ k: 'luck', c: scale(B.LUCK[s.luck]), g: 0 });
     if (s.auto < 6) {
       const a = rules.autodigCosts[s.auto];
@@ -285,7 +345,7 @@ function buyUpgrades(p, s, rules, o, playedS) {
     else if (best.k === 'luck') s.luck++;
     else if (best.k === 'auto') { s.m.autodigAt[s.auto] = playedS / 3600; s.auto++; }
     else { s.shop++; p.frags++; s.m.frags.fragmentShop++; spendFragments(p, s); }
-    if (s.m.maxedAt === null && s.pick >= 15 && s.bag >= 12 && s.luck >= 12 && s.shop >= 10 && s.auto >= 2) s.m.maxedAt = playedS / 3600;
+    if (s.m.maxedAt === null && s.pick >= 15 && s.bag >= (o.bagTarget ?? 12) && s.luck >= 12 && s.shop >= 10 && s.auto >= 2) { s.m.maxedAt = playedS / 3600; s.m.maxedDepth = s.depth; }
   }
 }
 
@@ -340,7 +400,7 @@ function mine(p, s, rules, o, random, { seconds, cps, now, chestWait, ad, played
       if (extra && random() < extra.p) { p.gems += extra.gems; s.m.gems.mineChests += extra.gems; }
       t += chestWait(t);
     } else {
-      const reward = Math.ceil(type.reward * (1 + (s.depth - 2) * 0.05));
+      const reward = Math.ceil(type.reward * coinScale(rules.coinCurve, s.depth - 1));   // bloc à s.depth − 1
       const boost = s.boost.until > t ? s.boost.mult : 1;
       const mult = (1 + s.bag * 0.3) * (1 + relicValue(p, 'golden_heart')) * rules.economy.coinGainMultiplier;
       const c = Math.ceil(reward * mult * boost);
@@ -408,9 +468,76 @@ function convertCoins(p, s, rules, random, maxChests) {
   }
 }
 
+/** Espérance d'un coffre de la boutique pour ce joueur : pièces rendues et fragments par ouverture. */
+function shopExpect(p, rules, id) {
+  const e = chestExpectation(SHOP_CHESTS[id].table, relicValue(p, 'shard_magnet'), rules.economy.fragmentDropMultiplier, true);
+  return { coins: e.coins, frags: e.frags + e.collection * 5 };
+}
+
+/**
+ * Achats de coffres de la boutique (simulations du 04/11, option `shopBuy`), avec les limites de
+ * `rules.shopLimits` et au plus `s.m.shop.openingsLeft` ouvertures sur la saison (budget de temps).
+ * Comportement rationnel supposé, pièces sans autre usage (tout est au max en pièces) :
+ *  - en cours de saison : le plus de 🔮 par ouverture (antique, puis rare) avec les pièces du jour,
+ *    les ouvertures restantes étant gardées pour la suite ;
+ *  - dernier jour joué (`final`) : on remplit le budget d'ouvertures ; un coffre cher n'est pris
+ *    que s'il reste de quoi remplir les ouvertures suivantes avec des coffres simples.
+ * Tirage réel (table de server/chestShop.js) coffre par coffre ; au-delà de BULK_CHESTS d'un
+ * coup, espérance exacte. Contenu « boost » ignoré ; objet de collection = 5 🔮 (repli).
+ */
+function buyShopChests(p, s, rules, random, final) {
+  const sh = s.m.shop;
+  const limitLeft = id => (rules.shopLimits[id] == null ? Infinity : rules.shopLimits[id] - sh[id]);
+  const cost = id => rules.economy.chestCosts[id];
+  const net = id => cost(id) - shopExpect(p, rules, id).coins;
+  // Pièces à garder pour remplir n ouvertures avec des coffres simples (dernier jour seulement)
+  const reserve = n => (final ? Math.max(0, Math.min(n, limitLeft('simple'))) * net('simple') : 0);
+  const order = final ? ['antique', 'rare', 'simple'] : ['antique', 'rare'];
+  const open1 = (id) => {
+    const def = SHOP_CHESTS[id];
+    s.coins -= cost(id); sh[id]++; sh.openingsLeft--; s.m.shopChestsBought++;
+    const row = pickRow(def.table, random);
+    if (row.type === 'coins') { const c = randInt(row.min, row.max, random); s.coins += c; s.m.coins.shopChests += c; }
+    else if (row.type === 'relics' || row.type === 'collection') {
+      const f = row.type === 'relics'
+        ? Math.max(1, Math.round((row.amount + relicValue(p, 'shard_magnet')) * rules.economy.fragmentDropMultiplier))
+        : 5;
+      p.frags += f; s.m.frags.shopChests += f; spendFragments(p, s);
+    }
+  };
+  for (;;) {
+    if (sh.openingsLeft <= 0) break;
+    // Lot (pièces très abondantes) : espérance exacte
+    const bulk = order.find(id => Math.min(sh.openingsLeft, limitLeft(id), Math.floor((s.coins - reserve(sh.openingsLeft)) / cost(id))) > BULK_CHESTS);
+    if (bulk) {
+      const k = Math.min(sh.openingsLeft, limitLeft(bulk), Math.floor((s.coins - reserve(sh.openingsLeft)) / cost(bulk)));
+      const e = shopExpect(p, rules, bulk);
+      const c = Math.round(k * e.coins), f = Math.round(k * e.frags);
+      s.coins += c - k * cost(bulk); s.m.coins.shopChests += c;
+      sh[bulk] += k; sh.openingsLeft -= k; s.m.shopChestsBought += k;
+      p.frags += f; s.m.frags.shopChests += f; spendFragments(p, s);
+      continue;
+    }
+    const ok = id => limitLeft(id) > 0 && s.coins >= cost(id);
+    let id = order.find(x => ok(x) && s.coins - net(x) >= reserve(sh.openingsLeft - 1));
+    if (!id && final) id = ['simple', 'rare', 'antique'].find(ok);
+    if (!id) break;
+    open1(id);
+  }
+  // Frustration (dernier jour) : il reste des ouvertures et des pièces, mais chaque coffre payable
+  // a atteint sa limite (sans limite, le joueur en aurait acheté un de plus)
+  if (final) {
+    const ids = ['simple', 'rare', 'antique'];
+    sh.hitLimit = ids.some(x => limitLeft(x) <= 0 && rules.shopLimits[x] !== SHOP_LIMITS.illimite[x]);
+    sh.blocked = sh.openingsLeft > 0 && ids.some(x => limitLeft(x) <= 0 && s.coins >= cost(x)) && !ids.some(x => limitLeft(x) > 0 && s.coins >= cost(x));
+  }
+}
+
 /** Une saison de 7 jours. `seasonIndex` sert à la date des missions du jour. */
 function playSeason(p, rules, o, random, seasonIndex) {
   const s = newSeason(p);
+  s.m.shop.openingsLeft = o.shopOpenings ?? 0;
+  const lastDay = o.days[o.days.length - 1];
   let playedS = 0;
   let lastEnd = null;                               // fin de la dernière séance (horloge saison)
   const base0 = Date.UTC(2026, 10, 9) + seasonIndex * SEASON_DAYS * DAY_S * 1000;   // un lundi
@@ -469,6 +596,8 @@ function playSeason(p, rules, o, random, seasonIndex) {
     }
     if (done === missions.length && rules.missionSetGems) { p.gems += rules.missionSetGems; s.m.gems.missions += rules.missionSetGems; }
     buyUpgrades(p, s, rules, o, playedS);
+    // 04/11 : coffres de la boutique dès que tout est au max en pièces, et le dernier jour joué
+    if (o.shopBuy && (s.m.maxedAt !== null || day === lastDay)) buyShopChests(p, s, rules, random, day === lastDay);
   }
   if (o.chests === 'convert') convertCoins(p, s, rules, random, o.convertChests ?? CHEST_RATE_PER_MIN * 60);
   // Fin de saison (server/index.js) : pièces et améliorations remises à zéro, gemmes plafonnées
@@ -511,6 +640,7 @@ function simulatePlayers({ profile, rules, runs, seasons = 1, seed = 49, options
   for (let r = 0; r < runs; r++) {
     const random = rng(seed * 100_003 + r);
     const p = newPlayer();
+    if (o.skipRelics) p.skipRelics = o.skipRelics;
     const list = [];
     for (let k = 0; k < seasons; k++) list.push(playSeason(p, rules, o, random, k));
     out.push(list);
@@ -542,6 +672,7 @@ function summarize(results, seasonIdx = 0) {
     relicLevels: pick(m => m.relicLevels),
     autodigAt: [2, 3, 4, 5].map(i => pick(m => m.autodigAt[i])),
     maxedAt: pick(m => m.maxedAt),
+    maxedDepth: pick(m => m.maxedDepth),
   };
 }
 
@@ -763,7 +894,200 @@ function report({ runs, longRuns, seasons }) {
     say(`| ${label} | ${f0(s1.fragsEarned.p50)} | ${f0(s1.relicLevels.p50)} | ${f0(s1.maxDepth.p50)} m | ${f0(s2.maxDepth.p50)} m | ${gap(s2.maxDepth.p50, ref.s2)} | ${f0(s4.maxDepth.p50)} m | ${gap(s4.maxDepth.p50, ref.s4)} |`);
   }
   say('');
-  return { markdown: lines.join('\n'), all };
+  const sims0411 = report0411({ runs, longRuns, seasons }, say);
+  return { markdown: lines.join('\n'), all, sims0411 };
+}
+
+// ── Simulations du 04/11 : limites des coffres, courbe des pièces, combinaisons ──
+
+const RELIC_MAX_TOTAL = G.Relics.DEFS.reduce((a, d) => a + d.maxLevel, 0);
+
+/** Saison (1…n) où toutes les reliques sont au maximum pour la première fois (null : jamais). */
+const relicsMaxSeason = player => { const k = player.findIndex(m => m.relicLevels >= RELIC_MAX_TOTAL); return k < 0 ? null : k + 1; };
+
+/** Fragments cumulés jusqu'à la saison `k` incluse (index 0). */
+const fragsCumul = (player, k) => player.slice(0, k + 1).reduce((a, m) => a + m.fragsEarned, 0);
+
+/** Options de profil des simulations du 04/11 : achats de coffres de la boutique pour tous. */
+const shopOptions = pid => ({ chests: 'none', shopBuy: true, shopOpenings: SHOP_OPENINGS[pid] });
+
+/**
+ * Sections du 04/11 (#49). Rien n'est appliqué au jeu : les règles sont des copies modifiées.
+ * @returns {object} médianes utiles (JSON)
+ */
+function report0411({ runs, longRuns, seasons }, say) {
+  const out = { combos: {}, curves: {} };
+  const ks = [0, 1, 3, seasons - 1].filter((k, i, a) => k >= 0 && k < seasons && a.indexOf(k) === i);
+  const pct = (x, ref) => (x === null || ref === null || !Number.isFinite(x) || !Number.isFinite(ref) ? '—' : `${x >= ref ? '+' : ''}${f1((x / ref - 1) * 100)} %`);
+  const share = d => `${f0((d.share ?? 0) * 100)} %`;
+
+  say('## Simulations du 04/11 — limites des coffres, courbe des pièces, combinaisons (rien n\'est appliqué au jeu)');
+  say('');
+  say('Hypothèses communes : tous les profils achètent des coffres de la boutique dès que toutes les améliorations en pièces sont au max (fin de journée), et le dernier jour joué de la saison avec les pièces restantes. Budget d\'ouvertures par saison (temps de clic accepté) : ' +
+    Object.entries(SHOP_OPENINGS).map(([pid, n]) => `${PROFILES[pid].label.split(' (')[0]} ${f0(n)}`).join(', ') +
+    '. Ordre d\'achat : pièces abondantes → le plus de 🔮 par ouverture (antique, rare, simple) ; pièces comptées → le moins de pièces nettes par 🔮 (simple, rare, antique). Prix 800 / 15 000 / 80 000 (production). Objet de collection = 5 🔮 (repli), boost des coffres ignoré.');
+  say('');
+  say('Courbes de la récompense des blocs (multiplicateur de la récompense de base) :');
+  say('');
+  say(`| Profondeur | ${Object.keys(COIN_CURVES).map(c => `Courbe ${c}`).join(' | ')} |`);
+  say(`|---|${Object.keys(COIN_CURVES).map(() => '---').join('|')}|`);
+  for (const d of [50, 100, 200, 300, 500, 1000, 2000, 3000]) {
+    say(`| ${f0(d)} m | ${Object.values(COIN_CURVES).map(c => `×${f1(coinScale(c, d))}`).join(' | ')} |`);
+  }
+  say('');
+  say('(a) actuelle : +5 %/m sans limite ; (b) +5 %/m jusqu\'à 200 m puis +2 %/m ; (c) +5 %/m jusqu\'à 200 m puis +1 %/m.');
+  say('');
+
+  // ── Combinaisons, plusieurs saisons ──
+  // Résumés calculés tout de suite (mémoire : les résultats bruts ne sont pas conservés)
+  const kH = Math.min(3, seasons - 1);
+  const kAll = [...new Set([...ks, kH])];
+  const last = [0, seasons - 1];
+  const digest = r => ({
+    S: Object.fromEntries(kAll.map(k => [k, summarize(r, k)])),
+    rm: describe(r.map(relicsMaxSeason)),
+    cum: describe(r.map(pl => fragsCumul(pl, seasons - 1))),
+    ch: Object.fromEntries(['simple', 'rare', 'antique'].map(id => [id, describe(r.map(pl => pl[0].shop[id])).p50])),
+    blk: last.map(k => r.filter(pl => pl[k].shop.blocked).length / r.length),
+    hit: last.map(k => r.filter(pl => pl[k].shop.hitLimit).length / r.length),
+  });
+  const res = {};
+  for (const [pid, profile] of Object.entries(PROFILES)) {
+    res[pid] = {};
+    for (const [cid, mk] of Object.entries(COMBOS)) {
+      res[pid][cid] = digest(simulatePlayers({ profile, rules: mk(), runs: longRuns, seasons, seed: 411, options: shopOptions(pid) }));
+    }
+  }
+  const cids = Object.keys(COMBOS);
+
+  // 1. Limites
+  say(`### 1. Limites des coffres de la boutique : illimité vs 20 simples + 10 rares par saison (antique 5) — ${longRuns.toLocaleString('fr-FR')} joueurs × ${seasons} saisons par profil`);
+  say('');
+  say('Médianes. « Limite atteinte » = part des joueurs qui atteignent la limite des simples ou des rares ; « bloqué » = en fin de saison, il reste des ouvertures et des pièces, mais chaque coffre payable est à sa limite (frustration : achat refusé). « 💰 restantes » = pièces perdues à la remise à zéro.');
+  say('');
+  say('| Profil | Barème | Limites | 🔮 / saison S1 | 🔮 / h S1 | 🔮 cumulés S' + seasons + ' | Reliques S1 · S4 · S' + seasons + ' (/' + RELIC_MAX_TOTAL + ') | Toutes reliques au max (saison ; part) | Profondeur S1 · S2 · S4 · S' + seasons + ' | 💎 / saison S1 | Coffres S1 simple · rare · antique | Limite atteinte S1 · S' + seasons + ' | Bloqués S1 · S' + seasons + ' | 💰 restantes fin S1 |');
+  say('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');
+  for (const [pid, profile] of Object.entries(PROFILES)) {
+    for (const [cid, bar, lim] of [['Actuel', 'actuel', 'illimité'], ['Actuel + limites 20/10', 'actuel', '20/10'], ['A seul', 'A', 'illimité'], ['A + limites 20/10', 'A', '20/10']]) {
+      const d = res[pid][cid];
+      const S = k => d.S[k];
+      const s1 = S(0), rm = d.rm, cum = d.cum;
+      const ch = id => f0(d.ch[id]);
+      const blk = i => `${f0(d.blk[i] * 100)} %`;
+      const hit = i => `${f0(d.hit[i] * 100)} %`;
+      say(`| ${profile.label.split(' (')[0]} | ${bar} | ${lim} | ${f0(s1.fragsEarned.p50)} | ${f1(s1.fragsPerH.p50)} | ${f0(cum.p50)} | ${[0, kH, seasons - 1].map(k => f0(S(k).relicLevels.p50)).join(' · ')} | ${rm.n ? `S${f0(rm.p50)} ; ${share(rm)}` : `jamais (≤ S${seasons})`} | ${ks.map(k => f0(S(k).maxDepth.p50)).join(' · ')} m | ${f1(s1.gemsEarned.p50)} | ${ch('simple')} · ${ch('rare')} · ${ch('antique')} | ${hit(0)} · ${hit(1)} | ${blk(0)} · ${blk(1)} | ${f0(s1.coinsEnd.p50)} |`);
+    }
+  }
+  say('');
+
+  // 2. Courbe des pièces (saison 1, barème A, sans coffres de la boutique : effet pur de la courbe)
+  say(`### 2. Courbe des pièces — saison 1, barème A, ${runs.toLocaleString('fr-FR')} saisons par profil et par courbe (sans coffres de la boutique)`);
+  say('');
+  say('Médiane (p10–p90) · moyenne ± écart-type. Écarts de profondeur (médianes) : boost ×2 pièces 30 min / jour ; sans Sac (jamais acheté).');
+  say('');
+  const rulesA = VARIANTS.A(currentRules());
+  for (const [pid, profile] of Object.entries(PROFILES)) {
+    out.curves[pid] = {};
+    const sims = {};
+    for (const cv of Object.keys(COIN_CURVES)) {
+      const rules = withCurve(rulesA, cv);
+      const base = { chests: 'none' };
+      const ref = summarize(simulatePlayers({ profile, rules, runs, options: base }));
+      const boost = summarize(simulatePlayers({ profile, rules, runs, options: { ...base, dailyBoost: true } }));
+      const noBag = summarize(simulatePlayers({ profile, rules, runs, options: { ...base, bagTarget: 0 } }));
+      sims[cv] = { ref, boost, noBag };
+      out.curves[pid][cv] = { depth: ref.maxDepth.p50, coinsPerH: ref.coinsPerH.p50, maxedAt: ref.maxedAt.p50, maxedShare: ref.maxedAt.share, coinsEnd: ref.coinsEnd.p50,
+        boostGap: boost.maxDepth.p50 / ref.maxDepth.p50 - 1, noBagGap: noBag.maxDepth.p50 / ref.maxDepth.p50 - 1 };
+    }
+    say(`#### ${profile.label}`);
+    say('');
+    say(`| Mesure | ${Object.keys(COIN_CURVES).map(c => `Courbe ${c}`).join(' | ')} |`);
+    say(`|---|${Object.keys(COIN_CURVES).map(() => '---').join('|')}|`);
+    const row = (label, key, f) => say(`| ${label} | ${Object.values(sims).map(x => dist(x.ref[key], f)).join(' | ')} |`);
+    row('Profondeur max (m)', 'maxDepth', f0);
+    row('💰 gagnées / saison', 'coinsEarned', f0);
+    row('💰 / heure de jeu', 'coinsPerH', f0);
+    row('Toutes améliorations en pièces au max (h de jeu)', 'maxedAt', f1);
+    say(`| — part des joueurs qui ont tout au max | ${Object.values(sims).map(x => share(x.ref.maxedAt)).join(' | ')} |`);
+    row('— profondeur à ce moment (m)', 'maxedDepth', f0);
+    row('💰 non dépensées en fin de saison', 'coinsEnd', f0);
+    row('Pioche atteinte (niveau)', 'pickEnd', f1);
+    row('Auto-Dig atteint (niveau)', 'autodigEnd', f1);
+    say(`| Écart de profondeur vs courbe actuelle | ${Object.values(sims).map(x => pct(x.ref.maxDepth.p50, sims.actuelle.ref.maxDepth.p50)).join(' | ')} |`);
+    say(`| Boost ×2 30 min / jour : profondeur (écart) | ${Object.values(sims).map(x => `${f0(x.boost.maxDepth.p50)} m (${pct(x.boost.maxDepth.p50, x.ref.maxDepth.p50)})`).join(' | ')} |`);
+    say(`| Sans Sac : profondeur (écart) | ${Object.values(sims).map(x => `${f0(x.noBag.maxDepth.p50)} m (${pct(x.noBag.maxDepth.p50, x.ref.maxDepth.p50)})`).join(' | ')} |`);
+    say('');
+  }
+
+  // 3. Combinaisons
+  say(`### 3. Combinaisons — ${longRuns.toLocaleString('fr-FR')} joueurs × ${seasons} saisons par profil (mêmes graines pour toutes les combinaisons)`);
+  say('');
+  say('Médiane (p10–p90) · moyenne ± écart-type. Coffres de la boutique achetés selon les hypothèses ci-dessus.');
+  say('');
+  for (const [pid, profile] of Object.entries(PROFILES)) {
+    out.combos[pid] = {};
+    const sum = {};
+    for (const cid of cids) {
+      const d = res[pid][cid];
+      sum[cid] = { ...d, S: ks.map(k => d.S[k]) };
+      const x = sum[cid];
+      out.combos[pid][cid] = { depth: ks.map((k, i) => [k + 1, x.S[i].maxDepth.p50]), gemsPerH: x.S[0].gemsPerH.p50, gems: x.S[0].gemsEarned.p50,
+        frags: x.S[0].fragsEarned.p50, fragsCum: x.cum.p50, relicsMax: x.rm.n ? x.rm.p50 : null, relicsMaxShare: x.rm.share ?? 0,
+        maxedAt: x.S[0].maxedAt.p50, coinsEnd: x.S[0].coinsEnd.p50, blocked: x.blk };
+    }
+    say(`#### ${profile.label}`);
+    say('');
+    say(`| Mesure | ${cids.join(' | ')} |`);
+    say(`|---|${cids.map(() => '---').join('|')}|`);
+    ks.forEach((k, i) => say(`| Profondeur S${k + 1} (m) | ${cids.map(c => dist(sum[c].S[i].maxDepth, f0)).join(' | ')} |`));
+    say(`| 💎 gagnées S1 | ${cids.map(c => dist(sum[c].S[0].gemsEarned, f1)).join(' | ')} |`);
+    say(`| 💎 / heure S1 | ${cids.map(c => dist(sum[c].S[0].gemsPerH, f2)).join(' | ')} |`);
+    say(`| 💎 perdues au plafond S${seasons} (moy.) | ${cids.map(c => f1(sum[c].S.at(-1).gemsLostCap.mean)).join(' | ')} |`);
+    say(`| 🔮 / saison S1 | ${cids.map(c => dist(sum[c].S[0].fragsEarned, f0)).join(' | ')} |`);
+    say(`| 🔮 / heure S1 | ${cids.map(c => dist(sum[c].S[0].fragsPerH, f2)).join(' | ')} |`);
+    say(`| 🔮 / saison S${seasons} | ${cids.map(c => dist(sum[c].S.at(-1).fragsEarned, f0)).join(' | ')} |`);
+    say(`| 🔮 cumulés après ${seasons} saisons | ${cids.map(c => dist(sum[c].cum, f0)).join(' | ')} |`);
+    ks.forEach((k, i) => { if (k > 0) say(`| Niveaux de reliques S${k + 1} (/${RELIC_MAX_TOTAL}) | ${cids.map(c => dist(sum[c].S[i].relicLevels, f0)).join(' | ')} |`); });
+    say(`| Toutes reliques au max : saison (part ≤ S${seasons}) | ${cids.map(c => (sum[c].rm.n ? `${dist(sum[c].rm, f1)} (${share(sum[c].rm)})` : 'jamais')).join(' | ')} |`);
+    say(`| Améliorations en pièces au max S1 (h ; part) | ${cids.map(c => `${dist(sum[c].S[0].maxedAt, f1)} (${share(sum[c].S[0].maxedAt)})`).join(' | ')} |`);
+    say(`| 💰 / heure S1 | ${cids.map(c => dist(sum[c].S[0].coinsPerH, f0)).join(' | ')} |`);
+    say(`| 💰 non dépensables fin S1 | ${cids.map(c => dist(sum[c].S[0].coinsEnd, f0)).join(' | ')} |`);
+    say(`| 💰 non dépensables fin S${seasons} | ${cids.map(c => dist(sum[c].S.at(-1).coinsEnd, f0)).join(' | ')} |`);
+    say(`| Coffres de la boutique S1 | ${cids.map(c => dist(sum[c].S[0].shopChests, f0)).join(' | ')} |`);
+    say(`| Limite 20/10 atteinte S1 · S${seasons} | ${cids.map(c => sum[c].hit.map(b => `${f0(b * 100)} %`).join(' · ')).join(' | ')} |`);
+    say(`| Bloqués par une limite S1 · S${seasons} | ${cids.map(c => sum[c].blk.map(b => `${f0(b * 100)} %`).join(' · ')).join(' | ')} |`);
+    say('');
+  }
+
+  // Résumé compact
+  say('#### Résumé (médianes) — peu actifs vs assidus');
+  say('');
+  say(`| Profil | Combinaison | Prof. ${ks.map(k => `S${k + 1}`).join(' / ')} | 💎 / h S1 | 🔮 S1 | Reliques au max | Améliorations max (h) | 💰 inutilisées S1 |`);
+  say('|---|---|---|---|---|---|---|---|');
+  for (const [pid, profile] of Object.entries(PROFILES)) {
+    for (const cid of cids) {
+      const x = out.combos[pid][cid];
+      say(`| ${profile.label.split(' (')[0]} | ${cid} | ${x.depth.map(d => f0(d[1])).join(' / ')} | ${f2(x.gemsPerH)} | ${f0(x.frags)} | ${x.relicsMax === null ? `jamais (≤ S${seasons})` : `S${f0(x.relicsMax)} (${f0(x.relicsMaxShare * 100)} %)`} | ${f1(x.maxedAt)} | ${f0(x.coinsEnd)} |`);
+    }
+  }
+  say('');
+
+  // Cœur d'or : effet sur la profondeur à la saison 4 (avec reliques), sous chaque courbe
+  say(`### Effet du Cœur d'or selon la courbe — profondeur en saison ${kH + 1}, ${longRuns.toLocaleString('fr-FR')} joueurs (A + limites 20/10)`);
+  say('');
+  say('Sans Cœur d\'or = relique jamais achetée (fragments placés dans les autres reliques).');
+  say('');
+  say('| Profil | Courbe | Avec | Sans Cœur d\'or | Écart |');
+  say('|---|---|---|---|---|');
+  for (const [pid, profile] of Object.entries(PROFILES)) {
+    for (const [cv, cid] of [['actuelle', 'A + limites 20/10'], ['b', 'A + limites + courbe (b)'], ['c', 'A + limites + courbe (c)']]) {
+      const ref = res[pid][cid].S[kH].maxDepth.p50;
+      const no = summarize(simulatePlayers({ profile, rules: COMBOS[cid](), runs: longRuns, seasons: kH + 1, seed: 411, options: { ...shopOptions(pid), skipRelics: ['golden_heart'] } }), kH).maxDepth.p50;
+      say(`| ${profile.label.split(' (')[0]} | ${cv} | ${f0(ref)} m | ${f0(no)} m | ${pct(no, ref)} |`);
+    }
+  }
+  say('');
+  return out;
 }
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
@@ -782,6 +1106,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  SHOP_LIMITS, COIN_CURVES, COMBOS, SHOP_OPENINGS, coinScale, withLimits, withCurve, report0411,
   PROD_CONFIG, PROFILES, VARIANTS, FIXED, currentRules, hourAt, loadGame, simulatePlayers, summarize, exactOdds,
   chestExpectation, oddsAt, offlineCoins, rng, report, G,
 };

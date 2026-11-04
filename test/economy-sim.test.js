@@ -106,3 +106,53 @@ test('economy-sim : les variantes A et B ne modifient pas les règles du jeu', (
   const h = sim.hourAt({ ...sim.FIXED[1], rules: A }, 20);
   assert.ok(h.meters.p50 > 100 && h.gems.mean > 0);
 });
+
+test('economy-sim (04/11) : courbe (b) = actuelle jusqu\'à 200 m puis plus lente ; (c) encore plus lente', () => {
+  const { coinScale, COIN_CURVES } = sim;
+  for (const d of [1, 2, 50, 122, 199, 200]) {
+    assert.strictEqual(coinScale(COIN_CURVES.b, d), coinScale(null, d), `${d} m`);
+    assert.strictEqual(coinScale(COIN_CURVES.c, d), coinScale(null, d), `${d} m`);
+  }
+  assert.ok(Math.abs(coinScale(null, 200) - 10.95) < 1e-9);                 // blocks.js : 1 + 0,05 × 199
+  for (const d of [201, 300, 1000, 3000]) {
+    assert.ok(coinScale(COIN_CURVES.b, d) < coinScale(null, d));
+    assert.ok(coinScale(COIN_CURVES.c, d) < coinScale(COIN_CURVES.b, d));
+  }
+  assert.ok(Math.abs(coinScale(COIN_CURVES.b, 300) - (10.95 + 100 * 0.02)) < 1e-9);
+  assert.ok(Math.abs(coinScale(COIN_CURVES.c, 300) - (10.95 + 100 * 0.01)) < 1e-9);
+  // En saison : même graine, moins de pièces avec la courbe (b), rien de changé sous 200 m
+  const run = rules => sim.summarize(sim.simulatePlayers({ profile: sim.PROFILES.regulier, rules, runs: 2, seed: 5 }));
+  const a = run(sim.currentRules()), b = run(sim.withCurve(sim.currentRules(), 'b'));
+  assert.ok(b.coinsEarned.p50 < a.coinsEarned.p50 * 0.8, `${b.coinsEarned.p50} vs ${a.coinsEarned.p50}`);
+});
+
+test('economy-sim (04/11) : limites 20 simples / 10 rares / 5 antiques respectées', () => {
+  const opts = { chests: 'none', shopBuy: true, shopOpenings: sim.SHOP_OPENINGS.regulier };
+  const lim = sim.simulatePlayers({ profile: sim.PROFILES.regulier, rules: sim.COMBOS['A + limites 20/10'](), runs: 3, seasons: 2, seed: 8, options: opts });
+  for (const player of lim) {
+    for (const m of player) {
+      assert.ok(m.shop.simple <= 20 && m.shop.rare <= 10 && m.shop.antique <= 5, JSON.stringify(m.shop));
+      assert.strictEqual(m.shop.simple + m.shop.rare + m.shop.antique, m.shopChestsBought);
+      assert.ok(m.shop.hitLimit && m.shop.blocked);                       // 60 M de pièces : limites atteintes
+    }
+  }
+  const free = sim.simulatePlayers({ profile: sim.PROFILES.regulier, rules: sim.COMBOS['A seul'](), runs: 3, seasons: 1, seed: 8, options: opts });
+  for (const [m] of free) {
+    assert.ok(m.shop.antique <= 5);
+    assert.strictEqual(m.shopChestsBought, sim.SHOP_OPENINGS.regulier);    // illimité : le budget d'ouvertures limite
+    assert.ok(!m.shop.hitLimit && !m.shop.blocked);
+  }
+});
+
+test('economy-sim (04/11) : combinaisons reproductibles et sans effet sur le jeu', () => {
+  const opts = { chests: 'none', shopBuy: true, shopOpenings: 50 };
+  const run = () => sim.simulatePlayers({ profile: sim.PROFILES.debutant, rules: sim.COMBOS['A + limites + courbe (c)'](), runs: 3, seasons: 2, seed: 13, options: opts });
+  assert.deepStrictEqual(run(), run());
+  const rules = sim.currentRules();
+  assert.strictEqual(rules.coinCurve, null);
+  assert.deepStrictEqual(rules.shopLimits, { simple: null, rare: null, antique: 5 });
+  assert.strictEqual(SHOP_CHESTS.simple.maxPerSeason, null);
+  assert.strictEqual(SHOP_CHESTS.rare.maxPerSeason, null);
+  assert.deepStrictEqual(Object.keys(sim.COMBOS).map(k => sim.COMBOS[k]().id),
+    ['actuel', 'actuel+limites l20_10', 'A', 'A+limites l20_10', 'A+limites l20_10+courbe b', 'A+limites l20_10+courbe c']);
+});
