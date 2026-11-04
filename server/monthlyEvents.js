@@ -28,6 +28,11 @@
  *   - IA (#37, blockAi.guardedJson : clé côté serveur, quota, plafond, journal) : proposition de
  *     thème, objets et traductions, TOUJOURS enregistrée en brouillon de test.
  *   - Contenu préparé (`server/content/events/*.json`) importé une seule fois en brouillon.
+ *   - Images des objets (#65) : `monthly_event_items.image` est l'image de la FICHE (brouillon,
+ *     remplie par l'atelier d'icônes #40 — cible `event:<événement>/<objet>` — ou le téléversement) ;
+ *     le joueur ne voit que l'image PUBLIÉE (`monthly_event_item_images`), copiée par une action
+ *     explicite de l'événement : « Publier les images », ou sa planification. Sans image publiée :
+ *     emoji. États : sans image, proposition (atelier), conservée dans le brouillon, publiée.
  */
 
 'use strict';
@@ -138,7 +143,23 @@ function init(c = conn()) {
       key    TEXT PRIMARY KEY,
       value  TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS monthly_event_item_images (
+      event_id      TEXT NOT NULL,
+      item_id       TEXT NOT NULL,
+      image         TEXT,
+      published_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (event_id, item_id)
+    );
   `);
+  // #65 : avant, l'image de la fiche était montrée telle quelle aux joueurs. Une seule fois, elle devient
+  // l'image publiée (aucun visuel déjà affiché ne disparaît) ; ensuite, publication explicite seulement.
+  if (!c.prepare("SELECT 1 FROM monthly_event_meta WHERE key = 'published_images_v1'").get()) {
+    c.transaction(() => {
+      c.prepare(`INSERT OR IGNORE INTO monthly_event_item_images (event_id, item_id, image)
+          SELECT event_id, id, image FROM monthly_event_items WHERE image IS NOT NULL`).run();
+      c.prepare("INSERT INTO monthly_event_meta (key, value) VALUES ('published_images_v1', ?)").run(new Date().toISOString());
+    })();
+  }
 }
 
 function _log(eventId, action, details = null) {
@@ -317,7 +338,14 @@ function readiness(ev) {
 
 function _itemRow(r) {
   return { id: r.id, icon: r.icon, image: r.image, brief: r.brief, names: J(r.names, {}), descs: J(r.descs, {}), rarity: r.rarity,
-    chancePct: r.chance_pct, minDepth: r.min_depth, dropFrom: J(r.drop_from, []), enabled: !!r.enabled };
+    chancePct: r.chance_pct, minDepth: r.min_depth, dropFrom: J(r.drop_from, []), enabled: !!r.enabled,
+    publishedImage: r.published_image ?? null };
+}
+
+/** État de l'image d'un objet (#65) : sans image, conservée dans le brouillon (pas encore vue des joueurs), publiée. */
+function imageState(it) {
+  if ((it.image ?? null) === (it.publishedImage ?? null)) return it.image ? 'published' : 'none';
+  return 'draft';
 }
 
 function stateOf(ev, nowMs = Date.now()) {
@@ -332,7 +360,9 @@ function _eventRow(r, nowMs = Date.now()) {
   const ev = { id: r.id, status: r.status, audience: r.audience, icon: r.icon, names: J(r.names, {}), taglines: J(r.taglines, {}),
     startsAt: r.starts_at, endsAt: r.ends_at, testers: _readTesters(r.testers), source: r.source, revision: r.revision,
     createdAt: r.created_at, updatedAt: r.updated_at,
-    items: conn().prepare('SELECT * FROM monthly_event_items WHERE event_id = ? ORDER BY sort, id').all(r.id).map(_itemRow) };
+    items: conn().prepare(`SELECT i.*, p.image AS published_image FROM monthly_event_items i
+        LEFT JOIN monthly_event_item_images p ON p.event_id = i.event_id AND p.item_id = i.id
+        WHERE i.event_id = ? ORDER BY i.sort, i.id`).all(r.id).map(_itemRow) };
   ev.state = stateOf(ev, nowMs);
   return ev;
 }
@@ -341,7 +371,8 @@ function getEvent(id, nowMs) { return _eventRow(conn().prepare('SELECT * FROM mo
 function listEvents(nowMs) { return conn().prepare('SELECT * FROM monthly_events ORDER BY starts_at DESC, id').all().map(r => _eventRow(r, nowMs)); }
 
 const _content = ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt, endsAt: ev.endsAt,
-  audience: ev.audience, testers: ev.testers.map(t => (t.id ? { id: t.id, username: t.username } : t.username)), items: ev.items });
+  audience: ev.audience, testers: ev.testers.map(t => (t.id ? { id: t.id, username: t.username } : t.username)),
+  items: ev.items.map(({ publishedImage, ...it }) => it) });   // image publiée : hors révision (table à part)
 
 // ── Écriture ──────────────────────────────────────────────────────────────────
 
@@ -420,6 +451,7 @@ function scheduleEvent(id, { confirmRates = false, confirmPublic = false, confir
       throw new EventError(409, 'Événement public : cochez « barème validé » et « publication validée par le propriétaire ».');
     }
     _write(ev, { status: 'scheduled', source: ev.source, action: ev.audience === 'public' ? 'schedule_public' : 'schedule_test' });
+    _publishImages(ev);   // planifier = action explicite de publication : les images de la fiche partent avec
     return getEvent(id, nowMs);
   });
 }
@@ -442,6 +474,7 @@ function startTestNow(id, { minutes = 60, nowMs = Date.now() } = {}) {
     if (!r.ready) throw new EventError(409, `Événement incomplet : ${r.blocking.join(' ')}`);
     _write(ev, { status: 'scheduled', source: cur.source, action: 'start_test_now' });
     _log(id, 'start_test_now_dates', { minutes: dur, previous: { startsAt: cur.startsAt, endsAt: cur.endsAt } });
+    _publishImages(cur);
     return getEvent(id, nowMs);
   });
 }
@@ -454,6 +487,53 @@ function unscheduleEvent(id) {
     if (ev.status === 'draft') return ev;
     _write(ev, { status: 'draft', source: ev.source, action: 'unschedule' });
     return getEvent(id);
+  });
+}
+
+// ── Images des objets (#65) ───────────────────────────────────────────────────
+
+/** Copie l'image de la fiche de chaque objet vers l'image vue des joueurs (seulement celles qui diffèrent). */
+function _publishImages(ev) {
+  const changed = ev.items.filter(it => imageState(it) === 'draft');
+  const up = conn().prepare(`INSERT INTO monthly_event_item_images (event_id, item_id, image) VALUES (?, ?, ?)
+      ON CONFLICT(event_id, item_id) DO UPDATE SET image = excluded.image, published_at = datetime('now')`);
+  for (const it of changed) up.run(ev.id, it.id, it.image ?? null);
+  if (changed.length) _log(ev.id, 'publish_images', { items: changed.map(it => ({ id: it.id, before: it.publishedImage ?? null, after: it.image ?? null })) });
+  return changed.map(it => it.id);
+}
+
+/**
+ * « Publier les images » : action explicite de l'événement, quel que soit son état (un souvenir déjà
+ * trouvé d'un événement TEST repassé en brouillon reçoit aussi son image). Ne change ni le statut,
+ * ni les dates, ni les drops ; retour arrière = remettre l'ancienne image dans la fiche puis republier.
+ */
+function publishImages(id) {
+  return db.runTransaction(() => {
+    const ev = getEvent(id);
+    if (!ev) throw new EventError(404, 'Événement introuvable.');
+    const published = _publishImages(ev);
+    return { event: getEvent(id), published };
+  });
+}
+
+/**
+ * Atelier d'icônes (#40 → #65) : « Conserver » écrit l'image dans la FICHE de l'objet (révision ajoutée),
+ * jamais dans l'image publiée. Seule l'image change, aussi sur un événement planifié : elle n'a aucun effet
+ * sur les drops, et les joueurs ne la voient qu'après « Publier les images ».
+ */
+function setItemImage(eventId, itemId, image) {
+  const url = image ? String(image) : null;
+  if (url && !IMAGE_RE.test(url)) throw new EventError(400, 'Image attendue depuis l\'atelier ou le téléversement admin.');
+  return db.runTransaction(() => {
+    const cur = getEvent(eventId);
+    if (!cur) throw new EventError(404, 'Événement introuvable.');
+    const it = cur.items.find(i => i.id === itemId);
+    if (!it) throw new EventError(404, 'Objet introuvable dans cet événement.');
+    if ((it.image ?? null) === url) return getEvent(eventId);
+    const ev = { ...cur, items: cur.items.map(i => (i.id === itemId ? { ...i, image: url } : i)) };
+    _write(ev, { status: cur.status, source: cur.source, action: 'image' });
+    _log(eventId, 'item_image', { itemId, before: it.image ?? null, after: url });
+    return getEvent(eventId);
   });
 }
 
@@ -537,7 +617,7 @@ function processSave(userId, { nowMs = Date.now(), rand = _rand } = {}) {
         if (rand() >= pAny) continue;
         const r = conn().prepare('INSERT OR IGNORE INTO monthly_event_finds (user_id, event_id, item_id, found_at, depth) VALUES (?,?,?,?,?)')
           .run(userId, ev.id, it.id, _iso(nowMs), depth);
-        if (r.changes) out.push({ eventId: ev.id, itemId: it.id, icon: it.icon, image: it.image, names: it.names, rarity: it.rarity, eventNames: ev.names });
+        if (r.changes) out.push({ eventId: ev.id, itemId: it.id, icon: it.icon, image: it.publishedImage, names: it.names, rarity: it.rarity, eventNames: ev.names });
       }
     }
     return out;
@@ -555,7 +635,8 @@ function publicView(userId = null, nowMs = Date.now()) {
   const foundAt = new Map(finds.map(f => [`${f.event_id}/${f.item_id}`, f.found_at]));
   const itemView = (ev, it) => {
     const at = foundAt.get(`${ev.id}/${it.id}`) ?? null;
-    return at ? { id: it.id, found: true, foundAt: at, icon: it.icon, image: it.image, names: it.names, descs: it.descs, rarity: it.rarity }
+    // Image PUBLIÉE seulement (#65) : celle du brouillon n'est jamais montrée au joueur ; sinon l'emoji
+    return at ? { id: it.id, found: true, foundAt: at, icon: it.icon, image: it.publishedImage, names: it.names, descs: it.descs, rarity: it.rarity }
       : { id: it.id, found: false, rarity: it.rarity };
   };
   const active = activeFor(userId, nowMs).map(ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt,
@@ -853,9 +934,25 @@ function listAiJobs(limit = 5) {
 
 // ── Admin : vue d'ensemble ────────────────────────────────────────────────────
 
+/** Clé stable de l'objet dans l'atelier d'icônes (#65). */
+const studioKey = (eventId, itemId) => `event:${eventId}/${itemId}`;
+
+/** Nombre d'images de l'atelier par cible `event:…` (0 si l'atelier n'est pas initialisé). */
+function _studioProposals() {
+  try {
+    return Object.fromEntries(conn().prepare("SELECT target, COUNT(*) n FROM icon_studio_assets WHERE target LIKE 'event:%' GROUP BY target").all().map(r => [r.target, r.n]));
+  } catch (err) { if (/no such table/.test(err.message)) return {}; throw err; }
+}
+
 function adminView(nowMs = Date.now()) {
+  const proposals = _studioProposals();
   const events = listEvents(nowMs).map(ev => ({ ...ev, startsLocal: utcToBrussels(ev.startsAt), endsLocal: utcToBrussels(ev.endsAt),
-    readiness: readiness(ev), stats: stats(ev.id) }));
+    readiness: readiness(ev), stats: stats(ev.id),
+    items: ev.items.map(it => {
+      const key = studioKey(ev.id, it.id), state = imageState(it), n = proposals[key] ?? 0;
+      // « proposition » : l'atelier a des images pour cet objet, aucune n'est encore dans la fiche
+      return { ...it, studioKey: key, proposals: n, imageState: state === 'none' && n ? 'proposal' : state };
+    }) }));
   const y = new Date(nowMs).getUTCFullYear();
   return { timezone: TZ, now: _iso(nowMs), rarities: RARITIES, categories: CATEGORIES, langs: LANGS, events, testerSuggestions: testerSuggestions(),
     calendar: [proposeCalendar(y, nowMs), proposeCalendar(y + 1, nowMs)], ai: listAiJobs(), log: listLog(60) };
@@ -866,4 +963,5 @@ module.exports = {
   getEvent, listEvents, createEvent, updateEvent, scheduleEvent, startTestNow, unscheduleEvent, resolveTesters, testerSuggestions, listRevisions, restoreRevision, listLog,
   activeFor, processSave, publicView, categoryShare, simulate, stats, holidays, proposeCalendar, createTestEvent, importPrepared,
   startAiDraft, getAiJob, listAiJobs, adminView, MAX_BLOCKS_PER_SAVE,
+  imageState, publishImages, setItemImage, studioKey, ID_RE,
 };

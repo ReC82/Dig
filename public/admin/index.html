@@ -1846,7 +1846,7 @@
     <div id="ic-list-view">
       <div class="bk-filters ic-filters">
         <input type="search" id="ic-search" placeholder="Rechercher une icône…" aria-label="Rechercher une icône">
-        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets de collection</option><option value="relic">Reliques</option><option value="badge">Badges</option><option value="ui">Interface</option></select>
+        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets de collection</option><option value="relic">Reliques</option><option value="event">Objets d'événement</option><option value="badge">Badges</option><option value="ui">Interface</option></select>
         <select id="ic-state" aria-label="État"><option value="">Tous les états</option><option value="todo">À créer</option><option value="proposal">Propositions à examiner</option><option value="draft">À publier</option><option value="live">En jeu</option><option value="locked">Validées 🔒</option></select>
       </div>
       <div id="ic-series" class="ic-series"></div>
@@ -2626,6 +2626,7 @@
           <span class="ev-now" id="ev-now-box"><button class="btn btn-outline" id="btn-ev-start-now" type="button">▶ Démarrer le test maintenant…</button>
             <label>pendant <input id="ev-now-min" type="number" min="10" max="10080" value="60" style="width:80px"> min</label></span>
           <button class="btn btn-danger" id="btn-ev-unschedule" type="button">⏸ Repasser en brouillon…</button>
+          <button class="btn btn-outline" id="btn-ev-publish-images" type="button">🖼 Publier les images…</button>
           <button class="btn btn-outline" id="btn-ev-revisions" type="button">Révisions</button>
           <button class="btn btn-outline" type="button" data-close>Fermer</button>
         </div>
@@ -2666,6 +2667,11 @@
             <p class="muted ev-help" id="evi-chance-help"></p>
           </fieldset>
           <fieldset class="co-fs"><legend>Illustration</legend>
+            <div class="evi-studio">
+              <p class="ev-help" id="evi-img-state" role="status"></p>
+              <button class="btn btn-primary" id="btn-evi-studio" type="button">🎨 Créer une image avec l'IA</button>
+              <p class="muted ev-help">Ouvre la fiche de cet objet dans 🎨 Icônes : nom, description, thème de l'événement et consigne préremplis, modifiables. Aucune image n'est créée sans clic sur « Générer » (une image par clic). L'image conservée va dans la fiche de l'événement ; les joueurs ne la voient qu'après « Publier les images ».</p>
+            </div>
             <div class="co-grid">
               <label class="co-span">Adresse de l'image (facultatif) <input type="text" id="evi-image" maxlength="200" placeholder="/api/collections/images/… ou /media/icons/…"></label>
               <label>Téléverser (PNG/JPEG/WebP) <input id="evi-upload" type="file" accept="image/png,image/jpeg,image/webp"></label>

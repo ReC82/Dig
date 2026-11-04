@@ -5740,6 +5740,7 @@ async function icOpen(key, { keepSel = false } = {}) {
 const IC_HINTS = {
   block: 'ex. minerai bleu vif aux reflets métalliques',
   item: 'ex. vue de trois quarts, reflets plus chauds',
+  event: 'ex. ruban plus rouge, vue de trois quarts',
   badge: 'ex. médaille plus brillante, symbole plus simple',
   ui: 'ex. trait plus épais, couleurs plus vives',
 };
@@ -5927,6 +5928,7 @@ function icRenderSheet() {
   icButton(head, '← Toutes les icônes', async () => icShowList());
   if (_icFrom?.kind === 'item' && t.key === `item:${_icFrom.id}`) icButton(head, '← Retour à la fiche de l\'objet', () => icBackToItem(_icFrom.id));
   if (_icFrom?.kind === 'relic' && t.key === `relic:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la relique', () => rlBackTo(_icFrom.id));
+  if (t.kind === 'event' && t.event) icButton(head, '← Retour à la fiche de l\'objet d\'événement', () => evBackTo(t.event.id, t.event.itemId));
   const title = aiEl('div', { class: 'ic-sheet-title' });
   title.appendChild(aiEl('h3', {}, t.name));
   title.appendChild(icBadge(st));
@@ -5999,7 +6001,7 @@ function icRenderSheet() {
     : _ic?.status?.budgetReached ? icBudgetHelp(_ic.status) : '';
   if (!sel || mine) {
     // Objet de collection : la consigne d'illustration préparée est affichée ici, préremplie et modifiable
-    const briefEls = t.kind === 'item' ? icItemBrief(step, t) : null;
+    const briefEls = t.kind === 'item' || t.kind === 'event' ? icItemBrief(step, t) : null;
     _icBriefEls = briefEls;
     const i = field(briefEls ? 'Précision supplémentaire (facultative, pour cette seule génération, non enregistrée)' : 'Consigne (facultative)', IC_HINTS[t.kind] ?? IC_HINTS.ui);
     if (t.identity) step.appendChild(aiEl('p', { class: 'muted ic-hint' }, `L'IA reçoit toujours en premier l'objet du catalogue : « ${t.identity.fr ?? t.identity.name} » (${t.identity.name}). `
@@ -6019,7 +6021,11 @@ function icRenderSheet() {
     } else if (t.applicable && sel.inDraft) {
       row.appendChild(aiEl('span', { class: 'ic-kept' }, sel.published ? '✓ Cette image est en jeu.' : '✓ Conservée dans le brouillon.'));
       // Recette du 03/11 : ce bouton ne publie rien, il ouvre l'onglet où la publication reste une décision manuelle
-      if (!sel.published) {
+      if (!sel.published && t.kind === 'event') {
+        // #65 : publication par l'action explicite de l'événement (« Publier les images » dans sa fiche)
+        icButton(row, 'Ouvrir la fiche de l\'événement →', () => evBackTo(t.event.id, null), 'btn btn-outline');
+        row.appendChild(aiEl('span', { class: 'muted' }, 'Rien n\'est publié ici : « Publier les images » dans la fiche de l\'événement (statut et drops inchangés).'));
+      } else if (!sel.published) {
         const tab = t.kind === 'block' ? '🧱 Blocs' : '📿 Collections';
         const go = icButton(row, `Ouvrir l'onglet ${tab} →`, async () => {
           document.querySelector(`.tab-btn[data-tab="${t.kind === 'block' ? 'blocks' : 'collections'}"]`).click();
@@ -6199,7 +6205,9 @@ async function icApply(t, sha, { doubtful = false } = {}) {
   if (live && !await admAsk(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
   const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live, doubtful });
   const where = data.catalog === 'blocks' ? '🧱 Blocs' : data.catalog === 'relics' ? '🔮 Reliques' : '📿 Collections';
-  const done = data.catalog === 'badges'
+  const done = data.catalog === 'events'
+    ? `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans la fiche de l'événement (brouillon). Les joueurs la verront après « Publier les images » dans 🎉 Événements.`
+    : data.catalog === 'badges'
     ? `${sha ? 'Image enregistrée' : 'Emoji rétabli'} sur le badge${data.draft ? ' (désactivé : les joueurs la verront après son activation dans 🏅 Badges)' : ' (actif : visible par les joueurs)'}.`
     : `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans le brouillon. Les joueurs la verront après la publication dans l'onglet ${where}.`;
   _icNote = { text: ok ? done : (data.error || 'Erreur.'), ok };
@@ -6216,7 +6224,7 @@ function icMobilePreview(t, url) {
     if (/^#[0-9a-f]{6}$/i.test(t.background?.accent ?? '')) block.style.borderColor = t.background.accent;
     block.appendChild(aiEl('img', { src: url, alt: '', style: 'width:70%;height:70%;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5))' }));
     phone.appendChild(block);
-  } else if (t.kind === 'item') {
+  } else if (t.kind === 'item' || t.kind === 'event') {
     const grid = aiEl('div', { style: 'display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%' });
     for (let i = 0; i < 4; i++) {
       const card = aiEl('div', { style: 'background:#1f2937;border:1px solid rgba(245,197,24,0.22);border-radius:12px;padding:12px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:5px' });
@@ -8588,6 +8596,10 @@ const EV_STATE_CHIP = { draft: 'muted', planned: 'info', active: 'ok', ended: 'm
 const EV_RARITIES = { commun: 'Commun', 'peu-commun': 'Peu commun', rare: 'Rare', epique: 'Épique', legendaire: 'Légendaire' };
 const EV_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const EV_ITEM_ID_RE = /^[a-z][a-z0-9_]{2,39}$/;
+// Image d'un objet (#65) : la fiche (brouillon) ≠ l'image vue des joueurs (publiée par une action de l'événement)
+const EV_IMG_STATES = { none: ['Sans image', 'muted'], proposal: ['Proposition dans l\'atelier', 'info'], draft: ['Conservée dans le brouillon', 'warn'], published: ['Publiée', 'ok'] };
+const evImgChip = it => { const [label, cls] = EV_IMG_STATES[it.imageState] ?? EV_IMG_STATES.none; return evChip(`🖼 ${label}`, cls); };
+const evImgPending = ev => (ev?.items ?? []).filter(i => i.imageState === 'draft');
 
 /** « 2026-12-01T00:00 » (Bruxelles) → « 01/12/2026 00:00 ». */
 function evFmt(local) {
@@ -8877,6 +8889,9 @@ function evRenderItems() {
     const nm = addCell(tr, '');
     nm.appendChild(aiEl('strong', {}, it.names.fr || '(sans nom)'));
     nm.appendChild(aiEl('div', { class: 'muted ev-sub' }, it.id || '—'));
+    // État de l'image enregistrée côté serveur (objet pas encore enregistré : aucun)
+    const saved = _evCur.ev?.items.find(x => x.id === it.id);
+    if (saved) nm.appendChild(aiEl('div', { class: 'ev-sub' })).appendChild(evImgChip(saved));
     addCell(tr, EV_RARITIES[it.rarity] ?? it.rarity);
     addCell(tr, it.dropFrom.length ? it.dropFrom.join(', ') : 'tous les blocs');
     addCell(tr, `${it.chancePct} %${it.minDepth ? ` · ≥ ${it.minDepth} m` : ''}`);
@@ -8920,6 +8935,10 @@ function evRenderState() {
   document.getElementById('ev-now-box').classList.toggle('hidden', !ev || !draft || ev.audience !== 'test');
   document.getElementById('btn-ev-unschedule').classList.toggle('hidden', !ev || draft);
   document.getElementById('btn-ev-revisions').classList.toggle('hidden', !ev);
+  const pending = evImgPending(ev);
+  const pb = document.getElementById('btn-ev-publish-images');
+  pb.classList.toggle('hidden', !pending.length);
+  pb.textContent = `🖼 Publier les images (${pending.length})…`;
   document.getElementById('ev-testers-box').classList.toggle('hidden', !isTest);
   const rd = document.getElementById('ev-readiness');
   rd.textContent = '';
@@ -9194,11 +9213,65 @@ function eviOpen(idx, opener) {
   }
   document.getElementById('btn-evi-apply').classList.toggle('hidden', ro);
   document.getElementById('btn-evi-remove').classList.toggle('hidden', ro || idx < 0);
+  eviRenderImageState();
   document.getElementById('ev-item-title').textContent = idx >= 0 ? `${it.icon} ${it.names.fr || it.id}${ro ? ' (consultation)' : ''}${found ? ` — trouvé ${found} fois` : ''}` : 'Nouvel objet';
   nwMessage('evi-msg', '');
   eviRenderLang();
   _eviSnap = JSON.stringify(eviRead());
   admDialogOpen('ev-item-dialog', opener, idx >= 0 ? null : 'evi-id');
+}
+
+/** #65 : état de l'image de l'objet ENREGISTRÉ (sans image, proposition, brouillon, publiée). */
+function eviRenderImageState() {
+  const box = document.getElementById('evi-img-state');
+  box.textContent = '';
+  const saved = _evi.idx >= 0 ? _evCur.ev?.items.find(x => x.id === _evi.item.id) : null;
+  if (!saved) { box.textContent = 'Enregistrez d\'abord l\'objet dans le brouillon de l\'événement pour lui créer une image.'; return; }
+  box.appendChild(evImgChip(saved));
+  const why = { none: ' Les joueurs voient l\'emoji.', proposal: ` ${saved.proposals} image(s) dans l'atelier, aucune conservée : les joueurs voient l'emoji.`,
+    draft: ' Pas encore vue des joueurs : « Publier les images » dans la fiche de l\'événement.', published: ' C\'est l\'image que voient les joueurs.' }[saved.imageState] ?? '';
+  box.appendChild(document.createTextNode(why));
+}
+
+/** #65 : ouvre la cible `event:<événement>/<objet>` de l'atelier (fiche préremplie), sans rien générer. */
+async function eviOpenStudio() {
+  const ev = _evCur.ev;
+  const saved = _evi.idx >= 0 ? ev?.items.find(x => x.id === _evi.item.id) : null;
+  if (!saved) return nwMessage('evi-msg', 'Enregistrez d\'abord l\'objet (« Appliquer à la fiche » puis « Enregistrer le brouillon ») : l\'atelier travaille sur un objet enregistré.', true);
+  if ((eviDirty() || evDirty()) && !await admConfirmDiscard({ keep: 'Enregistrer le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
+  _eviSnap = null; _evSnap = null;
+  document.getElementById('ev-item-dialog').close();
+  document.getElementById('ev-dialog').close();
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  _icFrom = { kind: 'event', id: saved.studioKey, eventId: ev.id, itemId: saved.id };
+  icOpen(saved.studioKey);
+}
+
+/** Retour de l'atelier vers la fiche de l'événement puis de l'objet (rechargées : image de la fiche à jour). */
+async function evBackTo(eventId, itemId) {
+  document.querySelector('.tab-btn[data-tab="events"]').click();
+  await loadEvents();
+  const ev = _ev?.events.find(e => e.id === eventId);
+  if (!ev) return;
+  evOpen(ev, document.querySelector(`[data-adm-key="${CSS.escape(`ev:${eventId}`)}"]`));
+  const idx = _evCur.draft.items.findIndex(i => i.id === itemId);
+  if (idx >= 0) eviOpen(idx, document.querySelector(`#ev-items [data-adm-key="evi:${idx}"]`));
+}
+
+/** #65 : images de la fiche → images vues des joueurs ; ni statut, ni dates, ni drops ne changent. */
+async function evPublishImages() {
+  const ev = _evCur.ev;
+  const pending = evImgPending(ev);
+  if (!pending.length) return;
+  const found = Object.values(ev.stats.finds).reduce((a, b) => a + b, 0);
+  if (evDirty() && !await admConfirmDiscard({ keep: 'Enregistrer le brouillon', effect: 'publie les images enregistrées ; les saisies non enregistrées de cette fiche sont perdues.' })) return;
+  if (!await admConfirm({ title: `Publier ${pending.length} image(s) de « ${ev.names.fr} » ?`,
+    text: pending.map(i => `${i.icon} ${i.names.fr} : ${i.image ? 'nouvelle image' : 'retour à l\'emoji'}`).join(' · '),
+    impact: [found ? `${found} souvenir(s) déjà trouvé(s) : les joueurs concernés verront la nouvelle image à leur prochain chargement.` : 'Aucun souvenir trouvé pour l\'instant.',
+      'Le statut, les dates, les testeurs et les drops ne changent pas.', 'Retour arrière : remettre l\'image précédente dans l\'atelier (historique), puis republier.'],
+    ok: '🖼 Publier les images' })) return;
+  _evSnap = null;
+  await evAction(ev.id, 'publish-images', `${pending.length} image(s) publiée(s) : visibles des joueurs.`);
 }
 
 async function eviCanClose() {
@@ -9299,6 +9372,8 @@ document.getElementById('btn-ev-unschedule')?.addEventListener('click', evUnsche
 document.getElementById('btn-ev-revisions')?.addEventListener('click', evRevisions);
 document.getElementById('btn-evi-apply')?.addEventListener('click', eviApply);
 document.getElementById('btn-evi-remove')?.addEventListener('click', eviRemove);
+document.getElementById('btn-evi-studio')?.addEventListener('click', eviOpenStudio);
+document.getElementById('btn-ev-publish-images')?.addEventListener('click', evPublishImages);
 document.getElementById('ev-cal-year')?.addEventListener('change', renderEvCalendar);
 document.getElementById('ev-audience')?.addEventListener('change', evRenderState);
 document.getElementById('ev-name')?.addEventListener('input', e => { _evCur.draft.names[_evLang] = e.target.value; });
