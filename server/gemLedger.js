@@ -327,13 +327,20 @@ function observeSave(userId, data, { revision, nowMs = Date.now(), force = false
 }
 
 /**
+ * Transaction IMMEDIATE : verrou d'écriture pris AVANT la lecture du solde. En WAL, une transaction
+ * différée qui lit puis écrit échoue en SQLITE_BUSY_SNAPSHOT si un autre processus a écrit entre-temps
+ * (refus parasite, jamais de dépense en trop) ; observé 2 fois sur 12 dans le test à 4 processus.
+ */
+const _immediate = fn => db.getDb().transaction(fn).immediate();
+
+/**
  * Dépense atomique et idempotente (boutique en gemmes, plus tard). Le même `opKey` rejoué renvoie le
  * même résultat sans redébiter. Solde insuffisant → 409, rien n'est écrit.
  */
 function spend(userId, amount, opKey, { reason = 'purchase', details = null } = {}) {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new GemError(400, 'Montant invalide.', 'bad_amount');
   if (typeof opKey !== 'string' || !OPKEY_RE.test(opKey)) throw new GemError(400, 'Clé d\'opération invalide.', 'bad_key');
-  return db.runTransaction(() => {
+  return _immediate(() => {
     const key = `spend:${opKey}`;
     const prev = conn().prepare('SELECT * FROM gem_ledger WHERE user_id = ? AND op_key = ?').get(userId, key);
     if (prev) return { balance: prev.balance_after, replayed: true, entryId: prev.id };
@@ -353,7 +360,7 @@ function spend(userId, amount, opKey, { reason = 'purchase', details = null } = 
 function credit(userId, amount, opKey, { reason = 'admin_credit', details = null } = {}) {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new GemError(400, 'Montant invalide.', 'bad_amount');
   if (typeof opKey !== 'string' || !OPKEY_RE.test(opKey)) throw new GemError(400, 'Clé d\'opération invalide.', 'bad_key');
-  return db.runTransaction(() => {
+  return _immediate(() => {
     const key = `credit:${opKey}`;
     const prev = conn().prepare('SELECT * FROM gem_ledger WHERE user_id = ? AND op_key = ?').get(userId, key);
     if (prev) return { balance: prev.balance_after, replayed: true, entryId: prev.id };
