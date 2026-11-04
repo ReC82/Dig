@@ -1404,7 +1404,7 @@ function iconRoute(label, fn) {
   return async (req, res) => {
     try { res.json(await fn(req)); }
     catch (err) {
-      if (err instanceof iconStudio.StudioError || err instanceof blockCatalog.CatalogError || err instanceof collectionCatalog.CatalogError || err instanceof badges.BadgeError) {
+      if (err instanceof iconStudio.StudioError || err instanceof blockCatalog.CatalogError || err instanceof collectionCatalog.CatalogError || err instanceof badges.BadgeError || err instanceof monthlyEvents.EventError) {
         return res.status(err.status).json({ error: err.message, details: err.details });
       }
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
@@ -1908,6 +1908,8 @@ app.post('/api/admin/events/:id/schedule', requireAdmin, eventRoute('POST /api/a
 // Recette #56-C : événement TEST en brouillon → bornes recalées sur maintenant + planification, atomiquement.
 app.post('/api/admin/events/:id/start-now', requireAdmin, eventRoute('POST /api/admin/events/:id/start-now',
   req => ({ event: monthlyEvents.startTestNow(eventId(req), { minutes: req.body?.minutes }) })));
+// #65 : images de la fiche → images vues des joueurs (action explicite, aucun changement de statut ni de drops)
+app.post('/api/admin/events/:id/publish-images', requireAdmin, eventRoute('POST /api/admin/events/:id/publish-images', req => monthlyEvents.publishImages(eventId(req))));
 app.post('/api/admin/events/:id/unschedule', requireAdmin, eventRoute('POST /api/admin/events/:id/unschedule', req => ({ event: monthlyEvents.unscheduleEvent(eventId(req)) })));
 app.get('/api/admin/events/:id/revisions', requireAdmin, eventRoute('GET /api/admin/events/:id/revisions', req => ({ revisions: monthlyEvents.listRevisions(eventId(req)) })));
 app.post('/api/admin/events/:id/restore', requireAdmin, eventRoute('POST /api/admin/events/:id/restore',

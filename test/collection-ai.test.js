@@ -323,7 +323,7 @@ test('recette du 02/11 : relecture IA en synthèse puis fiche d\'un objet, une l
 test('recette du 02/11 (atelier) : consigne de l\'objet préremplie et modifiable, saisie conservée, jamais de génération automatique', () => {
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'server', 'collectionAi.js'), 'utf8'), /Every item has a clearly different silhouette and subject/);
   const sheet = JS.slice(JS.indexOf('function icRenderSheet('), JS.indexOf('function icHistory('));
-  assert.match(sheet, /t\.kind === 'item' \? icItemBrief\(step, t\)/);
+  assert.match(sheet, /t\.kind === 'item' \|\| t\.kind === 'event' \? icItemBrief\(step, t\)/);   // #65 : objets d'événement aussi
   assert.match(sheet, /IC_HINTS\[t\.kind\]/, 'plus de consigne « minerai » pour un objet');
   assert.match(JS, /item: 'ex\. vue de trois quarts/);
   assert.match(JS, /_icTyped\[t\.key\]\?\.instruction \?\? typed/, 'consigne saisie conservée entre les fiches');
