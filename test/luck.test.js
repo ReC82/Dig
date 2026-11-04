@@ -112,9 +112,9 @@ test('getLuckPreview : part rare maintenant → niveau suivant, relique incluse,
 
 test('carte Chance : libellé et aperçu traduits FR/EN/NL, séparateur décimal de la langue', () => {
   const expected = {
-    fr: ['À 100m : 11,7% de blocs rares\u00a0→\u00a012,7%', 'À 100m : 22,6% de blocs rares', 'Aucun bloc rare avant 5m', 'Plus de rares, sans ralentir'],
-    en: ['At 100m: 11.7% rare blocks\u00a0→\u00a012.7%', 'At 100m: 22.6% rare blocks', 'No rare blocks before 5m', 'More rares, no slowdown'],
-    nl: ['Op 100m: 11,7% zeldzame blokken\u00a0→\u00a012,7%', 'Op 100m: 22,6% zeldzame blokken', 'Geen zeldzame blokken vóór 5m', 'Meer zeldzame, niet trager'],
+    fr: ['À 100\u00a0m : 11,7% de blocs rares\u00a0→\u00a012,7%', 'À 100\u00a0m : 22,6% de blocs rares', 'Aucun bloc rare avant 5\u00a0m', 'Plus de rares, sans ralentir'],
+    en: ['At 100\u00a0m: 11.7% rare blocks\u00a0→\u00a012.7%', 'At 100\u00a0m: 22.6% rare blocks', 'No rare blocks before 5\u00a0m', 'More rares, no slowdown'],
+    nl: ['Op 100\u00a0m: 11,7% zeldzame blokken\u00a0→\u00a012,7%', 'Op 100\u00a0m: 22,6% zeldzame blokken', 'Geen zeldzame blokken vóór 5\u00a0m', 'Meer zeldzame blokken, zonder trager te graven'],
   };
   for (const [lang, [mid, max, none, desc]] of Object.entries(expected)) {
     const { Upgrades, GameState, I18n } = loadBrowser(lang);

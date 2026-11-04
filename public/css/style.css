@@ -1298,13 +1298,17 @@ h1 {
   font-weight: 700;
 }
 
+/* Jusqu'à 2 lignes : les langues plus longues (NL « Meer zeldzame blokken, zonder trager te graven ») ne sont plus coupées (#59-G) */
 .upgrade-desc {
   font-size: 0.7rem;
   color: var(--muted);
   margin-top: 2px;
-  white-space: nowrap;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Effet du prochain niveau à la profondeur actuelle (carte Chance, #32) : peut passer à la ligne */
@@ -1325,7 +1329,9 @@ h1 {
   flex-wrap: wrap;
   column-gap: 8px;
 }
-.upgrade-next-level, .upgrade-next-effect { white-space: nowrap; }
+.upgrade-next-level { white-space: nowrap; }
+/* L'effet peut passer à la ligne plutôt que glisser sous le bouton (NL « Automatische schade per seconde », #59-G) */
+.upgrade-next-effect { min-width: 0; overflow-wrap: anywhere; }
 .upgrade-next-effect { color: var(--gold); font-weight: 600; }
 
 .upgrade-btn {

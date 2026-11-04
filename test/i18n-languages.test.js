@@ -328,3 +328,29 @@ test('recettes #59-A/C/D : pluriels NL/ES, formulations EN/NL/ES de la page Coll
   // Le coût et le manque restent séparés par un vrai espace (plus de flex qui l'avale)
   assert.doesNotMatch(read('public/css/style.css').match(/\.relic-cost \{[^}]*\}/)[0], /display:\s*flex/);
 });
+
+test('recettes #59-G/H : Verbeteringen et kansen van kisten en NL, unité « m » espacée', () => {
+  const { ctx } = browser({ locales: ['it'] });
+  const tr = (lang, key, params) => { ctx.I18n.setLang(lang); return ctx.t(key, params); };
+  const NBSP = ' ';
+  // #59-G — écran Verbeteringen
+  assert.strictEqual(tr('nl', 'upgrade.fragment_shop.desc_none'), '1 relikwiescherf kopen');
+  assert.strictEqual(tr('nl', 'upgrade.block_reroll.desc_none'), 'Huidig blok vervangen');
+  assert.strictEqual(tr('nl', 'upgrade.luck.desc'), 'Meer zeldzame blokken, zonder trager te graven');
+  assert.strictEqual(tr('nl', 'upgrade.autodig.desc', { dmg: 2 }), '2 automatische schade per seconde');
+  assert.strictEqual(tr('nl', 'upgrade.autodig.effect', { cur: 2, next: 3 }), `Automatische schade per seconde: 2${NBSP}→${NBSP}3`);
+  assert.strictEqual(tr('nl', 'shopguide.title'), 'Waar gebruik je welke valuta?');
+  assert.strictEqual(tr('nl', 'upgrade.luck.preview_max', { depth: 75, now: 12 }), `Op 75${NBSP}m: 12% zeldzame blokken`);
+  // #59-H — fenêtre « beloningen en kansen » (il s'agit bien de fragments de relique)
+  assert.strictEqual(tr('nl', 'chest_odds.unlimited'), 'Onbeperkt te openen.');
+  assert.strictEqual(tr('nl', 'chest_odds.relics', { n: 1 }), '🔮 1 relikwiescherf');
+  assert.strictEqual(tr('nl', 'chest_odds.relics', { n: 3 }), '🔮 3 relikwiescherven');
+  assert.strictEqual(tr('nl', 'chest_odds.boost', { mult: 2, minutes: 5 }), `⚡ 2× zoveel munten uit blokken — 5${NBSP}min`);
+  // Unité de profondeur : « 75 m » dans toutes les langues, jamais « 75m »
+  for (const lang of ['fr', 'en', 'nl', 'es', 'it']) {
+    assert.strictEqual(tr(lang, 'stats.depth_val', { n: 75 }), `75${NBSP}m`, lang);
+    for (const key of ['upgrade.luck.preview', 'upgrade.luck.preview_max', 'upgrade.luck.preview_none', 'quest.depth25.desc']) {
+      assert.doesNotMatch(tr(lang, key, { depth: 75, now: 1, next: 2 }), /\dm\b/, `${lang} ${key}`);
+    }
+  }
+});

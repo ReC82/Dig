@@ -2784,10 +2784,10 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "quest.depth25.desc": {
-   "text": "Raggiungi la profondità di 25m",
-   "src": "0a92a5232f56",
+   "text": "Raggiungi la profondità di 25 m",
+   "src": "10a60623f87f",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
+   "by": "claude-opus-5-5 (session #59, relu) ; unité « m » espacée (#59-G)",
    "at": "2026-11-03T05:30:00.000Z"
   },
   "quest.depth25.name": {
@@ -3855,10 +3855,10 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "stats.depth_val": {
-   "text": "{n}m",
-   "src": "e8f4dc0b12fa",
+   "text": "{n} m",
+   "src": "c16faa9ddda2",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
+   "by": "claude-opus-5-5 (session #59, relu) ; unité « m » espacée (#59-G)",
    "at": "2026-11-03T05:30:00.000Z"
   },
   "stats.gems": {
@@ -4566,24 +4566,24 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "upgrade.luck.preview": {
-   "text": "A {depth}m: {now}% di blocchi rari → {next}%",
-   "src": "9e0fff1605b1",
+   "text": "A {depth} m: {now}% di blocchi rari → {next}%",
+   "src": "3d36eb8565e4",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
+   "by": "claude-opus-5-5 (session #59, relu) ; unité « m » espacée (#59-G)",
    "at": "2026-11-03T05:30:00.000Z"
   },
   "upgrade.luck.preview_max": {
-   "text": "A {depth}m: {now}% di blocchi rari",
-   "src": "8fa80014061f",
+   "text": "A {depth} m: {now}% di blocchi rari",
+   "src": "93c47fffd47e",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
+   "by": "claude-opus-5-5 (session #59, relu) ; unité « m » espacée (#59-G)",
    "at": "2026-11-03T05:30:00.000Z"
   },
   "upgrade.luck.preview_none": {
-   "text": "Nessun blocco raro prima dei 5m",
-   "src": "1809834aac84",
+   "text": "Nessun blocco raro prima dei 5 m",
+   "src": "ab1351d987a3",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
+   "by": "claude-opus-5-5 (session #59, relu) ; unité « m » espacée (#59-G)",
    "at": "2026-11-03T05:30:00.000Z"
   },
   "upgrade.max_level": {

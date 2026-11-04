@@ -5,7 +5,7 @@
  *
  * API publique :
  *   t('ui.btn_upgrade')                     → "Améliorer"
- *   t('stats.depth_val', { n: 42 })         → "42m"
+ *   t('stats.depth_val', { n: 42 })         → "42 m" (espace insécable)
  *   I18n.setLang('en')                      → change la langue + re-applique
  *   I18n.getCurrent()                       → 'fr' | 'en' | 'nl' | 'es' | langue preview
  *   I18n.onLangChange(fn)                   → callback sur changement
@@ -205,7 +205,7 @@ const I18n = (() => {
       stats: {
         coins: 'Coins', gems: 'Gemmes', depth: 'Prof.',
         pickaxe: 'Pioche', damage: 'Dégâts', relics: '🔮 Frags',
-        depth_val: '{n}m', pickaxe_val: 'Nv.{n}',
+        depth_val: '{n}\u00a0m', pickaxe_val: 'Nv.{n}',
       },
       collection: {
         archives: '🗄 Archives des saisons passées',
@@ -237,7 +237,7 @@ const I18n = (() => {
         next_level: 'Niveau {cur}\u00a0→\u00a0{next}', max_level: 'Niveau maximal atteint',
         pickaxe:  { name: 'Pioche',    desc: '{damage} dégât{s} par clic', effect: 'Dégâts par clic\u00a0: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Chance',    desc: 'Plus de rares, sans ralentir',
-                    preview: 'À {depth}m : {now}% de blocs rares\u00a0→\u00a0{next}%', preview_max: 'À {depth}m : {now}% de blocs rares', preview_none: 'Aucun bloc rare avant 5m', },
+                    preview: 'À {depth}\u00a0m : {now}% de blocs rares\u00a0→\u00a0{next}%', preview_max: 'À {depth}\u00a0m : {now}% de blocs rares', preview_none: 'Aucun bloc rare avant 5\u00a0m', },
         bag:      { name: 'Sac',       desc_normal: 'Récompenses normales', desc: 'Récompenses ×{mult}', effect: 'Récompenses ×{cur}\u00a0→\u00a0×{next}', },
         autodig:  { name: 'Auto-Dig',  desc_off: 'Inactif', desc: '{dmg} dégât{s} automatique/sec', effect: 'Dégâts auto/sec\u00a0: {cur}\u00a0→\u00a0{next}', },
         fragment_shop: { name: 'Fragments',   desc_none: 'Acheter 1 fragment de relique', desc: '{n}/10 achetés cette saison', },
@@ -245,7 +245,7 @@ const I18n = (() => {
       },
       quest: {
         break10:  { name: 'Premier coup',   desc: 'Casser 10 blocs' },
-        depth25:  { name: 'Explorateur',    desc: 'Atteindre la profondeur 25m' },
+        depth25:  { name: 'Explorateur',    desc: 'Atteindre la profondeur 25\u00a0m' },
         coins100: { name: 'Premier trésor', desc: 'Gagner 100 coins au total' },
         find_gem: { name: 'Gemme !',        desc: 'Trouver un bloc gemme' },
         upgrade5: { name: 'Artisan',        desc: 'Acheter 5 améliorations' },
@@ -824,7 +824,7 @@ const I18n = (() => {
       stats: {
         coins: 'Coins', gems: 'Gems', depth: 'Depth',
         pickaxe: 'Pickaxe', damage: 'Damage', relics: '🔮 Frags',
-        depth_val: '{n}m', pickaxe_val: 'Lv.{n}',
+        depth_val: '{n}\u00a0m', pickaxe_val: 'Lv.{n}',
       },
       collection: {
         archives: '🗄 Past seasons archive',
@@ -855,7 +855,7 @@ const I18n = (() => {
         next_level: 'Level {cur}\u00a0→\u00a0{next}', max_level: 'Maximum level reached',
         pickaxe:  { name: 'Pickaxe',   desc: '{damage} damage per click', effect: 'Damage per click: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Luck',      desc: 'More rares, no slowdown',
-                    preview: 'At {depth}m: {now}% rare blocks\u00a0→\u00a0{next}%', preview_max: 'At {depth}m: {now}% rare blocks', preview_none: 'No rare blocks before 5m', },
+                    preview: 'At {depth}\u00a0m: {now}% rare blocks\u00a0→\u00a0{next}%', preview_max: 'At {depth}\u00a0m: {now}% rare blocks', preview_none: 'No rare blocks before 5\u00a0m', },
         bag:      { name: 'Bag',       desc_normal: 'Normal rewards', desc: 'Rewards ×{mult}', effect: 'Rewards ×{cur}\u00a0→\u00a0×{next}', },
         autodig:  { name: 'Auto-Dig',  desc_off: 'Inactive', desc: '{dmg} automatic damage/sec', effect: 'Auto damage/sec: {cur}\u00a0→\u00a0{next}', },
         fragment_shop: { name: 'Fragments',    desc_none: 'Buy 1 relic fragment', desc: '{n}/10 bought this season', },
@@ -863,7 +863,7 @@ const I18n = (() => {
       },
       quest: {
         break10:  { name: 'First Strike',   desc: 'Break 10 blocks' },
-        depth25:  { name: 'Explorer',       desc: 'Reach depth 25m' },
+        depth25:  { name: 'Explorer',       desc: 'Reach depth 25\u00a0m' },
         coins100: { name: 'First Treasure', desc: 'Earn 100 coins total' },
         find_gem: { name: 'Gem!',           desc: 'Find a gem block' },
         upgrade5: { name: 'Craftsman',      desc: 'Buy 5 upgrades' },
@@ -1442,7 +1442,7 @@ const I18n = (() => {
       stats: {
         coins: 'Munten', gems: 'Edelst.', depth: 'Diepte',
         pickaxe: 'Houweel', damage: 'Schade', relics: '🔮 Frags',
-        depth_val: '{n}m', pickaxe_val: 'Nv.{n}',
+        depth_val: '{n}\u00a0m', pickaxe_val: 'Nv.{n}',
       },
       collection: {
         archives: '🗄 Archief van vorige seizoenen',
@@ -1472,16 +1472,16 @@ const I18n = (() => {
       upgrade: {
         next_level: 'Niveau {cur}\u00a0→\u00a0{next}', max_level: 'Maximaal niveau bereikt',
         pickaxe:  { name: 'Houweel',      desc: '{damage} schade per klik', effect: 'Schade per klik: {cur}\u00a0→\u00a0{next}', },
-        luck:     { name: 'Geluk',        desc: 'Meer zeldzame, niet trager',
-                    preview: 'Op {depth}m: {now}% zeldzame blokken\u00a0→\u00a0{next}%', preview_max: 'Op {depth}m: {now}% zeldzame blokken', preview_none: 'Geen zeldzame blokken vóór 5m', },
+        luck:     { name: 'Geluk',        desc: 'Meer zeldzame blokken, zonder trager te graven',
+                    preview: 'Op {depth}\u00a0m: {now}% zeldzame blokken\u00a0→\u00a0{next}%', preview_max: 'Op {depth}\u00a0m: {now}% zeldzame blokken', preview_none: 'Geen zeldzame blokken vóór 5\u00a0m', },
         bag:      { name: 'Tas',          desc_normal: 'Normale beloningen', desc: 'Beloningen ×{mult}', effect: 'Beloningen ×{cur}\u00a0→\u00a0×{next}', },
-        autodig:  { name: 'Auto-graven',  desc_off: 'Inactief', desc: '{dmg} automatische schade/sec', effect: 'Automatische schade/sec: {cur}\u00a0→\u00a0{next}', },
-        fragment_shop: { name: 'Fragmenten',   desc_none: '1 reliek fragment kopen', desc: '{n}/10 gekocht dit seizoen', },
-        block_reroll:  { name: 'Blok opnieuw', desc_none: 'Huidig blok veranderen', desc: { $n: 'n', one: '{n} wissel dit seizoen', other: '{n} wissels dit seizoen' }, },
+        autodig:  { name: 'Auto-graven',  desc_off: 'Inactief', desc: '{dmg} automatische schade per seconde', effect: 'Automatische schade per seconde: {cur}\u00a0→\u00a0{next}', },
+        fragment_shop: { name: 'Fragmenten',   desc_none: '1 relikwiescherf kopen', desc: '{n}/10 gekocht dit seizoen', },
+        block_reroll:  { name: 'Blok opnieuw', desc_none: 'Huidig blok vervangen', desc: { $n: 'n', one: '{n} wissel dit seizoen', other: '{n} wissels dit seizoen' }, },
       },
       quest: {
         break10:  { name: 'Eerste slag',   desc: '10 blokken breken' },
-        depth25:  { name: 'Verkenner',     desc: 'Diepte 25m bereiken' },
+        depth25:  { name: 'Verkenner',     desc: 'Diepte 25\u00a0m bereiken' },
         coins100: { name: 'Eerste schat',  desc: '100 munten verdienen' },
         find_gem: { name: 'Edelsteen!',    desc: 'Een edelsteenblok vinden' },
         upgrade5: { name: 'Vakman',        desc: '5 verbeteringen kopen' },
@@ -1619,14 +1619,14 @@ const I18n = (() => {
         title:        '{name} — beloningen en kansen',
         price:        'Prijs: 💰 {cost} munten',
         limit:        'Beperkt tot {max} keer openen per seizoen ({n}/{max} dit seizoen).',
-        unlimited:    'Geen limiet op openen.',
+        unlimited:    'Onbeperkt te openen.',
         col_chance:   'Kans',
         col_reward:   'Beloning',
         coins:        '💰 {min} – {max} munten',
         jackpot:      'jackpot',
-        relics:       { $n: 'n', one: '🔮 {n} scherf', other: '🔮 {n} scherven' },
+        relics:       { $n: 'n', one: '🔮 {n} relikwiescherf', other: '🔮 {n} relikwiescherven' },
         relics_you:   'jij krijgt er {n}',
-        boost:        '⚡ Boost ×{mult} op blokmunten — {minutes}\u00a0min',
+        boost:        '⚡ {mult}× zoveel munten uit blokken — {minutes}\u00a0min',
         collection:   '📿 1 verzamelobject',
         summary:      'Eén opening = één beloning, willekeurig getrokken volgens deze kansen. Munten uit een kist worden niet vermenigvuldigd door de Tas of door boosts.',
         how:          'ℹ️ Hoe werken de beloningen?',
@@ -1776,7 +1776,7 @@ const I18n = (() => {
         email_change_sent:     'Link verstuurd naar {email}: het adres wijzigt na bevestiging.',
       },
       shopguide: {
-        title:         'Waar besteed je wat?',
+        title:         'Waar gebruik je welke valuta?',
         aria:          'De drie winkels van Dig',
         chests:        '📦 Kisten',
         chests_cur:    '💰 Munten',
@@ -2060,7 +2060,7 @@ const I18n = (() => {
       stats: {
         coins: 'Monedas', gems: 'Gemas', depth: 'Prof.',
         pickaxe: 'Pico', damage: 'Daño', relics: '🔮 Frags',
-        depth_val: '{n}m', pickaxe_val: 'Nv.{n}',
+        depth_val: '{n}\u00a0m', pickaxe_val: 'Nv.{n}',
       },
       collection: {
         archives: '🗄 Archivo de temporadas pasadas',
@@ -2091,7 +2091,7 @@ const I18n = (() => {
         next_level: 'Nivel {cur} → {next}', max_level: 'Nivel máximo alcanzado',
         pickaxe:  { name: 'Pico',      desc: '{damage} de daño por clic', effect: 'Daño por clic: {cur} → {next}', },
         luck:     { name: 'Suerte',    desc: 'Más bloques raros, sin frenar',
-                    preview: 'A {depth}m: {now}% de bloques raros → {next}%', preview_max: 'A {depth}m: {now}% de bloques raros', preview_none: 'Ningún bloque raro antes de 5m', },
+                    preview: 'A {depth}\u00a0m: {now}% de bloques raros → {next}%', preview_max: 'A {depth}\u00a0m: {now}% de bloques raros', preview_none: 'Ningún bloque raro antes de 5\u00a0m', },
         bag:      { name: 'Bolsa',     desc_normal: 'Recompensas normales', desc: 'Recompensas ×{mult}', effect: 'Recompensas ×{cur} → ×{next}', },
         autodig:  { name: 'Auto-Dig',  desc_off: 'Inactivo', desc: '{dmg} de daño automático/s', effect: 'Daño auto/s: {cur} → {next}', },
         fragment_shop: { name: 'Fragmentos',     desc_none: 'Comprar 1 fragmento de reliquia', desc: '{n}/10 comprados esta temporada', },
@@ -2099,7 +2099,7 @@ const I18n = (() => {
       },
       quest: {
         break10:  { name: 'Primer golpe',    desc: 'Romper 10 bloques' },
-        depth25:  { name: 'Explorador',      desc: 'Alcanzar 25m de profundidad' },
+        depth25:  { name: 'Explorador',      desc: 'Alcanzar 25\u00a0m de profundidad' },
         coins100: { name: 'Primer tesoro',   desc: 'Ganar 100 monedas en total' },
         find_gem: { name: '¡Gema!',          desc: 'Encontrar un bloque de gema' },
         upgrade5: { name: 'Artesano',        desc: 'Comprar 5 mejoras' },
