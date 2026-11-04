@@ -13,7 +13,7 @@ production, et d'activer un drapeau économique, sans nouvelle validation des r�
 ### 1. État réel
 
 **Partiel — lot 1.1 (registre de gemmes de référence) et lot 2 (simulations 3, 4, 5) livrés ;
-déployé en production À L'ÉTAT DÉSACTIVÉ (SHA ci-dessous), rien n'est activé.** Restent à faire
+déployé en production (SHA `020bad4`) À L'ÉTAT DÉSACTIVÉ — en attente de recette ; rien n'est activé.** Restent à faire
 dans ce ticket (sessions suivantes, sans attendre le propriétaire) : lot 1.2 (Admin → Économie avec
 brouillon / simulation / publication / versions / retour arrière), barème A rendu pilotable mais
 non publié, boutique en gemmes derrière un drapeau OFF (lot 2.6).
@@ -118,7 +118,7 @@ Lecture :
 
 ### 4. SHA, branche et procédure de test
 
-- Branche `feature/49-audit-economie` ; SHA sur `develop` et SHA déployé : voir section 6.
+- Branche `feature/49-audit-economie` ; **SHA sur `develop` = SHA déployé : `020bad4`**.
 - `node --test test/gem-ledger.test.js` (11 tests) ; `node --test test/economy-sim.test.js`
   (8 tests dont 3 nouveaux : courbe b/c, limites respectées, combinaisons reproductibles et sans
   effet sur le jeu) ; `npm test` complet.
@@ -137,6 +137,80 @@ Lecture :
   gemmes ramenées au solde de référence — à n'activer qu'après lecture du mode `observe`.
 - Limites des simulations : joueur rationnel, ordre d'achat des coffres fixe, budget d'ouvertures
   par profil supposé, objets de collection = 5 🔮 ; 5 000 (et non 10 000) saisons par profil.
+
+### 6. Déploiement
+
+**Déployé en production : `020bad4`** (merge `--no-ff` dans `develop`, arbre identique à la branche
+testée) — **registre en mode `off`, aucun réglage économique modifié.**
+
+- `npm test` complet sur l'arbre exact de `020bad4` : **629 / 629 réussis** (dont 11 nouveaux
+  `gem-ledger` et 3 nouveaux `economy-sim`).
+- Copie de la base de production (`.backup`) démarrée en production sur le port 3122 : `/health` ok,
+  `/api/version` = `1.0.0+020bad4`, tables du registre créées vides, mode `off` ; **empreintes
+  identiques** avant/après (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`,
+  `player_click_tracking`) ; copie supprimée.
+- `scripts/deploy.sh` (script de la release) : sauvegarde vérifiée
+  `~/backups/dig/dig-20261104-180704-pre-deploy-020bad4.sqlite`, `e9e1471 → 020bad4`, santé et
+  version vérifiées. Après : les deux domaines → 200 et `1.0.0+020bad4`, journal sans erreur,
+  `quick_check` = ok, mode `off`, 0 ligne de registre, comptes / sauvegardes / classements inchangés.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep e9e1471` + redémarrage (les tables
+  ajoutées, vides, sont ignorées par l'ancien code).
+
+**Test fonctionnel à faire par le propriétaire** (≈ 3 min, sans rien activer) :
+1. Admin → **💰 Économie & Joueurs** → carte **« 💎 Registre de gemmes (serveur) »** : attendu
+   « Mode actuel : Désactivé », 0 compte suivi, aucune anomalie.
+2. En jeu : jouer quelques minutes, trouver une gemme, acheter un niveau d'Auto-Dig si possible :
+   attendu **aucun changement** (gemmes affichées comme avant).
+3. (Facultatif, seulement si vous le décidez — question 1) : passer en **Observation**, jouer 10 min,
+   puis « ↻ Rafraîchir » : attendu 1 compte suivi, solde d'ouverture = vos gemmes, mouvements
+   « Blocs gemmes validés » / « Série / missions », aucune anomalie pour un jeu normal ; vos gemmes en
+   jeu ne bougent pas. Revenir à « Désactivé » est immédiat.
+
+### 7. Choix techniques faits seul
+
+- Mode par défaut `off` (et non `observe`) : la décision interdit toute activation sans accord ; le
+  passage en observation est donc une question (1), bien qu'il ne modifie aucun solde.
+- Solde de référence = **borne haute du solde légitime** : il ne suit jamais une baisse côté client
+  (perte notée), si bien que le mode `enforce` ne peut que rendre des gemmes perdues, jamais retirer
+  des gemmes justifiées.
+- Sources calculées par le navigateur bornées par une **allocation journalière** plutôt que
+  recalculées côté serveur : la série et les missions vivent dans le navigateur ; les valider côté
+  serveur demanderait de déplacer ces systèmes (hors périmètre de ce lot).
+- En mode `enforce`, le solde est injecté dans la sauvegarde **renvoyée** (comme les objets de
+  collection serveur #39) au lieu de réécrire la sauvegarde stockée : aucune réécriture de données.
+- Clé d'idempotence d'observation = révision serveur de la sauvegarde (monotone) : pas de ligne de
+  journal par sauvegarde sans mouvement.
+- Courbe alternative (c) = +5 %/m jusqu'à 200 m puis +1 %/m : borne basse plausible pour mesurer
+  l'élasticité (b se situe entre l'actuelle et c).
+- Simulations à 5 000 saisons/profil (et non 10 000) : durée sur machine partagée ; mêmes graines.
+
+### 8. Décisions demandées au propriétaire
+
+1. **Registre de gemmes** : passer en mode **Observation** en production pour 1 à 2 semaines
+   (aucun solde ni sauvegarde modifié, réversible d'un clic) ? Recommandation : **oui** — c'est la
+   recette du registre avant tout mode « fait foi » et avant la boutique en gemmes.
+2. **Limites 20/10** : les simulations montrent l'effet attendu (fragments ÷ 6 à ÷ 20 en S1, reliques
+   au max en S3–S5) mais **100 % des joueurs réguliers et assidus sont bloqués dès la S1**. Options :
+   (a) 20/10 tel quel ; (b) 20/10 + les pièces restantes servent à un nouveau puits (ex. coffre
+   antique supplémentaire ou boutique de fragments étendue) ; (c) limites plus larges (ex. 50/20).
+   Recommandation : **(a) ou (b)** — (a) est simple et réversible, à accompagner d'un puits plus tard.
+3. **Courbe des pièces** : (b) et (c) réduisent les pièces de 40 à 65 % **sans effet sur la
+   profondeur** et ne repoussent la saturation que de 3,2 h à ≈ 4 h. Options : (a) ne rien changer ;
+   (b) courbe b ; (c) courbe c. Recommandation : **(a) pour l'instant** — la courbe ne résout pas
+   l'inflation ; le vrai levier est un puits de pièces (question 2b).
+4. **Boutique en gemmes** : je la développe derrière un drapeau désactivé (pioche dorée 150, pioche
+   diamant 350, ramassage auto 30, boost ×2 30 min 8 💎 = prix de simulation). Aucune question
+   bloquante ; les prix restent à confirmer après simulation.
+
+### 9. Éléments restant à réaliser (dans ce ticket, sessions suivantes)
+
+- Lot 1.2 : Admin → Économie — règles économiques versionnées (gemmes par bloc, gemmes des coffres
+  de mine, bonus missions, plafond, limites des coffres, courbe des pièces, boutique gemmes),
+  brouillon, simulation comparative, aperçu des impacts, publication explicite, versions, journal,
+  retour arrière ; version publiée initiale = valeurs actuelles (aucun changement).
+- Barème A et limites préparés comme **brouillon** (non publiés), jeu lisant les règles publiées.
+- Lot 2.6 : boutique en gemmes derrière drapeau OFF, achats via `gemLedger.spend` (idempotent).
+- Mode `enforce` : seulement après recette de l'observation et accord du propriétaire.
 
 ### Annexe B (04/11) — sortie de `node tools/balance/economy-sim.js --runs 5000 --long-runs 1000 --seasons 8`
 
