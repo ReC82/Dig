@@ -7,6 +7,9 @@
   `feature/25-anti-bot-lots-ab`
 - **Session 3 (03/11/2026) : recette propriétaire — journaux anti-bot / anti-autoclicker clarifiés,
   filtres corrigés, derniers contrôles par joueur ; déployé `9731025`**
+- **Session 4 (05/11/2026, nuit) : premier test de résistance réel (`gabpok8`) — fiche diagnostique
+  par joueur dans Admin → Anti-bot, mesures par sauvegarde, explication score 40 / shadow / enforce ;
+  déployé `3f726c2`** (section « Session 4 » en fin de document)
 
 ---
 
@@ -416,3 +419,174 @@ sans effet visible pour un joueur honnête) ; lots C, D, E = **Après lancement*
   shadow, puis revue des mesures avant le lot C.
 - Signalé hors périmètre (à rattacher à #14 ou #25-A) : journal d'audit de `PUT /api/admin/config`,
   limite de débit sur `POST /api/me/shop/chest/open`.
+
+
+---
+
+# Session 4 — 05/11/2026 : fiche diagnostique par joueur (premier test de résistance)
+
+## 1. Ticket
+
+#25 — [P0] Protection anti-bot globale — détection, validation serveur et réponses effectives —
+https://github.com/ReC82/Dig/issues/25. Commentaires du propriétaire du 04/11 (22:00 → 22:41 UTC) :
+rafales `burst_clicks` / `cps_flagged` du testeur volontaire `gabpok8` (beau-fils du propriétaire,
+invité **pour casser le jeu** : aucune accusation), demande d'une **vue par joueur**, d'une explication
+exacte du score 40 et de `applied:false`, et du tableau « signal → observation → action prévue →
+action effectivement appliquée ». Le rapport forensique et le correctif serveur P0 (bloquer gains et
+achats issus d'une progression impossible) ont été ouverts par le propriétaire dans **#74** ; la remise
+à zéro du testeur dans **#75**.
+
+## 2. État réel
+
+**Déployé en production (SHA `3f726c2`) — en attente de recette.** Classement : **Bloquant MVP public**
+pour la capacité d'observation (la bêta invitée ne peut pas être suivie sans), le correctif de fond
+étant #74.
+
+## 3. Résultat et changements
+
+**Ce que le propriétaire voit :** Admin → Anti-bot → nouvelle carte « Fiche d'un joueur » (pseudo exact
+ou `#ID`) et bouton **Fiche** à côté de chaque pseudo dans « Derniers contrôles », « Comptes par score de
+risque » et le « Journal de sécurité ». La fiche (fenêtre centrée, lisible sur mobile) affiche, avec pour
+chaque valeur une étiquette **serveur** / **déclaré** (sauvegarde du navigateur, non vérifiée) /
+**télémétrie** (indice falsifiable) / **déduit** :
+
+- bandeau : « Anti-bot shadow — sanctions désactivées (applied:false) » ; « Budget de dégâts enforce —
+  plafonne la profondeur CLASSÉE ; ne réduit ni les coups, ni les gains, ni les achats » ;
+  « 👆 du classement = blocs détruits manuellement validés, pas des coups » ;
+- compte et activité : inscription, première activité et dernière mise à jour de la saison, dernière
+  sauvegarde (révision), dernier contrôle ;
+- progression : profondeur retenue / déclarée / couverte par le budget, écarts, coups manuels, blocs
+  manuels déclarés et validés, blocs Auto-Dig, blocs détruits au total, **blocs ni manuels ni Auto-Dig**
+  (détruits par un clic que le navigateur juge suspect : profondeur et gains accordés quand même — faille
+  #74), clics jugés suspects ;
+- partie déclarée : pièces, gemmes, fragments, pioche, niveaux d'améliorations (dont Auto-Dig) et de
+  reliques, cumuls ;
+- score de risque par catégorie (valeur, plafond, points de chaque signal) avec la règle de calcul ;
+- **tableau des contrôles** : validation de profondeur #9, budget de dégâts, anti-autoclic #10, clic suspect
+  navigateur, score de risque, économie — mode, observation chiffrée pour ce joueur, action prévue,
+  **action effectivement appliquée** ;
+- alertes par type et chronologie (100 dernières) **filtrées sur le joueur** ; fenêtres anti-autoclic ;
+- **à partir de ce déploiement** : télémétrie cumulée (histogramme des intervalles, souris / tactile /
+  clavier / autre, `isTrusted=false`) et tableau des sauvegardes contrôlées (Δt serveur, Δ coups,
+  **coups/s à l'horloge serveur**, Δ blocs manuels / auto / total, profondeur déclarée / retenue / budget,
+  niveau Auto-Dig, décision anti-autoclic). Avant ce déploiement : « non disponible pour cette session ».
+
+**Fichiers :** `server/antibot.js` (`recordSaveSample`, `findPlayer`, `playerReport`), `server/db.js`
+(table additive `antibot_save_samples`), `server/seasons.js` (échantillon à chaque sauvegarde contrôlée ;
+mesures ajoutées aux événements `cps_flagged` / `cps_reduced` / `blocks_gt_clicks`), `server/index.js`
+(`GET /api/admin/security/player`, admin), `public/admin/*` (fiche), `server/gemLedger.js` (voir § 7),
+`test/antibot-player-report.test.js`.
+
+### Réponses aux questions du propriétaire (commentaires #25 du 04/11)
+
+**Score 40 et `risk_level {from:0,to:1,applied:false}` — exactement :** chaque signal ajoute des points à
+sa catégorie, plafonnée : `burst_clicks` +4 (plafond « burst » 15), `cps_flagged` +6 (plafond « cps »
+25). Après 4 rafales et 5 fenêtres CPS très élevé : 15 + 25 = **40** ≥ 30 → **N1**. L'événement
+`risk_level` est journalisé avec `applied:false` parce que `antibot_mode = shadow` : **aucun niveau n'est
+appliqué, le jeu n'a réduit aucun coup**. Le score décroît de moitié toutes les 24 h. Test automatisé
+qui reproduit exactement ce 40 / N1 : `test/antibot-player-report.test.js`. (Plus tard le 04/11, un
+`depth_rejected` a ajouté la catégorie « preuve » : score 74,5, N2, toujours non appliqué.)
+
+**`clicks: 509` n'est pas 509 clics/s :** c'est le nombre de coups enregistrés par le navigateur
+**depuis la dernière sauvegarde réussie**, envoyés avec une sauvegarde ; `under40ms: 505` = 505 de ces
+intervalles étaient < 40 ms (> 25 coups/s). La télémétrie n'est **pas rejouée** : le lot est retiré du
+cumul seulement quand le serveur confirme la sauvegarde, et les envois sont chaînés (un seul à la fois).
+Seul cas de double envoi possible : l'envoi de fermeture de page (`keepalive`) pendant qu'un envoi normal
+est en vol — rare, et sans effet sur la progression.
+
+**Doubles événements :** `touchstart` appelle `preventDefault()` → pas de `click` synthétique en plus
+sur mobile ; clavier : l'auto-répétition d'une touche maintenue est ignorée. Le tapotement à plusieurs
+doigts produit des intervalles < 40 ms, mais pas ~99 % d'entre eux (il faut une pause entre deux
+salves). Des lots où 505/509 intervalles sont < 40 ms correspondent à **> 25 coups/s soutenus** :
+compatible avec un autocliqueur logiciel (qui produit des événements `isTrusted = true`, d'où l'absence
+d'`untrusted_clicks`), pas avec un clic humain. Les fenêtres anti-autoclic serveur du compte
+(horloge serveur) montrent par exemple 29,7 et 36,3 coups/s sur ~12 s. **Conclusion prudente : automatisation
+probable, cohérente avec le test de résistance autorisé ; aucune sanction.** La répartition souris /
+tactile / clavier n'était pas conservée avant ce déploiement ; elle l'est désormais.
+
+**« L'anti-bot ne fait rien » — exact pour la partie score :** en `shadow`, les signaux ne produisent
+aucune action. Ce qui agit réellement : (1) validation de profondeur #9 et (2) budget de dégâts
+`enforce`, qui bornent la **profondeur classée** seulement ; (3) l'anti-autoclic #10, qui réduit les
+**blocs manuels classés** (#73) seulement. **Rien ne borne les gains, les achats ni l'Auto-Dig** : la
+sauvegarde du navigateur est acceptée telle quelle. Le budget de dégâts n'a pas freiné `gabpok8` parce
+qu'il est volontairement permissif : il crédite les coups déclarés jusqu'à `depth_max_cps` = 20 coups/s,
+chacun aux dégâts maximum du jeu, contre les PV minimum des blocs ; un autocliqueur sous ce débit, ou un
+compteur forgé, reste « plausible » (voir #74 pour l'audit chiffré). Ce correctif de fond est l'objet de **#74**.
+
+**Faits relevés en lecture seule pour #74 (compte `gabpok8`, aucune donnée personnelle) :** inscrit le
+04/11 21:43 UTC ; à 22:57 UTC (sauvegarde pré-déploiement `dig-20261104-235755-pre-deploy-53d19ac.sqlite`) :
+profondeur 1 003, 1 002 blocs détruits, dont 33 manuels et 21 Auto-Dig → **≈ 948 blocs détruits par des
+clics jugés suspects**, pioche niv. 15, Auto-Dig niv. 6, 153 améliorations achetées, ~161,6 M pièces. À
+23:04 UTC, la sauvegarde courante repasse à profondeur 1, 0 pièce, améliorations à 0 (remise à zéro
+**côté navigateur** — aucune action serveur ni admin ne l'explique), alors que les compteurs de saison
+restent à 1 011 m : l'état d'avant n'existe plus que dans les sauvegardes de la base (préservées).
+
+## 4. SHA et procédure de test
+
+- Branche `feature/25-anti-bot-lots-ab` : `a95a312` (fiche), `960acd7` (correctif gemmes).
+- **`develop` = `3f726c2`** (fusion), déployé.
+- Automatique : `npm test` → **706/706**. Ciblé : `node --test test/antibot-player-report.test.js`
+  (joueur normal sans alerte ; autoclicker 30 coups/s → score 40 N1, `applied:false`, mesures sur
+  `cps_flagged` ; blocs ni manuels ni auto ; plafond de 500 échantillons ; rien en mode off ; recherche
+  pseudo / ID ; route admin protégée).
+- Navigateur (serveur de test, port 3101, base de test, joueur synthétique « autoclicker ») : fiche
+  ouverte depuis « Derniers contrôles » et depuis la recherche, PC 1280×900 et mobile 390×844, Échap
+  ferme sans avertissement « modifications non enregistrées ».
+
+## 5. Vérifications, limites, impact données
+
+- **Aucune donnée joueur modifiée** ; aucune règle, aucun seuil, aucune sanction, aucun barème changé.
+  Le compte testeur n'a pas été touché.
+- Migration **additive** (table `antibot_save_samples`, index) testée sur une copie de la production :
+  empreintes des 6 tables identiques avant/après démarrage, `quick_check` ok.
+- Données ajoutées : par sauvegarde, compteurs et résumé de télémétrie déjà envoyés (pas d'IP, pas de
+  frappe horodatée) ; 500 lignes max par joueur, purge à 90 jours avec le journal.
+- Limites : la fiche ne reconstitue **pas** l'historique d'avant ce déploiement (la sauvegarde est
+  écrasée à chaque envoi ; voir #74 pour la reconstitution à partir des sauvegardes de la base). Les
+  valeurs « déclaré » / « télémétrie » sont falsifiables par un client modifié.
+
+## 6. Déploiement
+
+- **Déployé `3f726c2`** le 05/11 à 00:53 (Bruxelles) ; précédent `53d19ac`. Sauvegarde vérifiée :
+  `~/backups/dig/dig-20261105-005305-pre-deploy-3f726c2.sqlite`.
+- Vérifié : dig.lodygames.com et dig.lodylands.com → 200, `/api/version` = `1.0.0+3f726c2` ; journal
+  sans erreur ; `quick_check` ok ; compteurs joueurs en progression uniquement (une partie en cours) ;
+  23 échantillons enregistrés dans la minute ; route de la fiche → 401 sans session admin.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 53d19ac` + `sudo systemctl restart dig` (la
+  table ajoutée est ignorée par l'ancienne version).
+
+**Test fonctionnel à faire par le propriétaire :**
+1. Admin → Anti-bot → bouton **Fiche** à côté de `gabpok8` dans « Derniers contrôles » : la fiche
+   s'ouvre ; vérifier bandeau shadow / enforce, profondeur retenue vs déclarée, « Blocs ni manuels ni
+   Auto-Dig », score et sa décomposition, tableau « action effectivement appliquée ».
+2. Saisir `gabpok8` (ou `#3`) dans « Fiche d'un joueur » → même fiche.
+3. Pendant que le testeur joue : **↻ Rafraîchir** dans la fiche → le tableau « Sauvegardes contrôlées »
+   s'allonge (coups/s à l'horloge serveur, souris / tactile, intervalles < 40 ms).
+4. Sur smartphone : la fiche se lit et se ferme (✕, Échap) sans avertissement.
+
+## 7. Choix techniques faits seul
+
+- Échantillon **agrégé par sauvegarde** plutôt que frappes individuelles : suffisant pour coups/s,
+  doublons, rejeu et origine des clics, sans donnée sensible ; borné en volume.
+- La fiche **n'invente pas d'historique** : ce qui n'était pas stocké est marqué « non disponible ».
+- **Correctif hors périmètre strict, nécessaire au déploiement** : le test du registre de gemmes (#49)
+  « achats simultanés depuis 4 processus » échouait 2 fois sur 12 **déjà sur `develop` avant ce
+  ticket** (`SQLITE_BUSY_SNAPSHOT` : transaction différée lue puis écrite pendant qu'un autre processus
+  écrit). Les règles de déploiement refusent tout échec. `spend` / `credit` passent en transaction
+  `IMMEDIATE` (verrou d'écriture pris avant la lecture) : 0 échec sur 25 passages. Aucun changement de
+  règle ni de montant ; ces fonctions ne sont pas encore appelées par le jeu.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune nouvelle décision nécessaire pour cette livraison. Questions antérieures toujours ouvertes
+(optionnelles) : lot C (réponses graduelles) limité au classement et aux récompenses ; défi ponctuel
+maison désactivé par défaut ; éligibilité aux récompenses via #19 ; adresse de contestation ; lot D après
+le lancement. Le blocage effectif des gains / achats impossibles est traité dans **#74**.
+
+## 9. Éléments restant à réaliser
+
+- **#74 (P0, Bloquant MVP)** : rapport forensique `gabpok8` et correctif serveur (un bloc détruit par un
+  clic suspect ne doit plus rapporter profondeur ni gains ; bornage serveur des gains / achats /
+  Auto-Dig). La fiche fournit désormais les mesures pour comparer avant / après.
+- **#75** : remise à zéro contrôlée du testeur (la fiche servira à comparer les essais).
+- Après lancement : historique des achats côté serveur (aujourd'hui inexistant), lot C.
