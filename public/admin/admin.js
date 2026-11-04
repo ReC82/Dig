@@ -1466,10 +1466,14 @@ document.getElementById('btn-gl-mode').addEventListener('click', async () => {
   const note = document.getElementById('gl-mode-note').value.trim();
   const body = { mode, note, confirm: true };
   if (mode === 'enforce') {
-    const typed = window.prompt('Mode « fait foi » : le solde de référence remplacera les gemmes envoyées aux joueurs. Réservé à la décision du propriétaire après recette. Saisir ENFORCE pour confirmer.');
+    const typed = await admPrompt({ title: 'Registre de gemmes : mode « fait foi »',
+      text: 'Le solde de référence remplacera les gemmes envoyées aux joueurs (la sauvegarde stockée n\'est pas réécrite). Réservé à la décision du propriétaire après recette du mode Observation.',
+      label: 'Saisir ENFORCE pour confirmer', ok: 'Activer' });
     if (typed === null) return;
     body.confirmText = typed.trim();
-  } else if (!window.confirm(`Passer le registre de gemmes en mode « ${GL_MODES[mode]} » ?`)) return;
+  } else if (!await admConfirm({ title: `Registre de gemmes : mode « ${GL_MODES[mode]} »`,
+    impact: mode === 'observe' ? ['Le serveur enregistre un solde de référence et note les écarts.', 'Aucune sauvegarde ni solde de joueur n\'est modifié ; réversible (Désactivé).']
+      : ['Plus aucun mouvement enregistré ; le journal existant est conservé.'] })) return;
   const { ok, data } = await api('POST', '/api/admin/economy/gems/mode', body);
   if (!ok) { errEl.textContent = data.error ?? 'Erreur.'; errEl.classList.remove('hidden'); return; }
   admZoneClean(_glZone);
