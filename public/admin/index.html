@@ -412,6 +412,76 @@
       <p id="gl-err" class="error hidden"></p>
     </div>
 
+    <!-- Règles économiques versionnées (#49, lot 1.2) -->
+    <div class="overview-card" id="eco-rules-card">
+      <div class="section-header" style="margin-bottom:8px">
+        <h3 class="overview-card-title" style="margin:0">📐 Règles économiques (référence)</h3>
+        <button class="btn btn-outline btn-sm" id="btn-refresh-eco-rules">↻ Rafraîchir</button>
+      </div>
+      <p class="muted" style="margin-bottom:10px">Barème des gemmes, plafond, Auto-Dig, courbe des pièces, limites des coffres et prix de la boutique en gemmes, versionnés : brouillon → simulation comparative → publication avec note → retour arrière.
+        <strong>Ces règles ne sont pas encore appliquées par le jeu</strong> : publier une version n'a aucun effet pour les joueurs (le jeu suit toujours son code, ⚙ Config et les tables de récompenses). L'application effective sera un changement séparé, après validation des résultats.</p>
+      <p>Version publiée : <strong id="er-version">—</strong> · brouillon : <span id="er-draft-state">—</span></p>
+      <p id="er-game-gap" class="muted hidden"></p>
+      <div class="form-actions" data-adm-noguard style="flex-wrap:wrap;gap:8px;margin:8px 0">
+        <label>Préréglage
+          <select id="er-preset"></select>
+        </label>
+        <button class="btn btn-outline btn-sm" id="btn-er-preset">Appliquer au brouillon</button>
+      </div>
+      <div id="er-form" class="er-form"></div>
+      <div class="form-actions" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+        <button class="btn btn-sm" id="btn-er-save">Enregistrer le brouillon</button>
+        <button class="btn btn-outline btn-sm" id="btn-er-discard">Abandonner le brouillon…</button>
+      </div>
+      <h4 style="margin:14px 0 6px">Écarts du brouillon avec la version publiée</h4>
+      <table id="er-changes-table" style="margin-bottom:10px">
+        <thead><tr><th>Règle</th><th>Publiée</th><th>Brouillon</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="form-actions" data-adm-noguard style="flex-wrap:wrap;gap:8px">
+        <label>Joueurs simulés par profil
+          <select id="er-sim-runs"><option value="100">100</option><option value="300" selected>300</option><option value="1000">1 000</option></select>
+        </label>
+        <button class="btn btn-outline btn-sm" id="btn-er-simulate">Simuler publiée → brouillon</button>
+        <span id="er-sim-state" class="muted"></span>
+      </div>
+      <table id="er-sim-table" class="hidden" style="margin:10px 0">
+        <thead><tr><th>Profil (1 saison)</th><th>💎 gagnées</th><th>💎/h</th><th>💎 perdues (plafond)</th><th>🔮 fragments</th><th>Niveaux de reliques</th><th>Pièces gagnées</th><th>Profondeur médiane</th><th>Coffres boutique</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="form-actions" data-adm-noguard style="flex-wrap:wrap;gap:8px;margin-top:8px">
+        <input type="text" id="er-publish-note" placeholder="Note de publication (obligatoire)" maxlength="300" style="min-width:260px">
+        <button class="btn btn-sm" id="btn-er-publish">Publier le brouillon…</button>
+      </div>
+      <h4 style="margin:14px 0 6px">Versions</h4>
+      <table id="er-versions-table" style="margin-bottom:10px">
+        <thead><tr><th>Version</th><th>Date (UTC)</th><th>Origine</th><th>Note</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p id="er-msg" class="success hidden"></p>
+      <p id="er-err" class="error hidden"></p>
+    </div>
+
+    <!-- Boutique en gemmes (#49, lot 2.6) -->
+    <div class="overview-card" id="gem-shop-card">
+      <div class="section-header" style="margin-bottom:8px">
+        <h3 class="overview-card-title" style="margin:0">🛒 Boutique en gemmes</h3>
+        <button class="btn btn-outline btn-sm" id="btn-refresh-gem-shop">↻ Rafraîchir</button>
+      </div>
+      <p class="muted" style="margin-bottom:10px">Articles à l'étude (prix de simulation de la version publiée des règles). Fermée par défaut : rien n'est visible ni achetable en jeu. L'ouverture exige le registre de gemmes en mode « fait foi » et la décision du propriétaire ; aucun paiement réel.</p>
+      <p>État : <strong id="gs-state">—</strong> · registre : <span id="gs-ledger">—</span> · règles v<span id="gs-version">—</span></p>
+      <table id="gs-items-table" style="margin:10px 0">
+        <thead><tr><th>Article</th><th>Type</th><th>Prix 💎</th><th>Disponible</th><th>Achats</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="form-actions" style="flex-wrap:wrap;gap:8px">
+        <input type="text" id="gs-note" placeholder="Note (raison du changement)" maxlength="300" style="min-width:220px">
+        <button class="btn btn-sm" id="btn-gs-toggle">Ouvrir la boutique…</button>
+      </div>
+      <p id="gs-msg" class="success hidden"></p>
+      <p id="gs-err" class="error hidden"></p>
+    </div>
+
     <!-- Recherche de joueurs -->
     <div class="overview-card">
       <h3 class="overview-card-title">Debug joueur</h3>
