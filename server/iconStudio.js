@@ -40,6 +40,7 @@ const db = require('./db');
 const blockCatalog = require('./blockCatalog');
 const collectionCatalog = require('./collectionCatalog');
 const badges = require('./badges');
+const relicCatalog = require('./relicCatalog');
 const aiSpendCap = require('./aiSpendCap');
 const { APP_VERSION } = require('./version');
 
@@ -48,7 +49,7 @@ const MAX_IMAGES_PER_DAY = 40;
 const INSTRUCTION_MAX = 1000;   // consigne artistique réelle (recette du 02/11 : 300 trop court)
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const SHA_RE = /^[a-f0-9]{16}$/;
-const KEY_RE = /^(block|item|badge|ui):([a-z][a-z0-9_]{1,39})$/;
+const KEY_RE = /^(block|item|badge|relic|ui):([a-z][a-z0-9_]{1,39})$/;
 
 /** Pictogrammes d'interface (#41 pour l'application en jeu). Profil ≠ paramètres ≠ améliorations. */
 const UI_TARGETS = [
@@ -68,7 +69,7 @@ const PROMPT_VERSION = 'v1.3';
 // Contrôle du sujet : appel texte (vision) peu coûteux, réservé avant chaque image d'objet ou de badge
 const CHECK_EST_USD = 0.01;
 
-const KIND_LABELS = { block: 'Bloc', item: 'Objet / relique', badge: 'Badge', ui: 'Interface' };
+const KIND_LABELS = { block: 'Bloc', item: 'Objet de collection', badge: 'Badge', relic: 'Relique', ui: 'Interface' };
 
 class StudioError extends Error {
   constructor(status, message, details) { super(message); this.status = status; this.details = details; }
@@ -285,11 +286,14 @@ function _libraryV1() {
 
 const _blockTypes = () => blockCatalog.getDraft()?.types ?? blockCatalog.getPublished().types;
 const _collectionContent = () => collectionCatalog.getDraft() ?? collectionCatalog.getPublished();
+/** Reliques (#64) : brouillon du catalogue s'il existe, sinon version en vigueur. */
+const _relics = () => (relicCatalog.getDraft() ?? relicCatalog.getPublished()).relics;
 /** Image actuellement en jeu (catalogue publié), pour distinguer « brouillon » et « publié ». */
 // Badge (#38) : pas de brouillon, l'image enregistrée sur le badge est celle du jeu (badge actif) ou de sa fiche.
 const _publishedImage = (kind, id) => (kind === 'block'
   ? blockCatalog.getPublished().types.find(t => t.id === id)
   : kind === 'badge' ? badges.getBadgeRow(id)
+  : kind === 'relic' ? relicCatalog.getPublished().relics.find(r => r.id === id)
   : collectionCatalog.getPublished().items.find(i => i.id === id))?.image ?? null;
 
 function _defaultBrief(kind, src) {
@@ -298,6 +302,10 @@ function _defaultBrief(kind, src) {
   if (kind === 'badge') {
     const what = String(src.descriptions?.en || src.descriptions?.fr || '').slice(0, 160);
     return { subject: `A round honorary medal emblem for the achievement "${en}"`, details: `No text or letters; a single clear symbol in the centre${what ? `, evoking: ${what}` : ''}.`, palette: '' };
+  }
+  if (kind === 'relic') {
+    const what = String(src.descs?.en || src.descs?.fr || '').slice(0, 160);
+    return { subject: `A single ancient magical relic called "${en}"`, details: `One recognisable object, slightly glowing${what ? `, evoking: ${what}` : ''}.`, palette: '' };
   }
   if (kind === 'block') {
     const m = _materialBriefs()[src.id];
@@ -332,6 +340,9 @@ function _target(key) {
   } else if (kind === 'badge') {
     src = badges.getBadgeRow(id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `badge · ${src.status}` };
+  } else if (kind === 'relic') {
+    src = _relics().find(r => r.id === id);
+    if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `relique · ${relicCatalog.EFFECTS[src.effect]?.label ?? src.effect}${src.active ? '' : ' · archivée'}` };
   } else if (kind === 'item') {
     src = _collectionContent().items.find(i => i.id === id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `${src.seriesId} · ${src.rarity}` };
@@ -351,7 +362,7 @@ function _target(key) {
 // Objets et badges : une consigne décrit UN seul objet. Même sujet + mêmes détails (casse ignorée) chez
 // plusieurs cibles de la même famille = consigne répétée (recette #40 du 02/11 : la consigne « lanterne »
 // importée pour les 6 objets d'une collection a produit une lanterne pour le crayon).
-const _BRIEF_UNIQUE = new Set(['item', 'badge']);
+const _BRIEF_UNIQUE = new Set(['item', 'badge', 'relic']);
 const _briefSig = b => `${String(b.subject ?? '').trim().toLowerCase()}\n${String(b.details ?? '').trim().toLowerCase()}`;
 
 /** Autres cibles de la même famille ayant enregistré exactement la même consigne. */
@@ -406,6 +417,7 @@ function _heads(names = {}) {
 /** Autres cibles de la même famille (objets de collection, ou badges non archivés). */
 function _peers(t) {
   if (t.kind === 'item') return _collectionContent().items.filter(i => i.id !== t.id);
+  if (t.kind === 'relic') return _relics().filter(r => r.id !== t.id);
   if (t.kind === 'badge') {
     try { return badges.listBadges().filter(b => b.status !== 'archived' && b.id !== t.id); } catch (_) { return []; }
   }
@@ -572,6 +584,12 @@ function _badgeKeys() {
   catch (err) { if (/no such table/.test(err.message)) return []; throw err; }
 }
 
+/** Reliques (#64) ; aucune si le catalogue n'est pas initialisé (tests isolés). */
+function _relicKeys() {
+  try { return _relics().map(r => `relic:${r.id}`); }
+  catch (err) { if (/no such table/.test(err.message)) return []; throw err; }
+}
+
 /** Inventaire de toutes les cibles (blocs du brouillon/catalogue, objets, pictogrammes). */
 function listTargets() {
   const counts = _assetCounts();
@@ -579,6 +597,7 @@ function listTargets() {
     ..._blockTypes().map(t => `block:${t.id}`),
     ..._collectionContent().items.map(i => `item:${i.id}`),
     ..._badgeKeys(),
+    ..._relicKeys(),
     ...UI_TARGETS.map(u => `ui:${u.id}`),
   ];
   return keys.map(k => _summary(_target(k), counts));
@@ -646,7 +665,7 @@ function buildPrompt(kind, brief, instruction = '', identity = null) {
     if (!m) throw new Error(`gabarit ${tag} absent de prompt-master.md`);
     return m[1].trim();
   };
-  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
+  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' || kind === 'relic' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
   const who = identity
     ? `Object to depict: "${identity.name}"${identity.fr ? ` (French name: "${identity.fr}")` : ''}; the icon shows this exact object and nothing else. Visual description: `
     : '';
@@ -678,7 +697,7 @@ function promptSummary(kind, brief, identity = null) {
     subject: brief.subject,
     shape: brief.details || '',
     colors: String(brief.palette || '').replace(/^\s*palette\s*:\s*/i, ''),
-    style: `${STYLE_FR[kind === 'badge' ? 'item' : kind] ?? STYLE_FR.item} ${CONSTRAINTS_FR}${_reference() ? ' Même style que l\'icône de référence validée (pierre), sans en reprendre la forme.' : ''}`,
+    style: `${STYLE_FR[kind === 'badge' || kind === 'relic' ? 'item' : kind] ?? STYLE_FR.item} ${CONSTRAINTS_FR}${_reference() ? ' Même style que l\'icône de référence validée (pierre), sans en reprendre la forme.' : ''}`,
   };
 }
 
@@ -1083,7 +1102,7 @@ function getTarget(key) {
   return { ..._summary(t, { [key]: assets.length }), brief, prompt: buildPrompt(t.kind, brief, '', _identity(t)), promptSummary: promptSummary(t.kind, brief, _identity(t)),
     identity: _identity(t), subjectConflicts, subjectReferences,
     assets, history, ...itemExtra,
-    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : null };
+    costUsd: +spent.s.toFixed(4), calls: spent.n, story: t.kind === 'item' ? t.src.stories?.fr ?? null : t.kind === 'badge' ? t.src.descriptions?.fr ?? null : t.kind === 'relic' ? t.src.descs?.fr ?? null : null };
 }
 
 function _asset(key, sha) {
@@ -1125,10 +1144,11 @@ function apply(key, { sha = null, override = false, live = false, doubtful = fal
   }
   if (t.kind === 'block') blockCatalog.upsertDraftType({ ...t.src, image: url });
   else if (t.kind === 'badge') badges.updateBadge(t.id, { image: url });
+  else if (t.kind === 'relic') relicCatalog.upsertDraftRelic({ ...t.src, image: url });
   else collectionCatalog.upsertDraftItem({ ...t.src, image: url });
   _event(key, sha ? 'applied' : 'reverted_to_emoji', sha, { before, after: url, override: !!override && !!t.validation, ...(doubtful ? { doubtful: true } : {}), ...(t.kind === 'badge' ? { live: t.src.status === 'active' } : {}) });
   if (t.kind === 'badge') return { target: getTarget(key), draft: t.src.status !== 'active', catalog: 'badges' };
-  return { target: getTarget(key), draft: true, catalog: t.kind === 'block' ? 'blocks' : 'collections' };
+  return { target: getTarget(key), draft: true, catalog: t.kind === 'block' ? 'blocks' : t.kind === 'relic' ? 'relics' : 'collections' };
 }
 
 function listCalls(limit = 50) {

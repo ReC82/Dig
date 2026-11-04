@@ -546,6 +546,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'blocks')          { loadBlocks(); loadAi(); }
     if (btn.dataset.tab === 'rewards')         loadRewards();
     if (btn.dataset.tab === 'collections')     loadCollections();
+    if (btn.dataset.tab === 'relics')          loadRelics();
     if (btn.dataset.tab === 'icons')           loadIcons();
     if (btn.dataset.tab === 'config')          loadAiBudget();
     if (btn.dataset.tab === 'badges')          loadBadges();
@@ -5925,6 +5926,7 @@ function icRenderSheet() {
   const head = aiEl('div', { class: 'ic-sheet-head' });
   icButton(head, '← Toutes les icônes', async () => icShowList());
   if (_icFrom?.kind === 'item' && t.key === `item:${_icFrom.id}`) icButton(head, '← Retour à la fiche de l\'objet', () => icBackToItem(_icFrom.id));
+  if (_icFrom?.kind === 'relic' && t.key === `relic:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la relique', () => rlBackTo(_icFrom.id));
   const title = aiEl('div', { class: 'ic-sheet-title' });
   title.appendChild(aiEl('h3', {}, t.name));
   title.appendChild(icBadge(st));
@@ -6196,7 +6198,7 @@ async function icApply(t, sha, { doubtful = false } = {}) {
   const live = t.kind === 'badge' && / active$/.test(String(t.extra ?? ''));
   if (live && !await admAsk(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
   const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live, doubtful });
-  const where = data.catalog === 'blocks' ? '🧱 Blocs' : '📿 Collections';
+  const where = data.catalog === 'blocks' ? '🧱 Blocs' : data.catalog === 'relics' ? '🔮 Reliques' : '📿 Collections';
   const done = data.catalog === 'badges'
     ? `${sha ? 'Image enregistrée' : 'Emoji rétabli'} sur le badge${data.draft ? ' (désactivé : les joueurs la verront après son activation dans 🏅 Badges)' : ' (actif : visible par les joueurs)'}.`
     : `${sha ? 'Image conservée' : 'Emoji d\'origine rétabli'} dans le brouillon. Les joueurs la verront après la publication dans l'onglet ${where}.`;
@@ -9317,3 +9319,452 @@ document.getElementById('evi-upload')?.addEventListener('change', e => {
   };
   r.readAsDataURL(f);
 });
+
+// ── 🔮 Reliques (#64) ──────────────────────────────────────────────────────────
+// Catalogue versionné côté serveur (server/relicCatalog.js). La version 1 = les six reliques du jeu à l'identique.
+// Les fiches écrivent dans un brouillon ; seule « Publier… » change le jeu (comparaison avant/après, note, journal),
+// et « Revenir à cette version » republie une version antérieure. Aucun appel IA ici : l'image passe par 🎨 Icônes.
+let _rl = null;          // vue admin (published, draft, versions, holders, effects…)
+let _rlCur = null;       // { id, isNew } de la fiche ouverte
+let _rlLang = 'fr';
+let _rlSnap = '';        // instantané de la fiche à l'ouverture (#61)
+const RL_LANGS = [...DigLanguages.ACTIVE]; // registre des langues (#59)
+const RL_FIELDS = { names: 'Noms', descs: 'Descriptions', icon: 'Icône', image: 'Image', active: 'Active', maxLevel: 'Niveaux',
+  costs: 'Coûts', effect: 'Effet', values: 'Bonus' };
+const RL_SIM_BASE = {
+  damage_flat:          ['Niveau de pioche', 10],
+  coins_pct:            ['Pièces d\'un bloc (référence)', 100],
+  relic_fragment_bonus: ['Fragments tirés dans un coffre', 4],
+  luck_pct:             ['Niveau de Chance', 5],
+  hp_reduction:         ['PV d\'un bloc (référence)', 1000],
+  autodig_bonus:        ['Niveau d\'Auto-Dig', 4],
+};
+
+const rlWorking = () => _rl?.draft?.relics ?? _rl?.published?.relics ?? [];
+const rlPublished = id => _rl?.published?.relics.find(r => r.id === id) ?? null;
+const rlFx = effect => _rl?.effects?.[effect] ?? null;
+const rlPct = v => Math.round(v * 10000) / 100;
+function rlFormat(effect, v) {
+  const fx = rlFx(effect);
+  if (v == null || !fx) return '—';
+  if (effect === 'hp_reduction') return `−${rlPct(v)} % PV`;
+  return fx.pct ? `+${rlPct(v)} % ${fx.label.toLowerCase()}` : `+${v} ${fx.unit}`;
+}
+const rlHolders = id => _rl?.holders?.byRelic?.[id] ?? {};
+const rlHolderTotal = id => Object.values(rlHolders(id)).reduce((s, n) => s + n, 0);
+function rlFieldText(field, v, r) {
+  if (v == null) return '—';
+  if (field === 'values') return v.map(x => rlFormat(r.effect, x)).join(' / ');
+  if (field === 'costs') return v.join(' / ');
+  if (field === 'names' || field === 'descs') return RL_LANGS.map(l => `${l.toUpperCase()} : ${v[l] || '—'}`).join(' · ');
+  if (field === 'effect') return rlFx(v)?.label ?? v;
+  if (field === 'active') return v ? 'oui' : 'non (archivée)';
+  return String(v);
+}
+
+async function loadRelics() {
+  const { ok, data } = await api('GET', '/api/admin/relics');
+  if (!ok) { ptMessage('rl-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  _rl = data;
+  document.getElementById('rl-obtain').textContent = `Obtention : ${data.obtainRule}`;
+  const fxList = document.getElementById('rl-effects');
+  fxList.textContent = '';
+  for (const [k, fx] of Object.entries(data.effects)) {
+    fxList.appendChild(aiEl('li', {}, `${fx.label} (${k}) — ${fx.formula}${fx.antibot ? ` ${fx.antibot}` : ''}`));
+  }
+  const sel = document.getElementById('rl-effect');
+  if (!sel.options.length) coSelect('rl-effect', Object.entries(data.effects).map(([k, fx]) => [k, fx.label]));
+  const pub = data.published;
+  document.getElementById('rl-version').textContent = `— version ${pub.version} en vigueur`;
+  const active = pub.relics.filter(r => r.active).length;
+  document.getElementById('rl-summary').textContent =
+    `Version ${pub.version} en vigueur : ${pub.relics.length} relique(s), dont ${active} active(s). ${data.holders.saves} sauvegarde(s) cloud analysée(s) pour les détenteurs.`;
+  rlRenderDraft();
+  rlRenderList();
+  rlRenderVersions();
+  loadRelicAudit();
+}
+
+function rlRenderDraft() {
+  const box = document.getElementById('rl-draft');
+  const d = _rl?.draft;
+  box.classList.toggle('hidden', !d);
+  if (!d) return;
+  document.getElementById('rl-draft-meta').textContent = `— basé sur la version ${d.basedOn}, modifié le ${admBrussels(d.updatedAt)}`;
+  const errs = document.getElementById('rl-draft-errors'), warns = document.getElementById('rl-draft-warnings');
+  errs.textContent = ''; warns.textContent = '';
+  for (const e of d.errors) errs.appendChild(aiEl('li', {}, e));
+  for (const w of d.warnings) warns.appendChild(aiEl('li', {}, w));
+  errs.classList.toggle('hidden', !d.errors.length);
+  warns.classList.toggle('hidden', !d.warnings.length);
+  const body = document.getElementById('rl-draft-body');
+  body.textContent = '';
+  for (const c of d.changes) {
+    const r = d.relics.find(x => x.id === c.id) ?? {};
+    const name = `${r.icon ?? ''} ${r.names?.fr ?? c.id}`;
+    if (c.kind === 'added') {
+      const tr = body.insertRow();
+      addCell(tr, name); addCell(tr, 'nouvelle relique'); addCell(tr, '—'); addCell(tr, `${r.maxLevel} niveaux · ${rlFormat(r.effect, r.values?.at(-1))} au max`);
+      continue;
+    }
+    const before = rlPublished(c.id) ?? r;
+    for (const f of c.fields) {
+      const tr = body.insertRow();
+      addCell(tr, name); addCell(tr, RL_FIELDS[f.field] ?? f.field);
+      addCell(tr, rlFieldText(f.field, f.before, before)); addCell(tr, rlFieldText(f.field, f.after, r));
+    }
+  }
+  document.getElementById('btn-rl-publish').disabled = !!d.errors.length || !d.changes.length;
+}
+
+function rlRenderList() {
+  if (!_rl) return;
+  const text = document.getElementById('rl-filter-text').value.trim().toLowerCase();
+  const status = document.getElementById('rl-filter-status').value;
+  const changed = new Set((_rl.draft?.changes ?? []).map(c => c.id));
+  const list = rlWorking().filter(r => {
+    if (status === 'active' && !r.active) return false;
+    if (status === 'archived' && r.active) return false;
+    if (status === 'draft' && !changed.has(r.id)) return false;
+    if (!text) return true;
+    return [r.id, ...Object.values(r.names ?? {}), rlFx(r.effect)?.label ?? ''].some(s => String(s).toLowerCase().includes(text));
+  });
+  document.getElementById('rl-count').textContent = `(${list.length}/${rlWorking().length})`;
+  const body = document.getElementById('rl-body');
+  body.textContent = '';
+  if (!list.length) { const tr = body.insertRow(); addCell(tr, 'Aucune relique.').colSpan = 9; return; }
+  for (const r of list) {
+    const tr = body.insertRow();
+    const art = addCell(tr, '');
+    if (r.image) art.appendChild(aiEl('img', { src: r.image, alt: '', width: '32', height: '32', loading: 'lazy' }));
+    else art.textContent = r.icon;
+    const nameCell = addCell(tr, r.names?.fr ?? r.id);
+    nameCell.appendChild(aiEl('div', { class: 'muted', style: 'font-size:0.72rem' }, r.id));
+    addCell(tr, rlFx(r.effect)?.label ?? r.effect);
+    addCell(tr, String(r.maxLevel)).className = 'num';
+    addCell(tr, r.costs.join(' / '));
+    addCell(tr, `${rlFormat(r.effect, r.values[0])} → ${rlFormat(r.effect, r.values.at(-1))}`);
+    addCell(tr, String(rlHolderTotal(r.id))).className = 'num';
+    const pubR = rlPublished(r.id);
+    addCell(tr, `${r.active ? 'Active' : 'Archivée'}${!pubR ? ' · nouvelle (brouillon)' : changed.has(r.id) ? ' · modifiée (brouillon)' : ''}`);
+    admRowOpen(tr, `rl:${r.id}`, r.names?.fr ?? r.id, opener => rlOpen(r, opener));
+  }
+}
+
+function rlRenderVersions() {
+  const body = document.getElementById('rl-versions-body');
+  body.textContent = '';
+  const current = _rl.published.version;
+  for (const v of _rl.versions) {
+    const tr = body.insertRow();
+    addCell(tr, `v${v.version}${v.version === current ? ' (en vigueur)' : ''}`);
+    addCell(tr, { origin: 'origine', publish: 'publication', rollback: `retour à v${v.fromVersion}` }[v.source] ?? v.source);
+    addCell(tr, v.note ?? '');
+    addCell(tr, v.createdAt);
+    if (v.version === current) addCell(tr, '');
+    else addButtonCell(tr, 'Revenir à cette version…', () => rlRollback(v.version));
+  }
+}
+
+async function loadRelicAudit() {
+  const { ok, data } = await api('GET', '/api/admin/relics/audit?limit=100');
+  const body = document.getElementById('rl-audit-body');
+  body.textContent = '';
+  if (!ok) return;
+  const labels = { migrate: 'version d\'origine', draft_add: 'ajout (brouillon)', draft_update: 'modification (brouillon)', draft_revert: 'modification annulée',
+    draft_remove: 'retrait du brouillon', draft_discard: 'brouillon abandonné', draft_clean: 'brouillon identique supprimé', publish: 'publication', rollback: 'retour arrière' };
+  for (const a of data.audit) {
+    const tr = body.insertRow();
+    addCell(tr, a.created_at); addCell(tr, labels[a.action] ?? a.action); addCell(tr, a.version ? `v${a.version}` : '');
+    const d = a.details;
+    const fields = d?.changes?.map?.(c => (c.field ? RL_FIELDS[c.field] ?? c.field : `${c.id} ${c.kind === 'added' ? '(nouvelle)' : `(${(c.fields ?? []).map(f => RL_FIELDS[f.field] ?? f.field).join(', ')})`}`)) ?? [];
+    addCell(tr, [d?.id, d?.to ? `vers v${d.to}` : '', fields.join(', ')].filter(Boolean).join(' — '));
+  }
+}
+
+// ── Fiche ──
+
+function rlSetLang(l, focus = false) {
+  _rlLang = l;
+  for (const b of document.querySelectorAll('#rl-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
+  for (const f of document.querySelectorAll('#rl-dialog .nw-lang-fields')) f.classList.toggle('hidden', f.dataset.lang !== l);
+  if (focus) document.querySelector(`#rl-langs .co-lang-btn[data-lang="${l}"]`).focus();
+}
+function rlLangStates() {
+  for (const b of document.querySelectorAll('#rl-langs .co-lang-btn')) {
+    const l = b.dataset.lang;
+    const n = document.getElementById(`rl-${l}-name`).value.trim(), d = document.getElementById(`rl-${l}-desc`).value.trim();
+    const st = n && d ? 'full' : n ? 'name' : 'none';
+    b.className = `co-lang-btn co-lang--${st}`;
+    b.textContent = `${{ full: '●', name: '◐', none: '○' }[st]} ${l.toUpperCase()}`;
+  }
+}
+
+/** Lignes de niveaux : garde les saisies existantes quand le nombre de niveaux change. */
+function rlRenderLevels(costs, values) {
+  const fx = rlFx(document.getElementById('rl-effect').value);
+  const max = Math.min(10, Math.max(1, Number(document.getElementById('rl-max').value) || 1));
+  const body = document.getElementById('rl-levels-body');
+  const prev = rlReadLevels();
+  costs = costs ?? prev.costs; values = values ?? prev.values;
+  body.textContent = '';
+  const holders = _rlCur ? rlHolders(_rlCur.id) : {};
+  for (let i = 0; i < max; i++) {
+    const tr = body.insertRow();
+    addCell(tr, String(i + 1)).className = 'num';
+    const c = aiEl('input', { type: 'number', min: '1', step: '1', 'data-rl': 'cost', 'aria-label': `Coût du niveau ${i + 1}` });
+    c.value = costs[i] ?? '';
+    addCell(tr, '').appendChild(c);
+    const v = aiEl('input', { type: 'number', min: '0', step: fx?.integer ? '1' : 'any', 'data-rl': 'value', 'aria-label': `Bonus total au niveau ${i + 1}` });
+    v.value = values[i] == null ? '' : fx?.pct ? rlPct(values[i]) : values[i];
+    const vc = addCell(tr, '');
+    vc.appendChild(v);
+    vc.appendChild(aiEl('span', { class: 'muted' }, ` ${fx?.pct ? '%' : fx?.unit ?? ''}`));
+    addCell(tr, '').className = 'num rl-cum';
+    addCell(tr, String(holders[i + 1] ?? 0)).className = 'num';
+  }
+  rlRefresh();
+}
+function rlReadLevels() {
+  const fx = rlFx(document.getElementById('rl-effect').value);
+  const num = el => (el.value.trim() === '' ? null : Number(el.value));
+  const costs = [...document.querySelectorAll('#rl-levels-body [data-rl="cost"]')].map(num);
+  const values = [...document.querySelectorAll('#rl-levels-body [data-rl="value"]')].map(el => {
+    const n = num(el);
+    return n == null ? null : fx?.pct ? Math.round(n * 100) / 10000 : n;
+  });
+  return { costs, values };
+}
+
+function rlRead() {
+  const names = {}, descs = {};
+  for (const l of RL_LANGS) {
+    names[l] = document.getElementById(`rl-${l}-name`).value.trim();
+    descs[l] = document.getElementById(`rl-${l}-desc`).value.trim();
+  }
+  const { costs, values } = rlReadLevels();
+  return {
+    id: document.getElementById('rl-id').value.trim(),
+    active: document.getElementById('rl-active').checked,
+    icon: document.getElementById('rl-icon').value.trim(),
+    image: document.getElementById('rl-image').value.trim() || null,
+    names, descs,
+    maxLevel: Number(document.getElementById('rl-max').value),
+    costs, effect: document.getElementById('rl-effect').value, values,
+  };
+}
+
+function rlArt() {
+  const box = document.getElementById('rl-art');
+  box.textContent = '';
+  const img = document.getElementById('rl-image').value.trim();
+  if (img) box.appendChild(aiEl('img', { src: img, alt: '', width: '56', height: '56' }));
+  else box.textContent = document.getElementById('rl-icon').value || '🔮';
+  document.getElementById('btn-rl-noimage').classList.toggle('hidden', !img);
+}
+
+/** Aperçu réel (mêmes formules que le moteur, public/js/relics.js → applyBonuses) et comparaison publiée. */
+function rlRefresh() {
+  const r = rlRead();
+  const fx = rlFx(r.effect);
+  let cum = 0;
+  document.querySelectorAll('#rl-levels-body .rl-cum').forEach((td, i) => { cum += r.costs[i] ?? 0; td.textContent = String(cum); });
+  document.getElementById('rl-effect-help').textContent = fx ? `${fx.formula}${fx.antibot ? ` ${fx.antibot}` : ''} Bornes par niveau : ${fx.pct ? `${rlPct(fx.min)} % à ${rlPct(fx.max)} %` : `${fx.min} à ${fx.max}`}.` : '';
+  document.getElementById('rl-formula').textContent = fx ? `Calcul : ${fx.formula}` : '';
+  const lvSel = document.getElementById('rl-sim-level');
+  const keep = lvSel.value;
+  lvSel.textContent = '';
+  for (let l = 0; l <= r.maxLevel; l++) lvSel.appendChild(aiEl('option', { value: String(l) }, l === 0 ? '0 — verrouillée' : `${l}${l === r.maxLevel ? ' (max)' : ''}`));
+  lvSel.value = keep !== '' && Number(keep) <= r.maxLevel ? keep : '0';
+  const [baseLabel, baseDef] = RL_SIM_BASE[r.effect] ?? ['Référence', 0];
+  document.getElementById('rl-sim-base-label').firstChild.textContent = baseLabel;
+  const baseEl = document.getElementById('rl-sim-base');
+  if (baseEl.dataset.fx !== r.effect) { baseEl.value = baseDef; baseEl.dataset.fx = r.effect; }
+  const L = Number(lvSel.value), base = Number(baseEl.value) || 0;
+  const b = L > 0 ? r.values[L - 1] ?? 0 : 0;
+  const next = L < r.maxLevel ? r.values[L] : null;
+  const calc = v => {
+    switch (r.effect) {
+      case 'damage_flat': return `${base + v} dégâts par clic (pioche ${base} + ${v})`;
+      case 'coins_pct': return `${Math.round(base * (1 + v))} pièces (${base} × ${(1 + v).toFixed(2)}, hors Sac et boosts)`;
+      case 'relic_fragment_bonus': return `${base + v} fragments par coffre (${base} + ${v})`;
+      case 'luck_pct': return `poids des blocs rares × ${(1 + 0.1 * base + v).toFixed(2)} (Chance ${base} : 1 + ${(0.1 * base).toFixed(2)} + ${v})`;
+      case 'hp_reduction': return `${Math.ceil(base * (1 - Math.min(v, 0.9)))} PV (${base} × ${(1 - Math.min(v, 0.9)).toFixed(2)})`;
+      case 'autodig_bonus': return `${base + v} dégâts auto/s (Auto-Dig ${base} + ${v})`;
+      default: return '';
+    }
+  };
+  const holders = _rlCur ? rlHolders(_rlCur.id)[L] ?? 0 : 0;
+  const sim = document.getElementById('rl-sim');
+  sim.textContent = '';
+  sim.appendChild(aiEl('div', {}, `Niveau ${L} : ${L ? rlFormat(r.effect, b) : 'aucun bonus'} → ${calc(b)}.`));
+  if (next != null) {
+    sim.appendChild(aiEl('div', {}, `Niveau ${L + 1} : ${rlFormat(r.effect, next)} → ${calc(next)} — ${L === 0 ? 'déblocage' : 'amélioration'} pour ${r.costs[L] ?? '?'} fragments.`));
+  } else sim.appendChild(aiEl('div', {}, 'Niveau maximum : aucune amélioration.'));
+  if (_rlCur && !_rlCur.isNew) sim.appendChild(aiEl('div', { class: 'muted' }, `${holders} joueur(s) à ce niveau (sauvegardes cloud).`));
+  // Comparaison avec la version en vigueur
+  const pub = _rlCur ? rlPublished(_rlCur.id) : null;
+  const cmp = document.getElementById('rl-compare'), ul = document.getElementById('rl-compare-list');
+  ul.textContent = '';
+  if (pub) {
+    for (const f of Object.keys(RL_FIELDS)) {
+      if (JSON.stringify(pub[f] ?? null) === JSON.stringify(r[f] ?? null)) continue;
+      ul.appendChild(aiEl('li', {}, `${RL_FIELDS[f]} : ${rlFieldText(f, pub[f], pub)} → ${rlFieldText(f, r[f], r)}`));
+    }
+  }
+  cmp.classList.toggle('hidden', !ul.children.length);
+  rlLangStates();
+  rlArt();
+}
+
+function rlOpen(relic, opener, isNew = false) {
+  _rlCur = { id: relic.id, isNew };
+  const r = relic;
+  document.getElementById('rl-form-title').textContent = isNew ? 'Nouvelle relique' : `${r.icon} ${r.names?.fr ?? r.id}`;
+  for (const l of RL_LANGS) {
+    document.getElementById(`rl-${l}-name`).value = r.names?.[l] ?? '';
+    document.getElementById(`rl-${l}-desc`).value = r.descs?.[l] ?? '';
+  }
+  const idEl = document.getElementById('rl-id');
+  idEl.value = r.id ?? '';
+  idEl.readOnly = !isNew;
+  document.getElementById('rl-active').checked = r.active !== false;
+  document.getElementById('rl-icon').value = r.icon ?? '';
+  document.getElementById('rl-image').value = r.image ?? '';
+  document.getElementById('rl-effect').value = r.effect;
+  document.getElementById('rl-max').value = r.maxLevel;
+  document.getElementById('rl-max').min = String(_rl.publishedMaxLevels?.[r.id] ?? 1);
+  document.getElementById('rl-sim-level').value = '';
+  document.getElementById('rl-sim-base').dataset.fx = '';
+  rlRenderLevels(r.costs, r.values);
+  const pub = rlPublished(r.id);
+  const changed = !!pub && !isNew && (_rl.draft?.changes ?? []).some(c => c.id === r.id);
+  const draftOnly = !isNew && !_rl.publishedIds.includes(r.id);
+  const state = document.getElementById('rl-state');
+  state.textContent = isNew ? 'Nouvelle relique : enregistrée dans le brouillon, invisible des joueurs avant publication.'
+    : draftOnly ? 'Relique du brouillon, jamais publiée.'
+    : changed ? 'Cette relique a des modifications dans le brouillon (pas encore en jeu) : la comparaison ci-dessous montre l\'écart avec la version en vigueur.'
+    : `Valeurs en vigueur (version ${_rl.published.version}), identiques à celles du jeu.`;
+  state.classList.remove('hidden');
+  document.getElementById('rl-issues').classList.add('hidden');
+  document.getElementById('btn-rl-revert').classList.toggle('hidden', !changed);
+  document.getElementById('btn-rl-remove').classList.toggle('hidden', !draftOnly);
+  rlSetLang('fr');
+  _rlSnap = JSON.stringify(rlRead());
+  admDialogOpen('rl-dialog', opener, isNew ? 'rl-fr-name' : null);
+}
+
+admDialogSetup('rl-dialog', { dirty: () => JSON.stringify(rlRead()) !== _rlSnap, keep: 'Enregistrer dans le brouillon' });
+
+function rlIssues(data) {
+  const ul = document.getElementById('rl-issues');
+  ul.textContent = '';
+  for (const e of [data.error, ...(data.details ?? [])].filter(Boolean)) ul.appendChild(aiEl('li', {}, e));
+  ul.classList.toggle('hidden', !ul.children.length);
+  ul.scrollIntoView?.({ block: 'nearest' });
+}
+
+document.getElementById('btn-rl-add').addEventListener('click', e => {
+  if (!_rl) return;
+  rlOpen({ id: '', active: true, icon: '🔮', image: null, names: {}, descs: {}, maxLevel: 5, costs: [10, 20, 35, 55, 80],
+    effect: 'coins_pct', values: [0.05, 0.1, 0.15, 0.2, 0.25] }, e.currentTarget, true);
+});
+document.getElementById('rl-langs').addEventListener('click', e => { const b = e.target.closest('.co-lang-btn'); if (b) rlSetLang(b.dataset.lang); });
+document.getElementById('rl-max').addEventListener('input', () => rlRenderLevels());
+document.getElementById('rl-effect').addEventListener('change', () => rlRenderLevels());
+document.getElementById('rl-dialog').addEventListener('input', e => { if (e.target.id !== 'rl-max') rlRefresh(); });
+document.getElementById('rl-sim-level').addEventListener('change', rlRefresh);
+document.getElementById('rl-filter-text').addEventListener('input', rlRenderList);
+document.getElementById('rl-filter-status').addEventListener('change', rlRenderList);
+document.getElementById('btn-rl-noimage').addEventListener('click', () => { document.getElementById('rl-image').value = ''; rlRefresh(); });
+
+document.getElementById('btn-rl-save').addEventListener('click', async () => {
+  const relic = rlRead();
+  if (!relic.id) return rlIssues({ error: 'Identifiant obligatoire (a-z, 0-9, _).' });
+  if (_rlCur.isNew && rlWorking().some(r => r.id === relic.id)) return rlIssues({ error: `« ${relic.id} » existe déjà.` });
+  const { ok, data } = await api('PUT', `/api/admin/relics/draft/relics/${encodeURIComponent(relic.id)}`, { relic });
+  if (!ok) return rlIssues(data);
+  _rlSnap = JSON.stringify(rlRead());
+  document.getElementById('rl-dialog').close();
+  ptMessage('rl-msg', data.draftDropped
+    ? `« ${relic.id} » : identique à la version en vigueur, aucun brouillon en attente.`
+    : `« ${relic.id} » enregistrée dans le brouillon. Rien ne change pour les joueurs avant « Publier… ».`, true);
+  loadRelics();
+});
+
+document.getElementById('btn-rl-revert').addEventListener('click', async () => {
+  const id = _rlCur?.id;
+  if (!id || !await admAsk(`Annuler les modifications de « ${id} » ?\nElle reprend dans le brouillon ses valeurs en vigueur ; les autres reliques du brouillon ne bougent pas.`)) return;
+  const { ok, data } = await api('POST', `/api/admin/relics/draft/relics/${encodeURIComponent(id)}/revert`);
+  if (!ok) return rlIssues(data);
+  document.getElementById('rl-dialog').close();
+  ptMessage('rl-msg', `« ${id} » : modifications annulées${data.draftDropped ? ' ; plus aucun brouillon en attente.' : '.'}`, true);
+  loadRelics();
+});
+
+document.getElementById('btn-rl-remove').addEventListener('click', async () => {
+  const id = _rlCur?.id;
+  if (!id || !await admAsk(`Retirer « ${id} » du brouillon ?\nElle n'a jamais été publiée : aucun joueur ne la possède.`)) return;
+  const { ok, data } = await api('DELETE', `/api/admin/relics/draft/relics/${encodeURIComponent(id)}`);
+  if (!ok) return rlIssues(data);
+  document.getElementById('rl-dialog').close();
+  ptMessage('rl-msg', `« ${id} » retirée du brouillon.`, true);
+  loadRelics();
+});
+
+document.getElementById('btn-rl-discard').addEventListener('click', async () => {
+  if (!await admConfirm({ title: 'Abandonner le brouillon des reliques ?', text: 'Toutes les modifications non publiées sont perdues.',
+    impact: ['Rien ne change pour les joueurs : la version en vigueur reste appliquée.', 'L\'action est tracée dans le journal.'], ok: 'Abandonner le brouillon', danger: true })) return;
+  const { ok, data } = await api('DELETE', '/api/admin/relics/draft');
+  ptMessage('rl-msg', ok ? 'Brouillon abandonné : aucun changement pour les joueurs.' : (data.error || 'Erreur.'), ok);
+  loadRelics();
+});
+
+document.getElementById('btn-rl-publish').addEventListener('click', async () => {
+  const d = _rl?.draft;
+  if (!d) return;
+  const ids = d.changes.map(c => c.id);
+  const note = await admPrompt({ title: `Publier le brouillon (version ${_rl.published.version + 1}) ?`,
+    text: `Reliques concernées : ${ids.join(', ')}. Les nouvelles valeurs (coûts, bonus, textes, images) s'appliquent à TOUS les joueurs à leur prochain chargement ; les niveaux possédés et les fragments ne sont jamais modifiés. Retour arrière possible : « Versions publiées → Revenir à cette version ».`,
+    label: 'Note de publication (raison, accord du propriétaire)', ok: 'Publier' });
+  if (note === null) return;
+  const { ok, data } = await api('POST', '/api/admin/relics/publish', { note, basedOn: d.basedOn });
+  if (!ok) { ptMessage('rl-msg', [data.error, ...(data.details ?? [])].filter(Boolean).join(' '), false); return; }
+  ptMessage('rl-msg', `Version ${data.version} publiée (${data.changes.length} relique(s) modifiée(s)).`, true);
+  loadRelics();
+});
+
+async function rlRollback(version) {
+  if (!await admConfirm({ title: `Revenir à la version ${version} ?`, text: 'Une NOUVELLE version reprenant ce contenu est publiée immédiatement.',
+    impact: ['Les joueurs reçoivent ces valeurs à leur prochain chargement ; niveaux possédés et fragments inchangés.',
+      'Les reliques ajoutées depuis sont gardées mais archivées ; le nombre de niveaux ne baisse jamais.', 'Le brouillon éventuel est abandonné.'],
+    ok: `Revenir à la version ${version}`, danger: true })) return;
+  const { ok, data } = await api('POST', '/api/admin/relics/rollback', { version });
+  ptMessage('rl-msg', ok ? `Version ${data.version} publiée (retour au contenu de la version ${data.restored}).` : [data.error, ...(data.details ?? [])].filter(Boolean).join(' '), ok);
+  loadRelics();
+}
+
+document.getElementById('btn-rl-studio').addEventListener('click', async () => {
+  const id = _rlCur?.id;
+  if (!id || !_rl.draft?.relics?.some(r => r.id === id) && !rlPublished(id)) {
+    return rlIssues({ error: 'Enregistrez d\'abord la relique dans le brouillon : l\'atelier travaille sur une relique existante.' });
+  }
+  const dlg = document.getElementById('rl-dialog');
+  if (dlg._admDirty() && !await admConfirmDiscard({ keep: 'Enregistrer dans le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
+  _rlSnap = JSON.stringify(rlRead());
+  dlg.close();
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  _icFrom = { kind: 'relic', id };
+  icOpen(`relic:${id}`);
+});
+
+/** Retour de l'atelier d'icônes vers la fiche de la relique (catalogue rechargé : image du brouillon). */
+async function rlBackTo(id) {
+  _rl = null;
+  document.querySelector('.tab-btn[data-tab="relics"]').click();
+  for (let k = 0; k < 50 && !_rl; k++) await new Promise(r => setTimeout(r, 100));
+  const r = rlWorking().find(x => x.id === id);
+  if (r) rlOpen(r, document.querySelector(`[data-adm-key="${CSS.escape(`rl:${id}`)}"]`));
+}
+
+admRefreshButton('btn-refresh-relics', loadRelics, 'Reliques');

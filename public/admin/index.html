@@ -39,6 +39,7 @@
     <button class="tab-btn" data-tab="blocks">🧱 Blocs</button>
     <button class="tab-btn" data-tab="rewards">🎲 Coffres &amp; drops</button>
     <button class="tab-btn" data-tab="collections">📿 Collections</button>
+    <button class="tab-btn" data-tab="relics">🔮 Reliques</button>
     <button class="tab-btn" data-tab="icons">🎨 Icônes</button>
     <button class="tab-btn" data-tab="badges">🏅 Badges</button>
     <button class="tab-btn" data-tab="ads">📢 Publicité</button>
@@ -1669,6 +1670,171 @@
   </section>
 
 
+  <!-- Reliques (#64) : catalogue versionné, brouillon → publication explicite, retour arrière, journal. -->
+  <section id="tab-relics" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🔮 Reliques</h2>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-rl-add" type="button">＋ Ajouter une relique</button>
+        <button class="btn" id="btn-refresh-relics">↻ Rafraîchir</button>
+      </div>
+    </div>
+    <p id="rl-msg" class="hidden" role="status"></p>
+    <details class="muted co-help" style="font-size:0.78rem">
+      <summary>Comment ça marche ?</summary>
+      <p>La version 1 reprend <strong>à l'identique</strong> les six reliques du jeu (coûts, niveaux, effets, textes). Toute modification va dans un <strong>brouillon</strong> : rien ne change pour les joueurs avant « Publier… » (comparaison avant/après affichée). Chaque publication crée une version ; « Revenir à cette version » republie une version antérieure.</p>
+      <p>Une relique publiée n'est jamais supprimée (les sauvegardes y font référence) : elle s'<strong>archive</strong>. Archivée, elle ne se débloque ni ne s'améliore plus, mais ses détenteurs gardent leur niveau et son bonus. Le nombre de niveaux ne peut pas baisser.</p>
+      <p id="rl-obtain"></p>
+      <p>Effets réellement calculés par le moteur (les seuls proposés) :</p>
+      <ul id="rl-effects"></ul>
+    </details>
+
+    <div id="rl-draft" class="overview-card hidden">
+      <h3 class="overview-card-title">📝 Brouillon non publié <span id="rl-draft-meta" class="muted"></span></h3>
+      <ul id="rl-draft-errors" class="error hidden"></ul>
+      <ul id="rl-draft-warnings" class="muted hidden" style="font-size:0.78rem"></ul>
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead><tr><th>Relique</th><th>Champ</th><th>En vigueur</th><th>Brouillon</th></tr></thead>
+          <tbody id="rl-draft-body"></tbody>
+        </table>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-rl-publish" type="button">Publier…</button>
+        <button class="btn btn-outline" id="btn-rl-discard" type="button">Abandonner le brouillon</button>
+      </div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Reliques <span id="rl-count" class="muted"></span></h3>
+      <p id="rl-summary" class="muted" style="font-size:0.78rem"></p>
+      <div class="form-actions bk-filters">
+        <input id="rl-filter-text" type="search" placeholder="Rechercher (identifiant, nom, effet)" aria-label="Rechercher une relique">
+        <select id="rl-filter-status" aria-label="État"><option value="">Tous les états</option><option value="active">Actives</option><option value="archived">Archivées</option><option value="draft">Modifiées dans le brouillon</option></select>
+      </div>
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead><tr><th>Visuel</th><th>Relique</th><th>Effet</th><th class="num">Niveaux</th><th>Coûts (fragments)</th><th>Bonus niv. 1 → max</th><th class="num">Détenteurs</th><th>État</th><th><span class="visually-hidden">Ouvrir la fiche</span></th></tr></thead>
+          <tbody id="rl-body"><tr><td colspan="9" class="muted">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:0.75rem">Cliquez sur une ligne (ou Entrée / Espace) pour ouvrir la fiche. Ouvrir une fiche ne modifie rien.</p>
+    </div>
+
+    <details class="overview-card">
+      <summary class="overview-card-title">Versions publiées <span id="rl-version" class="muted"></span></summary>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Version</th><th>Origine</th><th>Note</th><th>Date (UTC)</th><th></th></tr></thead>
+          <tbody id="rl-versions-body"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="overview-card" id="rl-audit-box">
+      <summary class="overview-card-title">Journal</summary>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Action</th><th>Version</th><th>Détails</th></tr></thead>
+          <tbody id="rl-audit-body"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <dialog id="rl-dialog" class="bk-dialog adm-dialog nw-dialog" aria-labelledby="rl-form-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="rl-form-title">Relique</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <div class="nw-scroll">
+        <p id="rl-state" class="ic-notice hidden" role="status"></p>
+        <ul id="rl-issues" class="error hidden"></ul>
+        <div class="nw-text-fields">
+          <div role="group" class="nw-sec" aria-labelledby="rl-sec-id">
+            <h4 id="rl-sec-id">1. Identité</h4>
+            <div class="co-lang-switch" id="rl-langs" role="group" aria-label="Langue éditée">
+              <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true">FR</button>
+              <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false">EN</button>
+              <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false">NL</button>
+              <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false">ES</button>
+            </div>
+            <div class="nw-lang-fields" data-lang="fr">
+              <label>Nom (FR) — obligatoire<input id="rl-fr-name" type="text" maxlength="40"></label>
+              <label>Description (FR)<textarea id="rl-fr-desc" rows="2" maxlength="200"></textarea></label>
+            </div>
+            <div class="nw-lang-fields hidden" data-lang="en">
+              <label>Nom (EN)<input id="rl-en-name" type="text" maxlength="40"></label>
+              <label>Description (EN)<textarea id="rl-en-desc" rows="2" maxlength="200"></textarea></label>
+            </div>
+            <div class="nw-lang-fields hidden" data-lang="nl">
+              <label>Nom (NL)<input id="rl-nl-name" type="text" maxlength="40"></label>
+              <label>Description (NL)<textarea id="rl-nl-desc" rows="2" maxlength="200"></textarea></label>
+            </div>
+            <div class="nw-lang-fields hidden" data-lang="es">
+              <label>Nom (ES)<input id="rl-es-name" type="text" maxlength="40"></label>
+              <label>Description (ES)<textarea id="rl-es-desc" rows="2" maxlength="200"></textarea></label>
+            </div>
+            <div class="nw-opts-grid">
+              <label>Identifiant stable<input id="rl-id" type="text" maxlength="40" placeholder="ma_relique" title="Ne change jamais après l'enregistrement"></label>
+              <label class="adm-check"><input id="rl-active" type="checkbox" checked> Active (déblocable et améliorable)</label>
+            </div>
+          </div>
+          <div role="group" class="nw-sec" aria-labelledby="rl-sec-art">
+            <h4 id="rl-sec-art">2. Visuel</h4>
+            <div class="nw-opts-grid">
+              <div id="rl-art" class="rl-art" aria-hidden="true"></div>
+              <label>Icône (emoji, repli de l'image)<input id="rl-icon" type="text" maxlength="8" placeholder="🔮"></label>
+              <label class="nw-span">Image (atelier d'icônes)<input id="rl-image" type="text" maxlength="200" readonly placeholder="aucune — l'emoji est affiché"></label>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-outline" id="btn-rl-studio" type="button">🎨 Générer / Refaire dans Icônes</button>
+              <button class="btn btn-outline" id="btn-rl-noimage" type="button">Revenir à l'emoji</button>
+            </div>
+            <p class="muted" style="font-size:0.75rem;margin:4px 0 0">L'atelier génère <strong>une image par clic</strong> (budget de ⚙ Config), aucune génération automatique. « Conserver » y place l'image dans ce brouillon ; elle n'est visible des joueurs qu'après publication.</p>
+          </div>
+          <div role="group" class="nw-sec" aria-labelledby="rl-sec-fx">
+            <h4 id="rl-sec-fx">3. Effet, niveaux et coûts</h4>
+            <div class="nw-opts-grid">
+              <label>Effet<select id="rl-effect"></select></label>
+              <label>Nombre de niveaux<input id="rl-max" type="number" min="1" max="10" step="1"></label>
+            </div>
+            <p id="rl-effect-help" class="muted" style="font-size:0.75rem;margin:4px 0"></p>
+            <div class="bk-table-wrap">
+              <table class="bk-table rl-levels">
+                <thead><tr><th class="num">Niveau</th><th>Coût pour l'atteindre (fragments)</th><th>Bonus total à ce niveau</th><th class="num">Fragments cumulés</th><th class="num">Détenteurs</th></tr></thead>
+                <tbody id="rl-levels-body"></tbody>
+              </table>
+            </div>
+            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Le coût du niveau 1 est le prix du déblocage. Le bonus est le total au niveau atteint (pas un ajout), il ne peut pas baisser d'un niveau au suivant. Pourcentages saisis en % (15 = +15 %).</p>
+          </div>
+          <div role="group" class="nw-sec" aria-labelledby="rl-sec-sim">
+            <h4 id="rl-sec-sim">4. Aperçu réel : niveau actuel → suivant</h4>
+            <div class="nw-opts-grid">
+              <label>Niveau actuel du joueur<select id="rl-sim-level"></select></label>
+              <label id="rl-sim-base-label">Référence<input id="rl-sim-base" type="number" min="0" step="1" data-adm-noguard></label>
+            </div>
+            <p id="rl-sim" class="rl-sim" role="status"></p>
+            <div id="rl-compare" class="hidden">
+              <p class="muted" style="font-size:0.75rem;margin:6px 0 2px"><strong>Comparaison avec la version en vigueur</strong> (ce que les joueurs ont aujourd'hui) :</p>
+              <ul id="rl-compare-list" style="font-size:0.78rem;margin:0"></ul>
+            </div>
+          </div>
+          <details class="nw-sec">
+            <summary>⚙️ Règles d'obtention et calcul</summary>
+            <p id="rl-obtain-sheet" class="muted" style="font-size:0.78rem"></p>
+            <p id="rl-formula" class="muted" style="font-size:0.78rem"></p>
+          </details>
+        </div>
+      </div>
+      <div class="form-actions bk-dialog-foot">
+        <button class="btn btn-primary" id="btn-rl-save" type="button">Enregistrer dans le brouillon</button>
+        <button class="btn btn-outline hidden" id="btn-rl-revert" type="button">Annuler les modifications de cette relique</button>
+        <button class="btn btn-outline hidden" id="btn-rl-remove" type="button">Retirer du brouillon</button>
+        <button class="btn btn-outline" type="button" data-close>Fermer</button>
+      </div>
+    </dialog>
+  </section>
+
   <section id="tab-icons" class="tab-content hidden">
     <div class="section-header">
       <h2>🎨 Atelier d'icônes</h2>
@@ -1680,7 +1846,7 @@
     <div id="ic-list-view">
       <div class="bk-filters ic-filters">
         <input type="search" id="ic-search" placeholder="Rechercher une icône…" aria-label="Rechercher une icône">
-        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets et reliques</option><option value="badge">Badges</option><option value="ui">Interface</option></select>
+        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets de collection</option><option value="relic">Reliques</option><option value="badge">Badges</option><option value="ui">Interface</option></select>
         <select id="ic-state" aria-label="État"><option value="">Tous les états</option><option value="todo">À créer</option><option value="proposal">Propositions à examiner</option><option value="draft">À publier</option><option value="live">En jeu</option><option value="locked">Validées 🔒</option></select>
       </div>
       <div id="ic-series" class="ic-series"></div>

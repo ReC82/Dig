@@ -94,6 +94,80 @@ const Relics = {
     },
   ],
 
+  // ── Catalogue publié (#64) ──────────────────────────────────────────────
+  // La version 1 du serveur reprend ces six définitions à l'identique. Une version publiée depuis
+  // le panel les remplace (coûts, niveaux, bonus, noms, icône/image, archivage) ; mémorisée
+  // localement pour la visite suivante. Relique archivée (active: false) : ni déblocage ni
+  // amélioration, mais son détenteur garde niveau et bonus.
+
+  catalogVersion: 0,
+  CATALOG_URL: '/api/relics/catalog',
+  CATALOG_STORAGE_KEY: 'dig.relicCatalog.v1',
+  _EFFECTS: ['damage_flat', 'coins_pct', 'relic_fragment_bonus', 'luck_pct', 'hp_reduction', 'autodig_bonus'],
+
+  /** Relique du catalogue → définition du jeu. Null si invalide. */
+  _fromCatalog(c) {
+    if (!c || typeof c.id !== 'string' || !/^[a-z][a-z0-9_]{1,39}$/.test(c.id)) return null;
+    const max = c.maxLevel;
+    if (!Number.isInteger(max) || max < 1 || !this._EFFECTS.includes(c.effect)) return null;
+    if (!Array.isArray(c.costs) || !Array.isArray(c.values) || c.costs.length !== max || c.values.length !== max) return null;
+    if (!c.costs.every(n => Number.isInteger(n) && n >= 1) || !c.values.every(Number.isFinite)) return null;
+    return {
+      id: c.id, icon: String(c.icon || '🔮'), image: c.image || null,
+      name: `relic.${c.id}.name`, desc: `relic.${c.id}.desc`,
+      names: c.names && typeof c.names === 'object' ? c.names : null,
+      descs: c.descs && typeof c.descs === 'object' ? c.descs : null,
+      active: c.active !== false, maxLevel: max, costs: [...c.costs],
+      bonus: { type: c.effect, values: [...c.values] },
+    };
+  },
+
+  applyCatalog(catalog) {
+    if (!catalog || !Number.isInteger(catalog.version) || !Array.isArray(catalog.relics)) return false;
+    const defs = catalog.relics.map(c => this._fromCatalog(c));
+    if (!defs.length || defs.some(d => !d)) return false;
+    this.DEFS = defs;
+    this.catalogVersion = catalog.version;
+    return true;
+  },
+
+  loadCached(storage = typeof localStorage !== 'undefined' ? localStorage : null) {
+    try {
+      const raw = storage && storage.getItem(this.CATALOG_STORAGE_KEY);
+      return raw ? this.applyCatalog(JSON.parse(raw)) : false;
+    } catch (_) { return false; }
+  },
+
+  /** Lit le catalogue publié ; `onChange` est rappelé s'il diffère de celui en usage. */
+  fetchCatalog(onChange) {
+    if (typeof fetch === 'undefined') return Promise.resolve(false);
+    return fetch(this.CATALOG_URL, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(catalog => {
+        if (!catalog || catalog.version === this.catalogVersion) return false;
+        if (!this.applyCatalog(catalog)) return false;
+        try { localStorage.setItem(this.CATALOG_STORAGE_KEY, JSON.stringify(catalog)); } catch (_) { /* quota */ }
+        this.applyBonuses();
+        if (onChange) onChange();
+        return true;
+      })
+      .catch(() => false);
+  },
+
+  /** Nom affiché : catalogue dans la langue du joueur, puis traduction intégrée, puis FR. */
+  displayName(def) { return this._text(def, 'names', def.name); },
+  displayDesc(def) { return this._text(def, 'descs', def.desc); },
+  _text(def, field, key) {
+    const lang = typeof I18n !== 'undefined' ? I18n.getCurrent() : 'fr';
+    const own = def[field] || {};
+    if (own[lang]) return own[lang];
+    const builtIn = typeof I18n !== 'undefined' && typeof I18n.has === 'function' && I18n.has(key, lang);
+    return builtIn ? t(key) : own.fr || t(key);
+  },
+
+  /** Relique visible : active, ou archivée mais possédée. */
+  isVisible(def) { return def.active !== false || this.getLevel(def.id) >= 1; },
+
   // ── Lecture ───────────────────────────────────────────────────────────────
 
   getLevel(id) {
@@ -106,12 +180,12 @@ const Relics = {
 
   canUnlock(id) {
     const def = this.DEFS.find(r => r.id === id);
-    return !!def && this.getLevel(id) === 0 && GameState.relicFragments >= def.costs[0];
+    return !!def && def.active !== false && this.getLevel(id) === 0 && GameState.relicFragments >= def.costs[0];
   },
 
   canUpgrade(id) {
     const def = this.DEFS.find(r => r.id === id);
-    if (!def) return false;
+    if (!def || def.active === false) return false;
     const level = this.getLevel(id);
     if (level < 1 || level >= def.maxLevel) return false;
     return GameState.relicFragments >= def.costs[level];
@@ -168,7 +242,7 @@ const Relics = {
       if (!level || level < 1) continue;
       const def = this.DEFS.find(r => r.id === id);
       if (!def) continue;
-      const value = def.bonus.values[level - 1];
+      const value = def.bonus.values[Math.min(level, def.bonus.values.length) - 1];
       if (value === undefined || value === null) continue;
       const { type } = def.bonus;
       if (type === 'damage_flat')          b.damageFlat         += value;
