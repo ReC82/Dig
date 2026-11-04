@@ -14,7 +14,7 @@
 | Joueur actif | Au moins un bloc cassé manuellement dans la saison (`manual_blocks > 0`). |
 | Classement | Profondeur max validée par le serveur ↓, puis blocs manuels validés par l'anti-autoclic ↓, puis **premier à avoir atteint cette profondeur ↑** (`max_depth_reached_at`, à la milliseconde ; lignes antérieures à #29 sans date : après), puis identifiant du compte ↑. Aucun hasard. |
 | Classement figé (#29) | À la clôture, le classement est copié dans `season_standings` / `season_snapshots` (tables immuables, empreintes SHA-256 chaînées). Participants : actifs avec ≥ 1 bloc manuel ; éligibles : profondeur > 0. Le niveau de risque anti-bot est noté pour l'audit, sans exclusion automatique. Mode `simulation` : aucun prix réel. API : `GET /api/seasons/:id|last/standings`, admin `GET /api/admin/seasons/:id/standings` (avec vérification). |
-| Promotion | À la clôture, pour chaque ligue ayant au moins `min_active_players_per_league` actifs (10) : les `max(1, ⌊actifs × promotion_rate / (1 + niveau × difficulty_coefficient)⌋)` premiers montent d'un niveau (0,50 et 0,45 par défaut). Exemple avec 30 actifs : 15 promus en Mimosa, 10 en Bronze, 7 en Argent, 6 en Or. Un joueur monte d'au plus un niveau par saison. |
+| Promotion | À la clôture, pour chaque ligue ayant au moins `min_active_players_per_league` actifs (**3 pendant la bêta** depuis le 04/11/2026, 10 auparavant) : les `max(1, ⌊actifs × promotion_rate / (1 + niveau × difficulty_coefficient)⌋)` premiers montent d'un niveau (0,50 et 0,45 par défaut). Exemple avec 30 actifs : 15 promus en Mimosa, 10 en Bronze, 7 en Argent, 6 en Or. Un joueur monte d'au plus un niveau par saison. |
 | Relégation | **Aucune.** Un joueur ne descend jamais. |
 | Récompenses | **Aucune.** |
 | Reset de saison | Fait par le **client** quand il voit un nouvel identifiant de saison : pièces, profondeur, pioche, dégâts, améliorations, boost et compteurs de coffres remis à zéro ; gemmes plafonnées à `gems_cap` (100) ; reliques conservées. |
@@ -22,6 +22,15 @@
 Production au 30 octobre 2026 : une seule ligue (Mimosa) et un seul joueur actif par saison. Avec le
 seuil de 10 actifs, **aucune promotion n'aura lieu tant qu'il n'y aura pas 10 joueurs actifs dans la
 même semaine**.
+
+**Seuil bêta (décision du propriétaire du 04/11/2026)** : `min_active_players_per_league` passe de
+**10 à 3**, sans autre changement (formule, taux, coefficient, départage, absence de relégation et de
+récompense inchangés). Appliqué une seule fois au démarrage du serveur par une décision journalisée
+dans `admin_config_decisions` (`issue19-beta-min-active-3`, ancienne valeur, issue `applied` ou
+`skipped`) : la valeur n'est changée que si elle vaut encore 10. **Retour arrière** : remettre 10 dans
+Admin → Ligues & Saisons → « Joueurs actifs min par ligue » ; la décision n'est jamais rejouée, le
+10 reste acquis après redémarrage. Avec 3 : 0, 1 ou 2 actifs → aucun promu ; 3 actifs → 1 promu en
+Mimosa ; 4 → 2 ; 7 → 3. La valeur de repli pour un réglage illisible reste 10.
 
 ### 1.1 Audit du 03/11/2026 (demande du propriétaire, lié à #48)
 

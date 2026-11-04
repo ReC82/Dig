@@ -863,6 +863,38 @@ function initDb() {
   cfgStmt.run('chest_cost_rare',    '15000');
   cfgStmt.run('chest_cost_antique', '80000');
 
+  // ── Décisions de réglage du propriétaire, appliquées une seule fois ───────
+  // Chaque décision change une clé uniquement si elle vaut encore la valeur attendue, puis est
+  // journalisée : jamais rejouée (un retour arrière depuis le panel reste acquis), jamais
+  // appliquée par-dessus un réglage modifié entre-temps dans le panel.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS admin_config_decisions (
+      id          TEXT PRIMARY KEY,
+      config_key  TEXT NOT NULL,
+      old_value   TEXT,
+      new_value   TEXT NOT NULL,
+      outcome     TEXT NOT NULL,              -- 'applied' | 'skipped'
+      applied_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  const decisions = [
+    // #19, commentaire du propriétaire du 04/11/2026 : seuil bêta 10 → 3 joueurs actifs par ligue.
+    { id: 'issue19-beta-min-active-3', key: 'min_active_players_per_league', expected: '10', value: '3' },
+  ];
+  for (const d of decisions) {
+    _db.transaction(() => {
+      if (_db.prepare('SELECT 1 FROM admin_config_decisions WHERE id = ?').get(d.id)) return;
+      const old = _db.prepare('SELECT value FROM admin_config WHERE key = ?').get(d.key)?.value ?? null;
+      const apply = old === d.expected;
+      if (apply) {
+        _db.prepare(`UPDATE admin_config SET value = ?, updated_at = datetime('now') WHERE key = ?`).run(d.value, d.key);
+      }
+      _db.prepare('INSERT INTO admin_config_decisions (id, config_key, old_value, new_value, outcome) VALUES (?,?,?,?,?)')
+        .run(d.id, d.key, old, d.value, apply ? 'applied' : 'skipped');
+      console.log(`[db] Décision ${d.id} : ${d.key} ${apply ? `${old} → ${d.value}` : `inchangé (${old}, attendu ${d.expected})`}`);
+    })();
+  }
+
   // ── Seed : ligue Mimosa ───────────────────────────────────────────────────
   const leagueCount = _db.prepare('SELECT COUNT(*) AS n FROM leagues').get().n;
   if (leagueCount === 0) {
