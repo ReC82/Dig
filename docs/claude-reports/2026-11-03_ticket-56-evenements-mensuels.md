@@ -1,5 +1,62 @@
 # Ticket #56 — Événements mensuels : objets exclusifs à miner et calendrier automatique
 
+# Mise à jour du 04/11/2026, ~19 h (Bruxelles) — contraste des onglets de langue
+
+Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Retour pris en compte : [recette du 04/11](https://github.com/ReC82/Dig/issues/56#issuecomment-6630145253) (« OK mais pas très visible, noir sur gris foncé »). Les recettes du 04/11 valident aussi, sans rien modifier : statut TEST inactif, sélection du compte `testeur`, liste compacte et menu « + Ajouter » (#56-H), fiche d'objet (#56-I). Ces contrôles ne sont plus à refaire.
+
+## 1. État réel
+
+**Déployé en production (SHA `0afba02`) — en attente de recette.** Classement : **Après lancement** (confort de l'admin). Aucun événement, aucune traduction et aucune donnée n'ont été modifiés.
+
+## 2. Résultat et changements
+
+- **Cause** : le style commun des onglets de langue (`.co-lang-btn`) ne fixait aucune couleur de texte. Or un bouton n'hérite pas de la couleur de la page : le navigateur l'affichait en noir sur le fond sombre. Ce style sert à **six formulaires** : Événements (fiche et fiche d'objet), Boutique, Blocs, Collections (objets), Badges et Actualités. Le défaut était donc présent partout où aucun état coloré n'était appliqué.
+- **Correctif** (`public/admin/admin.css`) :
+  - onglet inactif : texte clair `#e8e8e8` sur fond `#242424`, avec un contour gris visible (contraste 13,4:1) ;
+  - les états de complétude gardent leur code couleur, et leur contour n'est plus écrasé par la règle de base : vert = complet, ambre = partiel, gris clair `#b8b8b8` = à traduire (≥ 4,5:1 dans tous les cas) ;
+  - onglet actif : fond or, texte foncé, en plus gras, avec un liseré ;
+  - au survol, le fond s'éclaircit et le contour passe en or ;
+  - focus clavier : contour blanc de 2 px, différent de l'or de l'onglet actif.
+- **Événements** (`public/admin/admin.js`, `evLangTabs`) : les onglets portent maintenant l'état de complétude (vert si nom et accroche, ou nom et description, sont remplis). Les indicateurs `✓` / `·` sont conservés.
+- **Test** `test/admin-lang-tabs-contrast.test.js` : il calcule le contraste WCAG de chaque état (inactif, survol, actif), vérifie l'ordre des règles et contrôle le marquage des onglets d'Événements.
+
+## 3. SHA et procédure de test
+
+- Branche `feature/56-evenements-mensuels`, commit `cfa7670`. Intégré dans `develop` par `0afba02`, puis déployé.
+- `node --test test/admin-lang-tabs-contrast.test.js` → 4/4. `npm test` → 640/640.
+
+## 4. Vérifications, limites, données
+
+- Chromium sur une copie de la base de production (port 3101), en 1280 px et 390 px. Le brouillon Noël a été ouvert, ainsi qu'une fiche d'objet ; les captures montrent les onglets EN/NL/ES lisibles en vert, et FR actif en or. Sur les six formulaires, les couleurs calculées sont : texte `rgb(232,232,232)` sur `rgb(36,36,36)` à l'état inactif, `#111` sur or à l'état actif. 0 erreur JS, 0 boîte native, rien enregistré.
+- Aucune donnée touchée : seuls un fichier CSS et une classe ajoutée dans le JS de l'admin changent.
+
+## 5. Déploiement
+
+- Release `0afba02` : `npm ci` + `npm test` 640/640. Sur la copie de prod en mode production (port 3122), `/health` et `/api/version` répondent bien, et les empreintes des 6 tables sont identiques avant et après le démarrage. Aucune génération IA n'était en cours. Copie supprimée.
+- `main` avancé en avance rapide `0b990a1 → 0afba02`. `deploy.sh` : sauvegarde vérifiée `~/backups/dig/dig-20261104-185133-pre-deploy-0afba02.sqlite`, santé et version OK.
+- Après le déploiement : les 2 domaines répondent 200 avec `1.0.0+0afba02`, et le nouveau CSS est bien servi. Le journal ne contient aucun avertissement, `quick_check` = ok, et les empreintes de prod sont identiques à la sauvegarde. Le jeu et la page admin se chargent sans erreur JS en 1280 px et 390 px.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 0b990a1` + `sudo systemctl restart dig` (aucune migration, lock inchangé).
+
+**Test à faire par le propriétaire** (lecture seule, ne rien enregistrer) :
+1. Faire Ctrl+F5 sur Admin → 🎉 Événements, puis ouvrir « Noël sous la mine ».
+2. Vérifier que FR est en or (texte foncé) et que EN/NL/ES sont lisibles (texte vert clair `EN ✓`, avec contour) ; au survol, le contour devient or.
+3. Optionnel : ouvrir un objet de Noël, puis un formulaire de Boutique, Badges ou Collections, et vérifier que les onglets de langue y sont aussi lisibles.
+
+## 6. Choix techniques faits seul
+
+- Correctif appliqué au style commun plutôt qu'au seul formulaire Événements : tous les formulaires concernés sont corrigés en une fois, sans toucher à leurs données ni à leurs traductions.
+- Focus en blanc et non en or, pour qu'on ne le confonde pas avec l'onglet actif.
+
+## 7. Décisions demandées au propriétaire
+
+Aucune nouvelle décision pour ce correctif. Les questions du premier incrément restent ouvertes : barème de Noël (recommandé : diviser par 2 les 3 premiers objets), dates (recommandé : 1/12 → 1/1), planification avant le 24/11, thèmes 2027.
+
+## 8. Restant à réaliser
+
+- **Après lancement** : images souvenirs des objets (#65) ; illustrations de Noël ; aperçu joueur de l'événement entier.
+
+---
+
 # Mise à jour du 03/11/2026, ~19 h 30 (Bruxelles) — recettes #56-B à #56-G : refonte de l'admin
 
 Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Retours pris en compte : [#56-B](https://github.com/ReC82/Dig/issues/56#issuecomment-6600449019) (sélecteur de testeurs), [#56-C](https://github.com/ReC82/Dig/issues/56#issuecomment-6600513799) (refonte de la fiche, dates), [#56-D](https://github.com/ReC82/Dig/issues/56#issuecomment-6600600171) (confirmation native). #56-E, #56-F et #56-G **valident** le cycle complet en production : découverte réelle, persistance après F5, compteur admin, arrêt, souvenir conservé.
