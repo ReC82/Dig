@@ -86,7 +86,7 @@ test('langue mémorisée et repli : es choisi puis rechargé, clé inconnue → 
   assert.strictEqual(ctx.I18n.getCurrent(), 'es');
   assert.strictEqual(ctx.document.documentElement.lang, 'es');
   assert.strictEqual(ctx.t('ui.btn_upgrade'), 'Mejorar');
-  assert.strictEqual(ctx.t('stats.depth_val', { n: 42 }), '42m');
+  assert.strictEqual(ctx.t('stats.depth_val', { n: 42 }), '42\u00a0m');
 
   ctx = loadI18n('es');
   ctx.I18n.init();

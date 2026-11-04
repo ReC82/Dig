@@ -480,7 +480,7 @@ I18n.registerLocale("it", {
    "name": "Primo tesoro"
   },
   "depth25": {
-   "desc": "Raggiungi la profondità di 25m",
+   "desc": "Raggiungi la profondità di 25 m",
    "name": "Esploratore"
   },
   "find_gem": {
@@ -704,7 +704,7 @@ I18n.registerLocale("it", {
   "coins": "Monete",
   "damage": "Danni",
   "depth": "Prof.",
-  "depth_val": "{n}m",
+  "depth_val": "{n} m",
   "gems": "Gemme",
   "pickaxe": "Piccone",
   "pickaxe_val": "Lv.{n}",
@@ -848,9 +848,9 @@ I18n.registerLocale("it", {
   "luck": {
    "desc": "Più blocchi rari, senza rallentare",
    "name": "Fortuna",
-   "preview": "A {depth}m: {now}% di blocchi rari → {next}%",
-   "preview_max": "A {depth}m: {now}% di blocchi rari",
-   "preview_none": "Nessun blocco raro prima dei 5m"
+   "preview": "A {depth} m: {now}% di blocchi rari → {next}%",
+   "preview_max": "A {depth} m: {now}% di blocchi rari",
+   "preview_none": "Nessun blocco raro prima dei 5 m"
   },
   "max_level": "Livello massimo raggiunto",
   "next_level": "Livello {cur} → {next}",
