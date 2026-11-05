@@ -1,8 +1,122 @@
 # Ticket #70 — Admin : navigation en sections et sous-menus évolutifs
 
 - Ticket : [#70 — [P1] Admin — réorganiser la navigation en sections et sous-menus évolutifs](https://github.com/ReC82/Dig/issues/70)
-- Branche : `feature/70-navigation-admin` (code `70ffb91`)
-- `develop` : `e15e2ee` (fusion du code), puis le commit de ce rapport
+- Branche : `feature/70-navigation-admin` (code du 05/11 : `462df6b` ; code du 04/11 : `70ffb91`)
+- `develop` : `faf25e1` (fusion du 05/11), puis le commit de ce rapport
+- **Production : `faf25e1`** (déployé le 05/11/2026 à 13:21, heure de Bruxelles)
+
+## 0. Mise à jour du 05/11/2026 — recette du propriétaire (rubrique Joueurs, plan, actions)
+
+### 0.1 État réel
+
+**Déployé en production (SHA `faf25e1`) — en attente de recette.**
+
+Le menu groupé du 04/11 était déjà en ligne depuis le déploiement `f3892a6` (#25), qui contenait `develop`. Ce
+déploiement ajoute les corrections demandées le 05/11.
+
+### 0.2 Demande du propriétaire
+
+[Commentaire du 05/11](https://github.com/ReC82/Dig/issues/70#issuecomment-6656911347). Pour réinitialiser un joueur
+(#75), il fallait passer par « Économie & joueurs », descendre sous les barèmes jusqu'à « DEBUG JOUEUR », chercher le
+pseudo, ouvrir la fiche puis « Essais de test ». Sans accompagnement, ce chemin était introuvable. Six demandes :
+(1) une vraie rubrique Joueurs ; (2) des sous-menus pour l'Économie ; (3) un plan de navigation à jour, avec les actions
+courantes ; (4) une recherche qui trouve les actions ; (5) pas de long formulaire ouvert d'office, et aucune action
+déclenchée par la navigation ; (6) des essais sur PC et mobile, puis un déploiement.
+
+### 0.3 Changements réalisés
+
+| Demande | Réalisé |
+|---|---|
+| (1) Rubrique Joueurs | Nouveau groupe **👥 Joueurs & testeurs**, en tête du menu : **👤 Joueurs**, 🛡 Anti-bot, 🧪 Bêta fermée. La rubrique Joueurs commence par une phrase d'aide, puis **🔎 Trouver un joueur** : la recherche du pseudo est en haut de page, visible sans défiler. La fiche affiche dans son en-tête les boutons **🧪 Essais de test**, **🛡 Anti-bot de ce joueur** (la fiche anti-bot en lecture seule s'ouvre par-dessus) et Fermer. Elle a trois sections repliables : 📈 Progression (ouverte) ; 🧪 Essais de test — recommencer un test à zéro, exports (ouverte) ; ⚠ Réinitialisation saisonnière partielle (**repliée par défaut**). |
+| (2) Économie séparée | La rubrique s'appelle désormais **💰 Économie** et ne contient plus rien sur les joueurs. Elle a quatre sous-rubriques, une seule affichée à la fois : **Gains & coûts des coffres**, **Registre de gemmes**, **Règles économiques**, **Boutique en gemmes**. On les choisit dans le menu latéral (sous Économie) ou dans la barre en haut de page, qui reste disponible sur smartphone. Lien direct : `#economy/ledger`, par exemple. Une saisie reste en place quand on change de sous-rubrique ou de rubrique. |
+| (3) Plan | Bouton **🧭 Plan & actions courantes**, sous la recherche du menu. Il ouvre 23 actions courantes (chacune avec son chemin et une aide d'une ligne) et l'arbre complet groupes › rubriques › sous-rubriques. Le plan est construit à partir des registres du code, il suit donc toujours le menu. Une copie lisible existe dans [`docs/admin-navigation.md`](../admin-navigation.md) ; un test échoue si une rubrique, une sous-rubrique ou une action en manque. |
+| (4) Recherche d'actions | Le champ s'appelle « Rubrique ou action (ex. joueur, reset)… ». Les actions et sous-rubriques trouvées s'affichent en tête des résultats, avec leur chemin, et **Entrée** ouvre le premier résultat. Exemples : « recommencer » ou « reset » mène à Recommencer un test à zéro ; « joueur » à Trouver un joueur ; « invitation » à Préparer une invitation bêta ; « gains » à Modifier les gains ; « registre » à Économie › Registre de gemmes. La recherche ignore les accents. |
+| (5) Rien de déclenché | Une action **amène seulement au bon endroit** : elle ouvre la rubrique et la sous-rubrique, déplie la section, place le curseur et signale l'endroit par un bref contour doré. Elle ne clique jamais sur un bouton, n'envoie rien au serveur et ne publie ni ne réinitialise rien. C'est vérifié par un test du code et au navigateur (aucune requête de réinitialisation, aucune confirmation ouverte). Pour une action liée à un joueur (« Recommencer un test à zéro ») sans fiche ouverte : le curseur se place sur la recherche du pseudo, une aide indique la suite, et une fois le joueur choisi la fiche s'ouvre directement sur 🧪 Essais de test. |
+| Liens directs | `#players`, `#economy/gains`, `#a/reset-test`, etc. (liste complète dans `docs/admin-navigation.md`). Après F5, la rubrique et la sous-rubrique restent affichées. Un lien `#a/…` ne s'applique qu'une fois, à l'ouverture : il est ensuite remplacé par l'adresse de la rubrique, et un F5 n'y ramène pas. |
+
+Fichiers : `public/admin/index.html` (section `tab-players` ; blocs `data-sub` dans Économie ; plan ; identifiants posés
+sur 5 cartes cibles), `public/admin/admin.js` (registres `ADM_NAV` avec `subs`, `ADM_NAV_ACTIONS`, sous-rubriques,
+recherche d'actions, plan, boutons de la fiche joueur), `public/admin/admin.css`, `docs/admin-navigation.md`, tests
+`test/admin-nav.test.js`, `test/admin-news-ux.test.js`, `test/e2e/admin-nav.e2e.js`, `test/e2e/test-runs.e2e.js`.
+Aucun changement côté serveur, aucune migration.
+
+### 0.4 Vérifications
+
+- `npm test` : branche **745/745** ; `develop` `faf25e1` **745/745** ; release `faf25e1` **745/745**. `npm run check` OK.
+- Navigateur Chromium, serveur de test (port 3101, base de test neuve), **`admin-nav.e2e.js` : 38/38**, ordinateur
+  1280×900 et smartphone 390×844, sans erreur JS. Sont couverts : recherche « joueur » puis « recommencer » + Entrée,
+  qui mène à la rubrique Joueurs avec le curseur sur le pseudo ; choix du joueur, qui ouvre la fiche sur « Essais de
+  test » sans rien déclencher ; anti-bot du joueur ; `#economy/ledger` et F5 ; saisie conservée entre sous-rubriques ;
+  plan → « Modifier les gains » ; lien `#a/invite` dans un nouvel onglet ; garde « modifications non enregistrées » ;
+  menu réduit ; recherche « reset » et plan sur smartphone, sans débordement.
+- `test-runs.e2e.js` (#75, réinitialisation d'un joueur de TEST sur la base de test), passé par la nouvelle rubrique
+  Joueurs : PC OK, mobile OK. `admin-layout.e2e.js` (#62) OK. `season-overview-width.e2e.js` OK.
+- Non relancé : `admin-unsaved.e2e.js`, qui attend une collection `saint_martin` absente de la base de test neuve (même
+  limite que le 04/11). Ses contrôles de navigation et de brouillon sont repris dans `admin-nav.e2e.js`.
+- Aucune donnée réelle touchée : aucun reset, barème ni compte modifié. Les essais n'ont tourné que sur la base de test,
+  supprimée ensuite.
+
+### 0.5 Déploiement
+
+- SHA déployé : **`faf25e1`** (précédent : `f3892a6`). Sauvegarde vérifiée avant déploiement :
+  `~/backups/dig/dig-20261105-132144-pre-deploy-faf25e1.sqlite`.
+- Avant : aucune génération IA en cours (dernier appel terminé à 12:53, plus d'activité admin depuis 12:54). Sur une
+  copie de la base de production, la release a démarré et répondu à `/health` et `/api/version`. Les empreintes de
+  `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` étaient identiques avant et
+  après ce démarrage. La copie a ensuite été supprimée.
+- Après : les deux domaines répondent 200 avec `1.0.0+faf25e1`. Le journal est sans erreur, `quick_check` = ok, et les
+  empreintes des six tables sont **identiques** à la sauvegarde pré-déploiement. La page admin servie contient la
+  rubrique Joueurs et le plan.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep f3892a6` puis `sudo systemctl restart dig`. Le lock npm est
+  inchangé et il n'y a pas de migration.
+
+### 0.6 Test fonctionnel à faire par le propriétaire (PC puis smartphone)
+
+0. Recharger l'onglet admin déjà ouvert (F5) pour charger le nouveau code.
+1. Taper « joueur » dans la recherche du menu, puis Entrée. Attendu : rubrique **👤 Joueurs**, curseur dans la
+   recherche du pseudo, en haut de page.
+2. Taper « recommencer » dans la recherche du menu, puis Entrée. Attendu : même rubrique, avec une aide « choisissez
+   d'abord le joueur ». Taper `gabpok8` et choisir la suggestion. Attendu : la fiche s'ouvre **directement sur 🧪 Essais
+   de test**, le bouton « Recommencer un test à zéro » est visible et **rien n'est lancé**. Ne pas cliquer si aucun
+   reset n'est voulu.
+3. Dans la fiche, cliquer sur « 🛡 Anti-bot de ce joueur ». Attendu : la fiche anti-bot du joueur s'ouvre par-dessus ;
+   Fermer ramène à la rubrique Joueurs.
+4. Ouvrir **🧭 Plan & actions courantes**, puis cliquer sur « Préparer une invitation bêta ». Attendu : rubrique Bêta
+   fermée, focus sur « ➕ Inviter un testeur » ; aucune invitation n'est créée.
+5. Ouvrir 💰 Économie, puis Registre de gemmes (menu latéral ou barre en page). Attendu : seul le registre est affiché.
+   Après F5 : toujours le registre.
+6. Sur smartphone : ☰ Rubriques, taper « reset », toucher le résultat. Attendu : rubrique Joueurs, menu refermé.
+
+### 0.7 Classement MVP
+
+**Après lancement** (ergonomie de la bêta, P1). Ce changement ne retarde pas les P0 anti-bot.
+
+### 0.8 Choix techniques faits seul
+
+- **Groupe « Joueurs & testeurs » en tête** (Joueurs, Anti-bot, Bêta fermée) plutôt qu'une rubrique isolée dans
+  « Exploitation » : le propriétaire y va le plus souvent, et ces trois rubriques concernent les personnes.
+  Exploitation & paramètres ne garde que Publicité et Configuration.
+- **Sous-rubriques = une seule partie affichée à la fois.** Les autres sont seulement masquées, sans rechargement ni
+  perte de saisie. Le bouton « Enregistrer les paramètres économiques » reste dans « Gains & coûts », dont il couvre les
+  deux cartes (multiplicateurs et coûts des coffres).
+- **Actions = navigation seulement**, jamais d'appui automatique sur un bouton. Une action qui ouvrirait une fiche ou
+  lancerait une opération sortirait du cadre « aucune publication ni reset déclenché par la navigation ».
+- **Résultats « actions » avant les rubriques** dans la recherche : Entrée sur « joueur » ouvre « Trouver un joueur »,
+  qui place directement le curseur sur le pseudo.
+- La réinitialisation saisonnière partielle est **repliée** dans la fiche, pour éviter la confusion avec
+  « Recommencer un test à zéro ».
+
+### 0.9 Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire.
+
+### 0.10 Reste à faire
+
+- Recette du propriétaire (ci-dessus).
+- Suggestion, non réalisée (hors périmètre) : d'autres rubriques longues pourraient aussi passer en sous-rubriques avec
+  le même mécanisme (`subs` + `data-sub`), par exemple Saison en cours ou Concours. À décider après la recette.
+
+---
 
 ## 1. État réel — 04/11/2026
 
