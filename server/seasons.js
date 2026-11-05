@@ -543,7 +543,10 @@ function _drainCounter(claimed, ref, tokens, rate) {
 function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = Date.now()) {
   const enabled  = String(config.depth_validation_enabled ?? 'true').toLowerCase() !== 'false';
   const cfgRate  = parseFloat(config.depth_max_cps);
-  const handRate = Number.isFinite(cfgRate) && cfgRate > 0 ? cfgRate : DEPTH_MAX_CPS_DEFAULT;
+  // Jamais plus que la cadence de frappe du client (#74) : un clic au-delà ne fait aucun dégât en
+  // jeu, un compteur déclaré plus rapide (client modifié, autoclicker) n'est donc pas crédité.
+  const handRate = Math.min(Number.isFinite(cfgRate) && cfgRate > 0 ? cfgRate : DEPTH_MAX_CPS_DEFAULT,
+    antibot.getHitLimits(config).rate);
 
   const claimedDepth  = _toCount(seasonStats.maxDepth);
   const claimedClicks = _toCount(seasonStats.manualClicks);
@@ -896,6 +899,8 @@ function buildCurrentSeasonResponse(userId = null) {
     config: {
       gemsCap:              parseInt(config.gems_cap          ?? '100',  10),
       cpsLimit:             parseInt(config.max_effective_cps ?? config.cps_limit ?? '8', 10),
+      hitRate:              antibot.getHitLimits(config).rate,
+      hitBurst:             antibot.getHitLimits(config).burst,
       antiAutoclickEnabled: (config.anti_autoclick_enabled ?? 'true') === 'true',
       economy:              getEconomy(config),
     },

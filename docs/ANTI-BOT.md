@@ -293,6 +293,7 @@ aucun bannissement, CAPTCHA ni sanction hors A/B). Code : `server/antibot.js`, b
 | `cps_flagged` / `cps_reduced` (#10) | cps (25) | 6 / 2 | serveur |
 | `untrusted_clicks` (≥ 50 % de clics `isTrusted = false`, ≥ 20 clics) | untrusted (25) | 10 | client |
 | `burst_clicks` (≥ 50 intervalles < 40 ms et ≥ 30 %) | burst (15) | 4 | client |
+| `throttled_hits` (≥ 50 coups au-delà de `manual_hit_rate` et ≥ 30 % du lot, #74) | burst (15) | 4 | client |
 | `regular_clicks` (CV < 0,03 sur ≥ 200 clics) | regularity (10) | 2 | client |
 
   Un seul type d'indice ne peut pas atteindre le niveau 1 (30). Les niveaux 1–4 sont calculés et

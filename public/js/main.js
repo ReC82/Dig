@@ -39,6 +39,12 @@ let _xStatus              = null;    // compte X lié (#51) : { available, linke
 const SOCIAL_SEEN_KEY     = 'dig.socialLinked'; // un compte Google a été lié sur cet appareil
 let _hasShownGuestWarning = false;   // avertissement affiché une seule fois par session
 let _seasonCpsLimit       = 8;       // seuil CPS récupéré depuis le serveur
+// Limiteur de frappes (#74) : au-delà d'une cadence humaine soutenue, un coup ne fait aucun dégât
+let _hitRate  = 12;                   // coups/s soutenus (config serveur manual_hit_rate)
+let _hitBurst = 36;                   // rafale tolérée (config serveur manual_hit_burst)
+let _hitTokens = _hitBurst;
+let _hitLastMs = 0;
+let _hitFloatMs = 0;
 
 // ── Version / cache busting ───────────────────────────────────────────────────
 let _updateCheckLast = 0; // Timestamp du dernier check de version (ms)
@@ -124,7 +130,7 @@ function _computeRegularityScore() {
 // type de pointeur, régularité (CV). Aucun horodatage brut ni donnée personnelle ; le serveur
 // n'en tire que des indices journalisés, jamais une sanction.
 const _TELE_BOUNDS = [40, 60, 80, 100, 150, 250, 500]; // ms : <40, <60, … , ≥500
-const _tele = { n: 0, h: [0, 0, 0, 0, 0, 0, 0, 0], u: 0, p: { m: 0, t: 0, k: 0, o: 0 }, s1: 0, s2: 0, c: 0, last: 0 };
+const _tele = { n: 0, h: [0, 0, 0, 0, 0, 0, 0, 0], u: 0, x: 0, p: { m: 0, t: 0, k: 0, o: 0 }, s1: 0, s2: 0, c: 0, last: 0 };
 
 /** Enregistre un coup de pioche manuel (ev : événement d'origine, absent = appel par script). */
 function _teleRecord(ev) {
@@ -152,7 +158,7 @@ function _teleSnapshot() {
   const mean = _tele.c ? _tele.s1 / _tele.c : 0;
   const cv   = _tele.c >= 5 && mean > 0 ? Math.sqrt(Math.max(0, _tele.s2 / _tele.c - mean * mean)) / mean : null;
   return {
-    v: 1, n: _tele.n, h: [..._tele.h], u: _tele.u, p: { ..._tele.p },
+    v: 1, n: _tele.n, h: [..._tele.h], u: _tele.u, x: _tele.x, p: { ..._tele.p },
     ...(cv === null ? {} : { cv: Math.round(cv * 1000) / 1000 }),
     _s: { s1: _tele.s1, s2: _tele.s2, c: _tele.c },
   };
@@ -163,6 +169,7 @@ function _teleConsume(snap) {
   if (!snap) return;
   _tele.n = Math.max(0, _tele.n - snap.n);
   _tele.u = Math.max(0, _tele.u - snap.u);
+  _tele.x = Math.max(0, _tele.x - (snap.x || 0));
   snap.h.forEach((v, i) => { _tele.h[i] = Math.max(0, _tele.h[i] - v); });
   for (const k of Object.keys(_tele.p)) _tele.p[k] = Math.max(0, _tele.p[k] - snap.p[k]);
   _tele.s1 = Math.max(0, _tele.s1 - snap._s.s1);
@@ -175,6 +182,30 @@ function _telePayload(snap) {
   if (!snap) return undefined;
   const { _s, ...payload } = snap;
   return payload;
+}
+
+/** Cadence de frappe maximale fournie par le serveur (#74). */
+function _applyHitLimits(config) {
+  const rate  = Number(config?.hitRate);
+  const burst = Number(config?.hitBurst);
+  if (Number.isFinite(rate) && rate > 0)   _hitRate  = rate;
+  if (Number.isFinite(burst) && burst >= 1) _hitBurst = burst;
+  _hitTokens = Math.min(_hitTokens, _hitBurst);
+}
+
+/**
+ * Seau de jetons des coups manuels (#74) : rafales courtes tolérées, débit moyen borné à une
+ * cadence humaine. Rythme robotique (régularité > 0,92) : recharge réduite de moitié.
+ * @returns {boolean} true si le coup porte
+ */
+function _takeHitToken() {
+  const now  = performance.now();
+  const rate = GameState.seasonStats.regularityScore > 0.92 ? _hitRate / 2 : _hitRate;
+  if (_hitLastMs) _hitTokens = Math.min(_hitBurst, _hitTokens + (now - _hitLastMs) / 1000 * rate);
+  _hitLastMs = now;
+  if (_hitTokens < 1) return false;
+  _hitTokens -= 1;
+  return true;
 }
 
 function _isSuspiciousCPS() {
@@ -1977,7 +2008,7 @@ function _applySeasonReset(newSeasonId, gemsCap, seasonLabel = null) {
   GameState.damage          = 1;
   GameState.upgrades         = { luck: 0, bag: 0, autodig: 0, fragment_shop: 0, block_reroll: 0 };
   GameState.shopChestsBought = { simple: 0, rare: 0, antique: 0 };
-  GameState.seasonStats      = { seasonId: newSeasonId, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, regularityScore: 0, isActive: false };
+  GameState.seasonStats      = { seasonId: newSeasonId, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, suspiciousBlocks: 0, throttledHits: 0, regularityScore: 0, isActive: false };
   _clickTimestamps.length   = 0;   // reset du buffer d'intervalles
   _clickLog.length          = 0;   // reset du buffer CPS
   // Recalcule damage = pickaxeLevel (1) + relicBonuses.damageFlat (permanent)
@@ -2020,6 +2051,7 @@ async function _pollSeason() {
     const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
     if (!ok || !data.season) return;
     _seasonCpsLimit = data.config?.cpsLimit ?? 8;
+    _applyHitLimits(data.config);
     _applyServerEconomy(data.config?.economy);
     if (data.season.id !== GameState.seasonStats.seasonId && GameState.seasonStats.seasonId !== 0) {
       _applySeasonReset(data.season.id, data.config?.gemsCap ?? 100, _seasonFullName(data.season.name, data.season.theme));
@@ -2675,6 +2707,7 @@ async function _openSeasonView() {
     const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
     if (ok && data.season) {
       _seasonCpsLimit = data.config?.cpsLimit ?? 8;
+    _applyHitLimits(data.config);
       _applyServerEconomy(data.config?.economy);
       _seasonRefreshAt = Date.now();
       _pointsData = null;   // rechargé par renderSeasonView (compte courant)
@@ -3670,7 +3703,7 @@ function spawnBlock() {
   renderBlock();
 }
 
-function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {}) {
+function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false, isSuspicious = false } = {}) {
   // Avertissement unique si le joueur n'est pas connecté
   if (!_account && !_hasShownGuestWarning) {
     _hasShownGuestWarning = true;
@@ -3682,6 +3715,9 @@ function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false } = {})
     GameState.seasonStats.isActive = true;
   } else if (isAuto) {
     GameState.seasonStats.autoBlocks++;
+  } else if (isSuspicious) {
+    // Bloc cassé par un coup jugé suspect : compté à part, jamais classé comme manuel (#74)
+    GameState.seasonStats.suspiciousBlocks = (GameState.seasonStats.suspiciousBlocks || 0) + 1;
   }
 
   const { reward: baseReward, type } = Blocks.current;
@@ -3746,11 +3782,24 @@ function onBlockHit(cx, cy, ev) {
   // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
   if (!Blocks.current) { spawnBlock(); return; }
 
-  // Chaque clic compte comme manuel, qu'il détruise ou non le bloc
-  GameState.seasonStats.manualClicks++;
   _teleRecord(ev);
   _recordClickTs();
   GameState.seasonStats.regularityScore = _computeRegularityScore();
+
+  // Au-delà de la cadence maximale (#74) : coup compté à part, sans dégât ni gain
+  if (!_takeHitToken()) {
+    _tele.x++;
+    GameState.seasonStats.throttledHits = (GameState.seasonStats.throttledHits || 0) + 1;
+    const now = performance.now();
+    if (now - _hitFloatMs > 300) {
+      _hitFloatMs = now;
+      spawnFloatText(t('notif.damage_float', { amount: 0 }), 'dmg', cx, cy);
+    }
+    return;
+  }
+
+  // Chaque coup porté compte comme manuel, qu'il détruise ou non le bloc
+  GameState.seasonStats.manualClicks++;
 
   const suspicious = _isSuspiciousCPS();
   if (suspicious) GameState.seasonStats.suspiciousScore++;
@@ -3764,7 +3813,7 @@ function onBlockHit(cx, cy, ev) {
 
   spawnFloatText(t('notif.damage_float', { amount: GameState.damage }), 'dmg', cx, cy);
 
-  if (destroyed) handleBlockDestroyed(cx, cy, { isManual: !suspicious });
+  if (destroyed) handleBlockDestroyed(cx, cy, { isManual: !suspicious, isSuspicious: suspicious });
 
   renderBlock();
   renderStats();

@@ -1033,6 +1033,8 @@ const CONFIG_GROUPS = [
     max_effective_cps:        { label: 'Clics/s max avant exclusion du classement', hint: 'Au-delà, le joueur est retiré du classement de la saison.', type: 'number', min: 1, step: 1 },
     depth_validation_enabled: { label: 'Validation serveur de la profondeur', hint: 'Le serveur recalcule la profondeur atteignable.', type: 'bool' },
     depth_max_cps:            { label: 'Clics/s max retenus pour la profondeur', hint: 'Cadence maximale prise en compte par la validation de profondeur.', type: 'number', min: 1, step: 1 },
+    manual_hit_rate:          { label: 'Coups/s max (cadence de frappe)', hint: 'Au-delà, un coup ne fait aucun dégât ni gain et n\'est pas crédité par le serveur (#74). 4 à 30.', type: 'number', min: 4, max: 30, step: 1 },
+    manual_hit_burst:         { label: 'Rafale de coups tolérée', hint: 'Coups rapides acceptés d\'affilée avant le plafond de cadence (#74). 1 à 200.', type: 'number', min: 1, max: 200, step: 1 },
     antibot_mode:             { label: 'Mode anti-bot', hint: 'off = arrêt ; shadow = observation seule, aucune sanction (#25).', type: 'enum', options: ['off', 'shadow'] },
     damage_budget_mode:       { label: 'Budget de dégâts (profondeur)', hint: 'off = arrêt ; shadow = observation ; enforce = profondeur plafonnée (#25).', type: 'enum', options: ['off', 'shadow', 'enforce'] },
   } },

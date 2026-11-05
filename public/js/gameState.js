@@ -95,6 +95,8 @@ const GameState = {
     autoBlocks:     0,     // blocs détruits par l'autodig pendant la saison
     manualClicks:   0,     // total de clics sur le bloc (y compris sans destruction)
     suspiciousScore: 0,     // cumul de clics suspects détectés par l'anti-autoclicker
+    suspiciousBlocks: 0,    // blocs cassés par un coup suspect (ni manuels ni auto, #74)
+    throttledHits:   0,     // coups au-delà de la cadence maximale, sans dégât (#74)
     regularityScore: 0,     // régularité des intervalles (0=humain, 1=robotique)
     isActive:        false, // true dès le 1er bloc manuel → joueur actif dans la saison
   },
