@@ -1552,6 +1552,9 @@ app.get('/media/icons/:file', (req, res) => {
 
 app.get('/api/admin/icons', requireAdmin, iconRoute('GET /api/admin/icons', () => iconStudio.overview()));
 
+// Visuels des six coffres (#66) : état et cible de l'atelier, pour l'onglet Coffres & drops
+app.get('/api/admin/icons/chests', requireAdmin, iconRoute('GET /api/admin/icons/chests', () => ({ chests: iconStudio.chestTargets() })));
+
 app.get('/api/admin/icons/job', requireAdmin, iconRoute('GET /api/admin/icons/job', () => ({ job: iconStudio.jobView(), status: iconStudio.status() })));
 
 app.put('/api/admin/icons/budget', requireAdmin, limit.icons, iconRoute('PUT /api/admin/icons/budget',

@@ -3582,6 +3582,9 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
 .hdr-ico-wrap .ui-ico { width: 30px; height: 30px; vertical-align: middle; }
 .upgrade-icon .ui-ico, .quest-icon .ui-ico, .mission-icon .ui-ico, .streak-icon .ui-ico { width: 1.35em; height: 1.35em; }
 .lb-rank .ui-ico { width: 1.4em; height: 1.4em; }
+/* Coffres de la boutique (#66) : visuel de l'atelier à la place de l'emoji (carte et fenêtre d'ouverture) */
+.shop-chest-icon .ui-ico { width: 30px; height: 30px; vertical-align: middle; }
+#chest-modal-icon .ui-ico { display: block; width: 64px; height: 64px; margin: 0 auto; }
 
 /* ── Pioche à charges (#71) ─────────────────── */
 .pick-charges { width: 220px; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; }

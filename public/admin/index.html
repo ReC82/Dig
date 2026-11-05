@@ -1379,6 +1379,14 @@
       <div id="rw-mined"></div>
     </div>
 
+    <!-- #66 : visuels des six coffres, gérés dans l'atelier d'icônes (aucun effet sur les tables ci-dessus) -->
+    <div class="overview-card" id="rw-visuals-card">
+      <h3 class="overview-card-title">🖼 Visuels des coffres <span class="muted" style="font-weight:normal;font-size:0.8rem">— images gérées dans 🎨 Atelier d'icônes, sans effet sur les récompenses, prix ou chances</span></h3>
+      <p class="muted" style="font-size:0.8rem">Proposition = image générée ou téléversée, jamais visible des joueurs. Coffre trouvé en minant : « Conserver » la met dans le brouillon du catalogue,
+        visible après publication dans 🧱 Blocs. Coffre de la boutique : « Appliquer dans le jeu » (confirmation obligatoire) la rend visible tout de suite. Sans image appliquée, le jeu garde le visuel actuel.</p>
+      <div id="rw-visuals" class="rw-visuals"></div>
+    </div>
+
     <div class="overview-card" id="rw-draft-card">
       <h3 class="overview-card-title">Brouillon et publication</h3>
       <div id="rw-draft"></div>
@@ -2406,7 +2414,7 @@
     <div id="ic-list-view">
       <div class="bk-filters ic-filters">
         <input type="search" id="ic-search" placeholder="Rechercher une icône…" aria-label="Rechercher une icône">
-        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets de collection</option><option value="relic">Reliques</option><option value="mission">Missions quotidiennes</option><option value="event">Objets d'événement</option><option value="badge">Badges</option><option value="ui">Interface</option></select>
+        <select id="ic-kind" aria-label="Famille"><option value="">Toutes les familles</option><option value="block">Blocs</option><option value="item">Objets de collection</option><option value="relic">Reliques</option><option value="mission">Missions quotidiennes</option><option value="event">Objets d'événement</option><option value="badge">Badges</option><option value="chest">Coffres de boutique</option><option value="ui">Interface</option></select>
         <!-- #67 : zones des pictogrammes d'interface (server/uiIcons.js) -->
         <select id="ic-zone" aria-label="Zone de l'interface"><option value="">Toutes les zones</option><option value="nav">Navigation du bas</option><option value="header">En-tête</option><option value="currency">Monnaies et récompenses</option><option value="ranking">Classement</option><option value="upgrades">Améliorations</option><option value="quests">Objectifs</option></select>
         <select id="ic-state" aria-label="État"><option value="">Tous les états</option><option value="todo">À créer (jamais générée)</option><option value="proposal">Propositions à examiner</option><option value="draft">À publier</option><option value="live">En jeu (appliquée)</option><option value="locked">Validées 🔒</option></select>

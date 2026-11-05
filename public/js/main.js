@@ -678,7 +678,7 @@ function renderShopChests() {
 
     card.innerHTML = `
       <div class="shop-chest-header">
-        <span class="shop-chest-icon">${def.icon}</span>
+        <span class="shop-chest-icon">${UiIcons.html(`chest_${def.id}`, def.icon)}</span>
         <div class="shop-chest-info">
           <div class="shop-chest-name">${t('shop_chest.' + def.id + '.name')}</div>
           <div class="shop-chest-desc">${t('shop_chest.' + def.id + '.desc')}</div>
@@ -952,7 +952,8 @@ function _showShopChestReward(def, reward) {
   void inner.offsetWidth;
   inner.style.animation = ''; iconEl.style.animation = '';
 
-  iconEl.textContent   = def.icon;
+  // Visuel appliqué depuis l'atelier d'icônes (#66), sinon l'emoji d'origine
+  iconEl.innerHTML     = UiIcons.html(`chest_${def.id}`, def.icon);
   rarityEl.innerHTML   = `<span class="rarity-badge rarity-rare">${t('shop_chest.' + def.id + '.name')}</span>`;
   titleEl.textContent  = t('ui.shop_chest_opened', { name: t('shop_chest.' + def.id + '.name') });
   rewardEl.textContent = _shopChestRewardLabel(reward);
