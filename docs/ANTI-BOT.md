@@ -368,3 +368,53 @@ tout), états vides explicites. Un test (`test/antibot-journals.test.js`) vérif
 **Limite** : zéro anomalie signifie qu'aucun seuil n'a été franchi par les joueurs réels ; les
 détecteurs sont éprouvés par les tests sur données synthétiques (base isolée), pas en production.
 La largeur et le centrage de la page relèvent de #62.
+
+## 11. PV réels des blocs recalculés par le serveur (#77, 05/11/2026)
+
+Suite de la recommandation P0-2 du rapport #74 : la borne « bloc le plus faible, −50 % » du
+budget de dégâts (lot B) est remplacée, **en observation d'abord**, par les PV réels de chaque bloc.
+
+**Calcul** (`server/blockHp.js`, `validateDepth` dans `server/seasons.js`) :
+- le serveur rejoue le tirage du client à l'identique : `rng(graine, n° du bloc, 'hp')`, pool neutre
+  (sans Chance) de la profondeur, `ceil(hpBase × (1 + 0,12 (d − 1)) × (1 − 0,5))`. Test : égalité
+  exacte avec `Blocks.spawn` sur 2 000 tirages et 5 graines ;
+- **vérifiable** : graine épinglée par le serveur à la première sauvegarde de la saison, n° du bloc,
+  profondeur, catalogue publié ; **non vérifiable → au maximum pour le joueur** : réduction de PV
+  50 % (plafond des reliques), 25 dégâts par clic, Auto-Dig 20/s, catalogue le plus favorable parmi
+  ceux que le client peut avoir chargés (intégré, en vigueur, déclaré ; toutes les versions si le
+  client ne déclare pas sa version) ;
+- crédit inchangé (#25) : clics crédités au plus à la cadence maximale × 1,25 selon le **temps
+  mesuré par le serveur**, Auto-Dig max, réserve de 10 min ; seul le coût par mètre change ;
+- n° de blocs ↔ profondeur : un reroll (ou une reprise impossible au chargement) consomme un n°
+  sans descendre. Le coût est le **minimum sur tous les placements possibles** des sauts admis
+  (programmation dynamique) ; sauts admis = rerolls déclarés (≤ 99 par saison) + réserve de 3
+  (recharge 1 / 10 min), 32 au plus par sauvegarde. Au-delà, ou si le bloc courant n'est plus
+  envoyé, la suite des n° du serveur continue : impossible de « choisir » des blocs faibles ;
+- graine changée en cours de saison : admise 3 fois (fenêtre évaluée avec l'ancienne borne), puis
+  la graine épinglée est conservée ;
+- client sans graine ni bloc courant (antérieur au 01/11) : ancienne borne, sans signal.
+
+**Interrupteur** `exact_hp_mode` (Admin → Config → Protections) : `shadow` (défaut : calcul et
+journal, **aucun joueur freiné**), `enforce` (profondeur retenue bornée aussi par les PV réels ;
+journal `exact_capped`), `off`. Coupé si `damage_budget_mode = off` ou `ANTIBOT=off`.
+
+**Observation (0 point de risque : journal seul, score inchangé)** : `exact_hp_budget` (profondeur
+visée au-delà des PV réels, au passage du seuil de 5 m), `block_hp_mismatch` (PV max du bloc
+courant inférieurs au recalcul), `block_seed_changed`, `block_seq_skips` (plus de sauts que
+de rerolls déclarés, ou bloc courant qui n'est plus envoyé). Fiche joueur : « Profondeur couverte
+aux PV réels » et colonne « PV réels » des échantillons (`antibot_save_samples.exact_depth`).
+
+**Simulation (test/exact-hp-77.test.js)** — profondeur retenue :
+
+| Scénario | Ancienne borne | PV réels (enforce) |
+|---|---|---|
+| Sauvegardes forgées (3 m/s, 40 coups/s déclarés) : 1 003 m atteints en | 10,2 min | **37,6 min** |
+| Forgées, à 10 / 30 / 77 min | 993 / 1 725 / 2 768 m | **504 / 897 / 1 464 m** |
+| Client modifié jouant à 40 coups/s × 25 dégâts, à 10 / 30 / 77 min | 809 / 1 415 / 2 230 m | **526 / 896 / 1 493 m** |
+| Honnête au maximum théorique (12 coups/s × 25, Auto-Dig max, −50 %), mobile, rerolls, sauvegardes perdues, animation, rechargements, 2ᵉ appareil, saison suivante | aucune perte | **aucune perte, aucun signal** |
+
+**Limites** : la borne reste celle d'un joueur au maximum de tout (pioche 15, reliques max) : un
+client modifié qui déclare ces maxima progresse au rythme d'un tel joueur à 15 coups/s. L'incident
+#74 (autoclicker sur le vrai jeu, ≈ 18 coups/s moyens) reste sous cette borne : il est traité par
+le limiteur de cadence du client (#74). Les gains (pièces, gemmes) restent calculés par le client
+(#49, P0-3).

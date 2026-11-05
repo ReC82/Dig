@@ -21,6 +21,7 @@ const { getEconomy } = require('./economy');
 
 const cal = require('./seasonCalendar');
 const antibot = require('./antibot');
+const blockHp = require('./blockHp');
 const standings = require('./standings');
 const rewardPoints = require('./rewardPoints');
 const seasonThemes = require('./seasonThemes');
@@ -528,6 +529,198 @@ function _drainCounter(claimed, ref, tokens, rate) {
   return { ok, tokens: tokens - ok, ref: newRef, discarded };
 }
 
+// ── Budget aux PV réels des blocs (#77) ──────────────────────────────────────
+//
+// Même crédit de dégâts que le budget #25 (clics crédités au rythme maximal × 25 dégâts + Auto-Dig
+// max, temps mesuré par le serveur), mais chaque mètre coûte les PV RÉELS de son bloc, recalculés
+// depuis la graine épinglée par le serveur et le n° du bloc (server/blockHp.js), au lieu des PV du
+// bloc le plus faible. Bonus non vérifiables (pioche, reliques, catalogue chargé) : au maximum en
+// faveur du joueur. Les n° de blocs déclarés ne servent qu'à mesurer les blocs « sautés » (rerolls) :
+// au-delà des rerolls déclarés (≤ 99 par saison) et d'une petite réserve, la suite des n° du serveur
+// continue sans tenir compte des n° déclarés (impossible de « choisir » des blocs faibles).
+// Mode shadow (défaut) : calcul et journal seuls ; enforce : la profondeur retenue est bornée.
+
+/** Rerolls de bloc au plus par saison (upgradeCatalog : block_reroll, 99 achats). */
+const REROLL_MAX = 99;
+/** Blocs sautés sans reroll tolérés (reprise du bloc impossible au chargement) : réserve, recharge. */
+const FREE_SKIPS_MAX = 3;
+const FREE_SKIP_REFILL_SECS = 600;
+/** Changements de graine acceptés par saison ; au-delà, la graine épinglée est conservée. */
+const SEED_CHANGES_MAX = 3;
+
+function _parseXhp(raw) {
+  if (raw == null) return null;
+  try { const o = JSON.parse(raw); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; }
+  catch (_) { return null; }
+}
+
+/**
+ * Bloc courant déclaré par la sauvegarde → point d'ancrage { seed, depth, seq } : le bloc à la
+ * profondeur `depth` porte le n° `seq`. Bloc détruit dont le suivant n'est pas encore tiré
+ * (sauvegarde pendant l'animation) : le suivant portera le n° + 1, un mètre plus bas.
+ */
+function _claimedBlock(save) {
+  const b = save?.block;
+  const seed = save?.blockSeed;
+  if (!b || typeof b !== 'object' || !Number.isSafeInteger(seed) || seed <= 0) return null;
+  if (!Number.isSafeInteger(b.seq) || b.seq <= 0 || !Number.isSafeInteger(b.depth) || b.depth < 1) return null;
+  const destroyed = !(Number(b.hp) > 0);
+  return {
+    seed, depth: destroyed ? b.depth + 1 : b.depth, seq: destroyed ? b.seq + 1 : b.seq,
+    blockDepth: b.depth, blockSeq: b.seq, maxHp: destroyed ? null : Number(b.maxHp),
+  };
+}
+
+/**
+ * Budget aux PV réels pour une sauvegarde (#77). N'écrit rien : retourne l'état à enregistrer.
+ * État (player_depth_tracking.xhp_state, JSON) :
+ *   depth, credit, refClicks, gap : comme dmg_* (#25) ;
+ *   seed : graine épinglée ; aDepth/aSeq : le bloc à aDepth porte un n° ≥ aSeq (ancrage) ;
+ *   rerollRef : rerolls déclarés à l'ancrage ; free : réserve de sauts ; seedChanges, skipLogged, hpSeq.
+ * @returns {{ depth: number, gap: number, path: string, state: object, signals: object[] }}
+ */
+function _exactHpBudget({ mode, t, prev, save, claimedClicks, dtSecs, target, handRate }) {
+  const fresh = prev == null || !Number.isSafeInteger(prev.depth);
+  const x = fresh ? { depth: t.accepted_depth, credit: 0, refClicks: t.ref_clicks, gap: 0, free: FREE_SKIPS_MAX, seedChanges: 0 } : prev;
+  const from = Math.max(1, mode === 'enforce' || fresh ? t.accepted_depth : x.depth);
+  const signals = [];
+  const claim = _claimedBlock(save);
+  const rerolls = Math.min(REROLL_MAX, _toCount(save?.upgrades?.block_reroll));
+  const free = Math.min(FREE_SKIPS_MAX, (Number.isFinite(x.free) ? x.free : FREE_SKIPS_MAX) + dtSecs / FREE_SKIP_REFILL_SECS);
+  const state = { ...x, free };
+  delete state.depth;
+
+  // Graine épinglée par le serveur à la première sauvegarde qui en porte une
+  let seed = Number.isSafeInteger(x.seed) ? x.seed : null;
+  let repinned = false;
+  if (claim) {
+    if (seed == null) seed = claim.seed;
+    else if (claim.seed !== seed) {
+      state.seedChanges = (x.seedChanges ?? 0) + 1;
+      const accept = state.seedChanges <= SEED_CHANGES_MAX;
+      if (state.seedChanges <= SEED_CHANGES_MAX + 1) {
+        signals.push({ type: 'block_seed_changed', details: { changes: state.seedChanges, accepted: accept } });
+      }
+      if (accept) { seed = claim.seed; repinned = true; state.aDepth = null; state.aSeq = null; }
+    }
+  }
+  state.seed = seed;
+
+  // Contrôle du bloc courant : ses PV max ne peuvent pas être inférieurs aux PV recalculés
+  if (claim && claim.maxHp != null && blockHp.ensureReady() && x.hpSeq !== claim.blockSeq) {
+    const lb = blockHp.blockHp(claim.seed, claim.blockSeq, claim.blockDepth, blockHp.allVariants(), antibot.MAX_HP_REDUCTION);
+    if (!(claim.maxHp >= lb)) {
+      signals.push({ type: 'block_hp_mismatch', details: { depth: claim.blockDepth, seq: claim.blockSeq, maxHp: claim.maxHp, minHp: lb } });
+      state.hpSeq = claim.blockSeq;
+    }
+  }
+
+  // Chemin exact : graine connue et non changée dans cette fenêtre. Le bloc courant déclaré borne
+  // les n° par le haut (mesure des sauts) s'il est cohérent : même graine, au-delà de la cible.
+  const seedOk  = seed != null && !repinned && blockHp.ensureReady();
+  const upper   = seedOk && claim && claim.seed === seed && claim.depth >= target && claim.depth >= from;
+  const anchored = seedOk && Number.isSafeInteger(x.aSeq) && Number.isSafeInteger(x.aDepth) && from >= x.aDepth;
+  if (!claim && seed != null && !x.missLogged && save) {
+    // Un client à jour envoie toujours son bloc courant (#35) : plus de bloc après en avoir envoyé un
+    signals.push({ type: 'block_seq_skips', details: { missingBlock: true } });
+    state.missLogged = true;
+  }
+  let reach = antibot.reachableDepth;
+  let path = 'min';
+  let base = 0, K = 0, deltaR = 0;
+  if (anchored || upper) {
+    const maxSeqAtFrom = upper ? claim.seq - (claim.depth - from) : null;   // n° max du bloc à `from` (déclaration)
+    if (anchored) {
+      base = x.aSeq + (from - x.aDepth);
+      deltaR = Math.max(0, rerolls - (Number.isSafeInteger(x.rerollRef) ? x.rerollRef : rerolls));
+      const allowance = Math.min(blockHp.MAX_DP_SKIPS, deltaR + Math.floor(free));
+      if (upper) {
+        const slack = maxSeqAtFrom - base;
+        K = Math.max(0, Math.min(slack, allowance));
+        const beyond = slack > allowance;
+        if (beyond && !x.skipLogged) signals.push({ type: 'block_seq_skips', details: { skipped: slack, rerolls: deltaR, allowed: allowance } });
+        state.skipLogged = beyond;
+      } else {
+        K = allowance;   // bloc courant absent ou incohérent : suite des n° du serveur, sauts admis
+      }
+    } else {
+      // Pas d'ancrage (première sauvegarde, nouvelle graine) : fenêtre large, rerolls de la saison compris
+      K = Math.min(blockHp.MAX_DP_SKIPS, rerolls + FREE_SKIPS_MAX);
+      base = Math.max(1, maxSeqAtFrom - K);
+      K = Math.max(0, maxSeqAtFrom - base);
+      deltaR = K;
+    }
+    // Un client utilise un seul catalogue entre deux sauvegardes : chaque variante possible est
+    // évaluée séparément et la plus favorable au joueur est retenue.
+    const variants = blockHp.variantsFor(save?.blockCatalog);
+    const lowSeq = base, skips = K;
+    reach = (f, credit, tgt) => {
+      let best = null;
+      for (const v of variants) {
+        const w = blockHp.minCostWalk({ seed, lowSeq: lowSeq + (f - from), skips, from: f, credit, target: tgt,
+          variants: [v], maxReduction: antibot.MAX_HP_REDUCTION });
+        if (!best || w.depth > best.depth || (w.depth === best.depth && w.spent < best.spent)) best = w;
+      }
+      return best;
+    };
+    path = 'exact';
+  }
+
+  const inputs = {
+    fromDepth: from,
+    credit:    fresh ? 0 : Number(x.credit) || 0,
+    refClicks: fresh ? t.ref_clicks : Number.isSafeInteger(x.refClicks) ? x.refClicks : t.ref_clicks,
+    claimedClicks, dtSecs, target, handRate, reach,
+  };
+  const r = antibot.applyDamageBudget(inputs);
+  // gap : profondeur visée non couverte par les PV réels (ce que enforce retirerait à cette sauvegarde) ;
+  // ugap : écart inexpliqué même en créditant tous les clics déclarés en attente
+  const gap = Math.max(0, target - r.depth);
+  let ugap = 0;
+  if (r.depth < target) {
+    const explained = r.pendingClicks > 0 ? antibot.applyDamageBudget({ ...inputs, uncapped: true }).depth : r.depth;
+    ugap = Math.max(0, target - explained);
+  }
+  Object.assign(state, { credit: r.credit, refClicks: r.refClicks, gap, ugap });
+
+  // Ancrage suivant (borne inférieure du n° du bloc à une profondeur connue)
+  if (path === 'exact') {
+    if (upper && r.depth >= claim.depth) {
+      // Tous les blocs jusqu'au bloc courant payés : n° du bloc courant (sauts admis seulement)
+      state.aDepth = claim.depth;
+      state.aSeq = base + (claim.depth - from) + K;
+      state.rerollRef = rerolls;
+      state.free = Math.max(0, free - Math.max(0, K - deltaR));
+    } else {
+      state.aDepth = r.depth;
+      state.aSeq = base + (r.depth - from);
+    }
+    // n° déclarés incohérents ou absents : les sauts admis sont consommés (pas de réserve renouvelée
+    // à chaque fenêtre). Joueur honnête : ses n° sont toujours dans l'allocation, rien n'est consommé ici.
+    if (!upper || state.skipLogged) {
+      state.free = Math.max(0, free - Math.max(0, K - deltaR));
+      state.rerollRef = rerolls;
+    }
+  } else if (claim && seed === claim.seed && r.depth >= claim.depth) {
+    state.aDepth = claim.depth; state.aSeq = claim.seq; state.rerollRef = rerolls;
+  }
+  return { depth: r.depth, gap, ugap, path, base, from, state, signals };
+}
+
+/**
+ * État à enregistrer, couvert jusqu'à `depth`. En enforce, la profondeur retenue peut être en deçà
+ * de l'ancrage (autre borne plus stricte) : l'ancrage est ramené à cette profondeur (n° minimal,
+ * sans saut) pour rester une borne inférieure valable.
+ */
+function _exactStateAt(exact, depth) {
+  const st = { ...exact.state, depth };
+  if (Number.isSafeInteger(st.aDepth) && st.aDepth > depth) {
+    if (exact.path === 'exact') { st.aDepth = depth; st.aSeq = exact.base + (depth - exact.from); }
+    else { st.aDepth = null; st.aSeq = null; }
+  }
+  return st;
+}
+
 /**
  * Calcule la profondeur maximale retenue pour le classement à partir de la sauvegarde.
  *
@@ -537,10 +730,11 @@ function _drainCounter(claimed, ref, tokens, rate) {
  * @param {object} config       Config admin (depth_validation_enabled, depth_max_cps)
  * @param {string} [username]   Pour le log
  * @param {number} [nowMs]      Horloge injectable (tests)
+ * @param {object} [save]       Sauvegarde complète (graine, bloc courant, rerolls : PV réels #77)
  * @returns {{ acceptedDepth: number, reportedDepth: number, action: string }}
- *          action : none | init | capped | depth_capped | depth_rejected | disabled
+ *          action : none | init | capped | depth_capped | depth_rejected | damage_capped | exact_capped | disabled
  */
-function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = Date.now()) {
+function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = Date.now(), save = null) {
   const enabled  = String(config.depth_validation_enabled ?? 'true').toLowerCase() !== 'false';
   const cfgRate  = parseFloat(config.depth_max_cps);
   // Jamais plus que la cadence de frappe du client (#74) : un clic au-delà ne fait aucun dégât en
@@ -608,10 +802,19 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
       budgetGap = Math.max(0, target - explained);
     }
   }
-  const bounded   = budgetMode === 'enforce' ? Math.min(target, budget.depth) : target;
+  // ── PV réels des blocs (#77) : shadow = calcul et journal ; enforce = profondeur bornée ──
+  const exactMode = antibot.getExactHpMode(config);
+  const prevX     = exactMode !== 'off' ? _parseXhp(t.xhp_state) : null;
+  const exact     = exactMode !== 'off'
+    ? _exactHpBudget({ mode: exactMode, t, prev: prevX, save, claimedClicks, dtSecs, target, handRate })
+    : null;
+
+  let bounded     = budgetMode === 'enforce' ? Math.min(target, budget.depth) : target;
+  if (exactMode === 'enforce') bounded = Math.min(bounded, exact.depth);
   const accepted  = Math.max(t.accepted_depth, bounded);
   const gap       = Math.max(0, claimedDepth - accepted);
   const budgetNew = budgetGap >= antibot.DAMAGE_LOG_GAP && (t.dmg_gap ?? 0) < antibot.DAMAGE_LOG_GAP;
+  const exactNew  = !!exact && exact.gap >= antibot.DAMAGE_LOG_GAP && (prevX?.gap ?? 0) < antibot.DAMAGE_LOG_GAP;
 
   upsertDepthTracking(userId, {
     season_id: seasonId, ref_clicks: hand.ref, ref_auto: auto.ref,
@@ -621,6 +824,7 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
     dmg_credit: budget ? budget.credit : null,
     dmg_ref_clicks: budget ? budget.refClicks : null,
     dmg_gap:    budgetGap,
+    xhp_state:  exact ? _exactStateAt(exact, exactMode === 'enforce' ? accepted : exact.depth) : null,
   });
 
   const signals = [];
@@ -633,9 +837,16 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
       acceptedDepth: accepted, budgetDepth: budget.depth, gap: target - budget.depth, unexplainedGap: budgetGap } });
   }
 
+  if (exact) signals.push(...exact.signals);
+  if (exactNew) {
+    signals.push({ type: 'exact_hp_budget', details: { mode: exactMode, path: exact.path, reportedDepth: claimedDepth,
+      acceptedDepth: accepted, exactDepth: exact.depth, budgetDepth: budget?.depth ?? null, gap: exact.gap, unexplainedGap: exact.ugap } });
+  }
+
   let logAction = null;
   if (hand.discarded > 0 || auto.discarded > 0) logAction = 'depth_rejected';
   else if (budgetNew && budgetMode === 'enforce') logAction = 'damage_capped';
+  else if (exactNew && exactMode === 'enforce') logAction = 'exact_capped';
   else if (gap >= DEPTH_LOG_GAP && t.last_gap < DEPTH_LOG_GAP) logAction = 'depth_capped';
 
   if (logAction) {
@@ -650,13 +861,15 @@ function validateDepth(userId, seasonId, seasonStats, config, username, nowMs = 
       logAction,
       { reportedDepth: claimedDepth, acceptedDepth: accepted,
         discardedClicks: hand.discarded, discardedAutoBlocks: auto.discarded,
-        ...(budget ? { budgetDepth: budget.depth } : {}) },
+        ...(budget ? { budgetDepth: budget.depth } : {}), ...(exact ? { exactDepth: exact.depth } : {}) },
     );
     console.log(`[anticheat] ${username ?? userId} : profondeur déclarée ${claimedDepth} → retenue ${accepted} — ${logAction}`);
-    return { acceptedDepth: accepted, reportedDepth: claimedDepth, budgetDepth: budget?.depth ?? null, action: logAction, signals };
+    return { acceptedDepth: accepted, reportedDepth: claimedDepth, budgetDepth: budget?.depth ?? null,
+      exactDepth: exact?.depth ?? null, exactPath: exact?.path ?? null, action: logAction, signals };
   }
 
-  return { acceptedDepth: accepted, reportedDepth: claimedDepth, budgetDepth: budget?.depth ?? null, action: gap > 0 ? 'capped' : action, signals };
+  return { acceptedDepth: accepted, reportedDepth: claimedDepth, budgetDepth: budget?.depth ?? null,
+    exactDepth: exact?.depth ?? null, exactPath: exact?.path ?? null, action: gap > 0 ? 'capped' : action, signals };
 }
 
 // ── Utilitaires de stats saisonnières ────────────────────────────────────────
@@ -754,7 +967,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
   const config     = getAdminConfig();
 
   // ── Profondeur : validée côté serveur à chaque sauvegarde (ticket #9, budget #25) ─
-  const { acceptedDepth, reportedDepth, budgetDepth, signals } = validateDepth(userId, season.id, seasonStats, config, user?.username);
+  const { acceptedDepth, reportedDepth, budgetDepth, exactDepth, signals } = validateDepth(userId, season.id, seasonStats, config, user?.username, Date.now(), save);
 
   // ── Observation anti-bot (#25, lot A) : indices et preuves, aucune réponse appliquée ──
   const forged = antibot.forgedCounters(seasonStats);
@@ -802,7 +1015,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
   if (antibot.getAntibotMode(config) !== 'off') {
     try {
       antibot.recordSaveSample(userId, season.id, {
-        reportedDepth, acceptedDepth, budgetDepth, seasonStats, acAction, telemetry: tel,
+        reportedDepth, acceptedDepth, budgetDepth, exactDepth, seasonStats, acAction, telemetry: tel,
         blocksDestroyed: save?.stats?.blocksDestroyed, autodigLevel: save?.upgrades?.autodig,
       });
     } catch (err) { console.error('[antibot] échantillon', err.message); }

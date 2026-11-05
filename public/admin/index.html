@@ -304,6 +304,7 @@
             <option value="depth_capped">↓ Profondeur plafonnée</option>
             <option value="depth_rejected">✖ Profondeur rejetée</option>
             <option value="damage_capped">↓ Budget de dégâts</option>
+            <option value="exact_capped">↓ PV réels des blocs</option>
             <option value="admin_fix">✎ Corrections admin</option>
           </select>
           <button class="btn" id="btn-refresh-ac">↻ Rafraîchir</button>
@@ -617,7 +618,7 @@
     </div>
     <div class="overview-card">
       <h3 class="overview-card-title">Synthèse</h3>
-      <p class="muted" style="font-size:0.8rem">Observation (shadow) : les scores et niveaux sont calculés et journalisés, <strong>aucune sanction n'est appliquée</strong>. Le budget de dégâts borne la profondeur classée (preuve physique). Modifier les modes dans l'onglet Config (<code>antibot_mode</code>, <code>damage_budget_mode</code>).</p>
+      <p class="muted" style="font-size:0.8rem">Observation (shadow) : les scores et niveaux sont calculés et journalisés, <strong>aucune sanction n'est appliquée</strong>. Le budget de dégâts borne la profondeur classée (preuve physique). Modifier les modes dans l'onglet Config (<code>antibot_mode</code>, <code>damage_budget_mode</code>, <code>exact_hp_mode</code>). Les PV réels des blocs (#77) sont recalculés en observation (shadow) : écart visible dans la fiche joueur, aucun joueur freiné tant que le mode n'est pas <code>enforce</code>.</p>
       <p class="muted" style="font-size:0.8rem">Chaque sauvegarde cloud d'un joueur est contrôlée (profondeur, budget de dégâts, anti-autoclic, télémétrie). <strong>Une sauvegarde normale ne crée aucune entrée de journal</strong> : seules les anomalies sont consignées. Le dernier contrôle de chaque joueur est affiché ci-dessous sans rien journaliser. Zéro anomalie signifie qu'aucun seuil n'a été franchi, pas que chaque détecteur a été éprouvé.</p>
       <div id="sec-status"></div>
     </div>
@@ -664,6 +665,10 @@
               <option value="untrusted_clicks">Clics par script</option>
               <option value="burst_clicks">Rafales</option>
               <option value="throttled_hits">Coups au-delà de la cadence</option>
+              <option value="exact_hp_budget">PV réels des blocs dépassés (0 point)</option>
+              <option value="block_hp_mismatch">PV du bloc courant falsifiés (0 point)</option>
+              <option value="block_seed_changed">Graine des blocs changée (0 point)</option>
+              <option value="block_seq_skips">Blocs sautés / bloc absent (0 point)</option>
               <option value="regular_clicks">Rythme régulier</option>
               <option value="risk_level">Changement de niveau</option>
             </optgroup>

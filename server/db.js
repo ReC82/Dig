@@ -395,6 +395,12 @@ function initDb() {
       _db.prepare('ALTER TABLE player_depth_tracking ADD COLUMN dmg_gap INTEGER NOT NULL DEFAULT 0').run();
       console.log('[db] Migration : player_depth_tracking.dmg_gap ajouté');
     }
+    // PV réels (#77) : état JSON du budget recalculé bloc par bloc (graine épinglée, n° de bloc,
+    // crédit…). NULL = ligne antérieure à #77 → reprise à la profondeur retenue, sans crédit.
+    if (!dtCols.includes('xhp_state')) {
+      _db.prepare('ALTER TABLE player_depth_tracking ADD COLUMN xhp_state TEXT').run();
+      console.log('[db] Migration : player_depth_tracking.xhp_state ajouté');
+    }
   }
   // Classement saisonnier figé (#29). Ajouts seuls, idempotents.
   // max_depth_reached_at : instant (UTC, ms) où la profondeur max retenue a été atteinte —
@@ -767,6 +773,11 @@ function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_antibot_samples_user ON antibot_save_samples (user_id, season_id, id DESC);
   `);
+  // PV réels (#77) : profondeur couverte par le budget recalculé bloc par bloc (ajout seul)
+  if (!_db.prepare('PRAGMA table_info(antibot_save_samples)').all().some(r => r.name === 'exact_depth')) {
+    _db.prepare('ALTER TABLE antibot_save_samples ADD COLUMN exact_depth INTEGER').run();
+    console.log('[db] Migration : antibot_save_samples.exact_depth ajouté');
+  }
 
   // Session de jeu unique par compte (#35) : un seul contrôleur (onglet, appareil, PWA) peut
   // miner et écrire la sauvegarde. Table ajoutée, aucune donnée existante modifiée.
@@ -906,6 +917,8 @@ function initDb() {
   // Anti-bot (#25) : observation sans sanction (lot A), budget de dégâts appliqué (lot B)
   cfgStmt.run('antibot_mode',                 'shadow');
   cfgStmt.run('damage_budget_mode',           'enforce');
+  // PV réels des blocs (#77) : observation d'abord, rejet strict seulement sur décision du propriétaire
+  cfgStmt.run('exact_hp_mode',                'shadow');
   // Économie — multiplicateurs globaux (informations + appliqués par chestShop)
   cfgStmt.run('upgrade_cost_multiplier',  '1.0');   // ×coût des upgrades saisonniers
   cfgStmt.run('coin_gain_multiplier',     '1.0');   // ×gains de pièces (blocs)
@@ -1689,8 +1702,8 @@ function upsertDepthTracking(userId, t) {
   getDb().prepare(`
     INSERT INTO player_depth_tracking
       (user_id, season_id, ref_clicks, ref_auto, hand_tokens, auto_tokens, accepted_depth, last_gap, updated_ms,
-       dmg_depth, dmg_credit, dmg_ref_clicks, dmg_gap)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       dmg_depth, dmg_credit, dmg_ref_clicks, dmg_gap, xhp_state)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET
       season_id      = excluded.season_id,
       ref_clicks     = excluded.ref_clicks,
@@ -1703,9 +1716,11 @@ function upsertDepthTracking(userId, t) {
       dmg_depth      = excluded.dmg_depth,
       dmg_credit     = excluded.dmg_credit,
       dmg_ref_clicks = excluded.dmg_ref_clicks,
-      dmg_gap        = excluded.dmg_gap
+      dmg_gap        = excluded.dmg_gap,
+      xhp_state      = excluded.xhp_state
   `).run(userId, t.season_id ?? null, t.ref_clicks, t.ref_auto, t.hand_tokens, t.auto_tokens, t.accepted_depth, t.last_gap, t.updated_ms,
-         t.dmg_depth ?? null, t.dmg_credit ?? null, t.dmg_ref_clicks ?? null, t.dmg_gap ?? 0);
+         t.dmg_depth ?? null, t.dmg_credit ?? null, t.dmg_ref_clicks ?? null, t.dmg_gap ?? 0,
+         t.xhp_state == null ? null : typeof t.xhp_state === 'string' ? t.xhp_state : JSON.stringify(t.xhp_state));
 }
 
 /**

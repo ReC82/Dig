@@ -1274,6 +1274,7 @@ const CONFIG_GROUPS = [
     manual_hit_burst:         { label: 'Rafale de coups tolérée', hint: 'Coups rapides acceptés d\'affilée avant le plafond de cadence (#74). 1 à 200.', type: 'number', min: 1, max: 200, step: 1 },
     antibot_mode:             { label: 'Mode anti-bot', hint: 'off = arrêt ; shadow = observation seule, aucune sanction (#25).', type: 'enum', options: ['off', 'shadow'] },
     damage_budget_mode:       { label: 'Budget de dégâts (profondeur)', hint: 'off = arrêt ; shadow = observation ; enforce = profondeur plafonnée (#25).', type: 'enum', options: ['off', 'shadow', 'enforce'] },
+    exact_hp_mode:            { label: 'Budget aux PV réels des blocs', hint: 'PV de chaque bloc recalculés par le serveur (#77). shadow = calcul et journal seuls (aucun joueur freiné) ; enforce = profondeur plafonnée ; off = arrêt.', type: 'enum', options: ['off', 'shadow', 'enforce'] },
   } },
 ];
 // Paramètres obsolètes : affichés en lecture seule dans « Avancé », valeur et comportement inchangés.
@@ -1806,6 +1807,7 @@ async function loadAntiCheatLogs() {
       depth_capped:   ['badge-reduced', '↓ profondeur plafonnée'],
       depth_rejected: ['badge-flagged', '✖ profondeur rejetée'],
       damage_capped:  ['badge-reduced', '↓ budget de dégâts'],
+      exact_capped:   ['badge-reduced', '↓ PV réels des blocs'],
       admin_fix:      ['muted',         '✎ correction admin'],
     };
     const [cls, label] = BADGES[log.action_taken] ?? ['muted', log.action_taken];
@@ -2904,6 +2906,8 @@ function secRenderPlayer(d) {
     ['Profondeur retenue (classement)', secFmt(r?.acceptedDepth ?? d.depth?.acceptedDepth, ' m'), 'server'],
     ['Profondeur déclarée', secFmt(r?.reportedDepth ?? ss?.maxDepth, ' m'), 'client'],
     ['Profondeur couverte par le budget de dégâts', secFmt(d.depth?.budgetDepth, ' m'), 'server'],
+    ['Profondeur couverte aux PV réels des blocs (#77)', secFmt(d.depth?.exactDepth, ' m'), 'server'],
+    ['Écart PV réels à la dernière sauvegarde', secFmt(d.depth?.exactGap, ' m'), 'server'],
     ['Écart déclaré − retenu', secFmt(d.depth?.depthGap, ' m'), 'server'],
     ['Écart inexpliqué du budget', secFmt(d.depth?.budgetGap, ' m'), 'server'],
     ['Coups de pioche manuels (manualClicks)', secFmt(ss?.manualClicks ?? r?.manualClicks), 'client'],
@@ -2968,11 +2972,11 @@ function secRenderPlayer(d) {
   const rows = d.samples.rows.slice().reverse().slice(0, 60).map(x => [
     secDate(x.at).replace(' UTC', ''), secFmt(x.dtSecs, ' s'), secFmt(x.dClicks), secFmt(x.serverCps),
     `${secFmt(x.dManualBlocks)} / ${secFmt(x.dAutoBlocks)} / ${secFmt(x.dBlocksDestroyed)}`,
-    `${secFmt(x.reportedDepth)} / ${secFmt(x.acceptedDepth)} / ${secFmt(x.budgetDepth)}`,
+    `${secFmt(x.reportedDepth)} / ${secFmt(x.acceptedDepth)} / ${secFmt(x.budgetDepth)} / ${secFmt(x.exactDepth)}`,
     secFmt(x.autodigLevel), x.tel ? `${x.tel.n} (<40 ms : ${x.tel.under40 ?? '—'}, non fiables ${x.tel.u})` : '—', x.acAction ?? '',
   ]);
   add(secTable(['Heure (UTC)', 'Δt serveur', 'Δ coups', 'Coups/s (horloge serveur)', 'Δ blocs manuels / auto / total',
-    'Profondeur déclarée / retenue / budget', 'Auto-Dig', 'Télémétrie (coups)', 'Anti-autoclic'], rows,
+    'Profondeur déclarée / retenue / budget / PV réels', 'Auto-Dig', 'Télémétrie (coups)', 'Anti-autoclic'], rows,
     'Non disponible pour cette session : les échantillons sont enregistrés à chaque sauvegarde depuis la mise en service de la fiche.'));
   note('Δ coups et Δ blocs sont des compteurs déclarés ; Δt est mesuré par le serveur. Coups/s = Δ coups ÷ Δt serveur (fiable pour la durée, pas pour le compteur).');
 

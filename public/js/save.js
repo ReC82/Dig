@@ -82,6 +82,8 @@ const Save = {
       seasonStats: { ...GameState.seasonStats },
       blockSeed:   GameState.blockSeed,
       blockSeq:    GameState.blockSeq,
+      // Version du catalogue de blocs en usage (#77) : le serveur recalcule les PV avec ce catalogue
+      blockCatalog: typeof Blocks !== 'undefined' ? Blocks.catalogVersion : undefined,
       block:       typeof Blocks !== 'undefined' && Blocks.current ? Blocks.snapshot() : this.loadedBlock,
     };
   },
