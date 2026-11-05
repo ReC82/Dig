@@ -48,12 +48,12 @@ Nouveau fichier `test/monthly-events-coverage.test.js` (10 tests). Il utilise un
 
 ## 3. SHA et procédure de test
 
-- Branche `feature/56-evenements-mensuels`. SHA sur develop : voir le commentaire GitHub du 05/11 (merge `--no-ff`).
+- Branche `feature/56-evenements-mensuels` (`69ae99a`). **SHA sur develop : `5d5b654`** (merge `--no-ff`).
 - `node --test test/monthly-events-coverage.test.js` → 10/10. `npm test` complet sur la branche : **782/782**.
 
 ## 4. Vérifications, limites, données
 
-- Tests : `npm test` complet sur la branche et sur develop après fusion (résultats dans le commentaire GitHub).
+- Tests : `npm test` **782/782** sur la branche et sur develop `5d5b654` après fusion.
 - Aucune migration. Aucune donnée joueur lue ou écrite hors base temporaire. Seule une lecture `-readonly` de la base de production a été faite, pour préparer le test ci-dessous : il reste 3 souvenirs de l'ancien événement TEST sur le compte `testeur`, et Noël est en brouillon.
 - **Limite** : ces tests ne remplacent pas un essai en jeu sur un événement public réel. Ce dernier reste soumis aux décisions sur le barème et les dates de Noël.
 
