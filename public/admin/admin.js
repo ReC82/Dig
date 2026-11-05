@@ -8360,10 +8360,11 @@ function betaInviteMessage(link, name) {
 
 async function betaCopy(text, btn, label) {
   try { await navigator.clipboard.writeText(text); }
-  catch { admPrompt({ title: 'Copie impossible ici', text: 'Sélectionnez le texte ci-dessous puis copiez-le (Ctrl+C).', label: 'À copier', value: text, type: 'textarea', ok: 'Fermer' }); return; }
+  catch { admPrompt({ title: 'Copie impossible ici', text: 'Sélectionnez le texte ci-dessous puis copiez-le (Ctrl+C).', label: 'À copier', value: text, type: 'textarea', ok: 'Fermer' }); return false; }
   btn.textContent = '✓ Copié';
   setTimeout(() => { btn.textContent = label; }, 1800);
   admToast('Copié dans le presse-papiers.');
+  return true;
 }
 
 /** Confirmation brève en bas de l'écran (aucune action requise). */
@@ -8558,9 +8559,32 @@ document.getElementById('btn-beta-feedback').addEventListener('click', () => {
 });
 
 // ── Fiche « Inviter un testeur » : un champ facultatif, valeurs sûres (1 inscription, 14 jours, vague courante).
-admDialogSetup('beta-invite-dialog');
+// #72 : deux étapes, deux protections. Étape 1 (formulaire) : suivi générique #61, rien n'est encore créé.
+// Étape 2 (résultat) : l'invitation est déjà enregistrée ; seule une retouche manuelle du message est une saisie
+// à perdre, et la confirmation le dit (l'invitation reste valide). Sans retouche : fermeture directe.
+let _betaInviteMsg = null;   // message proposé à l'étape 2 (null = étape 1)
+const betaInviteMsgEdited = () => _betaInviteMsg !== null && document.getElementById('beta-invite-message').value !== _betaInviteMsg;
+function betaInviteKeepMsg(effect) {
+  if (!betaInviteMsgEdited()) return Promise.resolve(true);
+  return admConfirm({
+    title: 'Message personnalisé non copié', text: 'Tu as modifié le texte du message.',
+    impact: ['L’invitation est déjà créée et reste valide : seul ton texte personnalisé sera perdu.',
+      `« Abandonner le texte » ${effect}`, 'Pour le garder : « Revenir au message », puis « ✉️ Copier un message prêt à envoyer ».'],
+    ok: 'Abandonner le texte', cancel: 'Revenir au message',
+  });
+}
+function betaInviteDirty() {
+  return _betaInviteMsg === null ? document.getElementById('beta-invite-dialog')._admTrack.dirty() : betaInviteMsgEdited();
+}
+async function betaInviteCanClose() {
+  if (_betaInviteMsg !== null) return betaInviteKeepMsg('ferme la fiche.');
+  return !betaInviteDirty() || admConfirmDiscard({ keep: 'Créer le lien' });
+}
+admDialogSetup('beta-invite-dialog', { dirty: betaInviteDirty, canClose: betaInviteCanClose });
 
 function betaInviteReset() {
+  _betaInviteMsg = null;
+  document.getElementById('beta-invite-dialog')._admTrack.clean();
   document.getElementById('beta-invite-step1').classList.remove('hidden');
   document.getElementById('beta-invite-step2').classList.add('hidden');
   document.getElementById('beta-invite-name').value = '';
@@ -8577,7 +8601,8 @@ document.getElementById('btn-beta-invite-open').addEventListener('click', e => {
   betaInviteReset();
   admDialogOpen('beta-invite-dialog', e.currentTarget, 'beta-invite-name');
 });
-document.getElementById('btn-beta-invite-again').addEventListener('click', () => {
+document.getElementById('btn-beta-invite-again').addEventListener('click', async () => {
+  if (!await betaInviteKeepMsg('prépare une nouvelle invitation ; la précédente reste dans « Liens d’invitation créés ».')) return;
   betaInviteReset();
   document.getElementById('beta-invite-name').focus();
 });
@@ -8585,6 +8610,7 @@ document.getElementById('btn-beta-invite-again').addEventListener('click', () =>
 document.getElementById('btn-beta-invite-create').addEventListener('click', async () => {
   const btn = document.getElementById('btn-beta-invite-create');
   const name = document.getElementById('beta-invite-name').value.trim();
+  if (btn.disabled) return;   // un seul lien par clic
   btn.disabled = true;
   const { ok, data } = await api('POST', '/api/admin/beta/invites', { label: name });
   btn.disabled = false;
@@ -8592,7 +8618,9 @@ document.getElementById('btn-beta-invite-create').addEventListener('click', asyn
   const link = betaInviteLink(data.invites[0].code);
   document.getElementById('beta-invite-done').textContent = `✓ Lien créé${name ? ` pour ${name}` : ''}. Copie-le et envoie-le toi-même.`;
   document.getElementById('beta-invite-link').value = link;
-  document.getElementById('beta-invite-message').value = betaInviteMessage(link, name);
+  _betaInviteMsg = betaInviteMessage(link, name);
+  document.getElementById('beta-invite-message').value = _betaInviteMsg;
+  document.getElementById('beta-invite-dialog')._admTrack.clean();   // le prénom est enregistré avec l'invitation
   document.getElementById('beta-invite-step1').classList.add('hidden');
   document.getElementById('beta-invite-step2').classList.remove('hidden');
   document.getElementById('btn-beta-copy-link').focus();
@@ -8600,8 +8628,11 @@ document.getElementById('btn-beta-invite-create').addEventListener('click', asyn
 });
 document.getElementById('btn-beta-copy-link').addEventListener('click', e =>
   betaCopy(document.getElementById('beta-invite-link').value, e.currentTarget, '📋 Copier le lien'));
-document.getElementById('btn-beta-copy-msg').addEventListener('click', e =>
-  betaCopy(document.getElementById('beta-invite-message').value, e.currentTarget, '✉️ Copier un message prêt à envoyer'));
+document.getElementById('btn-beta-copy-msg').addEventListener('click', async e => {
+  const text = document.getElementById('beta-invite-message').value;
+  // Texte copié = plus rien à perdre (la copie manuelle de secours, elle, n'est pas vérifiable).
+  if (await betaCopy(text, e.currentTarget, '✉️ Copier un message prêt à envoyer') && _betaInviteMsg !== null) _betaInviteMsg = text;
+});
 
 // ── Fiche « Configurer la bêta » : formulaire = brouillon ; la liste « ce qui va changer » compare
 // au dernier état enregistré ; rien ne change tant que « Enregistrer » n'est pas cliqué.

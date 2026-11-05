@@ -119,3 +119,20 @@ test('formulaires de page : saisies conservées au rechargement, zone propre apr
   assert.match(fn('renderAds'), /String\(slot\.slot\) !== String\(savedSlot\) && pasted\[slot\.slot\]/, 'code collé dans un autre emplacement conservé');
   assert.match(HTML, /id="ad-enabled" data-adm-noguard/);
 });
+
+test('#72 : invitation bêta créée — pas de faux avertissement, message retouché protégé à part', () => {
+  // Étape 1 : garde #61 ; étape 2 (déjà enregistrée) : seule une retouche du message compte.
+  assert.match(JS, /admDialogSetup\('beta-invite-dialog', \{ dirty: betaInviteDirty, canClose: betaInviteCanClose \}\)/);
+  assert.match(fn('betaInviteDirty'), /_betaInviteMsg === null \? [^:]+_admTrack\.dirty\(\) : betaInviteMsgEdited\(\)/);
+  const close = fn('betaInviteCanClose');
+  assert.match(close, /if \(_betaInviteMsg !== null\) return betaInviteKeepMsg\(/, 'résultat : jamais la boîte générique');
+  assert.match(close, /admConfirmDiscard\(/, 'formulaire : protection #61');
+  const keep = fn('betaInviteKeepMsg');
+  assert.match(keep, /if \(!betaInviteMsgEdited\(\)\) return Promise\.resolve\(true\)/, 'sans retouche : fermeture directe');
+  assert.match(keep, /reste valide/);
+  assert.doesNotMatch(keep, /rien n.est enregistré/);
+  // Après la création : suivi remis à zéro (le prénom est enregistré avec l'invitation).
+  assert.match(JS, /_betaInviteMsg = betaInviteMessage\(link, name\);[\s\S]{0,200}_admTrack\.clean\(\)/);
+  assert.match(JS, /btn-beta-invite-again'\)\.addEventListener\('click', async \(\) => \{\s+if \(!await betaInviteKeepMsg\(/);
+  assert.match(HTML, /<textarea id="beta-invite-message" rows="6"><\/textarea>/, 'message modifiable');
+});
