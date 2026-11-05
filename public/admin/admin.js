@@ -272,6 +272,34 @@ function admRowOpen(tr, key, label, onOpen) {
 
 function admShowError(el, text) { el.textContent = text; el.classList.toggle('hidden', !text); }
 
+/** Tableau « adm-rtable » (#76) : chaque cellule reçoit l'intitulé de sa colonne, affiché en carte sur smartphone. */
+function admTableLabels(table) {
+  const heads = [...table.tHead.rows[0].cells].map(th => th.textContent.trim());
+  for (const tr of table.tBodies[0].rows) {
+    [...tr.cells].forEach((td, i) => { if (heads[i] && td.colSpan === 1) td.dataset.label = heads[i]; });
+  }
+}
+
+/** Pagination côté navigateur (#76) : n lignes par page, barre « a–b sur n » ; aucune ligne retirée du tableau. */
+function admTablePage(table, pager, size, page = 0) {
+  const rows = [...table.tBodies[0].rows];
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  page = Math.min(Math.max(0, page), pages - 1);
+  rows.forEach((r, i) => { r.hidden = Math.floor(i / size) !== page; });
+  pager.textContent = '';
+  pager.hidden = pages <= 1;
+  pager.dataset.page = String(page);
+  if (pages <= 1) return;
+  const btn = (label, to, disabled) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn-outline btn-sm', textContent: label, disabled });
+    b.addEventListener('click', () => admTablePage(table, pager, size, to));
+    return b;
+  };
+  pager.append(btn('‹ Précédents', page - 1, page === 0),
+    Object.assign(document.createElement('span'), { className: 'muted', textContent: `${page * size + 1}–${Math.min(rows.length, (page + 1) * size)} sur ${rows.length} · page ${page + 1}/${pages}` }),
+    btn('Suivants ›', page + 1, page >= pages - 1));
+}
+
 function addButtonCell(tr, label, onClick) {
   const td  = document.createElement('td');
   const btn = document.createElement('button');
@@ -2321,10 +2349,15 @@ async function searchPlayers() {
     const tr    = document.createElement('tr');
     const since = (u.created_at ?? '').substring(0, 10);
     [u.id, u.username, u.email ?? '—', u.league_id ?? '—', since].forEach(v => addCell(tr, v));
-    addButtonCell(tr, 'Voir', () => viewPlayerSave(u.id, u.username));
+    addButtonCell(tr, 'Ouvrir la fiche', () => viewPlayerSave(u.id, u.username));
     tbody.appendChild(tr);
   });
+  const table = document.getElementById('player-results-table');
+  admTableLabels(table);
+  admTablePage(table, document.getElementById('player-results-pager'), 10);
   resultsDiv.classList.remove('hidden');
+  // Un seul joueur trouvé (#76) : la fiche s'ouvre directement.
+  if (data.users.length === 1) viewPlayerSave(data.users[0].id, data.users[0].username);
 }
 
 async function viewPlayerSave(userId, username) {
@@ -2341,6 +2374,7 @@ async function viewPlayerSave(userId, username) {
 
   document.getElementById('pd-username').textContent = `${username} (ID ${userId})`;
   const s = data.save;
+  pdSummary(s);
   if (!s) { card.classList.remove('hidden'); loadTestRuns(userId); pdReveal(card); return; }
 
   document.getElementById('pd-coins').textContent   = (s.coins ?? 0).toLocaleString();
@@ -2370,6 +2404,28 @@ async function viewPlayerSave(userId, username) {
   card.classList.remove('hidden');
   loadTestRuns(userId);
   pdReveal(card);
+}
+
+/** Résumé compact de la fiche (#76) : l'essentiel d'un coup d'œil ; le détail reste dans « Progression détaillée ». */
+function pdSummary(s) {
+  const ul = document.getElementById('pd-summary');
+  ul.textContent = '';
+  const item = (label, value, id) => {
+    const li = document.createElement('li');
+    if (id) li.id = id;
+    li.append(Object.assign(document.createElement('span'), { className: 'pd-sum-label', textContent: label }),
+      Object.assign(document.createElement('strong'), { textContent: value }));
+    ul.appendChild(li);
+  };
+  item('🧪 Essai', '…', 'pd-sum-run');
+  if (!s) { item('📈 Sauvegarde', 'aucune sauvegarde cloud'); return; }
+  item('⛏ Profondeur', `${s.depth ?? 1} m`);
+  item('💰 Pièces', (s.coins ?? 0).toLocaleString());
+  item('💎 Gemmes', String(s.gems ?? 0));
+  item('🪨 Pioche', `niv. ${s.pickaxeLevel ?? 1}`);
+  item('⬆ Auto-Dig', `niv. ${s.upgrades?.autodig ?? 0}`);
+  item('⏱ Sauvegarde', pdSavedAt(s.updatedAt));
+  item('🔁 Révision', s.revision != null ? `n° ${s.revision}` : '—');
 }
 
 /** Montre la fiche ; action du menu en attente (ex. « Recommencer un test à zéro ») : directement sur sa section. */
@@ -2441,6 +2497,7 @@ const TR_END = { test_reset: 'Recommencé à zéro', restore: 'Restauration d\'u
 const TR_KEYS = { depth: 'Profondeur actuelle (m)', rankedMaxDepth: 'Profondeur classée (m)', manualBlocksValidated: 'Blocs manuels validés',
   manualClicks: 'Clics manuels', blocksDestroyed: 'Blocs détruits', pickaxeLevel: 'Niveau de pioche', autodigLevelEnd: 'Niveau Auto-Dig',
   autodigLevel: 'Niveau Auto-Dig', coins: 'Pièces', gems: 'Gemmes', relics: 'Reliques', riskScore: 'Score de risque', riskLevel: 'Niveau de risque' };
+const TR_PAGE = 5;   // essais par page (#76)
 let _trCtx = null;   // { mode: 'reset'|'restore', userId, runId, username, expectedRevision, requestId }
 
 function trDuration(sec) {
@@ -2458,7 +2515,9 @@ function trDecisions(st) {
 function trRow(tbody, label, run, st, endLabel) {
   const tr = document.createElement('tr');
   addCell(tr, label);
-  addCell(tr, `${admBrussels(st.startedAt)} → ${run ? admBrussels(st.endedAt) : 'en cours'}`);
+  const from = admBrussels(st.startedAt), to = run ? admBrussels(st.endedAt) : 'en cours';
+  const cut = s => s.slice(0, s.lastIndexOf(' '));   // même jour : l'heure de fin seule (#76), période complète en infobulle
+  addCell(tr, `${from} → ${run && cut(from) === cut(to) ? to.slice(to.lastIndexOf(' ') + 1) : to}`).title = `${from} → ${to}`;
   addCell(tr, trDuration(st.durationSec));
   addCell(tr, endLabel);
   addCell(tr, `${trNum(st.rankedMaxDepth)} / ${trNum(st.depth)}`);
@@ -2480,10 +2539,16 @@ async function loadTestRuns(userId) {
   tbody.textContent = '';
   admShowError(document.getElementById('tr-err'), ok ? '' : (data.error ?? 'Historique des essais indisponible.'));
   if (!ok) return;
-  for (const r of data.runs) {
+  // #76 : l'essai en cours d'abord, puis les essais archivés du plus récent au plus ancien, 5 par page.
+  trRow(tbody, `n° ${data.current.runNo} (en cours)`, null, data.current.stats, '—');
+  for (const r of [...data.runs].reverse()) {
     trRow(tbody, `n° ${r.runNo}`, r, r.stats, `${TR_END[r.endKind] ?? r.endKind}${r.reason ? ` — ${r.reason}` : ''}`);
   }
-  trRow(tbody, `n° ${data.current.runNo} (en cours)`, null, data.current.stats, '—');
+  const table = document.getElementById('tr-table');
+  admTableLabels(table);
+  admTablePage(table, document.getElementById('tr-pager'), TR_PAGE);
+  const run = document.querySelector('#pd-sum-run strong');
+  if (run) run.textContent = `n° ${data.current.runNo} en cours depuis ${trDuration(data.current.stats.durationSec)}${data.runs.length ? ` · ${data.runs.length} archivé(s)` : ''}`;
   const g = document.getElementById('tr-guard');
   g.textContent = data.guard ? `Garde active depuis le dernier ${data.guard.kind === 'restore' ? 'retour à un essai' : 'reset'} : une sauvegarde d'un ancien onglet ou d'un client sans révision est refusée (révision minimale ${data.guard.revision}).` : '';
   g.classList.toggle('hidden', !data.guard);
@@ -2505,6 +2570,13 @@ function trFillDialog({ title, text, diff, impact, confirmLabel, username }) {
     if (d.current !== d.restored) after.style.fontWeight = '700';
     tbody.appendChild(tr);
   }
+  // Résumé des valeurs qui changent (#76) ; le tableau complet reste dans les détails repliés.
+  const changed = diff.filter(d => d.current !== d.restored);
+  document.getElementById('tr-dialog-changes').textContent = changed.length
+    ? `Change : ${changed.slice(0, 5).map(d => `${TR_KEYS[d.key] ?? d.key} ${trNum(d.current)} → ${trNum(d.restored)}`).join(' · ')}${changed.length > 5 ? ` · et ${changed.length - 5} autre(s)` : ''}.`
+    : `Aucune des ${diff.length} valeurs comparées ne change (personnage déjà à l'état visé).`;
+  document.getElementById('tr-dialog-details').open = false;
+  document.getElementById('tr-dialog-details-sum').textContent = `Détails : ${diff.length} valeurs avant / après, ce qui est archivé et conservé (${impact.length} points)`;
   const ul = document.getElementById('tr-impact');
   ul.textContent = '';
   for (const line of impact) ul.appendChild(Object.assign(document.createElement('li'), { textContent: line }));

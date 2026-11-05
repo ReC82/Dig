@@ -43,8 +43,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       await page.waitForSelector('.tab-btn[data-tab="players"]', { state: 'attached' });
       await admOpenTab(page, 'players');
       await page.fill('#player-search-input', name);
-      await page.click('#btn-player-search');
-      await page.locator('#player-results-table button', { hasText: 'Voir' }).first().click();
+      await page.click('#btn-player-search');   // un seul joueur trouvé : la fiche s'ouvre directement (#76)
       await page.waitForSelector('#tr-table tbody tr');
       assert.strictEqual(await page.locator('#tr-table tbody tr').count(), 1, 'essai n° 1 en cours');
 

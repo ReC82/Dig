@@ -344,19 +344,20 @@
         </div>
         <button class="btn" id="btn-player-search">Rechercher</button>
       </div>
-      <p class="muted" style="margin:-8px 0 12px;font-size:0.85rem">Choisir une suggestion ouvre directement la fiche du joueur (sélection par identifiant, sans e-mail). « Rechercher » affiche le tableau complet.</p>
+      <p class="muted" style="margin:-8px 0 12px;font-size:0.85rem">Choisir une suggestion ouvre directement la fiche du joueur (sélection par identifiant, sans e-mail). « Rechercher » affiche le tableau complet (la fiche s'ouvre directement s'il n'y a qu'un joueur).</p>
       <p id="players-hint" class="players-hint hidden" role="status"></p>
       <div id="player-search-results" class="hidden">
-        <table id="player-results-table">
+        <table id="player-results-table" class="adm-rtable">
           <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Ligue</th><th>Depuis</th><th>Action</th></tr></thead>
           <tbody></tbody>
         </table>
+        <div id="player-results-pager" class="adm-pager" hidden></div>
       </div>
     </div>
 
-    <!-- Détails d'un joueur -->
+    <!-- Détails d'un joueur (#76 : résumé compact, actions en tête, détails repliés) -->
     <div id="player-detail-card" class="overview-card hidden">
-      <div class="section-header" style="margin-bottom:12px">
+      <div class="section-header pd-head">
         <h3 class="overview-card-title" style="margin:0">👤 <span id="pd-username">—</span></h3>
         <div class="form-actions pd-actions" style="margin:0">
           <button class="btn btn-outline btn-sm" id="btn-pd-goto-tests" type="button">🧪 Essais de test</button>
@@ -364,8 +365,36 @@
           <button class="btn btn-outline btn-sm" id="btn-close-player-detail" type="button">Fermer</button>
         </div>
       </div>
-      <p class="muted" style="font-size:0.8rem;margin-bottom:8px">Ouvrir une section ne modifie rien : chaque réinitialisation demande sa propre confirmation.</p>
-      <details class="pd-sec" id="pd-sec-save" open><summary>📈 Progression (sauvegarde)</summary>
+      <ul id="pd-summary" class="pd-summary" aria-label="Résumé du joueur"></ul>
+      <p class="muted pd-note">Ouvrir une section ne modifie rien : chaque réinitialisation demande sa propre confirmation (motif, pseudo exact).</p>
+
+      <!-- Essais de test (#75) -->
+      <details class="pd-sec" id="pd-sec-tests" open><summary>🧪 Essais de test — recommencer un test à zéro, exports</summary>
+      <div id="tr-card" class="danger-zone pd-zone">
+        <div class="form-actions tr-toolbar">
+          <button class="btn btn-danger btn-sm" id="btn-tr-reset" type="button">🔄 Recommencer un test à zéro</button>
+          <button class="btn btn-outline btn-sm" id="btn-tr-export-csv" type="button">Exporter CSV</button>
+          <button class="btn btn-outline btn-sm" id="btn-tr-export-json" type="button">Exporter JSON complet</button>
+        </div>
+        <p id="tr-done" class="success hidden"></p>
+        <p id="tr-err" class="error hidden"></p>
+        <p class="muted pd-note">Archive d'abord un instantané complet et restaurable de l'essai en cours, puis le personnage repart comme une inscription neuve. Le compte, l'accès et les journaux restent intacts.</p>
+        <details class="pd-more" id="tr-more"><summary>Ce qui est remis à zéro, ce qui est conservé</summary>
+          <p class="muted">« Recommencer un test à zéro » archive d'abord un instantané complet de l'essai en cours (restaurable), puis remet le personnage à l'état d'une inscription neuve : sauvegarde, classement de la saison active, suivis profondeur / clics, score de risque, badges, collection, gemmes, ligue. Le compte, l'accès, l'invitation, les points de récompense, les saisons clôturées et tous les journaux anti-bot restent intacts. Toutes les pages ouvertes du joueur perdent la main et doivent recharger.</p>
+          <p id="tr-guard" class="muted hidden"></p>
+        </details>
+        <div class="table-wrapper">
+          <table id="tr-table" class="adm-rtable">
+            <thead><tr><th>Essai</th><th>Période (Bruxelles)</th><th>Durée</th><th>Fin</th><th>Profondeur classée / actuelle</th><th>Blocs manuels validés / déclarés</th><th>Clics (suspects)</th><th>Auto-Dig fin / max vu</th><th>Pièces / gemmes</th><th>Risque</th><th>Décisions serveur</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="tr-pager" class="adm-pager" hidden></div>
+        <p id="tr-audit" class="muted pd-note"></p>
+      </div>
+      </details>
+
+      <details class="pd-sec" id="pd-sec-save"><summary>📈 Progression détaillée (sauvegarde, coffres, révision)</summary>
       <div class="stat-grid">
         <div class="stat-item"><span class="stat-label">💰 Coins</span><span class="stat-value" id="pd-coins">—</span></div>
         <div class="stat-item"><span class="stat-label">⛏ Profondeur</span><span class="stat-value" id="pd-depth">—</span></div>
@@ -382,31 +411,6 @@
         <div class="stat-item" title="Date et heure de la dernière sauvegarde reçue par le serveur (heure de Bruxelles, UTC entre parenthèses)."><span class="stat-label">⏱ Dernière sauvegarde</span><span class="stat-value" id="pd-updated">—</span></div>
         <div class="stat-item" title="Nombre d'enregistrements de cette sauvegarde sur le serveur (augmente à chaque sauvegarde acceptée)."><span class="stat-label">🔁 Révision serveur</span><span class="stat-value" id="pd-revision">—</span></div>
         <div class="stat-item" title="Version du FORMAT de la sauvegarde (structure des données du jeu), et non le nombre de sauvegardes."><span class="stat-label">🔢 Format de sauvegarde</span><span class="stat-value" id="pd-version">—</span></div>
-      </div>
-      </details>
-
-      <!-- Essais de test (#75) -->
-      <details class="pd-sec" id="pd-sec-tests" open><summary>🧪 Essais de test — recommencer un test à zéro, exports</summary>
-      <div id="tr-card" class="danger-zone" style="margin-top:8px;padding:12px;border-radius:8px">
-        <div class="section-header" style="margin-bottom:8px">
-          <h4 style="margin:0">🧪 Essais de test</h4>
-          <div class="form-actions" style="margin:0">
-            <button class="btn btn-outline btn-sm" id="btn-tr-export-csv" type="button">Exporter CSV</button>
-            <button class="btn btn-outline btn-sm" id="btn-tr-export-json" type="button">Exporter JSON complet</button>
-            <button class="btn btn-danger btn-sm" id="btn-tr-reset" type="button">🔄 Recommencer un test à zéro</button>
-          </div>
-        </div>
-        <p class="muted" style="font-size:0.85rem">« Recommencer un test à zéro » archive d'abord un instantané complet de l'essai en cours (restaurable), puis remet le personnage à l'état d'une inscription neuve : sauvegarde, classement de la saison active, suivis profondeur / clics, score de risque, badges, collection, gemmes, ligue. Le compte, l'accès, l'invitation, les points de récompense, les saisons clôturées et tous les journaux anti-bot restent intacts. Toutes les pages ouvertes du joueur perdent la main et doivent recharger.</p>
-        <p id="tr-guard" class="muted hidden" style="font-size:0.85rem"></p>
-        <p id="tr-done" class="success hidden"></p>
-        <p id="tr-err" class="error hidden"></p>
-        <div class="table-wrapper">
-          <table id="tr-table">
-            <thead><tr><th>Essai</th><th>Période (Bruxelles)</th><th>Durée</th><th>Fin</th><th>Profondeur classée / actuelle</th><th>Blocs manuels validés / déclarés</th><th>Clics (suspects)</th><th>Auto-Dig fin / max vu</th><th>Pièces / gemmes</th><th>Risque</th><th>Décisions serveur</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <p id="tr-audit" class="muted" style="font-size:0.8rem;margin-top:6px"></p>
       </div>
       </details>
 
@@ -430,17 +434,21 @@
     </div>
 
     <!-- Confirmation « Recommencer un test à zéro » (#75) : hors des sections repliables -->
-      <dialog id="tr-dialog" class="bk-dialog adm-dialog" aria-labelledby="tr-dialog-title">
+      <dialog id="tr-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="tr-dialog-title">
         <h3 class="overview-card-title" id="tr-dialog-title"></h3>
+        <!-- #76 : résumé, puis le formulaire ; le détail (avant / après, conservé) est replié ; boutons en pied fixe -->
         <p id="tr-dialog-text"></p>
-        <div class="table-wrapper">
-          <table id="tr-diff"><thead><tr><th>Valeur</th><th>Actuellement</th><th>Après confirmation</th></tr></thead><tbody></tbody></table>
-        </div>
-        <ul class="adm-confirm-impact" id="tr-impact"></ul>
+        <p id="tr-dialog-changes" class="tr-changes"></p>
         <div class="adm-form">
           <label>Motif (obligatoire, sans donnée personnelle) <textarea id="tr-reason" rows="2" maxlength="300"></textarea></label>
           <label>Pour confirmer, saisissez exactement le pseudo <strong id="tr-confirm-name"></strong> <input type="text" id="tr-confirm-input" autocomplete="off" spellcheck="false"></label>
         </div>
+        <details class="pd-more" id="tr-dialog-details"><summary id="tr-dialog-details-sum">Détails : valeurs avant / après, ce qui est archivé et conservé</summary>
+          <div class="table-wrapper">
+            <table id="tr-diff"><thead><tr><th>Valeur</th><th>Actuellement</th><th>Après confirmation</th></tr></thead><tbody></tbody></table>
+          </div>
+          <ul class="adm-confirm-impact" id="tr-impact"></ul>
+        </details>
         <p id="tr-msg" class="error hidden"></p>
         <div class="form-actions">
           <button type="button" class="btn btn-outline" data-close>Annuler</button>
