@@ -1260,6 +1260,37 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .sec-fiche .sec-summary { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 4px 0 8px; }
 .sec-fiche .sec-summary-verdict { font-weight: 600; font-size: 0.9rem; margin: 0 0 8px; }
 .sec-fiche .sec-summary-modes { font-size: 0.76rem; margin: 8px 0 0; }
+.sec-fiche .sec-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.sec-fiche .sec-tab { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.sec-fiche .sec-tab.is-active { border-color: var(--gold); color: var(--gold); font-weight: 600; }
+.sec-fiche .sec-pane[hidden] { display: none; }
+.sec-fiche .sec-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin: 0 0 10px; }
+.sec-fiche .sec-card { border: 1px solid var(--border); border-left: 3px solid #3f7f3f; border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.sec-fiche .sec-card--warn { border-left-color: #c08a20; }
+.sec-fiche .sec-card-title { margin: 0 0 2px; font-size: 0.74rem; color: var(--muted, #999); font-weight: 600; }
+.sec-fiche .sec-card-value { margin: 0 0 4px; font-size: 1.05rem; font-weight: 700; }
+.sec-fiche .sec-card-line { margin: 2px 0 0; font-size: 0.78rem; overflow-wrap: anywhere; }
+.sec-fiche .sec-origin { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; }
+.sec-fiche .sec-origin h4 { margin: 0 0 6px; }
+.sec-fiche .sec-origin-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--bg); border: 1px solid var(--border); margin: 0 0 6px; }
+.sec-fiche .sec-origin-seg--manual { background: #4caf50; }
+.sec-fiche .sec-origin-seg--auto { background: #4a90d9; }
+.sec-fiche .sec-origin-seg--susp { background: #d9534f; }
+.sec-fiche .sec-origin-seg--outside { background: #8a8a8a; }
+.sec-fiche .sec-origin-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 2px 14px; font-size: 0.8rem; }
+.sec-fiche .sec-origin-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.sec-fiche .sec-origin-total { font-weight: 600; }
+.sec-fiche .sec-origin-why, .sec-fiche .sec-origin-check { font-size: 0.78rem; margin: 6px 0 0; }
+.sec-fiche .sec-origin-check--warn { color: #e0b050; }
+@media (max-width: 600px) {
+  .sec-fiche .sec-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .sec-fiche .sec-card { padding: 6px 8px; }
+  .sec-fiche .sec-card-value { font-size: 0.92rem; }
+  .sec-fiche .sec-card-line { font-size: 0.72rem; }
+  .sec-fiche .sec-card .sec-src { font-size: 0.6rem; padding: 0 3px; }
+  .sec-fiche .sec-summary-verdict { font-size: 0.84rem; }
+  .sec-fiche .sec-tab { flex: 1 1 0; }
+}
 .sec-fiche .sec-acc-tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin: 0 0 6px; }
 .sec-fiche .sec-acc { border: 1px solid var(--border); border-radius: 8px; margin: 0 0 6px; min-width: 0; }
 .sec-fiche .sec-acc > .sec-kv, .sec-fiche .sec-acc > .sec-wrap, .sec-fiche .sec-acc > .sec-banner { margin-top: 4px; }

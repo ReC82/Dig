@@ -2872,6 +2872,8 @@ function secTable(headers, rows, empty) {
 let _secPlayer = { q: null, seasonId: null };
 /** Sections techniques ouvertes par l'admin (repliées par défaut, conservées entre rafraîchissements). */
 const _secOpenSections = new Set();
+/** Onglet de la fiche (vue essentielle par défaut), conservé au rafraîchissement et au changement de saison. */
+let _secTab = 'essential';
 
 async function secOpenPlayer(q, opener, seasonId = null) {
   const err = document.getElementById('sec-player-err');
@@ -2912,35 +2914,138 @@ function secRenderPlayer(d) {
   const alertsTotal = d.events.byType.reduce((a, e) => a + (Number(e.n) || 0), 0);
   const cpsMax = d.samples.rows.reduce((a, x) => (typeof x.serverCps === 'number' && x.serverCps > a ? x.serverCps : a), 0);
 
-  // Résumé lisible par défaut (recette UX du 05/11) : l'essentiel ; tout le détail reste dans les
-  // sections repliables ci-dessous (aucune donnée retirée).
-  const sum = secEl('section', 'sec-summary');
-  sum.setAttribute('aria-label', 'Résumé');
-  sum.appendChild(secEl('p', 'sec-summary-verdict',
-    `Score de risque ${d.risk.score} — niveau N${d.risk.level} · ${alertsTotal ? `${alertsTotal} alerte(s) sur la saison` : 'aucune alerte sur la saison'} · aucune sanction appliquée (applied:false).`));
-  sum.appendChild(secKv([
-    ['Profondeur retenue / déclarée', `${secFmt(r?.acceptedDepth ?? d.depth?.acceptedDepth, ' m')} / ${secFmt(r?.reportedDepth ?? ss?.maxDepth, ' m')}`],
-    ['Écart déclaré − retenu', secFmt(d.depth?.depthGap, ' m'), 'server'],
-    ['Blocs manuels validés (👆 classement)', secFmt(r?.validatedManualBlocks), 'server'],
-    ['Blocs manuels déclarés / coups', `${secFmt(ss?.manualBlocks ?? r?.manualBlocks)} / ${secFmt(ss?.manualClicks ?? r?.manualClicks)}`, 'client'],
-    ['Coups/s max (horloge serveur)', d.samples.rows.length ? secFmt(cpsMax) : 'non disponible', 'derived'],
-    ['Dernière sauvegarde reçue', d.save ? secDate(d.save.savedAt) : 'aucune', 'server'],
-  ]));
-  sum.appendChild(secEl('p', 'muted sec-summary-modes',
-    `Anti-bot ${m.antibotMode} (journal seulement) · budget de dégâts ${m.damageBudgetMode}${m.damageBudgetMode === 'enforce' ? ' (plafonne la profondeur classée)' : ''}. Détail technique : sections ci-dessous, repliées par défaut.`));
-  root.appendChild(sum);
+  // Recette UX du 05/11 (#76) : deux onglets. « Vue essentielle » répond aux questions courantes
+  // sans rien ouvrir ; « Diagnostic avancé » garde TOUTES les métriques (sections repliables).
+  const tabs = secEl('div', 'sec-tabs');
+  tabs.setAttribute('role', 'tablist');
+  tabs.setAttribute('aria-label', 'Vues de la fiche');
+  const ess = secEl('div', 'sec-pane');
+  const adv = secEl('div', 'sec-pane');
+  const panes = { essential: ess, advanced: adv };
+  const tabBtns = {};
+  const showTab = key => {
+    _secTab = key;
+    for (const [k, pane] of Object.entries(panes)) {
+      pane.hidden = k !== key;
+      tabBtns[k].setAttribute('aria-selected', String(k === key));
+      tabBtns[k].classList.toggle('is-active', k === key);
+    }
+  };
+  for (const [key, label] of [['essential', 'Vue essentielle'], ['advanced', 'Diagnostic avancé — toutes les métriques']]) {
+    const btn = secEl('button', 'btn btn-sm sec-tab', label);
+    btn.type = 'button';
+    btn.id = `sec-tab-${key}`;
+    btn.dataset.secTab = key;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-controls', `sec-pane-${key}`);
+    btn.addEventListener('click', () => showTab(key));
+    tabBtns[key] = btn;
+    tabs.appendChild(btn);
+    panes[key].id = `sec-pane-${key}`;
+    panes[key].setAttribute('role', 'tabpanel');
+    panes[key].setAttribute('aria-labelledby', btn.id);
+  }
+  root.append(tabs, ess, adv);
+
+  // ── Vue essentielle ──
+  const exactMode = m.exactHpMode ?? 'shadow';
+  const declaredDepth = r?.reportedDepth ?? ss?.maxDepth;
+  const acceptedDepth = r?.acceptedDepth ?? d.depth?.acceptedDepth;
+  const notRanked = r ? Math.max(0, (r.manualBlocks ?? 0) - (r.validatedManualBlocks ?? 0)) : null;
+  ess.appendChild(secEl('p', 'sec-summary-verdict',
+    `Risque N${d.risk.level} (score ${d.risk.score}) · ${alertsTotal ? `${alertsTotal} alerte(s) sur la saison` : 'aucune alerte sur la saison'} · aucune sanction appliquée au joueur.`));
+  const cards = secEl('div', 'sec-cards');
+  const card = (title, value, lines, warn) => {
+    const c = secEl('section', `sec-card${warn ? ' sec-card--warn' : ''}`);
+    c.appendChild(secEl('h4', 'sec-card-title', title));
+    c.appendChild(secEl('p', 'sec-card-value', value));
+    for (const [text, src] of lines) {
+      const l = secEl('p', 'sec-card-line', text);
+      if (src) l.appendChild(secSrc(src));
+      c.appendChild(l);
+    }
+    cards.appendChild(c);
+  };
+  card('Progression de la saison', `${secFmt(declaredDepth, ' m')} déclarés`, [
+    [`Validée (classement) : ${secFmt(acceptedDepth, ' m')}`, 'server'],
+    [`Écart déclaré − validé : ${secFmt(d.depth?.depthGap ?? 0, ' m')}`, 'server'],
+  ], (d.depth?.depthGap ?? 0) > 0);
+  card('PV réels des blocs (#77)', d.depth?.exactDepth == null ? 'non disponible' : `${secFmt(d.depth.exactDepth, ' m')} couverts`, [
+    [`Écart à la dernière sauvegarde : ${d.depth?.exactDepth == null ? 'non disponible' : secFmt(d.depth.exactGap ?? 0, ' m')}`, 'server'],
+    [`Mode ${exactMode} — ${exactMode === 'enforce' ? 'profondeur classée plafonnée' : exactMode === 'shadow' ? 'observation, aucun joueur freiné' : 'calcul arrêté'}`],
+  ], (d.depth?.exactGap ?? 0) > 0);
+  card('Classement (👆 blocs manuels)', r ? `${secFmt(r.validatedManualBlocks)} validés` : 'pas encore classé', [
+    [`Déclarés : ${secFmt(ss?.manualBlocks ?? r?.manualBlocks)} · non retenus : ${secFmt(notRanked)}`, 'client'],
+    [`Coups de pioche manuels : ${secFmt(ss?.manualClicks ?? r?.manualClicks)}`, 'client'],
+  ], notRanked > 0);
+  card('Risque, alertes, sanctions', `N${d.risk.level} — score ${d.risk.score}`, [
+    [`Alertes : ${alertsTotal ? `${alertsTotal} (${d.events.byType.map(e => `${e.type} ×${e.n}`).join(', ')})` : 'aucune'}`, 'server'],
+    [`Sanctions : aucune (anti-bot ${m.antibotMode}, applied:false)`],
+    [`Coups/s max (horloge serveur) : ${d.samples.rows.length ? secFmt(cpsMax) : 'non disponible'}`, 'derived'],
+  ], d.risk.level > 0 || alertsTotal > 0);
+  ess.appendChild(cards);
+
+  // Origine des blocs détruits : rien n'est caché, chaque part est chiffrée et expliquée
+  const og = d.blockOrigin;
+  const orig = secEl('section', 'sec-origin');
+  orig.appendChild(secEl('h4', '', 'Blocs détruits : d’où viennent-ils ?'));
+  if (og) {
+    const parts = [
+      ['manual', '👆 Manuels (cette saison)', og.manual],
+      ['auto', '🤖 Auto-Dig (cette saison)', og.auto],
+      ['susp', '⚠ Coups jugés suspects (cette saison)', og.suspicious],
+      ['outside', '📦 Ni manuels ni Auto-Dig (hors saison en cours)', og.outsideSeason],
+    ];
+    const bar = secEl('div', 'sec-origin-bar');
+    bar.setAttribute('aria-hidden', 'true');
+    for (const [k, , n] of parts) {
+      if (!n) continue;
+      const seg = secEl('span', `sec-origin-seg sec-origin-seg--${k}`);
+      seg.style.width = `${(n * 100 / (og.total || 1)).toFixed(2)}%`;
+      bar.appendChild(seg);
+    }
+    orig.appendChild(bar);
+    const ul = secEl('ul', 'sec-origin-list');
+    for (const [k, label, n] of parts) {
+      const li = secEl('li', '');
+      li.appendChild(secEl('span', `sec-origin-dot sec-origin-seg--${k}`));
+      li.appendChild(secEl('span', '', `${label} : `));
+      li.appendChild(secEl('strong', '', n == null ? 'non transmis (version du jeu antérieure à #74)' : secFmt(n)));
+      ul.appendChild(li);
+    }
+    const tot = secEl('li', 'sec-origin-total');
+    tot.appendChild(secEl('span', '', 'Total de la partie (toutes saisons) : '));
+    tot.appendChild(secEl('strong', '', secFmt(og.total)));
+    tot.appendChild(secSrc('client'));
+    ul.appendChild(tot);
+    orig.appendChild(ul);
+    orig.appendChild(secEl('p', 'sec-origin-why',
+      `Pourquoi « ni l’un ni l’autre » ? Le total (${secFmt(og.total)}) compte toute la partie depuis la création du compte et n’est jamais remis à zéro, alors que les compteurs manuels, Auto-Dig et coups suspects repartent à 0 à chaque saison. Les ${secFmt(og.outsideSeason)} blocs restants sont donc surtout ceux des saisons précédentes. Avant le correctif #74 (05/11), un bloc cassé par un coup jugé suspect n’était compté nulle part : ces blocs-là sont aussi dans ce reste.`));
+    if (og.seasonDepthBlocks != null) {
+      const diff = og.seasonDepthBlocks - og.season;
+      orig.appendChild(secEl('p', `sec-origin-check${Math.abs(diff) > 1 ? ' sec-origin-check--warn' : ''}`,
+        `Contrôle de cohérence (déduit) : la profondeur repart à 1 m à chaque saison ; ${secFmt(ss?.maxDepth, ' m')} atteints ≈ ${secFmt(og.seasonDepthBlocks)} blocs cassés cette saison, ${secFmt(og.season)} comptés (manuels + Auto-Dig + suspects). `
+        + (Math.abs(diff) <= 1 ? '✓ Tous les blocs de la saison sont attribués.'
+          : diff > 0 ? `⚠ ${secFmt(diff)} bloc(s) de la saison non attribué(s) (coups suspects d’avant #74, ou compteur à vérifier dans le diagnostic avancé).`
+            : `⚠ ${secFmt(-diff)} bloc(s) compté(s) de plus que la profondeur (retour en arrière ou compteur à vérifier dans le diagnostic avancé).`)));
+    }
+  } else orig.appendChild(secEl('p', 'muted', 'Non disponible : aucune sauvegarde de cette saison.'));
+  ess.appendChild(orig);
+  ess.appendChild(secEl('p', 'muted sec-summary-modes',
+    `Dernière sauvegarde : ${d.save ? `${secDate(d.save.savedAt)} (révision ${d.save.revision})` : 'aucune'} · anti-bot ${m.antibotMode} (journal seulement) · budget de dégâts ${m.damageBudgetMode}${m.damageBudgetMode === 'enforce' ? ' (plafonne la profondeur classée)' : ''} · PV réels ${exactMode}. Toutes les autres métriques : onglet « Diagnostic avancé ».`));
 
   const tools = secEl('div', 'sec-acc-tools');
   for (const [label, open] of [['Tout déplier', true], ['Tout replier', false]]) {
     const btn = secEl('button', 'btn btn-sm btn-outline', label);
     btn.type = 'button';
-    btn.addEventListener('click', () => root.querySelectorAll('details.sec-acc').forEach(x => { x.open = open; }));
+    btn.addEventListener('click', () => adv.querySelectorAll('details.sec-acc').forEach(x => { x.open = open; }));
     tools.appendChild(btn);
   }
-  root.appendChild(tools);
+  adv.appendChild(tools);
+  showTab(_secTab);
 
   // Sections repliables : leur état ouvert/fermé est conservé au rafraîchissement et au changement de saison.
-  let cur = root;
+  let cur = adv;
   const section = (key, title, hint) => {
     const det = secEl('details', 'bk-acc sec-acc');
     det.dataset.sec = key;
@@ -2950,7 +3055,7 @@ function secRenderPlayer(d) {
     s.appendChild(secEl('span', 'bk-acc-title', title));
     if (hint) s.appendChild(secEl('span', 'bk-acc-sum', hint));
     det.appendChild(s);
-    root.appendChild(det);
+    adv.appendChild(det);
     cur = det;
   };
   const note = t => cur.appendChild(secEl('p', 'muted', t)).style.fontSize = '0.76rem';
@@ -2987,10 +3092,11 @@ function secRenderPlayer(d) {
     ['Blocs manuels validés (👆 classement)', secFmt(r?.validatedManualBlocks), 'server'],
     ['Blocs Auto-Dig', secFmt(ss?.autoBlocks ?? r?.autoBlocks), 'client'],
     ['Blocs détruits au total (partie)', secFmt(d.save?.blocksDestroyed), 'client'],
-    ['Blocs ni manuels ni Auto-Dig (clic jugé suspect)', secFmt(d.uncountedBlocks), 'derived'],
+    ['Blocs coups jugés suspects (saison, depuis #74)', secFmt(ss?.suspiciousBlocks), 'client'],
+    ['Blocs ni manuels ni Auto-Dig (total partie − manuels − Auto-Dig)', secFmt(d.uncountedBlocks), 'derived'],
     ['Clics jugés suspects par le navigateur', secFmt(ss?.suspiciousScore ?? r?.suspiciousClicks), 'client'],
   ]));
-  note('Les blocs détruits par un clic que le navigateur juge suspect ne sont comptés ni manuels ni Auto-Dig, mais rapportent profondeur et gains (faille suivie dans #74). « Blocs détruits au total » vaut pour la partie entière (toutes saisons).');
+  note('« Blocs détruits au total » vaut pour la partie entière (toutes saisons, jamais remis à zéro) ; manuels, Auto-Dig et coups suspects sont comptés par saison. « Ni manuels ni Auto-Dig » regroupe donc les saisons précédentes et, avant le correctif #74, les blocs cassés par un coup jugé suspect. Détail chiffré : onglet « Vue essentielle ».');
 
   section('save', 'Partie déclarée (dernière sauvegarde)', d.save ? `révision ${d.save.revision}` : 'aucune sauvegarde');
   if (d.save) {
