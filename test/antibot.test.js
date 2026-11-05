@@ -159,7 +159,13 @@ test('budget : dégâts max par clic et par seconde = valeurs max du client', ()
   const main = fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8');
   // Pioche à charges (#71) : le coup manuel passe par PickaxeCharges.hit(GameState.damage), qui renvoie ces dégâts ou 1
   assert.deepStrictEqual([...main.matchAll(/Blocks\.hit\(([^)]*)\)/g)].map(m => m[1]).sort(), ['dmg', 'strike.damage']);
-  assert.match(main, /const strike = PickaxeCharges\.hit\(GameState\.damage\);/);
+  // #81 : coup plein = GameState.damage + micro-bonus d'événement ; GameState.eventBonuses n'est jamais rempli
+  // (aucun bonus activé) : le plafond MAX_CLICK_DAMAGE reste exact. Activer un bonus imposera d'y ajouter STACK_CAP.
+  assert.match(main, /const full = MicroBonus\.clickDamage\(GameState\.damage, GameState\.eventBonuses, \{ block: Blocks\.current\.type \}\);\s+const strike = PickaxeCharges\.hit\(full\);/);
+  for (const f of fs.readdirSync(path.join(ROOT, 'public/js')).filter(x => x.endsWith('.js'))) {
+    const src = fs.readFileSync(path.join(ROOT, 'public/js', f), 'utf8');
+    assert.doesNotMatch(src, /eventBonuses\s*=[^=]|eventBonuses\.(push|splice|unshift)/, `${f} : micro-bonus attribués`);
+  }
   const pick = fs.readFileSync(path.join(ROOT, 'public/js/pickaxeCharges.js'), 'utf8');
   assert.deepStrictEqual([...pick.matchAll(/return \{ damage: ([\w.]+),/g)].map(m => m[1]).sort(), ['1', 'fullDamage', 'fullDamage']);
   assert.match(main, /setInterval\(autoDigTick,\s*1_000\)/);

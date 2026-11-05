@@ -375,15 +375,36 @@ const Blocks = {
       && Number.isFinite(saved.hp) && saved.hp > 0 && saved.hp <= saved.maxHp
       && Number.isFinite(saved.reward) && saved.reward >= 0;
     if (!ok) { this.spawn(depth); return false; }
-    this.current = { type, hp: saved.hp, maxHp: saved.maxHp, reward: saved.reward, depth, seq: saved.seq };
+    // PV restants ramenés au centième (#81) : une sauvegarde entière est reprise à l'identique
+    const hp = Math.max(0, this._cents(saved.hp)) / 100;
+    if (!(hp > 0)) { this.spawn(depth); return false; }
+    this.current = { type, hp, maxHp: saved.maxHp, reward: saved.reward, depth, seq: saved.seq };
     return true;
   },
 
-  /** Applique des dégâts. Retourne true si le bloc est détruit. */
+  /**
+   * Applique des dégâts. Retourne true si le bloc est détruit.
+   * Précision (#81) : PV restants et dégâts comptés en centièmes entiers ; le bloc est détruit
+   * quand il ne reste plus aucun centième (seuil exact, aucun résidu 0,0099…). Dégâts négatifs
+   * ou invalides : aucun effet. Avec des valeurs entières, le résultat est identique à avant.
+   */
   hit(damage) {
     if (!this.current) return false;
-    this.current.hp = Math.max(0, this.current.hp - damage);
-    return this.current.hp === 0;
+    const left = Math.max(0, this._cents(this.current.hp) - Math.max(0, this._cents(damage)));
+    this.current.hp = left / 100;
+    return left === 0;
+  },
+
+  /** Coups nécessaires pour détruire `hp` PV avec `damage` dégâts par coup (calcul en centièmes, #81). */
+  hitsToBreak(hp, damage) {
+    const d = this._cents(damage);
+    return d > 0 ? Math.ceil(Math.max(0, this._cents(hp)) / d) : Infinity;
+  },
+
+  /** Valeur → centièmes entiers (0 si invalide), comme GameState.toCents (#81). */
+  _cents(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
   },
 
   hpRatio() {

@@ -3217,6 +3217,67 @@
     </dialog>
   </section>
 
+  <section id="tab-microbonus" class="tab-content hidden">
+    <!-- #81 étape C : micro-bonus de dégâts fractionnaires en BROUILLON seulement (jamais transmis au jeu). -->
+    <div class="section-header">
+      <h2>✨ Micro-bonus (brouillons)</h2>
+      <div class="adm-head-actions">
+        <button class="btn btn-primary" id="btn-mb-add" type="button">＋ Ajouter</button>
+        <button class="btn btn-outline" id="btn-mb-refresh" type="button">↻ Rafraîchir</button>
+      </div>
+    </div>
+    <p class="contest-banner">🔒 Brouillons uniquement : aucun bonus n'est actif ni transmis aux joueurs. Activer un effet demande une décision du propriétaire (valeur, durée, équité au classement) — ticket #81.</p>
+    <div class="overview-card">
+      <p class="muted" style="font-size:0.8rem">Un micro-bonus ajoute quelques centièmes de dégât à chaque <strong>coup manuel</strong> (pas à l'Auto-Dig ni à la pioche émoussée), sur tous les blocs, une catégorie ou un bloc, selon un calendrier en heure de Bruxelles (dates, mois, jours de la semaine — conditions cumulées). Intensité de <span id="mb-limit-min">0,01</span> à <span id="mb-limit-max">1</span> par bonus, cumul plafonné à <span id="mb-limit-cap">1</span>. Lier un souvenir d'événement ne modifie ni l'objet, ni ses chances, ni ses détenteurs. Cliquez sur une ligne pour ouvrir la fiche.</p>
+      <div style="overflow-x:auto"><table><thead><tr><th>Brouillon</th><th>Effet</th><th>État si activé</th><th>Modifié (UTC)</th></tr></thead><tbody id="mb-list"></tbody></table></div>
+      <p id="mb-msg" class="hidden"></p>
+    </div>
+    <details class="overview-card">
+      <summary>Journal</summary>
+      <div style="overflow-x:auto"><table><thead><tr><th>Date (UTC)</th><th>Brouillon</th><th>Action</th><th>Effet</th></tr></thead><tbody id="mb-log"></tbody></table></div>
+    </details>
+
+    <dialog id="mb-dialog" class="bk-dialog adm-dialog" aria-labelledby="mb-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="mb-title">Micro-bonus (brouillon)</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <p class="muted" style="font-size:0.78rem">Exemples (valeurs fictives non validées) : <span id="mb-examples"></span></p>
+      <div class="adm-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+        <label>Nom du brouillon <input id="mb-label" type="text" maxlength="80" placeholder="Souvenir de novembre"></label>
+        <label>Dégâts ajoutés par coup <input id="mb-value" type="number" min="0.01" max="1" step="0.01" value="0.25"></label>
+        <label>Cible <select id="mb-target"></select></label>
+        <label>Du (Bruxelles, inclus) <input id="mb-from" type="date"></label>
+        <label>Au (inclus) <input id="mb-to" type="date"></label>
+        <label>Profondeur simulée (m) <input id="mb-depth" type="number" min="1" max="10000" value="50"></label>
+      </div>
+      <div class="adm-form">
+        <div><span class="ev-label">Mois (aucun = tous)</span><div id="mb-months" class="mb-checks"></div></div>
+        <div><span class="ev-label">Jours (aucun = tous)</span><div id="mb-weekdays" class="mb-checks"></div></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
+          <label>Souvenir lié — événement (facultatif) <input id="mb-src-event" type="text" maxlength="40" placeholder="noel_2026"></label>
+          <label>Souvenir lié — objet <input id="mb-src-item" type="text" maxlength="40" placeholder="boule_givre"></label>
+        </div>
+        <label>Note <textarea id="mb-note" rows="2" maxlength="600" placeholder="Pourquoi ce bonus, alternative d'équité envisagée…"></textarea></label>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-outline" id="btn-mb-preview" type="button">Aperçu et simulation</button>
+        <button class="btn btn-primary" id="btn-mb-save" type="button">Enregistrer le brouillon</button>
+        <button class="btn btn-outline" id="btn-mb-archive" type="button">Archiver</button>
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+      </div>
+      <p id="mb-dlg-msg" class="hidden"></p>
+      <div id="mb-preview" class="hidden">
+        <p><strong id="mb-prev-fr"></strong><br><span class="muted" id="mb-prev-en"></span></p>
+        <p id="mb-prev-state"></p>
+        <ul id="mb-prev-warn" class="muted" style="font-size:0.8rem"></ul>
+        <div style="overflow-x:auto"><table><thead><tr><th>Date repère</th><th>État</th></tr></thead><tbody id="mb-prev-samples"></tbody></table></div>
+        <p class="muted" style="font-size:0.78rem" id="mb-prev-sim-title"></p>
+        <div style="overflow-x:auto"><table><thead><tr><th>Dégâts de base</th><th>Coups / bloc sans</th><th>avec</th><th>Descente plus rapide</th><th>Blocs visés</th></tr></thead><tbody id="mb-prev-sim"></tbody></table></div>
+      </div>
+    </dialog>
+  </section>
+
   <section id="tab-events" class="tab-content hidden">
     <!-- #56 : événements mensuels, distincts des saisons hebdomadaires. Tout est créé en brouillon ;
          recette #56-B/C/D : liste compacte, fiche modale, objets dans leur propre fiche, testeurs choisis

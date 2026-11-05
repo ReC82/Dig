@@ -1,0 +1,128 @@
+/**
+ * Parcours Chromium réels du ticket #81 (PC 1280×900 et smartphone 390×844), serveur de TEST seulement :
+ *  A. Défaut : dégâts et PV affichés entiers ; des dégâts de 1,25 (injectés dans la page de test, comme le ferait
+ *     un futur bonus) s'affichent « 1 » mais détruisent un bloc de 5 PV en 4 coups exactement.
+ *  B. Paramètres → « Afficher les valeurs précises » : 1,25 et « 3,75 / 5 HP » ; option conservée après F5,
+ *     PV restants fractionnaires repris à l'identique.
+ *  C. Exemple de micro-bonus +0,25 ACTIF dans cette page de test uniquement : 4 coups sur 5 PV avec 1 dégât de base.
+ *  D. Admin (PC) : rubrique « Micro-bonus (brouillons) », exemple +0,25 sur la pierre, aperçu (texte, états,
+ *     simulation), brouillon enregistré ; aucun bonus transmis au jeu (GameState.eventBonuses vide).
+ *
+ *   DB_FILE=test-81.sqlite PORT=3101 ADMIN_SECRET=… node server/index.js
+ *   DIG_E2E_BASE=http://127.0.0.1:3101 ADMIN_SECRET=… NODE_PATH=<playwright-core> node test/e2e/decimal-damage.e2e.js
+ */
+const { chromium } = require('playwright-core');
+const fs = require('fs');
+const BASE = process.env.DIG_E2E_BASE || 'http://127.0.0.1:3101';
+if (/:3000\b|lodygames|lodylands/.test(BASE)) throw new Error('Parcours réservé à un serveur de test.');
+const SECRET = process.env.ADMIN_SECRET;
+const exe = fs.readdirSync(process.env.HOME + '/.cache/ms-playwright').filter(d => d.startsWith('chromium-')).sort().pop();
+const SHOTS = process.env.DIG_E2E_SHOTS || '/tmp';
+const results = [];
+const check = (tag, name, cond, extra = '') => { results.push(`${cond ? 'OK  ' : 'FAIL'} [${tag}] ${name}${extra ? ' — ' + extra : ''}`); };
+const pause = ms => new Promise(r => setTimeout(r, ms));
+
+(async () => {
+  const browser = await chromium.launch({ executablePath: `${process.env.HOME}/.cache/ms-playwright/${exe}/chrome-linux64/chrome` });
+  for (const [w, h, tag] of [[1280, 900, 'pc'], [390, 844, 'mob']]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: tag === 'mob', isMobile: tag === 'mob' });
+    // Tutoriel #79 déjà passé (sinon sa carte couvre le bas de l'écran)
+    await ctx.addInitScript(() => { localStorage.setItem('dig_lang', 'fr'); localStorage.setItem('dig_tutorial', JSON.stringify({ v: 1, state: 'skipped', step: 0, at: new Date().toISOString() })); });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push('pageerror ' + e.message));
+    page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console ' + m.text()); });
+    const tap = sel => (tag === 'mob' ? page.tap(sel) : page.click(sel));
+    await page.goto(BASE + '/');
+    await page.waitForSelector('#block-name:not(:empty)');
+    await page.evaluate(() => document.querySelectorAll('dialog[open]').forEach(d => d.close()));
+    const setBlock = hp => page.evaluate(v => { Blocks.current.hp = v; Blocks.current.maxHp = v; renderBlock(); renderStats(); }, hp);
+    const strikes = async () => {
+      const seq0 = await page.evaluate(() => Blocks.current.seq);
+      let n = 0;
+      while (n < 20) {
+        await page.evaluate(() => { const r = document.getElementById('block').getBoundingClientRect(); onBlockHit(r.left + r.width / 2, r.top + r.height / 2, null); });
+        n++;
+        await pause(150);
+        if (await page.evaluate(s => Blocks.current.seq !== s || blockAnimating, seq0)) break;
+      }
+      await page.waitForFunction(s => Blocks.current.seq !== s && !blockAnimating, seq0, { timeout: 5000 });
+      return n;
+    };
+
+    // A. Défaut
+    check(tag, 'A option OFF par défaut', !(await page.evaluate(() => NumFmt.isPrecise())));
+    check(tag, 'A dégâts entiers inchangés', (await page.textContent('#stat-damage')).trim() === '1');
+    await page.evaluate(() => { GameState.damage = 1.25; renderStats(); });
+    check(tag, 'A 1,25 affiché « 1 »', (await page.textContent('#stat-damage')).trim() === '1');
+    await setBlock(5);
+    await page.evaluate(() => { const r = document.getElementById('block').getBoundingClientRect(); onBlockHit(r.left + r.width / 2, r.top + r.height / 2, null); });
+    const afterOne = await page.evaluate(() => ({ hp: Blocks.current.hp, txt: document.getElementById('hp-text')?.textContent ?? '' }));
+    check(tag, 'A PV réels 3,75, affichés arrondis à l\'entier supérieur', afterOne.hp === 3.75 && /^4 \/ 5 HP$/.test(afterOne.txt.trim()), afterOne.txt);
+    await page.evaluate(() => { Blocks.current.hp = 5; renderBlock(); });
+    const hits = await strikes();
+    check(tag, 'A bloc de 5 PV détruit en 4 coups de 1,25', hits === 4, `${hits} coups`);
+
+    // B. Option précise
+    await tap('#btn-settings');
+    await page.waitForSelector('#opt-precise');
+    await page.screenshot({ path: `${SHOTS}/81-${tag}-parametres.png` });
+    await tap('#opt-precise');
+    check(tag, 'B option mémorisée', await page.evaluate(() => localStorage.getItem('dig.precise') === '1'));
+    await tap('#btn-settings-back');
+    await page.evaluate(() => { GameState.damage = 1.25; renderStats(); Blocks.current.hp = 5; Blocks.current.maxHp = 5; renderBlock(); });
+    await page.evaluate(() => { const r = document.getElementById('block').getBoundingClientRect(); onBlockHit(r.left + r.width / 2, r.top + r.height / 2, null); });
+    const precise = await page.evaluate(() => ({ dmg: document.getElementById('stat-damage').textContent.trim(), hp: document.getElementById('hp-text')?.textContent.trim() }));
+    check(tag, 'B 1,25 et 3,75 / 5 HP', precise.dmg === '1,25' && precise.hp === '3,75 / 5 HP', JSON.stringify(precise));
+    await page.screenshot({ path: `${SHOTS}/81-${tag}-precis.png` });
+    await page.evaluate(() => Save.save());
+    await page.reload();
+    await page.waitForSelector('#block-name:not(:empty)');
+    const reloaded = await page.evaluate(() => ({ pref: NumFmt.isPrecise(), hp: Blocks.current.hp, txt: document.getElementById('hp-text')?.textContent.trim(), dmg: GameState.damage }));
+    check(tag, 'B F5 : option conservée, PV 3,75 repris, dégâts recalculés (1)', reloaded.pref && reloaded.hp === 3.75 && reloaded.txt === '3,75 / 5 HP' && reloaded.dmg === 1, JSON.stringify(reloaded));
+
+    // C. Exemple de micro-bonus actif dans cette page de test
+    await page.evaluate(() => GameState.eventBonuses.push(MicroBonus.normalize({ value: 0.25 })));
+    await page.evaluate(() => { Blocks.current.hp = 5; Blocks.current.maxHp = 5; renderBlock(); });
+    const hitsBonus = await strikes();
+    check(tag, 'C +0,25 actif (test) : 5 PV en 4 coups avec 1 dégât de base', hitsBonus === 4, `${hitsBonus} coups`);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
+    check(tag, 'pas de débordement horizontal', !overflow);
+    check(tag, 'aucune erreur console', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // D. Admin
+  if (SECRET) {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push('pageerror ' + e.message));
+    await page.goto(BASE + '/admin#microbonus');
+    await page.fill('#secret-input', SECRET);
+    await page.click('#secret-btn');
+    await page.waitForSelector('#btn-mb-add', { state: 'visible' });
+    await page.click('#btn-mb-add');
+    await page.waitForSelector('#mb-dialog[open]');
+    await page.click('#mb-examples button:first-child');
+    await page.waitForSelector('#mb-preview:not(.hidden)');
+    const prev = await page.evaluate(() => ({ fr: document.getElementById('mb-prev-fr').textContent, state: document.getElementById('mb-prev-state').textContent,
+      sims: document.querySelectorAll('#mb-prev-sim tr').length, samples: document.querySelectorAll('#mb-prev-samples tr').length }));
+    check('admin', 'D aperçu : texte, état, dates repères, simulation', /^\+0,25 dégât par coup sur le bloc/.test(prev.fr) && /brouillon/.test(prev.state) && prev.sims >= 5 && prev.samples === 5, JSON.stringify(prev));
+    await page.screenshot({ path: `${SHOTS}/81-admin-apercu.png`, fullPage: true });
+    await page.click('#btn-mb-save');
+    await page.waitForFunction(() => !document.getElementById('mb-dialog').open);
+    const row = await page.textContent('#mb-list');
+    check('admin', 'D brouillon listé, inactif en jeu', /pierre/i.test(row) && /inactif en jeu/.test(row));
+    const play = await ctx.newPage();
+    await play.addInitScript(() => localStorage.setItem('dig_lang', 'fr'));
+    await play.goto(BASE + '/');
+    await play.waitForSelector('#block-name:not(:empty)');
+    check('admin', 'D aucun bonus transmis au jeu', await play.evaluate(() => GameState.eventBonuses.length === 0));
+    check('admin', 'aucune erreur console', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+  await browser.close();
+  console.log(results.join('\n'));
+  process.exit(results.some(r => r.startsWith('FAIL')) ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(2); });

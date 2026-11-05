@@ -391,7 +391,7 @@ function renderStats() {
   elRelics.textContent = GameState.relicFragments;
   elDepth.textContent  = t('stats.depth_val', { n: GameState.depth });
   // Pioche émoussée (#71) : 1 dégât par coup tant que la réserve n'est pas revenue au seuil
-  elDamage.textContent = PickaxeCharges.isActive() && GameState.pickaxe.depleted ? '1 🪫' : GameState.damage;
+  elDamage.textContent = PickaxeCharges.isActive() && GameState.pickaxe.depleted ? '1 🪫' : NumFmt.damage(GameState.damage);   // arrondi à l'affichage seulement (#81)
 
   // Pioche : indicateur visuel du skin actif
   const skin = GameState.monetization.pickaxeSkin;
@@ -497,7 +497,7 @@ function renderBlock() {
   // HP
   const ratio = Blocks.hpRatio();
   elHpBar.style.width  = `${(ratio * 100).toFixed(1)}%`;
-  elHpText.textContent = `${b.hp} / ${b.maxHp} HP`;
+  elHpText.textContent = `${NumFmt.hp(b.hp)} / ${NumFmt.hp(b.maxHp)} HP`;   // PV exacts au centième, affichage arrondi (#81)
 
   elHpBar.classList.remove('low', 'critical');
   if (ratio <= 0.25)      elHpBar.classList.add('critical');
@@ -617,7 +617,7 @@ function _upgradeNextHtml(def) {
   if (p.next === null) return t('upgrade.max_level');
   const level = `<span class="upgrade-next-level">${t('upgrade.next_level', { cur: p.cur, next: p.next })}</span>`;
   if (!p.effect) return level;
-  const fmt = def.id === 'bag' ? Upgrades.formatMult : n => Number(n).toLocaleString(I18n.getCurrent());
+  const fmt = def.id === 'bag' ? Upgrades.formatMult : Upgrades.formatAmount;   // valeurs exactes au centième (#81)
   return `${level} <span class="upgrade-next-effect">${t(`upgrade.${def.id}.effect`, { cur: fmt(p.effect.cur), next: fmt(p.effect.next) })}</span>`;
 }
 
@@ -2852,7 +2852,7 @@ function renderProfile() {
   const rows = [
     ['profile.stat_depth',    t('stats.depth_val', { n: GameState.depth })],
     ['profile.stat_pickaxe',  t('stats.pickaxe_val', { n: GameState.pickaxeLevel })],
-    ['profile.stat_damage',   n(GameState.damage)],
+    ['profile.stat_damage',   NumFmt.damage(GameState.damage)],
     ['profile.stat_blocks',   n(st.blocksDestroyed)],
     ['profile.stat_coins',    n(st.totalCoinsEarned)],
     ['profile.stat_chests',   n(st.chestsFound)],
@@ -2970,6 +2970,12 @@ function renderSettings() {
         <div class="lang-menu" id="lang-menu" role="group" aria-labelledby="lang-title" hidden>${optionsHtml}</div>
       </div>
     </div>
+    <div class="settings-section" id="settings-display">
+      <div class="settings-section-label">${t('settings.display_title')}</div>
+      <label class="settings-toggle"><input type="checkbox" id="opt-precise"${NumFmt.isPrecise() ? ' checked' : ''}>
+        <span>${t('settings.precise_label')}</span></label>
+      <p class="settings-hint">${t('settings.precise_hint')}</p>
+    </div>
     ${DigBeta.settingsSectionHtml()}
     <div class="settings-section" id="notif-history"></div>
     ${DigAds.settingsSectionHtml()}
@@ -2982,6 +2988,12 @@ function renderSettings() {
   _bindLangPicker(container);
 
   _bindAccountSection(container);
+  // Valeurs précises (#81) : affichage seulement, mémorisé sur l'appareil ; le calcul ne change pas
+  document.getElementById('opt-precise').addEventListener('change', e => {
+    NumFmt.setPrecise(e.target.checked);
+    renderStats();
+    if (Blocks.current) renderBlock();
+  });
   _refreshNotifHistory();
   DigAds.bindSettings(container, renderSettings);
   DigBeta.bindSettings(container, !!_account);
@@ -4028,8 +4040,10 @@ function onBlockHit(cx, cy, ev) {
   const suspicious = _isSuspiciousCPS();
   if (suspicious) GameState.seasonStats.suspiciousScore++;
 
-  // Pioche à charges (#71) : 1 charge par coup à pleine puissance ; émoussée = 1 dégât, sans bonus
-  const strike = PickaxeCharges.hit(GameState.damage);
+  // Pioche à charges (#71) : 1 charge par coup à pleine puissance ; émoussée = 1 dégât, sans bonus.
+  // Micro-bonus d'événement (#81) : aucun n'est transmis au jeu tant que le propriétaire n'en a pas activé.
+  const full = MicroBonus.clickDamage(GameState.damage, GameState.eventBonuses, { block: Blocks.current.type });
+  const strike = PickaxeCharges.hit(full);
   const destroyed = Blocks.hit(strike.damage);
 
   elBlock.classList.remove('anim-hit');
@@ -4037,7 +4051,7 @@ function onBlockHit(cx, cy, ev) {
   elBlock.classList.add('anim-hit');
   elBlock.addEventListener('animationend', () => elBlock.classList.remove('anim-hit'), { once: true });
 
-  spawnFloatText(t('notif.damage_float', { amount: strike.damage }), strike.full ? 'dmg' : 'dmg dmg-blunt', cx, cy);
+  spawnFloatText(t('notif.damage_float', { amount: NumFmt.damage(strike.damage) }), strike.full ? 'dmg' : 'dmg dmg-blunt', cx, cy);
   if (strike.emptied) {
     _pickWasBlunt = true;
     showAchievement('🪫', t('pickaxe.emptied_toast', { n: PickaxeCharges.resumeAt(), time: _fmtWait(PickaxeCharges.msUntilResume()) }), 'warning');

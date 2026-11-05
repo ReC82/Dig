@@ -71,6 +71,7 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
 - **📰 Contenu & événements**
   - 📰 Actualités (`#news`)
   - 🎉 Événements (`#events`)
+  - ✨ Micro-bonus (brouillons) (`#microbonus`) — #81 : bonus de dégâts fractionnaires préparés en brouillon, jamais actifs en jeu
   - 📿 Collections (`#collections`)
   - 🎖 Badges (`#badges`)
 - **🎨 Visuels**

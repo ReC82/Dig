@@ -104,6 +104,7 @@ const gemLedger = require('./gemLedger');
 const economyRules = require('./economyRules');
 const gemShop = require('./gemShop');
 const pickaxeCharges = require('./pickaxeCharges');
+const microBonusDrafts = require('./microBonusDrafts');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
 const rewardTables = require('./rewardTables');
@@ -1801,6 +1802,32 @@ app.put('/api/admin/pickaxe/settings', requireAdmin, pickaxeRoute('PUT /api/admi
   const r = pickaxeCharges.saveSettings(patch, { note });
   return { changed: r.changed, ...pickaxeCharges.adminSummary() };
 }));
+// Micro-bonus de dégâts fractionnaires (#81, étape C) : BROUILLONS seulement, jamais transmis au jeu.
+function microBonusRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof microBonusDrafts.DraftError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+const _mbId = req => { const n = parseInt(req.params.id, 10); if (!Number.isSafeInteger(n) || n <= 0) throw new microBonusDrafts.DraftError(400, 'Brouillon invalide.'); return n; };
+app.get('/api/admin/micro-bonuses', requireAdmin, microBonusRoute('GET /api/admin/micro-bonuses', () => microBonusDrafts.adminSummary()));
+app.post('/api/admin/micro-bonuses/preview', requireAdmin, microBonusRoute('POST /api/admin/micro-bonuses/preview',
+  req => microBonusDrafts.preview(req.body?.effect, { depth: req.body?.depth })));
+app.post('/api/admin/micro-bonuses', requireAdmin, microBonusRoute('POST /api/admin/micro-bonuses', req => {
+  const draft = microBonusDrafts.create(req.body || {});
+  return { draft, ...microBonusDrafts.adminSummary() };
+}));
+app.put('/api/admin/micro-bonuses/:id', requireAdmin, microBonusRoute('PUT /api/admin/micro-bonuses/:id', req => {
+  const draft = microBonusDrafts.update(_mbId(req), req.body || {});
+  return { draft, ...microBonusDrafts.adminSummary() };
+}));
+app.post('/api/admin/micro-bonuses/:id/archive', requireAdmin, microBonusRoute('POST /api/admin/micro-bonuses/:id/archive', req => {
+  const draft = microBonusDrafts.setArchived(_mbId(req), req.body?.archived !== false);
+  return { draft, ...microBonusDrafts.adminSummary() };
+}));
 app.get('/api/admin/ads', requireAdmin, adsRoute('GET /api/admin/ads', req => ads.adminView(req.hostname)));
 app.put('/api/admin/ads/settings', requireAdmin, adsRoute('PUT /api/admin/ads/settings', req => {
   ads.updateSettings(req.body || {});
@@ -2572,6 +2599,7 @@ xLink.init();                    // compte X lié, historique, demandes de réco
 gemLedger.init();                // registre de gemmes de référence, désactivé par défaut (#49)
 economyRules.init();             // règles économiques v1 = valeurs en vigueur, barème A en brouillon (#49)
 gemShop.init();                  // boutique en gemmes, fermée par défaut (#49)
+microBonusDrafts.init();         // micro-bonus fractionnaires : brouillons seulement, tables en ajout seul (#81)
 pickaxeCharges.init();           // pioche à charges : réglages, drapeau OFF par défaut, écarts observés (#71)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)

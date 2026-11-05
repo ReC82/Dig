@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 840/840 textes. Absents → français. */
+/* Italian (preview) : 843/843 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -860,6 +860,7 @@ I18n.registerLocale("it", {
  },
  "settings": {
   "btn_back": "← Indietro",
+  "display_title": "Visualizzazione",
   "lang_title": "Lingua",
   "notif_clear": "Cancella la cronologia",
   "notif_clear_confirm": "Cancellare la cronologia delle notifiche di questo dispositivo?",
@@ -869,6 +870,8 @@ I18n.registerLocale("it", {
   "notif_type_info": "Informazione",
   "notif_type_success": "Successo",
   "notif_type_warning": "Avviso",
+  "precise_hint": "Danni e PV con i decimali (es. 1,25). Disattivato: valori arrotondati all'intero; i danni reali restano esatti.",
+  "precise_label": "Mostra i valori precisi",
   "title": "Impostazioni"
  },
  "shop": {

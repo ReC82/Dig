@@ -258,7 +258,8 @@ const Relics = {
 
     // GameState.damage est dérivé de pickaxeLevel + bonus plat permanent
     // Pioche dont l'effet est suspendu (#69) : dégâts du niveau 1, niveau possédé conservé
-    GameState.damage = (typeof Upgrades !== 'undefined' ? Upgrades.effectiveLevel('pickaxe') : GameState.pickaxeLevel) + b.damageFlat;
+    // Dégâts au centième près (#81) : un bonus fractionnaire s'additionne sans résidu flottant
+    GameState.damage = GameState.normAmount((typeof Upgrades !== 'undefined' ? Upgrades.effectiveLevel('pickaxe') : GameState.pickaxeLevel) + b.damageFlat);
   },
 
   // ── Formatage du bonus ────────────────────────────────────────────────────
@@ -273,8 +274,10 @@ const Relics = {
     if (raw === undefined) return '';
     const { type } = def.bonus;
 
+    // Valeurs exactes au centième (#81) : un bonus fractionnaire n'est jamais arrondi dans la fiche
+    const exact = typeof NumFmt !== 'undefined' ? NumFmt.exact(raw) : raw;
     if (type === 'damage_flat') {
-      return t('relic.bonus_types.damage_flat', { n: raw, s: raw > 1 ? 's' : '' });
+      return t('relic.bonus_types.damage_flat', { n: exact, s: raw >= 2 ? 's' : '' });
     }
     if (type === 'coins_pct') {
       return t('relic.bonus_types.coins_pct', { n: Math.round(raw * 100) });
@@ -289,7 +292,7 @@ const Relics = {
       return t('relic.bonus_types.hp_reduction', { n: Math.round(raw * 100) });
     }
     if (type === 'autodig_bonus') {
-      return t('relic.bonus_types.autodig_bonus', { n: raw, s: raw > 1 ? 's' : '' });
+      return t('relic.bonus_types.autodig_bonus', { n: exact, s: raw >= 2 ? 's' : '' });
     }
     return '';
   },

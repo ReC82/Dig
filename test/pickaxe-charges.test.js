@@ -250,7 +250,7 @@ test('boutique : skins de pioche remplacés par « Pioche et entretien », droit
   // Un éventuel skin possédé reste affiché sur le bloc (aucun droit retiré)
   assert.match(main, /elBlock\.classList\.add\(`skin-\$\{skin\}`\)/);
   // Coup de pioche : dégâts fournis par la réserve, Auto-Dig inchangé
-  assert.match(main, /const strike = PickaxeCharges\.hit\(GameState\.damage\);\s+const destroyed = Blocks\.hit\(strike\.damage\);/);
+  assert.match(main, /const strike = PickaxeCharges\.hit\(full\);\s+const destroyed = Blocks\.hit\(strike\.damage\);/);
   const auto = main.slice(main.indexOf('function autoDigTick'), main.indexOf('function coordsFrom'));
   assert.doesNotMatch(auto, /PickaxeCharges/);
   // Achat en gemmes : confirmation avec coût et gain affichés avant achat
