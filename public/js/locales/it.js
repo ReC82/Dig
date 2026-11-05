@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 733/733 textes. Absents → français. */
+/* Italian (preview) : 821/821 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -354,6 +354,154 @@ I18n.registerLocale("it", {
   "territories": "Paesi: {list}",
   "title": "🎁 Negozio dei regali",
   "until": "Fino al {d}"
+ },
+ "help": {
+  "btn_aria": "Aiuto — come si gioca",
+  "close": "Chiudi l'aiuto",
+  "fallback": "Questo aiuto non è ancora tradotto nella tua lingua, quindi è mostrato in francese.",
+  "faq": {
+   "autodig_rank": {
+    "a": "No. Ti fa guadagnare monete e profondità, ma i blocchi che rompe non contano per la posizione.",
+    "q": "L'Auto-Dig mi aiuta in classifica?"
+   },
+   "other_device": {
+    "a": "La tua partita funziona in un solo posto alla volta, per non mescolare i progressi. Tocca «{btn_here}» per riprendere esattamente da dove eri rimasto.",
+    "q": "Perché il gioco mi propone «{btn_here}»?"
+   },
+   "rank_depth": {
+    "a": "La profondità aumenta anche con l'Auto-Dig, persino quando nessuno gioca. Per una classifica giusta contano solo i blocchi rotti a mano e convalidati dal server. La profondità resta visibile a titolo informativo.",
+    "q": "Perché la mia posizione non dipende dalla profondità?"
+   },
+   "save": {
+    "a": "Senza account restano su questo dispositivo e in questo browser. Con un account vengono salvati online e li ritrovi sugli altri dispositivi; l'account serve anche per la classifica.",
+    "q": "I miei progressi vengono salvati?"
+   },
+   "season_end": {
+    "a": "Conservi le gemme (entro un limite massimo), i frammenti, le reliquie, i bonus permanenti, gli oggetti da collezione, i badge e i punti ricompensa. Monete, profondità, potenziamenti e boost tornano a zero.",
+    "q": "Cosa si conserva alla fine di una stagione?"
+   }
+  },
+  "footer": "Questo aiuto descrive il gioco così come funziona oggi. Durante la beta, alcune impostazioni possono cambiare.",
+  "groups": {
+   "basics": "Le basi",
+   "daily": "Ogni giorno",
+   "faq": "Domande frequenti",
+   "finds": "Forzieri e collezioni",
+   "resources": "Monete, gemme e bonus",
+   "season": "Stagione e classifica"
+  },
+  "intro": {
+   "step1": "Tocca il blocco per romperlo e guadagnare monete.",
+   "step2": "Spendi le monete in potenziamenti nella scheda {tab_upgrades} per scavare più in fretta.",
+   "step3": "Rompi i blocchi tu stesso per salire nella classifica della stagione.",
+   "step4": "Torna ogni giorno nella scheda {tab_daily} per la tua ricompensa e le tue missioni.",
+   "title": "Come si gioca?"
+  },
+  "more": "Scopri di più",
+  "tip_aria": "Aiuto: {topic}",
+  "title": "Aiuto",
+  "topics": {
+   "autodig": {
+    "more1": "Quando torni dopo un'assenza, l'Auto-Dig ti ha fatto guadagnare monete, per un tempo limitato.",
+    "more2": "Per salire in classifica devi rompere i blocchi tu stesso.",
+    "short": "L'Auto-Dig colpisce il blocco da solo, ogni secondo, anche quando non tocchi lo schermo. Si compra e si potenzia nella scheda {tab_upgrades}. I blocchi che rompe danno monete ma non contano per la classifica.",
+    "title": "Auto-Dig"
+   },
+   "badges": {
+    "short": "I badge segnano le tappe dei tuoi progressi. Sono onorifici: non danno monete, gemme né punti. Li trovi nella scheda {tab_collection} e nel tuo profilo.",
+    "title": "Badge"
+   },
+   "boosts": {
+    "more1": "I boost non moltiplicano le monete trovate nei forzieri.",
+    "more2": "Dopo l'uso, il pulsante «{btn_double}» deve ricaricarsi prima di poter essere riutilizzato.",
+    "short": "Un boost moltiplica per qualche minuto le monete guadagnate rompendo i blocchi. Può arrivare da un forziere, dalla ricompensa giornaliera o dal pulsante «{btn_double}» sotto il blocco. Una barra indica il tempo rimanente.",
+    "title": "Boost"
+   },
+   "chests": {
+    "more1": "Il pulsante «{btn_odds}» di un forziere di stagione mostra il contenuto esatto e la probabilità di ogni ricompensa.",
+    "more2": "Alcuni forzieri di stagione si possono aprire solo un numero limitato di volte per stagione.",
+    "short": "Scavando, a volte trovi un forziere al posto di un blocco: rompilo per ricevere una ricompensa a caso (monete, frammenti o un boost). I forzieri di stagione si comprano anche con le monete nella scheda {tab_upgrades}.",
+    "title": "Forzieri"
+   },
+   "coins": {
+    "short": "Le monete si guadagnano rompendo i blocchi, nei forzieri e con la ricompensa giornaliera. Servono a pagare potenziamenti e forzieri di stagione. Tornano a zero alla fine di ogni stagione: spendile!",
+    "title": "Monete"
+   },
+   "collection": {
+    "more1": "Gli oggetti trovati restano tuoi: non scompaiono a fine stagione.",
+    "more2": "Gli oggetti degli eventi sono tenuti a parte, nella sezione Eventi.",
+    "short": "Rompendo i blocchi, a volte trovi un oggetto da collezione. La Collezione delle origini è permanente; una collezione di stagione si completa solo durante la sua stagione, poi resta visibile nell'archivio. Tocca un oggetto per leggerne la scheda.",
+    "title": "Collezione"
+   },
+   "daily": {
+    "short": "Ogni giorno la scheda {tab_daily} ti offre una ricompensa. Torna per più giorni di fila per avanzare nella tua serie di 7 giorni e ottenere ricompense migliori. Se salti un giorno, la serie ricomincia dal primo giorno.",
+    "title": "Ricompensa giornaliera"
+   },
+   "depth": {
+    "more1": "La profondità torna a zero a ogni nuova stagione.",
+    "more2": "È mostrata in classifica a titolo informativo, ma non conta per la posizione.",
+    "short": "Ogni blocco rotto ti fa scendere di un metro. Più in basso i blocchi sono più resistenti ma rendono di più, e compaiono minerali, gemme e forzieri più rari.",
+    "title": "Profondità"
+   },
+   "events": {
+    "more1": "Questi oggetti sono separati dalla Collezione delle origini e dalle collezioni di stagione.",
+    "short": "Un evento dura un tempo limitato e aggiunge oggetti esclusivi da trovare scavando. Quando c'è un evento in corso, la sua sezione appare in cima alla scheda {tab_collection}, con la data di fine. Gli oggetti trovati restano poi nei tuoi ricordi degli eventi.",
+    "title": "Eventi"
+   },
+   "fragments": {
+    "short": "I frammenti (🔮) si trovano soprattutto nei forzieri. Puoi anche comprarne alcuni con le monete nella scheda {tab_upgrades}, in numero limitato per stagione. Servono a sbloccare e potenziare le reliquie e non scompaiono mai, nemmeno a fine stagione.",
+    "title": "Frammenti di reliquia"
+   },
+   "gems": {
+    "more1": "Il negozio di gemme indica «Presto»: per ora non vi si può acquistare nulla.",
+    "short": "Le gemme vengono dai blocchi di gemme (rubino, smeraldo, diamante…), dalla ricompensa giornaliera e a volte dalle missioni del giorno. Si conservano da una stagione all'altra, entro un limite massimo.",
+    "title": "Gemme"
+   },
+   "leagues": {
+    "short": "La tua lega è un livello duraturo, mostrato accanto alla tua posizione nella scheda {tab_season}. Si sale di lega per promozione, alla fine di una stagione. Il tema della stagione cambia senza toccare la tua lega.",
+    "title": "Leghe"
+   },
+   "missions": {
+    "short": "Ogni giorno la scheda {tab_daily} propone alcune missioni brevi: rompere blocchi, guadagnare monete… Quando una missione è completata, tocca «{btn_claim}» per ricevere la ricompensa. Il giorno dopo arrivano nuove missioni.",
+    "title": "Missioni del giorno"
+   },
+   "pickaxe": {
+    "more1": "Più scendi, più PV hanno i blocchi: ricordati di potenziare il piccone regolarmente.",
+    "more2": "Il livello del piccone e i danni per colpo sono indicati in alto sullo schermo.",
+    "short": "Il piccone stabilisce i danni di ogni colpo. Potenzialo nella scheda {tab_upgrades} per rompere i blocchi più in fretta. Alcune reliquie aggiungono altri danni.",
+    "title": "Piccone e danni"
+   },
+   "play": {
+    "more1": "Il nome e la rarità del blocco sono indicati sopra, la ricompensa in monete sotto.",
+    "more2": "I colpi troppo rapidi per essere umani non vengono convalidati dal server: un autoclicker non serve a nulla.",
+    "short": "Tocca o clicca il blocco al centro dello schermo (Invio o Spazio da tastiera). Ogni colpo toglie punti vita (PV) al blocco. Quando la barra è vuota, il blocco si rompe, ti dà monete e appare il blocco successivo.",
+    "title": "Toccare un blocco"
+   },
+   "points": {
+    "short": "Alla fine di una stagione, i giocatori classificati ricevono punti ricompensa in base alla posizione. Questi punti si conservano e si scambiano nel negozio dei regali della scheda {tab_season}. Non si possono convertire in monete, gemme o denaro.",
+    "title": "Punti ricompensa"
+   },
+   "ranking": {
+    "more1": "In caso di parità, passa davanti il primo giocatore che ha raggiunto quel totale. Non c'è nessun sorteggio.",
+    "more2": "Alla fine della stagione la classifica viene congelata e pubblicata: non cambia più.",
+    "short": "La tua posizione dipende solo dal numero di blocchi che hai rotto tu stesso, convalidati dal server. I blocchi rotti dall'Auto-Dig non contano e la profondità è mostrata solo a titolo informativo. Servono un account e almeno un blocco rotto a mano durante la stagione.",
+    "title": "Classifica"
+   },
+   "relics": {
+    "short": "Le reliquie danno bonus permanenti: più danni, più monete, più frammenti, più blocchi rari… Sbloccale e poi potenziale con i frammenti, nella scheda {tab_collection}. Si conservano da una stagione all'altra.",
+    "title": "Reliquie"
+   },
+   "season": {
+    "short": "Il gioco procede per stagioni di durata limitata; la scheda {tab_season} mostra il tema e la data di fine. Alla fine di una stagione, monete, profondità, potenziamenti e boost tornano a zero. Gemme, frammenti, reliquie, bonus permanenti e punti ricompensa si conservano.",
+    "title": "Stagione"
+   },
+   "upgrades": {
+    "more1": "I potenziamenti tornano a zero alla fine della stagione; le reliquie invece sono permanenti.",
+    "more2": "La stessa pagina offre anche i forzieri di stagione e i tuoi obiettivi.",
+    "short": "La scheda {tab_upgrades} offre potenziamenti pagati in monete: il Piccone (danni), la Fortuna (blocchi rari), la Sacca (ricompense), l'Auto-Dig (danni automatici) e altri strumenti. Ogni livello costa più del precedente.",
+    "title": "Potenziamenti"
+   }
+  }
  },
  "mission": {
   "break_blocks": {
