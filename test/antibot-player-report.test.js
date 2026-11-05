@@ -175,3 +175,15 @@ test('admin : route protégée, fiche en lecture seule ouverte depuis la recherc
   assert.match(js, /pas des coups de pioche/);
   assert.doesNotMatch(js.slice(js.indexOf('function secRenderPlayer')), /innerHTML = [^'']/, 'rendu par textContent');
 });
+
+test('admin : fiche lisible — résumé par défaut, sections techniques repliables (recette UX du 05/11)', () => {
+  const js = read('public/admin/admin.js');
+  const fn = js.slice(js.indexOf('function secRenderPlayer'), js.indexOf("admDialogSetup('sec-player-dialog'"));
+  assert.match(fn, /secEl\('section', 'sec-summary'\)/, 'résumé toujours visible');
+  const keys = [...fn.matchAll(/section\('([a-z]+)'/g)].map(x => x[1]);
+  assert.deepStrictEqual(keys, ['modes', 'account', 'progress', 'save', 'risk', 'responses', 'alerts', 'telemetry', 'samples', 'anticheat', 'timeline'],
+    'toutes les sections conservées, chacune repliable');
+  assert.match(fn, /det\.open = _secOpenSections\.has\(key\)/, 'repliées par défaut, état conservé au rafraîchissement');
+  assert.match(fn, /Tout déplier/);
+  assert.doesNotMatch(fn, /root\.appendChild\(sec(Kv|Table)/, 'aucun tableau technique hors section repliable');
+});

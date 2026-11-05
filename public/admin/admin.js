@@ -2541,6 +2541,8 @@ function secTable(headers, rows, empty) {
 }
 
 let _secPlayer = { q: null, seasonId: null };
+/** Sections techniques ouvertes par l'admin (repliées par défaut, conservées entre rafraîchissements). */
+const _secOpenSections = new Set();
 
 async function secOpenPlayer(q, opener, seasonId = null) {
   const err = document.getElementById('sec-player-err');
@@ -2575,19 +2577,65 @@ function secRenderPlayer(d) {
   const body = document.getElementById('sec-player-body');
   body.innerHTML = '';
   const root = secEl('div', 'sec-fiche');
-  const h4 = t => root.appendChild(secEl('h4', '', t));
-  const note = t => root.appendChild(secEl('p', 'muted', t)).style.fontSize = '0.76rem';
   const m = d.modes;
+  const r = d.ranking;
+  const ss = d.save?.seasonStats;
+  const alertsTotal = d.events.byType.reduce((a, e) => a + (Number(e.n) || 0), 0);
+  const cpsMax = d.samples.rows.reduce((a, x) => (typeof x.serverCps === 'number' && x.serverCps > a ? x.serverCps : a), 0);
 
+  // Résumé lisible par défaut (recette UX du 05/11) : l'essentiel ; tout le détail reste dans les
+  // sections repliables ci-dessous (aucune donnée retirée).
+  const sum = secEl('section', 'sec-summary');
+  sum.setAttribute('aria-label', 'Résumé');
+  sum.appendChild(secEl('p', 'sec-summary-verdict',
+    `Score de risque ${d.risk.score} — niveau N${d.risk.level} · ${alertsTotal ? `${alertsTotal} alerte(s) sur la saison` : 'aucune alerte sur la saison'} · aucune sanction appliquée (applied:false).`));
+  sum.appendChild(secKv([
+    ['Profondeur retenue / déclarée', `${secFmt(r?.acceptedDepth ?? d.depth?.acceptedDepth, ' m')} / ${secFmt(r?.reportedDepth ?? ss?.maxDepth, ' m')}`],
+    ['Écart déclaré − retenu', secFmt(d.depth?.depthGap, ' m'), 'server'],
+    ['Blocs manuels validés (👆 classement)', secFmt(r?.validatedManualBlocks), 'server'],
+    ['Blocs manuels déclarés / coups', `${secFmt(ss?.manualBlocks ?? r?.manualBlocks)} / ${secFmt(ss?.manualClicks ?? r?.manualClicks)}`, 'client'],
+    ['Coups/s max (horloge serveur)', d.samples.rows.length ? secFmt(cpsMax) : 'non disponible', 'derived'],
+    ['Dernière sauvegarde reçue', d.save ? secDate(d.save.savedAt) : 'aucune', 'server'],
+  ]));
+  sum.appendChild(secEl('p', 'muted sec-summary-modes',
+    `Anti-bot ${m.antibotMode} (journal seulement) · budget de dégâts ${m.damageBudgetMode}${m.damageBudgetMode === 'enforce' ? ' (plafonne la profondeur classée)' : ''}. Détail technique : sections ci-dessous, repliées par défaut.`));
+  root.appendChild(sum);
+
+  const tools = secEl('div', 'sec-acc-tools');
+  for (const [label, open] of [['Tout déplier', true], ['Tout replier', false]]) {
+    const btn = secEl('button', 'btn btn-sm btn-outline', label);
+    btn.type = 'button';
+    btn.addEventListener('click', () => root.querySelectorAll('details.sec-acc').forEach(x => { x.open = open; }));
+    tools.appendChild(btn);
+  }
+  root.appendChild(tools);
+
+  // Sections repliables : leur état ouvert/fermé est conservé au rafraîchissement et au changement de saison.
+  let cur = root;
+  const section = (key, title, hint) => {
+    const det = secEl('details', 'bk-acc sec-acc');
+    det.dataset.sec = key;
+    det.open = _secOpenSections.has(key);
+    det.addEventListener('toggle', () => { if (det.open) _secOpenSections.add(key); else _secOpenSections.delete(key); });
+    const s = document.createElement('summary');
+    s.appendChild(secEl('span', 'bk-acc-title', title));
+    if (hint) s.appendChild(secEl('span', 'bk-acc-sum', hint));
+    det.appendChild(s);
+    root.appendChild(det);
+    cur = det;
+  };
+  const note = t => cur.appendChild(secEl('p', 'muted', t)).style.fontSize = '0.76rem';
+  const add = el => cur.appendChild(el);
+
+  section('modes', 'Modes et lecture des valeurs', `anti-bot ${m.antibotMode}, budget ${m.damageBudgetMode}`);
   const banner = secEl('div', 'sec-banner');
   banner.appendChild(secEl('p', '', `Anti-bot : ${m.antibotMode} — sanctions désactivées (applied:false) : les scores et niveaux sont seulement journalisés.`));
   banner.appendChild(secEl('p', '', `Budget de dégâts : ${m.damageBudgetMode}${m.damageBudgetMode === 'enforce' ? ' — plafonne la profondeur CLASSÉE ; ne réduit ni les coups, ni les gains, ni les achats.' : ' — calcul et journal seulement.'}`));
   banner.appendChild(secEl('p', '', '👆 du classement = blocs détruits manuellement et validés par le serveur, pas des coups de pioche.'));
-  root.appendChild(banner);
+  add(banner);
 
-  h4('Compte et activité');
-  const r = d.ranking;
-  root.appendChild(secKv([
+  section('account', 'Compte et activité', `inscrit le ${secDate(d.player.createdAt)}`);
+  add(secKv([
     ['Inscrit le', secDate(d.player.createdAt), 'server'],
     ['Saison', d.season ? `${d.season.id} — ${d.season.name}` : 'aucune'],
     ['Première activité de la saison', secDate(r?.firstSeen), 'server'],
@@ -2596,9 +2644,8 @@ function secRenderPlayer(d) {
     ['Dernier contrôle de profondeur', secDate(d.depth?.lastCheck), 'server'],
   ]));
 
-  h4('Progression de la saison');
-  const ss = d.save?.seasonStats;
-  root.appendChild(secKv([
+  section('progress', 'Progression de la saison (détail)', 'profondeurs, budget, coups, blocs manuels / Auto-Dig');
+  add(secKv([
     ['Profondeur retenue (classement)', secFmt(r?.acceptedDepth ?? d.depth?.acceptedDepth, ' m'), 'server'],
     ['Profondeur déclarée', secFmt(r?.reportedDepth ?? ss?.maxDepth, ' m'), 'client'],
     ['Profondeur couverte par le budget de dégâts', secFmt(d.depth?.budgetDepth, ' m'), 'server'],
@@ -2614,11 +2661,11 @@ function secRenderPlayer(d) {
   ]));
   note('Les blocs détruits par un clic que le navigateur juge suspect ne sont comptés ni manuels ni Auto-Dig, mais rapportent profondeur et gains (faille suivie dans #74). « Blocs détruits au total » vaut pour la partie entière (toutes saisons).');
 
-  h4('Partie déclarée (dernière sauvegarde)');
+  section('save', 'Partie déclarée (dernière sauvegarde)', d.save ? `révision ${d.save.revision}` : 'aucune sauvegarde');
   if (d.save) {
     const sv = d.save;
     const lv = o => Object.entries(o).map(([k, v]) => `${k} ${v}`).join(', ') || 'aucune';
-    root.appendChild(secKv([
+    add(secKv([
       ['Profondeur de la partie', secFmt(sv.depth, ' m'), 'client'],
       ['Pièces', secFmt(sv.coins), 'client'],
       ['Gemmes', secFmt(sv.gems), 'client'],
@@ -2633,53 +2680,53 @@ function secRenderPlayer(d) {
     note('La sauvegarde est remplacée à chaque envoi : aucun historique des achats n’existe côté serveur. Les sauvegardes de la base (avant déploiement, quotidiennes) contiennent les états antérieurs.');
   } else note('Aucune sauvegarde cloud.');
 
-  h4(`Score de risque : ${d.risk.score} — niveau N${d.risk.level} (non appliqué)`);
-  root.appendChild(secTable(['Catégorie', 'Valeur actuelle', 'Plafond', 'Signaux (points)'],
+  section('risk', `Score de risque : ${d.risk.score} — niveau N${d.risk.level} (non appliqué)`, 'décomposition par catégorie');
+  add(secTable(['Catégorie', 'Valeur actuelle', 'Plafond', 'Signaux (points)'],
     d.risk.components.map(c => [c.cat, c.value, c.cap, c.signals.join(', ')])));
   note(`Chaque signal ajoute ses points à sa catégorie, plafonnée ; le score est la somme (100 max), divisée par deux toutes les ${d.risk.halfLifeHours} h. Seuils : N1 ≥ 30, N2 ≥ 60, N3 ≥ 80, N4 ≥ 90. Ex. : rafales (4 pts, plafond 15) + CPS très élevé (6 pts, plafond 25) = 40 → N1. Le passage de niveau est journalisé avec applied:false : rien n’est appliqué au joueur.`);
 
-  h4('Contrôles : observation → action prévue → action effectivement appliquée');
-  root.appendChild(secTable(['Contrôle', 'Mode', 'Observation pour ce joueur', 'Action prévue', 'Action appliquée'],
+  section('responses', 'Contrôles : observation → action prévue → action effectivement appliquée', `${d.responses.length} contrôles`);
+  add(secTable(['Contrôle', 'Mode', 'Observation pour ce joueur', 'Action prévue', 'Action appliquée'],
     d.responses.map(x => [x.control, x.mode, x.observation, x.planned, x.applied])));
 
-  h4('Alertes du joueur par type');
-  root.appendChild(secTable(['Type', 'Nombre', 'Première (UTC)', 'Dernière (UTC)'],
+  section('alerts', 'Alertes du joueur par type', alertsTotal ? `${alertsTotal} alerte(s), ${d.events.byType.length} type(s)` : 'aucune');
+  add(secTable(['Type', 'Nombre', 'Première (UTC)', 'Dernière (UTC)'],
     d.events.byType.map(e => [e.type, e.n, e.first, e.last]), 'Aucune alerte pour ce joueur sur cette saison.'));
 
-  h4('Télémétrie des clics');
+  section('telemetry', 'Télémétrie des clics', d.samples.telemetry ? `${secFmt(d.samples.telemetry.clicks)} coups reçus` : 'non disponible');
   const tel = d.samples.telemetry;
   if (tel) {
     const bins = ['<40', '40–60', '60–80', '80–100', '100–150', '150–250', '250–500', '≥500'];
     const total = tel.h.reduce((a, b) => a + b, 0) || 1;
-    root.appendChild(secKv([
+    add(secKv([
       ['Sauvegardes avec télémétrie', secFmt(tel.saves), 'tele'],
       ['Coups reçus en télémétrie', secFmt(tel.clicks), 'tele'],
       ['Événements non fiables (isTrusted = false)', secFmt(tel.untrusted), 'tele'],
       ['Origine souris / tactile / clavier / autre', `${tel.p.m} / ${tel.p.t} / ${tel.p.k} / ${tel.p.o}`, 'tele'],
     ]));
-    root.appendChild(secTable(['Intervalle (ms)', ...bins], [['Coups', ...tel.h.map(v => `${v} (${Math.round(v * 100 / total)} %)`)]]));
+    add(secTable(['Intervalle (ms)', ...bins], [['Coups', ...tel.h.map(v => `${v} (${Math.round(v * 100 / total)} %)`)]]));
   } else note('Histogramme et origine des clics : non disponibles pour cette session (enregistrés seulement depuis la mise en service de la fiche).');
   const b = d.burstFromEvents;
   if (b.batches) note(`Rafales journalisées : ${b.batches} lot(s), ${b.clicks} coups dont ${b.under40ms} intervalles < 40 ms sur ${b.intervals}. « clicks » d'un lot = coups envoyés avec UNE sauvegarde (depuis la précédente réussie), pas des clics par seconde.`);
 
-  h4('Sauvegardes contrôlées (échantillons agrégés, plus récentes en premier)');
+  section('samples', 'Sauvegardes contrôlées (échantillons agrégés, plus récentes en premier)', `${d.samples.rows.length} échantillon(s)`);
   const rows = d.samples.rows.slice().reverse().slice(0, 60).map(x => [
     secDate(x.at).replace(' UTC', ''), secFmt(x.dtSecs, ' s'), secFmt(x.dClicks), secFmt(x.serverCps),
     `${secFmt(x.dManualBlocks)} / ${secFmt(x.dAutoBlocks)} / ${secFmt(x.dBlocksDestroyed)}`,
     `${secFmt(x.reportedDepth)} / ${secFmt(x.acceptedDepth)} / ${secFmt(x.budgetDepth)}`,
     secFmt(x.autodigLevel), x.tel ? `${x.tel.n} (<40 ms : ${x.tel.under40 ?? '—'}, non fiables ${x.tel.u})` : '—', x.acAction ?? '',
   ]);
-  root.appendChild(secTable(['Heure (UTC)', 'Δt serveur', 'Δ coups', 'Coups/s (horloge serveur)', 'Δ blocs manuels / auto / total',
+  add(secTable(['Heure (UTC)', 'Δt serveur', 'Δ coups', 'Coups/s (horloge serveur)', 'Δ blocs manuels / auto / total',
     'Profondeur déclarée / retenue / budget', 'Auto-Dig', 'Télémétrie (coups)', 'Anti-autoclic'], rows,
     'Non disponible pour cette session : les échantillons sont enregistrés à chaque sauvegarde depuis la mise en service de la fiche.'));
   note('Δ coups et Δ blocs sont des compteurs déclarés ; Δt est mesuré par le serveur. Coups/s = Δ coups ÷ Δt serveur (fiable pour la durée, pas pour le compteur).');
 
-  h4('Fenêtres anti-autoclic (#10)');
-  root.appendChild(secTable(['Date (UTC)', 'Action', 'Durée (s)', 'Coups', 'Coups/s', 'Part retenue'],
+  section('anticheat', 'Fenêtres anti-autoclic (#10)', `${d.anticheat.recent.length} fenêtre(s)`);
+  add(secTable(['Date (UTC)', 'Action', 'Durée (s)', 'Coups', 'Coups/s', 'Part retenue'],
     d.anticheat.recent.map(a => [a.logged_at, a.action, a.secs, a.clicks, a.cps, a.ratio]), 'Aucune fenêtre journalisée.'));
 
-  h4('Chronologie des alertes (100 dernières)');
-  root.appendChild(secTable(['Date (UTC)', 'Type', 'Score', 'Détails'],
+  section('timeline', 'Chronologie des alertes (100 dernières)', `${d.events.recent.length} entrée(s)`);
+  add(secTable(['Date (UTC)', 'Type', 'Score', 'Détails'],
     d.events.recent.map(e => [e.created_at, e.type, e.score_after == null ? '' : `${e.score_before ?? 0} → ${e.score_after}`, e.details ?? '']),
     'Aucune alerte.'));
 
