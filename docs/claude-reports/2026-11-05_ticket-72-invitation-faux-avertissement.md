@@ -38,7 +38,7 @@ Changement limité au panel admin (HTML/JS). Aucune migration, aucune route serv
 
 ## 3. SHA et procédure de test
 
-- Branche `fix/72-invitation-faux-avertissement`, commits `dc99ab5` et `63c4d29` ; **`develop` = `2169b5c`** (fusion `--no-ff`).
+- Branche `fix/72-invitation-faux-avertissement`, commits `dc99ab5` et `2083f89` ; **`develop` = `2169b5c`** (fusion `--no-ff`).
 - `npm test` : 739/739 sur la branche et sur la release `2169b5c`.
 - Parcours navigateur (serveur de test, base neuve, jamais la production) :
   ```
