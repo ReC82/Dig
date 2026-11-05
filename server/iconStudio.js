@@ -3,7 +3,8 @@
  *
  * Une seule interface pour TOUTES les icônes du jeu : blocs (minerais, pierres, coffres, gemmes —
  * catalogue #37), objets de collection et reliques (#39) et pictogrammes d'interface (profil,
- * paramètres, navigation — application en jeu avec #67, registre server/uiIcons.js). Badges : à brancher quand #38 existera.
+ * paramètres, navigation — application en jeu avec #67, registre server/uiIcons.js) et coffres de la boutique
+ * (#66, cible `chest:…`, appliqués en jeu comme les pictogrammes ; registre server/chestVisuals.js).
  *
  * Cycle d'une icône :
  *   brief (sujet/détails/palette, modifiable) → génération IA d'UNE image par action (consigne
@@ -52,11 +53,14 @@ const INSTRUCTION_MAX = 1000;   // consigne artistique réelle (recette du 02/11
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 const SHA_RE = /^[a-f0-9]{16}$/;
 // Objet d'événement (#65) : clé stable `event:<événement>/<objet>` (identifiants de #56, jamais réutilisés)
-const KEY_RE = /^(block|item|badge|relic|mission|ui|event):([a-z][a-z0-9_]{1,39}|[a-z][a-z0-9_]{2,39}\/[a-z][a-z0-9_]{2,39})$/;
+// Coffre de la boutique (#66) : clé stable `chest:<simple|rare|antique>` (registre server/chestVisuals.js)
+const KEY_RE = /^(block|item|badge|relic|mission|ui|event|chest):([a-z][a-z0-9_]{1,39}|[a-z][a-z0-9_]{2,39}\/[a-z][a-z0-9_]{2,39})$/;
 
 /** Pictogrammes d'interface : appliqués en jeu par GET /api/ui-icons (#67). Profil ≠ paramètres ≠ améliorations. */
 // Pictogrammes d'interface (#67) : registre à part, identifiants stables, zone et emplacement exact en jeu
 const { UI_TARGETS, ZONES: UI_ZONES } = require('./uiIcons');
+// Coffres de la boutique (#66) : appliqués en jeu comme les pictogrammes (GET /api/ui-icons, `chest_<id>`)
+const { SHOP_CHEST_VISUALS, gameIconId: chestGameIconId } = require('./chestVisuals');
 
 // v1.2 : identité du catalogue en tête ; v1.3 : forme réelle de l'objet imposée (gabarit et consigne par défaut)
 const PROMPT_VERSION = 'v1.3';
@@ -65,7 +69,7 @@ const UI_PROMPT_VERSION = 'ui-v1.2';
 // Contrôle du sujet : appel texte (vision) peu coûteux, réservé avant chaque image d'objet ou de badge
 const CHECK_EST_USD = 0.01;
 
-const KIND_LABELS = { block: 'Bloc', item: 'Objet de collection', badge: 'Badge', relic: 'Relique', mission: 'Mission quotidienne', event: 'Objet d\'événement', ui: 'Interface' };
+const KIND_LABELS = { block: 'Bloc', item: 'Objet de collection', badge: 'Badge', relic: 'Relique', mission: 'Mission quotidienne', event: 'Objet d\'événement', chest: 'Coffre de boutique', ui: 'Interface' };
 const _EV_STATES = { draft: 'brouillon', planned: 'planifié', active: 'en cours', ended: 'terminé' };
 
 class StudioError extends Error {
@@ -305,7 +309,7 @@ function _eventItem(id) {
 }
 /** Image actuellement en jeu (catalogue publié), pour distinguer « brouillon » et « publié ». */
 // Badge (#38) : pas de brouillon, l'image enregistrée sur le badge est celle du jeu (badge actif) ou de sa fiche.
-const _publishedImage = (kind, id) => kind === 'ui' ? _uiApplied()[id] ?? null : (kind === 'block'
+const _publishedImage = (kind, id) => kind === 'ui' ? _uiApplied()[id] ?? null : kind === 'chest' ? _chestApplied()[id] ?? null : (kind === 'block'
   ? blockCatalog.getPublished().types.find(t => t.id === id)
   : kind === 'badge' ? badges.getBadgeRow(id)
   : kind === 'relic' ? relicCatalog.getPublished().relics.find(r => r.id === id)
@@ -316,16 +320,20 @@ const _publishedImage = (kind, id) => kind === 'ui' ? _uiApplied()[id] ?? null :
 // ── Pictogrammes d'interface appliqués en jeu (#67) ───────────────────────────
 // État = dernier événement « applied » / « reverted_to_emoji » de chaque cible ui:… (journal en ajout
 // seul : historique et retour arrière sans table supplémentaire). Mémorisé, invalidé à chaque application.
+// Coffres de la boutique (#66) : même mécanisme, cibles chest:…
 let _uiCache = null;
-function _uiApplied() {
-  if (_uiCache) return _uiCache;
+function _liveApplied(prefix) {
+  _uiCache ??= {};
+  if (_uiCache[prefix]) return _uiCache[prefix];
   const out = {};
-  for (const e of conn().prepare("SELECT target, action, asset_sha FROM icon_studio_events WHERE target LIKE 'ui:%' AND action IN ('applied', 'reverted_to_emoji') ORDER BY id").all()) {
-    const id = e.target.slice(3);
+  for (const e of conn().prepare("SELECT target, action, asset_sha FROM icon_studio_events WHERE substr(target, 1, ?) = ? AND action IN ('applied', 'reverted_to_emoji') ORDER BY id").all(prefix.length, prefix)) {
+    const id = e.target.slice(prefix.length);
     if (e.action === 'applied' && e.asset_sha) out[id] = imageUrl(e.asset_sha); else delete out[id];
   }
-  return (_uiCache = out);
+  return (_uiCache[prefix] = out);
 }
+const _uiApplied = () => _liveApplied('ui:');
+const _chestApplied = () => _liveApplied('chest:');
 
 /**
  * Pictogrammes servis au jeu (GET /api/ui-icons) : { icons: { <id>: url }, rev }. Seules les cibles
@@ -335,6 +343,9 @@ function uiIconMap() {
   const applied = _uiApplied();
   const icons = {};
   for (const u of UI_TARGETS) if (u.deployable && applied[u.id]) icons[u.id] = applied[u.id];
+  // Coffres de la boutique (#66) : seulement après application confirmée ; sinon le jeu garde l'emoji
+  const chests = _chestApplied();
+  for (const c of SHOP_CHEST_VISUALS) if (chests[c.id]) icons[chestGameIconId(c.id)] = chests[c.id];
   // Emblèmes des missions du jour (#68) : image PUBLIÉE du catalogue, seulement une fois ce catalogue actif en jeu
   if (missionCatalog.isLive()) for (const m of missionCatalog.getPublished().missions) if (m.image) icons[`mission_${m.id}`] = m.image;
   const rev = crypto.createHash('sha256').update(JSON.stringify(icons)).digest('hex').slice(0, 12);
@@ -347,7 +358,7 @@ const _promptIdentity = t => _identity(t) ?? _uiIdentity(t);
 
 function _defaultBrief(kind, src) {
   const en = src.names?.en || src.names?.fr || src.id;
-  if (kind === 'ui') return { subject: src.subject, details: src.details, palette: src.palette };
+  if (kind === 'ui' || kind === 'chest') return { subject: src.subject, details: src.details, palette: src.palette };
   if (kind === 'badge') {
     const what = String(src.descriptions?.en || src.descriptions?.fr || '').slice(0, 160);
     return { subject: `A round honorary medal emblem for the achievement "${en}"`, details: `No text or letters; a single clear symbol in the centre${what ? `, evoking: ${what}` : ''}.`, palette: '' };
@@ -412,6 +423,10 @@ function _target(key) {
       current = { emoji: e.it.icon, image: e.it.image ?? null, name: e.it.names?.fr ?? e.it.id,
         extra: `${e.ev.icon} ${src.eventNameFr} (${e.ev.audience === 'test' ? 'TEST' : 'public'}, ${_EV_STATES[e.ev.state] ?? e.ev.state}) · ${e.it.rarity}` };
     }
+  } else if (kind === 'chest') {
+    // Coffre de la boutique (#66) : pas de brouillon, l'image appliquée est celle du jeu
+    src = SHOP_CHEST_VISUALS.find(c => c.id === id);
+    if (src) current = { emoji: src.emoji, image: _chestApplied()[id] ?? null, name: src.names.fr, extra: src.where };
   } else if (kind === 'item') {
     src = _collectionContent().items.find(i => i.id === id);
     if (src) current = { emoji: src.icon, image: src.image ?? null, name: src.names?.fr ?? id, extra: `${src.seriesId} · ${src.rarity}` };
@@ -432,7 +447,7 @@ function _target(key) {
 // Objets et badges : une consigne décrit UN seul objet. Même sujet + mêmes détails (casse ignorée) chez
 // plusieurs cibles de la même famille = consigne répétée (recette #40 du 02/11 : la consigne « lanterne »
 // importée pour les 6 objets d'une collection a produit une lanterne pour le crayon).
-const _BRIEF_UNIQUE = new Set(['item', 'badge', 'relic', 'event']);
+const _BRIEF_UNIQUE = new Set(['item', 'badge', 'relic', 'event', 'chest']);
 const _briefSig = b => `${String(b.subject ?? '').trim().toLowerCase()}\n${String(b.details ?? '').trim().toLowerCase()}`;
 
 /** Autres cibles de la même famille ayant enregistré exactement la même consigne. */
@@ -648,7 +663,9 @@ function _summary(t, counts) {
     // Image du brouillon pas encore publiée (ou retour à l'emoji en attente) : publication à faire dans Blocs/Collections
     unpublished: t.applicable && (t.current.image ?? null) !== (t.current.publishedImage ?? null),
     // Pictogramme d'interface (#67) : zone, emplacement exact, application possible ou non
-    ...(t.kind === 'ui' ? { zone: t.src.zone, zoneLabel: UI_ZONES[t.src.zone] ?? t.src.zone, where: t.src.where, deployable: !!t.src.deployable, notDeployable: t.src.notDeployable ?? null } : {}) };
+    // Coffre de la boutique (#66) : emplacement en jeu et identifiant servi au jeu (aperçu ?uiicon=)
+    ...(t.kind === 'chest' ? { where: t.src.where, gameIconId: chestGameIconId(t.id), deployable: true } : {}),
+    ...(t.kind === 'ui' ? { gameIconId: t.id, zone: t.src.zone, zoneLabel: UI_ZONES[t.src.zone] ?? t.src.zone, where: t.src.where, deployable: !!t.src.deployable, notDeployable: t.src.notDeployable ?? null } : {}) };
 }
 
 /** Badges non archivés (#38) ; aucun si le module des badges n'est pas initialisé (tests isolés). */
@@ -685,9 +702,22 @@ function listTargets() {
     ..._relicKeys(),
     ..._missionKeys(),
     ..._eventKeys(),
+    ...SHOP_CHEST_VISUALS.map(c => `chest:${c.id}`),
     ...UI_TARGETS.map(u => `ui:${u.id}`),
   ];
   return keys.map(k => _summary(_target(k), counts));
+}
+
+/**
+ * Visuels des six coffres (#66, onglet Coffres & drops) : les trois de la boutique (`chest:…`) et les trois
+ * blocs coffres trouvés en minant (`block:…`). Une cible introuvable (bloc retiré du catalogue) est signalée.
+ */
+function chestTargets() {
+  const counts = _assetCounts();
+  return require('./chestVisuals').CHEST_TARGETS.map(c => {
+    try { return { ...c, target: _summary(_target(c.key), counts) }; }
+    catch (err) { if (err instanceof StudioError) return { ...c, target: null, error: err.message }; throw err; }
+  });
 }
 
 // ── Images : stockage, contrôles ──────────────────────────────────────────────
@@ -752,7 +782,7 @@ function buildPrompt(kind, brief, instruction = '', identity = null) {
     if (!m) throw new Error(`gabarit ${tag} absent de prompt-master.md`);
     return m[1].trim();
   };
-  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' || kind === 'relic' || kind === 'event' || kind === 'mission' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
+  const [tpl, ref] = kind === 'block' ? ['PROMPT', 'REFERENCE'] : kind === 'item' || kind === 'badge' || kind === 'relic' || kind === 'event' || kind === 'mission' || kind === 'chest' ? ['PROMPT_OBJECT', 'REFERENCE_OBJECT'] : ['PROMPT_UI', 'REFERENCE_OBJECT'];
   const who = identity?.ui
     ? `Interface pictogram to depict: "${identity.name}" (French label: "${identity.fr}"), the ${identity.context}; the icon must clearly evoke this function and nothing else. Visual description: `
     : identity
@@ -786,7 +816,7 @@ function promptSummary(kind, brief, identity = null) {
     subject: brief.subject,
     shape: brief.details || '',
     colors: String(brief.palette || '').replace(/^\s*palette\s*:\s*/i, ''),
-    style: `${STYLE_FR[kind === 'badge' || kind === 'relic' || kind === 'event' || kind === 'mission' ? 'item' : kind] ?? STYLE_FR.item} ${CONSTRAINTS_FR}${_reference() ? ' Même style que l\'icône de référence validée (pierre), sans en reprendre la forme.' : ''}`,
+    style: `${STYLE_FR[kind === 'badge' || kind === 'relic' || kind === 'event' || kind === 'mission' || kind === 'chest' ? 'item' : kind] ?? STYLE_FR.item} ${CONSTRAINTS_FR}${_reference() ? ' Même style que l\'icône de référence validée (pierre), sans en reprendre la forme.' : ''}`,
   };
 }
 
@@ -1190,7 +1220,7 @@ function getTarget(key) {
     briefIgnored: !!brief.ignored,
   } : {};
   // Objet d'événement (#65) : thème et fiche d'origine, pour le retour vers Événements
-  const uiExtra = t.kind === 'ui' ? { reusable: _uiReusable(key), emojiOriginal: t.src.emoji } : {};
+  const uiExtra = t.kind === 'ui' ? { reusable: _uiReusable(key), emojiOriginal: t.src.emoji } : t.kind === 'chest' ? { emojiOriginal: t.src.emoji } : {};
   const eventExtra = t.kind === 'event' ? { event: { id: t.src.eventId, itemId: t.src.id, name: t.src.eventNameFr, state: t.src.eventState,
     audience: t.src.eventAudience, imageState: monthlyEvents.imageState(t.src) } } : {};
   const { conflicts: subjectConflicts, references: subjectReferences } = _subjectAnalysis(t, _subjectSources('', brief));
@@ -1234,7 +1264,7 @@ function apply(key, { sha = null, override = false, live = false, doubtful = fal
   // Pictogramme d'interface (#67) : une image d'un AUTRE pictogramme peut être réutilisée (pas de doublon généré)
   const url = sha ? imageUrl(t.kind === 'ui' ? _uiAsset(key, sha).sha : _asset(key, sha)) : null;
   const before = t.current.image;
-  if (t.kind === 'ui') return _applyUi(t, { url, sha, before, live, override, doubtful });
+  if (t.kind === 'ui' || t.kind === 'chest') return _applyUi(t, { url, sha, before, live, override, doubtful });
   // Badge (#38) : sans brouillon, l'image d'un badge ACTIF est visible tout de suite → accord explicite (« live »).
   if (t.kind === 'badge' && t.src.status === 'active' && !live) {
     throw new StudioError(409, 'Badge actif : la nouvelle image sera visible immédiatement par les joueurs. Confirmez (« live ») ou désactivez d\'abord le badge.');
@@ -1265,14 +1295,14 @@ function _uiAsset(key, sha) {
  */
 function _applyUi(t, { url, sha, before, live, override, doubtful }) {
   if (!live) {
-    throw new StudioError(409, `Pictogramme d'interface : l'image sera visible par tous les joueurs (${t.src.where}) dès leur prochain chargement. Confirmez (« live »).`, { code: 'live_required' });
+    throw new StudioError(409, `${t.kind === 'chest' ? 'Coffre de la boutique' : 'Pictogramme d\'interface'} : l'image sera visible par tous les joueurs (${t.src.where}) dès leur prochain chargement. Confirmez (« live »).`, { code: 'live_required' });
   }
-  if ((before ?? null) === url) throw new StudioError(409, url ? 'Cette image est déjà en jeu pour ce pictogramme.' : 'Le pictogramme d\'origine est déjà affiché.');
-  const from = sha ? _uiAsset(t.key, sha).target : null;
+  if ((before ?? null) === url) throw new StudioError(409, url ? `Cette image est déjà en jeu pour ce ${t.kind === 'chest' ? 'coffre' : 'pictogramme'}.` : `${t.kind === 'chest' ? 'L\'emoji d\'origine du coffre' : 'Le pictogramme d\'origine'} est déjà affiché.`);
+  const from = sha && t.kind === 'ui' ? _uiAsset(t.key, sha).target : null;
   _event(t.key, sha ? 'applied' : 'reverted_to_emoji', sha, { before: before ?? null, after: url, live: true, override: !!override && !!t.validation,
     ...(from && from !== t.key ? { reusedFrom: from } : {}), ...(doubtful ? { doubtful: true } : {}) });
   _uiCache = null;
-  return { target: getTarget(t.key), draft: false, catalog: 'ui', rev: uiIconMap().rev };
+  return { target: getTarget(t.key), draft: false, catalog: t.kind === 'chest' ? 'chests' : 'ui', rev: uiIconMap().rev };
 }
 
 /** Images des AUTRES pictogrammes d'interface, réutilisables sans nouvelle génération (#67). */
@@ -1324,5 +1354,5 @@ function subjectCheck(key, { instruction = '', subject = null, details = null } 
 
 module.exports = {
   StudioError, UI_TARGETS, init, status, setSpendCap, listTargets, getTarget, setBrief, generate, jobView, waitJob,
-  upload, mark, apply, subjectCheck, uiIconMap, UI_PROMPT_VERSION, promptSummary, reserveFromCosts, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
+  upload, mark, apply, subjectCheck, uiIconMap, chestTargets, UI_PROMPT_VERSION, promptSummary, reserveFromCosts, listCalls, overview, seriesPlan, generateSeries, cancelJob, checkAsset, PROMPT_VERSION, getImage, buildPrompt, setFakeTransport, fakeIconPng, imageUrl,
 };

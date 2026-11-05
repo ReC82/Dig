@@ -1262,3 +1262,11 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
   #tab-ads .adm-action-bar .adm-action-spacer { display: none; }
   #tab-ads .adm-field-short { max-width: none; }
 }
+
+/* Visuels des six coffres (#66, Coffres & drops) */
+.rw-visuals { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.rw-visual { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: start; gap: 12px; padding: 10px; border: 1px solid rgba(148,163,184,0.25); border-radius: 10px; }
+.rw-visual-info { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.rw-visual-state { font-size: 0.78rem; }
+.rw-visual-key { font-size: 0.72rem; }
+.rw-visual-info .btn { margin-top: 4px; }

@@ -6398,6 +6398,7 @@ const IC_HINTS = {
   event: 'ex. ruban plus rouge, vue de trois quarts',
   badge: 'ex. médaille plus brillante, symbole plus simple',
   ui: 'ex. trait plus épais, couleurs plus vives',
+  chest: 'ex. couvercle plus bombé, ferrures plus brillantes',
 };
 
 /** Retour à la fiche de l'objet d'origine, rechargée (l'atelier a pu changer son image dans le brouillon). */
@@ -6585,6 +6586,7 @@ function icRenderSheet() {
   if (_icFrom?.kind === 'relic' && t.key === `relic:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la relique', () => rlBackTo(_icFrom.id));
   if (_icFrom?.kind === 'upgrade' && t.key === `ui:upgrade_${_icFrom.id}`) icButton(head, '← Retour à la fiche de l\'amélioration', () => upBackTo(_icFrom.id));
   if (_icFrom?.kind === 'mission' && t.key === `mission:${_icFrom.id}`) icButton(head, '← Retour à la fiche de la mission', () => mqBackTo(_icFrom.id));
+  if (_icFrom?.kind === 'rewards' && t.key === _icFrom.key) icButton(head, '← Retour à Coffres & drops', () => rwBackFromStudio());
   if (t.kind === 'event' && t.event) icButton(head, '← Retour à la fiche de l\'objet d\'événement', () => evBackTo(t.event.id, t.event.itemId));
   const title = aiEl('div', { class: 'ic-sheet-title' });
   title.appendChild(aiEl('h3', {}, t.name));
@@ -6595,6 +6597,11 @@ function icRenderSheet() {
   if (t.validated) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' }, '🔒 Icône validée : elle ne sera remplacée qu\'avec votre accord explicite.'));
   // #67 : pictogramme d'interface raccordé au jeu (application immédiate, confirmée) ou seulement stocké
   if (t.kind === 'ui' && !t.applicable) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--warn' }, `Stockage seulement : ${t.notDeployable ?? 'ce pictogramme n\'est pas raccordé au jeu.'} Aucune image n'est appliquée automatiquement.`));
+  // #66 : coffre de la boutique, même cycle que les pictogrammes (application en jeu confirmée, pas de brouillon)
+  if (t.kind === 'chest') box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' }, `Emplacement en jeu : ${t.where}. Seul le visuel change : récompenses, prix et chances restent ceux de 🎲 Coffres & drops. `
+    + 'Une proposition n\'est jamais appliquée automatiquement : « Appliquer cette image dans le jeu » la rend visible pour tous les joueurs après confirmation, « Revenir à l\'icône précédente » ou « Revenir à l\'emoji d\'origine » l\'annule.'));
+  if (t.kind === 'block' && t.background && /^block:(vieille_caisse|coffre_bois|coffre_fer)$/.test(t.key)) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' },
+    'Coffre trouvé en minant : « Conserver » met l\'image dans le brouillon du catalogue de blocs ; les joueurs la voient après publication dans 🧱 Blocs. Récompenses et chances inchangées.'));
   if (t.kind === 'ui' && t.applicable) box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' }, `Emplacement en jeu : ${t.where}. Une proposition n'est jamais appliquée automatiquement : `
     + '« Appliquer cette image » la met en jeu pour tous les joueurs après confirmation (aucune publication séparée), et « Revenir à l\'icône précédente » ou « Revenir au pictogramme d\'origine » l\'annule.'));
 
@@ -6607,7 +6614,8 @@ function icRenderSheet() {
     cmp.appendChild(f);
     return f;
   };
-  fig(icThumb(t, 160), t.kind === 'ui' ? (t.applicable ? (t.image ? 'Actuelle en jeu (image appliquée)' : `Actuelle en jeu (pictogramme d'origine ${t.emoji})`) : 'Actuelle')
+  fig(icThumb(t, 160), t.kind === 'chest' ? (t.image ? 'Actuelle en jeu (image appliquée)' : `Actuelle en jeu (emoji d'origine ${t.emoji})`)
+    : t.kind === 'ui' ? (t.applicable ? (t.image ? 'Actuelle en jeu (image appliquée)' : `Actuelle en jeu (pictogramme d'origine ${t.emoji})`) : 'Actuelle')
     : !t.applicable ? 'Actuelle' : t.neverPublished ? 'Actuelle (objet en brouillon, jamais publié)'
     : t.unpublished ? 'Actuelle (brouillon, pas encore en jeu)' : 'Actuelle en jeu');
   if (mine) {
@@ -6680,7 +6688,7 @@ function icRenderSheet() {
     g.disabled = !canGenerate;
   } else {
     const row = aiEl('div', { class: 'form-actions' });
-    if (t.kind === 'ui') icUiActions(row, t, sel);
+    if (t.kind === 'ui' || t.kind === 'chest') icUiActions(row, t, sel);
     else if (t.applicable && !sel.inDraft) {
       icButton(row, '✓ Conserver cette image', () => icApply(t, sel.sha, { doubtful: !!sel.warning }), sel.warning ? 'btn btn-outline' : 'btn ic-main');
     } else if (t.applicable && sel.inDraft) {
@@ -6796,7 +6804,7 @@ function icOptions(t, sel) {
   });
   if (sel && sel.source !== 'reuse' && sel.status !== 'rejected' && !sel.inDraft) icButton(acts, 'Écarter cette proposition', () => icMark(t, sel.sha, 'rejected', 'Proposition écartée (conservée dans l\'historique).'));
   if (sel && sel.status === 'rejected') icButton(acts, 'Remettre en proposition', () => icMark(t, sel.sha, 'candidate', 'Proposition rétablie.'));
-  if (t.applicable && t.image && t.kind !== 'ui') icButton(acts, 'Revenir à l\'emoji d\'origine', () => icApply(t, null));   // ui : dans les actions principales
+  if (t.applicable && t.image && t.kind !== 'ui' && t.kind !== 'chest') icButton(acts, 'Revenir à l\'emoji d\'origine', () => icApply(t, null));   // ui, coffre : dans les actions principales
   if (t.key === 'ui:logo' && sel) acts.appendChild(aiEl('a', { class: 'btn btn-outline', href: `/?logo=media:${sel.sha}`, target: '_blank', rel: 'noopener' }, 'Voir dans le vrai en-tête ↗'));
   more.appendChild(acts);
 
@@ -6836,7 +6844,7 @@ function icHistory(t) {
   for (const h of t.history) {
     const tr = document.createElement('tr');
     addCell(tr, icWhen(h.at));
-    const label = t.kind === 'ui' ? IC_UI_ACTIONS[h.action] ?? IC_ACTIONS[h.action] : IC_ACTIONS[h.action];
+    const label = t.kind === 'ui' || t.kind === 'chest' ? IC_UI_ACTIONS[h.action] ?? IC_ACTIONS[h.action] : IC_ACTIONS[h.action];
     addCell(tr, `${label ?? h.action}${h.details?.reusedFrom ? ` (image de ${h.details.reusedFrom})` : ''}${h.details?.identity ? ` (objet demandé : ${h.details.identity})` : ''}${h.details?.instruction ? ` — précision « ${h.details.instruction} »` : ''}`);
     const ti = document.createElement('td');
     if (h.url) ti.appendChild(aiEl('img', { src: h.url, alt: '', width: '32', height: '32' }));
@@ -6871,7 +6879,7 @@ async function icApply(t, sha, { doubtful = false } = {}) {
     override = true;
   }
   // Badge (#38) : pas de brouillon ; sur un badge actif, l'image est visible tout de suite → confirmation
-  if (t.kind === 'ui') return icApplyUi(t, sha, { override, doubtful });
+  if (t.kind === 'ui' || t.kind === 'chest') return icApplyUi(t, sha, { override, doubtful });
   const live = t.kind === 'badge' && / active$/.test(String(t.extra ?? ''));
   if (live && !await admAsk(`Le badge « ${t.name} » est ACTIF : cette image sera visible immédiatement par les joueurs. Continuer ?`)) return;
   const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live, doubtful });
@@ -6913,27 +6921,29 @@ function icUiActions(row, t, sel) {
   if (sel.published) row.appendChild(aiEl('span', { class: 'ic-kept' }, '✓ Cette image est en jeu.'));
   else {
     icButton(row, '✓ Appliquer cette image dans le jeu…', () => icApplyUi(t, sel.sha, { doubtful: !!sel.warning }), sel.warning ? 'btn btn-outline' : 'btn ic-main');
-    row.appendChild(aiEl('a', { class: 'btn btn-outline', href: `/?uiicon=${encodeURIComponent(t.id)}:${sel.sha}`, target: '_blank', rel: 'noopener',
+    row.appendChild(aiEl('a', { class: 'btn btn-outline', href: `/?uiicon=${encodeURIComponent(t.gameIconId ?? t.id)}:${sel.sha}`, target: '_blank', rel: 'noopener',
       title: 'Ouvre le vrai jeu avec cette image à cet emplacement, pour vous seul et pour cette page seulement : rien n\'est appliqué.' }, 'Prévisualiser dans le jeu ↗'));
   }
   if (t.image) {
     const prev = icUiPrevious(t);
     if (prev && prev.url) icButton(row, '↩ Revenir à l\'icône précédente', () => icApply(t, prev.sha));
-    icButton(row, `Revenir au pictogramme d'origine ${t.emojiOriginal ?? t.emoji ?? ''}`, () => icApply(t, null));
+    icButton(row, `${t.kind === 'chest' ? 'Revenir à l\'emoji d\'origine' : 'Revenir au pictogramme d\'origine'} ${t.emojiOriginal ?? t.emoji ?? ''}`, () => icApply(t, null));
   }
 }
 
 /** Confirmation explicite puis application en jeu (ou retour au pictogramme d'origine si `sha` est null). */
 async function icApplyUi(t, sha, { override = false, doubtful = false } = {}) {
   if (doubtful && !await admAsk(`Cette proposition est douteuse. L'appliquer quand même à « ${t.name} » ?`)) return;
-  const msg = [sha ? `Appliquer cette image à « ${t.name} » ?` : `Revenir au pictogramme d'origine ${t.emojiOriginal ?? t.emoji ?? ''} pour « ${t.name} » ?`, '',
+  const orig = `${t.kind === 'chest' ? 'l\'emoji d\'origine' : 'le pictogramme d\'origine'} ${t.emojiOriginal ?? t.emoji ?? ''}`;   // #66 : coffre de la boutique
+  const msg = [sha ? `Appliquer cette image à « ${t.name} » ?` : `Revenir à ${orig} pour « ${t.name} » ?`, '',
     `• Emplacement : ${t.where}.`,
     '• Visible par tous les joueurs à leur prochain chargement de page (ordinateur, smartphone, application installée).',
-    `• Actuellement : ${t.image ? 'une image appliquée' : `le pictogramme d'origine ${t.emojiOriginal ?? t.emoji ?? ''}`}.`,
-    '• Annulable à tout moment : « Revenir à l\'icône précédente » ou « Revenir au pictogramme d\'origine ». Aucune image n\'est supprimée.'].join('\n');
+    `• Actuellement : ${t.image ? 'une image appliquée' : orig}.`,
+    ...(t.kind === 'chest' ? ['• Seul le visuel change : récompenses, prix et chances du coffre restent identiques.'] : []),
+    `• Annulable à tout moment : « Revenir à l'icône précédente » ou « ${t.kind === 'chest' ? 'Revenir à l\'emoji d\'origine' : 'Revenir au pictogramme d\'origine'} ». Aucune image n'est supprimée.`].join('\n');
   if (!await admAsk(msg)) return;
   const { ok, data } = await api('POST', `/api/admin/icons/targets/${icEnc(t.key)}/apply`, { sha, override, live: true, doubtful });
-  _icNote = { text: ok ? (sha ? `Image appliquée en jeu (${t.where}). Les joueurs la verront au prochain chargement.` : `Pictogramme d'origine rétabli en jeu (${t.where}).`) : (data.error || 'Erreur.'), ok };
+  _icNote = { text: ok ? (sha ? `Image appliquée en jeu (${t.where}). Les joueurs la verront au prochain chargement.` : `${orig.charAt(0).toUpperCase()}${orig.slice(1)} rétabli en jeu (${t.where}).`) : (data.error || 'Erreur.'), ok };
   if (ok) { if (sha) _icSel = sha; await icOpen(t.key, { keepSel: true }); loadIconsQuiet(); } else icRenderSheet();
 }
 
@@ -8060,6 +8070,7 @@ async function loadRewards() {
   if (!view.ok) { ptMessage('rw-msg', view.data.error || 'Erreur lors du chargement.', false); return; }
   _rw = view.data;
   rwRender();
+  loadRewardVisuals();   // #66 : indépendant des tables (une erreur ici n'empêche pas leur affichage)
   const ab = document.getElementById('rw-audit');
   ab.textContent = '';
   for (const a of (audit.ok ? audit.data.audit : [])) {
@@ -8071,6 +8082,60 @@ async function loadRewards() {
 }
 
 admRefreshButton('btn-refresh-rewards', loadRewards, 'Coffres & drops');
+
+// ── Visuels des six coffres (#66) : lien direct vers la cible de l'atelier d'icônes ──
+// Aucune écriture ici : l'état vient de GET /api/admin/icons/chests, les actions se font dans l'atelier.
+
+/** Où en est le visuel : proposition (jamais vue des joueurs), conservée (brouillon des blocs), en jeu. */
+function rwVisualState(t) {
+  const props = t.candidates ? `${t.candidates} proposition${t.candidates > 1 ? 's' : ''}` : 'aucune proposition';
+  if (t.kind === 'chest') return `${props} · ${t.image ? 'image appliquée en jeu' : `en jeu : emoji d'origine ${t.emoji}`}`;
+  const live = t.publishedImage ? 'image de l\'atelier en jeu' : t.v1 ? `en jeu : image v1 (${t.v1.status})` : `en jeu : emoji d'origine ${t.emoji}`;
+  return `${props} · ${t.unpublished ? (t.image ? 'image conservée dans le brouillon, à publier dans 🧱 Blocs' : 'retour à l\'emoji dans le brouillon, à publier') : 'brouillon identique au jeu'} · ${live}`;
+}
+
+async function loadRewardVisuals() {
+  const box = document.getElementById('rw-visuals');
+  if (!box) return;
+  const { ok, data } = await api('GET', '/api/admin/icons/chests');
+  box.textContent = '';
+  if (!ok) { box.appendChild(aiEl('p', { class: 'error' }, data.error || 'Visuels indisponibles.')); return; }
+  for (const c of data.chests) {
+    const tile = aiEl('div', { class: 'rw-visual', 'data-adm-key': `rw-visual:${c.key}` });
+    const t = c.target;
+    tile.appendChild(t ? icThumb(t, 56) : aiEl('span', { class: 'bk-thumb ic-thumb ic-thumb--none', style: 'width:56px;height:56px' }, '?'));
+    const info = aiEl('div', { class: 'rw-visual-info' });
+    info.appendChild(aiEl('strong', {}, `${c.family === 'shop' ? '🛍' : '⛏'} ${c.name}`));
+    if (t) info.appendChild(icBadge(icState(t)));
+    info.appendChild(aiEl('span', { class: 'muted rw-visual-state' }, t ? rwVisualState(t) : (c.error || 'Cible introuvable.')));
+    info.appendChild(aiEl('code', { class: 'muted rw-visual-key' }, `Atelier : ${c.key}`));
+    const b = aiEl('button', { type: 'button', class: 'btn btn-outline', 'aria-label': `Ouvrir le visuel de ${c.name} dans l'atelier d'icônes` }, '🎨 Ouvrir dans l\'atelier');
+    b.disabled = !t;
+    b.addEventListener('click', () => rwOpenStudio(c.key));
+    info.appendChild(b);
+    tile.appendChild(info);
+    box.appendChild(tile);
+  }
+}
+
+/** Ouvre la fiche du coffre dans l'atelier (consigne préremplie, rien n'est généré ni appliqué). */
+async function rwOpenStudio(key) {
+  const dlg = document.getElementById('rw-dialog');
+  if (dlg?.open) {
+    if (dlg._admDirty?.() && !await admConfirmDiscard({ keep: 'Enregistrer dans le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
+    dlg.close();
+  }
+  document.querySelector('.tab-btn[data-tab="icons"]').click();
+  _icFrom = { kind: 'rewards', key };
+  icOpen(key);
+}
+
+/** Retour de l'atelier vers Coffres & drops (visuels rechargés), sur la carte des visuels. */
+async function rwBackFromStudio() {
+  _icFrom = null;
+  document.querySelector('.tab-btn[data-tab="rewards"]').click();
+  document.getElementById('rw-visuals-card')?.scrollIntoView({ block: 'start' });
+}
 
 // ── Fiche d'un coffre ─────────────────────────────────────────────────────────
 
