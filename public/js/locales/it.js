@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 728/728 textes. Absents → français. */
+/* Italian (preview) : 733/733 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -536,6 +536,13 @@ I18n.registerLocale("it", {
   "stat_relics": "Reliquie sbloccate",
   "stat_streak": "Serie giornaliera (giorni)",
   "title": "Profilo"
+ },
+ "promo": {
+  "cta": "Scopri il negozio",
+  "cta_short": "Negozio",
+  "tag": "Promozione DIG!",
+  "text": "Tutte le offerte di gemme sono nel negozio.",
+  "title": "Ti servono gemme?"
  },
  "quest": {
   "break10": {

@@ -25,6 +25,26 @@ Fichiers : `server/ads.js`, `server/legal.js`, routes dans `server/index.js`, `p
 styles en fin de `public/css/style.css`, onglet admin « 📢 Publicité », tests `test/ads.test.js`.
 Tables ajoutées : `ad_settings`, `ad_slots`, `ad_daily_stats` (aucune table existante modifiée).
 
+## Promotion interne DIG! (04/11/2026)
+
+Bannière maison vers la boutique de gemmes, **sans régie** : aucun script tiers, aucun cadre, aucune
+demande de consentement, aucun suivi des clics.
+
+- **Création** : `public/js/gemCallout.js` + `public/css/gemCallout.css` (gemme en pixel art SVG local,
+  « Besoin de gemmes ? », bouton « Découvrir la boutique » / « Boutique » en 320×50, mention
+  « Promotion DIG! »). Aucun prix, aucune quantité, aucune promesse de gemmes gratuites.
+- **Emplacements** : les mêmes (320×50 mobile, 728×90 ordinateur), seulement quand aucune annonce de
+  la régie n'y est servie. Réglage « masquer sur l'écran de minage » propre à la promotion (repris
+  une fois du réglage de la régie : mobile oui, ordinateur non).
+- **Clic** : ouvre l'onglet Boutique, section Gemmes (`#shop-gems-anchor`), sans achat ni
+  rechargement de page. Si la boutique est introuvable, la bannière n'est pas affichée.
+- **Pilotage** : Admin → 📢 Publicité → « Promotion interne DIG! » (désactivée par défaut, aperçu aux
+  deux tailles). Indépendante de l'interrupteur de la régie et d'`ADS_DISABLED` ; coupe-circuit
+  propre : `PROMO_DISABLED=1`. Affichée sur les deux domaines (contenu du jeu, rien de tiers).
+- **Sans décalage** : le format affiché la dernière fois est réservé dès le chargement de la page.
+- **Noms neutres** (`#top-strip`, `.gem-callout`) : les filtres cosmétiques des bloqueurs ne masquent
+  pas le conteneur en laissant un vide.
+
 ## Mise en service (propriétaire)
 
 1. Admin → 📢 Publicité → **Réglages généraux** : saisir « Éditeur et contact » (nom ou raison

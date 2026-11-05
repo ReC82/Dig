@@ -1,0 +1,65 @@
+/* Promotion interne DIG! (#45, 04/11/2026) — création maison aux formats 320×50 et 728×90.
+   Fichier partagé par le jeu et l'aperçu de l'admin. Noms neutres (gem-callout) : les filtres
+   cosmétiques des bloqueurs de publicité ne la masquent pas. */
+.gem-callout {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 0 10px;
+  border: 2px solid #d4a000;
+  border-radius: 6px;
+  color: #f2eedc;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  /* Paroi de mine : joints de pierre en pixels sur un fond nuit, lueur de gemme à gauche */
+  background-color: #1a1930;
+  background-image:
+    radial-gradient(circle at 34px 50%, rgba(34, 195, 230, 0.28), transparent 60px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.32) 2px, transparent 2px),
+    linear-gradient(rgba(0, 0, 0, 0.32) 2px, transparent 2px),
+    linear-gradient(180deg, #2b2944, #16152a);
+  background-size: 100% 100%, 26px 13px, 26px 13px, 100% 100%;
+  box-shadow: inset 0 0 0 1px rgba(255, 226, 122, 0.25);
+  -webkit-tap-highlight-color: transparent;
+}
+.gem-callout:hover { filter: brightness(1.08); }
+.gem-callout:active { filter: brightness(0.95); }
+.gem-callout:focus-visible { outline: 3px solid #fff; outline-offset: -5px; }
+.gem-callout[aria-disabled="true"] { cursor: default; }
+.gem-callout-gem { flex-shrink: 0; image-rendering: pixelated; filter: drop-shadow(0 0 4px rgba(125, 237, 251, 0.45)); }
+.gem-callout-copy { display: flex; flex-direction: column; justify-content: center; min-width: 0; flex: 1; line-height: 1.15; }
+.gem-callout-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #c9c3e6;
+}
+.gem-callout-title { font-weight: 800; color: #f5c518; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 1px 1px 0 #000; }
+.gem-callout-text { color: #e4e0f2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gem-callout-cta {
+  flex-shrink: 0;
+  font-weight: 800;
+  color: #1d1400;
+  background: #f5c518;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: inset -2px -2px 0 #b38600, inset 2px 2px 0 #ffe27a, 0 2px 0 #000;
+}
+
+/* 320×50 : gemme, mention + titre, bouton court */
+.gem-callout--compact { max-width: 320px; height: 50px; gap: 8px; padding: 0 8px; }
+.gem-callout--compact .gem-callout-gem { width: 33px; height: 27px; }
+.gem-callout--compact .gem-callout-title { font-size: 14px; }
+.gem-callout--compact .gem-callout-text { display: none; }
+.gem-callout--compact .gem-callout-cta { font-size: 12px; padding: 6px 9px; }
+
+/* 728×90 : gemme, mention, titre et phrase, bouton complet */
+.gem-callout--wide { max-width: 728px; height: 90px; gap: 18px; padding: 0 20px; }
+.gem-callout--wide .gem-callout-gem { width: 66px; height: 54px; }
+.gem-callout--wide .gem-callout-tag { font-size: 10px; }
+.gem-callout--wide .gem-callout-title { font-size: 22px; }
+.gem-callout--wide .gem-callout-text { font-size: 13px; margin-top: 2px; }
+.gem-callout--wide .gem-callout-cta { font-size: 15px; padding: 11px 18px; }

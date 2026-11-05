@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DIG! Admin</title>
   <link rel="stylesheet" href="admin.css">
+  <link rel="stylesheet" href="/css/gemCallout.css">
 </head>
 <body>
 
@@ -2715,34 +2716,67 @@
       <button class="btn" id="btn-refresh-ads">↻ Rafraîchir</button>
     </div>
     <p id="ad-banner" class="contest-banner"></p>
-    <p class="muted" style="font-size:0.8rem">Tout est désactivé par défaut. Une bannière ne s'affiche que si : interrupteur général activé, régie choisie,
+    <p class="muted adm-help">Tout est désactivé par défaut. Une bannière ne s'affiche que si : interrupteur général activé, régie choisie,
       domaine autorisé, emplacement activé avec son code, <strong>et</strong> consentement du joueur. Le code de la régie tourne dans une iframe isolée
       (sandbox), jamais dans la page du jeu. <code>ADS_DISABLED=1</code> dans l'environnement coupe tout.</p>
 
-    <div class="overview-card">
-      <h3 class="overview-card-title">Réglages généraux</h3>
-      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
-        <label>Régie<select id="ad-provider"><option value="">— aucune —</option></select></label>
-        <label>Domaines autorisés (séparés par des virgules)<input id="ad-hosts" type="text" maxlength="300"></label>
+    <!-- Promotion interne DIG! (demande du 04/11/2026) : sans régie, pilotée séparément. -->
+    <div class="overview-card" id="ad-promo-card">
+      <h3 class="overview-card-title">Promotion interne DIG! → boutique de gemmes</h3>
+      <p class="muted adm-help">Bannière maison, sans régie, sans script tiers et sans demande de consentement. Elle occupe les emplacements
+        hauts quand aucune annonce de régie n'y est servie et ouvre la section Gemmes de la boutique (aucun achat automatique).
+        Indépendante de l'interrupteur de la régie et de <code>ADS_DISABLED</code> ; coupe-circuit propre : <code>PROMO_DISABLED=1</code>.</p>
+      <p id="ad-promo-state" class="adm-state"></p>
+      <div class="adm-toggles">
+        <label class="adm-toggle"><input type="checkbox" id="ad-promo-enabled"> <span>Promotion active</span></label>
+        <label class="adm-toggle"><input type="checkbox" id="ad-promo-hide-top_mobile"> <span>Masquer sur l'écran de minage — mobile 320×50</span></label>
+        <label class="adm-toggle"><input type="checkbox" id="ad-promo-hide-top_desktop"> <span>Masquer sur l'écran de minage — ordinateur 728×90</span></label>
       </div>
-      <label style="display:block;margin-top:8px">Éditeur et contact (affichés sur /legal/confidentialite)
-        <textarea id="ad-contact" rows="3" maxlength="500" style="width:100%"></textarea></label>
-      <label style="display:block;margin-top:8px">ads.txt (laisser vide tant que la régie n'en fournit pas)
-        <textarea id="ad-adstxt" rows="3" maxlength="5000" style="width:100%;font-family:monospace"></textarea></label>
-      <div class="form-actions">
-        <label><input type="checkbox" id="ad-bump"> Redemander le consentement à tous les joueurs</label>
-        <button class="btn" id="btn-ad-settings">Enregistrer</button>
+      <div class="adm-previews">
+        <figure class="adm-preview"><figcaption>Aperçu ordinateur 728×90</figcaption><div class="adm-preview-frame" id="ad-promo-preview-top_desktop"></div></figure>
+        <figure class="adm-preview"><figcaption>Aperçu mobile 320×50</figcaption><div class="adm-preview-frame" id="ad-promo-preview-top_mobile"></div></figure>
       </div>
-      <div class="form-actions">
-        <label><input type="checkbox" id="ad-enabled" data-adm-noguard> Interrupteur général</label>
-        <input id="ad-confirm" data-adm-noguard type="text" maxlength="10" placeholder="Saisir ACTIVER pour activer">
-        <button class="btn" id="btn-ad-toggle">Appliquer l'interrupteur</button>
+      <div class="adm-action-bar">
+        <button class="btn" id="btn-ad-promo" type="button">Enregistrer la promotion</button>
       </div>
-      <p id="ad-settings-msg" class="hidden"></p>
+      <p id="ad-promo-msg" class="hidden" role="status"></p>
     </div>
 
     <div class="overview-card">
-      <h3 class="overview-card-title">Emplacements</h3>
+      <h3 class="overview-card-title">Régie externe — réglages généraux</h3>
+      <div class="adm-grid-2">
+        <label>Régie<select id="ad-provider"><option value="">— aucune —</option></select></label>
+        <label>Domaines autorisés (séparés par des virgules)<input id="ad-hosts" type="text" maxlength="300"></label>
+      </div>
+      <label class="adm-field">Éditeur et contact (affichés sur /legal/confidentialite)
+        <textarea id="ad-contact" rows="3" maxlength="500"></textarea></label>
+      <label class="adm-field">ads.txt (laisser vide tant que la régie n'en fournit pas)
+        <textarea id="ad-adstxt" class="adm-code" rows="3" maxlength="5000"></textarea></label>
+      <div class="adm-toggles">
+        <label class="adm-toggle"><input type="checkbox" id="ad-bump"> <span>Redemander le consentement à tous les joueurs</span></label>
+      </div>
+      <div class="adm-action-bar">
+        <button class="btn" id="btn-ad-settings" type="button">Enregistrer les réglages</button>
+      </div>
+      <p id="ad-settings-msg" class="hidden" role="status"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Régie externe — interrupteur général</h3>
+      <p class="muted adm-help">Activer exige une régie, un domaine autorisé et la saisie <strong>ACTIVER</strong>. Désactiver est immédiat.</p>
+      <div class="adm-toggles">
+        <label class="adm-toggle"><input type="checkbox" id="ad-enabled" data-adm-noguard> <span>Interrupteur général de la régie</span></label>
+      </div>
+      <label class="adm-field adm-field-short">Confirmation
+        <input id="ad-confirm" data-adm-noguard type="text" maxlength="10" placeholder="Saisir ACTIVER pour activer" autocomplete="off"></label>
+      <div class="adm-action-bar">
+        <button class="btn" id="btn-ad-toggle" type="button">Appliquer l'interrupteur</button>
+      </div>
+      <p id="ad-toggle-msg" class="hidden" role="status"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Régie externe — emplacements</h3>
       <div id="ad-slots"></div>
       <p id="ad-slot-msg" class="hidden"></p>
     </div>
@@ -3276,6 +3310,7 @@
 <script src="/js/languages.js"></script>
 <script src="/js/i18n.js"></script>
 <script src="/js/iconLibrary.js"></script>
+<script src="/js/gemCallout.js"></script>
 <div id="nw-print" class="nw-print" aria-hidden="true"></div>
 <script src="admin.js"></script>
 </body>

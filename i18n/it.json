@@ -3196,6 +3196,41 @@
    "by": "claude-opus-5-5 (session #63, relu)",
    "at": "2026-11-04T18:21:40.238Z"
   },
+  "promo.cta": {
+   "text": "Scopri il negozio",
+   "src": "211498652f89",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #45, relu)",
+   "at": "2026-11-05T02:07:00.408Z"
+  },
+  "promo.cta_short": {
+   "text": "Negozio",
+   "src": "a2cd15505aed",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #45, relu)",
+   "at": "2026-11-05T02:11:35.738Z"
+  },
+  "promo.tag": {
+   "text": "Promozione DIG!",
+   "src": "1fea5fd2a21d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #45, relu)",
+   "at": "2026-11-05T02:07:00.408Z"
+  },
+  "promo.text": {
+   "text": "Tutte le offerte di gemme sono nel negozio.",
+   "src": "be0394b54e3d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #45, relu)",
+   "at": "2026-11-05T02:07:00.408Z"
+  },
+  "promo.title": {
+   "text": "Ti servono gemme?",
+   "src": "f6fd20c349d8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #45, relu)",
+   "at": "2026-11-05T02:07:00.408Z"
+  },
   "quest.break10.desc": {
    "text": "Rompi 10 blocchi",
    "src": "30610ba0abeb",

@@ -1780,6 +1780,10 @@ app.put('/api/admin/ads/settings', requireAdmin, adsRoute('PUT /api/admin/ads/se
   ads.updateSettings(req.body || {});
   return ads.adminView(req.hostname);
 }));
+app.put('/api/admin/ads/promo', requireAdmin, adsRoute('PUT /api/admin/ads/promo', req => {
+  ads.updatePromo(req.body || {});
+  return ads.adminView(req.hostname);
+}));
 app.put('/api/admin/ads/slots/:slot', requireAdmin, adsRoute('PUT /api/admin/ads/slots/:slot', req => {
   ads.updateSlot(req.params.slot, req.body || {});
   return ads.adminView(req.hostname);

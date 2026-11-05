@@ -7,6 +7,8 @@
  *   robots.txt la désindexe sans redirection ;
  * - cadre isolé : CSP à nonce, aucune clé dans la configuration publique, compteur technique ;
  * - page du jeu : aucun script tiers, iframe sandbox sans allow-same-origin ;
+ * - promotion interne DIG! (04/11) : désactivée par défaut, indépendante de la régie et
+ *   d'ADS_DISABLED, coupe-circuit PROMO_DISABLED, aucun cadre ni script tiers, migration additive ;
  * - routes HTTP (serveur de test, port ≠ 3000, base temporaire).
  * Lancer : npm test
  */
@@ -57,10 +59,73 @@ test('par défaut : tout est désactivé', () => {
   assert.strictEqual(s.enabled, false);
   assert.deepStrictEqual(s.allowedHosts, [OFFICIAL]);
   assert.ok(ads.getSlots().every(x => !x.enabled && !x.configured));
-  assert.deepStrictEqual(ads.publicConfig(OFFICIAL), { enabled: false, reason: 'disabled', consentVersion: 1, slots: [] });
+  assert.deepStrictEqual(ads.publicConfig(OFFICIAL), { enabled: false, reason: 'disabled', consentVersion: 1, slots: [], promo: null });
   assert.strictEqual(ads.frameDocument('top_mobile', OFFICIAL), null);
   assert.strictEqual(ads.adsTxt(OFFICIAL), null);
   assert.strictEqual(ads.isAdFree(1), false);
+});
+
+test('promotion interne : désactivée par défaut, pilotée à part, coupe-circuits distincts', () => {
+  assert.strictEqual(ads.getSettings().promoEnabled, false);
+  assert.deepStrictEqual(ads.getSlots().map(s => [s.slot, s.promoHideOnDig]), [['top_mobile', true], ['top_desktop', false]],
+    'reprend le réglage « masquer sur l\'écran de minage » existant');
+  assert.strictEqual(ads.publicConfig(OFFICIAL).promo, null);
+
+  const st = ads.updatePromo({ enabled: true });
+  assert.strictEqual(st.enabled, true);
+  for (const host of [OFFICIAL, ALT]) {
+    const cfg = ads.publicConfig(host);
+    assert.strictEqual(cfg.enabled, false, 'la régie reste coupée');
+    assert.deepStrictEqual(cfg.slots, []);
+    assert.deepStrictEqual(cfg.promo, { campaign: 'gems_shop', slots: [
+      { slot: 'top_mobile', width: 320, height: 50, hideOnDig: true },
+      { slot: 'top_desktop', width: 728, height: 90, hideOnDig: false }] });
+  }
+  assert.strictEqual(ads.frameDocument('top_mobile', OFFICIAL), null, 'aucun cadre de régie pour la promotion');
+
+  process.env.ADS_DISABLED = '1';
+  try { assert.ok(ads.publicConfig(OFFICIAL).promo, 'ADS_DISABLED ne coupe pas la promotion interne'); }
+  finally { delete process.env.ADS_DISABLED; }
+  process.env.PROMO_DISABLED = '1';
+  try {
+    assert.strictEqual(ads.publicConfig(OFFICIAL).promo, null);
+    assert.strictEqual(ads.promoState().killSwitch, true);
+  } finally { delete process.env.PROMO_DISABLED; }
+
+  ads.updatePromo({ hideOnDig: { top_mobile: false, top_desktop: true } });
+  assert.deepStrictEqual(ads.publicConfig(OFFICIAL).promo.slots.map(s => s.hideOnDig), [false, true]);
+  assert.deepStrictEqual(ads.getSlots().map(s => s.hideOnDig), [true, false], 'réglage de la régie inchangé');
+  assert.throws(() => ads.updatePromo({ hideOnDig: { sidebar: true } }), /inconnu/);
+  db.initDb();   // migration rejouée : idempotente, les réglages restent
+  assert.deepStrictEqual(ads.getSlots().map(s => s.promoHideOnDig), [false, true]);
+  assert.strictEqual(ads.getSettings().promoEnabled, true);
+
+  ads.updatePromo({ enabled: false, hideOnDig: { top_mobile: true, top_desktop: false } });
+  assert.strictEqual(ads.publicConfig(OFFICIAL).promo, null);
+});
+
+test('migration : base existante sans colonnes de promotion, réglages conservés', () => {
+  const file = path.join(dir, 'old.sqlite');
+  const Database = require('better-sqlite3');
+  const old = new Database(file);
+  old.exec(`CREATE TABLE ad_settings (id INTEGER PRIMARY KEY CHECK (id = 1), enabled INTEGER NOT NULL DEFAULT 0,
+      provider TEXT NOT NULL DEFAULT '', allowed_hosts TEXT NOT NULL DEFAULT '["dig.lodygames.com"]',
+      consent_version INTEGER NOT NULL DEFAULT 1, ads_txt TEXT NOT NULL DEFAULT '', legal_contact TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+    INSERT INTO ad_settings (id, legal_contact) VALUES (1, 'Éditeur');
+    CREATE TABLE ad_slots (slot TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0, ad_key TEXT NOT NULL DEFAULT '',
+      script_url TEXT NOT NULL DEFAULT '', hide_on_dig INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+    INSERT INTO ad_slots (slot, hide_on_dig) VALUES ('top_mobile', 0), ('top_desktop', 1);`);
+  old.close();
+  const { execFileSync } = require('child_process');
+  const out = execFileSync(process.execPath, ['-e', `
+    const db = require('./server/db'); db.initDb(); db.initDb();
+    const ads = require('./server/ads');
+    console.log(JSON.stringify([ads.getSettings().legalContact, ads.getSettings().promoEnabled,
+      ads.getSlots().map(s => [s.slot, s.hideOnDig, s.promoHideOnDig])]));`],
+  { cwd: ROOT, env: { ...process.env, DB_FILE: file }, encoding: 'utf8' });
+  assert.deepStrictEqual(JSON.parse(out.trim().split('\n').pop()),
+    ['Éditeur', false, [['top_mobile', false, false], ['top_desktop', true, true]]]);
 });
 
 test('analyse du code GET CODE', () => {
@@ -152,6 +217,16 @@ test('page du jeu : aucun script tiers, bannière en iframe sandbox', () => {
   assert.match(js, /'sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox'/);
   assert.ok(!/allow-same-origin|allow-top-navigation/.test(js.replace(/^\s*(\*|\/\/).*$/gm, '')));
   assert.ok(!/setInterval|setTimeout/.test(js), 'aucun rafraîchissement programmé de la bannière');
+  // Promotion interne : création locale, aucune ressource distante, chargée avant ads.js
+  assert.ok(html.indexOf('js/gemCallout.js') < html.indexOf('js/ads.js'));
+  assert.match(html, /<link rel="stylesheet" href="css\/gemCallout\.css">/);
+  const callout = fs.readFileSync(path.join(ROOT, 'public/js/gemCallout.js'), 'utf8')
+    + fs.readFileSync(path.join(ROOT, 'public/css/gemCallout.css'), 'utf8');
+  assert.ok(!/https?:\/\/|url\(/.test(callout), 'aucune ressource distante dans la création');
+  assert.match(js, /switchView\('shop'\)/);
+  assert.match(js, /getElementById\('shop-gems-anchor'\)/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8'), /class="section-divider" id="shop-gems-anchor"/);
+  assert.ok(!/['"#]ad-top/.test(js), 'conteneur neutre (#top-strip), ignoré des filtres cosmétiques');
 });
 
 function get(urlPath, { host, headers = {} } = {}) {
@@ -203,6 +278,14 @@ test('routes HTTP : public, cadre, ads.txt, robots, page légale, admin', async 
   assert.strictEqual(r.status, 200, 'adresse alternative servie directement, sans redirection');
 
   assert.strictEqual((await send('GET', '/api/admin/ads', undefined, { auth: false })).status, 401);
+  assert.strictEqual((await send('PUT', '/api/admin/ads/promo', { enabled: true }, { auth: false })).status, 401);
+  r = await send('PUT', '/api/admin/ads/promo', { enabled: true });
+  assert.deepStrictEqual([r.status, r.body.promo.enabled, r.body.settings.enabled], [200, true, false]);
+  r = JSON.parse((await get('/api/ads/config', { host: OFFICIAL })).body);
+  assert.deepStrictEqual([r.enabled, r.promo.campaign, r.promo.slots.length], [false, 'gems_shop', 2]);
+  assert.strictEqual((await get('/ads/frame/top_desktop', { host: OFFICIAL })).status, 404, 'promotion : aucun cadre');
+  r = await send('PUT', '/api/admin/ads/promo', { enabled: false });
+  assert.strictEqual(r.body.promo.enabled, false);
   r = await send('PUT', '/api/admin/ads/slots/top_mobile', { snippet: snippet(KEY_M, 320, 50), enabled: true });
   assert.strictEqual(r.status, 200);
   r = await send('PUT', '/api/admin/ads/slots/top_desktop', { snippet: snippet(KEY_M, 320, 50) });

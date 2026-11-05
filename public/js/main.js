@@ -3445,7 +3445,7 @@ function renderShop() {
       <div class="shop-balance-sub">${t('shop.balance_label')}</div>
     </div>
     ${_shopGuideHtml('gems')}
-    <div class="section-divider"><span>${t('shop.section_gems')}</span></div>
+    <div class="section-divider" id="shop-gems-anchor"><span>${t('shop.section_gems')}</span></div>
     <div class="shop-grid" id="shop-grid-gems"></div>
     ${_pickaxeShopHtml()}
     <div class="section-divider"><span>${t('shop.section_boosts')}</span></div>

@@ -7759,6 +7759,7 @@ function adMessage(id, text, ok) {
 
 // Réglages et codes collés non enregistrés conservés au rechargement (#61) ; interrupteur général hors suivi.
 const _adSetZone = admZone(document.getElementById('ad-provider').closest('.overview-card'));
+const _adPromoZone = admZone(document.getElementById('ad-promo-card'));
 const _adSlotsZone = admZone(document.getElementById('ad-slots'), {
   dirty: () => [...document.querySelectorAll('#ad-slots textarea')].some(t => t.value.trim()),
 });
@@ -7784,6 +7785,7 @@ function renderAds(data, savedSlot = null) {
   }
   document.getElementById('ad-enabled').checked = s.enabled;
   document.getElementById('ad-confirm').value = '';
+  renderAdPromo(data.promo);
 
   const box = document.getElementById('ad-slots');
   // Code collé dans un autre emplacement (jamais réaffiché par le serveur) : conservé au re-rendu.
@@ -7791,26 +7793,29 @@ function renderAds(data, savedSlot = null) {
   box.textContent = '';
   for (const slot of data.slots) {
     const card = document.createElement('div');
-    card.className = 'overview-card';
+    card.className = 'overview-card adm-slot';
     const title = document.createElement('h4');
     title.textContent = `${slot.label} — ${slot.enabled ? 'activé' : 'désactivé'} — ${slot.configured ? `code enregistré (clé …${slot.adKey.slice(-6)}, script ${slot.scriptHost})` : 'aucun code'}`;
     card.appendChild(title);
     const ta = document.createElement('textarea');
-    ta.rows = 4; ta.style.width = '100%'; ta.style.fontFamily = 'monospace';
+    ta.rows = 4; ta.className = 'adm-code';
+    ta.setAttribute('aria-label', `Code de l\u2019unité — ${slot.label}`);
     ta.placeholder = 'Coller ici le code « GET CODE » de l\u2019unité (atOptions + script). Il est analysé, jamais exécuté dans le panel.';
     ta.dataset.slot = slot.slot;
     if (String(slot.slot) !== String(savedSlot) && pasted[slot.slot]) ta.value = pasted[slot.slot];
     card.appendChild(ta);
+    // Recette du 04/11 : case et libellé sur une même ligne cliquable, actions regroupées dessous.
     const row = document.createElement('div');
-    row.className = 'form-actions';
+    row.className = 'adm-toggles';
     const mk = (labelText, checked) => {
-      const l = document.createElement('label'); const c = document.createElement('input');
-      c.type = 'checkbox'; c.checked = checked; l.append(c, ` ${labelText}`); row.appendChild(l); return c;
+      const l = document.createElement('label'); const c = document.createElement('input'); const span = document.createElement('span');
+      l.className = 'adm-toggle'; c.type = 'checkbox'; c.checked = checked; span.textContent = labelText;
+      l.append(c, span); row.appendChild(l); return c;
     };
     const en = mk('Emplacement activé', slot.enabled);
     const hide = mk('Masquer sur l\u2019écran de minage', slot.hideOnDig);
     const save = document.createElement('button');
-    save.className = 'btn'; save.textContent = 'Enregistrer';
+    save.type = 'button'; save.className = 'btn'; save.textContent = 'Enregistrer l\u2019emplacement';
     save.addEventListener('click', async () => {
       const { ok, data: d } = await api('PUT', `/api/admin/ads/slots/${slot.slot}`, { snippet: ta.value, enabled: en.checked, hideOnDig: hide.checked });
       if (!ok) return adMessage('ad-slot-msg', d.error || 'Erreur.', false);
@@ -7818,15 +7823,20 @@ function renderAds(data, savedSlot = null) {
       renderAds(d, slot.slot);
     });
     const clear = document.createElement('button');
-    clear.className = 'btn-ghost'; clear.textContent = 'Effacer le code';
+    clear.type = 'button'; clear.className = 'btn btn-outline'; clear.textContent = 'Effacer le code';
+    clear.disabled = !slot.configured;
     clear.addEventListener('click', async () => {
       if (!await admAsk('Effacer le code de cet emplacement (il sera désactivé) ?')) return;
       const { ok, data: d } = await api('PUT', `/api/admin/ads/slots/${slot.slot}`, { clearCode: true, enabled: false });
       if (!ok) return adMessage('ad-slot-msg', d.error || 'Erreur.', false);
       renderAds(d, slot.slot);
     });
-    row.append(save, clear);
-    card.appendChild(row);
+    const actions = document.createElement('div');
+    actions.className = 'adm-action-bar';
+    const spacer = document.createElement('span');
+    spacer.className = 'adm-action-spacer';
+    actions.append(clear, spacer, save);
+    card.append(row, actions);
     box.appendChild(card);
   }
 
@@ -7847,6 +7857,39 @@ function renderAds(data, savedSlot = null) {
     sb.appendChild(tr);
   }
 }
+
+// Promotion interne DIG! (04/11) : état, réglages et aperçu aux deux tailles (même création que le jeu).
+function renderAdPromo(promo) {
+  const state = document.getElementById('ad-promo-state');
+  state.textContent = promo.killSwitch ? '⛔ Coupée par PROMO_DISABLED (environnement).'
+    : promo.enabled ? '✅ Promotion ACTIVE : visible dans les emplacements hauts sans annonce de régie.'
+    : '🔒 Promotion désactivée : rien ne s\u2019affiche.';
+  if (!admZoneDirty(_adPromoZone)) {
+    document.getElementById('ad-promo-enabled').checked = promo.enabled;
+    for (const sl of promo.slots) document.getElementById(`ad-promo-hide-${sl.slot}`).checked = sl.hideOnDig;
+    admZoneClean(_adPromoZone);
+  }
+  const fr = k => (typeof I18n !== 'undefined' && I18n.get(`promo.${k}`, 'fr')) || k;
+  const labels = { tag: fr('tag'), title: fr('title'), text: fr('text'), cta: fr('cta'), ctaShort: fr('cta_short') };
+  for (const sl of promo.slots) {
+    const frame = document.getElementById(`ad-promo-preview-${sl.slot}`);
+    if (!frame || typeof DigGemCallout === 'undefined') continue;
+    frame.textContent = '';
+    frame.appendChild(DigGemCallout.create(sl.slot, labels));
+  }
+}
+
+document.getElementById('btn-ad-promo').addEventListener('click', async () => {
+  const hideOnDig = Object.fromEntries(['top_mobile', 'top_desktop']
+    .map(sl => [sl, document.getElementById(`ad-promo-hide-${sl}`).checked]));
+  const { ok, data } = await api('PUT', '/api/admin/ads/promo', {
+    enabled: document.getElementById('ad-promo-enabled').checked, hideOnDig,
+  });
+  if (!ok) return adMessage('ad-promo-msg', data.error || 'Erreur.', false);
+  adMessage('ad-promo-msg', data.promo.enabled ? 'Promotion enregistrée — ACTIVE pour les joueurs (au prochain chargement de page).' : 'Promotion enregistrée — désactivée.', true);
+  admZoneClean(_adPromoZone);
+  renderAds(data);
+});
 
 async function loadAds() {
   const { ok, data } = await api('GET', '/api/admin/ads');
@@ -7875,8 +7918,8 @@ document.getElementById('btn-ad-toggle').addEventListener('click', async () => {
     enabled: document.getElementById('ad-enabled').checked,
     confirm: document.getElementById('ad-confirm').value.trim(),
   });
-  if (!ok) return adMessage('ad-settings-msg', data.error || 'Erreur.', false);
-  adMessage('ad-settings-msg', data.settings.enabled ? 'Interrupteur général ACTIVÉ.' : 'Interrupteur général désactivé.', true);
+  if (!ok) return adMessage('ad-toggle-msg', data.error || 'Erreur.', false);
+  adMessage('ad-toggle-msg', data.settings.enabled ? 'Interrupteur général ACTIVÉ.' : 'Interrupteur général désactivé.', true);
   renderAds(data);
 });
 
