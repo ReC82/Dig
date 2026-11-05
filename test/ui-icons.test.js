@@ -89,7 +89,7 @@ test('raccordement : chaque pictogramme déployable est lu par le jeu au bon end
   }
   // Missions du jour : emblèmes du catalogue #68 (mission:<id>), lus par le jeu sous mission_<id>, sans doublon ui:
   assert.ok(!UI_TARGETS.some(u => u.id.startsWith('mission_')), 'pas de cible ui:mission_* (doublon de #68)');
-  assert.match(main, /UiIcons\.html\(`mission_\$\{def\.id\}`/);
+  assert.match(main, /UiIcons\.html\(`mission_\$\{(def|m)\.id\}`/);
   for (const id of ['break_blocks', 'earn_coins', 'open_chests', 'buy_upgrades', 'find_gems', 'depth_gain']) assert.ok(missions.includes(`id: '${id}'`));
   // Emplacements exacts : la cible Collection est l'onglet de navigation, pas un objet de collection
   assert.match(html, /data-view="collection"[\s\S]{0,200}<span class="nav-icon" data-ui-icon="collection">📦<\/span>/);

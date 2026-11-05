@@ -71,6 +71,46 @@ const DailyMissions = {
     },
   ],
 
+  // ── Missions attribuées par le serveur (#68, étape B) ─────────────────────
+  // `_live` = vue de GET /api/me/missions quand le drapeau serveur est actif pour ce joueur ; sinon
+  // null et tout le reste de ce fichier fonctionne comme avant (missions calculées ici).
+  _live: null,
+
+  /** Compteur local suivi par un type de mission du catalogue serveur. */
+  _COUNTER: { break_blocks: 'blocksDestroyed', earn_coins: 'totalCoinsEarned', open_chests: 'chestsFound',
+    buy_upgrades: 'totalUpgradesBought', find_gems: 'gemsFound', depth_gain: 'depth' },
+
+  setLive(view) { this._live = view && view.live === true && Array.isArray(view.missions) ? view : null; },
+  isLive() { return !!this._live; },
+
+  _counter(type) {
+    const k = this._COUNTER[type];
+    if (!k) return 0;
+    return k === 'depth' ? GameState.depth : (GameState.stats[k] ?? 0);
+  },
+
+  /** Texte du catalogue dans la langue courante (repli : français), {t} = objectif, {s} = pluriel. */
+  _text(map, n) {
+    const lang = (typeof I18n !== 'undefined' && I18n.getCurrent) ? I18n.getCurrent() : 'fr';
+    const str = (map && (map[lang] || map.fr)) || '';
+    return str.replace(/\{t\}/g, n).replace(/\{s\}/g, n > 1 ? 's' : '');
+  },
+
+  /** Missions à afficher (serveur ou navigateur), même forme pour le rendu. */
+  items() {
+    if (this._live) {
+      return this._live.missions.map((m, idx) => ({
+        idx, id: m.id, icon: m.icon, image: m.image, name: this._text(m.names, m.target), desc: this._text(m.descs, m.target),
+        target: m.target, reward: m.reward, claimed: m.claimed,
+      }));
+    }
+    return GameState.dailyMissions.missions.map((m, idx) => {
+      const def = this.getDef(m.id);
+      if (!def) return null;
+      return { idx, id: def.id, icon: def.icon, image: null, name: t(def.name), desc: def.descFn(m.target), target: m.target, reward: m.reward, claimed: m.claimed };
+    }).filter(Boolean);
+  },
+
   // ── Génération déterministe ───────────────────────────────────────────────
 
   /** Hash stable d'une chaîne → entier non signé 32 bits. */
@@ -119,6 +159,7 @@ const DailyMissions = {
    * Idempotent : peut être appelé à tout moment sans effet de bord si le jour n'a pas changé.
    */
   refresh() {
+    if (this._live) return;   // missions du serveur : rechargées par main.js (_loadLiveMissions)
     const today = Daily.getToday();
     const dm    = GameState.dailyMissions;
 
@@ -140,6 +181,13 @@ const DailyMissions = {
 
   /** Retourne la progression actuelle pour la mission à l'index `idx` (plafonnée à target). */
   getProgress(idx) {
+    if (this._live) {
+      // Progression serveur (dernière sauvegarde) + gain local depuis ; la réclamation est vérifiée par le serveur
+      const m = this._live.missions[idx];
+      if (!m) return 0;
+      if (m.claimed) return m.target;
+      return Math.max(0, Math.min(m.progress + Math.max(0, this._counter(m.type) - m.base), m.target));
+    }
     const dm   = GameState.dailyMissions;
     const m    = dm.missions[idx];
     const base = dm.baselineStats;
@@ -161,6 +209,14 @@ const DailyMissions = {
    * La progression du jour déjà acquise est conservée au lieu de devenir négative (B11).
    */
   rebase(statKey, newValue) {
+    if (this._live) {
+      // Gain local pas encore sauvegardé conservé ; le serveur ne retire jamais une progression acquise
+      for (const m of this._live.missions) {
+        if (this._COUNTER[m.type] !== statKey) continue;
+        m.progress = Math.min(m.target, m.progress + Math.max(0, this._counter(m.type) - m.base));
+        m.base = newValue;
+      }
+    }
     const base = GameState.dailyMissions.baselineStats;
     if (!base || !(statKey in base)) return;
     const current = (statKey === 'depth') ? GameState.depth : (GameState.stats[statKey] ?? 0);
@@ -169,12 +225,14 @@ const DailyMissions = {
   },
 
   isDone(idx) {
+    if (this._live) { const m = this._live.missions[idx]; return !!m && this.getProgress(idx) >= m.target; }
     const m = GameState.dailyMissions.missions[idx];
     return !!m && this.getProgress(idx) >= m.target;
   },
 
   /** Retourne true si au moins une mission est terminée et non encore réclamée. */
   hasUnclaimedCompleted() {
+    if (this._live) return this._live.missions.some((m, i) => !m.claimed && this.isDone(i));
     return GameState.dailyMissions.missions.some((_, i) => !GameState.dailyMissions.missions[i].claimed && this.isDone(i));
   },
 
@@ -185,6 +243,7 @@ const DailyMissions = {
    * @returns {{ coins, gems } | null}  null si non éligible ou déjà réclamée.
    */
   claim(idx) {
+    if (this._live) return null;   // réclamation par le serveur uniquement (POST /api/me/missions/claim)
     const m = GameState.dailyMissions.missions[idx];
     if (!m || m.claimed || !this.isDone(idx)) return null;
 

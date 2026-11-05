@@ -1536,15 +1536,13 @@ function renderDailyMissions() {
   const list = document.getElementById('daily-missions-list');
   if (!list) return;
 
-  DailyMissions.refresh();      // génère / actualise si nouveau jour
+  DailyMissions.refresh();      // génère / actualise si nouveau jour (missions du navigateur)
+  _loadLiveMissions();          // missions du serveur si le drapeau est actif pour ce compte (#68)
 
   list.innerHTML = '';
-  const missions = GameState.dailyMissions.missions;
 
-  missions.forEach((m, idx) => {
-    const def = DailyMissions.getDef(m.id);
-    if (!def) return;
-
+  DailyMissions.items().forEach(m => {
+    const idx      = m.idx;
     const progress = DailyMissions.getProgress(idx);
     const pct      = Math.min(100, m.target > 0 ? Math.round((progress / m.target) * 100) : 100);
     const done     = DailyMissions.isDone(idx);
@@ -1553,15 +1551,19 @@ function renderDailyMissions() {
     const rewardParts = [];
     if (m.reward.coins > 0) rewardParts.push(`${UiIcons.html('pieces', '💰')}\u202f${m.reward.coins}`);
     if (m.reward.gems  > 0) rewardParts.push(`${UiIcons.html('gemmes', '💎')}\u202f${m.reward.gems}`);
+    // Image du catalogue (#68, chemin validé par le serveur) sinon pictogramme appliqué ou emoji
+    const icon = m.image
+      ? `<img class="ui-ico" src="${escapeHtml(m.image)}" alt="" aria-hidden="true" draggable="false">`
+      : UiIcons.html(`mission_${m.id}`, m.icon);
 
     const card = document.createElement('div');
     card.className = `mission-card${claimed ? ' mission-claimed' : done ? ' mission-done' : ''}`;
     card.innerHTML = `
       <div class="mission-header">
-        <span class="mission-icon">${UiIcons.html(`mission_${def.id}`, def.icon)}</span>
+        <span class="mission-icon">${icon}</span>
         <div class="mission-info">
-          <div class="mission-name">${t(def.name)}</div>
-          <div class="mission-desc">${def.descFn(m.target)}</div>
+          <div class="mission-name">${escapeHtml(m.name)}</div>
+          <div class="mission-desc">${escapeHtml(m.desc)}</div>
         </div>
         <div class="mission-count">${claimed ? '✓' : t('ui.mission_progress', { done: progress, target: m.target })}</div>
       </div>
@@ -1578,22 +1580,92 @@ function renderDailyMissions() {
       </div>`;
 
     if (done && !claimed) {
-      card.querySelector('.mission-claim-btn').addEventListener('click', () => {
+      const btn = card.querySelector('.mission-claim-btn');
+      btn.addEventListener('click', () => {
+        if (DailyMissions.isLive()) { _claimLiveMission(idx, btn); return; }
         const reward = DailyMissions.claim(idx);
         if (!reward) return;
-        const parts = [];
-        if (reward.coins > 0) parts.push(`💰 ${reward.coins}`);
-        if (reward.gems  > 0) parts.push(`💎 ${reward.gems}`);
-        showAchievement('🎯', t('notif.mission_done', { parts: parts.join(' + ') }));
-        renderDailyMissions();
-        renderStats();
-        updateDailyBadge();
-        Save.save();
+        _afterMissionClaim(reward);
       });
     }
 
     list.appendChild(card);
   });
+}
+
+function _afterMissionClaim(reward) {
+  const parts = [];
+  if (reward.coins > 0) parts.push(`💰 ${reward.coins}`);
+  if (reward.gems  > 0) parts.push(`💎 ${reward.gems}`);
+  showAchievement('🎯', t('notif.mission_done', { parts: parts.join(' + ') }));
+  renderDailyMissions();
+  renderStats();
+  updateDailyBadge();
+  Save.save();
+}
+
+// ── Missions du serveur (#68, étape B) ────────────────────────────────────────
+// Drapeau OFF par défaut : GET /api/me/missions répond { live: false } et rien ne change.
+
+let _liveMissionsAt   = 0;
+let _liveMissionsBusy = false;
+
+/** Recharge la vue serveur (au plus toutes les 30 s, sauf `force`). Invité : missions du navigateur. */
+async function _loadLiveMissions(force = false) {
+  if (!_account) { if (DailyMissions.isLive()) { DailyMissions.setLive(null); updateDailyBadge(); } return; }
+  if (_liveMissionsBusy || (!force && Date.now() - _liveMissionsAt < 30_000)) return;
+  _liveMissionsBusy = true;
+  _liveMissionsAt = Date.now();
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/me/missions');
+    if (!ok) return;
+    const was = DailyMissions.isLive();
+    DailyMissions.setLive(data);
+    if (was || DailyMissions.isLive()) {
+      if (isViewActive('daily')) { const l = document.getElementById('daily-missions-list'); if (l) _renderMissionsOnly(); }
+      updateDailyBadge();
+    }
+  } catch (_) { /* réseau : on garde l'état connu */ }
+  finally { _liveMissionsBusy = false; }
+}
+
+/** Rendu sans relancer de chargement (évite une boucle avec _loadLiveMissions). */
+function _renderMissionsOnly() {
+  const at = _liveMissionsAt;
+  _liveMissionsAt = Date.now();
+  renderDailyMissions();
+  _liveMissionsAt = at;
+}
+
+/** Réclamation vérifiée par le serveur : sauvegarde d'abord envoyée, puis une seule réclamation. */
+async function _claimLiveMission(idx, btn) {
+  const live = DailyMissions._live;
+  const m = live?.missions[idx];
+  if (!m || m.claimed) return;
+  if (btn) btn.disabled = true;
+  Save.save();
+  if (await _syncToCloud() === 'adopted') { await _loadLiveMissions(true); return; }
+  const { ok, status, data } = await _apiFetch('POST', '/api/me/missions/claim', { slot: m.slot, day: live.day, controllerId: _tabId });
+  if (!ok) {
+    if (status === 409 && data?.notController) { _lockPlay(data.adminReset ? 'reset' : 'device'); return; }
+    showAchievement('❌', data?.error ?? t('ui.shop_chest_error'));
+    await _loadLiveMissions(true);
+    return;
+  }
+  if (data.replayed) {
+    // Déjà réclamée (autre onglet ou appareil) : l'état du serveur fait foi
+    GameState.coins = data.newCoins;
+    GameState.gems  = data.newGems;
+  } else {
+    // Gains locaux faits pendant la requête conservés : on ajoute seulement la récompense
+    GameState.addCoins(data.reward.coins);
+    GameState.gems += data.reward.gems;
+  }
+  if (data.revision) _setCloudMeta(data.revision);
+  m.claimed = true;
+  m.reward = data.reward;
+  if (data.replayed) { _renderMissionsOnly(); renderStats(); updateDailyBadge(); Save.save(); return; }
+  _afterMissionClaim(data.reward);
 }
 
 // ── API comptes ───────────────────────────────────────────────────────────────
@@ -1622,6 +1694,7 @@ async function _fetchMe() {
     if (_account) await _syncAfterLogin(_socialResult === 'ok');
   } catch (_) {
     _account = null;
+    DailyMissions.setLive(null);
   }
   if (isViewActive('settings')) renderSettings();
   if (isViewActive('profile'))  renderProfile();
@@ -1701,6 +1774,7 @@ async function _doLogout() {
   DigNews.refresh();   // invité : non lues suivies dans le navigateur (#50)
   _account    = null;
   _cloudReady = false;
+  DailyMissions.setLive(null);   // invité : missions du navigateur (#68)
   _clearCloudMeta();
   Save.purge();
   NotifLog.clear();   // appareil partagé : le joueur suivant ne voit pas l'historique (#26)
@@ -1933,6 +2007,7 @@ async function _syncAfterLogin(forceCloud = false) {
       if (!localStorage.getItem(Save.KEY)) Save.writeLocal();
       await _syncToCloud();
     }
+    _loadLiveMissions(true);   // missions du serveur (#68) si le drapeau est actif pour ce compte
   } catch (_) { /* silencieux */ }
 }
 

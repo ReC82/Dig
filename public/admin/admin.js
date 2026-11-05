@@ -11936,7 +11936,78 @@ async function loadMissions() {
   mqRenderRotation();
   mqRenderVersions();
   loadMissionAudit();
+  loadMissionActivation();
 }
+
+// ── Activation en jeu (#68, étape B) : drapeau off / pilot / on ───────────────
+const MQ_ACT_LABELS = { off: 'désactivé — jeu inchangé', pilot: 'pilote — comptes listés seulement', on: 'actif pour tous les joueurs' };
+
+function mqRenderActivation(data) {
+  const st = data.settings;
+  document.getElementById('mq-act-state').textContent = `— ${MQ_ACT_LABELS[st.mode] ?? st.mode}${st.mode === 'pilot' ? ` (${st.pilots.length} compte(s))` : ''}`;
+  document.getElementById('mq-act-mode').value = st.mode;
+  document.getElementById('mq-act-pilots').value = st.pilots.join(', ');
+  const ul = document.getElementById('mq-act-audit');
+  ul.textContent = '';
+  for (const e of data.audit) {
+    const d = e.details ?? {};
+    ul.appendChild(aiEl('li', {}, `${admBrussels(e.createdAt)} — ${d.from ?? '?'} → ${d.to ?? '?'}${d.pilots ? ` · pilotes : ${d.pilots.join(', ') || 'aucun'}` : ''}${d.note ? ` · « ${d.note} »` : ''}`));
+  }
+  if (!data.audit.length) ul.appendChild(aiEl('li', { class: 'muted' }, 'Aucun changement : désactivé depuis l\'origine.'));
+  const notice = document.getElementById('mq-live');
+  if (st.mode === 'pilot') {
+    notice.classList.remove('hidden');
+    notice.textContent = `Mode pilote : seuls ${st.pilots.join(', ') || 'aucun compte'} reçoivent les missions du serveur (version publiée). Tous les autres joueurs gardent les six missions actuelles.`;
+  }
+}
+
+async function loadMissionActivation() {
+  const { ok, data } = await api('GET', '/api/admin/missions/live');
+  if (!ok) { ptMessage('mq-act-msg', data.error || 'Erreur lors du chargement de l\'activation.', false); return; }
+  mqRenderActivation(data);
+}
+
+document.getElementById('btn-mq-act-save').addEventListener('click', async () => {
+  const mode = document.getElementById('mq-act-mode').value;
+  const pilots = document.getElementById('mq-act-pilots').value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+  const impact = mode === 'on'
+    ? ['Tous les joueurs connectés recevront les missions de la version publiée, attribuées et réclamées par le serveur.',
+      'Réservé à la décision du propriétaire sur le barème (#68, #49). Réversible : repasser en « Désactivé ».']
+    : mode === 'pilot'
+      ? [`Seuls ces comptes reçoivent les missions du serveur : ${pilots.join(', ') || 'aucun'}.`, 'Les autres joueurs ne voient aucun changement. Réversible.']
+      : ['Tous les joueurs reviennent aux missions calculées par leur navigateur. Les réclamations déjà faites restent acquises.'];
+  let note = '';
+  if (mode === 'on') {
+    const v = await admPrompt({ title: 'Activer pour tous les joueurs ?', text: impact.join(' '), label: 'Note (décision, obligatoire)', ok: 'Activer pour tous' });
+    if (v == null) return;
+    note = v;
+  } else if (!await admConfirm({ title: `Enregistrer : ${MQ_ACT_LABELS[mode]} ?`, impact, ok: 'Enregistrer' })) return;
+  const { ok, data } = await api('PUT', '/api/admin/missions/live', { mode, pilots, note });
+  if (!ok) { ptMessage('mq-act-msg', data.error || 'Erreur.', false); return; }
+  mqRenderActivation(data);
+  ptMessage('mq-act-msg', `Enregistré : ${MQ_ACT_LABELS[data.settings.mode]}.`, true);
+});
+
+document.getElementById('btn-mq-act-inspect').addEventListener('click', async () => {
+  const out = document.getElementById('mq-act-out');
+  const name = document.getElementById('mq-act-user').value.trim();
+  out.textContent = '';
+  if (!name) { out.textContent = 'Saisissez un nom de joueur.'; return; }
+  const { ok, data } = await api('GET', `/api/admin/missions/live/player?username=${encodeURIComponent(name)}`);
+  if (!ok) { out.appendChild(aiEl('p', { class: 'error' }, data.error || 'Erreur.')); return; }
+  out.appendChild(aiEl('p', {}, `${data.username} — ${data.live ? 'reçoit les missions du serveur' : 'missions du navigateur (non concerné par l\'activation)'} · journée ${data.day} (Bruxelles)`));
+  if (!data.today) { out.appendChild(aiEl('p', { class: 'muted' }, 'Aucune mission attribuée par le serveur aujourd\'hui.')); }
+  else {
+    const p = data.today.profile;
+    out.appendChild(aiEl('p', { class: 'muted' }, `Version ${data.today.catalogVersion} · profil à l'attribution : ${p.depth} m, compte de ${p.accountDays} jour(s)`));
+    const ul = aiEl('ul');
+    for (const m of data.today.missions) {
+      ul.appendChild(aiEl('li', {}, `${m.id} : ${m.progress}/${m.target} — 💰 ${m.reward.coins}${m.reward.gems ? ` + 💎 ${m.reward.gems}` : ''} — ${m.claimed ? 'réclamée' : m.progress >= m.target ? 'terminée, à réclamer' : 'en cours'}${m.claimDetails?.overValidated ? ' ⚠ gain déclaré supérieur aux blocs validés (observation)' : ''}`));
+    }
+    out.appendChild(ul);
+  }
+  if (data.history.length) out.appendChild(aiEl('p', { class: 'muted' }, `7 derniers jours : ${data.history.map(h => `${h.day} [${h.missions.join(', ')}]`).join(' · ')}`));
+});
 
 function mqRenderDraft() {
   const box = document.getElementById('mq-draft');

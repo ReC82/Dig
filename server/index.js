@@ -87,6 +87,7 @@ const blockCatalog = require('./blockCatalog');
 const relicCatalog = require('./relicCatalog');
 const upgradeCatalog = require('./upgradeCatalog');
 const missionCatalog = require('./missionCatalog');
+const missionsLive = require('./missionsLive');
 const blockAi      = require('./blockAi');
 const iconStudio   = require('./iconStudio');
 const collectionCatalog = require('./collectionCatalog');
@@ -551,6 +552,9 @@ app.post('/api/me/save', limit.save, (req, res) => {
     // Pioche à charges (#71) : contrôle anti-fraude en observation (temps serveur), sauvegarde jamais modifiée
     try { pickaxeCharges.observeSave(req.session.userId, data, { revision: version }); }
     catch (err) { console.error('[POST /api/me/save] pioche', err.message); }
+    // Missions quotidiennes du serveur (#68, étape B) : progression du jour cumulée ; sans effet si le drapeau est OFF
+    try { missionsLive.observeSave(req.session.userId, data); }
+    catch (err) { console.error('[POST /api/me/save] missions', err.message); }
     let gemsAuthoritative = null;
     try { if (gemLedger.observeSave(req.session.userId, data, { revision: version })) gemsAuthoritative = gemLedger.authoritativeBalance(req.session.userId); }
     catch (err) { console.error('[POST /api/me/save] gemmes', err.message); }
@@ -1451,6 +1455,20 @@ app.post('/api/admin/missions/publish', requireAdmin, catalogRoute('POST /api/ad
 app.post('/api/admin/missions/rollback', requireAdmin, catalogRoute('POST /api/admin/missions/rollback',
   req => missionCatalog.rollbackTo(Number(req.body?.version), { note: req.body?.note })));
 
+// Activation en jeu (#68, étape B) : drapeau off / pilot / on, journal, inspection d'un joueur (lecture seule)
+function liveRoute(label, fn) {
+  return catalogRoute(label, req => {
+    try { return fn(req); }
+    catch (err) { if (err instanceof missionsLive.MissionError) throw new missionCatalog.CatalogError(err.status, err.message); throw err; }
+  });
+}
+app.get('/api/admin/missions/live', requireAdmin, liveRoute('GET /api/admin/missions/live',
+  () => ({ settings: missionsLive.adminSettings(), audit: missionsLive.listAudit(50) })));
+app.put('/api/admin/missions/live', requireAdmin, liveRoute('PUT /api/admin/missions/live',
+  req => ({ settings: missionsLive.setSettings({ mode: req.body?.mode, pilots: req.body?.pilots, note: req.body?.note }), audit: missionsLive.listAudit(50) })));
+app.get('/api/admin/missions/live/player', requireAdmin, liveRoute('GET /api/admin/missions/live/player',
+  req => missionsLive.inspectPlayer(req.query.username)));
+
 app.get('/api/admin/missions/audit', requireAdmin, catalogRoute('GET /api/admin/missions/audit',
   req => ({ audit: missionCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));
 
@@ -1920,6 +1938,46 @@ app.get('/api/admin/security/player', requireAdmin, (req, res) => {
     const seasonId = /^\d{1,10}$/.test(String(req.query.seasonId ?? '')) ? parseInt(req.query.seasonId, 10) : null;
     res.json(antibot.playerReport(found.id, { seasonId, config: getAdminConfig() }));
   } catch (err) { console.error('[GET /api/admin/security/player]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+// ── Missions quotidiennes attribuées par le serveur (#68, étape B, drapeau OFF par défaut) ──
+
+/** GET /api/me/missions → { live:false } (jeu inchangé) ou missions du jour, progression serveur, réclamations. */
+app.get('/api/me/missions', requireUser, (req, res) => {
+  try { res.set('Cache-Control', 'no-store'); res.json(missionsLive.playerView(req.session.userId)); }
+  catch (err) { console.error('[GET /api/me/missions]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * POST /api/me/missions/claim
+ * Body : { slot, day, controllerId } — réclamation unique (rejeu = même résultat, aucun double gain).
+ * Retourne { ok, replayed, reward, newCoins, newGems, revision }.
+ */
+app.post('/api/me/missions/claim', limit.chest, requireUser, (req, res) => {
+  try {
+    const { slot, day, controllerId } = req.body ?? {};
+    if (controllerId !== undefined && !playSession.isValidControllerId(controllerId)) {
+      return res.status(400).json({ error: 'Champ "controllerId" invalide.' });
+    }
+    const userId = req.session.userId;
+    let r;
+    try {
+      r = missionsLive.claim(userId, { slot, day: typeof day === 'string' ? day : null, mayWrite: () => playSession.mayWrite(userId, controllerId) });
+    } catch (err) {
+      if (!(err instanceof missionsLive.MissionError)) throw err;
+      if (err.code === 'not_controller') return res.status(409).json(notControllerBody(userId));
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    // Registre de gemmes (#49) : gemmes données par le serveur, pas un écart déclaré par le client
+    if (!r.replayed && r.reward.gems > 0 && gemLedger.getMode() !== 'off') {
+      try { gemLedger.credit(userId, r.reward.gems, `mission:${missionsLive.today()}:${r.slot}`, { reason: 'daily_mission' }); }
+      catch (err) { if (err.code !== 'no_account') console.error('[POST /api/me/missions/claim] gemmes', err.message); }
+    }
+    res.json({ ok: true, replayed: r.replayed, reward: r.reward, newCoins: r.coins, newGems: r.gems, revision: r.revision });
+  } catch (err) {
+    console.error('[POST /api/me/missions/claim]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
 });
 
 // ── Coffres achetables ────────────────────────────────────────────────────────
@@ -2464,6 +2522,7 @@ blockCatalog.init();             // catalogue de blocs v1 = 14 blocs d'origine, 
 relicCatalog.init();             // catalogue de reliques v1 = 6 reliques d'origine, valeurs identiques (#64)
 upgradeCatalog.init();           // améliorations v1 = barème du jeu à l'identique, aucune suspension (#69)
 missionCatalog.init();           // missions quotidiennes v1 = 6 missions d'origine ; jeu inchangé, drapeau OFF (#68)
+missionsLive.init();             // missions attribuées par le serveur (#68, étape B) : tables ajoutées, drapeau OFF
 rewardTables.init();             // tables de récompenses des coffres v1 = tables d'origine (#37)
 blockAi.init();                  // création de blocs assistée par IA : propositions, images, journal d'appels (#37)
 iconStudio.init();               // atelier d'icônes : images, historique, appels, briefs, plafond (#40)

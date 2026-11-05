@@ -2299,6 +2299,30 @@
       <div id="mq-sim-out" role="status"></div>
     </div>
 
+    <div class="overview-card" id="mq-act" data-adm-noguard>
+      <h3 class="overview-card-title">🚦 Activation en jeu (étape B) <span id="mq-act-state" class="muted"></span></h3>
+      <p class="muted" style="font-size:0.75rem;margin:0 0 6px">Missions attribuées et réclamées par le <strong>serveur</strong> : une fois par joueur et par jour (minuit Europe/Bruxelles), mêmes missions sur tous les appareils, progression lue dans la sauvegarde serveur, réclamation unique (aucun double gain après F5, double clic ou deuxième appareil). Les missions déjà attribuées ne changent pas si vous publiez une nouvelle version. <strong>Désactivé par défaut</strong> : les joueurs gardent les missions calculées par leur navigateur.</p>
+      <ul class="muted" style="font-size:0.75rem;margin:0 0 6px">
+        <li><strong>Désactivé</strong> : jeu inchangé.</li>
+        <li><strong>Pilote</strong> : uniquement les comptes listés (recette sur un compte testeur) ; les autres joueurs ne voient rien.</li>
+        <li><strong>Tous les joueurs</strong> : à réserver à la décision du propriétaire sur le barème (#68, #49) ; note obligatoire.</li>
+      </ul>
+      <div class="nw-opts-grid">
+        <label>Mode<select id="mq-act-mode"><option value="off">Désactivé</option><option value="pilot">Pilote (comptes listés)</option><option value="on">Tous les joueurs</option></select></label>
+        <label>Comptes pilotes (noms, séparés par des virgules)<input id="mq-act-pilots" type="text" autocomplete="off" placeholder="ex. testeur1, testeur2"></label>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" id="btn-mq-act-save" type="button">Enregistrer…</button>
+      </div>
+      <p id="mq-act-msg" class="hidden" role="status"></p>
+      <div class="nw-opts-grid">
+        <label>Voir les missions d'un joueur (lecture seule)<input id="mq-act-user" type="text" autocomplete="off" placeholder="nom du joueur"></label>
+      </div>
+      <div class="form-actions"><button class="btn btn-outline" id="btn-mq-act-inspect" type="button">Afficher</button></div>
+      <div id="mq-act-out" role="status" style="font-size:0.78rem"></div>
+      <details style="font-size:0.75rem"><summary>Journal de l'activation</summary><ul id="mq-act-audit"></ul></details>
+    </div>
+
     <details class="overview-card">
       <summary class="overview-card-title">Versions publiées <span id="mq-version" class="muted"></span></summary>
       <div style="overflow-x:auto">
