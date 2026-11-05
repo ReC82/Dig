@@ -539,6 +539,9 @@ function renderBlock() {
 
 // ── Rendu upgrades ────────────────────────────────────────────────────────────
 
+// ? contextuel (#78) à côté des améliorations peu évidentes
+const UPGRADE_HELP = { pickaxe: 'pickaxe', autodig: 'autodig', fragment_shop: 'fragments' };
+
 function renderUpgrades() {
   elUpgradesList.innerHTML = '';
 
@@ -568,7 +571,7 @@ function renderUpgrades() {
         <div class="upgrade-icon">${UiIcons.html(`upgrade_${def.id}`, def.icon)}</div>
         <div class="upgrade-info">
           <div class="upgrade-name">
-            ${name}
+            ${name}${UPGRADE_HELP[def.id] ? DigHelp.tipHtml(UPGRADE_HELP[def.id]) : ''}
             <span class="upgrade-level">${t('stats.pickaxe_val', { n: level })}${maxed ? ` <span class="maxed-tag">${t('ui.btn_max')}</span>` : ''}</span>
           </div>
           <div class="upgrade-desc">${def.describe(Upgrades.effectiveLevel(def.id))}</div>
@@ -1055,7 +1058,7 @@ async function renderEvents() {
     html += `<h3 class="collection-archives-title">${escapeHtml(t('events.souvenirs'))}</h3>`;
     for (const ev of d.souvenirs) html += section(ev, `${ev.icon} ${_badgeText(ev.names)} · ${ev.items.length}`, '');
   }
-  el.innerHTML = `<div class="section-divider"><span>${escapeHtml(t('events.section'))}</span></div>${html}`;
+  el.innerHTML = `<div class="section-divider"><span>${escapeHtml(t('events.section'))}</span>${DigHelp.tipHtml('events')}</div>${html}`;
   const all = [...d.active.map(ev => ({ ev, active: true })), ...d.souvenirs.map(ev => ({ ev, active: false }))];
   el.querySelectorAll('.find-card').forEach(b => b.addEventListener('click', () => {
     const entry = all.find(e => e.ev.id === b.dataset.ev);
@@ -1345,7 +1348,7 @@ function renderDaily() {
   const nextDay         = Daily.getNextDay();
   const available       = Daily.isAvailable();
 
-  let html = `<div class="view-title-bar">${t('ui.view_daily')}</div><div class="daily-title">${t('ui.daily_title')}</div><div class="streak-row">`;
+  let html = `<div class="view-title-bar">${t('ui.view_daily')}</div><div class="daily-title">${t('ui.daily_title')}${DigHelp.tipHtml('daily')}</div><div class="streak-row">`;
   for (let i = 1; i <= 7; i++) {
     let state;
     if (claimedToday) {
@@ -1384,7 +1387,7 @@ function renderDaily() {
 
   // ── Section missions du jour ────────────────────────────────────────────
   html += `
-    <div class="section-divider" style="margin-top:24px"><span>${t('ui.section_missions')}</span></div>
+    <div class="section-divider" style="margin-top:24px"><span>${t('ui.section_missions')}</span>${DigHelp.tipHtml('missions')}</div>
     <div id="daily-missions-list"></div>`;
 
   container.innerHTML = html;
@@ -2157,7 +2160,7 @@ function renderSeasonView(apiData, lbData) {
   if (!el) return;
 
   if (!apiData) {
-    el.innerHTML = `<div class="view-title-bar">${t('season.title')}</div>
+    el.innerHTML = `<div class="view-title-bar"><span>${t('season.title')}</span>${DigHelp.tipHtml('season')}</div>
       <p class="season-loading">${t('season.loading')}</p>`;
     return;
   }
@@ -2188,7 +2191,7 @@ function renderSeasonView(apiData, lbData) {
       <div class="season-player-card">
         <div class="season-player-card-top">
           <div class="season-player-rank">${player.rank != null ? t('season.rank', { n: escapeHtml(player.rank) }) : t('season.not_ranked')}</div>
-          ${leagueBadge}
+          ${leagueBadge}${DigHelp.tipHtml('leagues')}
         </div>
         <div class="season-player-stats">
           <span class="season-player-score">${t('season.blocks_label')} : <strong>${escapeHtml(player.manualBlocks)}</strong></span>
@@ -2242,13 +2245,13 @@ function renderSeasonView(apiData, lbData) {
   const scrollTop = el.scrollTop;
   const historyOpen = !!el.querySelector('.season-history')?.open;
   el.innerHTML = `
-    <div class="view-title-bar">${t('season.title')} — ${escapeHtml(season.name)}</div>
+    <div class="view-title-bar"><span>${t('season.title')} — ${escapeHtml(season.name)}</span>${DigHelp.tipHtml('season')}</div>
     ${_seasonThemeHtml(season)}
     <p class="season-ends-in">${endsIn}</p>
     ${_nextSeasonHtml(apiData.next)}
     ${playerHtml}
     <div id="season-points">${_pointsHtml()}</div>
-    <h3 class="season-section-title">${t('season.leaderboard_blocks')}</h3>
+    <h3 class="season-section-title">${t('season.leaderboard_blocks')}${DigHelp.tipHtml('ranking')}</h3>
     <p class="season-lb-rule">${t('season.lb.rule')}</p>
     <div class="season-leaderboard" id="${lbId}">
       ${lbData ? _leaderboardHtml(lbData) : `<p class="season-loading">${t('season.loading')}</p>`}
@@ -3517,7 +3520,7 @@ function renderShop() {
   container.innerHTML = `
     <div class="view-title-bar">${t('ui.view_shop')}</div>
     <div class="shop-header">
-      <div class="shop-balance">${UiIcons.html('gemmes', '💎')} ${GameState.gems} ${t('stats.gems')}</div>
+      <div class="shop-balance">${UiIcons.html('gemmes', '💎')} ${GameState.gems} ${t('stats.gems')}${DigHelp.tipHtml('gems')}</div>
       <div class="shop-balance-sub">${t('shop.balance_label')}</div>
     </div>
     ${_shopGuideHtml('gems')}
@@ -4224,6 +4227,8 @@ function init() {
 
   // Centre d'actualités (#50) : cloche à gauche du logo, pastille des annonces non lues.
   DigNews.init();
+  // Aide du joueur (#78) : bouton ? en haut à gauche et ? contextuels (fiche par-dessus le jeu).
+  DigHelp.init();
   // Publicité (#45) : désactivée par défaut ; bannière haute seulement si le serveur l'autorise ici.
   DigAds.init();
   // Bêta fermée (#57) : bandeau et section « Bêta » seulement si l'admin les active ; un lien

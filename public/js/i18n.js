@@ -81,6 +81,155 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     fr: {
+      // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
+      help: {
+        btn_aria: 'Aide — comment jouer',
+        title: 'Aide',
+        close: 'Fermer l\'aide',
+        more: 'En savoir plus',
+        tip_aria: 'Aide : {topic}',
+        fallback: 'Cette aide n\'est pas encore traduite dans ta langue : elle s\'affiche en français.',
+        footer: 'Cette aide décrit le jeu tel qu\'il fonctionne aujourd\'hui. Pendant la bêta, certains réglages peuvent évoluer.',
+        intro: {
+          title: 'Comment jouer ?',
+          step1: 'Tape sur le bloc pour le casser et gagner des pièces.',
+          step2: 'Dépense tes pièces en améliorations dans l\'onglet {tab_upgrades} pour creuser plus vite.',
+          step3: 'Casse des blocs toi-même pour grimper au classement de la saison.',
+          step4: 'Reviens chaque jour dans l\'onglet {tab_daily} pour ta récompense et tes missions.',
+        },
+        groups: {
+          basics: 'Les bases',
+          resources: 'Pièces, gemmes et bonus',
+          finds: 'Coffres et collections',
+          season: 'Saison et classement',
+          daily: 'Chaque jour',
+          faq: 'Questions fréquentes',
+        },
+        topics: {
+          play: {
+            title: 'Taper sur un bloc',
+            short: 'Touche ou clique le bloc au centre de l\'écran (Entrée ou Espace au clavier). Chaque coup retire des points de vie (PV) au bloc. Quand sa barre est vide, il casse, te rapporte des pièces et le bloc suivant apparaît.',
+            more1: 'Le nom et la rareté du bloc s\'affichent au-dessus, sa récompense en pièces en dessous.',
+            more2: 'Les frappes trop rapides pour être humaines ne sont pas validées par le serveur : un autoclicker ne sert à rien.',
+          },
+          pickaxe: {
+            title: 'Pioche et dégâts',
+            short: 'Ta pioche fixe les dégâts de chaque coup. Améliore-la dans l\'onglet {tab_upgrades} pour casser les blocs plus vite. Certaines reliques ajoutent encore des dégâts.',
+            more1: 'Plus tu descends, plus les blocs ont de PV : pense à améliorer ta pioche régulièrement.',
+            more2: 'Le niveau de ta pioche et tes dégâts par coup sont affichés en haut de l\'écran.',
+          },
+          depth: {
+            title: 'Profondeur',
+            short: 'Chaque bloc cassé te fait descendre d\'un mètre. Plus bas, les blocs sont plus solides mais rapportent davantage, et des minerais, gemmes et coffres plus rares apparaissent.',
+            more1: 'La profondeur repart à zéro à chaque nouvelle saison.',
+            more2: 'Elle est affichée dans le classement pour information, mais ne compte pas pour le rang.',
+          },
+          upgrades: {
+            title: 'Améliorations',
+            short: 'L\'onglet {tab_upgrades} propose des améliorations payées en pièces : la Pioche (dégâts), la Chance (blocs rares), le Sac (récompenses), l\'Auto-Dig (dégâts automatiques) et d\'autres outils. Chaque niveau coûte plus cher que le précédent.',
+            more1: 'Les améliorations repartent à zéro à la fin de la saison ; les reliques, elles, sont permanentes.',
+            more2: 'La même page propose aussi les coffres de saison et tes objectifs.',
+          },
+          autodig: {
+            title: 'Auto-Dig',
+            short: 'L\'Auto-Dig frappe le bloc tout seul, chaque seconde, même quand tu ne touches pas l\'écran. Il s\'achète et s\'améliore dans l\'onglet {tab_upgrades}. Les blocs qu\'il casse rapportent des pièces mais ne comptent pas pour le classement.',
+            more1: 'Quand tu reviens après une absence, l\'Auto-Dig t\'a fait gagner des pièces, sur une durée limitée.',
+            more2: 'Pour grimper au classement, il faut casser des blocs toi-même.',
+          },
+          coins: {
+            title: 'Pièces',
+            short: 'Les pièces se gagnent en cassant des blocs, dans les coffres et avec la récompense quotidienne. Elles payent les améliorations et les coffres de saison. Elles repartent à zéro à la fin de chaque saison : dépense-les !',
+          },
+          gems: {
+            title: 'Gemmes',
+            short: 'Les gemmes viennent des blocs de gemmes (rubis, émeraude, diamant…), de la récompense quotidienne et parfois des missions du jour. Elles sont conservées d\'une saison à l\'autre, dans la limite d\'un plafond.',
+            more1: 'La boutique de gemmes affiche « Bientôt » : aucun achat n\'y est possible pour le moment.',
+          },
+          fragments: {
+            title: 'Fragments de relique',
+            short: 'Les fragments (🔮) se trouvent surtout dans les coffres. Tu peux aussi en acheter quelques-uns avec des pièces dans l\'onglet {tab_upgrades}, en nombre limité par saison. Ils servent à débloquer et améliorer les reliques et ne disparaissent jamais, même en fin de saison.',
+          },
+          boosts: {
+            title: 'Boosts',
+            short: 'Un boost multiplie pendant quelques minutes les pièces gagnées en cassant des blocs. Il peut venir d\'un coffre, de la récompense quotidienne ou du bouton « {btn_double} » sous le bloc. Un bandeau indique le temps restant.',
+            more1: 'Les boosts ne multiplient pas les pièces trouvées dans les coffres.',
+            more2: 'Après usage, le bouton « {btn_double} » doit se recharger avant de resservir.',
+          },
+          chests: {
+            title: 'Coffres',
+            short: 'En creusant, tu tombes parfois sur un coffre à la place d\'un bloc : casse-le pour recevoir une récompense au hasard (pièces, fragments ou boost). Des coffres de saison s\'achètent aussi avec des pièces dans l\'onglet {tab_upgrades}.',
+            more1: 'Le bouton « {btn_odds} » d\'un coffre de saison montre son contenu exact et les chances de chaque récompense.',
+            more2: 'Certains coffres de saison ont un nombre d\'ouvertures limité par saison.',
+          },
+          collection: {
+            title: 'Collection',
+            short: 'En cassant des blocs, tu trouves parfois un objet de collection. La Collection des origines est permanente ; une collection de saison ne se remplit que pendant sa saison, puis reste visible dans les archives. Touche un objet pour lire sa fiche.',
+            more1: 'Les objets trouvés restent à toi : ils ne disparaissent pas en fin de saison.',
+            more2: 'Les objets d\'événement sont rangés à part, dans la rubrique Événements.',
+          },
+          events: {
+            title: 'Événements',
+            short: 'Un événement dure un temps limité et ajoute des objets exclusifs à trouver en creusant. Quand un événement est en cours, sa rubrique apparaît en haut de l\'onglet {tab_collection}, avec sa date de fin. Les objets trouvés restent ensuite dans tes souvenirs d\'événements.',
+            more1: 'Ces objets sont séparés de la Collection des origines et des collections de saison.',
+          },
+          relics: {
+            title: 'Reliques',
+            short: 'Les reliques donnent des bonus permanents : plus de dégâts, plus de pièces, plus de fragments, plus de blocs rares… Débloque-les puis améliore-les avec des fragments, dans l\'onglet {tab_collection}. Elles sont conservées d\'une saison à l\'autre.',
+          },
+          badges: {
+            title: 'Badges',
+            short: 'Les badges marquent des étapes de ta progression. Ils sont honorifiques : ils ne donnent ni pièces, ni gemmes, ni points. Tu les retrouves dans l\'onglet {tab_collection} et dans ton profil.',
+          },
+          season: {
+            title: 'Saison',
+            short: 'Le jeu avance par saisons de durée limitée ; l\'onglet {tab_season} affiche le thème et la date de fin. À la fin d\'une saison, pièces, profondeur, améliorations et boosts repartent à zéro. Gemmes, fragments, reliques, bonus permanents et points de récompense sont conservés.',
+          },
+          ranking: {
+            title: 'Classement',
+            short: 'Ton rang dépend uniquement du nombre de blocs que tu as cassés toi-même, validés par le serveur. Les blocs cassés par l\'Auto-Dig ne comptent pas, et la profondeur n\'est affichée que pour information. Il faut un compte et au moins un bloc cassé à la main pendant la saison.',
+            more1: 'À égalité, le premier joueur à atteindre ce total passe devant. Il n\'y a aucun tirage au sort.',
+            more2: 'À la fin de la saison, le classement est figé et publié : il ne change plus.',
+          },
+          leagues: {
+            title: 'Ligues',
+            short: 'Ta ligue est un palier durable, affiché à côté de ton rang dans l\'onglet {tab_season}. On monte de ligue par promotion, à la fin d\'une saison. Le thème de la saison change sans toucher à ta ligue.',
+          },
+          points: {
+            title: 'Points de récompense',
+            short: 'À la fin d\'une saison, les joueurs classés reçoivent des points de récompense selon leur place. Ces points sont conservés et s\'échangent dans la boutique de cadeaux de l\'onglet {tab_season}. Ils ne se convertissent ni en pièces, ni en gemmes, ni en argent.',
+          },
+          daily: {
+            title: 'Récompense quotidienne',
+            short: 'Chaque jour, l\'onglet {tab_daily} t\'offre une récompense. Reviens plusieurs jours de suite pour avancer dans ta série de 7 jours et obtenir de meilleures récompenses. Un jour manqué fait recommencer la série au premier jour.',
+          },
+          missions: {
+            title: 'Missions du jour',
+            short: 'Chaque jour, l\'onglet {tab_daily} propose quelques missions courtes : casser des blocs, gagner des pièces… Quand une mission est terminée, touche « {btn_claim} » pour recevoir sa récompense. De nouvelles missions arrivent le lendemain.',
+          },
+        },
+        faq: {
+          rank_depth: {
+            q: 'Pourquoi mon rang ne dépend-il pas de ma profondeur ?',
+            a: 'La profondeur augmente aussi avec l\'Auto-Dig, même quand personne ne joue. Pour un classement juste, seuls les blocs cassés à la main et validés par le serveur comptent. La profondeur reste affichée pour information.',
+          },
+          autodig_rank: {
+            q: 'L\'Auto-Dig m\'aide-t-il au classement ?',
+            a: 'Non. Il te fait gagner des pièces et de la profondeur, mais les blocs qu\'il casse ne comptent pas pour le rang.',
+          },
+          season_end: {
+            q: 'Que garde-t-on à la fin d\'une saison ?',
+            a: 'Tu gardes tes gemmes (dans la limite d\'un plafond), fragments, reliques, bonus permanents, objets de collection, badges et points de récompense. Pièces, profondeur, améliorations et boosts repartent à zéro.',
+          },
+          save: {
+            q: 'Ma progression est-elle sauvegardée ?',
+            a: 'Sans compte, elle reste sur cet appareil et ce navigateur. Avec un compte, elle est sauvegardée en ligne et tu la retrouves sur tes autres appareils ; le compte est aussi nécessaire pour le classement.',
+          },
+          other_device: {
+            q: 'Pourquoi le jeu me propose « {btn_here} » ?',
+            a: 'Ta partie ne tourne qu\'à un seul endroit à la fois, pour ne pas mélanger ta progression. Touche « {btn_here} » pour reprendre exactement là où tu en étais.',
+          },
+        },
+      },
       pickaxe: {
         seconds: '{n} s',
         gauge: '⛏ Réserve : {n} / {cap} coups · +1 toutes les {sec} s',
@@ -790,6 +939,155 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     en: {
+      // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
+      help: {
+        btn_aria: 'Help — how to play',
+        title: 'Help',
+        close: 'Close help',
+        more: 'Learn more',
+        tip_aria: 'Help: {topic}',
+        fallback: 'This help is not translated into your language yet, so it is shown in French.',
+        footer: 'This help describes the game as it works today. During the beta, some settings may change.',
+        intro: {
+          title: 'How to play?',
+          step1: 'Tap the block to break it and earn coins.',
+          step2: 'Spend your coins on upgrades in the {tab_upgrades} tab to dig faster.',
+          step3: 'Break blocks yourself to climb the season leaderboard.',
+          step4: 'Come back every day to the {tab_daily} tab for your reward and missions.',
+        },
+        groups: {
+          basics: 'The basics',
+          resources: 'Coins, gems and bonuses',
+          finds: 'Chests and collections',
+          season: 'Season and leaderboard',
+          daily: 'Every day',
+          faq: 'Frequently asked questions',
+        },
+        topics: {
+          play: {
+            title: 'Tapping a block',
+            short: 'Tap or click the block in the middle of the screen (Enter or Space on a keyboard). Each hit removes hit points (HP) from the block. When its bar is empty, it breaks, gives you coins and the next block appears.',
+            more1: 'The block\'s name and rarity are shown above it, its coin reward below.',
+            more2: 'Hits that are too fast to be human are not validated by the server: an autoclicker is useless.',
+          },
+          pickaxe: {
+            title: 'Pickaxe and damage',
+            short: 'Your pickaxe sets the damage of each hit. Upgrade it in the {tab_upgrades} tab to break blocks faster. Some relics add even more damage.',
+            more1: 'The deeper you go, the more HP blocks have: remember to upgrade your pickaxe regularly.',
+            more2: 'Your pickaxe level and damage per hit are shown at the top of the screen.',
+          },
+          depth: {
+            title: 'Depth',
+            short: 'Each broken block takes you one metre deeper. Further down, blocks are tougher but pay more, and rarer ores, gems and chests appear.',
+            more1: 'Depth goes back to zero at each new season.',
+            more2: 'It is shown on the leaderboard for information, but does not count towards your rank.',
+          },
+          upgrades: {
+            title: 'Upgrades',
+            short: 'The {tab_upgrades} tab offers upgrades paid for with coins: the Pickaxe (damage), Luck (rare blocks), the Bag (rewards), Auto-Dig (automatic damage) and other tools. Each level costs more than the previous one.',
+            more1: 'Upgrades go back to zero at the end of the season; relics, however, are permanent.',
+            more2: 'The same page also offers season chests and your objectives.',
+          },
+          autodig: {
+            title: 'Auto-Dig',
+            short: 'Auto-Dig hits the block on its own, every second, even when you are not touching the screen. You buy and upgrade it in the {tab_upgrades} tab. The blocks it breaks give coins but do not count for the leaderboard.',
+            more1: 'When you come back after a break, Auto-Dig has earned you coins, over a limited time.',
+            more2: 'To climb the leaderboard, you have to break blocks yourself.',
+          },
+          coins: {
+            title: 'Coins',
+            short: 'You earn coins by breaking blocks, from chests and with the daily reward. They pay for upgrades and season chests. They go back to zero at the end of each season: spend them!',
+          },
+          gems: {
+            title: 'Gems',
+            short: 'Gems come from gem blocks (ruby, emerald, diamond…), the daily reward and sometimes daily missions. They are kept from one season to the next, up to a cap.',
+            more1: 'The gem shop shows “Soon”: nothing can be bought there for now.',
+          },
+          fragments: {
+            title: 'Relic fragments',
+            short: 'Fragments (🔮) are mostly found in chests. You can also buy a few with coins in the {tab_upgrades} tab, in limited numbers per season. They unlock and upgrade relics and never disappear, even at the end of a season.',
+          },
+          boosts: {
+            title: 'Boosts',
+            short: 'A boost multiplies the coins earned by breaking blocks for a few minutes. It can come from a chest, the daily reward or the “{btn_double}” button below the block. A banner shows the time left.',
+            more1: 'Boosts do not multiply coins found in chests.',
+            more2: 'Once used, the “{btn_double}” button needs to recharge before it can be used again.',
+          },
+          chests: {
+            title: 'Chests',
+            short: 'While digging, you sometimes find a chest instead of a block: break it to get a random reward (coins, fragments or a boost). Season chests can also be bought with coins in the {tab_upgrades} tab.',
+            more1: 'A season chest\'s “{btn_odds}” button shows its exact contents and the chance of each reward.',
+            more2: 'Some season chests can only be opened a limited number of times per season.',
+          },
+          collection: {
+            title: 'Collection',
+            short: 'When breaking blocks, you sometimes find a collection item. The Origins collection is permanent; a season collection can only be filled during its season, then stays visible in the archive. Tap an item to read its card.',
+            more1: 'Items you find stay yours: they do not disappear at the end of the season.',
+            more2: 'Event items are kept separately, in the Events section.',
+          },
+          events: {
+            title: 'Events',
+            short: 'An event lasts a limited time and adds exclusive items to find while digging. When an event is on, its section appears at the top of the {tab_collection} tab, with its end date. Items you find then stay in your event keepsakes.',
+            more1: 'These items are separate from the Origins collection and season collections.',
+          },
+          relics: {
+            title: 'Relics',
+            short: 'Relics give permanent bonuses: more damage, more coins, more fragments, more rare blocks… Unlock them, then upgrade them with fragments, in the {tab_collection} tab. They are kept from one season to the next.',
+          },
+          badges: {
+            title: 'Badges',
+            short: 'Badges mark milestones in your progress. They are honorary: they give no coins, gems or points. You can find them in the {tab_collection} tab and in your profile.',
+          },
+          season: {
+            title: 'Season',
+            short: 'The game runs in seasons of limited length; the {tab_season} tab shows the theme and end date. At the end of a season, coins, depth, upgrades and boosts go back to zero. Gems, fragments, relics, permanent bonuses and reward points are kept.',
+          },
+          ranking: {
+            title: 'Leaderboard',
+            short: 'Your rank depends only on the number of blocks you broke yourself, validated by the server. Blocks broken by Auto-Dig do not count, and depth is shown for information only. You need an account and at least one block broken by hand during the season.',
+            more1: 'In a tie, the first player to reach that total ranks higher. There is no random draw.',
+            more2: 'At the end of the season, the leaderboard is frozen and published: it no longer changes.',
+          },
+          leagues: {
+            title: 'Leagues',
+            short: 'Your league is a lasting tier, shown next to your rank in the {tab_season} tab. You move up a league by promotion, at the end of a season. The season theme changes without affecting your league.',
+          },
+          points: {
+            title: 'Reward points',
+            short: 'At the end of a season, ranked players receive reward points according to their place. These points are kept and can be exchanged in the gift shop of the {tab_season} tab. They cannot be converted into coins, gems or money.',
+          },
+          daily: {
+            title: 'Daily reward',
+            short: 'Every day, the {tab_daily} tab gives you a reward. Come back several days in a row to move along your 7-day streak and get better rewards. Missing a day restarts the streak from day one.',
+          },
+          missions: {
+            title: 'Daily missions',
+            short: 'Every day, the {tab_daily} tab offers a few short missions: break blocks, earn coins… When a mission is complete, tap “{btn_claim}” to receive its reward. New missions arrive the next day.',
+          },
+        },
+        faq: {
+          rank_depth: {
+            q: 'Why doesn\'t my rank depend on my depth?',
+            a: 'Depth also increases with Auto-Dig, even when nobody is playing. For a fair leaderboard, only blocks broken by hand and validated by the server count. Depth is still shown for information.',
+          },
+          autodig_rank: {
+            q: 'Does Auto-Dig help me on the leaderboard?',
+            a: 'No. It earns you coins and depth, but the blocks it breaks do not count towards your rank.',
+          },
+          season_end: {
+            q: 'What do I keep at the end of a season?',
+            a: 'You keep your gems (up to a cap), fragments, relics, permanent bonuses, collection items, badges and reward points. Coins, depth, upgrades and boosts go back to zero.',
+          },
+          save: {
+            q: 'Is my progress saved?',
+            a: 'Without an account, it stays on this device and this browser. With an account, it is saved online and you find it on your other devices; an account is also required for the leaderboard.',
+          },
+          other_device: {
+            q: 'Why does the game offer me “{btn_here}”?',
+            a: 'Your game only runs in one place at a time, so your progress does not get mixed up. Tap “{btn_here}” to pick up exactly where you left off.',
+          },
+        },
+      },
       pickaxe: {
         seconds: '{n} s',
         gauge: '⛏ Reserve: {n} / {cap} strikes · +1 every {sec} s',
@@ -1498,6 +1796,155 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     nl: {
+      // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
+      help: {
+        btn_aria: 'Hulp — hoe speel je?',
+        title: 'Hulp',
+        close: 'Hulp sluiten',
+        more: 'Meer weten',
+        tip_aria: 'Hulp: {topic}',
+        fallback: 'Deze hulp is nog niet in jouw taal vertaald en wordt daarom in het Frans getoond.',
+        footer: 'Deze hulp beschrijft het spel zoals het vandaag werkt. Tijdens de bèta kunnen sommige instellingen nog veranderen.',
+        intro: {
+          title: 'Hoe speel je?',
+          step1: 'Tik op het blok om het te breken en munten te verdienen.',
+          step2: 'Besteed je munten aan verbeteringen in het tabblad {tab_upgrades} om sneller te graven.',
+          step3: 'Breek zelf blokken om te stijgen in het seizoensklassement.',
+          step4: 'Kom elke dag terug naar het tabblad {tab_daily} voor je beloning en je missies.',
+        },
+        groups: {
+          basics: 'De basis',
+          resources: 'Munten, edelstenen en bonussen',
+          finds: 'Kisten en collecties',
+          season: 'Seizoen en klassement',
+          daily: 'Elke dag',
+          faq: 'Veelgestelde vragen',
+        },
+        topics: {
+          play: {
+            title: 'Op een blok tikken',
+            short: 'Tik of klik op het blok in het midden van het scherm (Enter of spatie op het toetsenbord). Elke slag haalt levenspunten (HP) van het blok af. Is de balk leeg, dan breekt het blok, krijg je munten en verschijnt het volgende blok.',
+            more1: 'De naam en zeldzaamheid van het blok staan erboven, de muntbeloning eronder.',
+            more2: 'Slagen die te snel zijn voor een mens worden niet door de server goedgekeurd: een autoclicker heeft geen zin.',
+          },
+          pickaxe: {
+            title: 'Houweel en schade',
+            short: 'Je houweel bepaalt de schade van elke slag. Verbeter het in het tabblad {tab_upgrades} om blokken sneller te breken. Sommige relikwieën voegen nog extra schade toe.',
+            more1: 'Hoe dieper je gaat, hoe meer HP de blokken hebben: verbeter je houweel dus regelmatig.',
+            more2: 'Het niveau van je houweel en je schade per slag staan bovenaan het scherm.',
+          },
+          depth: {
+            title: 'Diepte',
+            short: 'Elk gebroken blok brengt je een meter dieper. Dieper zijn de blokken steviger maar leveren ze meer op, en verschijnen er zeldzamere ertsen, edelstenen en kisten.',
+            more1: 'De diepte begint bij elk nieuw seizoen weer bij nul.',
+            more2: 'Ze staat ter informatie in het klassement, maar telt niet mee voor je plaats.',
+          },
+          upgrades: {
+            title: 'Verbeteringen',
+            short: 'In het tabblad {tab_upgrades} koop je verbeteringen met munten: het Houweel (schade), Geluk (zeldzame blokken), de Tas (beloningen), Auto-Dig (automatische schade) en andere hulpmiddelen. Elk niveau kost meer dan het vorige.',
+            more1: 'Verbeteringen beginnen aan het einde van het seizoen weer bij nul; relikwieën blijven wel altijd.',
+            more2: 'Op dezelfde pagina vind je ook de seizoenskisten en je doelen.',
+          },
+          autodig: {
+            title: 'Auto-Dig',
+            short: 'Auto-Dig slaat elke seconde vanzelf op het blok, ook als je het scherm niet aanraakt. Je koopt en verbetert het in het tabblad {tab_upgrades}. De blokken die het breekt leveren munten op, maar tellen niet mee voor het klassement.',
+            more1: 'Kom je terug na een afwezigheid, dan heeft Auto-Dig je munten opgeleverd, over een beperkte tijd.',
+            more2: 'Om te stijgen in het klassement moet je zelf blokken breken.',
+          },
+          coins: {
+            title: 'Munten',
+            short: 'Munten verdien je door blokken te breken, uit kisten en met de dagelijkse beloning. Je betaalt er verbeteringen en seizoenskisten mee. Ze beginnen aan het einde van elk seizoen weer bij nul: geef ze dus uit!',
+          },
+          gems: {
+            title: 'Edelstenen',
+            short: 'Edelstenen komen uit edelsteenblokken (robijn, smaragd, diamant…), uit de dagelijkse beloning en soms uit de dagelijkse missies. Je houdt ze van seizoen tot seizoen, tot een maximum.',
+            more1: 'De edelsteenwinkel toont „Binnenkort”: je kunt er voorlopig niets kopen.',
+          },
+          fragments: {
+            title: 'Relikwiescherven',
+            short: 'Scherven (🔮) vind je vooral in kisten. Je kunt er ook een paar met munten kopen in het tabblad {tab_upgrades}, in een beperkt aantal per seizoen. Je ontgrendelt en verbetert er relikwieën mee, en ze verdwijnen nooit, ook niet aan het einde van een seizoen.',
+          },
+          boosts: {
+            title: 'Boosts',
+            short: 'Een boost vermenigvuldigt een paar minuten lang de munten die je verdient met het breken van blokken. Je krijgt er een uit een kist, met de dagelijkse beloning of met de knop „{btn_double}” onder het blok. Een balk toont de resterende tijd.',
+            more1: 'Boosts vermenigvuldigen de munten uit kisten niet.',
+            more2: 'Na gebruik moet de knop „{btn_double}” eerst weer opladen.',
+          },
+          chests: {
+            title: 'Kisten',
+            short: 'Tijdens het graven vind je soms een kist in plaats van een blok: breek ze voor een willekeurige beloning (munten, scherven of een boost). Seizoenskisten kun je ook met munten kopen in het tabblad {tab_upgrades}.',
+            more1: 'De knop „{btn_odds}” van een seizoenskist toont de precieze inhoud en de kans op elke beloning.',
+            more2: 'Sommige seizoenskisten kun je maar een beperkt aantal keer per seizoen openen.',
+          },
+          collection: {
+            title: 'Collectie',
+            short: 'Als je blokken breekt, vind je soms een collectievoorwerp. De Oorsprongscollectie is blijvend; een seizoenscollectie vul je alleen tijdens dat seizoen, daarna blijft ze zichtbaar in het archief. Tik op een voorwerp om de fiche te lezen.',
+            more1: 'Gevonden voorwerpen blijven van jou: ze verdwijnen niet aan het einde van het seizoen.',
+            more2: 'Evenementvoorwerpen staan apart, in de rubriek Evenementen.',
+          },
+          events: {
+            title: 'Evenementen',
+            short: 'Een evenement duurt een beperkte tijd en voegt exclusieve voorwerpen toe die je al gravend kunt vinden. Loopt er een evenement, dan verschijnt de rubriek bovenaan het tabblad {tab_collection}, met de einddatum. Gevonden voorwerpen blijven daarna bij je evenementherinneringen.',
+            more1: 'Deze voorwerpen staan los van de Oorsprongscollectie en de seizoenscollecties.',
+          },
+          relics: {
+            title: 'Relikwieën',
+            short: 'Relikwieën geven blijvende bonussen: meer schade, meer munten, meer scherven, meer zeldzame blokken… Ontgrendel ze en verbeter ze daarna met scherven, in het tabblad {tab_collection}. Je houdt ze van seizoen tot seizoen.',
+          },
+          badges: {
+            title: 'Badges',
+            short: 'Badges markeren stappen in je voortgang. Ze zijn eervol: ze leveren geen munten, edelstenen of punten op. Je vindt ze in het tabblad {tab_collection} en in je profiel.',
+          },
+          season: {
+            title: 'Seizoen',
+            short: 'Het spel loopt in seizoenen van beperkte duur; het tabblad {tab_season} toont het thema en de einddatum. Aan het einde van een seizoen beginnen munten, diepte, verbeteringen en boosts weer bij nul. Edelstenen, scherven, relikwieën, blijvende bonussen en beloningspunten blijven behouden.',
+          },
+          ranking: {
+            title: 'Klassement',
+            short: 'Je plaats hangt alleen af van het aantal blokken dat je zelf hebt gebroken en dat door de server is goedgekeurd. Blokken van Auto-Dig tellen niet mee en de diepte staat er alleen ter informatie. Je hebt een account nodig en minstens één blok met de hand gebroken tijdens het seizoen.',
+            more1: 'Bij gelijkstand gaat de speler die dat totaal het eerst bereikte voor. Er wordt niet geloot.',
+            more2: 'Aan het einde van het seizoen wordt het klassement vastgezet en gepubliceerd: het verandert niet meer.',
+          },
+          leagues: {
+            title: 'Divisies',
+            short: 'Je divisie is een blijvend niveau, naast je plaats in het tabblad {tab_season}. Je stijgt een divisie door promotie, aan het einde van een seizoen. Het seizoensthema verandert zonder je divisie te raken.',
+          },
+          points: {
+            title: 'Beloningspunten',
+            short: 'Aan het einde van een seizoen krijgen geklasseerde spelers beloningspunten volgens hun plaats. Die punten blijven behouden en wissel je in de cadeauwinkel van het tabblad {tab_season}. Ze zijn niet om te zetten in munten, edelstenen of geld.',
+          },
+          daily: {
+            title: 'Dagelijkse beloning',
+            short: 'Elke dag geeft het tabblad {tab_daily} je een beloning. Kom meerdere dagen na elkaar terug om verder te gaan in je reeks van 7 dagen en betere beloningen te krijgen. Mis je een dag, dan begint de reeks opnieuw bij dag één.',
+          },
+          missions: {
+            title: 'Dagelijkse missies',
+            short: 'Elke dag biedt het tabblad {tab_daily} een paar korte missies: blokken breken, munten verdienen… Is een missie klaar, tik dan op „{btn_claim}” om de beloning te krijgen. De volgende dag komen er nieuwe missies.',
+          },
+        },
+        faq: {
+          rank_depth: {
+            q: 'Waarom hangt mijn plaats niet af van mijn diepte?',
+            a: 'De diepte stijgt ook met Auto-Dig, zelfs als niemand speelt. Voor een eerlijk klassement tellen alleen blokken die met de hand zijn gebroken en door de server zijn goedgekeurd. De diepte blijft ter informatie zichtbaar.',
+          },
+          autodig_rank: {
+            q: 'Helpt Auto-Dig me in het klassement?',
+            a: 'Nee. Het levert munten en diepte op, maar de blokken die het breekt tellen niet mee voor je plaats.',
+          },
+          season_end: {
+            q: 'Wat houd ik aan het einde van een seizoen?',
+            a: 'Je houdt je edelstenen (tot een maximum), scherven, relikwieën, blijvende bonussen, collectievoorwerpen, badges en beloningspunten. Munten, diepte, verbeteringen en boosts beginnen weer bij nul.',
+          },
+          save: {
+            q: 'Wordt mijn voortgang bewaard?',
+            a: 'Zonder account blijft ze op dit toestel en in deze browser. Met een account wordt ze online bewaard en vind je ze terug op je andere toestellen; een account is ook nodig voor het klassement.',
+          },
+          other_device: {
+            q: 'Waarom stelt het spel „{btn_here}” voor?',
+            a: 'Je spel draait maar op één plek tegelijk, zodat je voortgang niet door elkaar raakt. Tik op „{btn_here}” om precies verder te gaan waar je was.',
+          },
+        },
+      },
       pickaxe: {
         seconds: '{n} s',
         gauge: '⛏ Reserve: {n} / {cap} slagen · +1 elke {sec} s',
@@ -2206,6 +2653,155 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     es: {
+      // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
+      help: {
+        btn_aria: 'Ayuda — cómo jugar',
+        title: 'Ayuda',
+        close: 'Cerrar la ayuda',
+        more: 'Más información',
+        tip_aria: 'Ayuda: {topic}',
+        fallback: 'Esta ayuda aún no está traducida a tu idioma, así que se muestra en francés.',
+        footer: 'Esta ayuda describe el juego tal como funciona hoy. Durante la beta, algunos ajustes pueden cambiar.',
+        intro: {
+          title: '¿Cómo se juega?',
+          step1: 'Toca el bloque para romperlo y ganar monedas.',
+          step2: 'Gasta tus monedas en mejoras en la pestaña {tab_upgrades} para cavar más rápido.',
+          step3: 'Rompe bloques tú mismo para subir en la clasificación de la temporada.',
+          step4: 'Vuelve cada día a la pestaña {tab_daily} para tu recompensa y tus misiones.',
+        },
+        groups: {
+          basics: 'Lo básico',
+          resources: 'Monedas, gemas y bonus',
+          finds: 'Cofres y colecciones',
+          season: 'Temporada y clasificación',
+          daily: 'Cada día',
+          faq: 'Preguntas frecuentes',
+        },
+        topics: {
+          play: {
+            title: 'Tocar un bloque',
+            short: 'Toca o haz clic en el bloque del centro de la pantalla (Intro o Espacio con el teclado). Cada golpe le quita puntos de vida (PV) al bloque. Cuando su barra está vacía, se rompe, te da monedas y aparece el siguiente bloque.',
+            more1: 'El nombre y la rareza del bloque aparecen encima; su recompensa en monedas, debajo.',
+            more2: 'Los golpes demasiado rápidos para ser humanos no los valida el servidor: un autoclicker no sirve de nada.',
+          },
+          pickaxe: {
+            title: 'Pico y daño',
+            short: 'Tu pico determina el daño de cada golpe. Mejóralo en la pestaña {tab_upgrades} para romper los bloques más rápido. Algunas reliquias añaden todavía más daño.',
+            more1: 'Cuanto más bajas, más PV tienen los bloques: acuérdate de mejorar tu pico con regularidad.',
+            more2: 'El nivel de tu pico y tu daño por golpe aparecen en la parte superior de la pantalla.',
+          },
+          depth: {
+            title: 'Profundidad',
+            short: 'Cada bloque roto te hace bajar un metro. Más abajo, los bloques son más resistentes pero dan más, y aparecen minerales, gemas y cofres más raros.',
+            more1: 'La profundidad vuelve a cero en cada nueva temporada.',
+            more2: 'Se muestra en la clasificación a título informativo, pero no cuenta para el puesto.',
+          },
+          upgrades: {
+            title: 'Mejoras',
+            short: 'La pestaña {tab_upgrades} ofrece mejoras que se pagan con monedas: el Pico (daño), la Suerte (bloques raros), la Bolsa (recompensas), el Auto-Dig (daño automático) y otras herramientas. Cada nivel cuesta más que el anterior.',
+            more1: 'Las mejoras vuelven a cero al final de la temporada; las reliquias, en cambio, son permanentes.',
+            more2: 'La misma página ofrece también los cofres de temporada y tus objetivos.',
+          },
+          autodig: {
+            title: 'Auto-Dig',
+            short: 'El Auto-Dig golpea el bloque solo, cada segundo, aunque no toques la pantalla. Se compra y se mejora en la pestaña {tab_upgrades}. Los bloques que rompe dan monedas, pero no cuentan para la clasificación.',
+            more1: 'Cuando vuelves tras una ausencia, el Auto-Dig te ha hecho ganar monedas, durante un tiempo limitado.',
+            more2: 'Para subir en la clasificación, tienes que romper bloques tú mismo.',
+          },
+          coins: {
+            title: 'Monedas',
+            short: 'Las monedas se ganan rompiendo bloques, en los cofres y con la recompensa diaria. Sirven para pagar mejoras y cofres de temporada. Vuelven a cero al final de cada temporada: ¡gástalas!',
+          },
+          gems: {
+            title: 'Gemas',
+            short: 'Las gemas salen de los bloques de gemas (rubí, esmeralda, diamante…), de la recompensa diaria y a veces de las misiones del día. Se conservan de una temporada a otra, hasta un límite.',
+            more1: 'La tienda de gemas indica «Pronto»: por ahora no se puede comprar nada en ella.',
+          },
+          fragments: {
+            title: 'Fragmentos de reliquia',
+            short: 'Los fragmentos (🔮) se encuentran sobre todo en los cofres. También puedes comprar algunos con monedas en la pestaña {tab_upgrades}, en cantidad limitada por temporada. Sirven para desbloquear y mejorar las reliquias y nunca desaparecen, ni siquiera al final de una temporada.',
+          },
+          boosts: {
+            title: 'Boosts',
+            short: 'Un boost multiplica durante unos minutos las monedas que ganas al romper bloques. Puede venir de un cofre, de la recompensa diaria o del botón «{btn_double}» bajo el bloque. Una banda indica el tiempo restante.',
+            more1: 'Los boosts no multiplican las monedas de los cofres.',
+            more2: 'Después de usarlo, el botón «{btn_double}» tiene que recargarse antes de volver a servir.',
+          },
+          chests: {
+            title: 'Cofres',
+            short: 'Al cavar, a veces encuentras un cofre en lugar de un bloque: rómpelo para recibir una recompensa al azar (monedas, fragmentos o un boost). Los cofres de temporada también se compran con monedas en la pestaña {tab_upgrades}.',
+            more1: 'El botón «{btn_odds}» de un cofre de temporada muestra su contenido exacto y la probabilidad de cada recompensa.',
+            more2: 'Algunos cofres de temporada tienen un número de aperturas limitado por temporada.',
+          },
+          collection: {
+            title: 'Colección',
+            short: 'Al romper bloques, a veces encuentras un objeto de colección. La Colección de los orígenes es permanente; una colección de temporada solo se llena durante su temporada y después sigue visible en el archivo. Toca un objeto para leer su ficha.',
+            more1: 'Los objetos encontrados son tuyos: no desaparecen al final de la temporada.',
+            more2: 'Los objetos de eventos se guardan aparte, en la sección Eventos.',
+          },
+          events: {
+            title: 'Eventos',
+            short: 'Un evento dura un tiempo limitado y añade objetos exclusivos que encontrar al cavar. Cuando hay un evento en curso, su sección aparece arriba en la pestaña {tab_collection}, con su fecha de fin. Los objetos encontrados se quedan luego en tus recuerdos de eventos.',
+            more1: 'Estos objetos están separados de la Colección de los orígenes y de las colecciones de temporada.',
+          },
+          relics: {
+            title: 'Reliquias',
+            short: 'Las reliquias dan bonus permanentes: más daño, más monedas, más fragmentos, más bloques raros… Desbloquéalas y luego mejóralas con fragmentos, en la pestaña {tab_collection}. Se conservan de una temporada a otra.',
+          },
+          badges: {
+            title: 'Insignias',
+            short: 'Las insignias marcan etapas de tu progreso. Son honoríficas: no dan monedas, ni gemas, ni puntos. Las encontrarás en la pestaña {tab_collection} y en tu perfil.',
+          },
+          season: {
+            title: 'Temporada',
+            short: 'El juego avanza por temporadas de duración limitada; la pestaña {tab_season} muestra el tema y la fecha de fin. Al final de una temporada, las monedas, la profundidad, las mejoras y los boosts vuelven a cero. Las gemas, los fragmentos, las reliquias, los bonus permanentes y los puntos de recompensa se conservan.',
+          },
+          ranking: {
+            title: 'Clasificación',
+            short: 'Tu puesto depende solo del número de bloques que has roto tú mismo, validados por el servidor. Los bloques rotos por el Auto-Dig no cuentan y la profundidad se muestra solo a título informativo. Necesitas una cuenta y al menos un bloque roto a mano durante la temporada.',
+            more1: 'En caso de empate, va delante el primer jugador que alcanzó ese total. No hay sorteo.',
+            more2: 'Al final de la temporada, la clasificación se congela y se publica: ya no cambia.',
+          },
+          leagues: {
+            title: 'Ligas',
+            short: 'Tu liga es un nivel duradero, que aparece junto a tu puesto en la pestaña {tab_season}. Se sube de liga por ascenso, al final de una temporada. El tema de la temporada cambia sin afectar a tu liga.',
+          },
+          points: {
+            title: 'Puntos de recompensa',
+            short: 'Al final de una temporada, los jugadores clasificados reciben puntos de recompensa según su puesto. Estos puntos se conservan y se canjean en la tienda de regalos de la pestaña {tab_season}. No se pueden convertir en monedas, gemas ni dinero.',
+          },
+          daily: {
+            title: 'Recompensa diaria',
+            short: 'Cada día, la pestaña {tab_daily} te ofrece una recompensa. Vuelve varios días seguidos para avanzar en tu racha de 7 días y conseguir mejores recompensas. Si te saltas un día, la racha vuelve a empezar por el primer día.',
+          },
+          missions: {
+            title: 'Misiones del día',
+            short: 'Cada día, la pestaña {tab_daily} propone unas cuantas misiones cortas: romper bloques, ganar monedas… Cuando terminas una misión, toca «{btn_claim}» para recibir su recompensa. Al día siguiente llegan misiones nuevas.',
+          },
+        },
+        faq: {
+          rank_depth: {
+            q: '¿Por qué mi puesto no depende de mi profundidad?',
+            a: 'La profundidad también aumenta con el Auto-Dig, aunque nadie esté jugando. Para que la clasificación sea justa, solo cuentan los bloques rotos a mano y validados por el servidor. La profundidad sigue mostrándose a título informativo.',
+          },
+          autodig_rank: {
+            q: '¿El Auto-Dig me ayuda en la clasificación?',
+            a: 'No. Te hace ganar monedas y profundidad, pero los bloques que rompe no cuentan para el puesto.',
+          },
+          season_end: {
+            q: '¿Qué se conserva al final de una temporada?',
+            a: 'Conservas tus gemas (hasta un límite), fragmentos, reliquias, bonus permanentes, objetos de colección, insignias y puntos de recompensa. Las monedas, la profundidad, las mejoras y los boosts vuelven a cero.',
+          },
+          save: {
+            q: '¿Se guarda mi progreso?',
+            a: 'Sin cuenta, se queda en este dispositivo y en este navegador. Con una cuenta, se guarda en línea y lo recuperas en tus otros dispositivos; la cuenta también es necesaria para la clasificación.',
+          },
+          other_device: {
+            q: '¿Por qué el juego me propone «{btn_here}»?',
+            a: 'Tu partida solo funciona en un sitio a la vez, para no mezclar tu progreso. Toca «{btn_here}» para seguir exactamente donde lo dejaste.',
+          },
+        },
+      },
       pickaxe: {
         seconds: '{n} s',
         gauge: '⛏ Reserva: {n} / {cap} golpes · +1 cada {sec} s',
