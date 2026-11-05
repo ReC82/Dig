@@ -12,16 +12,26 @@
  * - Consentement explicite demandé avant tout chargement ; refus ou retrait = aucune bannière ;
  *   le choix est modifiable dans Paramètres. Bloqueur de publicité ou absence d'annonce :
  *   l'emplacement se replie, sans message ni pénalité.
+ * - Promotion interne DIG! (demande du 04/11/2026) : quand aucune annonce de régie n'est servie
+ *   ici, le même emplacement peut afficher une bannière maison (public/js/gemCallout.js) qui
+ *   ouvre la boutique de gemmes. Aucun script tiers, aucun cadre, aucun consentement requis ;
+ *   pilotée séparément dans l'admin. Noms neutres (#top-strip) : les filtres cosmétiques des
+ *   bloqueurs ne la masquent pas en laissant un vide.
+ * - Pas de décalage au chargement : la hauteur du dernier emplacement affiché est mémorisée
+ *   et réservée dès le chargement du script, puis confirmée ou libérée par la configuration.
  * - Emplacement en haut, au-dessus de l'en-tête : jamais sur le bloc, les commandes ou la barre
  *   de navigation. Option admin « masquer sur l'écran de minage » (mobile par défaut).
  */
 const DigAds = (() => {
   const CONSENT_KEY = 'dig_ads_consent';
+  const HINT_KEY    = 'dig_top_strip';  // dernier emplacement affiché : réservation sans décalage
   const DESKTOP_MIN_W = 760;   // 728 px + marges
   const MIN_H = 480;           // paysage très bas (téléphone couché) : pas de bannière
 
   let _config = null;
-  let _slot   = null;
+  let _ext    = null;   // emplacement de la régie utilisable ici (ou null)
+  let _promo  = null;   // emplacement de la promotion interne (ou null)
+  let _mode   = null;   // 'ad' | 'promo' | null : contenu monté
   let _frame  = null;
 
   function _readConsent() {
@@ -36,13 +46,19 @@ const DigAds = (() => {
     catch { /* stockage indisponible : choix valable pour cette page seulement */ }
   }
 
-  function _pickSlot() {
-    const by = Object.fromEntries((_config?.slots || []).map(s => [s.slot, s]));
+  function _fits() {
     if (window.innerHeight < MIN_H) return null;
-    if (window.innerWidth >= DESKTOP_MIN_W && by.top_desktop) return by.top_desktop;
-    if (window.innerWidth < DESKTOP_MIN_W && window.innerWidth >= 320 && by.top_mobile) return by.top_mobile;
+    if (window.innerWidth >= DESKTOP_MIN_W) return 'top_desktop';
+    if (window.innerWidth >= 320) return 'top_mobile';
     return null;
   }
+
+  function _pickSlot(slots) {
+    const want = _fits();
+    return (slots || []).find(s => s.slot === want) || null;
+  }
+
+  function _current() { return _mode === 'ad' ? _ext : _mode === 'promo' ? _promo : null; }
 
   function _digVisible() {
     const v = document.getElementById('view-dig');
@@ -50,45 +66,99 @@ const DigAds = (() => {
   }
 
   function _applyDigVisibility() {
-    if (!_frame) return;
-    document.body.classList.toggle('ad-top-collapsed', !!_slot.hideOnDig && _digVisible());
+    const s = _current();
+    if (!s) return;
+    document.body.classList.toggle('top-strip-collapsed', !!s.hideOnDig && _digVisible());
   }
 
   function _unmount() {
-    document.getElementById('ad-top')?.remove();
-    document.body.classList.remove('has-ad-top', 'ad-top-collapsed');
-    document.body.style.removeProperty('--ad-h');
+    document.getElementById('top-strip')?.remove();
+    document.body.classList.remove('has-top-strip', 'top-strip-collapsed');
+    document.body.style.removeProperty('--top-strip-h');
     _frame = null;
+    _mode  = null;
   }
 
-  function _mount() {
-    if (_frame || !_slot) return;
+  // Espace réservé à la taille exacte AVANT le contenu : pas de décalage quand il arrive.
+  function _box(slot) {
     const box = document.createElement('div');
-    box.id = 'ad-top';
+    box.id = 'top-strip';
+    document.body.style.setProperty('--top-strip-h', `${slot.height + 8}px`);
+    document.body.prepend(box);
+    document.body.classList.add('has-top-strip');
+    return box;
+  }
+
+  function _mountAd() {
+    const box = _box(_ext);
     box.setAttribute('role', 'complementary');
     box.setAttribute('aria-label', t('ads.label'));
     const frame = document.createElement('iframe');
     frame.title = t('ads.label');
-    frame.width  = String(_slot.width);
-    frame.height = String(_slot.height);
+    frame.width  = String(_ext.width);
+    frame.height = String(_ext.height);
     frame.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox');
     frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
     frame.setAttribute('scrolling', 'no');
     frame.setAttribute('tabindex', '-1');
-    frame.src = `/ads/frame/${encodeURIComponent(_slot.slot)}`;
+    frame.src = `/ads/frame/${encodeURIComponent(_ext.slot)}`;
     box.appendChild(frame);
-    // Espace réservé à la taille exacte AVANT le chargement : pas de décalage quand l'annonce arrive.
-    document.body.style.setProperty('--ad-h', `${_slot.height + 8}px`);
-    document.body.prepend(box);
-    document.body.classList.add('has-ad-top');
     _frame = frame;
+    _mode = 'ad';
+  }
+
+  // Boutique de gemmes joignable ? Sinon, pas de promotion (aucun lien mort).
+  function _shopAvailable() {
+    return typeof switchView === 'function' && !!document.getElementById('view-shop')
+      && !!document.querySelector('.nav-btn[data-view="shop"]');
+  }
+
+  function _openGemShop() {
+    if (!_shopAvailable()) { _promo = null; _render(); return; }
+    switchView('shop');
+    document.getElementById('shop-gems-anchor')?.scrollIntoView({ block: 'start' });
+  }
+
+  function _mountPromo() {
+    const box = _box(_promo);
+    box.setAttribute('role', 'complementary');
+    box.setAttribute('aria-label', t('promo.tag'));
+    box.appendChild(DigGemCallout.create(_promo.slot, {
+      tag: t('promo.tag'), title: t('promo.title'), text: t('promo.text'), cta: t('promo.cta'), ctaShort: t('promo.cta_short'),
+    }, _openGemShop));
+    _mode = 'promo';
+  }
+
+  function _render() {
+    const want = _ext && _readConsent() === 'granted' ? 'ad' : _promo && _shopAvailable() ? 'promo' : null;
+    if (want !== _mode || !want) {   // !want : libère aussi une place réservée par l'indice
+      _unmount();
+      if (want === 'ad') _mountAd();
+      else if (want === 'promo') _mountPromo();
+    }
     _applyDigVisibility();
+    const s = _current();
+    try {
+      if (s) localStorage.setItem(HINT_KEY, JSON.stringify({ slot: s.slot, height: s.height, hideOnDig: !!s.hideOnDig }));
+      else localStorage.removeItem(HINT_KEY);
+    } catch { /* stockage indisponible : réservation au prochain chargement impossible, sans gravité */ }
+  }
+
+  // Réserve dès le chargement la place de la bannière affichée la dernière fois (même format),
+  // pour que l'arrivée de la configuration ne décale pas l'interface.
+  function _reserveFromHint() {
+    try {
+      const h = JSON.parse(localStorage.getItem(HINT_KEY) || 'null');
+      if (!h || h.slot !== _fits() || !(h.height > 0 && h.height <= 90)) return;
+      _box(h);
+      document.body.classList.toggle('top-strip-collapsed', !!h.hideOnDig && _digVisible());
+    } catch { /* indice illisible : rien à réserver */ }
   }
 
   // Le cadre signale un script bloqué (bloqueur, réseau) : on replie l'emplacement.
   window.addEventListener('message', (e) => {
     if (!_frame || e.source !== _frame.contentWindow) return;
-    if (e.data && e.data.digAd === 'error') _unmount();
+    if (e.data && e.data.digAd === 'error') { _ext = null; _render(); }
   });
 
   function _showConsent() {
@@ -114,27 +184,25 @@ const DigAds = (() => {
     box.querySelector('#ad-consent-refuse').addEventListener('click', () => done('denied'));
   }
 
-  /** Enregistre le choix du joueur ; un retrait démonte immédiatement la bannière. */
+  /** Enregistre le choix du joueur ; un retrait démonte immédiatement la bannière de la régie. */
   function setConsent(choice) {
     if (!_config) return;
     _writeConsent(choice);
-    if (choice === 'granted') _mount(); else _unmount();
+    _render();
   }
 
   async function init() {
     try {
       const res = await fetch('/api/ads/config', { credentials: 'same-origin', cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(String(res.status));
       _config = await res.json();
-    } catch { return; }
-    if (!_config.enabled) return;
-    _slot = _pickSlot();
-    if (!_slot) return;
-    const choice = _readConsent();
-    if (choice === 'granted') _mount();
-    else if (choice === null) _whenNoModal(_showConsent);
+    } catch { _unmount(); return; }
+    _ext   = _config.enabled ? _pickSlot(_config.slots) : null;
+    _promo = _config.promo ? _pickSlot(_config.promo.slots) : null;
+    _render();
+    if (_ext && _readConsent() === null) _whenNoModal(_showConsent);
     const view = document.getElementById('view-dig');
-    if (view) new MutationObserver(_applyDigVisibility).observe(view, { attributes: true, attributeFilter: ['class'] });
+    if (view && (_ext || _promo)) new MutationObserver(_applyDigVisibility).observe(view, { attributes: true, attributeFilter: ['class'] });
   }
 
   // Ne pas empiler la demande de consentement sur l'écran de choix de langue.
@@ -145,9 +213,9 @@ const DigAds = (() => {
       .observe(lang, { attributes: true, attributeFilter: ['hidden'] });
   }
 
-  /** Section « Publicité » de Paramètres : seulement si une bannière peut s'afficher ici. */
+  /** Section « Publicité » de Paramètres : seulement si une bannière de régie peut s'afficher ici. */
   function settingsSectionHtml() {
-    if (!_config || !_config.enabled || !_slot) return '';
+    if (!_config || !_config.enabled || !_ext) return '';
     const choice = _readConsent();
     const state = choice === 'granted' ? t('ads.settings_granted') : choice === 'denied' ? t('ads.settings_denied') : t('ads.settings_unset');
     const btn = choice === 'granted'
@@ -164,6 +232,8 @@ const DigAds = (() => {
       rerender();
     }));
   }
+
+  _reserveFromHint();
 
   return { init, setConsent, settingsSectionHtml, bindSettings, CONSENT_KEY };
 })();

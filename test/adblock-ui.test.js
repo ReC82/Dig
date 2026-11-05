@@ -34,7 +34,7 @@ test('index.html : aucun id ni classe de l\'interface ne ressemble à de la publ
 test('style.css / main.js / monetization.js : aucun sélecteur publicitaire pour l\'interface du jeu', () => {
   const css = read('public/css/style.css')
     // la bannière réelle (#45), sa demande de consentement et son réglage gardent leurs noms
-    .replace(/[#.](?:ad-top|has-ad-top|ad-top-collapsed|ad-consent[\w-]*|settings-ad-[\w-]+)\b/g, '');
+    .replace(/[#.](?:ad-consent[\w-]*|settings-ad-[\w-]+)\b/g, '');
   const sel = [...css.matchAll(/[#.]([a-zA-Z][\w-]*)/g)].map(m => m[1]);
   assert.deepStrictEqual([...new Set(sel.filter(isAdLike))], []);
   for (const f of ['public/js/main.js', 'public/js/monetization.js']) {

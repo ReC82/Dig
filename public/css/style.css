@@ -3363,18 +3363,20 @@ header {
 #game-logo.logo-preview-emblem { display: flex; align-items: center; gap: 6px; line-height: 1; font-size: 1.9rem; }
 #game-logo.logo-preview-emblem img { height: 38px; width: 38px; }
 
-/* ── Publicité (#45) : bannière haute réservée, hors zone de jeu ────────────
-   Rien de tout ceci ne s'applique tant que DigAds n'a pas monté d'emplacement
-   (body.has-ad-top) : sans publicité, la mise en page est inchangée. */
-body.has-ad-top {
+/* ── Bannière haute (#45) : publicité de la régie ou promotion interne DIG! ─
+   Réservée en haut, hors zone de jeu. Rien de tout ceci ne s'applique tant que
+   DigAds n'a pas monté d'emplacement (body.has-top-strip) : sans bannière, la
+   mise en page est inchangée. Noms neutres : un filtre cosmétique de bloqueur
+   ne masque pas le conteneur en laissant un vide. */
+body.has-top-strip {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
 }
-#ad-top {
+#top-strip {
   flex-shrink: 0;
   width: 100%;
-  height: calc(var(--ad-h, 0px) + env(safe-area-inset-top, 0px));
+  height: calc(var(--top-strip-h, 0px) + env(safe-area-inset-top, 0px));
   padding-top: calc(4px + env(safe-area-inset-top, 0px));
   display: flex;
   justify-content: center;
@@ -3382,12 +3384,12 @@ body.has-ad-top {
   overflow: hidden;
   background: #08080f;
 }
-#ad-top iframe { border: 0; display: block; max-width: 100%; background: transparent; }
-body.has-ad-top #app { height: calc(100dvh - var(--ad-h, 0px) - env(safe-area-inset-top, 0px)); }
-body.has-ad-top header { padding-top: 10px; }
-body.has-ad-top.ad-top-collapsed #ad-top { display: none; }
-body.has-ad-top.ad-top-collapsed #app { height: 100dvh; }
-body.has-ad-top.ad-top-collapsed header { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
+#top-strip iframe { border: 0; display: block; max-width: 100%; background: transparent; }
+body.has-top-strip #app { height: calc(100dvh - var(--top-strip-h, 0px) - env(safe-area-inset-top, 0px)); }
+body.has-top-strip header { padding-top: 10px; }
+body.has-top-strip.top-strip-collapsed #top-strip { display: none; }
+body.has-top-strip.top-strip-collapsed #app { height: 100dvh; }
+body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
 
 #ad-consent {
   position: fixed;

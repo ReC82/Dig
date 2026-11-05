@@ -19,6 +19,10 @@
  *   - statistiques : uniquement le nombre de cadres servis par jour et par emplacement (mesure
  *     technique côté serveur, sans donnée personnelle). Ce ne sont PAS des impressions régie ;
  *     aucun revenu n'est estimé (revenus : tableau de bord de la régie) ;
+ *   - promotion interne DIG! (demande du 04/11/2026) : bannière maison, sans régie ni script tiers
+ *     ni consentement, qui mène à la boutique de gemmes. Elle occupe les MÊMES emplacements quand
+ *     aucune annonce de régie n'y est servie, se pilote séparément (`promo_enabled`, désactivée par
+ *     défaut) et n'est pas coupée par `ADS_DISABLED` (coupe-circuit propre : `PROMO_DISABLED=1`) ;
  *   - option « sans publicité » future : `isAdFree()` est le point d'entrée unique ; aucun prix,
  *     durée ni achat n'est implémenté (arbitrage du propriétaire nécessaire).
  */
@@ -39,6 +43,9 @@ const PROVIDERS = {
   adsterra: { label: 'Adsterra (bannière atOptions / iframe)' },
 };
 
+/** Campagne interne (unique pour l'instant) : la création est rendue par le jeu (public/js/adPromo.js). */
+const PROMO_CAMPAIGN = 'gems_shop';
+
 const KEY_RE  = /^[a-f0-9]{32}$/;
 const HOST_RE = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 const STATS_DAYS = 14;
@@ -51,6 +58,10 @@ const conn = () => db.getDb();
 
 function killSwitch(env = process.env) {
   return env.ADS_DISABLED === '1' || env.ADS_DISABLED === 'true';
+}
+
+function promoKillSwitch(env = process.env) {
+  return env.PROMO_DISABLED === '1' || env.PROMO_DISABLED === 'true';
 }
 
 function normalizeHost(host) {
@@ -73,6 +84,7 @@ function getSettings() {
     consentVersion: row.consent_version,
     adsTxt:         row.ads_txt,
     legalContact:   row.legal_contact,
+    promoEnabled:   row.promo_enabled === 1,
     updatedAt:      row.updated_at,
   };
 }
@@ -88,6 +100,7 @@ function getSlots() {
       adKey:      r.ad_key || '',
       scriptUrl:  r.script_url || '',
       hideOnDig:  r.hide_on_dig === 1,
+      promoHideOnDig: r.promo_hide_on_dig === 1,
       configured: KEY_RE.test(r.ad_key || '') && !!r.script_url,
       updatedAt:  r.updated_at || null,
     };
@@ -195,6 +208,36 @@ function updateSlot(slot, body = {}) {
 }
 
 /**
+ * Promotion interne : interrupteur et « masquer sur l'écran de minage » par emplacement.
+ * Aucune confirmation ACTIVER : rien de tiers n'est chargé (autorisation du propriétaire du 04/11).
+ */
+function updatePromo(body = {}) {
+  const run = conn().transaction(() => {
+    if (body.enabled !== undefined) {
+      conn().prepare(`UPDATE ad_settings SET promo_enabled = ?, updated_at = datetime('now') WHERE id = 1`)
+        .run(body.enabled === true ? 1 : 0);
+    }
+    const hide = body.hideOnDig && typeof body.hideOnDig === 'object' ? body.hideOnDig : {};
+    for (const [slot, v] of Object.entries(hide)) {
+      if (!SLOTS[slot]) throw new AdError(404, 'Emplacement inconnu.');
+      conn().prepare(`UPDATE ad_slots SET promo_hide_on_dig = ?, updated_at = datetime('now') WHERE slot = ?`)
+        .run(v === true ? 1 : 0, slot);
+    }
+  });
+  run();
+  return promoState();
+}
+
+function promoState() {
+  return {
+    enabled: getSettings().promoEnabled,
+    killSwitch: promoKillSwitch(),
+    campaign: PROMO_CAMPAIGN,
+    slots: getSlots().map(s => ({ slot: s.slot, width: s.width, height: s.height, label: s.label, hideOnDig: s.promoHideOnDig })),
+  };
+}
+
+/**
  * Option « sans publicité » (future) : point d'entrée unique. Aucune offre n'existe ; quand le
  * propriétaire aura arbitré (prix, durée, achat en gemmes…), seule cette fonction changera.
  */
@@ -220,7 +263,12 @@ function publicConfig(host, { userId } = {}) {
     .filter(s => s.enabled && s.configured)
     .map(s => ({ slot: s.slot, width: s.width, height: s.height, hideOnDig: s.hideOnDig }));
   if (!reason && !slots.length) reason = 'no_slot';
-  return { enabled: !reason, reason, consentVersion: settings.consentVersion, slots };
+  // Promotion interne : même emplacement, utilisée par le jeu quand aucune annonce n'y est servie.
+  const promo = settings.promoEnabled && !promoKillSwitch() ? {
+    campaign: PROMO_CAMPAIGN,
+    slots: getSlots().map(s => ({ slot: s.slot, width: s.width, height: s.height, hideOnDig: s.promoHideOnDig })),
+  } : null;
+  return { enabled: !reason, reason, consentVersion: settings.consentVersion, slots, promo };
 }
 
 const _esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -289,6 +337,7 @@ function adminView(host) {
   return {
     settings,
     killSwitch: killSwitch(),
+    promo: promoState(),
     providers: Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label })),
     slots: getSlots().map(s => ({ ...s, scriptHost: s.scriptUrl ? new URL(s.scriptUrl).hostname : '' })),
     // État effectif sur chaque domaine autorisé et sur celui de la requête admin
@@ -299,8 +348,8 @@ function adminView(host) {
 }
 
 module.exports = {
-  SLOTS, PROVIDERS, AdError,
-  normalizeHost, killSwitch, getSettings, getSlots, parseSnippet, validateAdsTxt,
+  SLOTS, PROVIDERS, PROMO_CAMPAIGN, AdError,
+  normalizeHost, killSwitch, promoKillSwitch, updatePromo, promoState, getSettings, getSlots, parseSnippet, validateAdsTxt,
   updateSettings, updateSlot, isAdFree, blockedReason, publicConfig, frameDocument,
   adsTxt, robotsTxt, adminView,
 };

@@ -812,6 +812,14 @@ function initDb() {
       PRIMARY KEY (day, slot)
     );
   `);
+  // Promotion interne DIG! (#45, demande du 04/11) : bannière maison vers la boutique de gemmes,
+  // indépendante de la régie. Colonnes ajoutées seules, désactivée par défaut ; « masquer sur
+  // l'écran de minage » reprend une seule fois le réglage existant de l'emplacement.
+  try { _db.prepare('ALTER TABLE ad_settings ADD COLUMN promo_enabled INTEGER NOT NULL DEFAULT 0').run(); } catch (_) {}
+  try {
+    _db.prepare('ALTER TABLE ad_slots ADD COLUMN promo_hide_on_dig INTEGER NOT NULL DEFAULT 0').run();
+    _db.prepare('UPDATE ad_slots SET promo_hide_on_dig = hide_on_dig').run();
+  } catch (_) {}
 
   // Bêta fermée (#57) : réglages (une ligne ; inscription ouverte et bandeau masqué par défaut,
   // donc aucun changement visible au déploiement), codes d'invitation, comptes créés avec un code

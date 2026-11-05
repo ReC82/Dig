@@ -234,6 +234,14 @@ const I18n = (() => {
         grant: 'Accepter les bannières',
         privacy_link: 'Confidentialité, cookies et contact',
       },
+      // Promotion interne DIG! (#45) : bannière haute vers la boutique de gemmes
+      promo: {
+        tag: 'Promotion DIG!',
+        title: 'Besoin de gemmes ?',
+        text: 'Toutes les offres de gemmes sont dans la boutique.',
+        cta: 'Découvrir la boutique',
+        cta_short: 'Boutique',
+      },
       nav: {
         dig: 'Dig', upgrades: 'Amélios', collection: 'Collection',
         daily: 'Quotidien', shop: 'Boutique',
@@ -935,6 +943,14 @@ const I18n = (() => {
         grant: 'Accept banners',
         privacy_link: 'Privacy, cookies and contact',
       },
+      // Promotion interne DIG! (#45) : bannière haute vers la boutique de gemmes
+      promo: {
+        tag: 'DIG! promotion',
+        title: 'Need gems?',
+        text: 'All gem offers are in the shop.',
+        cta: 'Visit the shop',
+        cta_short: 'Shop',
+      },
       nav: {
         dig: 'Dig', upgrades: 'Upgrades', collection: 'Collection',
         daily: 'Daily', shop: 'Shop',
@@ -1635,6 +1651,14 @@ const I18n = (() => {
         grant: 'Banners accepteren',
         privacy_link: 'Privacy, cookies en contact',
       },
+      // Promotion interne DIG! (#45) : bannière haute vers la boutique de gemmes
+      promo: {
+        tag: 'DIG!-promotie',
+        title: 'Edelstenen nodig?',
+        text: 'Alle edelsteenaanbiedingen vind je in de winkel.',
+        cta: 'Ontdek de winkel',
+        cta_short: 'Winkel',
+      },
       nav: {
         dig: 'Graven', upgrades: 'Verbeter.', collection: 'Collectie',
         daily: 'Dagelijks', shop: 'Winkel',
@@ -2334,6 +2358,14 @@ const I18n = (() => {
         withdraw: 'Retirar mi consentimiento',
         grant: 'Aceptar los banners',
         privacy_link: 'Privacidad, cookies y contacto',
+      },
+      // Promotion interne DIG! (#45) : bannière haute vers la boutique de gemmes
+      promo: {
+        tag: 'Promoción DIG!',
+        title: '¿Necesitas gemas?',
+        text: 'Todas las ofertas de gemas están en la tienda.',
+        cta: 'Descubrir la tienda',
+        cta_short: 'Tienda',
       },
       nav: {
         dig: 'Cavar', upgrades: 'Mejoras', collection: 'Colección',
