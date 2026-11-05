@@ -95,7 +95,9 @@ test('rubrique retenue dans l\'URL sans entrée d\'historique ; préférences se
 
 test('signal d\'anomalie : uniquement sur des faits serveur (pas de faux signal hors ligne)', () => {
   assert.match(JS, /if \(ok \|\| status === 404\) admNavFlag\('season-overview', ok \? null : 'aucune saison active'\);/);
-  assert.match(JS, /admNavFlag\('upgrades', suspended \? `\$\{suspended\} amélioration\(s\) suspendue\(s\) en urgence` : null\);/);
+  // Une suspension volontaire n'est pas un incident : le ⚠ des Améliorations ne dépend que de l'échec du chargement.
+  assert.match(JS, /if \(ok \|\| status >= 500\) admNavFlag\('upgrades', ok \? null : 'chargement du catalogue impossible \(erreur serveur\)'\);/);
+  assert.doesNotMatch(JS, /admNavFlag\('upgrades', suspended/);
   assert.strictEqual((JS.match(/admNavFlag\('/g) || []).length, 2, 'aucun autre signal');
 });
 
