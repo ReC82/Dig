@@ -602,6 +602,8 @@ const ADM_NAV_ACTIONS = [
   { id: 'sec-journal',    tab: 'security', target: 'sec-journal-card',     label: 'Consulter le journal de sécurité',               keywords: 'anomalies audit connexions admin', help: 'Filtres par type d\'événement et par période.' },
   { id: 'invite',         tab: 'beta',     target: 'btn-beta-invite-open', label: 'Préparer une invitation bêta',                   keywords: 'inviter testeur code lien accès', help: 'Bouton « ➕ Inviter un testeur » : rien n\'est créé avant « Créer » dans la fiche.' },
   { id: 'beta-feedback',  tab: 'beta',     target: 'beta-feedback-card',   label: 'Lire les retours des testeurs',                  keywords: 'feedback signalements bugs', help: 'Retours envoyés depuis le jeu par les testeurs.' },
+  { id: 'beta-manage',    tab: 'beta',     target: 'btn-beta-manage',      label: 'Révoquer ou archiver un lien, retirer un testeur', keywords: 'gérer invitations testeurs révoquer archiver masquer supprimer retirer lien code bêta', help: 'Bouton « 🗂️ Gérer les invitations et testeurs » : listes filtrables ; chaque retrait demande une confirmation et reste réversible (archives, « Réintégrer »).' },
+  { id: 'beta-archive',   tab: 'beta',     target: 'beta-reports-view',    label: 'Archiver un retour de test traité',              keywords: 'archives retours signalements masquer ranger bêta', help: 'Retours des testeurs → bouton « 🗄️ Archiver » d\'un retour ; « Afficher : Archives » pour les retrouver et les réafficher. Rien n\'est supprimé.' },
   { id: 'gains',          tab: 'economy',  sub: 'gains', target: 'eco-coin-gain', label: 'Modifier les gains (multiplicateurs)',     keywords: 'gain pièces fragments multiplicateur économie', help: 'Économie → Gains & coûts : saisir puis « Enregistrer les paramètres économiques ».' },
   { id: 'chest-costs',    tab: 'economy',  sub: 'gains', target: 'eco-cost-simple', label: 'Changer le prix des coffres',           keywords: 'coût coffre simple rare antique', help: 'Économie → Gains & coûts → Coûts des coffres (vide = valeur par défaut).' },
   { id: 'gem-ledger',     tab: 'economy',  sub: 'ledger', target: 'gem-ledger-card', label: 'Vérifier le registre de gemmes',       keywords: 'gemmes soldes écart', help: 'Économie → Registre de gemmes (lecture ; changer le mode demande une note).' },
@@ -8920,52 +8922,12 @@ function renderBeta(data) {
   betaSetUnlessEdited(document.getElementById('beta-inv-wave'), data.currentWave);
   document.getElementById('beta-invite-wave').textContent = data.currentWave;
 
-  const ib = document.getElementById('beta-invites');
-  ib.textContent = '';
-  if (!data.invites.length) ib.innerHTML = '<tr><td colspan="8" class="muted">Aucun lien créé.</td></tr>';
-  for (const inv of data.invites) {
-    const tr = document.createElement('tr');
-    addCell(tr, inv.code).style.fontFamily = 'monospace';
-    const linkTd = addCell(tr, '');
-    if (inv.state === 'active') {
-      const copy = document.createElement('button');
-      copy.className = 'btn-ghost'; copy.textContent = '📋 Copier le lien';
-      copy.addEventListener('click', () => betaCopy(betaInviteLink(inv.code), copy, '📋 Copier le lien'));
-      linkTd.appendChild(copy);
-    }
-    [inv.label || '—', inv.wave, `${inv.uses} / ${inv.maxUses}`, inv.expiresAt || 'jamais', BETA_STATES[inv.state] || inv.state].forEach(x => addCell(tr, x));
-    const act = addCell(tr, '');
-    if (inv.state === 'active') {
-      const rev = document.createElement('button');
-      rev.className = 'btn-ghost'; rev.textContent = 'Révoquer';
-      rev.addEventListener('click', async () => {
-        if (!await admAsk(`Révoquer ${inv.code} ? Le lien ne marchera plus. Les comptes déjà créés avec ce lien ne sont pas touchés.`)) return;
-        const { ok, data: d } = await api('POST', `/api/admin/beta/invites/${inv.id}/revoke`);
-        if (!ok) return adMessage('beta-invite-msg', d.error || 'Erreur.', false);
-        admToast(`Lien ${inv.code} révoqué.`);
-        loadBeta();
-      });
-      act.appendChild(rev);
-    }
-    ib.appendChild(tr);
-  }
-
-  const sm = data.summary;
-  document.getElementById('beta-testers-summary').textContent = `${sm.total} testeur(s) · ${sm.activated} ont sauvegardé au moins une fois · `
-    + `retour J+1 : ${sm.d1.returned}/${sm.d1.eligible} · retour J+7 : ${sm.d7.returned}/${sm.d7.eligible} `
-    + '(approximation : dernière sauvegarde cloud au moins 1 ou 7 jours après l’inscription).';
-  const tb = document.getElementById('beta-testers');
-  tb.textContent = '';
-  if (!data.testers.length) tb.innerHTML = '<tr><td colspan="8" class="muted">Aucun compte créé avec une invitation.</td></tr>';
-  for (const x of data.testers) {
-    const tr = document.createElement('tr');
-    [x.username, x.label || '—', x.wave, x.createdAt, x.lastSaveAt || '—', x.returnedD1 ? 'oui' : '—', x.returnedD7 ? 'oui' : '—', x.reports]
-      .forEach(v => addCell(tr, v));
-    tb.appendChild(tr);
-  }
+  if (document.getElementById('beta-manage-dialog').open) betaManageRender();
 
   const c = data.reports.counts;
-  document.getElementById('beta-reports-counts').textContent = Object.entries(BETA_STATUS).map(([k, l]) => `${l} : ${c[k] || 0}`).join(' · ');
+  const showArchived = document.getElementById('beta-reports-view').value === 'archived';
+  const reports = data.reports.reports.filter(r => !!r.archivedAt === showArchived);
+  document.getElementById('beta-reports-counts').textContent = `${Object.entries(BETA_STATUS).map(([k, l]) => `${l} : ${c[k] || 0}`).join(' · ')} · archivés : ${c.archived || 0}`;
   const list = document.getElementById('beta-reports-list');
   // Rafraîchir ne doit rien faire perdre : fiches ouvertes/fermées et saisies non enregistrées
   // (statut, lien, note) sont reportées sur la nouvelle liste.
@@ -8974,19 +8936,20 @@ function renderBeta(data) {
     edits: [...card.querySelectorAll('[data-field]')].filter(el => el.value !== el.dataset.saved).map(el => [el.dataset.field, el.value]),
   }]));
   list.textContent = '';
-  if (!data.reports.reports.length) {
+  if (!reports.length) {
     const p = document.createElement('p'); p.className = 'muted';
-    p.textContent = s.reportsEnabled ? 'Aucun retour pour le moment.' : 'Aucun retour. Le bouton « Signaler un bug » est désactivé (« Configurer la bêta » pour l’activer).';
+    p.textContent = showArchived ? 'Aucun retour archivé.'
+      : s.reportsEnabled ? 'Aucun retour actif.' : 'Aucun retour actif. Le bouton « Signaler un bug » est désactivé (« Configurer la bêta » pour l’activer).';
     list.appendChild(p);
   }
-  for (const r of data.reports.reports) {
+  for (const r of reports) {
     const card = document.createElement('details');
     card.className = 'beta-report';
     card.dataset.reportId = r.id;
     const prev = before.get(String(r.id));
-    card.open = prev ? prev.open : r.status === 'new';
+    card.open = prev ? prev.open : r.status === 'new' && !r.archivedAt;
     const h = document.createElement('summary');
-    h.textContent = `n°${r.id} — ${r.username || 'invité'} — ${BETA_STATUS[r.status]} — ${r.createdAt} UTC — ${(r.observed || '').slice(0, 80)}`;
+    h.textContent = `n°${r.id} — ${r.username || 'invité'} — ${BETA_STATUS[r.status]}${r.archivedAt ? ` — archivé le ${r.archivedAt} UTC` : ''} — ${r.createdAt} UTC — ${(r.observed || '').slice(0, 80)}`;
     card.appendChild(h);
     for (const [label, val] of [['Appareil', r.device], ['Étape', r.step], ['Attendu', r.expected], ['Constaté', r.observed]]) {
       const p = document.createElement('p');
@@ -9019,7 +8982,21 @@ function renderBeta(data) {
     });
     for (const [el, field] of [[sel, 'status'], [gh, 'githubUrl'], [note, 'adminNote']]) { el.dataset.field = field; el.dataset.saved = el.value; }
     for (const [field, value] of prev?.edits || []) ({ status: sel, githubUrl: gh, adminNote: note })[field].value = value;
-    row.append(sel, gh, note, save);
+    // #80 : archiver range le retour (rien n'est supprimé : texte, diagnostic, statut, note restent) ; réversible.
+    const arch = document.createElement('button');
+    arch.className = 'btn btn-outline';
+    arch.textContent = r.archivedAt ? '↩️ Réafficher' : '🗄️ Archiver';
+    arch.addEventListener('click', async () => {
+      const pending = [sel, gh, note].some(el => el.value !== el.dataset.saved);
+      if (pending && !await admConfirm({ title: `Archiver le retour n°${r.id} ?`, text: 'Ce retour a des modifications non enregistrées : elles seront perdues.', ok: 'Archiver sans enregistrer' })) return;
+      arch.disabled = true;
+      const { ok, data: d } = await api('POST', `/api/admin/beta/reports/${r.id}/${r.archivedAt ? 'unarchive' : 'archive'}`);
+      arch.disabled = false;
+      if (!ok) return adMessage('beta-report-msg', d.error || 'Erreur.', false);
+      admToast(r.archivedAt ? `Retour n°${r.id} réaffiché dans les retours actifs.` : `Retour n°${r.id} archivé — « Afficher : Archives » pour le retrouver.`);
+      loadBeta();
+    });
+    row.append(sel, gh, note, save, arch);
     card.appendChild(row);
     list.appendChild(card);
   }
@@ -9053,6 +9030,185 @@ async function loadBeta({ manual = false } = {}) {
 }
 
 admRefreshButton('btn-refresh-beta', loadBeta, 'Bêta');
+document.getElementById('beta-reports-view').addEventListener('change', () => { if (_beta) renderBeta(_beta); });
+
+// ── Fiche « Gérer les invitations et testeurs » (#80) ────────────────────────────────────────────────────
+// Ouvrir, changer d'onglet, filtrer ou chercher ne modifie rien. Les actions passent par le serveur (autorisation
+// admin, journal beta_audit) ; seules celles qui retirent quelque chose (révoquer, retirer un testeur) demandent
+// confirmation — archiver / réafficher / réintégrer sont réversibles en un clic. Les codes complets ne sont pas
+// affichés (fin du code seulement) ; « Copier le lien » reste disponible pour un lien actif.
+const BETA_LINK_FILTERS = [
+  ['current', 'Liste courante (hors archives)'], ['active', 'Actifs'], ['used', 'Utilisés'], ['revoked', 'Révoqués'],
+  ['expired', 'Expirés'], ['archived', 'Archives'], ['all', 'Tous, archives comprises'],
+];
+const BETA_TESTER_FILTERS = [['in', 'Dans le programme'], ['removed', 'Hors programme (retraits)'], ['all', 'Tous']];
+const BETA_AUDIT_FILTERS = [['all', '30 dernières actions']];
+let _betaView = 'invites';
+const _betaFilter = { invites: 'current', testers: 'in', audit: 'all' };
+const betaCodeHint = code => `${code.slice(0, 3)}-••••-${code.slice(-4)}`;
+// Fiche de consultation : la recherche et le filtre ne sont pas des saisies à protéger (pas de faux avertissement, #72).
+admDialogSetup('beta-manage-dialog', { dirty: () => false });
+
+function betaManageBtn(text, onClick, cls = 'btn btn-outline') {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = cls; b.textContent = text;
+  b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await onClick(b); } finally { if (document.contains(b)) b.disabled = false; }
+  });
+  return b;
+}
+
+async function betaManageAction(method, path, body, done) {
+  const st = document.getElementById('beta-manage-status');
+  admShowError(document.getElementById('beta-manage-error'), '');
+  admShowError(st, '');
+  const { ok, data } = await api(method, path, body);
+  if (!ok) { admShowError(document.getElementById('beta-manage-error'), data.error || 'Erreur.'); return false; }
+  // La fiche est modale (couche supérieure) : la confirmation s'affiche dans la fiche, pas seulement en toast.
+  admShowError(st, `✓ ${data.changed === false ? 'Déjà fait : rien n’a changé.' : done}`);
+  await loadBeta();
+  return true;
+}
+
+function betaItem(title, badges, meta, actions) {
+  const li = document.createElement('li');
+  li.className = 'beta-item';
+  const main = document.createElement('div');
+  main.className = 'beta-item-main';
+  const t = document.createElement('div');
+  t.className = 'beta-item-title';
+  const strong = document.createElement('strong'); strong.textContent = title;
+  t.appendChild(strong);
+  for (const [txt, kind] of badges) { const b = document.createElement('span'); b.className = `beta-badge beta-badge--${kind}`; b.textContent = txt; t.appendChild(b); }
+  const m = document.createElement('div');
+  m.className = 'beta-item-meta muted';
+  m.textContent = meta.filter(Boolean).join(' · ');
+  main.append(t, m);
+  const act = document.createElement('div');
+  act.className = 'beta-item-actions';
+  act.append(...actions);
+  li.append(main, act);
+  return li;
+}
+
+function betaInviteItem(inv) {
+  const who = inv.label ? `pour ${inv.label}` : 'sans destinataire noté';
+  const badges = [[BETA_STATES[inv.state] || inv.state, inv.state]];
+  if (inv.archivedAt) badges.push(['archivé', 'archived']);
+  const actions = [];
+  if (inv.state === 'active') {
+    actions.push(betaManageBtn('📋 Copier le lien', b => betaCopy(betaInviteLink(inv.code), b, '📋 Copier le lien')));
+    actions.push(betaManageBtn('Révoquer', async () => {
+      const used = inv.uses ? `Les ${inv.uses} compte(s) déjà créé(s) avec ce lien continuent de jouer normalement.` : 'Aucun compte n’a été créé avec ce lien.';
+      if (!await admConfirm({ title: `Révoquer le lien ${betaCodeHint(inv.code)} (${who}) ?`, danger: true, ok: 'Révoquer le lien',
+        impact: ['Le lien ne permet plus de créer de compte, immédiatement.', used,
+          'Définitif pour ce lien : pour réinviter la personne, crée un nouveau lien. Il pourra ensuite être archivé.'] })) return;
+      await betaManageAction('POST', `/api/admin/beta/invites/${inv.id}/revoke`, undefined, `Lien ${betaCodeHint(inv.code)} révoqué.`);
+    }, 'btn btn-outline btn-danger-text'));
+  } else if (!inv.archivedAt) {
+    actions.push(betaManageBtn('🗄️ Archiver', () => betaManageAction('POST', `/api/admin/beta/invites/${inv.id}/archive`, undefined,
+      `Lien ${betaCodeHint(inv.code)} archivé — filtre « Archives » pour le retrouver.`)));
+  } else {
+    actions.push(betaManageBtn('↩️ Réafficher', () => betaManageAction('POST', `/api/admin/beta/invites/${inv.id}/unarchive`, undefined,
+      `Lien ${betaCodeHint(inv.code)} réaffiché dans la liste courante.`)));
+  }
+  return betaItem(`${betaCodeHint(inv.code)} — ${who}`, badges, [
+    `vague ${inv.wave}`, `${inv.uses} / ${inv.maxUses} inscription(s)`, `créé le ${inv.createdAt} UTC${inv.createdBy ? ` par ${inv.createdBy}` : ''}`,
+    inv.revokedAt ? `révoqué le ${inv.revokedAt} UTC` : inv.expiresAt ? `expire le ${inv.expiresAt} UTC` : 'sans expiration',
+    inv.archivedAt ? `archivé le ${inv.archivedAt} UTC` : '',
+  ], actions);
+}
+
+function betaTesterItem(x) {
+  const badges = x.removedAt ? [['hors programme', 'revoked']] : [[x.activated ? 'a joué' : 'pas encore de sauvegarde', x.activated ? 'active' : 'used']];
+  const actions = [];
+  if (!x.removedAt) {
+    actions.push(betaManageBtn('Retirer du programme', async () => {
+      const inv = _beta.invites.find(i => i.code === x.code);
+      const impact = [
+        `${x.username} sort de la liste des testeurs et des compteurs de la bêta.`,
+        'Son compte, sa connexion, sa progression, son classement et ses retours ne changent PAS : le compte reste jouable normalement (la bêta ne contrôle que la création de compte).',
+        'Réversible : filtre « Hors programme » → « Réintégrer ».',
+      ];
+      if (inv?.state === 'active') impact.push(`Son lien ${betaCodeHint(inv.code)} sert encore à d’autres inscriptions : révoque-le dans « Liens » si besoin.`);
+      if (!await admConfirm({ title: `Retirer ${x.username} du programme bêta ?`, impact, ok: 'Retirer du programme', danger: true })) return;
+      await betaManageAction('POST', `/api/admin/beta/testers/${x.userId}/remove`, { confirm: true }, `Retrait du programme bêta enregistré pour ${x.username} (compte intact).`);
+    }, 'btn btn-outline btn-danger-text'));
+  } else {
+    actions.push(betaManageBtn('↩️ Réintégrer', () => betaManageAction('POST', `/api/admin/beta/testers/${x.userId}/restore`, undefined,
+      `${x.username} est de nouveau dans le programme bêta.`)));
+  }
+  return betaItem(x.username, badges, [
+    x.label ? `invité « ${x.label} »` : '', `vague ${x.wave}`, `lien ${betaCodeHint(x.code)}`, `inscription le ${x.createdAt} UTC`,
+    x.lastSaveAt ? `dernière sauvegarde ${x.lastSaveAt} UTC` : '', x.returnedD7 ? 'retour après J+7' : x.returnedD1 ? 'retour après J+1' : '',
+    `${x.reports} signalement(s)`, x.removedAt ? `retrait le ${x.removedAt} UTC` : '',
+  ], actions);
+}
+
+function betaManageRender() {
+  if (!_beta) return;
+  const view = _betaView;
+  for (const b of document.querySelectorAll('#beta-manage-dialog .beta-tab')) b.setAttribute('aria-selected', String(b.dataset.view === view));
+  const inv = _beta.invites, ts = _beta.testers;
+  document.getElementById('beta-tab-invites').textContent = `🔗 Liens (${inv.filter(i => !i.archivedAt).length})`;
+  document.getElementById('beta-tab-testers').textContent = `👥 Testeurs (${_beta.summary.total})`;
+  const sel = document.getElementById('beta-manage-filter');
+  const opts = { invites: BETA_LINK_FILTERS, testers: BETA_TESTER_FILTERS, audit: BETA_AUDIT_FILTERS }[view];
+  if (sel.dataset.view !== view) {
+    sel.textContent = '';
+    for (const [v, l] of opts) sel.appendChild(new Option(l, v));
+    sel.dataset.view = view;
+  }
+  sel.value = _betaFilter[view];
+  const q = admNavFold(document.getElementById('beta-manage-q').value.trim());
+  document.getElementById('beta-manage-q').closest('label').classList.toggle('hidden', view === 'audit');
+  const f = _betaFilter[view];
+  const hint = document.getElementById('beta-manage-hint');
+  const list = document.getElementById('beta-manage-list');
+  list.textContent = '';
+  let items = [];
+  if (view === 'invites') {
+    const counts = Object.fromEntries(Object.keys(BETA_STATES).map(k => [k, inv.filter(i => i.state === k && !i.archivedAt).length]));
+    hint.textContent = `${counts.active} actif(s) · ${counts.used} utilisé(s) · ${counts.revoked} révoqué(s) · ${counts.expired} expiré(s) · ${inv.filter(i => i.archivedAt).length} archivé(s). `
+      + 'Révoquer coupe un lien inutilisé ; archiver range un lien qui ne sert plus. Les comptes déjà créés ne sont jamais touchés.';
+    items = inv.filter(i => f === 'all' || (f === 'archived' ? !!i.archivedAt : !i.archivedAt && (f === 'current' || i.state === f)))
+      .filter(i => !q || admNavFold(`${i.label} ${i.code}`).includes(q) || admNavFold(i.code.replace(/-/g, '')).includes(q.replace(/[^a-z0-9]/g, '')))
+      .map(betaInviteItem);
+  } else if (view === 'testers') {
+    const sm = _beta.summary;
+    hint.textContent = `${sm.total} testeur(s) dans le programme${sm.removed ? `, ${sm.removed} hors programme` : ''} · ${sm.activated} ont sauvegardé au moins une fois · `
+      + `retour J+1 : ${sm.d1.returned}/${sm.d1.eligible} · J+7 : ${sm.d7.returned}/${sm.d7.eligible} (dernière sauvegarde cloud ≥ 1 ou 7 jours après l’inscription). `
+      + 'Retirer un testeur ne touche jamais à son compte.';
+    items = ts.filter(x => f === 'all' || (f === 'removed' ? !!x.removedAt : !x.removedAt))
+      .filter(x => !q || admNavFold(`${x.username} ${x.label} ${x.code}`).includes(q))
+      .map(betaTesterItem);
+  } else {
+    hint.textContent = 'Qui a fait quoi et quand (heure UTC). Journal en ajout seul : il ne peut être ni modifié ni effacé.';
+    items = (_beta.audit || []).map(e => betaItem(e.label, [], [`${e.createdAt} UTC`, e.target, e.actor], []));
+  }
+  if (!items.length) {
+    const li = document.createElement('li');
+    li.className = 'muted beta-empty';
+    li.textContent = view === 'audit' ? 'Aucune action de gestion pour le moment.' : q ? 'Aucun résultat pour cette recherche.' : 'Rien à afficher avec ce filtre.';
+    items.push(li);
+  }
+  list.append(...items);
+}
+
+document.getElementById('btn-beta-manage').addEventListener('click', e => {
+  if (!_beta) return;
+  admShowError(document.getElementById('beta-manage-error'), '');
+  admShowError(document.getElementById('beta-manage-status'), '');
+  admDialogOpen('beta-manage-dialog', e.currentTarget);
+  betaManageRender();
+  document.getElementById(`beta-tab-${_betaView}`).focus();
+});
+for (const b of document.querySelectorAll('#beta-manage-dialog .beta-tab')) {
+  b.addEventListener('click', () => { _betaView = b.dataset.view; betaManageRender(); });
+}
+document.getElementById('beta-manage-filter').addEventListener('change', e => { _betaFilter[_betaView] = e.target.value; betaManageRender(); });
+document.getElementById('beta-manage-q').addEventListener('input', () => betaManageRender());
 document.getElementById('btn-beta-feedback').addEventListener('click', () => {
   const card = document.getElementById('beta-feedback-card');
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });

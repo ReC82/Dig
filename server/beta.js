@@ -131,8 +131,34 @@ function _formatInvite(r, now) {
   return {
     id: r.id, code: r.code, label: r.label, wave: r.wave, maxUses: r.max_uses, uses: r.uses,
     expiresAt: r.expires_at, revokedAt: r.revoked_at, createdAt: r.created_at, state: _inviteState(r, now),
+    createdBy: r.created_by || null, archivedAt: r.archived_at || null,
   };
 }
+
+// ── Journal de gestion (#80) ──────────────────────────────────────────────────
+// Qui a fait quoi et quand, en ajout seul (déclencheurs en base). Seules les actions qui ont
+// réellement changé quelque chose y entrent : répéter une action ne crée pas de doublon.
+
+const AUDIT_ACTIONS = {
+  invite_revoke: 'Lien révoqué', invite_archive: 'Lien archivé', invite_unarchive: 'Lien réaffiché',
+  tester_remove: 'Testeur retiré du programme', tester_restore: 'Testeur réintégré',
+  report_archive: 'Retour archivé', report_unarchive: 'Retour réaffiché',
+};
+
+function _audit(action, type, id, target, actor) {
+  conn().prepare('INSERT INTO beta_audit (action, target_type, target_id, target, actor) VALUES (?, ?, ?, ?, ?)')
+    .run(action, type, id, String(target || '').slice(0, 80), String(actor || 'admin').slice(0, 60));
+}
+
+function listAudit(limit = 50) {
+  return conn().prepare('SELECT * FROM beta_audit ORDER BY id DESC LIMIT ?').all(Math.min(Math.max(Number(limit) || 50, 1), 200))
+    .map(r => ({ id: r.id, action: r.action, label: AUDIT_ACTIONS[r.action] || r.action, targetType: r.target_type,
+      targetId: r.target_id, target: r.target, actor: r.actor, createdAt: r.created_at }));
+}
+
+/** Code partiellement masqué pour le journal (le code complet reste visible dans la liste). */
+const _codeHint = code => `${code.slice(0, 4)}…${code.slice(-4)}`;
+const _id = v => { const n = Number(v); if (!Number.isInteger(n) || n < 1) throw new BetaError(400, 'Identifiant invalide.'); return n; };
 
 /** Vague courante : la plus haute déjà utilisée (1 si aucun code). */
 function currentWave() {
@@ -143,7 +169,7 @@ function currentWave() {
  * Crée `count` codes (1 à 20). `expiresInDays` : 1 à 90 (défaut 14) ; 0 = sans expiration.
  * Sans vague précisée : vague courante (« Inviter un testeur » en un clic, recette du 03/11).
  */
-function createInvites({ label = '', wave = null, maxUses = 1, expiresInDays = 14, count = 1 } = {}, now = new Date()) {
+function createInvites({ label = '', wave = null, maxUses = 1, expiresInDays = 14, count = 1 } = {}, now = new Date(), actor = null) {
   const lbl = _text(label, 60, 'Libellé');
   const w = (wave === null || wave === undefined || wave === '') ? currentWave() : Number(wave), m = Number(maxUses), d = Number(expiresInDays), n = Number(count);
   if (!Number.isInteger(w) || w < 1 || w > 20) throw new BetaError(400, 'Vague : entier de 1 à 20.');
@@ -151,13 +177,13 @@ function createInvites({ label = '', wave = null, maxUses = 1, expiresInDays = 1
   if (!Number.isInteger(d) || d < 0 || d > 90) throw new BetaError(400, 'Expiration : 0 (aucune) à 90 jours.');
   if (!Number.isInteger(n) || n < 1 || n > 20) throw new BetaError(400, 'Nombre de codes : 1 à 20.');
   const expires = d ? sqlTime(new Date(now.getTime() + d * 86_400_000)) : null;
-  const ins = conn().prepare('INSERT INTO beta_invites (code, label, wave, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)');
+  const ins = conn().prepare('INSERT INTO beta_invites (code, label, wave, max_uses, expires_at, created_by) VALUES (?, ?, ?, ?, ?, ?)');
   const ids = [];
   db.runTransaction(() => {
     for (let i = 0; i < n; i++) {
       let id = null;
       for (let attempt = 0; attempt < 5 && id === null; attempt++) {
-        try { id = ins.run(_newCode(), lbl, w, m, expires).lastInsertRowid; }
+        try { id = ins.run(_newCode(), lbl, w, m, expires, actor ? String(actor).slice(0, 60) : null).lastInsertRowid; }
         catch (err) { if (!/UNIQUE/.test(err.message)) throw err; }
       }
       if (id === null) throw new BetaError(500, 'Génération de code impossible, réessayer.');
@@ -168,13 +194,52 @@ function createInvites({ label = '', wave = null, maxUses = 1, expiresInDays = 1
   return ids.map(id => _formatInvite(get.get(id), now));
 }
 
-function revokeInvite(id) {
-  const info = conn().prepare("UPDATE beta_invites SET revoked_at = datetime('now') WHERE id = ? AND revoked_at IS NULL").run(Number(id));
-  if (!info.changes) {
-    if (!conn().prepare('SELECT 1 FROM beta_invites WHERE id = ?').get(Number(id))) throw new BetaError(404, 'Code introuvable.');
-  }
+function _inviteRow(id) {
+  const row = conn().prepare('SELECT * FROM beta_invites WHERE id = ?').get(_id(id));
+  if (!row) throw new BetaError(404, 'Code introuvable.');
+  return row;
 }
 
+/**
+ * Révocation : invalidation immédiate côté serveur (inscription refusée dès la requête suivante).
+ * Idempotente ; les comptes déjà créés avec ce lien ne sont jamais touchés. Rend { changed, invite }.
+ */
+function revokeInvite(id, actor = null) {
+  const row = _inviteRow(id);
+  return db.runTransaction(() => {
+    const info = conn().prepare("UPDATE beta_invites SET revoked_at = datetime('now') WHERE id = ? AND revoked_at IS NULL").run(row.id);
+    if (info.changes) _audit('invite_revoke', 'invite', row.id, _codeHint(row.code), actor);
+    return { changed: info.changes > 0, invite: _formatInvite(_inviteRow(row.id)) };
+  });
+}
+
+/**
+ * Archiver (#80) : masque un lien qui ne peut plus servir (utilisé, révoqué, expiré) de la liste
+ * courante. Rien n'est supprimé ; « Réafficher » le remet. Un lien ACTIF doit d'abord être révoqué
+ * (sinon il resterait utilisable tout en étant caché).
+ */
+function archiveInvite(id, actor = null, now = new Date()) {
+  const row = _inviteRow(id);
+  if (_inviteState(row, now) === 'active') {
+    throw new BetaError(409, 'Ce lien est encore actif : révoque-le d\'abord (sinon il resterait utilisable).', 'invite_active');
+  }
+  return db.runTransaction(() => {
+    const info = conn().prepare("UPDATE beta_invites SET archived_at = datetime('now') WHERE id = ? AND archived_at IS NULL").run(row.id);
+    if (info.changes) _audit('invite_archive', 'invite', row.id, _codeHint(row.code), actor);
+    return { changed: info.changes > 0, invite: _formatInvite(_inviteRow(row.id), now) };
+  });
+}
+
+function unarchiveInvite(id, actor = null, now = new Date()) {
+  const row = _inviteRow(id);
+  return db.runTransaction(() => {
+    const info = conn().prepare('UPDATE beta_invites SET archived_at = NULL WHERE id = ? AND archived_at IS NOT NULL').run(row.id);
+    if (info.changes) _audit('invite_unarchive', 'invite', row.id, _codeHint(row.code), actor);
+    return { changed: info.changes > 0, invite: _formatInvite(_inviteRow(row.id), now) };
+  });
+}
+
+/** Tous les liens (archivés compris, signalés par archivedAt) : le panel filtre. */
 function listInvites(now = new Date()) {
   return conn().prepare('SELECT * FROM beta_invites ORDER BY id DESC LIMIT 300').all().map(r => _formatInvite(r, now));
 }
@@ -241,7 +306,7 @@ function registerWithInvite(code, create, now = new Date()) {
  */
 function listTesters(now = new Date()) {
   const rows = conn().prepare(`
-    SELECT u.id, u.username, u.created_at, i.code, i.label, i.wave, s.saved_at,
+    SELECT u.id, u.username, u.created_at, i.code, i.label, i.wave, s.saved_at, x.removed_at,
            (SELECT COUNT(*) FROM bug_reports b WHERE b.user_id = u.id) AS reports
       FROM beta_invite_uses x
       JOIN users u ON u.id = x.user_id
@@ -254,23 +319,59 @@ function listTesters(now = new Date()) {
     const created = t(r.created_at), last = t(r.saved_at);
     return {
       userId: r.id, username: r.username, createdAt: r.created_at, lastSaveAt: r.saved_at,
-      code: r.code, label: r.label, wave: r.wave, reports: r.reports,
+      code: r.code, label: r.label, wave: r.wave, reports: r.reports, removedAt: r.removed_at || null,
       activated: last !== null,
       returnedD1: last !== null && last - created >= day,
       returnedD7: last !== null && last - created >= 7 * day,
       ageDays: Math.floor((now.getTime() - created) / day),
     };
   });
-  const old = n => testers.filter(x => x.ageDays >= n);
+  // Compteurs et suivi J+1/J+7 : testeurs du programme seulement (les retirés restent listés à part).
+  const inProgram = testers.filter(x => !x.removedAt);
+  const old = n => inProgram.filter(x => x.ageDays >= n);
   return {
     testers,
     summary: {
-      total: testers.length,
-      activated: testers.filter(x => x.activated).length,
+      total: inProgram.length,
+      removed: testers.length - inProgram.length,
+      activated: inProgram.filter(x => x.activated).length,
       d1: { eligible: old(1).length, returned: old(1).filter(x => x.returnedD1).length },
       d7: { eligible: old(7).length, returned: old(7).filter(x => x.returnedD7).length },
     },
   };
+}
+
+/**
+ * Retirer un testeur du programme bêta (#80) — retrait ADMINISTRATIF et réversible : il sort de la
+ * liste des testeurs et des compteurs. Ce n'est PAS une coupure d'accès : la bêta ne contrôle que la
+ * création de compte (la connexion n'a jamais dépendu du code d'invitation), donc le compte, la
+ * connexion, la sauvegarde, le classement et l'historique anti-bot restent exactement tels quels.
+ * Aucune donnée n'est supprimée : seule la date de retrait est notée. `confirm: true` exigé.
+ */
+function _testerRow(userId) {
+  const row = conn().prepare(`
+    SELECT x.*, u.username FROM beta_invite_uses x JOIN users u ON u.id = x.user_id WHERE x.user_id = ?`).get(_id(userId));
+  if (!row) throw new BetaError(404, 'Ce joueur n\'est pas un testeur inscrit avec une invitation.');
+  return row;
+}
+
+function removeTester(userId, { confirm } = {}, actor = null) {
+  if (confirm !== true) throw new BetaError(400, 'Confirmation explicite requise.', 'confirm_required');
+  const row = _testerRow(userId);
+  return db.runTransaction(() => {
+    const info = conn().prepare("UPDATE beta_invite_uses SET removed_at = datetime('now') WHERE id = ? AND removed_at IS NULL").run(row.id);
+    if (info.changes) _audit('tester_remove', 'tester', row.user_id, row.username, actor);
+    return { changed: info.changes > 0, removedAt: _testerRow(row.user_id).removed_at };
+  });
+}
+
+function restoreTester(userId, actor = null) {
+  const row = _testerRow(userId);
+  return db.runTransaction(() => {
+    const info = conn().prepare('UPDATE beta_invite_uses SET removed_at = NULL WHERE id = ? AND removed_at IS NOT NULL').run(row.id);
+    if (info.changes) _audit('tester_restore', 'tester', row.user_id, row.username, actor);
+    return { changed: info.changes > 0, removedAt: null };
+  });
 }
 
 // ── Signalements ──────────────────────────────────────────────────────────────
@@ -311,6 +412,7 @@ function _formatReport(r, admin) {
     id: r.id, step: r.step, expected: r.expected, observed: r.observed, status: r.status,
     githubUrl: r.github_url || null, createdAt: r.created_at, updatedAt: r.updated_at,
   };
+  if (admin) out.archivedAt = r.archived_at || null;
   if (admin) {
     Object.assign(out, {
       userId: r.user_id, username: r.username ?? null, device: r.device, adminNote: r.admin_note,
@@ -325,16 +427,43 @@ function listMyReports(userId) {
     .map(r => _formatReport(r, false));
 }
 
-function listReports({ status = null } = {}) {
-  const where = STATUSES.includes(status) ? 'WHERE b.status = ?' : '';
-  const args  = where ? [status] : [];
+/**
+ * `archived` : false (défaut) = retours actifs, true = archives, 'all' = tous. Les compteurs par
+ * statut portent sur les retours actifs ; `counts.archived` donne le nombre d'archives.
+ */
+function listReports({ status = null, archived = false } = {}) {
+  const cond = [], args = [];
+  if (STATUSES.includes(status)) { cond.push('b.status = ?'); args.push(status); }
+  if (archived === true) cond.push('b.archived_at IS NOT NULL');
+  else if (archived !== 'all') cond.push('b.archived_at IS NULL');
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
   const rows = conn().prepare(`
     SELECT b.*, u.username FROM bug_reports b LEFT JOIN users u ON u.id = b.user_id ${where}
      ORDER BY b.id DESC LIMIT 200`).all(...args);
   const counts = Object.fromEntries(STATUSES.map(s => [s, 0]));
-  for (const c of conn().prepare('SELECT status, COUNT(*) AS n FROM bug_reports GROUP BY status').all()) counts[c.status] = c.n;
+  for (const c of conn().prepare('SELECT status, COUNT(*) AS n FROM bug_reports WHERE archived_at IS NULL GROUP BY status').all()) counts[c.status] = c.n;
+  counts.archived = conn().prepare('SELECT COUNT(*) AS n FROM bug_reports WHERE archived_at IS NOT NULL').get().n;
   return { reports: rows.map(r => _formatReport(r, true)), counts };
 }
+
+/**
+ * Archiver un retour (#80) : il quitte la liste active ; texte, diagnostic, statut, note et lien
+ * GitHub sont conservés tels quels (preuve), et « Réafficher » le remet. Le joueur continue de voir
+ * l'état de son signalement.
+ */
+function _setReportArchived(id, on, actor) {
+  const row = conn().prepare('SELECT * FROM bug_reports WHERE id = ?').get(_id(id));
+  if (!row) throw new BetaError(404, 'Signalement introuvable.');
+  return db.runTransaction(() => {
+    const info = on
+      ? conn().prepare("UPDATE bug_reports SET archived_at = datetime('now') WHERE id = ? AND archived_at IS NULL").run(row.id)
+      : conn().prepare('UPDATE bug_reports SET archived_at = NULL WHERE id = ? AND archived_at IS NOT NULL').run(row.id);
+    if (info.changes) _audit(on ? 'report_archive' : 'report_unarchive', 'report', row.id, `n°${row.id}`, actor);
+    return { changed: info.changes > 0 };
+  });
+}
+const archiveReport   = (id, actor = null) => _setReportArchived(id, true, actor);
+const unarchiveReport = (id, actor = null) => _setReportArchived(id, false, actor);
 
 function updateReport(id, body = {}) {
   const row = conn().prepare('SELECT * FROM bug_reports WHERE id = ?').get(Number(id));
@@ -356,7 +485,10 @@ function updateReport(id, body = {}) {
 
 /** Vue d'ensemble du panel. */
 function adminSummary(now = new Date()) {
-  return { settings: getSettings(), currentWave: currentWave(), invites: listInvites(now), ...listTesters(now), reports: listReports() };
+  return {
+    settings: getSettings(), currentWave: currentWave(), invites: listInvites(now), ...listTesters(now),
+    reports: listReports({ archived: 'all' }), audit: listAudit(30),
+  };
 }
 
 module.exports = {
@@ -371,7 +503,14 @@ module.exports = {
   createInvites,
   inviteStatus,
   revokeInvite,
+  archiveInvite,
+  unarchiveInvite,
   listInvites,
+  removeTester,
+  restoreTester,
+  archiveReport,
+  unarchiveReport,
+  listAudit,
   checkRegistration,
   registerWithInvite,
   listTesters,

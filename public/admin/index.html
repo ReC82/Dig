@@ -2926,6 +2926,7 @@
       <ul id="beta-warnings" class="beta-warnings"></ul>
       <div class="adm-head-actions">
         <button class="btn btn-primary" id="btn-beta-invite-open" type="button">➕ Inviter un testeur</button>
+        <button class="btn btn-outline" id="btn-beta-manage" type="button">🗂️ Gérer les invitations et testeurs</button>
         <button class="btn btn-outline" id="btn-beta-feedback" type="button">💬 Voir les retours</button>
         <button class="btn btn-outline" id="btn-beta-config-open" type="button">⚙️ Configurer la bêta</button>
       </div>
@@ -2934,26 +2935,19 @@
     </div>
 
     <div class="overview-card" id="beta-feedback-card">
-      <h3 class="overview-card-title">💬 Retours des testeurs</h3>
+      <div class="beta-head">
+        <h3 class="overview-card-title">💬 Retours des testeurs</h3>
+        <label class="beta-filter">Afficher
+          <select id="beta-reports-view"><option value="active">Retours actifs</option><option value="archived">Archives</option></select></label>
+      </div>
       <p id="beta-reports-counts" class="muted" style="font-size:0.8rem"></p>
       <div id="beta-reports-list"></div>
       <p id="beta-report-msg" class="hidden"></p>
     </div>
 
     <details class="overview-card beta-adv" id="beta-advanced">
-      <summary>Paramètres avancés — liens créés, testeurs, lots de codes, bugs connus, mot de passe perdu</summary>
-
-      <details class="beta-sub" open>
-        <summary>Liens d'invitation créés</summary>
-        <div style="overflow-x:auto"><table><thead><tr><th>Code</th><th>Lien</th><th>Pour</th><th>Vague</th><th>Utilisé</th><th>Expire (UTC)</th><th>État</th><th></th></tr></thead><tbody id="beta-invites"></tbody></table></div>
-        <p id="beta-invite-msg" class="hidden"></p>
-      </details>
-
-      <details class="beta-sub">
-        <summary>Testeurs inscrits (suivi J+1 / J+7)</summary>
-        <p id="beta-testers-summary" class="muted" style="font-size:0.8rem"></p>
-        <div style="overflow-x:auto"><table><thead><tr><th>Joueur</th><th>Pour</th><th>Vague</th><th>Inscrit (UTC)</th><th>Dernière sauvegarde (UTC)</th><th>J+1</th><th>J+7</th><th>Signalements</th></tr></thead><tbody id="beta-testers"></tbody></table></div>
-      </details>
+      <summary>Paramètres avancés — lots de codes, bugs connus, mot de passe perdu</summary>
+      <p class="muted" style="font-size:0.8rem">Liens créés et testeurs inscrits : bouton « 🗂️ Gérer les invitations et testeurs » ci-dessus.</p>
 
       <details class="beta-sub">
         <summary>Créer un lot de codes (vague, utilisations, expiration)</summary>
@@ -2987,6 +2981,30 @@
         <p id="beta-pw-msg" class="hidden"></p>
       </details>
     </details>
+
+    <!-- #80 : gestion des liens et testeurs. Listes compactes (#76), filtres et recherche ; chaque action réversible
+         demande une confirmation courte et est journalisée. Rien ne change à l'ouverture ni en filtrant. -->
+    <dialog id="beta-manage-dialog" class="bk-dialog adm-dialog" aria-labelledby="beta-manage-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="beta-manage-title">🗂️ Invitations et testeurs</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
+      </div>
+      <div class="beta-tabs" role="tablist" aria-label="Rubrique">
+        <button type="button" class="beta-tab" role="tab" id="beta-tab-invites" data-view="invites" aria-selected="true">🔗 Liens</button>
+        <button type="button" class="beta-tab" role="tab" id="beta-tab-testers" data-view="testers" aria-selected="false">👥 Testeurs</button>
+        <button type="button" class="beta-tab" role="tab" id="beta-tab-audit" data-view="audit" aria-selected="false">🕘 Historique</button>
+      </div>
+      <div class="beta-tools" id="beta-manage-tools">
+        <label class="beta-filter beta-filter--grow">Rechercher
+          <input id="beta-manage-q" type="text" role="searchbox" enterkeyhint="search" maxlength="40" placeholder="pseudo, « pour qui », fin du code…" autocomplete="off"></label>
+        <label class="beta-filter">Afficher
+          <select id="beta-manage-filter"></select></label>
+      </div>
+      <p id="beta-manage-hint" class="muted beta-hint"></p>
+      <p id="beta-manage-status" class="success beta-hint hidden" role="status"></p>
+      <p id="beta-manage-error" class="error hidden" role="alert"></p>
+      <ul id="beta-manage-list" class="beta-list"></ul>
+    </dialog>
 
     <dialog id="beta-invite-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="beta-invite-title">
       <div class="section-header bk-dialog-head">
