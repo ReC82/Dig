@@ -2,7 +2,7 @@
 
 - Ticket : [#76](https://github.com/ReC82/Dig/issues/76). Tickets liés : #70 (navigation admin), #75 (reset d'un joueur de test), #61 (saisies non enregistrées).
 - Session : 05/11/2026, branche `feature/76-admin-fiches-compactes`
-- **État réel : déployé en production (SHA `121f940`), en attente de recette du propriétaire**
+- **État réel : déployé en production (SHA `9b0850e`), en attente de recette du propriétaire** — dernière passe : fiche Anti-bot (section « Retour du 05/11 — fiche Anti-bot » en bas). Passe précédente (fiche Joueurs, fenêtres) déployée en `121f940`.
 
 ## 1. Résultat
 
@@ -136,3 +136,111 @@ Aucune décision utilisateur nécessaire.
 
 - Rien dans le périmètre testé. Si la recette demande d'autres fenêtres précises à resserrer, elles seront traitées dans ce ticket.
 - Suggestion (non faite) : rendre `admin-unsaved.e2e.js` autonome (création de sa série de test) pour qu'il passe sur une base neuve.
+
+
+---
+
+## Retour du 05/11 — fiche Anti-bot : vue essentielle et diagnostic avancé (session de 15 h)
+
+**État réel : déployé en production (SHA `9b0850e`) — en attente de recette.**
+Classement : **Après lancement** (outil d'administration ; il ne bloque pas le MVP public).
+
+### Demande du propriétaire
+
+[Commentaire du 05/11](https://github.com/ReC82/Dig/issues/76#issuecomment-6659309857) : la fiche Anti-bot restait difficile à exploiter malgré ses 11 sections repliables. Pour voir la profondeur couverte aux PV réels (#77), il fallait ouvrir « Progression de la saison (détail) ».
+
+Le propriétaire demandait :
+- un résumé lisible tout de suite ;
+- deux vues séparées, « Vue essentielle » et « Diagnostic avancé », sans perdre aucune métrique ;
+- une explication claire des blocs ni manuels ni Auto-Dig ;
+- une fiche utilisable sur mobile et PC, sans fenêtre géante ;
+- aucun changement aux calculs anti-bot ni aux données des joueurs.
+
+### Ce qui change (Anti-bot → bouton « Fiche » ou recherche « Ouvrir la fiche »)
+
+- **Deux onglets** en tête de la fiche :
+  - **Vue essentielle**, ouverte par défaut ;
+  - **Diagnostic avancé — toutes les métriques**.
+
+  L'onglet choisi est conservé au rafraîchissement et au changement de saison.
+- **Vue essentielle**, sans rien ouvrir :
+  - une phrase de verdict : risque, nombre d'alertes, « aucune sanction appliquée au joueur » ;
+  - **4 cartes**. Une carte est bordée d'orange quand elle demande de l'attention, de vert sinon :
+    1. **Progression de la saison** : mètres déclarés, profondeur validée (classement) et écart entre les deux.
+    2. **PV réels des blocs (#77)** : mètres couverts, écart à la dernière sauvegarde et mode (`shadow` = observation, aucun joueur freiné).
+    3. **Classement (👆 blocs manuels)** : blocs validés, déclarés et non retenus, plus les coups de pioche manuels.
+    4. **Risque, alertes, sanctions** : niveau et score, alertes par type, « Sanctions : aucune (applied:false) » et coups/s max mesurés à l'horloge du serveur.
+  - **« Blocs détruits : d'où viennent-ils ? »** : une barre de couleur et les chiffres de chaque part :
+    - manuels de la saison ;
+    - Auto-Dig de la saison ;
+    - coups jugés suspects de la saison ;
+    - reste hors saison ;
+    - total de la partie.
+  - **L'explication en clair**. Le total des blocs détruits couvre toute la partie et n'est jamais remis à zéro. Les compteurs manuels, Auto-Dig et suspects repartent à 0 à chaque saison. Le reste vient donc surtout des **saisons précédentes**. Avant le correctif #74, il contient aussi les blocs cassés par un coup suspect, qui n'étaient alors comptés nulle part.
+  - **Un contrôle de cohérence**. La profondeur repart à 1 m à chaque saison, donc le nombre de mètres atteints doit correspondre aux blocs comptés dans la saison. La fiche affiche « ✓ Tous les blocs de la saison sont attribués » ou « ⚠ N bloc(s) non attribué(s) ».
+- **Le cas de la capture LODY, saison 8, vérifié en lecture seule** : 510 blocs au total, 131 manuels, 37 Auto-Dig et 0 suspect, soit 168 blocs pour la saison. C'est exactement 169 m − 1. **Les 342 blocs restants sont ceux des saisons précédentes** (le compte existe depuis juin), pas une anomalie. L'ancien libellé « Blocs ni manuels ni Auto-Dig (clic jugé suspect) » était donc **trompeur** : il est corrigé en « total partie − manuels − Auto-Dig ». La valeur est inchangée.
+- **Diagnostic avancé** : les 11 sections d'avant sont identiques, avec toutes les métriques et « Tout déplier / Tout replier ». Une ligne s'ajoute à « Progression de la saison (détail) » : « Blocs coups jugés suspects (saison, depuis #74) ».
+- **Smartphone** : les cartes s'affichent 2 par ligne et les deux onglets côte à côte. La vue essentielle tient sur environ un écran et demi, sans débordement horizontal.
+
+### Fichiers
+
+- `public/admin/admin.js` (`secRenderPlayer`) et `public/admin/admin.css` : onglets, cartes, bloc « origine ».
+- `server/antibot.js` (`playerReport`) : ajouts en **lecture seule** au contenu de la fiche :
+  - `blockOrigin` ;
+  - `save.seasonStats.suspiciousBlocks` ;
+  - `modes.exactHpMode`.
+
+  **Aucun calcul anti-bot n'est modifié** et `uncountedBlocks` reste inchangé.
+- Tests :
+  - `test/antibot-player-report.test.js` : 2 tests ajoutés (origine des blocs sur le cas 510 / 131 / 37 / 342 et sur une sauvegarde antérieure à #74 ; onglets et cartes) ;
+  - `test/e2e/admin-antibot-sheet.e2e.js` (nouveau).
+
+### SHA et vérifications
+
+- Branche `feature/76-admin-fiches-compactes` : `7f7980d`. `develop` : `9b0850e`, la version déployée.
+- `npm test` **772/772** sur la branche, sur `develop` et sur la release `9b0850e`. `npm run check` OK.
+- Essais Chromium sur un serveur de **test** (port 3101, base temporaire supprimée ensuite) :
+  - `admin-antibot-sheet.e2e.js` : **TOUT OK** sur PC 1280×900 et mobile 390×844. Il vérifie :
+    - la vue essentielle par défaut et ses 4 cartes avec leurs valeurs ;
+    - l'origine 131 / 37 / 0 / 342 sur 510 et l'explication ;
+    - les cartes visibles sans défiler, sans débordement ;
+    - le diagnostic avancé avec ses 11 sections repliées et l'onglet conservé au rafraîchissement ;
+    - aucune requête d'écriture et aucune erreur JS.
+  - Non-régression : `admin-sheets.e2e.js`, `admin-nav.e2e.js` et `admin-layout.e2e.js` tous OK.
+- Copie de la base de production démarrée avec la release : empreintes identiques (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`).
+
+### Déploiement
+
+- Sauvegarde vérifiée : `dig-20261105-153111-pre-deploy-9b0850e.sqlite`. `main` a avancé en avance rapide `121f940 → 9b0850e`.
+- Contrôles après déploiement :
+  - les 2 domaines répondent 200 en `1.0.0+9b0850e` ;
+  - le journal est sans erreur ;
+  - `quick_check` = ok ;
+  - les empreintes des joueurs sont identiques à la sauvegarde ;
+  - l'admin sert `admin.js?v=1.0.0+9b0850e`.
+- Aucune génération IA n'était en cours. Aucune migration, aucune donnée écrite.
+- Retour arrière possible vers `121f940` (aucune migration).
+
+### Test fonctionnel à faire par le propriétaire (2 min, PC puis smartphone)
+
+1. Faire F5 sur l'admin, puis aller dans 🛡 Anti-bot. Ouvrir la fiche de LODY, depuis un tableau (bouton « Fiche ») ou par la recherche.
+2. **Attendu** :
+   - l'onglet « Vue essentielle » est actif ;
+   - les 4 cartes sont visibles sans défiler : progression déclarée / validée, **PV réels couverts + écart**, blocs manuels validés, risque / alertes / sanctions ;
+   - en dessous, « Blocs détruits : d'où viennent-ils ? » affiche 131 manuels, 37 Auto-Dig, 0 suspect, **342 hors saison** sur 510, avec l'explication et « ✓ Tous les blocs de la saison sont attribués ». Ces valeurs peuvent avoir augmenté si LODY a joué depuis.
+3. Cliquer sur « Diagnostic avancé ». **Attendu** : les 11 sections d'avant, repliées ; « Progression de la saison (détail) » contient toujours toutes les valeurs. Faire ↻ Rafraîchir : on reste sur cet onglet.
+4. Sur smartphone, **attendu** : les cartes sont 2 par ligne, les onglets côte à côte, et rien ne déborde sur le côté.
+
+### Choix techniques faits seul
+
+- **Onglets plutôt qu'une deuxième série de sections repliables.** La vue essentielle reste courte et le diagnostic garde sa structure connue, sans doublon visible à l'écran.
+- **Origine des blocs calculée par le serveur**, en lecture de la sauvegarde. Le total de la partie vient de `stats.blocksDestroyed`, les parts de la saison de `seasonStats`. Si le compteur de suspects est absent (sauvegarde antérieure à #74), la fiche affiche « non transmis » au lieu de 0.
+- **Le seuil du contrôle de cohérence tolère ±1 bloc**, à cause du bloc courant.
+
+### Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire.
+
+### Reste à faire
+
+Rien pour cette demande. Suggestion hors périmètre, non réalisée : afficher la même carte « Blocs détruits : d'où viennent-ils ? » dans la fiche 👤 Joueurs.
