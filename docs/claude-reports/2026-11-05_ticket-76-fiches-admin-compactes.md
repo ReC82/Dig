@@ -2,7 +2,7 @@
 
 - Ticket : [#76](https://github.com/ReC82/Dig/issues/76). Tickets liés : #70 (navigation admin), #75 (reset d'un joueur de test), #61 (saisies non enregistrées).
 - Session : 05/11/2026, branche `feature/76-admin-fiches-compactes`
-- **État réel : déployé en production (SHA `9b0850e`), en attente de recette du propriétaire** — dernière passe : fiche Anti-bot (section « Retour du 05/11 — fiche Anti-bot » en bas). Passe précédente (fiche Joueurs, fenêtres) déployée en `121f940`.
+- **État réel : déployé en production (SHA `922e21d`), en attente de recette du propriétaire** — dernière passe : décisions serveur dépliables par essai (section « Recette 76-A du 05/11 » en bas). Passes précédentes : fiche Anti-bot (`9b0850e`), fiche Joueurs et fenêtres (`121f940`).
 
 ## 1. Résultat
 
@@ -244,3 +244,49 @@ Aucune décision utilisateur nécessaire.
 ### Reste à faire
 
 Rien pour cette demande. Suggestion hors périmètre, non réalisée : afficher la même carte « Blocs détruits : d'où viennent-ils ? » dans la fiche 👤 Joueurs.
+
+## Recette 76-A du 05/11 — décisions serveur dépliables par essai (session de 16 h)
+
+1. **Ticket** : [#76](https://github.com/ReC82/Dig/issues/76). Retour du propriétaire : [commentaire du 05/11 14:21](https://github.com/ReC82/Dig/issues/76#issuecomment-6660341542). Le test 76-A est **validé** ; une remarque UX est non bloquante : la colonne « Décisions serveur » du tableau des essais est trop dense.
+2. **État réel : déployé en production (SHA `922e21d`), en attente de recette.**
+3. **Changement** (`public/admin/admin.js`, `public/admin/admin.css`, client seulement) :
+   - Rubrique 👤 Joueurs → fiche → 🧪 Essais de test → tableau. La colonne « Décisions serveur » est simplifiée.
+   - **Plusieurs décisions** : la cellule affiche la plus fréquente et le nombre d'autres, par exemple `depth_capped ×412 +5`. Un clic déplie **la liste complète, une décision par ligne**, triée comme avant. La liste complète est aussi dans l'infobulle.
+   - **Une seule décision**, ou « aucune » : texte simple, comme avant.
+   - **Aucune information perdue** : mêmes valeurs, même tri. Les décisions `admin_*` sont toujours exclues et l'autoclic toujours inclus.
+   - Les exports CSV/JSON ne changent pas.
+   - Sur ordinateur, la liste ne coupe pas les noms au milieu. Sur smartphone (cartes), elle passe à la ligne sans déborder.
+   - Serveur, calculs et données : **rien n'est modifié**.
+4. **SHA** : branche `feature/76-admin-fiches-compactes` `50dce51`, `develop` `922e21d` (code), avec le rapport en commit suivant.
+   - Test automatisé ajouté : `test/e2e/admin-tr-decisions.e2e.js`.
+   - Il enrichit la réponse des essais dans le navigateur (6 décisions sur l'essai en cours, 1 sur un essai, 0 sur un autre).
+   - Il ne fait aucune écriture.
+   - Lancement : `PW=… CHROME=… BASE=http://127.0.0.1:3101 ADMIN_SECRET=… node test/e2e/admin-tr-decisions.e2e.js`.
+5. **Vérifications** :
+   - `npm test` **772/772** sur la branche, `develop` et la release.
+   - Un premier passage sur la release a montré 1 échec (`antibot` HTTP, 409). La cause : un serveur de test orphelin de ma propre série de tests occupait le port 3131. Je l'ai arrêté, et la suite complète a été relancée : 772/772.
+   - `npm run check` OK.
+   - E2E Chromium **TOUT OK**, PC 1280×900 et mobile 390×844 : `admin-tr-decisions` (nouveau), `admin-sheets`, `test-runs`, `admin-nav`, `admin-layout`.
+   - Non lancé : `admin-antibot-sheet`. Il demande une base préparée (variable `DB`) et cette partie n'a pas été touchée.
+6. **Déploiement** :
+   - Aucune génération IA en cours avant le déploiement (dernière activité 11:53 UTC).
+   - Copie de la base de production : empreintes identiques après démarrage de la release.
+   - `main` avancé en avance rapide `9b0850e → 922e21d`, puis `scripts/deploy.sh`.
+   - Sauvegarde vérifiée : `dig-20261105-161907-pre-deploy-922e21d.sqlite`.
+   - Les 2 domaines répondent 200 en `1.0.0+922e21d`, et l'admin sert `admin.js?v=1.0.0+922e21d`.
+   - Journal sans erreur, `quick_check` ok.
+   - Empreintes joueurs identiques à la sauvegarde.
+   - Retour arrière possible vers `9b0850e`.
+   - **Test à faire par le propriétaire (1 min)** :
+     1. F5 sur l'admin, puis 👤 Joueurs → gabpok8.
+     2. 🧪 Essais de test → colonne « Décisions serveur ». **Attendu** : une ligne courte « décision ×n +N » en doré.
+     3. Cliquer dessus. **Attendu** : la liste complète, une décision par ligne. Un nouveau clic la replie.
+     4. Sur smartphone : même chose dans les cartes, sans débordement.
+     5. Suite prévue par le propriétaire, inchangée : **test 76-B**. Ouvrir l'aperçu du reset puis **Annuler sans confirmer**.
+   - Classement : **Après lancement**.
+7. **Choix techniques** :
+   - J'ai choisi un `<details>` natif par cellule, sans état mémorisé. Il est accessible au clavier, ne demande aucun JavaScript supplémentaire et reste replié à chaque rafraîchissement.
+   - Le résumé montre la décision la plus fréquente, l'information la plus utile d'un coup d'œil.
+8. **Décisions demandées au propriétaire** : aucune décision utilisateur nécessaire.
+9. **Reste à faire** : recette 76-B (aperçu du reset puis Annuler), puis la recette de cette passe et de la fiche Anti-bot.
+
