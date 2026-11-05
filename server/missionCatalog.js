@@ -293,8 +293,13 @@ function publishedIds() {
   return ids;
 }
 
-/** Drapeau d'activation en jeu (étape B). Toujours OFF à l'étape A : le jeu garde ses missions. */
-function isLive() { return false; }
+/**
+ * Catalogue lu par le jeu de TOUS les joueurs (drapeau de server/missionsLive.js en mode `on`, #68
+ * étape B). OFF par défaut ; le mode `pilot` ne concerne que des comptes listés (pas le manifeste d'icônes).
+ */
+function isLive() {
+  try { return require('./missionsLive').getMode() === 'on'; } catch (_) { return false; }
+}
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
