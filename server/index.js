@@ -2188,12 +2188,30 @@ app.get('/api/beta/reports/mine', requireUser,
 app.get('/api/admin/beta', requireAdmin, betaRoute('GET /api/admin/beta', () => beta.adminSummary()));
 app.put('/api/admin/beta/settings', requireAdmin,
   betaRoute('PUT /api/admin/beta/settings', req => ({ settings: beta.updateSettings(req.body) })));
+// Auteur des actions de gestion (#80) : une seule clé admin, on note la voie (panel ou script).
+const betaActor = req => `admin (${req.adminVia})`;
 app.post('/api/admin/beta/invites', requireAdmin,
-  betaRoute('POST /api/admin/beta/invites', req => ({ invites: beta.createInvites(req.body) })));
+  betaRoute('POST /api/admin/beta/invites', req => ({ invites: beta.createInvites(req.body, new Date(), betaActor(req)) })));
 app.post('/api/admin/beta/invites/:id/revoke', requireAdmin,
-  betaRoute('POST /api/admin/beta/invites/:id/revoke', req => { beta.revokeInvite(req.params.id); return { ok: true }; }));
+  betaRoute('POST /api/admin/beta/invites/:id/revoke', req => ({ ok: true, ...beta.revokeInvite(req.params.id, betaActor(req)) })));
+// #80 : archiver / réafficher un lien, retirer / réintégrer un testeur, archiver / réafficher un retour.
+// Toutes réversibles, idempotentes (`changed: false` si rien à faire), journalisées dans beta_audit.
+app.post('/api/admin/beta/invites/:id/archive', requireAdmin,
+  betaRoute('POST /api/admin/beta/invites/:id/archive', req => ({ ok: true, ...beta.archiveInvite(req.params.id, betaActor(req)) })));
+app.post('/api/admin/beta/invites/:id/unarchive', requireAdmin,
+  betaRoute('POST /api/admin/beta/invites/:id/unarchive', req => ({ ok: true, ...beta.unarchiveInvite(req.params.id, betaActor(req)) })));
+app.post('/api/admin/beta/testers/:userId/remove', requireAdmin,
+  betaRoute('POST /api/admin/beta/testers/:userId/remove', req => ({ ok: true, ...beta.removeTester(req.params.userId, req.body, betaActor(req)) })));
+app.post('/api/admin/beta/testers/:userId/restore', requireAdmin,
+  betaRoute('POST /api/admin/beta/testers/:userId/restore', req => ({ ok: true, ...beta.restoreTester(req.params.userId, betaActor(req)) })));
+app.post('/api/admin/beta/reports/:id/archive', requireAdmin,
+  betaRoute('POST /api/admin/beta/reports/:id/archive', req => ({ ok: true, ...beta.archiveReport(req.params.id, betaActor(req)) })));
+app.post('/api/admin/beta/reports/:id/unarchive', requireAdmin,
+  betaRoute('POST /api/admin/beta/reports/:id/unarchive', req => ({ ok: true, ...beta.unarchiveReport(req.params.id, betaActor(req)) })));
 app.get('/api/admin/beta/reports', requireAdmin,
-  betaRoute('GET /api/admin/beta/reports', req => beta.listReports({ status: req.query.status })));
+  betaRoute('GET /api/admin/beta/reports', req => beta.listReports({
+    status: req.query.status, archived: req.query.archived === '1' ? true : req.query.archived === 'all' ? 'all' : false,
+  })));
 app.put('/api/admin/beta/reports/:id', requireAdmin,
   betaRoute('PUT /api/admin/beta/reports/:id', req => ({ report: beta.updateReport(req.params.id, req.body) })));
 

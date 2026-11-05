@@ -24,6 +24,8 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
 | Consulter le journal de sécurité | Joueurs & testeurs › Anti-bot › Journal de sécurité | `#a/sec-journal` |
 | Préparer une invitation bêta | Joueurs & testeurs › Bêta fermée › « ➕ Inviter un testeur » | `#a/invite` |
 | Lire les retours des testeurs | Joueurs & testeurs › Bêta fermée › Retours | `#a/beta-feedback` |
+| Révoquer ou archiver un lien, retirer un testeur | Joueurs & testeurs › Bêta fermée › 🗂️ Gérer les invitations et testeurs | `#a/beta-manage` |
+| Archiver un retour de test traité | Joueurs & testeurs › Bêta fermée › Retours › 🗄️ Archiver | `#a/beta-archive` |
 | Modifier les gains (multiplicateurs) | Jeu & progression › Économie › Gains & coûts des coffres | `#a/gains` |
 | Changer le prix des coffres | Jeu & progression › Économie › Gains & coûts des coffres | `#a/chest-costs` |
 | Vérifier le registre de gemmes | Jeu & progression › Économie › Registre de gemmes | `#a/gem-ledger` |

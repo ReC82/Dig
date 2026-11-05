@@ -881,6 +881,36 @@ function initDb() {
     CREATE INDEX IF NOT EXISTS idx_bug_reports_user ON bug_reports(user_id, id);
   `);
 
+  // ── Gestion de la bêta (#80) : archivage et retrait réversibles, journal ──────
+  // Colonnes AJOUTÉES seulement (NULL = état d'avant #80) : rien n'est supprimé ni réécrit.
+  //   beta_invites.archived_at / created_by : lien masqué de la liste courante (jamais un lien actif) ;
+  //   beta_invite_uses.removed_at : testeur retiré du programme (compte, connexion et progression intacts) ;
+  //   bug_reports.archived_at : retour traité rangé dans les archives (texte et diagnostic conservés).
+  for (const sql of [
+    'ALTER TABLE beta_invites ADD COLUMN archived_at TEXT',
+    'ALTER TABLE beta_invites ADD COLUMN created_by TEXT',
+    'ALTER TABLE beta_invite_uses ADD COLUMN removed_at TEXT',
+    'ALTER TABLE bug_reports ADD COLUMN archived_at TEXT',
+  ]) {
+    try { _db.prepare(sql).run(); } catch (err) { if (!/duplicate column/i.test(err.message)) throw err; }
+  }
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS beta_audit (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      action      TEXT    NOT NULL,
+      target_type TEXT    NOT NULL,
+      target_id   INTEGER NOT NULL,
+      target      TEXT    NOT NULL DEFAULT '',
+      actor       TEXT    NOT NULL DEFAULT '',
+      created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_beta_audit_target ON beta_audit (target_type, target_id, id);
+    CREATE TRIGGER IF NOT EXISTS trg_beta_audit_no_update BEFORE UPDATE ON beta_audit
+      BEGIN SELECT RAISE(ABORT, 'beta_audit est en ajout seul (#80)'); END;
+    CREATE TRIGGER IF NOT EXISTS trg_beta_audit_no_delete BEFORE DELETE ON beta_audit
+      BEGIN SELECT RAISE(ABORT, 'beta_audit est en ajout seul (#80)'); END;
+  `);
+
   // ── Sessions du panel admin (#57, recette du 03/11) ───────────────────────
   // Seule l'empreinte du jeton est stockée (jamais le jeton ni ADMIN_SECRET). Table ajoutée seule.
   _db.exec(`
