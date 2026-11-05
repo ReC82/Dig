@@ -12,7 +12,8 @@
  *   d'origine et l'écran est exactement celui de départ.
  * - ? contextuel : <button data-help="<id>"> (DigHelp.tipHtml) ; un clic délégué ouvre la bulle,
  *   utilisable au toucher sans survol, sans voile ni blocage du défilement ou des boutons du jeu.
- * - API pour le tutoriel (#79) : DigHelp.open(id) ouvre la fiche sur une rubrique.
+ * - API pour le tutoriel (#79) : DigHelp.open(id) ouvre la fiche sur une rubrique ; « Comment jouer ? »
+ *   propose de lancer, reprendre ou recommencer le tutoriel (DigTutorial, js/tutorial.js).
  */
 const DigHelp = (() => {
   /** Rubriques, dans l'ordre de la fiche. Les textes sont dans i18n.js (help.topics.<id>). */
@@ -179,7 +180,8 @@ const DigHelp = (() => {
     const steps = [1, 2, 3, 4].map(i => `<li>${_esc(_txt(`help.intro.step${i}`))}</li>`).join('');
     body.innerHTML = (translated ? '' : `<p class="help-fallback" role="note">${_esc(t('help.fallback'))}</p>`)
       + `<section class="help-intro" aria-labelledby="help-intro-title"><h3 id="help-intro-title">${_esc(t('help.intro.title'))}</h3>`
-      + `<ol class="help-steps">${steps}</ol></section>`
+      + `<ol class="help-steps">${steps}</ol>`
+      + (typeof DigTutorial !== 'undefined' ? DigTutorial.helpEntryHtml() : '') + '</section>'
       + GROUPS.map(g => `<section class="help-group" aria-labelledby="help-group-${g.id}">`
         + `<h3 class="help-group-title" id="help-group-${g.id}">${_esc(t(`help.groups.${g.id}`))}</h3>`
         + g.topics.map(([id]) => _topicHtml(id)).join('') + '</section>').join('')
@@ -249,7 +251,10 @@ const DigHelp = (() => {
     $('btn-help')?.addEventListener('click', () => (isOpen() ? close() : open(null, $('btn-help'))));
     $('btn-help-close')?.addEventListener('click', close);
     $('help-panel')?.addEventListener('click', e => { if (e.target.id === 'help-panel') close(); });
-    $('help-body')?.addEventListener('click', _onSummary);
+    $('help-body')?.addEventListener('click', e => {
+      if (typeof DigTutorial !== 'undefined' && DigTutorial.onHelpClick(e, close)) return;   // tutoriel (#79)
+      _onSummary(e);
+    });
     document.addEventListener('click', e => {
       const b = e.target.closest?.('.help-tip-btn[data-help]');
       if (!b) return;

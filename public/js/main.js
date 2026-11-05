@@ -30,6 +30,10 @@ let blockAnimating = false;
 let toastTimer     = null;
 let _previousView  = 'dig';   // vue à restaurer quand on ferme le profil ou les paramètres
 let _account              = null;    // { id, username, email, emailVerified } si connecté, null sinon
+// Tutoriel de première partie (#79) : partie neuve à l'ouverture ; sauvegarde du compte reprise depuis
+let _tutoFresh            = false;
+let _tutoCloudAdopted     = false;
+let _tutoBooted           = false;
 let _accountTab           = 'login'; // onglet actif : login | register | forgot | reset (#28)
 let _mailEnabled          = false;   // e-mails de compte disponibles côté serveur (#28)
 let _resetToken           = null;    // jeton du lien « mot de passe oublié » ouvert (#28)
@@ -1702,9 +1706,16 @@ async function _fetchMe() {
   if (isViewActive('settings')) renderSettings();
   if (isViewActive('profile'))  renderProfile();
   DigNews.refresh();   // non lues par compte une fois la session connue (#50)
+  // Tutoriel (#79) : proposé seulement à une première partie, une fois la session et la sauvegarde connues
+  if (!_tutoBooted) { _tutoBooted = true; DigTutorial.boot({ account: _account, fresh: _tutoIsFresh() }); }
   // Initialise seasonId et CPS limit même sans compte connecté
   _pollSeason();
   _loadChestCatalog();   // probabilités des coffres (fenêtre des chances, tirage anonyme, #20)
+}
+
+/** Partie neuve (#79) : aucun bloc cassé à l'ouverture, et aucune partie du compte reprise depuis. */
+function _tutoIsFresh() {
+  return _tutoFresh && !(_tutoCloudAdopted && (GameState.stats.blocksDestroyed > 0 || GameState.depth > 1));
 }
 
 async function _doRegister(username, email, password, inviteCode) {
@@ -1781,6 +1792,7 @@ async function _doLogout() {
   _clearCloudMeta();
   Save.purge();
   NotifLog.clear();   // appareil partagé : le joueur suivant ne voit pas l'historique (#26)
+  DigTutorial.onLogout();   // appareil partagé : l'état du tutoriel reste dans le compte (#79)
   DigBeta.clearDraft();   // brouillon de signalement : jamais transmis au joueur suivant (#57)
   _refreshAllAfterReset();
   _pollSeason();
@@ -1997,6 +2009,7 @@ async function _syncAfterLogin(forceCloud = false) {
       }
       if (adopt) {
         _applyCloudSave(cloud);
+        _tutoCloudAdopted = true;   // compte déjà joué ailleurs : pas de tutoriel proposé (#79)
         // Reprise silencieuse (autre appareil, « Jouer ici ») : gardée dans l'historique (#26)
         if (!forceCloud) NotifLog.add({ icon: '☁️', type: 'info', text: t('notif.cloud_resumed') });
       }
@@ -2011,6 +2024,7 @@ async function _syncAfterLogin(forceCloud = false) {
       await _syncToCloud();
     }
     _loadLiveMissions(true);   // missions du serveur (#68) si le drapeau est actif pour ce compte
+    if (_tutoBooted) DigTutorial.onAccount(_account, { fresh: _tutoIsFresh() });   // l'état du tutoriel suit le compte (#79)
   } catch (_) { /* silencieux */ }
 }
 
@@ -4204,6 +4218,7 @@ function init() {
   Upgrades.loadCached();   // barème et suspensions des améliorations (#69) mémorisés, avant le calcul des bonus
   Collection.loadCached(); // collections publiées (#39) mémorisées
   Save.load();
+  _tutoFresh = GameState.stats.blocksDestroyed === 0 && GameState.depth <= 1;   // première partie (#79)
 
   Relics.applyBonuses();   // recalcule les bonus depuis GameState.relics chargé
   const offlineGains = computeOfflineGains(); // calculé ici, après applyBonuses()

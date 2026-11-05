@@ -97,6 +97,7 @@ const seasonThemes = require('./seasonThemes');
 const badges = require('./badges');
 const badgeAi = require('./badgeAi');
 const news    = require('./news');
+const tutorial = require('./tutorial');
 const monthlyEvents = require('./monthlyEvents');
 const rewardPoints = require('./rewardPoints');
 const gemLedger = require('./gemLedger');
@@ -2078,6 +2079,19 @@ app.get('/api/news', limit.news, newsRoute('GET /api/news', req => news.publicVi
 app.post('/api/news/seen', limit.news, requireUser, newsRoute('POST /api/news/seen', req => news.markSeen(req.session.userId)));
 app.put('/api/news/prefs', limit.news, requireUser, newsRoute('PUT /api/news/prefs', req => ({ prefs: news.setPrefs(req.session.userId, req.body ?? {}) })));
 
+// Tutoriel de première partie (#79) : état par compte (jamais commencé / en cours / terminé / passé).
+app.get('/api/me/tutorial', limit.tutorial, requireUser, (req, res) => {
+  try { res.set('Cache-Control', 'no-store'); res.json({ tutorial: tutorial.get(req.session.userId) }); }
+  catch (err) { console.error('[GET /api/me/tutorial]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+app.put('/api/me/tutorial', limit.tutorial, requireUser, (req, res) => {
+  try { res.json({ tutorial: tutorial.set(req.session.userId, req.body ?? {}) }); }
+  catch (err) {
+    if (err instanceof tutorial.TutorialError) return res.status(err.status).json({ error: err.message });
+    console.error('[PUT /api/me/tutorial]', err); res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
 // Panel : liste, création (toujours en brouillon), modification, publication/programmation, archivage, journal.
 app.get('/api/admin/news', requireAdmin, newsRoute('GET /api/admin/news',
   req => ({ ...news.listAdmin({ status: String(req.query.status || 'all') }), proposals: news.listProposals() })));
@@ -2543,6 +2557,7 @@ gemShop.init();                  // boutique en gemmes, fermée par défaut (#49
 pickaxeCharges.init();           // pioche à charges : réglages, drapeau OFF par défaut, écarts observés (#71)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
+tutorial.init();                 // tutoriel de première partie : état par compte, table en ajout seul (#79)
 news.init();                     // centre d'actualités : annonces, lu par compte, IA, faits joueurs (#50)
 monthlyEvents.init();            // événements mensuels : objets exclusifs, souvenirs permanents, révisions (#56)
 // Événements préparés (server/content/events) → brouillon, une seule fois ; pas en test (bases neuves)
