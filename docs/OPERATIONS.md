@@ -40,15 +40,20 @@ systemctl list-timers dig-backup.timer
    Bucket déjà créé à la main dans la console : le contrôler d'abord, **en lecture seule**, avec
    `bash deploy/aws/check-s3.sh <bucket> us-east-1` (région, accès public bloqué, SSE-S3, versionnement, expiration 30 jours sur `backups/`). `setup-s3.sh` ne recrée pas un bucket existant : il en corrige seulement les réglages.
 2. **Serveur** : installer l'AWS CLI v2, puis vérifier `aws sts get-caller-identity` (doit afficher le rôle `dig-backup-ec2`).
+   Installée le 05/11/2026 (#36) **pour l'utilisateur `ubuntu` seulement, sans sudo** : `/home/ubuntu/.local/bin/aws` (installateur officiel, signature PGP vérifiée, empreinte `FB5D B77F D5C1 18B8 0511 ADA8 A631 0ACC 4672 475C`). Mise à jour : même procédure avec `./aws/install -i ~/.local/aws-cli -b ~/.local/bin --update`. Ce chemin n'est pas dans le `PATH` de systemd : le drop-in ci-dessous le donne dans `AWS_CLI`.
+   Le rôle ne lit **pas** la configuration du bucket (moindre privilège) : `check-s3.sh` répond « bucket inaccessible » sur le serveur, c'est normal. Le lancer dans CloudShell.
 3. **Brancher la copie** (outil installé dans `/opt/dig-backup`) :
 
 ```bash
+cd /home/ubuntu/Dig
 sudo install -m 755 scripts/offsite-s3.sh /opt/dig-backup/offsite-s3.sh
+sudo install -m 644 scripts/backup-db.js /opt/dig-backup/backup-db.js   # version avec le journal offsite.log (#36)
 sudo mkdir -p /etc/systemd/system/dig-backup.service.d
 sudo tee /etc/systemd/system/dig-backup.service.d/offsite.conf >/dev/null <<'CONF'
 [Service]
-Environment=DIG_S3_BUCKET=dig-backups-<id-compte>
+Environment=DIG_S3_BUCKET=lodygames-dig-bucket
 Environment=AWS_REGION=us-east-1
+Environment=AWS_CLI=/home/ubuntu/.local/bin/aws
 Environment=DIG_BACKUP_OFFSITE_CMD=/opt/dig-backup/offsite-s3.sh
 CONF
 sudo systemctl daemon-reload && sudo systemctl start dig-backup.service
@@ -58,7 +63,7 @@ journalctl -u dig-backup -n 10      # « [offsite-s3] ok s3://… » puis « hor
 4. **Test de restauration depuis S3, sur une copie isolée** (ticket #36) :
 
 ```bash
-DIG_S3_BUCKET=dig-backups-<id-compte> AWS_REGION=us-east-1 bash scripts/restore-from-s3.sh latest
+PATH=$HOME/.local/bin:$PATH DIG_S3_BUCKET=lodygames-dig-bucket AWS_REGION=us-east-1 bash scripts/restore-from-s3.sh latest
 # ou une sauvegarde précise : … restore-from-s3.sh dig-AAAAMMJJ-HHMMSS-daily.sqlite
 # « [restore] OK … N tables / M lignes » puis « [restore-s3] ok s3://… → copie isolée vérifiée »
 ```

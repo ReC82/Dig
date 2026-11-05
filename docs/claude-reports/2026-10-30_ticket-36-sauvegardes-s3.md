@@ -80,3 +80,93 @@ Aucun changement visible dans le jeu. Aucune migration, aucune donnée joueur to
 
 - Une fois les points 1 à 3 faits (Après lancement) : `aws sts get-caller-identity` (rôle `dig-backup-ec2`), `systemctl start dig-backup.service`, puis vérifier « [offsite-s3] ok » et « hors machine : ok ». Ensuite `scripts/restore-from-s3.sh latest` (copie isolée vérifiée), et contrôler la rétention avec `check-s3.sh`.
 - Alerte e-mail sur échec d'envoi : après #43 (Après lancement).
+
+## Session du 05/11/2026 (02:50–03:20, Bruxelles) — vérifications AWS réelles
+
+Fait suite aux commentaires du propriétaire du 04/11 : bucket `lodygames-dig-bucket` (us-east-1) ; accord pour le rôle EC2, l'AWS CLI v2, l'envoi réel et la restauration isolée ; rôle `dig-backup-ec2` associé par le propriétaire à l'instance `i-0902384bfb5e75956`.
+
+### 1. État réel
+
+**Partiel. L'envoi réel vers S3 et la restauration depuis S3 sur une base jetable sont prouvés. L'envoi automatique quotidien n'est pas encore branché**, parce qu'il faut un drop-in systemd (sudo), et je n'ai pas le droit de modifier les unités systemd. Par ailleurs, **le versionnement et l'expiration à 30 jours ne sont pas actifs** sur le bucket. Ces deux points se règlent dans la console AWS ou dans CloudShell (voir § 8).
+
+Je n'ai rien déployé : les changements de cette session ne concernent que la documentation et le message d'un script d'exploitation. Le jeu n'exécute rien de nouveau (§ 6).
+
+### 2. Ce qui a été vérifié pour de vrai
+
+| Contrôle | Résultat |
+|---|---|
+| Rôle associé à l'instance (IMDSv2, `iam/info`) | `instance-profile/dig-backup-ec2` sur `i-0902384bfb5e75956`, us-east-1 ✅ |
+| AWS CLI v2 | **2.39.4**, installée avec l'installateur officiel **pour l'utilisateur `ubuntu` seulement** (`~/.local/bin/aws`, sans sudo). La signature PGP est valide (« Good signature from AWS CLI Team »), empreinte `FB5D B77F D5C1 18B8 0511 ADA8 A631 0ACC 4672 475C` ✅ |
+| `aws sts get-caller-identity` | `assumed-role/dig-backup-ec2/i-0902384bfb5e75956` : identifiants temporaires IMDS, aucune clé enregistrée sur le serveur ✅ |
+| Moindre privilège | `ListBucket` hors `backups/` → AccessDenied ; `PutObject` hors `backups/` → AccessDenied ; tous les `get-bucket-*` → AccessDenied. Le rôle n'a pas de `s3:*` ✅ |
+| **Envoi réel** (`scripts/offsite-s3.sh`) de la sauvegarde quotidienne existante `dig-20261104-033000-daily.sqlite` (1 228 800 octets) et de son manifeste | `[offsite-s3] ok` pour les 2 objets, en environ 4 s. sha256 `cbcd8ec7…3d2ee1` contrôlé par S3 à la réception, puis relu avec `head-object` ✅ |
+| Chiffrement | `ServerSideEncryption = AES256` sur l'objet ✅ |
+| **Restauration depuis S3** (`scripts/restore-from-s3.sh latest`) | Téléchargement dans un dossier `mktemp` neuf. Triple contrôle du sha256 (S3, métadonnée, manifeste). Restauration sur une base neuve : `integrity_check` ok, **87 tables / 648 lignes**. Dossier supprimé ensuite. La base du jeu n'a pas été touchée (date et taille inchangées) ✅ |
+| Échec journalisé, puis reprise | Avec `backup-db.js` lancé sur une **copie** (dossier temporaire), vers un préfixe interdit : AccessDenied, `[offsite-s3] ÉCHEC`, sauvegarde locale conservée et vérifiée, ligne `{"result":"échec (code 1)"}` dans `offsite.log`. Ensuite, nouvel envoi réussi de la même sauvegarde vers `backups/` ✅ |
+| **Versionnement** | ❌ L'objet n'a **pas de `VersionId`**, donc le versionnement est désactivé |
+| **Expiration 30 jours** | ❌ L'objet n'a **pas d'en-tête `Expiration`**, donc aucune règle d'expiration ne s'applique à `backups/` |
+| Accès public bloqué, chiffrement par défaut du bucket | Non vérifiable depuis le serveur : le rôle ne lit pas la configuration du bucket, et c'est voulu. À faire dans CloudShell avec `check-s3.sh` |
+
+**Résultat dans S3 :** `backups/dig-20261104-033000-daily.sqlite` et `.json`. Je ne peux rien y supprimer : le rôle n'a pas `DeleteObject`.
+
+### 3. Changements de cette session
+
+- `docs/OPERATIONS.md` :
+  - emplacement réel de l'AWS CLI et procédure de mise à jour ;
+  - le rôle ne lit pas la configuration du bucket ;
+  - drop-in avec les vraies valeurs (`DIG_S3_BUCKET=lodygames-dig-bucket`, `AWS_CLI=/home/ubuntu/.local/bin/aws`, car `~/.local/bin` n'est pas dans le `PATH` de systemd) ;
+  - mise à jour de `/opt/dig-backup/backup-db.js`, une copie du 29/10 qui n'a pas le journal `offsite.log`.
+- `deploy/aws/check-s3.sh` : quand le bucket est « inaccessible », le message explique que c'est normal sur le serveur et qu'il faut lancer le contrôle dans CloudShell.
+
+### 4. SHA, branche, tests
+
+- Branche `feature/36-sauvegardes-s3` ; SHA sur `develop` : voir le commentaire du ticket et le statut.
+- `npm test` complet sur la branche : **730/730** ; `node --test test/offsite-s3.test.js` 8/8 ; `shellcheck` OK.
+- Rejouer sur le serveur (lecture S3 seulement, base du jeu jamais touchée) :
+  `PATH=$HOME/.local/bin:$PATH DIG_S3_BUCKET=lodygames-dig-bucket AWS_REGION=us-east-1 bash /home/ubuntu/Dig/scripts/restore-from-s3.sh latest`
+
+### 5. Limites et impact
+
+- Données joueurs : **aucun impact**. J'ai seulement lu une sauvegarde locale existante. Aucune sauvegarde locale n'a été supprimée ni modifiée. Seules des copies temporaires ont été créées dans `/tmp`, puis supprimées.
+- L'envoi automatique quotidien n'est **pas** actif (§ 8, point 1). Sans versionnement ni expiration, les objets restent dans S3 sans limite de durée et un écrasement n'est pas récupérable (§ 8, point 2).
+- Le rôle d'instance s'applique à toute la machine : les autres projets du serveur peuvent aussi écrire dans `backups/` de ce bucket. Le risque est acceptable (accès limité au préfixe, aucune suppression possible) ; le versionnement protégera contre les écrasements.
+
+### 6. Déploiement
+
+**Pas de nouveau déploiement.** Cette session ne modifie que la documentation et un message de `check-s3.sh`, un outil lancé dans CloudShell. Le jeu et `dig-backup.service` n'exécutent rien de nouveau. Ces changements partiront avec le prochain déploiement. La production reste en `497b52a`.
+**Test fonctionnel du propriétaire** : rien à tester dans le jeu. Voir le § 8 (console et serveur).
+**Classement MVP : « Après lancement »** (sauvegardes locales vérifiées et déploiements réversibles déjà en place).
+
+### 7. Choix techniques faits seul
+
+- **CLI installée pour l'utilisateur `ubuntu` (sans sudo)** plutôt que dans `/usr/local` : je n'ai pas le droit de modifier l'infrastructure du serveur, et le service de sauvegarde tourne déjà sous `ubuntu`.
+- **Test réel fait avec une sauvegarde quotidienne existante**, sans créer de nouvelle sauvegarde sur la base live.
+- **Échec testé sur une copie** et avec un vrai refus d'AWS, pour ne laisser ni objet parasite ni sauvegarde de test dans `~/backups/dig`.
+- **Pas de `setup-s3.sh` pour corriger le bucket** : il *remplacerait* sa politique, ses tags et ses règles de cycle de vie. Or ce bucket, nommé `lodygames-…`, sert peut-être à autre chose. Je propose plutôt des commandes ciblées, à lancer après lecture de l'existant.
+
+### 8. Actions demandées au propriétaire
+
+1. **Brancher l'envoi quotidien** (sudo, sur le serveur ; je n'ai pas le droit de modifier systemd) :
+   ```bash
+   cd /home/ubuntu/Dig
+   sudo install -m 755 scripts/offsite-s3.sh /opt/dig-backup/offsite-s3.sh
+   sudo install -m 644 scripts/backup-db.js /opt/dig-backup/backup-db.js
+   sudo mkdir -p /etc/systemd/system/dig-backup.service.d
+   printf '[Service]\nEnvironment=DIG_S3_BUCKET=lodygames-dig-bucket\nEnvironment=AWS_REGION=us-east-1\nEnvironment=AWS_CLI=/home/ubuntu/.local/bin/aws\nEnvironment=DIG_BACKUP_OFFSITE_CMD=/opt/dig-backup/offsite-s3.sh\n' | sudo tee /etc/systemd/system/dig-backup.service.d/offsite.conf
+   sudo systemctl daemon-reload && sudo systemctl start dig-backup.service
+   journalctl -u dig-backup -n 10 --no-pager    # attendu : « [offsite-s3] ok … » puis « hors machine : ok »
+   ```
+   Retour arrière : `sudo rm /etc/systemd/system/dig-backup.service.d/offsite.conf && sudo systemctl daemon-reload`. *Recommandation : oui, maintenant.*
+2. **Versionnement et expiration** (CloudShell us-east-1, avec tes droits). D'abord lire l'existant :
+   `aws s3api get-bucket-lifecycle-configuration --bucket lodygames-dig-bucket` et `bash deploy/aws/check-s3.sh lodygames-dig-bucket us-east-1`.
+   Si aucune règle de cycle de vie n'existe déjà (sinon, ajoute la règle dans la console, onglet Management, pour ne pas écraser les autres) :
+   `aws s3api put-bucket-versioning --bucket lodygames-dig-bucket --versioning-configuration Status=Enabled`
+   `aws s3api put-bucket-lifecycle-configuration --bucket lodygames-dig-bucket --lifecycle-configuration file://deploy/aws/lifecycle.json`
+   puis relance `check-s3.sh` : attendu « == conforme ». Colle la sortie dans le ticket (elle ne contient aucun secret). *Recommandation : oui. Expiration à 30 jours sur `backups/` uniquement.*
+3. Alerte e-mail sur échec : *après le lancement, une fois le SMTP (#43) configuré.*
+
+### 9. Restant à réaliser
+
+- Après le point 1 : constater la première sauvegarde quotidienne envoyée automatiquement (`offsite.log`, `result: ok`), puis `restore-from-s3.sh latest` sur cette sauvegarde.
+- Après le point 2 : `head-object` doit montrer `VersionId` et `Expiration`.
+- Alerte e-mail après #43.
