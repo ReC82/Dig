@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 821/821 textes. Absents → français. */
+/* Italian (preview) : 840/840 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -942,6 +942,29 @@ I18n.registerLocale("it", {
   "pickaxe": "Piccone",
   "pickaxe_val": "Lv.{n}",
   "relics": "🔮 Framm."
+ },
+ "tutorial": {
+  "back": "Indietro",
+  "finish": "Fine",
+  "help_restart": "Ricomincia il tutorial",
+  "help_resume": "Riprendi (passaggio {i}/{n})",
+  "help_start": "Avvia il tutorial",
+  "help_title": "Tutorial interattivo",
+  "next": "Avanti",
+  "offer_text": "Scopri le basi in {n} brevi passaggi, oppure vai subito al gioco.",
+  "offer_title": "Prima partita?",
+  "progress": "Passaggio {i} di {n}",
+  "skip": "Salta",
+  "start": "Scopri il gioco",
+  "steps": {
+   "autodig": "L’Auto-Dig, in «{tab_upgrades}», colpisce il blocco da solo, anche quando non tocchi lo schermo.",
+   "coins": "Ogni blocco rotto dà monete: apri «{tab_upgrades}» per scegliere un potenziamento.",
+   "hp": "La barra mostra i PV del blocco: ogni colpo toglie i tuoi danni, finché non si rompe.",
+   "more": "Ritrovamenti, eventi e reliquie sono in «{tab_collection}»; il ? in alto riapre l’aiuto e questo tutorial.",
+   "ranking": "Nella classifica della stagione contano solo i blocchi rotti a mano, non la profondità.",
+   "tap": "Tocca il blocco per scavarlo."
+  },
+  "title": "Tutorial"
  },
  "ui": {
   "ad_cooldown": "Disponibile tra {min}:{sec}",

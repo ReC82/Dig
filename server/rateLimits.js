@@ -39,12 +39,12 @@ function tooManyRequests(req, res) {
 
 /**
  * Construit les trois limiteurs. Avec RATE_LIMIT=off, chaque limiteur est un middleware neutre.
- * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function, feedback: Function, inviteCheck: Function, news: Function }}
+ * @returns {{ login: Function, register: Function, save: Function, mail: Function, token: Function, chest: Function, social: Function, shop: Function, play: Function, icons: Function, feedback: Function, inviteCheck: Function, news: Function, tutorial: Function }}
  */
 function createRateLimiters(env = process.env) {
   if (String(env.RATE_LIMIT || '').toLowerCase() === 'off') {
     const pass = (_req, _res, next) => next();
-    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass, feedback: pass, inviteCheck: pass, news: pass };
+    return { login: pass, register: pass, save: pass, mail: pass, token: pass, chest: pass, social: pass, shop: pass, play: pass, icons: pass, feedback: pass, inviteCheck: pass, news: pass, tutorial: pass };
   }
 
   const common = {
@@ -152,6 +152,15 @@ function createRateLimiters(env = process.env) {
       ...common,
       windowMs:     MINUTE,
       limit:        intFromEnv(env, 'RATE_NEWS_MAX', 30),
+      keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
+    }),
+
+    // Tutoriel de première partie (#79) : état lu à la connexion, écrit à chaque étape ;
+    // ≤ 30 / min / compte (à défaut, par IP).
+    tutorial: rateLimit({
+      ...common,
+      windowMs:     MINUTE,
+      limit:        intFromEnv(env, 'RATE_TUTORIAL_MAX', 30),
       keyGenerator: (req) => (req.session?.userId ? `u:${req.session.userId}` : `ip:${req.ip}`),
     }),
 

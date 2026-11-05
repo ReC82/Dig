@@ -3707,3 +3707,49 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
 .help-topic-body ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .help-footer { margin: 14px 0 0; font-size: 0.72rem; color: #9ca3af; text-align: center; }
 @media (prefers-reduced-motion: reduce) { .help-topic > summary::after { transition: none; } }
+
+/* ── Tutoriel de première partie (#79) : carte sans voile, cadre lumineux qui ne capte aucun clic ── */
+.tuto-card {
+  position: fixed; z-index: 450; left: 8px; top: 8px; width: min(360px, calc(100vw - 16px));
+  background: var(--surface2); color: var(--text); border: 1px solid rgba(245, 197, 24, 0.55);
+  border-radius: 14px; padding: 10px 12px 12px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  font-size: 0.88rem; line-height: 1.45; transition: opacity 0.3s, top 0.2s;
+}
+.tuto-card[hidden] { display: none; }
+.tuto-card.is-behind { visibility: hidden; }
+.tuto-card.is-leaving { opacity: 0; }
+.tuto-card:focus { outline: none; }
+.tuto-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.tuto-head h2 { margin: 0; font-size: 0.98rem; color: var(--gold); letter-spacing: 0; text-shadow: none; }
+.tuto-icon { font-size: 1.1rem; }
+.tuto-progress { display: flex; align-items: center; gap: 8px; font-size: 0.74rem; font-weight: 700; color: #c9cbd6; }
+.tuto-dots { display: flex; gap: 4px; }
+.tuto-dot { width: 7px; height: 7px; border-radius: 50%; background: #4b5063; }
+.tuto-dot.is-on { background: var(--gold); }
+.tuto-text { margin: 2px 0 10px; color: #eceef5; }
+.tuto-actions { display: flex; gap: 8px; align-items: center; }
+.tuto-btn {
+  margin: 0; min-height: 44px; padding: 0 14px; border-radius: 10px; font: inherit; font-weight: 700;
+  font-size: 0.86rem; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.tuto-btn-ghost { background: transparent; color: #d6d8e2; border: 1px solid var(--border); }
+.tuto-btn-ghost:first-child { border-color: transparent; padding: 0 8px; text-decoration: underline; text-underline-offset: 3px; }
+.tuto-btn-main { margin-left: auto; background: var(--gold); color: #1a1405; border: 1px solid var(--gold); }
+.tuto-btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.tuto-ring {
+  position: fixed; z-index: 449; pointer-events: none; border-radius: 12px;
+  border: 3px solid var(--gold); box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.25), 0 0 18px rgba(245, 197, 24, 0.55);
+  animation: tuto-pulse 1.6s ease-in-out infinite;
+}
+.tuto-ring[hidden] { display: none; }
+@keyframes tuto-pulse { 50% { box-shadow: 0 0 0 6px rgba(245, 197, 24, 0.12), 0 0 26px rgba(245, 197, 24, 0.7); } }
+@media (prefers-reduced-motion: reduce) { .tuto-ring { animation: none; } .tuto-card { transition: none; } }
+/* Entrée dans la fiche Aide */
+.tuto-help { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.tuto-help-title { margin: 0 0 6px; font-weight: 700; }
+.tuto-help-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tuto-help-btn {
+  margin: 0; min-height: 40px; padding: 0 12px; border-radius: 10px; font: inherit; font-weight: 700; font-size: 0.82rem;
+  background: transparent; color: var(--text); border: 1px solid var(--border); cursor: pointer;
+}
+.tuto-help-btn.is-main { background: var(--gold); color: #1a1405; border-color: var(--gold); }

@@ -81,6 +81,30 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     fr: {
+      // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
+      tutorial: {
+        title: 'Tutoriel',
+        offer_title: 'Première partie ?',
+        offer_text: 'Découvre les bases en {n} petites étapes, ou passe directement au jeu.',
+        start: 'Découvrir le jeu',
+        skip: 'Passer',
+        back: 'Retour',
+        next: 'Suivant',
+        finish: 'Terminer',
+        progress: 'Étape {i} sur {n}',
+        steps: {
+          tap: 'Touche le bloc pour le creuser.',
+          hp: 'La barre montre les PV du bloc : chaque coup retire tes dégâts, jusqu\'à le casser.',
+          coins: 'Chaque bloc cassé rapporte des pièces : ouvre « {tab_upgrades} » pour choisir une amélioration.',
+          autodig: 'L\'Auto-Dig, dans « {tab_upgrades} », frappe le bloc tout seul, même quand tu ne touches pas l\'écran.',
+          ranking: 'Au classement de la saison, seuls les blocs cassés à la main comptent, pas la profondeur.',
+          more: 'Trouvailles, événements et reliques sont dans « {tab_collection} » ; le ? en haut rouvre l\'aide et ce tutoriel.',
+        },
+        help_title: 'Tutoriel interactif',
+        help_start: 'Lancer le tutoriel',
+        help_resume: 'Reprendre (étape {i}/{n})',
+        help_restart: 'Recommencer le tutoriel',
+      },
       // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
       help: {
         btn_aria: 'Aide — comment jouer',
@@ -939,6 +963,30 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     en: {
+      // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
+      tutorial: {
+        title: 'Tutorial',
+        offer_title: 'First game?',
+        offer_text: 'Learn the basics in {n} quick steps, or jump straight into the game.',
+        start: 'Discover the game',
+        skip: 'Skip',
+        back: 'Back',
+        next: 'Next',
+        finish: 'Finish',
+        progress: 'Step {i} of {n}',
+        steps: {
+          tap: 'Tap the block to dig it.',
+          hp: 'The bar shows the block\'s HP: each hit removes your damage until it breaks.',
+          coins: 'Every broken block gives coins: open “{tab_upgrades}” to choose an upgrade.',
+          autodig: 'Auto-Dig, in “{tab_upgrades}”, hits the block on its own, even when you are not touching the screen.',
+          ranking: 'On the season leaderboard, only blocks you break by hand count, not depth.',
+          more: 'Finds, events and relics are in “{tab_collection}”; the ? at the top reopens the help and this tutorial.',
+        },
+        help_title: 'Interactive tutorial',
+        help_start: 'Start the tutorial',
+        help_resume: 'Resume (step {i}/{n})',
+        help_restart: 'Restart the tutorial',
+      },
       // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
       help: {
         btn_aria: 'Help — how to play',
@@ -1796,6 +1844,30 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     nl: {
+      // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
+      tutorial: {
+        title: 'Tutorial',
+        offer_title: 'Eerste spel?',
+        offer_text: 'Leer de basis in {n} korte stappen, of ga meteen spelen.',
+        start: 'Ontdek het spel',
+        skip: 'Overslaan',
+        back: 'Terug',
+        next: 'Volgende',
+        finish: 'Klaar',
+        progress: 'Stap {i} van {n}',
+        steps: {
+          tap: 'Tik op het blok om het uit te graven.',
+          hp: 'De balk toont de HP van het blok: elke slag haalt je schade eraf, tot het breekt.',
+          coins: 'Elk gebroken blok levert munten op: open „{tab_upgrades}” om een upgrade te kiezen.',
+          autodig: 'Auto-Dig, in „{tab_upgrades}”, slaat zelf op het blok, ook als je het scherm niet aanraakt.',
+          ranking: 'Voor het seizoensklassement tellen alleen blokken die je met de hand breekt, niet de diepte.',
+          more: 'Vondsten, evenementen en relikwieën staan in „{tab_collection}”; het ? bovenaan opent de hulp en deze tutorial opnieuw.',
+        },
+        help_title: 'Interactieve tutorial',
+        help_start: 'Tutorial starten',
+        help_resume: 'Verdergaan (stap {i}/{n})',
+        help_restart: 'Tutorial opnieuw starten',
+      },
       // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
       help: {
         btn_aria: 'Hulp — hoe speel je?',
@@ -2653,6 +2725,30 @@ const I18n = (() => {
 
     /* ══════════════════════════════════════════════════════════════════════ */
     es: {
+      // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
+      tutorial: {
+        title: 'Tutorial',
+        offer_title: '¿Primera partida?',
+        offer_text: 'Descubre lo básico en {n} pasos cortos, o ve directamente al juego.',
+        start: 'Descubrir el juego',
+        skip: 'Saltar',
+        back: 'Atrás',
+        next: 'Siguiente',
+        finish: 'Terminar',
+        progress: 'Paso {i} de {n}',
+        steps: {
+          tap: 'Toca el bloque para excavarlo.',
+          hp: 'La barra muestra los PV del bloque: cada golpe resta tu daño, hasta romperlo.',
+          coins: 'Cada bloque roto da monedas: abre «{tab_upgrades}» para elegir una mejora.',
+          autodig: 'El Auto-Dig, en «{tab_upgrades}», golpea el bloque solo, incluso cuando no tocas la pantalla.',
+          ranking: 'En la clasificación de la temporada solo cuentan los bloques rotos a mano, no la profundidad.',
+          more: 'Hallazgos, eventos y reliquias están en «{tab_collection}»; el ? de arriba vuelve a abrir la ayuda y este tutorial.',
+        },
+        help_title: 'Tutorial interactivo',
+        help_start: 'Iniciar el tutorial',
+        help_resume: 'Continuar (paso {i}/{n})',
+        help_restart: 'Reiniciar el tutorial',
+      },
       // Aide du joueur (#78) : fiche « Comment jouer ? » et ? contextuels (source unique, js/help.js)
       help: {
         btn_aria: 'Ayuda — cómo jugar',

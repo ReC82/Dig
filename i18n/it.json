@@ -5044,6 +5044,139 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "tutorial.back": {
+   "text": "Indietro",
+   "src": "eee814bcfbad",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.finish": {
+   "text": "Fine",
+   "src": "a6d1a39cc3f6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.help_restart": {
+   "text": "Ricomincia il tutorial",
+   "src": "b719cce5ed05",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.help_resume": {
+   "text": "Riprendi (passaggio {i}/{n})",
+   "src": "2d858cdc9947",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.help_start": {
+   "text": "Avvia il tutorial",
+   "src": "85599aebc9b9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.help_title": {
+   "text": "Tutorial interattivo",
+   "src": "07f588a0e659",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.next": {
+   "text": "Avanti",
+   "src": "21ffd7a64bb1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.offer_text": {
+   "text": "Scopri le basi in {n} brevi passaggi, oppure vai subito al gioco.",
+   "src": "c74c2b74b46b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.offer_title": {
+   "text": "Prima partita?",
+   "src": "5518e4549780",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.progress": {
+   "text": "Passaggio {i} di {n}",
+   "src": "7307e3c79a30",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.skip": {
+   "text": "Salta",
+   "src": "eb875dd9d9d8",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.start": {
+   "text": "Scopri il gioco",
+   "src": "1beb3d08a6d2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.steps.autodig": {
+   "text": "L’Auto-Dig, in «{tab_upgrades}», colpisce il blocco da solo, anche quando non tocchi lo schermo.",
+   "src": "3869cfc8a4bd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.steps.coins": {
+   "text": "Ogni blocco rotto dà monete: apri «{tab_upgrades}» per scegliere un potenziamento.",
+   "src": "1566f3c808db",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.steps.hp": {
+   "text": "La barra mostra i PV del blocco: ogni colpo toglie i tuoi danni, finché non si rompe.",
+   "src": "91e12a3dda18",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.steps.more": {
+   "text": "Ritrovamenti, eventi e reliquie sono in «{tab_collection}»; il ? in alto riapre l’aiuto e questo tutorial.",
+   "src": "090748303a5b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.steps.ranking": {
+   "text": "Nella classifica della stagione contano solo i blocchi rotti a mano, non la profondità.",
+   "src": "003e5bc38f10",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.steps.tap": {
+   "text": "Tocca il blocco per scavarlo.",
+   "src": "612e4722da1c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
+  "tutorial.title": {
+   "text": "Tutorial",
+   "src": "f6ef0f14ebd6",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #79, relu)",
+   "at": "2026-11-05T17:34:15.700Z"
+  },
   "ui.ad_cooldown": {
    "text": "Disponibile tra {min}:{sec}",
    "src": "a93ad28920e7",
