@@ -23,7 +23,7 @@ get() { "$AWS" --region "$REGION" s3api "$@" --bucket "$BUCKET" --output text 2>
 
 echo "== s3://$BUCKET"
 
-loc="$(get get-bucket-location --query 'LocationConstraint')" || { echo "  bucket inaccessible"; exit 1; }
+loc="$(get get-bucket-location --query 'LocationConstraint')" || { echo "  bucket inaccessible (sur le serveur, normal : le rôle dig-backup-ec2 ne lit pas la configuration du bucket ; lancer ce contrôle dans CloudShell)"; exit 1; }
 # us-east-1 est renvoyé comme « None » (ou vide) par l'API.
 [[ "$loc" == "None" || -z "$loc" ]] && loc="us-east-1"
 [[ "$loc" == "$REGION" ]] && ok "région $loc" || ko "région $loc (attendue : $REGION)"
