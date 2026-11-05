@@ -1,9 +1,67 @@
 # Ticket #70 — Admin : navigation en sections et sous-menus évolutifs
 
 - Ticket : [#70 — [P1] Admin — réorganiser la navigation en sections et sous-menus évolutifs](https://github.com/ReC82/Dig/issues/70)
-- Branche : `feature/70-navigation-admin` (code du 05/11 : `462df6b` ; code du 04/11 : `70ffb91`)
-- `develop` : `faf25e1` (fusion du 05/11), puis le commit de ce rapport
-- **Production : `faf25e1`** (déployé le 05/11/2026 à 13:21, heure de Bruxelles)
+- Branche : `feature/70-navigation-admin` (correctif ⚠ du 05/11 après-midi : `1ba2083` ; code du 05/11 matin : `462df6b` ; code du 04/11 : `70ffb91`)
+- `develop` : `d89f089` (fusion du correctif ⚠), puis le commit de ce rapport
+- **Production : `d89f089`** (déployé le 05/11/2026 à 14:28, heure de Bruxelles)
+
+## 00. Mise à jour du 05/11/2026 après-midi — faux ⚠ des suspensions volontaires
+
+**État réel : déployé en production (SHA `d89f089`) — en attente de recette.**
+
+### Contexte
+Les recettes #70-A à #70-F du propriétaire sont toutes validées (recherche « recommencer »/reset, fiche joueur et Essais de test, lien Anti-bot, action « Préparer une invitation », sous-rubrique Économie après F5, navigation mobile) : elles ne sont pas redemandées.
+Il restait un défaut signalé le 05/11 : quand des améliorations sont **suspendues volontairement** (Fragments, Reroll bloc), un ⚠ restait affiché sur « Améliorations » et sur le groupe « Jeu & progression », comme s'il s'agissait d'une anomalie.
+
+### Correction (`public/admin/admin.js`, `loadUpgrades`)
+- Une suspension volontaire **n'allume plus le ⚠ du menu**. Ce ⚠ est réservé à un incident qui demande une action : le catalogue des améliorations ne se charge pas (**erreur serveur**, code 500 ou plus). Son infobulle l'explique : « chargement du catalogue impossible (erreur serveur) ». Le ⚠ disparaît dès que le chargement réussit.
+- Une coupure réseau ne déclenche **aucun faux signal** : c'est la même règle que pour « aucune saison active ».
+- L'état reste visible dans la page Améliorations, en texte neutre : le résumé indique « … 6 améliorations, 2 désactivée(s) volontairement » et le titre « 🚨 Suspension d'urgence » affiche « — 2 désactivée(s) ». Le tableau des suspensions ne change pas.
+- **Rien d'autre ne change** : les suspensions en vigueur, les achats, les effets, la visibilité côté joueur et les données joueurs restent tels quels. Le seul autre signal du menu (« aucune saison active ») fonctionne comme avant.
+
+### Tests
+- `npm test` : **765/765** sur la branche, sur `develop` `d89f089` et sur la release `d89f089`. `npm run check` OK. Le test unitaire `test/admin-nav.test.js` vérifie que le ⚠ des Améliorations ne dépend plus des suspensions.
+- Nouvel essai navigateur `test/e2e/admin-nav-flag.e2e.js` : **17/17** sur PC 1280×900 et smartphone 390×844, sans erreur JS. Il couvre :
+  - deux suspensions volontaires réelles en base de test : pas de ⚠ et texte neutre ;
+  - une erreur 500 simulée : ⚠ sur la rubrique et sur le groupe, avec explication ;
+  - le retour à la normale : ⚠ retiré ;
+  - une coupure réseau : aucun ⚠ ;
+  - le signal « aucune saison active » : toujours opérationnel.
+- `test/e2e/admin-nav.e2e.js` relancé : **38/38** (aucune régression de navigation).
+- Copie de la base de production : démarrage OK, `/health` 200, version `d89f089`, empreintes identiques avant et après démarrage. Aucune migration.
+
+### Déploiement
+- Avant le déploiement, aucune génération IA n'était en cours (dernière à 12:53, heure de Bruxelles).
+- `main` a avancé par avance rapide `9fc4acb` → `d89f089`, puis `scripts/deploy.sh` a été lancé depuis la release.
+- Sauvegarde vérifiée : `dig-20261105-142841-pre-deploy-d89f089.sqlite`.
+- Après déploiement :
+  - les 2 domaines répondent 200 avec la version `1.0.0+d89f089` ;
+  - le journal ne contient aucune erreur ;
+  - `quick_check` = ok ;
+  - `users`, `seasons`, `leagues` et `player_click_tracking` sont identiques à la sauvegarde ;
+  - `user_saves` et `season_rankings` ont avancé à cause d'une partie en cours (même nombre de lignes, version de sauvegarde +1, pièces en hausse) : c'est une progression, pas une perte.
+- Retour arrière possible vers `9fc4acb`.
+
+### Test fonctionnel à faire par le propriétaire (1 min, PC puis smartphone)
+1. Rechargez l'onglet admin (F5). Laissez Fragments et Reroll suspendus : **ne les réactivez pas**.
+2. Ouvrez ⛏ Jeu & progression → ⬆ Améliorations. **Attendu :** aucun ⚠ ni sur « Améliorations » ni sur « Jeu & progression ». En haut de page, le résumé indique « 2 désactivée(s) volontairement », et le cadre « 🚨 Suspension d'urgence » affiche « — 2 désactivée(s) » avec les deux lignes suspendues.
+3. Sur smartphone, ouvrez ☰ Rubriques. **Attendu :** aucun ⚠ sur « Jeu & progression » ni sur « Améliorations ».
+
+Une vraie panne (catalogue en erreur serveur) ne peut pas être provoquée sans risque en production. Ce cas est vérifié par l'essai navigateur ci-dessus.
+
+### Classement
+**Après lancement** : confort d'exploitation, sans effet sur les joueurs.
+
+### Choix techniques faits seul
+- Le ⚠ des Améliorations est réservé à l'erreur serveur au chargement. Une suspension est une décision connue et journalisée, donc ce n'est pas un incident.
+- Le seuil est « code ≥ 500 ». Le panel affiche déjà les autres échecs (session expirée, réseau) par un message propre, et l'on évite ainsi un faux signal hors ligne.
+- L'état reste en texte, sans badge coloré dans le menu, comme demandé (« indication neutre non alarmante »).
+
+### Décisions demandées au propriétaire
+Aucune décision utilisateur nécessaire.
+
+### Reste à faire
+Rien dans le périmètre de #70 après cette recette. Le ticket peut être clôturé par le propriétaire si ce dernier test est concluant. #76 (simplification des fiches et modales) reste un ticket séparé.
 
 ## 0. Mise à jour du 05/11/2026 — recette du propriétaire (rubrique Joueurs, plan, actions)
 
