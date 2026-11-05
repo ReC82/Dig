@@ -2,6 +2,233 @@
 
 Lien : https://github.com/ReC82/Dig/issues/68
 
+## Session du 05/11/2026, après-midi (DIGORCH) — étape B technique : attribution et réclamation côté serveur, drapeau OFF
+
+Suite au commentaire du propriétaire du 05/11 (15:59 Bruxelles) : « étape B technique en autonomie, derrière un
+drapeau OFF, dans des bases de test ; pas d'activation pour les joueurs, ni de nouveau barème ou
+récompense ; ne pas refaire le catalogue/simulateur ; recette courte de l'étape A ; récapitulatif des
+décisions économiques pour l'activation ; coordonner #49 ».
+
+### 1. État réel
+
+**Déployé en production (SHA 8bd26c6), drapeau sur « Désactivé ». En attente de recette.**
+Les joueurs ne voient **aucun changement**. Vérifié en production : missions d'origine, PC et mobile.
+L'étape A (catalogue, simulateur) n'a pas été refaite. Aucun barème, aucune récompense, aucune rotation
+de production n'a été modifié.
+
+### 2. Résultat et changements
+
+**Moteur côté serveur** (`server/missionsLive.js`, nouveau) :
+
+- **Drapeau à 3 positions**, enregistré en base et journalisé en ajout seul. La valeur par défaut est
+  `off` (aucune ligne de réglage en production).
+  - `off` : jeu inchangé.
+  - `pilot` : seuls les comptes listés reçoivent les missions du serveur (recette sur un compte testeur).
+  - `on` : tous les joueurs connectés ; une note est obligatoire (votre décision).
+- **Attribution** : une fois par joueur et par jour. Le jour change à **minuit Europe/Bruxelles**.
+  - Les missions sont tirées dans la **version publiée** du catalogue, avec la rotation qui y est
+    définie (origine ou adaptative).
+  - Le profil vient de la sauvegarde serveur : profondeur, améliorations, ancienneté du compte.
+  - L'anti-répétition s'appuie sur les jours précédents du joueur.
+  - Clé primaire joueur + jour : un F5, un autre onglet ou un autre appareil donnent les mêmes missions.
+  - **Publier une nouvelle version ne change pas les missions déjà attribuées.**
+  - Avec la v1 en vigueur, la rotation d'origine donne exactement les missions actuelles du jeu (test).
+- **Progression** : elle est lue dans la **sauvegarde serveur** à chaque sauvegarde acceptée, jamais dans
+  une valeur envoyée à part.
+  - Elle se cumule : une hausse s'ajoute, une baisse (fin de saison, réinitialisation, autre appareil)
+    ne retire rien.
+  - Un gain de blocs ou de mètres supérieur aux blocs validés par le serveur (#38) est **noté**, sans
+    jamais bloquer (même politique que le mode observation).
+- **Réclamation** : tout se fait en **une seule transaction**.
+  - Contrôles : appareil qui a la main (#35), mission terminée, journée en cours.
+  - Une ligne de réclamation (joueur + jour + emplacement) est écrite en ajout seul.
+  - Les pièces et gemmes sont créditées dans la sauvegarde, avec une nouvelle révision.
+  - Une deuxième réclamation (double clic, F5, deux appareils, requêtes simultanées) renvoie la première
+    **sans recréditer**.
+  - Si le registre de gemmes #49 est actif, les gemmes de mission y sont créditées comme gain serveur
+    (idempotent) et ne consomment plus l'allocation quotidienne « déclarée ».
+
+**Routes** :
+
+- `GET /api/me/missions` : renvoie `{ live:false }` quand le drapeau est OFF.
+- `POST /api/me/missions/claim`.
+- Admin : `GET/PUT /api/admin/missions/live` et `GET /api/admin/missions/live/player?username=` (lecture
+  seule).
+
+**Jeu** (`public/js/dailyMissions.js`, `main.js`) :
+
+- Le jeu n'utilise les missions du serveur que si celui-ci répond `live:true` pour ce compte.
+- Dans ce cas, l'affichage montre les noms, textes, emojis ou images du catalogue (texte échappé). La
+  barre de progression combine la progression serveur et le gain local pas encore sauvegardé.
+- Le bouton « Réclamer » envoie d'abord la sauvegarde, puis demande la réclamation au serveur.
+- Dans tous les autres cas (invité, OFF, réseau en panne), le code d'origine s'exécute sans changement.
+
+**Admin → 🎯 Missions** : nouvelle carte **« 🚦 Activation en jeu (étape B) »** :
+
+- état actuel ;
+- choix du mode ;
+- comptes pilotes ;
+- « Enregistrer… » avec une confirmation Dig (« Tous les joueurs » demande une note) ;
+- « Voir les missions d'un joueur » : missions du jour, progression, réclamée ou non, 7 derniers jours ;
+- journal.
+
+**Tables ajoutées** (aucune table existante modifiée) : `mission_live_settings`, `mission_live_audit`,
+`daily_mission_days`, `daily_mission_claims`.
+
+**Tests** :
+
+- `test/missions-live.test.js` : 6 tests.
+- `test/e2e/missions-live.e2e.js` : essai navigateur.
+- `test/ui-icons.test.js` : ajusté au nouveau nom de variable du rendu.
+
+### 3. SHA, branche, procédure de test
+
+- Branche : `feature/68-missions-quotidiennes` (commit `b9cac60`). SHA sur `develop` : **`8bd26c6`**.
+- `npm test` ; tests ciblés : `node --test test/missions-live.test.js test/mission-catalog.test.js`.
+- Essai navigateur, uniquement sur un serveur et une base de test :
+  1. Démarrer le serveur : `PORT=3101 DB_FILE=test-68.sqlite NODE_ENV=test ADMIN_SECRET=… RATE_SAVE_MAX=1000 node server/index.js`.
+  2. Lancer l'essai : `CHROME=…/chrome-headless-shell PW=…/playwright-core BASE=http://127.0.0.1:3101 ADMIN=… node test/e2e/missions-live.e2e.js`.
+
+### 4. Vérifications effectuées
+
+- **Drapeau OFF** : aucune ligne écrite et vue `{ live:false }`. La réclamation serveur est refusée
+  (`not_live`). Le manifeste d'icônes n'est pas modifié. Dans le navigateur, un joueur connecté garde
+  exactement les missions de `_generate(date)`.
+- **Pilote** : seuls les comptes listés sont concernés. Nom inconnu et mode inconnu refusés. « on » sans
+  note refusé. Journal protégé contre la modification et la suppression.
+- **Attribution** : une seule ligne par jour. 23:30 à Bruxelles = même jour ; 00:30 = jour suivant. Le
+  résultat est identique au jeu pour la v1. Une publication ne change pas les missions du jour.
+- **Progression et réclamation** :
+  - refusée tant que la mission n'est pas terminée ;
+  - la baisse de profondeur ne retire rien ;
+  - refusée hors contrôleur de partie, sans rien écrire ;
+  - crédit exact et révision +1 ;
+  - un rejeu ne recrédite pas ;
+  - réclamations protégées contre la modification ;
+  - le lendemain, une réclamation de la veille est refusée et de nouvelles missions sont attribuées.
+- **Rotation adaptative** (proposition publiée dans une base de test uniquement) : le débutant à 20 m
+  n'a jamais de mission « gemmes » ; l'avancé à 250 m n'a jamais « améliorations » ; les journées
+  diffèrent.
+- **HTTP** :
+  - routes admin en 401 sans session ;
+  - le téléphone sans la main est refusé (409) ;
+  - **3 réclamations simultanées → un seul crédit** ;
+  - une sauvegarde d'ancienne révision après la réclamation est refusée (409), le crédit n'est pas écrasé.
+- **Navigateur** (Chromium, PC 1280×900 et mobile 390×844, base de test) :
+  - carte « désactivé » ;
+  - passage en Pilote pour un compte ;
+  - jeu : 3 missions du serveur terminées ;
+  - « Réclamer » : +80 pièces et carte « réclamée » ;
+  - après F5 : toujours réclamée, rejeu sans crédit ;
+  - inspection admin, puis retour à « Désactivé », qui rend `live:false` ;
+  - aucune erreur JavaScript.
+- **Suite complète** : `npm test` **788/788** sur la branche, sur `develop` et sur la release (SHA exact
+  8bd26c6).
+
+**Impact sur les données joueurs : aucun.** Quatre tables nouvelles, vides en production. Aucune
+sauvegarde, aucun solde ni aucun classement n'a été touché.
+
+### 5. Déploiement
+
+- SHA déployé : **`8bd26c6`**, le 05/11 à 17:10 (Bruxelles). `main` a avancé en avance rapide depuis
+  `922e21d`, puis `scripts/deploy.sh` de la release a été exécuté. GitHub a d'abord renvoyé une erreur
+  temporaire (« commit_refs_rules ») ; la poussée a réussi au 3ᵉ essai, sans forcer.
+- **Avant le déploiement** :
+  - `npm ci` puis `npm test` sur le SHA exact : 788/788.
+  - Copie de la base de production démarrée en `NODE_ENV=production` sur le port 3122 : `/health` et
+    `/api/version` OK.
+  - Empreintes (lignes + hachage) de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`,
+    `player_click_tracking` **identiques** après démarrage. Seules les 4 tables ci-dessus sont ajoutées,
+    vides. Copie supprimée.
+  - Contrôle qu'aucune génération IA de l'atelier n'était en cours (dernière à 16:50, plus aucune
+    requête depuis 16:51).
+- Sauvegarde pré-déploiement vérifiée : `~/backups/dig/dig-20261105-171011-pre-deploy-8bd26c6.sqlite`.
+- **Après le déploiement** :
+  - dig.lodygames.com et dig.lodylands.com renvoient 200 et `/api/version` = `1.0.0+8bd26c6` ;
+  - journal sans erreur ; `quick_check` ok ;
+  - empreintes identiques à la sauvegarde ;
+  - drapeau absent (donc OFF) ;
+  - votre brouillon de missions du 05/11 (image « Briseur ») est intact ;
+  - jeu chargé en production sur PC et mobile : missions d'origine, aucune erreur.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 922e21d` puis `sudo systemctl restart dig`.
+  Aucune dépendance n'a changé, et l'ancien code ignore les tables ajoutées.
+
+**Recette courte (environ 10 min, rien n'est activé pour les joueurs)** :
+
+*Étape A, déjà livrée :*
+
+1. Admin → 🎯 Missions : 6 missions, aucune fiche ouverte.
+2. Ouvrir « Gemmologue » : l'aperçu indique « non » à 20 m et « oui » à 100 m.
+3. Simulateur : source « Proposition adaptative », 2 jours, Débutant + Avancé, puis « Simuler ». Les
+   objectifs sont plus hauts à 250 m, le débutant n'a pas de gemmes, et les deux journées diffèrent.
+
+*Étape B, nouvelle :*
+
+4. Carte « 🚦 Activation en jeu » : l'état indique « désactivé — jeu inchangé ».
+5. Mode **Pilote**, saisir **votre compte testeur**, puis « Enregistrer… » et confirmer. Seul ce compte
+   est concerné.
+6. Dans le jeu, avec ce compte, ouvrir l'onglet Quotidien. Vous voyez les missions du serveur (avec la
+   v1 en vigueur, ce sont les 3 missions habituelles du jour). Jouez jusqu'à en terminer une, puis
+   « Réclamer ». Le crédit apparaît une seule fois. Après F5 ou sur un deuxième appareil, la mission
+   reste « réclamée » et le bouton ne recrédite pas.
+7. Admin : « Voir les missions d'un joueur » avec ce compte affiche progression et « réclamée ».
+8. Remettre le mode sur **Désactivé**. Le jeu revient aux missions calculées par le navigateur. Les
+   réclamations faites restent acquises.
+
+Classement : **Après lancement** (le jeu actuel fonctionne ; l'étape B prépare la variété et la
+sécurité des missions).
+
+### 6. Choix techniques faits seul
+
+- **Mode pilote en plus de OFF/ON** : il permet de recetter en production sur un seul compte, sans
+  activer quoi que ce soit pour les joueurs. Le manifeste d'icônes (images des missions pour tous)
+  n'est concerné qu'en mode `on`.
+- **Jour serveur = minuit Europe/Bruxelles** : le serveur ne connaît pas le fuseau du navigateur. Le
+  réglage « minuit du navigateur » du catalogue reste valable pour le jeu actuel seulement (question 3
+  ci-dessous).
+- **Progression = sauvegarde serveur cumulée** : ce sont les mêmes compteurs que le moteur, sans
+  nouvelle règle de validation bloquante. Le contrôle par les blocs validés (#38) reste en observation,
+  comme pour #77.
+- **Récompense figée à l'attribution** : c'est celle de la version publiée au moment du tirage. Une
+  publication en cours de journée ne change rien pour le jour même.
+- **Mission gemmes et registre #49** : crédit serveur idempotent (`mission:<jour>:<emplacement>`)
+  lorsque le registre est actif. L'allocation de 8 💎/jour de #49 pourrait alors être abaissée, mais
+  cela relève de #49 et n'a pas été modifié.
+- **Ancien onglet ouvert au moment d'une activation** : une page chargée avant le déploiement garde les
+  missions du navigateur jusqu'à son rechargement. Activer de préférence quelques minutes après un
+  déploiement, ou après avoir rechargé.
+
+### 7. Récapitulatif des décisions économiques avant activation (avec #49)
+
+L'activation « Tous les joueurs » est techniquement prête. Elle attend seulement vos choix :
+
+1. **Barème des objectifs par profondeur.** Options : publier la proposition (simulateur, source
+   « Proposition »), l'ajuster, ou garder la v1 (objectifs fixes, 33 % des missions d'un débutant à 20 m
+   impossibles). *Recommandation : publier la proposition.*
+2. **Gemmes des débutants sous 35 m** : a) accepter qu'ils n'en gagnent pas par les missions ;
+   b) +1 💎 aux coffres dès 3 ; c) bonus « trois missions » (`missionSetBonus`, à 1 dans le barème A
+   de #49, en brouillon). *Recommandation : a) ou c), à trancher avec le barème A de #49.*
+3. **Rotation par joueur et changement de jour à minuit Bruxelles.** *Recommandation : oui aux deux.*
+   C'est déjà le cas côté serveur pour le jour ; « par joueur » fait partie de la proposition.
+4. **Ordre d'activation.** Proposé : Pilote sur votre compte testeur (recette ci-dessus), puis « Tous
+   les joueurs » une fois 1 à 3 tranchés.
+
+Aucune de ces options ne rend la progression achetable : les récompenses des missions ne s'achètent
+pas et ne dépendent ni d'achats ni de publicités. Il n'y a donc pas de pay-to-win.
+
+### 8. Décisions demandées au propriétaire
+
+Les questions 1 à 4 du § 7. Aucune n'empêche la recette en mode Pilote.
+
+### 9. Restant à réaliser
+
+- Activation « Tous les joueurs » après vos décisions (une note dans la carte suffit). **Après lancement.**
+- Nouveaux compteurs pour les types indisponibles : blocs cassés à la main, coffres achetés, fragments,
+  pioche à charges (#71). Ils apporteraient plus de variété. **Après lancement.**
+- Aide IA pour les textes des missions (sur demande). **Après lancement.**
+
+---
+
 ## Session du 04/11/2026, soir (DIGORCH) — étape A : catalogue, rotation adaptative simulée, atelier d'icônes
 
 ### 1. État réel
