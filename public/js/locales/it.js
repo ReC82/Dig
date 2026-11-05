@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 688/688 textes. Absents → français. */
+/* Italian (preview) : 690/690 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -753,6 +753,8 @@ I18n.registerLocale("it", {
   "ad_mock_sub": "Raddoppia tutti i guadagni!",
   "ad_soon": "Ricompensa presto disponibile",
   "ad_used": "Bonus già usato",
+  "admin_reset_text": "Un amministratore ha azzerato questo account per una nuova prova. Questa pagina non può più salvare nulla: tocca «Gioca qui» per ricaricare e ripartire dal nuovo stato.",
+  "admin_reset_title": "Progressi azzerati dal team",
   "block_aria": "Scava il blocco (Invio o Spazio)",
   "block_reward": "Ricompensa: 💰 {amount}",
   "boost_active": "⚡ Bonus monete ×{mult} attivo",

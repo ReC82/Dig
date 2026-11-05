@@ -109,6 +109,7 @@ const security = require('./security');
 const { createRateLimiters, describeMailLimits } = require('./rateLimits');
 const antibot = require('./antibot');
 const playSession = require('./playSession');
+const testRuns = require('./testRuns');
 const ads = require('./ads');
 const legal = require('./legal');
 const beta  = require('./beta');
@@ -513,11 +514,13 @@ app.post('/api/me/save', limit.save, (req, res) => {
     // contrôle par un autre appareil ne peut pas s'intercaler entre les deux.
     const result = runTransaction(() => {
       if (!playSession.mayWrite(req.session.userId, controllerId)) return { notController: true };
+      // Après un reset/restauration admin (#75) : une page d'avant #18 (sans révision) ne peut plus écraser l'état
+      if (baseRevision === undefined && testRuns.getGuard(req.session.userId)) return { conflict: true, current: getUserSave(req.session.userId) };
       // Collection (#39) : objets donnés par le serveur gardés, objets « serveur seul » falsifiés retirés
       collectionPity.mergeInto(req.session.userId, data, { strip: true });
       return upsertUserSave(req.session.userId, JSON.stringify(data), { expectedVersion: baseRevision });
     });
-    if (result.notController) return res.status(409).json(NOT_CONTROLLER);
+    if (result.notController) return res.status(409).json(notControllerBody(req.session.userId));
     if (result.conflict) {
       return res.status(409).json({ error: 'Sauvegarde obsolète.', conflict: true, save: savePayload(result.current, req.session.userId) });
     }
@@ -558,6 +561,12 @@ app.post('/api/me/save', limit.save, (req, res) => {
 // ── Session de jeu unique (#35) ───────────────────────────────────────────────
 
 const NOT_CONTROLLER = { error: 'Partie ouverte sur un autre appareil.', notController: true };
+/** Refus d'écriture : `adminReset` si la main a été reprise par un reset/restauration admin (#75). */
+function notControllerBody(userId) {
+  return testRuns.isResetController(userId)
+    ? { error: 'Progression réinitialisée par l\'administrateur.', notController: true, adminReset: true }
+    : NOT_CONTROLLER;
+}
 
 /** Valide la session et le controllerId ; renvoie l'id ou null (réponse déjà envoyée). */
 function playRequest(req, res) {
@@ -596,7 +605,9 @@ app.post('/api/me/play/heartbeat', limit.play, (req, res) => {
   try {
     const controllerId = playRequest(req, res);
     if (!controllerId) return;
-    res.json(playSession.heartbeat(req.session.userId, controllerId));
+    const hb = playSession.heartbeat(req.session.userId, controllerId);
+    if (!hb.active && testRuns.isResetController(req.session.userId)) hb.adminReset = true;
+    res.json(hb);
   } catch (err) {
     console.error('[POST /api/me/play/heartbeat]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
@@ -1918,7 +1929,7 @@ app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
     // Lecture, débit/crédit et journalisation dans une seule transaction :
     // si une étape échoue, la sauvegarde n'est pas modifiée.
     const outcome = runTransaction(() => {
-      if (!playSession.mayWrite(userId, controllerId)) return { status: 409, error: NOT_CONTROLLER.error, notController: true };
+      if (!playSession.mayWrite(userId, controllerId)) return { status: 409, ...notControllerBody(userId) };
       const row = getUserSave(userId);
       if (!row) return { status: 404, error: 'Sauvegarde introuvable. Jouez d\'abord quelques blocs !' };
 
@@ -1935,7 +1946,8 @@ app.post('/api/me/shop/chest/open', limit.chest, (req, res) => {
       return { data, result, revision: version };
     });
 
-    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, ...(outcome.notController ? { notController: true } : {}) });
+    if (outcome.error) return res.status(outcome.status).json({ error: outcome.error, ...(outcome.notController ? { notController: true } : {}),
+      ...(outcome.adminReset ? { adminReset: true } : {}) });
 
     const { data, result, revision } = outcome;
     res.json({
@@ -2181,8 +2193,10 @@ app.get('/api/admin/players/:userId/save', requireAdmin, (req, res) => {
 
 /**
  * POST /api/admin/players/:userId/season-reset
- * Réinitialise uniquement les données saisonnières d'un joueur.
- * Conserve gems (plafonnés), reliques, fragments, collection, stats lifetime.
+ * Réinitialisation saisonnière PARTIELLE (sauvegarde seule) : ne touche ni au classement de la
+ * saison, ni aux suivis profondeur / clics, ni au score anti-bot. Conserve gems (plafonnées),
+ * reliques, fragments, collection, stats lifetime. Pour repartir de zéro : « Recommencer un test
+ * à zéro » (#75). Depuis #75, un instantané complet est archivé avant toute écriture.
  * Requiert { confirm: true } dans le body.
  */
 app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => {
@@ -2230,15 +2244,61 @@ app.post('/api/admin/players/:userId/season-reset', requireAdmin, (req, res) => 
     // La révision augmente : la prochaine sauvegarde du client (basée sur l'ancienne
     // révision) est refusée et le client applique le reset au lieu de l'écraser (#18).
     const revision = runTransaction(() => {
+      const archived = testRuns.archiveBefore(userId, { kind: 'season_reset_partial', reason: 'Réinitialisation saisonnière partielle', actor: `admin (${req.adminVia})` });
       const { version } = upsertUserSave(userId, JSON.stringify(data));
-      logUserEvent(userId, 'admin_season_reset', { adminAction: true });
+      logUserEvent(userId, 'admin_season_reset', { adminAction: true, testRunId: archived.testRunId });
       gemLedger.onAdminSeasonReset(userId, gemsCap, { revision: version });
       return version;
     });
 
-    res.json({ ok: true, revision, message: `Reset saisonnier appliqué pour ${userRow.username}.` });
+    res.json({ ok: true, revision, message: `Réinitialisation saisonnière partielle appliquée pour ${userRow.username} (instantané archivé ; classement et anti-bot inchangés).` });
   } catch (err) {
     console.error('[POST /api/admin/players/:userId/season-reset]', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// ── Essais de test : instantané, reset complet, restauration (#75) ───────────
+
+function testRunRoute(label, fn) {
+  return (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'userId invalide.' });
+    try { res.json(fn(req, userId)); }
+    catch (err) {
+      if (err instanceof testRuns.TestRunError) return res.status(err.status).json({ error: err.message, code: err.code });
+      console.error(`[${label}]`, err);
+      res.status(500).json({ error: 'Erreur serveur : aucune modification appliquée.' });
+    }
+  };
+}
+const _runId = req => { const n = parseInt(req.params.runId, 10); if (!Number.isSafeInteger(n) || n <= 0) throw new testRuns.TestRunError(400, 'Essai invalide.', 'run_invalid'); return n; };
+
+/** GET — essais archivés, essai en cours (statistiques en direct), journal d'audit et sa vérification. */
+app.get('/api/admin/players/:userId/test-runs', requireAdmin, testRunRoute('GET test-runs', (req, id) => testRuns.listRuns(id)));
+/** GET — aperçu du reset complet : récapitulatif d'impact, révision à confirmer. */
+app.get('/api/admin/players/:userId/test-runs/reset-preview', requireAdmin, testRunRoute('GET reset-preview', (req, id) => testRuns.previewReset(id)));
+/** POST { confirmUsername, expectedRevision, requestId, reason } — recommencer un test à zéro (tout ou rien, idempotent). */
+app.post('/api/admin/players/:userId/test-runs/reset', requireAdmin, testRunRoute('POST test-runs/reset',
+  (req, id) => testRuns.resetPlayer(id, req.body, { actor: `admin (${req.adminVia})` })));
+/** GET — différences entre l'état courant et l'instantané d'un essai archivé. */
+app.get('/api/admin/players/:userId/test-runs/:runId/restore-preview', requireAdmin, testRunRoute('GET restore-preview',
+  (req, id) => testRuns.previewRestore(id, _runId(req))));
+/** POST { confirmUsername, expectedRevision, requestId, reason } — restaure un instantané (l'essai en cours est archivé d'abord). */
+app.post('/api/admin/players/:userId/test-runs/:runId/restore', requireAdmin, testRunRoute('POST test-runs/restore',
+  (req, id) => testRuns.restoreRun(id, _runId(req), req.body, { actor: `admin (${req.adminVia})` })));
+/** GET ?format=json|csv&full=1 — export de l'historique des essais (instantanés complets avec full=1, JSON seulement). */
+app.get('/api/admin/players/:userId/test-runs/export', requireAdmin, (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (!Number.isSafeInteger(userId) || userId <= 0) return res.status(400).json({ error: 'userId invalide.' });
+  try {
+    const out = testRuns.exportRuns(userId, { format: req.query.format === 'csv' ? 'csv' : 'json', full: req.query.full === '1' });
+    res.set('Content-Type', out.type);
+    res.set('Content-Disposition', `attachment; filename="${out.filename}"`);
+    res.send(out.body);
+  } catch (err) {
+    if (err instanceof testRuns.TestRunError) return res.status(err.status).json({ error: err.message, code: err.code });
+    console.error('[GET test-runs/export]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
@@ -2390,6 +2450,7 @@ news.init();                     // centre d'actualités : annonces, lu par comp
 monthlyEvents.init();            // événements mensuels : objets exclusifs, souvenirs permanents, révisions (#56)
 // Événements préparés (server/content/events) → brouillon, une seule fois ; pas en test (bases neuves)
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importPrepared();
+testRuns.init();                 // essais de test : instantanés, reset complet, restauration, audit chaîné (#75)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
 

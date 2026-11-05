@@ -389,6 +389,32 @@ function onAdminSeasonReset(userId, cap, { revision } = {}) {
 }
 
 /**
+ * Essai de test (#75) : solde de référence ramené à `balance` (0 pour un nouveau personnage) par un
+ * mouvement tracé, références remises à l'état d'un nouveau compte (ou à celles de l'instantané
+ * restauré `account`). Dans tous les modes, à appeler dans la transaction du reset. Le journal des
+ * mouvements n'est jamais effacé ; `last_revision` = révision écrite, une ancienne révision rejouée
+ * ne compte donc jamais.
+ */
+function onTestReset(userId, { revision, runId, balance = 0, account = null, reason = 'test_reset' } = {}) {
+  const a = _account(userId);
+  const ref = account ?? { ref_blocks: '{}', ref_declared: '{}', ref_autodig: 0, season_id: a?.season_id ?? null };
+  if (!a) {
+    if (!account) return null;
+    conn().prepare(`INSERT INTO gem_accounts (user_id, balance, opening, season_id, ref_blocks, ref_declared, ref_autodig, last_client, last_revision)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(userId, balance, account.opening ?? balance, account.season_id ?? null, account.ref_blocks ?? '{}', account.ref_declared ?? '{}',
+        account.ref_autodig ?? 0, balance, revision);
+    _entry(userId, `${reason}:${runId}`, balance, balance, reason, { runId, revision });
+    return { balance };
+  }
+  _entry(userId, `${reason}:${runId}`, balance - a.balance, balance, reason, { runId, revision, from: a.balance });
+  conn().prepare(`UPDATE gem_accounts SET balance = ?, season_id = ?, ref_blocks = ?, ref_declared = ?, ref_autodig = ?, last_client = ?,
+      last_revision = ?, drift = 0, updated_at = datetime('now') WHERE user_id = ?`)
+    .run(balance, ref.season_id ?? a.season_id, ref.ref_blocks ?? '{}', ref.ref_declared ?? '{}', ref.ref_autodig ?? 0, balance, revision, userId);
+  return { balance };
+}
+
+/**
  * Solde qui fait foi pour le client : seulement en mode `enforce` et si le joueur a un compte de
  * référence. Sinon null (la sauvegarde garde ses gemmes).
  */
@@ -425,7 +451,7 @@ function playerLedger(userId, { limit = 100 } = {}) {
 }
 
 module.exports = {
-  init, getMode, setMode, dailyAllowance, gemValues, observeSave, spend, credit, onAdminSeasonReset,
+  init, getMode, setMode, dailyAllowance, gemValues, observeSave, spend, credit, onAdminSeasonReset, onTestReset,
   authoritativeBalance, mergeInto, adminSummary, playerLedger,
   GemError, MODES, AUTODIG_GEM_COST, DEFAULT_DAILY_ALLOWANCE,
 };

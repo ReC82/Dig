@@ -337,6 +337,28 @@ pour les tests uniquement, refusées en production. Limite : `RATE_SOCIAL_MAX` (
 liaisons restent en base sans effet. **Journal** : `user_events` reçoit `x_linked`,
 `x_unlinked`, `x_link_refused` (raison) ; `x_link_history` garde chaque liaison et sa fin.
 
+## Rejouer un test avec le même compte (ticket #75)
+
+Admin → Économie & joueurs → fiche du joueur → **🧪 Essais de test** :
+
+- **Recommencer un test à zéro** : aperçu serveur (impact, révision), motif obligatoire et pseudo exact à saisir.
+  Une seule transaction : instantané complet archivé (`player_test_runs`, empreinte SHA-256, non modifiable,
+  non supprimable), puis état d'une inscription neuve (sauvegarde, classement de la saison active, suivis
+  profondeur / clics, score de risque, badges, collection serveur, événements, gemmes, ligue de départ). Les
+  journaux (`anticheat_logs`, `security_events`, `antibot_save_samples`, `user_events`, `gem_ledger`) ne sont
+  jamais effacés ; une copie bornée de ceux de l'essai est jointe à l'instantané (le journal de sécurité est purgé
+  à 90 jours). Saisons clôturées, points de récompense, commandes, compte, invitation : intacts.
+- Les pages ouvertes du joueur (onglets, PWA, autres appareils) perdent la main (« Progression réinitialisée par
+  l'équipe ») et doivent recharger ; une sauvegarde d'un ancien onglet ou d'un client sans révision est refusée.
+- **Restaurer…** sur un essai archivé : aperçu des différences, l'essai en cours est archivé d'abord (rien n'est
+  détruit) ; classement et suivis restaurés seulement si l'instantané date de la saison active.
+- **Exporter CSV / JSON complet** : statistiques comparables par essai (JSON : instantanés inclus).
+- Journal `player_test_run_audit` en ajout seul, chaîné par empreinte ; son état est affiché sous l'historique.
+- « Réinitialisation saisonnière partielle » (ancien « reset saisonnier ») : sauvegarde seule, le classement et
+  l'anti-bot ne changent pas ; un instantané est désormais archivé avant.
+- Le bouton joueur « Réinitialiser la partie » (Paramètres du jeu) n'est **pas** un reset de test : il vide la
+  progression locale mais garde les compteurs de saison, et le classement serveur reste inchangé.
+
 ## Tests
 
 ```bash
