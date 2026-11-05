@@ -1424,3 +1424,14 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
   #tr-diff th, #tr-diff td { padding: 5px 6px; font-size: 0.78rem; white-space: normal; }
   #tr-diff th { font-size: 0.66rem; }
 }
+
+/* Bonus trois missions (#68) : paliers lisibles sur smartphone, sans défilement horizontal */
+.mq-bonus-table { table-layout: fixed; width: 100%; }
+.mq-bonus-table th, .mq-bonus-table td { padding: 4px; }
+.mq-bonus-table th:nth-child(1) { width: 28%; }
+.mq-bonus-table th:nth-child(2) { width: 36%; }
+.mq-bonus-table th:nth-child(3) { width: 22%; }
+.mq-bonus-table th:nth-child(4) { width: 14%; }
+.mq-bonus-table input { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px; }
+.mq-bonus-table .btn-sm { padding: 4px 6px; }
+.mq-bonus-table th { white-space: normal; }

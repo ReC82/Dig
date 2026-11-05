@@ -156,3 +156,19 @@ test('economy-sim (04/11) : combinaisons reproductibles et sans effet sur le jeu
   assert.deepStrictEqual(Object.keys(sim.COMBOS).map(k => sim.COMBOS[k]().id),
     ['actuel', 'actuel+limites l20_10', 'A', 'A+limites l20_10', 'A+limites l20_10+courbe b', 'A+limites l20_10+courbe c']);
 });
+
+test('economy-sim (#68, 05/11) : bonus trois missions par palier de profondeur, compté seulement les journées complètes', () => {
+  const base = sim.currentRules();
+  assert.deepStrictEqual(base.missionSetBands, []);
+  const bands = [{ fromDepth: 1, coins: 300, gems: 1 }, { fromDepth: 300, coins: 40000, gems: 2 }];
+  const run = rules => sim.simulatePlayers({ profile: sim.PROFILES.debutant, rules, runs: 4, seasons: 1, seed: 21 });
+  const a = run(base), b = run({ ...base, missionSetBands: bands });
+  let extra = 0;
+  a.forEach((player, i) => {
+    const [ma] = player, [mb] = b[i];
+    const dg = mb.gems.missions - ma.gems.missions;
+    assert.ok(dg >= 0 && dg <= 2 * 7, `gemmes de missions +${dg}`);
+    extra += dg;
+  });
+  assert.ok(extra > 0, 'au moins une journée complète sur 4 joueurs');
+});
