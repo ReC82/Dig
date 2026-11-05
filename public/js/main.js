@@ -386,7 +386,8 @@ function renderStats() {
   elGems.textContent   = GameState.gems;
   elRelics.textContent = GameState.relicFragments;
   elDepth.textContent  = t('stats.depth_val', { n: GameState.depth });
-  elDamage.textContent = GameState.damage;
+  // Pioche émoussée (#71) : 1 dégât par coup tant que la réserve n'est pas revenue au seuil
+  elDamage.textContent = PickaxeCharges.isActive() && GameState.pickaxe.depleted ? '1 🪫' : GameState.damage;
 
   // Pioche : indicateur visuel du skin actif
   const skin = GameState.monetization.pickaxeSkin;
@@ -2051,6 +2052,7 @@ function _scheduleSeasonEndPoll(diffMs) {
 
 /** Polling toutes les 5 min : détecte un changement de saison. */
 async function _pollSeason() {
+  _refreshPickaxeConfig();   // compte connecté ou déconnecté : configuration de ce joueur (#71)
   try {
     const { ok, data } = await _apiFetch('GET', '/api/seasons/current');
     if (!ok || !data.season) return;
@@ -3445,19 +3447,19 @@ function renderShop() {
     ${_shopGuideHtml('gems')}
     <div class="section-divider"><span>${t('shop.section_gems')}</span></div>
     <div class="shop-grid" id="shop-grid-gems"></div>
-    <div class="section-divider"><span>${t('shop.section_skins')}</span></div>
-    <div class="shop-grid shop-grid-2" id="shop-grid-skins"></div>
+    ${_pickaxeShopHtml()}
     <div class="section-divider"><span>${t('shop.section_boosts')}</span></div>
     <div class="shop-grid shop-grid-2" id="shop-grid-boosts"></div>
     <div class="shop-disclaimer">${t(Monetization.PAYMENTS_ENABLED ? 'shop.disclaimer_live' : 'shop.disclaimer')}</div>
   `;
 
   const gems  = Monetization.SHOP_ITEMS.filter(i => i.type === 'gems');
-  const skins = Monetization.SHOP_ITEMS.filter(i => i.type === 'skin');
   const boosts = Monetization.SHOP_ITEMS.filter(i => i.type === 'boost');
 
   _fillShopGrid('shop-grid-gems',   gems);
-  _fillShopGrid('shop-grid-skins',  skins);
+  // Pioche et entretien (#71) : remplace les skins de pioche (aucun skin vendu ni possédé)
+  container.querySelectorAll('[data-pick-tree]').forEach(b => b.addEventListener('click', () => _buyPickaxeTree(b.dataset.pickTree)));
+  container.querySelectorAll('[data-pick-refill]').forEach(b => b.addEventListener('click', () => _buyPickaxeRefill(Number(b.dataset.pickRefill))));
   _fillShopGrid('shop-grid-boosts', boosts);
 }
 
@@ -3682,6 +3684,131 @@ function showChestPopup(chestType, reward) {
   };
 }
 
+// ── Pioche à charges (#71) ────────────────────────────────────────────────────
+
+let _pickWasBlunt = false;
+
+/** Attente courte lisible : « 42 s », sinon « 3 min » / « 1 h 5 min ». */
+function _fmtWait(ms) {
+  const s = Math.ceil(ms / 1000);
+  return s < 60 ? t('pickaxe.seconds', { n: s }) : formatDuration(Math.ceil(s / 60) * 60_000);
+}
+
+const _fmtN = n => Math.floor(n).toLocaleString(I18n.getCurrent());
+const _fmtS = s => (Math.round(s * 10) / 10).toLocaleString(I18n.getCurrent());
+
+/** Jauge sous le bloc ; masquée tant que la pioche à charges n'est pas active pour ce joueur. */
+function renderCharges() {
+  const box = document.getElementById('pick-charges');
+  if (!box) return;
+  if (!PickaxeCharges.isActive()) { box.hidden = true; return; }
+  PickaxeCharges.sync();
+  const p = GameState.pickaxe;
+  const cap = PickaxeCharges.capacity();
+  const blunt = p.depleted;
+  box.hidden = false;
+  box.classList.toggle('is-blunt', blunt);
+  document.getElementById('pick-charges-fill').style.width = `${Math.max(0, Math.min(100, p.charges / cap * 100))}%`;
+  document.getElementById('pick-charges-text').textContent = blunt
+    ? t('pickaxe.blunt', { time: _fmtWait(PickaxeCharges.msUntilResume()) })
+    : p.charges >= cap
+      ? t('pickaxe.gauge_full', { cap: _fmtN(cap) })
+      : t('pickaxe.gauge', { n: _fmtN(p.charges), cap: _fmtN(cap), sec: _fmtS(PickaxeCharges.regenSeconds()) });
+  document.getElementById('btn-pick-refill').hidden = !(PickaxeCharges.config.refillPacks || []).length || p.charges >= cap - 1;
+  // Fin de panne : bonus de la pioche de retour (une seule annonce)
+  if (_pickWasBlunt && !blunt) { showAchievement('⛏', t('pickaxe.resumed_toast'), 'success'); renderStats(); }
+  _pickWasBlunt = blunt;
+}
+
+/** Configuration du serveur (drapeau, réglages) ; en cas d'échec, l'état actuel est conservé. */
+async function _refreshPickaxeConfig() {
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/pickaxe/config');
+    if (!ok) return;
+    const changed = PickaxeCharges.applyConfig(data);
+    if (changed) _pickWasBlunt = PickaxeCharges.isActive() && GameState.pickaxe.depleted;
+    renderCharges();
+    if (changed && isViewActive('shop')) renderShop();
+  } catch (_) { /* hors ligne : rien ne change */ }
+}
+
+document.getElementById('btn-pick-refill').addEventListener('click', () => {
+  switchView('shop');
+  document.getElementById('shop-pickaxe')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+/** Section « Pioche et entretien » de la boutique (remplace les skins de pioche, #71). */
+function _pickaxeShopHtml() {
+  if (!PickaxeCharges.isActive()) return '';
+  PickaxeCharges.sync();
+  const p = GameState.pickaxe;
+  const cap = PickaxeCharges.capacity();
+  const status = p.depleted ? t('pickaxe.blunt', { time: _fmtWait(PickaxeCharges.msUntilResume()) })
+    : p.charges >= cap - 1 ? t('pickaxe.shop_status_full', { cap: _fmtN(cap) })
+    : t('pickaxe.shop_status', { n: _fmtN(p.charges), cap: _fmtN(cap), time: _fmtWait(PickaxeCharges.msUntilFull()) });
+  const tree = kind => {
+    const o = PickaxeCharges.treeNext(kind);
+    const max = (kind === 'cap' ? PickaxeCharges.config.capacityMult : PickaxeCharges.config.speedMult).length - 1;
+    const lvl = Math.min(kind === 'cap' ? p.capLevel : p.speedLevel, max);
+    const desc = !o ? (kind === 'cap' ? t('pickaxe.cap_value', { n: _fmtN(cap) }) : t('pickaxe.speed_value', { sec: _fmtS(PickaxeCharges.regenSeconds()) }))
+      : kind === 'cap' ? t('pickaxe.cap_desc', { now: _fmtN(o.now), next: _fmtN(o.next) })
+      : t('pickaxe.speed_desc', { now: _fmtS(o.now), next: _fmtS(o.next) });
+    const label = !o ? t('pickaxe.maxed') : o.affordable ? t('pickaxe.btn_gems', { price: o.price }) : t('pickaxe.not_enough_gems', { price: o.price });
+    return `<div class="shop-card pick-card">
+      <div class="shop-item-icon" aria-hidden="true">${kind === 'cap' ? '🔋' : '⏱'}</div>
+      <div class="shop-item-name">${t(`pickaxe.${kind}_name`)}</div>
+      <div class="shop-item-label">${t('pickaxe.level', { n: lvl, max })}</div>
+      <div class="shop-item-label">${desc}</div>
+      <button type="button" class="shop-btn" data-pick-tree="${kind}" ${o && o.affordable ? '' : 'disabled'}>${label}</button>
+    </div>`;
+  };
+  const packs = PickaxeCharges.config.refillPacks || [];
+  const refill = pct => {
+    const o = PickaxeCharges.refillOffer(pct);
+    const label = !o.add ? t('pickaxe.refill_full') : o.affordable ? t('pickaxe.btn_coins', { cost: _fmtN(o.cost) }) : t('pickaxe.not_enough_coins', { cost: _fmtN(o.cost) });
+    return `<div class="shop-card pick-card">
+      <div class="shop-item-icon" aria-hidden="true">⚡</div>
+      <div class="shop-item-name">${t('pickaxe.refill_name', { pct })}</div>
+      <div class="shop-item-label">${o.add ? t('pickaxe.refill_desc', { add: _fmtN(o.add), cost: _fmtN(o.cost) }) : t('pickaxe.refill_full')}</div>
+      <button type="button" class="shop-btn" data-pick-refill="${pct}" ${o.affordable ? '' : 'disabled'}>${label}</button>
+    </div>`;
+  };
+  return `<div class="section-divider" id="shop-pickaxe"><span>${t('pickaxe.shop_section')}</span></div>
+    <div class="pick-shop-intro">
+      <p class="pick-shop-status${p.depleted ? ' is-blunt' : ''}">${status}</p>
+      <p class="pick-shop-help">${t('pickaxe.shop_intro')}</p>
+    </div>
+    <p class="pick-shop-sub">${t('pickaxe.shop_permanent')}</p>
+    <div class="shop-grid shop-grid-2">${tree('cap')}${tree('speed')}</div>
+    ${packs.length ? `<p class="pick-shop-sub">${t('pickaxe.shop_refills')}</p>
+    <div class="shop-grid">${packs.map(refill).join('')}</div>` : ''}`;
+}
+
+async function _buyPickaxeTree(kind) {
+  const o = PickaxeCharges.treeNext(kind);
+  if (!o || !o.affordable) return;
+  const name = t(`pickaxe.${kind}_name`);
+  const val = v => (kind === 'cap' ? t('pickaxe.cap_value', { n: _fmtN(v) }) : t('pickaxe.speed_value', { sec: _fmtS(v) }));
+  const yes = await _shopConfirm({
+    title: t('pickaxe.confirm_title'), item: { icon: kind === 'cap' ? '🔋' : '⏱' }, itemTitle: name,
+    rows: [[t('pickaxe.confirm_before'), val(o.now)], [t('pickaxe.confirm_after'), val(o.next), true],
+      [t('pickaxe.confirm_price'), `${o.price} 💎`], [t('pickaxe.confirm_balance'), `${GameState.gems - o.price} 💎`]],
+    note: t('pickaxe.confirm_note'), okLabel: t('pickaxe.confirm_ok'), backLabel: t('pickaxe.confirm_back'),
+  });
+  if (!yes || !PickaxeCharges.buyTree(kind)) { renderShop(); return; }
+  showAchievement('⛏', t('pickaxe.bought_tree', { name }), 'success');
+  Save.save();
+  renderShop(); renderStats(); renderCharges();
+}
+
+function _buyPickaxeRefill(pct) {
+  const o = PickaxeCharges.buyRefill(pct);
+  if (!o) { renderShop(); return; }
+  showAchievement('⚡', t('pickaxe.bought_refill', { add: _fmtN(o.add) }), 'success');
+  Save.save();
+  renderShop(); renderStats(); renderCharges();
+}
+
 // ── Logique de jeu ────────────────────────────────────────────────────────────
 
 /** Après une destruction : bloc suivant, sauf si un bloc intact a été repris entre-temps (#35). */
@@ -3808,14 +3935,21 @@ function onBlockHit(cx, cy, ev) {
   const suspicious = _isSuspiciousCPS();
   if (suspicious) GameState.seasonStats.suspiciousScore++;
 
-  const destroyed = Blocks.hit(GameState.damage);
+  // Pioche à charges (#71) : 1 charge par coup à pleine puissance ; émoussée = 1 dégât, sans bonus
+  const strike = PickaxeCharges.hit(GameState.damage);
+  const destroyed = Blocks.hit(strike.damage);
 
   elBlock.classList.remove('anim-hit');
   void elBlock.offsetWidth;
   elBlock.classList.add('anim-hit');
   elBlock.addEventListener('animationend', () => elBlock.classList.remove('anim-hit'), { once: true });
 
-  spawnFloatText(t('notif.damage_float', { amount: GameState.damage }), 'dmg', cx, cy);
+  spawnFloatText(t('notif.damage_float', { amount: strike.damage }), strike.full ? 'dmg' : 'dmg dmg-blunt', cx, cy);
+  if (strike.emptied) {
+    _pickWasBlunt = true;
+    showAchievement('🪫', t('pickaxe.emptied_toast', { n: PickaxeCharges.resumeAt(), time: _fmtWait(PickaxeCharges.msUntilResume()) }), 'warning');
+  }
+  renderCharges();
 
   if (destroyed) handleBlockDestroyed(cx, cy, { isManual: !suspicious, isSuspicious: suspicious });
 
@@ -4048,12 +4182,15 @@ function init() {
   });
   refreshUpgrades();
   setInterval(refreshUpgrades, 60_000);
+  // Pioche à charges (#71) : drapeau et réglages relus chaque minute et à chaque synchronisation de saison
+  _refreshPickaxeConfig();
+  setInterval(_refreshPickaxeConfig, 60_000);
   // Collections publiées (#39) : séries, objets, fiches.
   Collection.fetchCatalog(() => { if (isViewActive('collection')) renderCollection(); });
   setInterval(() => Save.save(),  15_000);
   setInterval(autoDigTick,         1_000);
   setInterval(_playHeartbeat, PLAY_HEARTBEAT_MS);
-  setInterval(() => { renderBoostBanner(); updateAdButtonState(); }, 1_000);
+  setInterval(() => { renderBoostBanner(); updateAdButtonState(); renderCharges(); }, 1_000);
   setInterval(_pollSeason,      5 * 60_000); // vérifie la saison toutes les 5 min
   setInterval(_refreshSeasonView, SEASON_REFRESH_IDLE_MS); // onglet Saison affiché uniquement
 

@@ -87,6 +87,15 @@ const GameState = {
     pickaxeSkin:   null,  // null | 'golden' | 'diamond'
   },
 
+  // ── Pioche à charges (#71) ────────────────────
+  // Réserve de coups et arbres permanents en gemmes ; conservés par reset() (comme les achats) et par
+  // le changement de saison. charges/at à null : réserve pleine à la première activation.
+  pickaxe: {
+    charges: null, at: 0, depleted: false,
+    capLevel: 0, speedLevel: 0,
+    fullHits: 0, refilled: 0, refillCoins: 0,
+  },
+
   // ── Saison compétitive ────────────────────────
   seasonStats: {
     seasonId:       0,     // ID de la saison active au dernier sync serveur
@@ -160,5 +169,6 @@ const GameState = {
     this.coinBoost    = { multiplier: 1, expiresAt: 0 };
     // blockSeed/blockSeq préservés : la suite des blocs continue (aucune relance, #35)
     // monetization intentionnellement préservé (achats et cooldown persistants)
+    // pickaxe préservé (#71) : niveaux achetés en gemmes et réserve de coups
   },
 };

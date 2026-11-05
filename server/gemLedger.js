@@ -112,6 +112,9 @@ function init() {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  // Pioche à charges (#71) : niveaux d'arbres en gemmes de référence (colonne ajoutée, idempotent)
+  const cols = conn().prepare('PRAGMA table_info(gem_accounts)').all().map(c => c.name);
+  if (!cols.includes('ref_pickaxe')) conn().exec(`ALTER TABLE gem_accounts ADD COLUMN ref_pickaxe TEXT NOT NULL DEFAULT '{}'`);
   conn().prepare(`INSERT INTO gem_ledger_settings (key, value) VALUES ('mode', 'off') ON CONFLICT(key) DO NOTHING`).run();
   conn().prepare(`INSERT INTO gem_ledger_settings (key, value) VALUES ('daily_allowance', ?) ON CONFLICT(key) DO NOTHING`)
     .run(String(DEFAULT_DAILY_ALLOWANCE));
@@ -205,6 +208,19 @@ function _validatedGemBlocks(userId, values) {
   return out;
 }
 
+/** Niveaux des arbres permanents de la pioche à charges (#71) déclarés dans la sauvegarde. */
+function _pickaxeLevels(data) {
+  const p = data?.pickaxe;
+  return { cap: _int(p?.capLevel), speed: _int(p?.speedLevel) };
+}
+
+/** Gemmes des arbres de la pioche (#71) entre deux relevés, aux prix des réglages en vigueur. */
+function _pickaxeCost(ref, cur) {
+  const { getSettings, treeCost } = require('./pickaxeCharges');
+  const s = getSettings();
+  return treeCost(s.capacityPrices, ref.cap ?? 0, cur.cap) + treeCost(s.speedPrices, ref.speed ?? 0, cur.speed);
+}
+
 function _autodigCost(from, to) {
   let c = 0;
   for (let l = from + 1; l <= to; l++) c += AUTODIG_GEM_COST[l] ?? 0;
@@ -238,9 +254,9 @@ function observeSave(userId, data, { revision, nowMs = Date.now(), force = false
     const key = `save:${revision}`;
     if (!a) {
       // Ouverture : on reprend le solde du joueur tel quel (aucune gemme retirée)
-      conn().prepare(`INSERT INTO gem_accounts (user_id, balance, opening, season_id, ref_blocks, ref_declared, ref_autodig, last_client, last_revision)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(userId, clientGems, clientGems, seasonId, JSON.stringify(validated), JSON.stringify(declared), autodig, clientGems, revision);
+      conn().prepare(`INSERT INTO gem_accounts (user_id, balance, opening, season_id, ref_blocks, ref_declared, ref_autodig, ref_pickaxe, last_client, last_revision)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(userId, clientGems, clientGems, seasonId, JSON.stringify(validated), JSON.stringify(declared), autodig, JSON.stringify(_pickaxeLevels(data)), clientGems, revision);
       _entry(userId, 'opening', clientGems, clientGems, 'opening', { revision, seasonId, autodig });
       return { balance: clientGems, credited: 0, debited: 0, excess: 0, loss: 0, opened: true };
     }
@@ -293,6 +309,21 @@ function observeSave(userId, data, { revision, nowMs = Date.now(), force = false
     }
     refAutodig = Math.max(refAutodig, autodig);
 
+    // 2 bis. Arbres permanents de la pioche à charges (#71) : jamais remis à zéro par la saison ;
+    // un niveau qui baisse (reset de test, autre appareil) devient la nouvelle référence.
+    const pick = _pickaxeLevels(data);
+    const refPick = JSON.parse(a.ref_pickaxe || '{}');
+    for (const k of ['cap', 'speed']) if ((refPick[k] ?? 0) > pick[k]) refPick[k] = pick[k];
+    const pickSpent = _pickaxeCost(refPick, pick);
+    if (pickSpent > 0) {
+      const d = Math.min(pickSpent, balance);
+      balance -= d; debited += d;
+      _entry(userId, `${key}:pickaxe`, -d, balance, 'pickaxe_tree', { from: refPick, to: pick, cost: pickSpent });
+      if (d < pickSpent) _anomaly(userId, 'spend_over_balance', pickSpent - d, { revision, from: refPick, to: pick });
+    }
+    refPick.cap = Math.max(refPick.cap ?? 0, pick.cap);
+    refPick.speed = Math.max(refPick.speed ?? 0, pick.speed);
+
     // 3. Autres sources déclarées : écart client − blocs gemmes déclarés + dépenses
     let declaredBlockGems = 0;
     for (const [id, v] of Object.entries(declared)) {
@@ -300,7 +331,7 @@ function observeSave(userId, data, { revision, nowMs = Date.now(), force = false
       if (d > 0) declaredBlockGems += d * (vals[id] ?? 0);
       refDeclared[id] = v;
     }
-    const other = (clientGems - lastClient) + spent - declaredBlockGems;
+    const other = (clientGems - lastClient) + spent + pickSpent - declaredBlockGems;
     if (other > 0) {
       const room = Math.max(0, allowance - used);
       const ok = Math.min(other, room);
@@ -318,9 +349,9 @@ function observeSave(userId, data, { revision, nowMs = Date.now(), force = false
     const enforce = getMode() === 'enforce';
     const drift = enforce ? 0 : clientGems - balance;
     conn().prepare(`UPDATE gem_accounts SET balance = ?, season_id = COALESCE(?, season_id), ref_blocks = ?, ref_declared = ?,
-        ref_autodig = ?, last_client = ?, last_revision = ?, allowance_day = ?, allowance_used = ?, drift = ?, updated_at = datetime('now')
+        ref_autodig = ?, ref_pickaxe = ?, last_client = ?, last_revision = ?, allowance_day = ?, allowance_used = ?, drift = ?, updated_at = datetime('now')
         WHERE user_id = ?`)
-      .run(balance, seasonId, JSON.stringify(refBlocks), JSON.stringify(refDeclared), refAutodig,
+      .run(balance, seasonId, JSON.stringify(refBlocks), JSON.stringify(refDeclared), refAutodig, JSON.stringify(refPick),
         enforce ? balance : clientGems, revision, day, used, drift, userId);
     return { balance, credited, debited, excess, loss, drift };
   });
@@ -400,17 +431,17 @@ function onTestReset(userId, { revision, runId, balance = 0, account = null, rea
   const ref = account ?? { ref_blocks: '{}', ref_declared: '{}', ref_autodig: 0, season_id: a?.season_id ?? null };
   if (!a) {
     if (!account) return null;
-    conn().prepare(`INSERT INTO gem_accounts (user_id, balance, opening, season_id, ref_blocks, ref_declared, ref_autodig, last_client, last_revision)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    conn().prepare(`INSERT INTO gem_accounts (user_id, balance, opening, season_id, ref_blocks, ref_declared, ref_autodig, ref_pickaxe, last_client, last_revision)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(userId, balance, account.opening ?? balance, account.season_id ?? null, account.ref_blocks ?? '{}', account.ref_declared ?? '{}',
-        account.ref_autodig ?? 0, balance, revision);
+        account.ref_autodig ?? 0, account.ref_pickaxe ?? '{}', balance, revision);
     _entry(userId, `${reason}:${runId}`, balance, balance, reason, { runId, revision });
     return { balance };
   }
   _entry(userId, `${reason}:${runId}`, balance - a.balance, balance, reason, { runId, revision, from: a.balance });
-  conn().prepare(`UPDATE gem_accounts SET balance = ?, season_id = ?, ref_blocks = ?, ref_declared = ?, ref_autodig = ?, last_client = ?,
+  conn().prepare(`UPDATE gem_accounts SET balance = ?, season_id = ?, ref_blocks = ?, ref_declared = ?, ref_autodig = ?, ref_pickaxe = ?, last_client = ?,
       last_revision = ?, drift = 0, updated_at = datetime('now') WHERE user_id = ?`)
-    .run(balance, ref.season_id ?? a.season_id, ref.ref_blocks ?? '{}', ref.ref_declared ?? '{}', ref.ref_autodig ?? 0, balance, revision, userId);
+    .run(balance, ref.season_id ?? a.season_id, ref.ref_blocks ?? '{}', ref.ref_declared ?? '{}', ref.ref_autodig ?? 0, ref.ref_pickaxe ?? '{}', balance, revision, userId);
   return { balance };
 }
 

@@ -24,6 +24,9 @@
  *         repris à l'identique, #35 ; absents des anciennes saves : bloc suivant tiré au chargement)
  *         + collectionMeta { id: { at, n, season } } facultatif (#39 : date/quantité trouvées ;
  *         absent des anciennes saves, aucune date inventée — sans changement de version)
+ *         + pickaxe { charges, at, depleted, capLevel, speedLevel, fullHits, refilled, refillCoins }
+ *         facultatif (#71 : pioche à charges ; absent = réserve pleine à l'activation, niveaux 0 —
+ *         sans changement de version)
  */
 const Save = {
 
@@ -61,6 +64,7 @@ const Save = {
       daily:        { ...GameState.daily },
       coinBoost:    { ...GameState.coinBoost },
       monetization:   { ...GameState.monetization },
+      pickaxe:        { ...GameState.pickaxe },
       relicFragments:   GameState.relicFragments,
       relics:           { ...GameState.relics },
       shopChestsBought: { ...GameState.shopChestsBought },
@@ -164,6 +168,8 @@ const Save = {
 
     GameState.relicFragments = data.relicFragments ?? 0;
 
+    GameState.pickaxe = Save.pickaxeFrom(data.pickaxe);
+
     const scb = data.shopChestsBought ?? {};
     GameState.shopChestsBought.simple  = scb.simple  ?? 0;
     GameState.shopChestsBought.rare    = scb.rare     ?? 0;
@@ -226,6 +232,18 @@ const Save = {
     }
   },
 
+  /** État de la pioche à charges (#71) relu d'une sauvegarde, valeurs invalides → défaut. */
+  pickaxeFrom(raw) {
+    const p = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+    const int = v => (Number.isSafeInteger(v) && v >= 0 ? v : 0);
+    const num = v => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
+    return {
+      charges: num(p.charges), at: num(p.at) ?? 0, depleted: p.depleted === true,
+      capLevel: int(p.capLevel), speedLevel: int(p.speedLevel),
+      fullHits: int(p.fullHits), refilled: int(p.refilled), refillCoins: int(p.refillCoins),
+    };
+  },
+
   // ── Reset ─────────────────────────────────────────────────────────────────
 
   /**
@@ -236,6 +254,7 @@ const Save = {
     try { localStorage.removeItem(this.KEY); } catch (_) {}
     GameState.reset();
     GameState.monetization = { adLastWatched: 0, pickaxeSkin: null };
+    GameState.pickaxe      = Save.pickaxeFrom(null);
     GameState.seasonStats  = { seasonId: 0, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, suspiciousBlocks: 0, throttledHits: 0, regularityScore: 0, isActive: false };
     GameState.blockSeed    = 0;
     GameState.blockSeq     = 0;
