@@ -139,6 +139,33 @@ test('fiche : blocs ni manuels ni Auto-Dig déduits de la sauvegarde déclarée'
   assert.ok(!('email' in r.player) && !('password_hash' in r.player), 'aucune donnée personnelle');
 });
 
+test('fiche (#76) : origine des blocs détruits — saison (manuels / Auto-Dig / suspects) et hors saison', () => {
+  const u = newUser();
+  play(u, { saves: 1, everySecs: 10, clicksPerSave: 20, manualPerSave: 2 });
+  // Cas de la recette du 05/11 : 510 au total, 131 manuels, 37 Auto-Dig, 169 m cette saison
+  db.getDb().prepare('INSERT INTO user_saves (user_id, data, version) VALUES (?, ?, 2)').run(u, JSON.stringify({
+    depth: 169, stats: { blocksDestroyed: 510 },
+    seasonStats: { seasonId: season.id, maxDepth: 169, manualBlocks: 131, autoBlocks: 37, manualClicks: 3775, suspiciousScore: 0, suspiciousBlocks: 0 },
+  }));
+  const r = antibot.playerReport(u, { config: db.getAdminConfig() });
+  assert.strictEqual(r.uncountedBlocks, 342, 'valeur historique inchangée');
+  assert.deepStrictEqual(r.blockOrigin, { total: 510, manual: 131, auto: 37, suspicious: 0, season: 168, outsideSeason: 342, seasonDepthBlocks: 168 });
+  assert.strictEqual(r.save.seasonStats.suspiciousBlocks, 0);
+  assert.ok(['off', 'shadow', 'enforce'].includes(r.modes.exactHpMode));
+
+  // Sauvegarde antérieure à #74 : compteur de suspects absent → null, pas 0
+  const v = newUser();
+  play(v, { saves: 1, everySecs: 10, clicksPerSave: 20, manualPerSave: 2 });
+  db.getDb().prepare('INSERT INTO user_saves (user_id, data, version) VALUES (?, ?, 2)').run(v, JSON.stringify({
+    stats: { blocksDestroyed: 50 }, seasonStats: { seasonId: season.id, maxDepth: 41, manualBlocks: 10, autoBlocks: 5 },
+  }));
+  const o = antibot.playerReport(v, { config: db.getAdminConfig() }).blockOrigin;
+  assert.strictEqual(o.suspicious, null);
+  assert.strictEqual(o.season, 15);
+  assert.strictEqual(o.outsideSeason, 35);
+  assert.strictEqual(o.seasonDepthBlocks, 40);
+});
+
 test('échantillons bornés par joueur ; rien en mode off', () => {
   const u = newUser();
   for (let i = 0; i < antibot.SAMPLES_PER_USER + 10; i++) {
@@ -179,11 +206,27 @@ test('admin : route protégée, fiche en lecture seule ouverte depuis la recherc
 test('admin : fiche lisible — résumé par défaut, sections techniques repliables (recette UX du 05/11)', () => {
   const js = read('public/admin/admin.js');
   const fn = js.slice(js.indexOf('function secRenderPlayer'), js.indexOf("admDialogSetup('sec-player-dialog'"));
-  assert.match(fn, /secEl\('section', 'sec-summary'\)/, 'résumé toujours visible');
+  assert.match(fn, /ess\.appendChild\(cards\)/, 'résumé toujours visible (vue essentielle, #76)');
   const keys = [...fn.matchAll(/section\('([a-z]+)'/g)].map(x => x[1]);
   assert.deepStrictEqual(keys, ['modes', 'account', 'progress', 'save', 'risk', 'responses', 'alerts', 'telemetry', 'samples', 'anticheat', 'timeline'],
     'toutes les sections conservées, chacune repliable');
   assert.match(fn, /det\.open = _secOpenSections\.has\(key\)/, 'repliées par défaut, état conservé au rafraîchissement');
   assert.match(fn, /Tout déplier/);
   assert.doesNotMatch(fn, /root\.appendChild\(sec(Kv|Table)/, 'aucun tableau technique hors section repliable');
+});
+
+test('admin (#76) : fiche anti-bot en deux onglets — vue essentielle et diagnostic avancé', () => {
+  const js = read('public/admin/admin.js');
+  const fn = js.slice(js.indexOf('function secRenderPlayer'), js.indexOf("admDialogSetup('sec-player-dialog'"));
+  assert.match(fn, /\['essential', 'Vue essentielle'\], \['advanced', 'Diagnostic avancé/);
+  assert.match(js, /let _secTab = 'essential';/, 'vue essentielle par défaut, onglet conservé au rafraîchissement');
+  assert.match(fn, /setAttribute\('role', 'tablist'\)/);
+  for (const t of ['Progression de la saison', 'PV réels des blocs (#77)', 'Classement (👆 blocs manuels)', 'Risque, alertes, sanctions'])
+    assert.ok(fn.includes(`card('${t}'`), t);
+  assert.match(fn, /d\.depth\?\.exactDepth/);
+  assert.match(fn, /d\.depth\.exactGap/);
+  assert.match(fn, /Blocs détruits : d’où viennent-ils/);
+  assert.match(fn, /jamais remis à zéro/);
+  assert.match(fn, /adv\.appendChild\(det\)/, 'sections techniques dans le diagnostic avancé');
+  assert.doesNotMatch(fn, /\(clic jugé suspect\)'/, 'libellé trompeur retiré');
 });

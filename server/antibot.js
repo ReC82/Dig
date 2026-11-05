@@ -733,6 +733,8 @@ function playerReport(userId, { seasonId = null, config = {}, nowMs = Date.now()
         maxDepth: num(sd.seasonStats.maxDepth), manualBlocks: num(sd.seasonStats.manualBlocks),
         autoBlocks: num(sd.seasonStats.autoBlocks), manualClicks: num(sd.seasonStats.manualClicks),
         suspiciousScore: num(sd.seasonStats.suspiciousScore),
+        // blocs cassés par un coup suspect : compteur séparé depuis #74 (absent des sauvegardes plus anciennes)
+        suspiciousBlocks: num(sd.seasonStats.suspiciousBlocks),
       } : null,
     };
   }
@@ -807,6 +809,19 @@ function playerReport(userId, { seasonId = null, config = {}, nowMs = Date.now()
   const declared = save?.seasonStats ?? null;
   const uncountedBlocks = save?.blocksDestroyed != null && declared?.manualBlocks != null && declared?.autoBlocks != null
     ? Math.max(0, save.blocksDestroyed - declared.manualBlocks - declared.autoBlocks) : null;
+  // Origine des blocs détruits (#76, lecture seule) : « blocksDestroyed » couvre la partie entière
+  // (jamais remis à zéro) ; manuels / Auto-Dig / suspects repartent à 0 à chaque saison. Le reste
+  // vient donc surtout des saisons précédentes (et, avant #74, des blocs cassés par un coup suspect).
+  const blockOrigin = uncountedBlocks == null ? null : (() => {
+    const suspicious = declared.suspiciousBlocks ?? null;
+    const season = declared.manualBlocks + declared.autoBlocks + (suspicious ?? 0);
+    return {
+      total: save.blocksDestroyed, manual: declared.manualBlocks, auto: declared.autoBlocks, suspicious,
+      season, outsideSeason: Math.max(0, save.blocksDestroyed - season),
+      // la profondeur repart à 1 en début de saison : ~1 bloc détruit par mètre gagné
+      seasonDepthBlocks: declared.maxDepth != null ? Math.max(0, declared.maxDepth - 1) : null,
+    };
+  })();
 
   const budgetMode = getDamageBudgetMode(config);
   const abMode = getAntibotMode(config);
@@ -848,7 +863,7 @@ function playerReport(userId, { seasonId = null, config = {}, nowMs = Date.now()
     player: { userId: user.id, username: user.username, createdAt: user.created_at.replace(' ', 'T') + 'Z' },
     season: season ? { id: season.id, name: season.name, status: season.status, startAt: season.start_at, endAt: season.end_at } : null,
     seasons,
-    modes: { antibotMode: abMode, damageBudgetMode: budgetMode, depthValidation: depthOn, antiAutoclick: acOn,
+    modes: { antibotMode: abMode, damageBudgetMode: budgetMode, exactHpMode: getExactHpMode(config), depthValidation: depthOn, antiAutoclick: acOn,
              maxEffectiveCps: parseFloat(config.max_effective_cps ?? config.cps_limit ?? '8'),
              depthMaxCps: parseFloat(config.depth_max_cps ?? '20'), sanctionsApplied: false },
     ranking: ranking ? {
@@ -858,7 +873,7 @@ function playerReport(userId, { seasonId = null, config = {}, nowMs = Date.now()
       isActive: !!ranking.is_active,
       firstSeen: ranking.created_at.replace(' ', 'T') + 'Z', lastUpdate: ranking.updated_at.replace(' ', 'T') + 'Z',
     } : null,
-    depth, clicks, save, uncountedBlocks,
+    depth, clicks, save, uncountedBlocks, blockOrigin,
     risk: {
       score: _r1(risk.score), level: risk.level, updatedAt: _utc(riskRow?.updated_ms),
       components: Object.entries(CATEGORY_CAPS).map(([cat, cap]) => ({
