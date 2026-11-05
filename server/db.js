@@ -892,6 +892,9 @@ function initDb() {
   // Validation serveur de la profondeur (ticket #9)
   cfgStmt.run('depth_validation_enabled',     'true');
   cfgStmt.run('depth_max_cps',                '20');    // clics/s max retenus pour la progression
+  // Cadence de frappe (#74) : au-delà, un coup ne fait aucun dégât (client) et n'est pas crédité (serveur)
+  cfgStmt.run('manual_hit_rate',              '12');
+  cfgStmt.run('manual_hit_burst',             '36');
   // Anti-bot (#25) : observation sans sanction (lot A), budget de dégâts appliqué (lot B)
   cfgStmt.run('antibot_mode',                 'shadow');
   cfgStmt.run('damage_budget_mode',           'enforce');

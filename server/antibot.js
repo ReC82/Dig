@@ -179,6 +179,28 @@ function applyDamageBudget({ fromDepth, credit, claimedClicks, refClicks, dtSecs
 
 // ── Interrupteurs ────────────────────────────────────────────────────────────
 
+/**
+ * Cadence de frappe manuelle (#74) : au-delà, le client ne fait aucun dégât et le serveur ne
+ * crédite aucun clic (budget de dégâts, profondeur). Rafale tolérée = capacité du seau client.
+ */
+const HIT_RATE_DEFAULT  = 12;
+const HIT_BURST_DEFAULT = 36;
+const HIT_RATE_RANGE    = [4, 30];
+const HIT_BURST_RANGE   = [1, 200];
+
+function _cfgNum(raw, def, [min, max]) {
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n >= min && n <= max ? n : def;
+}
+
+/** Limites de frappe effectives (config manual_hit_rate / manual_hit_burst). */
+function getHitLimits(config = {}) {
+  return {
+    rate:  _cfgNum(config.manual_hit_rate,  HIT_RATE_DEFAULT,  HIT_RATE_RANGE),
+    burst: _cfgNum(config.manual_hit_burst, HIT_BURST_DEFAULT, HIT_BURST_RANGE),
+  };
+}
+
 const ANTIBOT_MODES = ['off', 'shadow'];
 const BUDGET_MODES  = ['off', 'shadow', 'enforce'];
 
@@ -209,6 +231,11 @@ function validateConfigValue(key, raw) {
   if (key === 'antibot_mode') {
     if (v === 'enforce') return { error: 'antibot_mode : « enforce » (sanctions, lot C) n\'est pas encore disponible — off ou shadow.' };
     return ANTIBOT_MODES.includes(v) ? { value: v } : { error: 'antibot_mode : off ou shadow attendu.' };
+  }
+  if (key === 'manual_hit_rate' || key === 'manual_hit_burst') {
+    const [min, max] = key === 'manual_hit_rate' ? HIT_RATE_RANGE : HIT_BURST_RANGE;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= min && n <= max ? { value: String(n) } : { error: `${key} : nombre de ${min} à ${max} attendu.` };
   }
   if (key === 'damage_budget_mode') {
     return BUDGET_MODES.includes(v) ? { value: v } : { error: 'damage_budget_mode : off, shadow ou enforce attendu.' };
@@ -285,6 +312,7 @@ const SIGNALS = {
   cps_reduced:     { cat: 'cps',        points: 2  }, // #10 : CPS au-dessus du seuil
   untrusted_clicks:{ cat: 'untrusted',  points: 10 }, // clics générés par script (isTrusted = false)
   burst_clicks:    { cat: 'burst',      points: 4  }, // rafales > 25 clics/s
+  throttled_hits:  { cat: 'burst',      points: 4  }, // #74 : coups au-delà de la cadence maximale (sans effet en jeu)
   regular_clicks:  { cat: 'regularity', points: 2  }, // rythme quasi parfait et long (jamais seul)
 };
 
@@ -365,7 +393,7 @@ function recordSignals(userId, seasonId, signals, { config, nowMs = Date.now(), 
 
 // ── Lot A : signaux tirés de la sauvegarde ───────────────────────────────────
 
-const COUNTER_FIELDS = ['maxDepth', 'manualClicks', 'manualBlocks', 'autoBlocks'];
+const COUNTER_FIELDS = ['maxDepth', 'manualClicks', 'manualBlocks', 'autoBlocks', 'suspiciousBlocks', 'throttledHits'];
 /** Au-delà, un compteur de saison est irréaliste (≈ 1 an à 30 clics/s). */
 const COUNTER_MAX = 1e9;
 
@@ -395,7 +423,7 @@ function normalizeTelemetry(t) {
   const h = Array.isArray(t.h) && t.h.length === TELEMETRY_BINS ? t.h.map(int) : null;
   const p = t.p && typeof t.p === 'object' ? { m: int(t.p.m), t: int(t.p.t), k: int(t.p.k), o: int(t.p.o) } : null;
   const cv = typeof t.cv === 'number' && Number.isFinite(t.cv) && t.cv >= 0 ? Math.min(t.cv, 10) : null;
-  return { n, h, u: Math.min(int(t.u), n), p, cv };
+  return { n, h, u: Math.min(int(t.u), n), x: Math.min(int(t.x), n), p, cv };
 }
 
 /** Indices tirés de la télémétrie (seuils prudents : tactile multi-doigts, accessibilité). */
@@ -410,6 +438,10 @@ function telemetrySignals(tel) {
     if (tel.h[0] >= 50 && intervals > 0 && tel.h[0] / intervals >= 0.3) {
       out.push({ type: 'burst_clicks', details: { clicks: tel.n, under40ms: tel.h[0], intervals } });
     }
+  }
+  // Coups au-delà de la cadence maximale, sans effet en jeu (#74) : indice de rafale soutenue
+  if (tel.x >= 50 && tel.x / tel.n >= 0.3) {
+    out.push({ type: 'throttled_hits', details: { clicks: tel.n, throttled: tel.x } });
   }
   if (tel.cv != null && tel.n >= 200 && tel.cv < 0.03) {
     out.push({ type: 'regular_clicks', details: { clicks: tel.n, cv: tel.cv } });
@@ -816,7 +848,7 @@ module.exports = {
   MIN_HP_SEGMENTS, DAMAGE_POOL_SECS, DAMAGE_LOG_GAP, setMinHpSegments, getMinHpSegments,
   damageCost, minBlockHp, reachableDepth, maxDamageRate, applyDamageBudget,
   // Interrupteurs
-  getAntibotMode, getDamageBudgetMode, validateConfigValue,
+  getAntibotMode, getDamageBudgetMode, validateConfigValue, getHitLimits, HIT_RATE_DEFAULT, HIT_BURST_DEFAULT,
   // Lot A
   configure, hashIp, logSecurityEvent, purgeOldEvents, startPurgeScheduler,
   SIGNALS, CATEGORY_CAPS, riskLevel, getRisk, recordSignals,

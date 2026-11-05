@@ -212,14 +212,16 @@ function assertBudgetNeutral(o, label) {
   return a;
 }
 
-test('honnête, maximum théorique : 20 clics/s, pioche 15 + relique, Auto-Dig 20, PV −50 %, blocs les plus faibles, 30 min', () => {
+// Depuis #74, le client ne fait aucun dégât au-delà de manual_hit_rate (12 coups/s par défaut) :
+// c'est le maximum théorique d'un joueur honnête, même si depth_max_cps vaut 20.
+test('honnête, maximum théorique : 12 coups/s (cadence max #74), pioche 15 + relique, Auto-Dig 20, PV −50 %, blocs les plus faibles, 30 min', () => {
   const u = newUser();
-  const saves = simulate(u, { secs: 1800, cps: 20, damage: 25, autoDps: 20, hpReduction: 0.5, weakest: true });
+  const saves = simulate(u, { secs: 1800, cps: 12, damage: 25, autoDps: 20, hpReduction: 0.5, weakest: true });
   assertNoLoss(saves, 'max');
-  assert.ok(saves.at(-1).claimed > 600, `profondeur ${saves.at(-1).claimed}`);
+  assert.ok(saves.at(-1).claimed > 400, `profondeur ${saves.at(-1).claimed}`);
   assert.deepStrictEqual(acLogs(u), []);
   assert.deepStrictEqual(secEvents(u), []);
-  assertBudgetNeutral({ secs: 1800, cps: 20, damage: 25, autoDps: 20, hpReduction: 0.5, weakest: true, seed: 11 }, 'max (bis)');
+  assertBudgetNeutral({ secs: 1800, cps: 12, damage: 25, autoDps: 20, hpReduction: 0.5, weakest: true, seed: 11 }, 'max (bis)');
 });
 
 test('honnête, joueur typique : 6 clics/s, pioche 5, sans relique, blocs aléatoires, Auto-Dig 3, 30 min', () => {
@@ -457,7 +459,7 @@ test('télémétrie : souris, tactile multi-doigts et accessibilité régulière
   // Données illisibles : ignorées
   assert.strictEqual(antibot.normalizeTelemetry('x'), null);
   assert.strictEqual(antibot.normalizeTelemetry({ n: -3 }), null);
-  assert.deepStrictEqual(antibot.normalizeTelemetry({ n: 5, h: [1, 2], u: 99 }), { n: 5, h: null, u: 5, p: null, cv: null });
+  assert.deepStrictEqual(antibot.normalizeTelemetry({ n: 5, h: [1, 2], u: 99 }), { n: 5, h: null, u: 5, x: 0, p: null, cv: null });
 });
 
 test('client : la télémétrie est jointe aux sauvegardes cloud et chaque coup de pioche passe son événement', () => {

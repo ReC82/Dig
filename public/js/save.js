@@ -201,6 +201,8 @@ const Save = {
     GameState.seasonStats.autoBlocks       = ss.autoBlocks       ?? 0;
     GameState.seasonStats.manualClicks     = ss.manualClicks     ?? 0;
     GameState.seasonStats.suspiciousScore  = ss.suspiciousScore  ?? 0;
+    GameState.seasonStats.suspiciousBlocks = ss.suspiciousBlocks ?? 0;
+    GameState.seasonStats.throttledHits    = ss.throttledHits    ?? 0;
     GameState.seasonStats.regularityScore  = ss.regularityScore  ?? 0;
     GameState.seasonStats.isActive         = ss.isActive         ?? false;
 
@@ -234,7 +236,7 @@ const Save = {
     try { localStorage.removeItem(this.KEY); } catch (_) {}
     GameState.reset();
     GameState.monetization = { adLastWatched: 0, pickaxeSkin: null };
-    GameState.seasonStats  = { seasonId: 0, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, regularityScore: 0, isActive: false };
+    GameState.seasonStats  = { seasonId: 0, maxDepth: 0, manualBlocks: 0, autoBlocks: 0, manualClicks: 0, suspiciousScore: 0, suspiciousBlocks: 0, throttledHits: 0, regularityScore: 0, isActive: false };
     GameState.blockSeed    = 0;
     GameState.blockSeq     = 0;
     this.loadedSaveTime = null;
