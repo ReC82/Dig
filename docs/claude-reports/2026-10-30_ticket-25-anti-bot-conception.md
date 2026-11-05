@@ -590,3 +590,105 @@ le lancement. Le blocage effectif des gains / achats impossibles est traité dan
   Auto-Dig). La fiche fournit désormais les mesures pour comparer avant / après.
 - **#75** : remise à zéro contrôlée du testeur (la fiche servira à comparer les essais).
 - Après lancement : historique des achats côté serveur (aujourd'hui inexistant), lot C.
+
+
+---
+
+# Session 5 — 05/11/2026 : fiche anti-bot lisible (recette UX du propriétaire)
+
+## 1. Ticket
+
+#25 — [P0] Protection anti-bot globale — détection, validation serveur et réponses effectives —
+https://github.com/ReC82/Dig/issues/25. Commentaire du propriétaire du 05/11 10:24 UTC
+(https://github.com/ReC82/Dig/issues/25#issuecomment-6655584499) : la fiche individuelle affiche trop
+d'informations à la fois ; demander un **résumé lisible par défaut** et des **sections techniques
+repliables**, en conservant toutes les données et les exports, testé sur PC et mobile, **sans modifier
+les règles anti-bot**.
+
+## 2. État réel
+
+**Déployé en production (SHA `f3892a6`) — en attente de recette.** Classement : **Bloquant MVP public**
+(outil de suivi de la bêta), correction d'ergonomie seule.
+
+## 3. Résultat et changements
+
+Admin → 🛡 Anti-bot → « Fiche » (ou recherche pseudo / #ID) :
+
+- **Résumé toujours visible** en tête : une phrase (score de risque, niveau, nombre d'alertes de la
+  saison, « aucune sanction appliquée (applied:false) »), puis six valeurs : profondeur retenue /
+  déclarée, écart déclaré − retenu, blocs manuels validés (👆 classement), blocs manuels déclarés /
+  coups, coups/s maximum à l'horloge serveur (sur les échantillons de sauvegarde), dernière sauvegarde
+  reçue — chacune avec sa source (serveur / déclaré / déduit) — et une ligne sur les modes.
+- **11 sections repliables, fermées par défaut**, chacune avec un rappel court dans son titre
+  (ex. « Alertes du joueur par type — 10 alerte(s), 3 type(s) », « Sauvegardes contrôlées —
+  12 échantillon(s) ») : Modes et lecture des valeurs · Compte et activité · Progression de la saison
+  (détail) · Partie déclarée · Score de risque (décomposition) · Contrôles → action prévue → action
+  appliquée · Alertes par type · Télémétrie des clics · Sauvegardes contrôlées · Fenêtres anti-autoclic ·
+  Chronologie des alertes.
+- Boutons **« Tout déplier » / « Tout replier »** ; les sections ouvertes **restent ouvertes** après
+  « ↻ Rafraîchir » ou un changement de saison.
+- **Aucune donnée retirée** : le contenu de chaque section est exactement celui de la version précédente
+  (mêmes tableaux, mêmes notes). La route `GET /api/admin/security/player` (réponse JSON complète) est
+  inchangée. Remarque : la fiche n'avait pas de bouton d'export ; rien n'a donc été supprimé de ce côté
+  (voir § 9).
+- Fichiers : `public/admin/admin.js` (`secRenderPlayer`), `public/admin/admin.css` (résumé, accordéons,
+  titres sur mobile), `test/antibot-player-report.test.js` (+1 test statique).
+- **Règles anti-bot non modifiées** : aucun fichier serveur touché.
+
+## 4. SHA et procédure de test
+
+Branche `feature/25-anti-bot-lots-ab`, commit `b5b8cff` ; fusion dans `develop` : **`f3892a6`**.
+`npm test` ; scénario navigateur ci-dessous.
+
+## 5. Vérifications, limites, impact données
+
+- `npm test` : 740/740 sur la branche, sur `develop` (`f3892a6`) et sur la release `f3892a6`.
+- Navigateur (serveur de test port 3101, base de test, joueur synthétique « autoclicker » 12
+  sauvegardes) en **PC 1280×900** et **mobile 390×844** : résumé affiché (score 38,9 — N1, 10 alertes,
+  33,3 coups/s max), 11 sections fermées, ouverture de 2 sections conservée après « Rafraîchir »,
+  « Tout déplier » → 11 sections, 7 tableaux, 48 lignes (toutes les données), pas de débordement
+  horizontal de la fiche, fermeture sans avertissement ni erreur JavaScript. Correction mobile : la
+  flèche ▸ ne se retrouve plus seule sur une ligne quand le titre est long.
+- Impact données joueurs : aucun (affichage admin uniquement, lecture seule).
+
+## 6. Déploiement
+
+- Contrôle préalable : aucune génération IA en cours (dernier appel à 10:06 UTC).
+- Copie de la base de production : empreintes des 6 tables identiques avant / après démarrage de la
+  release (`NODE_ENV=production`, port 3122), `quick_check` ok ; copie supprimée.
+- `main` avancé `2169b5c` → `f3892a6` ; `scripts/deploy.sh` de la release : sauvegarde vérifiée
+  `~/backups/dig/dig-20261105-115710-pre-deploy-f3892a6.sqlite`, « OK : f3892a6 en service ».
+- Après : dig.lodygames.com et dig.lodylands.com → 200 et `1.0.0+f3892a6`, journal sans erreur,
+  `quick_check` ok, nombres de lignes inchangés, route fiche → 401 sans session, `admin.js` servi à jour.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 2169b5c` + redémarrage (pas de migration).
+
+**Test fonctionnel à faire par le propriétaire** (PC puis smartphone) :
+1. Admin → 🛡 Anti-bot (recharger l'onglet admin, F5, pour charger le nouveau `admin.js`).
+2. Ouvrir la fiche d'un joueur (bouton « Fiche » ou recherche `gabpok8`).
+3. Attendu : en haut, un résumé court (score / niveau / alertes / profondeurs / blocs validés /
+   coups/s max / dernière sauvegarde) ; dessous, des titres repliés avec un rappel chiffré.
+4. Ouvrir « Score de risque » puis « Sauvegardes contrôlées », cliquer « ↻ Rafraîchir » : elles
+   restent ouvertes. « Tout déplier » affiche tout le détail d'avant ; « Tout replier » referme.
+5. « ✕ Fermer » : la fiche se ferme sans avertissement.
+
+## 7. Choix techniques faits seul
+
+- Accordéons `<details>` natifs (accessibles au clavier, sans JavaScript pour s'ouvrir), avec le style
+  `bk-acc` déjà utilisé dans le catalogue de blocs, pour rester cohérent dans le panel.
+- Toutes les sections repliées par défaut (y compris « Contrôles → action appliquée ») : l'essentiel de
+  cette section est déjà résumé par « aucune sanction appliquée (applied:false) ».
+- État ouvert / fermé gardé en mémoire de l'onglet (pas en `localStorage`) : simple et sans trace.
+- Coups/s max = valeur la plus haute des échantillons de sauvegarde (Δ coups déclarés ÷ Δt serveur),
+  marqué « déduit ».
+
+## 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire pour cette livraison. Questions antérieures toujours ouvertes
+(optionnelles) : lot C limité au classement et aux récompenses ; défi ponctuel maison désactivé par
+défaut ; éligibilité aux récompenses via #19 ; adresse de contestation ; lot D après le lancement.
+
+## 9. Éléments restant à réaliser
+
+- Proposition (non implémentée, hors demande) : un bouton « Exporter la fiche (JSON) » dans la fiche, si
+  un export est souhaité — la donnée complète est déjà disponible via la route admin.
+- **#74 (P0, Bloquant MVP)** et **#75** : inchangés (voir session 4).
