@@ -689,6 +689,9 @@ const I18n = (() => {
         btn_settings:    'Paramètres du compte ›',
       },
       settings: {
+        display_title:  'Affichage',
+        precise_label:  'Afficher les valeurs précises',
+        precise_hint:   'Dégâts et PV avec leurs décimales (ex. 1,25). Désactivé : valeurs arrondies à l\'entier ; les dégâts réels restent exacts.',
         title:      'Paramètres',
         lang_title: 'Langue',
         btn_back:   '← Retour',
@@ -1570,6 +1573,9 @@ const I18n = (() => {
         btn_settings:    'Account settings ›',
       },
       settings: {
+        display_title:  'Display',
+        precise_label:  'Show precise values',
+        precise_hint:   'Damage and HP with their decimals (e.g. 1.25). Off: values rounded to whole numbers; actual damage stays exact.',
         title:      'Settings',
         lang_title: 'Language',
         btn_back:   '← Back',
@@ -2451,6 +2457,9 @@ const I18n = (() => {
         btn_settings:    'Accountinstellingen ›',
       },
       settings: {
+        display_title:  'Weergave',
+        precise_label:  'Precieze waarden tonen',
+        precise_hint:   'Schade en HP met decimalen (bv. 1,25). Uit: afgeronde waarden; de echte schade blijft exact.',
         title:      'Instellingen',
         lang_title: 'Taal',
         btn_back:   '← Terug',
@@ -3332,6 +3341,9 @@ const I18n = (() => {
         btn_settings:    'Ajustes de la cuenta ›',
       },
       settings: {
+        display_title:  'Visualización',
+        precise_label:  'Mostrar valores precisos',
+        precise_hint:   'Daño y PV con sus decimales (p. ej. 1,25). Desactivado: valores redondeados; el daño real sigue siendo exacto.',
         title:      'Ajustes',
         lang_title: 'Idioma',
         btn_back:   '← Volver',

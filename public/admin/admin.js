@@ -579,6 +579,7 @@ const ADM_NAV = [
   { id: 'shop',            group: 'competition', order: 60, icon: '🛍', label: 'Boutique de cadeaux',      keywords: 'lots échange commandes',                        load: () => loadShop() },
   { id: 'contest',         group: 'competition', order: 70, icon: '🎁', label: 'Concours',                 keywords: 'gagnants lots hebdomadaire',                    load: () => loadContest() },
   { id: 'news',            group: 'content',     order: 10, icon: '📰', label: 'Actualités',               keywords: 'annonces cloche discord',                       load: () => loadNews() },
+  { id: 'microbonus',      group: 'content',     order: 25, icon: '✨', label: 'Micro-bonus (brouillons)', keywords: 'dégâts décimaux fractionnaires souvenirs effets bonus', load: () => loadMicroBonus() },
   { id: 'events',          group: 'content',     order: 20, icon: '🎉', label: 'Événements',               keywords: 'mensuels calendrier souvenirs',                 load: () => loadEvents() },
   { id: 'collections',     group: 'content',     order: 30, icon: '📿', label: 'Collections',              keywords: 'objets séries fiches narratives',               load: () => loadCollections() },
   { id: 'badges',          group: 'content',     order: 40, icon: '🎖', label: 'Badges',                   keywords: 'succès honorifiques',                           load: () => loadBadges() },
@@ -12859,4 +12860,178 @@ document.getElementById('btn-pk-settings').addEventListener('click', async () =>
   adMessage('pk-settings-msg', data.changed ? 'Réglages enregistrés et journalisés.' : 'Aucun changement.', true);
   admZoneClean(_pkZone);
   renderPickaxe(data);
+});
+
+// ── Micro-bonus de dégâts fractionnaires (#81, étape C) ──────────────────────
+// Brouillons seulement : le serveur refuse tout autre statut et ne transmet aucun bonus au jeu.
+let _mb = null;          // dernier résumé reçu
+let _mbEditing = null;   // id du brouillon ouvert (null : nouveau)
+const MB_MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const MB_DAYS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
+const mbFr = v => Number(v).toLocaleString('fr-BE', { maximumFractionDigits: 2 });
+
+function mbChecks(id, labels) {
+  const box = document.getElementById(id);
+  box.textContent = '';
+  labels.forEach((l, i) => {
+    const lab = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = String(i + 1);
+    lab.append(cb, ` ${l}`);
+    box.appendChild(lab);
+  });
+}
+mbChecks('mb-months', MB_MONTHS);
+mbChecks('mb-weekdays', MB_DAYS);
+const mbChecked = id => [...document.querySelectorAll(`#${id} input:checked`)].map(cb => Number(cb.value));
+
+function mbCell(tr, text) { const td = document.createElement('td'); td.textContent = text ?? ''; tr.appendChild(td); return td; }
+
+function mbFillTargets() {
+  const sel = document.getElementById('mb-target');
+  const cur = sel.value;
+  sel.textContent = '';
+  const add = (value, text, parent = sel) => { const o = document.createElement('option'); o.value = value; o.textContent = text; parent.appendChild(o); };
+  add('all', 'Tous les blocs');
+  const cats = document.createElement('optgroup'); cats.label = 'Catégorie'; sel.appendChild(cats);
+  for (const c of _mb?.categories ?? []) add(`category:${c}`, c, cats);
+  const blocks = document.createElement('optgroup'); blocks.label = 'Bloc'; sel.appendChild(blocks);
+  for (const b of _mb?.blocks ?? []) add(`block:${b.id}`, `${b.name} (${b.id})`, blocks);
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+function mbRead() {
+  const v = id => document.getElementById(id).value.trim();
+  const [type, id] = v('mb-target').split(':');
+  const schedule = {};
+  if (v('mb-from')) schedule.from = v('mb-from');
+  if (v('mb-to')) schedule.to = v('mb-to');
+  const months = mbChecked('mb-months'), weekdays = mbChecked('mb-weekdays');
+  if (months.length) schedule.months = months;
+  if (weekdays.length) schedule.weekdays = weekdays;
+  const effect = { kind: 'damage_flat', value: Number(v('mb-value').replace(',', '.')), target: id ? { type, id } : { type: 'all' }, schedule };
+  if (v('mb-src-event') || v('mb-src-item')) effect.source = { eventId: v('mb-src-event'), itemId: v('mb-src-item') };
+  return { label: v('mb-label'), note: v('mb-note'), effect };
+}
+
+function mbWrite(d) {
+  const e = d?.effect ?? { value: 0.25, target: { type: 'all' }, schedule: {} };
+  const set = (id, val) => { document.getElementById(id).value = val ?? ''; };
+  set('mb-label', d?.label); set('mb-note', d?.note); set('mb-value', e.value);
+  set('mb-target', e.target?.type && e.target.type !== 'all' ? `${e.target.type}:${e.target.id}` : 'all');
+  set('mb-from', e.schedule?.from); set('mb-to', e.schedule?.to);
+  set('mb-src-event', e.source?.eventId); set('mb-src-item', e.source?.itemId);
+  for (const [box, list] of [['mb-months', e.schedule?.months], ['mb-weekdays', e.schedule?.weekdays]]) {
+    document.querySelectorAll(`#${box} input`).forEach(cb => { cb.checked = (list ?? []).includes(Number(cb.value)); });
+  }
+}
+
+function renderMicroBonus(data) {
+  _mb = data;
+  document.getElementById('mb-limit-min').textContent = mbFr(data.limits.min);
+  document.getElementById('mb-limit-max').textContent = mbFr(data.limits.max);
+  document.getElementById('mb-limit-cap').textContent = mbFr(data.limits.stackCap);
+  mbFillTargets();
+  const body = document.getElementById('mb-list');
+  body.textContent = '';
+  for (const d of data.drafts) {
+    const tr = document.createElement('tr');
+    tr.className = 'adm-row-link';
+    tr.tabIndex = 0;
+    tr.dataset.admKey = `mb-${d.id}`;
+    mbCell(tr, `${d.label}${d.archived ? ' (archivé)' : ''}`);
+    mbCell(tr, d.text);
+    mbCell(tr, d.state ? `${d.state.text} — brouillon, inactif en jeu` : '—');
+    mbCell(tr, d.updatedAt);
+    const open = () => mbOpen(d, tr);
+    tr.addEventListener('click', open);
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
+    body.appendChild(tr);
+  }
+  if (!data.drafts.length) { const tr = document.createElement('tr'); mbCell(tr, 'Aucun brouillon.').colSpan = 4; body.appendChild(tr); }
+  const log = document.getElementById('mb-log');
+  log.textContent = '';
+  for (const l of data.log) {
+    const tr = document.createElement('tr');
+    mbCell(tr, l.created_at); mbCell(tr, `#${l.draft_id}`); mbCell(tr, l.action); mbCell(tr, l.effect ?? '');
+    log.appendChild(tr);
+  }
+  const ex = document.getElementById('mb-examples');
+  ex.textContent = '';
+  for (const x of data.examples) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn btn-outline btn-sm'; b.textContent = x.label.replace(/^Exemple — /, '');
+    b.addEventListener('click', () => { mbWrite({ label: x.label, effect: x.effect }); document.getElementById('mb-label').dispatchEvent(new Event('input', { bubbles: true })); mbPreview(); });
+    ex.append(b, ' ');
+  }
+}
+
+async function loadMicroBonus() {
+  const { ok, data } = await api('GET', '/api/admin/micro-bonuses');
+  if (!ok) { adMessage('mb-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  renderMicroBonus(data);
+}
+admRefreshButton('btn-mb-refresh', loadMicroBonus, 'Micro-bonus');
+
+admDialogSetup('mb-dialog', { keep: 'Enregistrer le brouillon' });
+
+function mbOpen(d, opener) {
+  _mbEditing = d?.id ?? null;
+  mbWrite(d);
+  document.getElementById('mb-title').textContent = d ? `Micro-bonus #${d.id} (brouillon)` : 'Nouveau micro-bonus (brouillon)';
+  const arch = document.getElementById('btn-mb-archive');
+  arch.classList.toggle('hidden', !d);
+  arch.textContent = d?.archived ? 'Désarchiver' : 'Archiver';
+  document.getElementById('mb-preview').classList.add('hidden');
+  document.getElementById('mb-dlg-msg').className = 'hidden';
+  admDialogOpen('mb-dialog', opener, 'mb-label');
+}
+document.getElementById('btn-mb-add').addEventListener('click', e => mbOpen(null, e.currentTarget));
+
+async function mbPreview() {
+  const { ok, data } = await api('POST', '/api/admin/micro-bonuses/preview', { effect: mbRead().effect, depth: Number(document.getElementById('mb-depth').value) });
+  const box = document.getElementById('mb-preview');
+  if (!ok) { box.classList.add('hidden'); return adMessage('mb-dlg-msg', data.error || 'Erreur.', false); }
+  document.getElementById('mb-dlg-msg').className = 'hidden';
+  document.getElementById('mb-prev-fr').textContent = data.text.fr;
+  document.getElementById('mb-prev-en').textContent = `EN : ${data.text.en}`;
+  document.getElementById('mb-prev-state').textContent = `État aujourd'hui s'il était activé : ${data.state.text}. Statut réel : brouillon, aucun effet en jeu.`;
+  const warn = document.getElementById('mb-prev-warn');
+  warn.textContent = '';
+  for (const w of data.warnings) { const li = document.createElement('li'); li.textContent = `⚠️ ${w}`; warn.appendChild(li); }
+  const samples = document.getElementById('mb-prev-samples');
+  samples.textContent = '';
+  for (const s of data.samples) { const tr = document.createElement('tr'); mbCell(tr, s.label); mbCell(tr, s.text); samples.appendChild(tr); }
+  document.getElementById('mb-prev-sim-title').textContent = `Simulation à ${data.simulation.depth} m, bonus supposé actif : coups moyens par bloc (PV sans relique, tirage neutre), calcul exact au centième.`;
+  const sim = document.getElementById('mb-prev-sim');
+  sim.textContent = '';
+  for (const r of data.simulation.rows) {
+    const tr = document.createElement('tr');
+    mbCell(tr, mbFr(r.base)); mbCell(tr, mbFr(r.hitsBefore)); mbCell(tr, mbFr(r.hitsAfter));
+    mbCell(tr, `+${mbFr(r.gainPct)} %`); mbCell(tr, `${mbFr(r.targetShare)} %`);
+    sim.appendChild(tr);
+  }
+  box.classList.remove('hidden');
+}
+document.getElementById('btn-mb-preview').addEventListener('click', mbPreview);
+
+document.getElementById('btn-mb-save').addEventListener('click', async () => {
+  const body = mbRead();
+  const { ok, data } = _mbEditing
+    ? await api('PUT', `/api/admin/micro-bonuses/${_mbEditing}`, body)
+    : await api('POST', '/api/admin/micro-bonuses', body);
+  if (!ok) return adMessage('mb-dlg-msg', data.error || 'Erreur.', false);
+  document.getElementById('mb-dialog').close();
+  renderMicroBonus(data);
+  adMessage('mb-msg', `Brouillon « ${data.draft.label} » enregistré (inactif en jeu).`, true);
+});
+
+document.getElementById('btn-mb-archive').addEventListener('click', async () => {
+  if (!_mbEditing) return;
+  const cur = _mb?.drafts.find(d => d.id === _mbEditing);
+  const { ok, data } = await api('POST', `/api/admin/micro-bonuses/${_mbEditing}/archive`, { archived: !cur?.archived });
+  if (!ok) return adMessage('mb-dlg-msg', data.error || 'Erreur.', false);
+  document.getElementById('mb-dialog').close();
+  renderMicroBonus(data);
+  adMessage('mb-msg', data.draft.archived ? 'Brouillon archivé (conservé).' : 'Brouillon désarchivé.', true);
 });

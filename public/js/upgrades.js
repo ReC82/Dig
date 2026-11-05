@@ -14,11 +14,12 @@ const Upgrades = {
       maxLevel: 15,
       /** Dégâts réels par clic (pioche + relique Œil du mineur), comme GameState.damage. */
       effect(level) {
-        return level + (GameState.relicBonuses?.damageFlat ?? 0);
+        return GameState.normAmount(level + (GameState.relicBonuses?.damageFlat ?? 0));
       },
       describe(level) {
         const damage = this.effect(level);
-        return t('upgrade.pickaxe.desc', { damage, s: damage > 1 ? 's' : '' });
+        // Détail de la pioche : valeur exacte au centième (#81), même si le minage l'arrondit
+        return t('upgrade.pickaxe.desc', { damage: Upgrades.formatAmount(damage), s: damage >= 2 ? 's' : '' });
       },
       getCost(level) {
         if (level >= this.maxLevel) return null;
@@ -75,12 +76,12 @@ const Upgrades = {
       maxLevel: 6,
       /** Dégâts automatiques réels par seconde (relique Moteur antique incluse), cf. getAutoDigDamage. */
       effect(level) {
-        return level + (GameState.relicBonuses?.autodigBonus ?? 0);
+        return GameState.normAmount(level + (GameState.relicBonuses?.autodigBonus ?? 0));
       },
       describe(level) {
         const dmg = this.effect(level);
         if (dmg === 0) return t('upgrade.autodig.desc_off');
-        return t('upgrade.autodig.desc', { dmg, s: dmg > 1 ? 's' : '' });
+        return t('upgrade.autodig.desc', { dmg: Upgrades.formatAmount(dmg), s: dmg >= 2 ? 's' : '' });
       },
       getCost(level) {
         if (level >= this.maxLevel) return null;
@@ -244,7 +245,7 @@ const Upgrades = {
 
     if (id === 'pickaxe') {
       GameState.pickaxeLevel += 1;
-      GameState.damage = this.effectiveLevel('pickaxe') + (GameState.relicBonuses?.damageFlat ?? 0);
+      GameState.damage = GameState.normAmount(this.effectiveLevel('pickaxe') + (GameState.relicBonuses?.damageFlat ?? 0));
     } else if (id === 'fragment_shop') {
       GameState.upgrades.fragment_shop = (GameState.upgrades.fragment_shop ?? 0) + 1;
       GameState.relicFragments         = (GameState.relicFragments ?? 0) + 1;
@@ -315,7 +316,12 @@ const Upgrades = {
     return Number(m).toLocaleString(lang, { maximumFractionDigits: 2 });
   },
 
+  /** Dégâts exacts (au centième, séparateur de la langue) pour le détail des améliorations (#81). */
+  formatAmount(v) {
+    return typeof NumFmt !== 'undefined' ? NumFmt.exact(v) : String(v);
+  },
+
   getAutoDigDamage() {
-    return this.effectiveLevel('autodig') + (GameState.relicBonuses?.autodigBonus ?? 0);
+    return GameState.normAmount(this.effectiveLevel('autodig') + (GameState.relicBonuses?.autodigBonus ?? 0));
   },
 };

@@ -105,7 +105,7 @@ test('recherche « Aller à une rubrique » : sans accents, par libellé, groupe
   const fold = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   const find = q => [...ctx.N].filter(t => fold(`${t.label} ${t.id} ${ctx.G.find(g => g.id === t.group).label} ${t.keywords ?? ''}`).includes(fold(q))).map(t => t.id);
   assert.deepStrictEqual(find('mensuel'), ['events']);
-  assert.deepStrictEqual(find('evenement'), ['news', 'events', 'collections', 'badges'], 'nom du groupe : toutes ses rubriques');
+  assert.deepStrictEqual(find('evenement'), ['news', 'microbonus', 'events', 'collections', 'badges'], 'nom du groupe : toutes ses rubriques');
   assert.ok(find('ligues & saisons').includes('season-overview'), 'ancien intitulé retrouvé');
   assert.ok(find('missions').includes('missions'));
   assert.deepStrictEqual(find('amelio'), ['upgrades']);

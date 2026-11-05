@@ -1462,3 +1462,8 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .mq-bonus-table input { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px; }
 .mq-bonus-table .btn-sm { padding: 4px 6px; }
 .mq-bonus-table th { white-space: normal; }
+
+/* Micro-bonus (#81) : cases mois / jours */
+.mb-checks { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.82rem; }
+.mb-checks label { display: inline-flex; align-items: center; gap: 4px; }
+#mb-list tr { cursor: pointer; }

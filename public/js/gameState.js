@@ -80,6 +80,11 @@ const GameState = {
     autodigBonus:        0,   // dégâts auto supplémentaires par seconde
   },
 
+  // ── Micro-bonus d'événement (#81) ─────────────
+  // Bonus de dégâts fractionnaires actifs (modèle public/js/microBonus.js). NON sauvegardé et
+  // toujours vide : aucun bonus n'est transmis au jeu sans décision du propriétaire.
+  eventBonuses: [],
+
   // ── Monétisation ─────────────────────────────
   // Note : non réinitialisé par reset() — les achats sont persistants.
   monetization: {
@@ -111,6 +116,13 @@ const GameState = {
   },
 
   // ── Helpers ──────────────────────────────────
+
+  // Précision des dégâts et PV (#81) : calculs en centièmes entiers (virgule fixe), jamais en
+  // flottants accumulés. Une valeur a au plus 2 décimales ; 0,1 + 0,2 donne exactement 0,3.
+  toCents(v)   { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) : 0; },
+  fromCents(c) { return c / 100; },
+  /** Quantité de dégâts/PV ramenée au centième, jamais négative (entiers inchangés). */
+  normAmount(v) { return Math.max(0, this.toCents(v)) / 100; },
 
   addCoins(amount)   { this.coins += amount; },
   spendCoins(amount) { this.coins -= amount; },

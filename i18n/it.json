@@ -4652,6 +4652,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "settings.display_title": {
+   "text": "Visualizzazione",
+   "src": "72ae2aa74325",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #81, relu)",
+   "at": "2026-11-05T18:57:12.241Z"
+  },
   "settings.lang_title": {
    "text": "Lingua",
    "src": "7a4d0b1d7232",
@@ -4714,6 +4721,20 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "settings.precise_hint": {
+   "text": "Danni e PV con i decimali (es. 1,25). Disattivato: valori arrotondati all'intero; i danni reali restano esatti.",
+   "src": "4aa602b217e1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #81, relu)",
+   "at": "2026-11-05T18:57:12.241Z"
+  },
+  "settings.precise_label": {
+   "text": "Mostra i valori precisi",
+   "src": "7e626baf54fd",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #81, relu)",
+   "at": "2026-11-05T18:57:12.241Z"
   },
   "settings.title": {
    "text": "Impostazioni",
