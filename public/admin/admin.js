@@ -8573,11 +8573,14 @@ function betaInviteKeepMsg(effect) {
     ok: 'Abandonner le texte', cancel: 'Revenir au message',
   });
 }
-admDialogSetup('beta-invite-dialog', {
-  dirty: () => _betaInviteMsg === null ? document.getElementById('beta-invite-dialog')._admTrack.dirty() : betaInviteMsgEdited(),
-  canClose: async () => _betaInviteMsg !== null ? betaInviteKeepMsg('ferme la fiche.')
-    : !document.getElementById('beta-invite-dialog')._admDirty() || admConfirmDiscard({ keep: 'Créer le lien' }),
-});
+function betaInviteDirty() {
+  return _betaInviteMsg === null ? document.getElementById('beta-invite-dialog')._admTrack.dirty() : betaInviteMsgEdited();
+}
+async function betaInviteCanClose() {
+  if (_betaInviteMsg !== null) return betaInviteKeepMsg('ferme la fiche.');
+  return !betaInviteDirty() || admConfirmDiscard({ keep: 'Créer le lien' });
+}
+admDialogSetup('beta-invite-dialog', { dirty: betaInviteDirty, canClose: betaInviteCanClose });
 
 function betaInviteReset() {
   _betaInviteMsg = null;
