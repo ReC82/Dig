@@ -1368,6 +1368,8 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .pd-more { margin: 0 0 8px; font-size: 0.85rem; }
 .pd-more > summary { cursor: pointer; color: var(--gold); }
 .pd-more > p { margin: 6px 0; font-size: 0.82rem; }
+.tr-dec > summary { cursor: pointer; color: var(--gold); white-space: nowrap; }
+.tr-dec > ul { margin: 4px 0 0; padding-left: 16px; text-align: left; white-space: nowrap; }
 .tr-changes { font-size: 0.85rem; margin: 4px 0 10px; }
 /* Pagination commune des tableaux longs. */
 .adm-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin: 8px 0; font-size: 0.82rem; }
@@ -1383,6 +1385,7 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
   .adm-rtable td:first-child { font-weight: 600; }
   .adm-rtable td:empty { display: none; }
   .adm-rtable td .btn-ghost { min-height: 40px; }
+  .adm-rtable .tr-dec > summary, .adm-rtable .tr-dec > ul { white-space: normal; overflow-wrap: anywhere; }
 }
 /* Fenêtres : boutons de confirmation en pied fixe (la fenêtre défile, le pied reste visible). Les fiches
    à structure propre (.nw-dialog, pied .bk-sheet-actions) ne sont pas concernées. */

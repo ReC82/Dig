@@ -2509,7 +2509,24 @@ const trNum = v => (v === null || v === undefined ? '—' : Number(v).toLocaleSt
 function trDecisions(st) {
   const parts = Object.entries(st.serverDecisions ?? {}).filter(([k]) => !k.startsWith('admin_')).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`);
   const ac = Object.entries(st.anticheatActions ?? {}).map(([k, n]) => `autoclic ${k} ×${n}`);
-  return [...parts, ...ac].join(', ') || 'aucune';
+  return [...parts, ...ac];
+}
+/** Décisions serveur d'un essai (#76) : la plus fréquente visible, la liste complète dépliable, une par ligne. */
+function trDecisionsCell(tr, st) {
+  const all = trDecisions(st);
+  const td = addCell(tr, all.length < 2 ? (all[0] ?? 'aucune') : '');
+  td.style.fontSize = '0.8rem';
+  if (all.length < 2) return;
+  td.title = all.join(', ');
+  const det = document.createElement('details');
+  det.className = 'tr-dec';
+  const sum = document.createElement('summary');
+  sum.textContent = `${all[0]} +${all.length - 1}`;
+  sum.title = 'Afficher toutes les décisions de cet essai';
+  const ul = document.createElement('ul');
+  for (const d of all) { const li = document.createElement('li'); li.textContent = d; ul.appendChild(li); }
+  det.append(sum, ul);
+  td.appendChild(det);
 }
 
 function trRow(tbody, label, run, st, endLabel) {
@@ -2526,7 +2543,7 @@ function trRow(tbody, label, run, st, endLabel) {
   addCell(tr, `${trNum(st.autodigLevelEnd)} / ${st.autodigLevelMaxSeen === null || st.autodigLevelMaxSeen === undefined ? 'non journalisé' : trNum(st.autodigLevelMaxSeen)}`);
   addCell(tr, `${trNum(st.coins)} / ${trNum(st.gems)}`);
   addCell(tr, `${st.riskScore ?? 0} (niv. ${st.riskLevel ?? 0})`);
-  addCell(tr, trDecisions(st)).style.fontSize = '0.8rem';
+  trDecisionsCell(tr, st);
   if (run) addButtonCell(tr, 'Restaurer…', e => trOpenRestore(run, e.currentTarget));
   else addCell(tr, '');
   tbody.appendChild(tr);
