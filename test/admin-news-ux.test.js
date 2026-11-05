@@ -98,10 +98,12 @@ test('onglet principal retenu après F5 (recette #50-F) : fragment d’URL, sans
   assert.match(fn('admRememberTab'), /history\.replaceState\(/);
   assert.doesNotMatch(JS, /history\.pushState\(/);
   const r = fn('admRestoreTab');
-  assert.match(r, /admTabBtn\(location\.hash\.slice\(1\)\)/);
+  assert.match(r, /const \[id, sub\] = location\.hash\.slice\(1\)\.split\('\/'\);/);   // #rubrique ou #rubrique/sous-rubrique (#70)
+  assert.match(r, /const btn = admTabBtn\(id\);/);
+  assert.doesNotMatch(r, /api\(|\.submit\(/);   // #a/<action> n'amène qu'au bon endroit (admNavRun, voir admin-nav.test.js)
   assert.match(JS, /const admTabBtn = id => id && \/\^\[a-z-\]\+\$\/\.test\(id\)/);   // fragment arbitraire jamais injecté dans un sélecteur
   assert.match(fn('adminShowApp'), /admRestoreTab\(\);/);
-  assert.match(JS, /addEventListener\('click', \(\) => \{\n    admRememberTab\(btn\.dataset\.tab\);/);
+  assert.match(JS, /admNavMark\(t\.id\);\n    admSubShow\(t\.id\);\n    admRememberTab\(t\.id\);/);
   // un changement de fragment ne quitte jamais une fiche ouverte
   assert.match(JS, /addEventListener\('hashchange', \(\) => \{\n  if \(document\.querySelector\('dialog\[open\]'\)/);
 });

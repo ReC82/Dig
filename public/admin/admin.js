@@ -519,6 +519,7 @@ document.getElementById('logout-all-btn').addEventListener('click', async () => 
 // - available : condition de disponibilité (rubrique masquée du menu ET des liens directs si elle renvoie false).
 // Choix de regroupement documentés dans docs/claude-reports/2026-11-04_ticket-70-navigation-admin.md.
 const ADM_NAV_GROUPS = [
+  { id: 'players',     icon: '👥', label: 'Joueurs & testeurs' },
   { id: 'game',        icon: '⛏', label: 'Jeu & progression' },
   { id: 'competition', icon: '🏆', label: 'Saisons & compétition' },
   { id: 'content',     icon: '📰', label: 'Contenu & événements' },
@@ -526,13 +527,22 @@ const ADM_NAV_GROUPS = [
   { id: 'ops',         icon: '🛠', label: 'Exploitation & paramètres' },
 ];
 const ADM_NAV = [
+  { id: 'players',         group: 'players',     order: 10, icon: '👤', label: 'Joueurs',                  keywords: 'gestion joueur pseudo fiche recherche debug essais test reset réinitialiser progression sauvegarde' },
+  { id: 'security',        group: 'players',     order: 20, icon: '🛡', label: 'Anti-bot',                 keywords: 'sécurité triche autoclic sanctions risque',     load: () => loadSecurity() },
+  { id: 'beta',            group: 'players',     order: 30, icon: '🧪', label: 'Bêta fermée',              keywords: 'invitations testeurs retours',                  load: () => loadBeta() },
   { id: 'blocks',          group: 'game',        order: 10, icon: '🧱', label: 'Blocs',                    keywords: 'catalogue minerais matériaux ia',               load: () => { loadBlocks(); loadAi(); } },
   { id: 'rewards',         group: 'game',        order: 20, icon: '🎲', label: 'Coffres & drops',          keywords: 'récompenses tables butin loot',                 load: () => loadRewards() },
   { id: 'upgrades',        group: 'game',        order: 30, icon: '⬆', label: 'Améliorations',            keywords: 'niveaux barème suspension urgence',             load: () => loadUpgrades() },
   { id: 'pickaxe',         group: 'game',        order: 35, icon: '🔋', label: 'Pioche à charges',         keywords: 'réserve coups charges recharge usure durabilité drapeau testeurs', load: () => loadPickaxe() },
   { id: 'relics',          group: 'game',        order: 40, icon: '🔮', label: 'Reliques',                 keywords: 'effets coûts',                                  load: () => loadRelics() },
   { id: 'missions',        group: 'game',        order: 50, icon: '🎯', label: 'Missions quotidiennes',    keywords: 'quêtes journalières',                           load: () => loadMissions() },
-  { id: 'economy',         group: 'game',        order: 60, icon: '💰', label: 'Économie & joueurs',       keywords: 'gemmes registre joueur fiche règles boutique de gemmes', load: () => { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); } },
+  { id: 'economy',         group: 'game',        order: 60, icon: '💰', label: 'Économie',                 keywords: 'gemmes barèmes',                                load: () => { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); },
+    subs: [
+      { id: 'gains',   label: 'Gains & coûts des coffres', keywords: 'multiplicateurs pièces fragments prix coffres' },
+      { id: 'ledger',  label: 'Registre de gemmes',        keywords: 'soldes référence anomalies mode' },
+      { id: 'rules',   label: 'Règles économiques',        keywords: 'barème plafond auto-dig courbe simulation publication versions' },
+      { id: 'gemshop', label: 'Boutique en gemmes',        keywords: 'articles prix ouverture' },
+    ] },
   { id: 'season-overview', group: 'competition', order: 10, icon: '📊', label: 'Saison en cours',          keywords: 'ligues & saisons pilotage thèmes date de fin zone critique anti-autoclicker journal', load: () => { loadSeasonOverview(); loadAntiCheatLogs(); } },
   { id: 'seasons',         group: 'competition', order: 20, icon: '🗓', label: 'Historique des saisons',   keywords: 'saisons liste' },
   { id: 'leagues',         group: 'competition', order: 30, icon: '🏅', label: 'Ligues',                   keywords: 'divisions' },
@@ -545,12 +555,41 @@ const ADM_NAV = [
   { id: 'collections',     group: 'content',     order: 30, icon: '📿', label: 'Collections',              keywords: 'objets séries fiches narratives',               load: () => loadCollections() },
   { id: 'badges',          group: 'content',     order: 40, icon: '🎖', label: 'Badges',                   keywords: 'succès honorifiques',                           load: () => loadBadges() },
   { id: 'icons',           group: 'visuals',     order: 10, icon: '🎨', label: 'Atelier d\'icônes',        keywords: 'images ia pictogrammes visuels coffres souvenirs', load: () => loadIcons() },
-  { id: 'beta',            group: 'ops',         order: 10, icon: '🧪', label: 'Bêta fermée',              keywords: 'invitations testeurs retours',                  load: () => loadBeta() },
-  { id: 'security',        group: 'ops',         order: 20, icon: '🛡', label: 'Anti-bot',                 keywords: 'sécurité triche autoclic sanctions',            load: () => loadSecurity() },
   { id: 'ads',             group: 'ops',         order: 30, icon: '📢', label: 'Publicité',                keywords: 'adsense annonces',                              load: () => loadAds() },
   { id: 'config',          group: 'ops',         order: 40, icon: '⚙', label: 'Configuration',            keywords: 'config réglages paramètres budget ia',          load: () => loadAiBudget() },
 ];
 const ADM_NAV_DEFAULT = 'seasons';   // rubrique affichée sans fragment d'URL (inchangée)
+
+// Actions courantes (recette du 05/11) : trouvées par la recherche du menu et listées dans le plan (🧭). Une action
+// NE FAIT QU'AMENER au bon endroit : ouvrir la rubrique (et sa sous-rubrique), déplier la section, placer le curseur
+// sur le champ ou le bouton (target). Elle ne clique jamais, ne publie, n'enregistre ni ne réinitialise rien.
+// player : l'endroit est dans la fiche d'un joueur → sans fiche ouverte, curseur sur la recherche de pseudo puis,
+// une fois le joueur choisi, la fiche s'ouvre directement sur cette section. Lien direct : #a/<id>.
+const ADM_NAV_ACTIONS = [
+  { id: 'find-player',    tab: 'players',  target: 'player-search-input',  label: 'Trouver un joueur (ouvrir sa fiche)',             keywords: 'pseudo chercher recherche debug joueur fiche gabpok', help: 'Tapez le pseudo et choisissez la suggestion : la fiche s\'ouvre sous la recherche.' },
+  { id: 'reset-test',     tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Recommencer un test à zéro (joueur)', keywords: 'reset réinitialiser rejouer essai remise à zéro tentative snapshot instantané', help: 'Fiche du joueur → 🧪 Essais de test → « Recommencer un test à zéro ». Confirmation avec motif et pseudo ; instantané archivé avant.' },
+  { id: 'export-tests',   tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Exporter l\'historique des essais d\'un joueur', keywords: 'csv json tentatives historique', help: 'Fiche du joueur → 🧪 Essais de test → « Exporter CSV » ou « Exporter JSON complet ».' },
+  { id: 'partial-reset',  tab: 'players',  target: 'pd-sec-partial', player: true, label: 'Réinitialisation saisonnière partielle (joueur)', keywords: 'reset sauvegarde seule saisonnier', help: 'Fiche du joueur → ⚠ Réinitialisation saisonnière partielle (sauvegarde seule, classement et anti-bot inchangés). Confirmation obligatoire.' },
+  { id: 'player-antibot', tab: 'security', target: 'sec-player-q',         label: 'Voir l\'anti-bot d\'un joueur',                  keywords: 'risque score triche contrôle sécurité fiche joueur', help: 'Pseudo ou #ID puis « Ouvrir la fiche » (lecture seule). Aussi : fiche Joueurs → 🛡 Anti-bot de ce joueur.' },
+  { id: 'sec-journal',    tab: 'security', target: 'sec-journal-card',     label: 'Consulter le journal de sécurité',               keywords: 'anomalies audit connexions admin', help: 'Filtres par type d\'événement et par période.' },
+  { id: 'invite',         tab: 'beta',     target: 'btn-beta-invite-open', label: 'Préparer une invitation bêta',                   keywords: 'inviter testeur code lien accès', help: 'Bouton « ➕ Inviter un testeur » : rien n\'est créé avant « Créer » dans la fiche.' },
+  { id: 'beta-feedback',  tab: 'beta',     target: 'beta-feedback-card',   label: 'Lire les retours des testeurs',                  keywords: 'feedback signalements bugs', help: 'Retours envoyés depuis le jeu par les testeurs.' },
+  { id: 'gains',          tab: 'economy',  sub: 'gains', target: 'eco-coin-gain', label: 'Modifier les gains (multiplicateurs)',     keywords: 'gain pièces fragments multiplicateur économie', help: 'Économie → Gains & coûts : saisir puis « Enregistrer les paramètres économiques ».' },
+  { id: 'chest-costs',    tab: 'economy',  sub: 'gains', target: 'eco-cost-simple', label: 'Changer le prix des coffres',           keywords: 'coût coffre simple rare antique', help: 'Économie → Gains & coûts → Coûts des coffres (vide = valeur par défaut).' },
+  { id: 'gem-ledger',     tab: 'economy',  sub: 'ledger', target: 'gem-ledger-card', label: 'Vérifier le registre de gemmes',       keywords: 'gemmes soldes écart', help: 'Économie → Registre de gemmes (lecture ; changer le mode demande une note).' },
+  { id: 'season-end',     tab: 'season-overview', target: 'season-end-card', label: 'Changer la date de fin de la saison',        keywords: 'prolonger avancer fin saison date', help: 'Saison en cours → « Date de fin de la saison active » (journalisé).' },
+  { id: 'season-close',   tab: 'season-overview', target: 'season-critical-card', label: 'Clore la saison (zone critique)',      keywords: 'terminer fermer saison', help: 'Saison en cours → Zone critique. Confirmation obligatoire.' },
+  { id: 'points-adjust',  tab: 'points',   target: 'pt-adjust-card',       label: 'Ajuster les points de récompense d\'un joueur',  keywords: 'corriger points mérite manuel', help: 'Ajustement motivé et tracé.' },
+  { id: 'contest-winners',tab: 'contest',  target: 'ct-winners-card',      label: 'Gagnants du concours et remise des lots',        keywords: 'tirage attribution lot remise', help: 'Concours → Gagnants et remise des lots.' },
+  { id: 'shop-orders',    tab: 'shop',     target: 'sh-orders-card',       label: 'Traiter les commandes de cadeaux',               keywords: 'commande expédition livraison', help: 'Boutique de cadeaux → Commandes.' },
+  { id: 'upgrade-suspend',tab: 'upgrades', target: 'up-ctl-card',          label: 'Suspendre une amélioration en urgence',          keywords: 'désactiver bloquer urgence', help: 'Améliorations → 🚨 Suspension d\'urgence (motif demandé).' },
+  { id: 'news-add',       tab: 'news',     target: 'btn-news-add',         label: 'Rédiger une actualité',                          keywords: 'annonce publier nouvelle', help: '« ＋ Ajouter » ouvre la fiche ; la publication se fait dans la fiche.' },
+  { id: 'event-add',      tab: 'events',   target: 'btn-ev-add',           label: 'Préparer un événement',                          keywords: 'mensuel calendrier', help: '« ＋ Ajouter » ouvre la fiche de l\'événement.' },
+  { id: 'block-add',      tab: 'blocks',   target: 'btn-bk-add',           label: 'Ajouter un bloc',                                keywords: 'minerai matériau nouveau', help: 'Le bloc entre dans le brouillon ; « Publier » le met en jeu.' },
+  { id: 'mission-add',    tab: 'missions', target: 'btn-mq-add',           label: 'Ajouter une mission quotidienne',                keywords: 'quête nouvelle', help: '« ＋ Ajouter une mission » ouvre la fiche.' },
+  { id: 'ai-budget',      tab: 'config',   target: 'ai-budget-card',       label: 'Voir les dépenses IA (budget)',                  keywords: 'openai coût plafond', help: 'Configuration → 🤖 Budget IA.' },
+  { id: 'antibot-mode',   tab: 'config',   target: 'config-rows',          label: 'Régler le mode anti-bot',                        keywords: 'off shadow observation protection', help: 'Configuration → 🛡 Protections (anti-triche) → Mode anti-bot.' },
+];
 const admNavItem = id => ADM_NAV.find(t => t.id === id && (!t.available || t.available())) ?? null;
 
 // Préférences d'affichage du menu (replié aux icônes, groupes fermés) : seul état gardé dans le navigateur, purement
@@ -563,6 +602,13 @@ function admNavPrefs() {
 function admNavSavePrefs(p) { try { localStorage.setItem(ADM_NAV_PREFS, JSON.stringify(p)); } catch { /* stockage indisponible : préférences non retenues */ } }
 
 const admNavFold = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const admNavSpan = (cls, txt) => {
+  const s = document.createElement('span');
+  s.className = cls;
+  s.textContent = txt;
+  if (cls !== 'nav-lbl') s.setAttribute('aria-hidden', 'true');
+  return s;
+};
 
 function admNavBuild() {
   const host = document.getElementById('nav-groups');
@@ -579,13 +625,7 @@ function admNavBuild() {
     head.className = 'nav-group-btn';
     head.setAttribute('aria-controls', `nav-g-${g.id}`);
     head.title = g.label;
-    for (const [cls, txt] of [['nav-ico', g.icon], ['nav-lbl', g.label], ['nav-flag hidden', '⚠'], ['nav-chev', '▾']]) {
-      const s = document.createElement('span');
-      s.className = cls;
-      s.textContent = txt;
-      if (cls !== 'nav-lbl') s.setAttribute('aria-hidden', 'true');
-      head.appendChild(s);
-    }
+    head.append(admNavSpan('nav-ico', g.icon), admNavSpan('nav-lbl', g.label), admNavSpan('nav-flag hidden', '⚠'), admNavSpan('nav-chev', '▾'));
     const list = document.createElement('div');
     list.className = 'nav-group-items';
     list.id = `nav-g-${g.id}`;
@@ -597,14 +637,9 @@ function admNavBuild() {
       btn.className = 'tab-btn';
       btn.dataset.tab = t.id;
       btn.title = t.label;
-      for (const [cls, txt] of [['nav-ico', t.icon], ['nav-lbl', t.label], ['nav-flag hidden', '⚠']]) {
-        const s = document.createElement('span');
-        s.className = cls;
-        s.textContent = txt;
-        if (cls !== 'nav-lbl') s.setAttribute('aria-hidden', 'true');
-        btn.appendChild(s);
-      }
+      btn.append(admNavSpan('nav-ico', t.icon), admNavSpan('nav-lbl', t.label), admNavSpan('nav-flag hidden', '⚠'));
       list.appendChild(btn);
+      if (t.subs) list.appendChild(admNavSubBar(t, 'nav-subs'));
     }
     head.addEventListener('click', () => {
       const open = head.getAttribute('aria-expanded') !== 'true';
@@ -617,7 +652,94 @@ function admNavBuild() {
     host.appendChild(wrap);
     admNavSetGroup(g.id, !prefs.closed.includes(g.id));
   }
+  // Sous-rubriques : même barre en tête de la rubrique (visible aussi sur smartphone, menu fermé).
+  for (const t of ADM_NAV) {
+    if (!t.subs) continue;
+    const sec = document.getElementById(`tab-${t.id}`);
+    const head = sec.querySelector(':scope > .section-header');
+    const bar = admNavSubBar(t, 'sub-nav');
+    if (head) head.after(bar); else sec.prepend(bar);
+  }
   admNavCollapse(prefs.collapsed);
+}
+
+/** Barre de sous-rubriques d'une rubrique (menu latéral : cls nav-subs ; en tête de page : cls sub-nav). */
+function admNavSubBar(t, cls) {
+  const bar = document.createElement('div');
+  bar.className = cls;
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', `Sous-rubriques : ${t.label}`);
+  for (const s of t.subs) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'nav-sub-btn';
+    b.dataset.subnav = t.id;
+    b.dataset.subid = s.id;
+    b.textContent = s.label;
+    b.addEventListener('click', () => {
+      admNavOpen(t.id, s.id);
+      if (cls === 'nav-subs' && admNavNarrow()) admNavMenu(false);
+    });
+    bar.appendChild(b);
+  }
+  return bar;
+}
+
+// Sous-rubrique affichée par rubrique (mémoire de la page) : les autres blocs [data-sub] sont seulement masqués, leurs
+// saisies restent en place (#61).
+const _admSub = {};
+function admSubShow(id, sub) {
+  const t = admNavItem(id);
+  if (!t?.subs) return;
+  const s = t.subs.find(x => x.id === sub) ?? t.subs.find(x => x.id === _admSub[id]) ?? t.subs[0];
+  _admSub[id] = s.id;
+  for (const el of document.querySelectorAll(`#tab-${id} [data-sub]`)) el.classList.toggle('sub-hidden', el.dataset.sub !== s.id);
+  for (const b of document.querySelectorAll(`.nav-sub-btn[data-subnav="${id}"]`)) {
+    const on = b.dataset.subid === s.id;
+    b.classList.toggle('active', on);
+    if (on) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
+  }
+  if (document.querySelector('.tab-btn.active')?.dataset.tab === id) admRememberTab(id);
+}
+
+/** Ouvre une rubrique (et sa sous-rubrique) comme un clic dans le menu. */
+function admNavOpen(id, sub) {
+  const btn = admTabBtn(id);
+  if (!btn) return false;
+  if (sub) _admSub[id] = sub;
+  if (!btn.classList.contains('active')) btn.click();
+  else admSubShow(id, sub);
+  return true;
+}
+
+let _pdPending = null;   // section de la fiche joueur à montrer dès qu'un joueur est choisi (action « player »)
+/** Amène à l'endroit d'une action (voir ADM_NAV_ACTIONS) : aucune action n'est déclenchée. */
+function admNavRun(a) {
+  if (!admNavOpen(a.tab, a.sub)) return;
+  const hint = document.getElementById('players-hint');
+  hint.classList.add('hidden');
+  let el = document.getElementById(a.target);
+  if (a.player && document.getElementById('player-detail-card').classList.contains('hidden')) {
+    _pdPending = a.target;
+    hint.textContent = `${a.label} : choisissez d'abord le joueur. ${a.help}`;
+    hint.classList.remove('hidden');
+    el = document.getElementById('player-search-input');
+  }
+  if (!el) return;
+  if (el.tagName === 'DETAILS') el.open = true;
+  admNavPoint(el);
+}
+
+/** Fait défiler jusqu'à l'élément, le signale brièvement et y place le focus (sans rien activer). */
+function admNavPoint(el) {
+  el.scrollIntoView({ block: 'center' });
+  el.classList.remove('adm-flash');
+  void el.offsetWidth;
+  el.classList.add('adm-flash');
+  setTimeout(() => el.classList.remove('adm-flash'), 1800);
+  const f = el.matches('input, select, textarea, button') ? el : el.tagName === 'DETAILS' ? el.querySelector('summary') : el;
+  if (f === el && !el.matches('input, select, textarea, button')) el.setAttribute('tabindex', '-1');
+  f.focus({ preventScroll: true });
 }
 
 function admNavSetGroup(id, open) {
@@ -662,6 +784,22 @@ function admNavFlag(id, text) {
   wrap.querySelector('.nav-group-btn').title = any.length ? `${ADM_NAV_GROUPS.find(g => g.id === wrap.dataset.group).label} — ${any.map(b => b.dataset.flag).join(' ; ')}` : ADM_NAV_GROUPS.find(g => g.id === wrap.dataset.group).label;
 }
 
+/**
+ * Résultats « actions » de la recherche : sous-rubriques puis actions courantes, chacune avec son chemin. Texte cherché :
+ * libellé, mots-clés, rubrique et groupe (sans accents).
+ */
+function admNavTargets() {
+  const out = [];
+  for (const t of ADM_NAV) {
+    if (!t.subs || !admNavItem(t.id)) continue;
+    for (const s of t.subs) out.push({ kind: 'sub', tab: t.id, sub: s.id, label: s.label, keywords: s.keywords, path: t.label });
+  }
+  for (const a of ADM_NAV_ACTIONS) if (admNavItem(a.tab)) out.push({ kind: 'action', ...a, path: admNavItem(a.tab).label });
+  return out;
+}
+const admNavHay = r => admNavFold(`${r.label} ${r.keywords ?? ''} ${r.path} ${ADM_NAV_GROUPS.find(g => g.id === admNavItem(r.tab).group).label}`);
+const admNavGoTarget = r => r.kind === 'sub' ? admNavOpen(r.tab, r.sub) : admNavRun(r);
+
 function admNavFilter(q) {
   const f = admNavFold(q.trim());
   let shown = 0;
@@ -670,7 +808,8 @@ function admNavFilter(q) {
     let n = 0;
     for (const btn of wrap.querySelectorAll('.tab-btn')) {
       const t = admNavItem(btn.dataset.tab);
-      const hit = !f || admNavFold(`${t.label} ${t.id} ${g.label} ${t.keywords ?? ''}`).includes(f);
+      const subs = (t.subs ?? []).map(s => `${s.label} ${s.keywords ?? ''}`).join(' ');
+      const hit = !f || admNavFold(`${t.label} ${t.id} ${g.label} ${t.keywords ?? ''} ${subs}`).includes(f);
       btn.classList.toggle('nav-miss', !hit);
       if (hit) n++;
     }
@@ -678,23 +817,47 @@ function admNavFilter(q) {
     wrap.classList.toggle('is-searching', !!f);
     shown += n;
   }
-  document.getElementById('nav-search-empty').classList.toggle('hidden', !f || shown > 0);
+  // Actions et sous-rubriques trouvées : en tête des résultats (Entrée ouvre la première).
+  const box = document.getElementById('nav-actions');
+  box.textContent = '';
+  const hits = f ? admNavTargets().filter(r => admNavHay(r).includes(f)).slice(0, 8) : [];
+  for (const r of hits) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'nav-act-btn';
+    b.append(admNavSpan('nav-ico', r.kind === 'sub' ? '↳' : '➜'), admNavSpan('nav-lbl', r.label), admNavSpan('nav-act-path', r.path));
+    b.title = r.help ? `${r.path} — ${r.help}` : r.path;
+    b.addEventListener('click', () => {
+      _navSearch.value = '';
+      admNavFilter('');
+      if (admNavNarrow()) admNavMenu(false);
+      admNavGoTarget(r);
+    });
+    box.appendChild(b);
+  }
+  box.classList.toggle('hidden', !hits.length);
+  document.getElementById('nav-search-empty').classList.toggle('hidden', !f || shown + hits.length > 0);
 }
 
-// Rubrique retenue après F5 (recette #50-F) : fragment d'URL (#news, lien direct possible). replaceState : aucune
-// entrée d'historique, le retour navigateur ne saute pas de rubrique en rubrique (et ne contourne donc pas les fiches
-// protégées). Restauration = simple affichage de la rubrique et de sa liste : aucune fiche rouverte, aucune action
-// relancée ; fragment inconnu ou rubrique indisponible → rubrique par défaut. Changer de rubrique ne perd aucune
-// saisie : les rubriques sont seulement masquées (formulaires de page conservés, #60/#61) et une fiche ouverte est
-// modale (menu inaccessible tant qu'elle n'est pas fermée, avec confirmation si elle est modifiée).
+// Rubrique retenue après F5 (recette #50-F) : fragment d'URL (#news, #economy/ledger : lien direct possible ; #a/<action>
+// amène à une action). replaceState : aucune entrée d'historique, le retour navigateur ne saute pas de rubrique en
+// rubrique (et ne contourne donc pas les fiches protégées). Restauration = simple affichage de la rubrique et de sa
+// liste : aucune fiche rouverte, aucune action relancée ; fragment inconnu ou rubrique indisponible → rubrique par
+// défaut. Changer de rubrique ne perd aucune saisie : les rubriques sont seulement masquées (formulaires de page
+// conservés, #60/#61) et une fiche ouverte est modale (menu inaccessible tant qu'elle n'est pas fermée, avec
+// confirmation si elle est modifiée).
 const admTabBtn = id => id && /^[a-z-]+$/.test(id) && admNavItem(id) ? document.querySelector(`.tab-btn[data-tab="${id}"]`) : null;
 function admRememberTab(id) {
-  if (location.hash.slice(1) !== id) history.replaceState(null, '', `${location.pathname}${location.search}#${id}`);
+  const sub = admNavItem(id)?.subs ? `/${_admSub[id] ?? admNavItem(id).subs[0].id}` : '';
+  if (location.hash.slice(1) !== `${id}${sub}`) history.replaceState(null, '', `${location.pathname}${location.search}#${id}${sub}`);
 }
 function admRestoreTab() {
-  const btn = admTabBtn(location.hash.slice(1));
-  if (btn && !btn.classList.contains('active')) btn.click();
-  else if (!btn) admNavMark(document.querySelector('.tab-btn.active')?.dataset.tab ?? ADM_NAV_DEFAULT);
+  const [id, sub] = location.hash.slice(1).split('/');
+  const act = id === 'a' && ADM_NAV_ACTIONS.find(a => a.id === sub && admNavItem(a.tab));
+  if (act) { admNavRun(act); return; }
+  const btn = admTabBtn(id);
+  if (btn) admNavOpen(id, sub);
+  else admNavMark(document.querySelector('.tab-btn.active')?.dataset.tab ?? ADM_NAV_DEFAULT);
 }
 window.addEventListener('hashchange', () => {
   if (document.querySelector('dialog[open]') || document.getElementById('admin-app').classList.contains('hidden')) return;
@@ -716,15 +879,17 @@ function admNavMark(id) {
 }
 
 admNavBuild();
+for (const t of ADM_NAV) if (t.subs) admSubShow(t.id);
 admNavMark(document.querySelector('.tab-content:not(.hidden)')?.id.slice(4) ?? ADM_NAV_DEFAULT);
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    admRememberTab(btn.dataset.tab);   // boutons construits depuis le registre : rubrique toujours disponible
-    const t = admNavItem(btn.dataset.tab);
+    const t = admNavItem(btn.dataset.tab);   // boutons construits depuis le registre : rubrique toujours disponible
     document.querySelectorAll('.tab-content').forEach(s => s.classList.add('hidden'));
     document.getElementById(`tab-${t.id}`).classList.remove('hidden');
     admNavMark(t.id);
+    admSubShow(t.id);
+    admRememberTab(t.id);
     if (admNavNarrow() && document.getElementById('admin-nav').classList.contains('is-open')) {
       admNavMenu(false);
       document.getElementById('admin-nav').scrollIntoView({ block: 'start' });
@@ -732,6 +897,74 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     t.load?.();
   });
 });
+
+// Plan du panel (🧭) : construit à chaque ouverture depuis les registres, donc toujours à jour. Liens = mêmes
+// destinations que le menu et la recherche (fragment d'URL copiable), jamais une action.
+admDialogSetup('nav-plan-dialog', { dirty: () => false });
+function admNavPlanLink(text, href, go, cls = 'nav-plan-link') {
+  const a = document.createElement('a');
+  a.className = cls;
+  a.href = href;
+  a.textContent = text;
+  a.addEventListener('click', e => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;   // nouvel onglet : lien direct
+    e.preventDefault();
+    const dlg = document.getElementById('nav-plan-dialog');
+    dlg._admOpener = null;
+    dlg.close();
+    if (admNavNarrow()) admNavMenu(false);
+    go();
+  });
+  return a;
+}
+function admNavPlanOpen(opener) {
+  const acts = document.getElementById('nav-plan-actions');
+  acts.textContent = '';
+  for (const a of ADM_NAV_ACTIONS) {
+    const t = admNavItem(a.tab);
+    if (!t) continue;
+    const row = document.createElement('div');
+    row.className = 'nav-plan-row';
+    const sub = a.sub ? ` › ${t.subs.find(s => s.id === a.sub).label}` : '';
+    const where = document.createElement('span');
+    where.className = 'nav-plan-where';
+    where.textContent = `${ADM_NAV_GROUPS.find(g => g.id === t.group).label} › ${t.icon} ${t.label}${sub}`;
+    const help = document.createElement('span');
+    help.className = 'nav-plan-help muted';
+    help.textContent = a.help;
+    row.append(admNavPlanLink(a.label, `#a/${a.id}`, () => admNavRun(a)), where, help);
+    acts.appendChild(row);
+  }
+  const tree = document.getElementById('nav-plan-tree');
+  tree.textContent = '';
+  for (const g of ADM_NAV_GROUPS) {
+    const items = ADM_NAV.filter(t => t.group === g.id && admNavItem(t.id)).sort((a, b) => a.order - b.order);
+    if (!items.length) continue;
+    const box = document.createElement('div');
+    box.className = 'nav-plan-group';
+    const h = document.createElement('strong');
+    h.textContent = `${g.icon} ${g.label}`;
+    const ul = document.createElement('ul');
+    for (const t of items) {
+      const li = document.createElement('li');
+      li.appendChild(admNavPlanLink(`${t.icon} ${t.label}`, `#${t.id}`, () => admNavOpen(t.id)));
+      if (t.subs) {
+        const sul = document.createElement('ul');
+        for (const s of t.subs) {
+          const sli = document.createElement('li');
+          sli.appendChild(admNavPlanLink(s.label, `#${t.id}/${s.id}`, () => admNavOpen(t.id, s.id)));
+          sul.appendChild(sli);
+        }
+        li.appendChild(sul);
+      }
+      ul.appendChild(li);
+    }
+    box.append(h, ul);
+    tree.appendChild(box);
+  }
+  admDialogOpen('nav-plan-dialog', opener, acts.querySelector('a'));
+}
+document.getElementById('nav-plan-btn').addEventListener('click', e => admNavPlanOpen(e.currentTarget));
 
 document.getElementById('nav-menu-btn').addEventListener('click', () => {
   admNavMenu(!document.getElementById('admin-nav').classList.contains('is-open'));
@@ -747,12 +980,15 @@ _navSearch.addEventListener('input', () => admNavFilter(_navSearch.value));
 _navSearch.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    const first = document.querySelector('.nav-group:not(.nav-miss) .tab-btn:not(.nav-miss)');
+    // premier résultat : action / sous-rubrique trouvée, sinon première rubrique
+    const first = document.querySelector('#nav-actions:not(.hidden) .nav-act-btn, .nav-group:not(.nav-miss) .tab-btn:not(.nav-miss)');
     if (!first || !_navSearch.value.trim()) return;
-    _navSearch.value = '';
-    admNavFilter('');
-    first.click();
-    first.focus();
+    if (first.classList.contains('tab-btn')) {
+      _navSearch.value = '';
+      admNavFilter('');
+      first.click();
+      first.focus();
+    } else first.click();
   } else if (e.key === 'Escape' && _navSearch.value) {
     e.preventDefault();
     e.stopPropagation();
@@ -768,7 +1004,7 @@ document.getElementById('admin-nav').addEventListener('keydown', e => {
     return;
   }
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-  const all = [_navSearch, ...document.querySelectorAll('.nav-group-btn, .tab-btn')].filter(b => b.offsetParent !== null);
+  const all = [_navSearch, ...document.querySelectorAll('#nav-plan-btn, .nav-act-btn, .nav-group-btn, .tab-btn, .nav-subs .nav-sub-btn')].filter(b => b.offsetParent !== null);
   const i = all.indexOf(document.activeElement);
   if (i < 0) return;
   e.preventDefault();
@@ -2103,7 +2339,7 @@ async function viewPlayerSave(userId, username) {
 
   document.getElementById('pd-username').textContent = `${username} (ID ${userId})`;
   const s = data.save;
-  if (!s) { card.classList.remove('hidden'); loadTestRuns(userId); return; }
+  if (!s) { card.classList.remove('hidden'); loadTestRuns(userId); pdReveal(card); return; }
 
   document.getElementById('pd-coins').textContent   = (s.coins ?? 0).toLocaleString();
   document.getElementById('pd-depth').textContent   = `${s.depth ?? 1} m`;
@@ -2130,9 +2366,28 @@ async function viewPlayerSave(userId, username) {
   document.getElementById('pr-confirm-name').textContent = username;
 
   card.classList.remove('hidden');
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
   loadTestRuns(userId);
+  pdReveal(card);
 }
+
+/** Montre la fiche ; action du menu en attente (ex. « Recommencer un test à zéro ») : directement sur sa section. */
+function pdReveal(card) {
+  const pending = _pdPending && document.getElementById(_pdPending);
+  _pdPending = null;
+  document.getElementById('players-hint').classList.add('hidden');
+  if (pending) { pending.open = true; admNavPoint(pending); }
+  else card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+document.getElementById('btn-pd-goto-tests').addEventListener('click', () => {
+  const sec = document.getElementById('pd-sec-tests');
+  sec.open = true;
+  admNavPoint(sec);
+});
+// Fiche anti-bot du même joueur (lecture seule, #25), ouverte par-dessus sans quitter la rubrique Joueurs.
+document.getElementById('btn-pd-antibot').addEventListener('click', e => {
+  if (_currentPlayerId != null) secOpenPlayer(String(_currentPlayerId), e.currentTarget);
+});
 
 document.getElementById('btn-close-player-detail').addEventListener('click', () => {
   document.getElementById('player-detail-card').classList.add('hidden');

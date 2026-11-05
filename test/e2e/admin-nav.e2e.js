@@ -45,7 +45,7 @@ const visibleSection = page => page.evaluate(() => [...document.querySelectorAll
       return { navW: Math.round(n.width), mainLeft: Math.round(m.left), mainW: Math.round(m.width), cols: new Set(btns.map(r => Math.round(r.left))).size,
         n: btns.length, groups: document.querySelectorAll('.nav-group').length, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     });
-    check(tag, 'menu latéral : une seule colonne, aucune ligne d\'onglets', nav.cols === 1 && nav.n >= 22 && nav.groups === 5, JSON.stringify(nav));
+    check(tag, 'menu latéral : une seule colonne, aucune ligne d\'onglets', nav.cols === 1 && nav.n >= 23 && nav.groups === 6, JSON.stringify(nav));
     check(tag, 'contenu à droite du menu, pas de défilement horizontal', nav.mainLeft >= nav.navW - 1 && nav.overflow <= 0);
     await page.screenshot({ path: `${OUT}/pc-1280-saisons.png` });
     for (const t of ['blocks', 'missions', 'news']) {
@@ -77,7 +77,7 @@ const visibleSection = page => page.evaluate(() => [...document.querySelectorAll
     const focused = await page.evaluate(() => document.activeElement.id);
     await page.keyboard.press('ArrowDown');
     const next = await page.evaluate(() => document.activeElement.className);
-    check(tag, 'clavier : « / » → recherche, ↓ → entrée suivante', focused === 'nav-search' && /nav-group-btn/.test(next), `${focused} ${next}`);
+    check(tag, 'clavier : « / » → recherche, ↓ → entrée suivante (plan)', focused === 'nav-search' && /nav-plan-btn/.test(next), `${focused} ${next}`);
     // saisie conservée en changeant de rubrique
     await page.click('.tab-btn[data-tab="config"]'); await page.waitForTimeout(700);
     const cfg = page.locator('.config-value').first();
@@ -108,6 +108,67 @@ const visibleSection = page => page.evaluate(() => [...document.querySelectorAll
     await page.click('.tab-btn[data-tab="events"]'); await page.waitForTimeout(400);
     check(tag, 'mode icônes : navigation fonctionnelle', (await visibleSection(page)).join() === 'tab-events');
     await page.click('#nav-collapse-btn');
+    // ── Recette du 05/11 : rubrique Joueurs, actions, sous-rubriques, plan ──
+    const posts = [];
+    page.on('request', r => { if (r.method() !== 'GET' && /\/api\/admin\/players\/\d+\/test-runs|reset/.test(r.url())) posts.push(r.url()); });
+    await page.fill('#nav-search', 'joueur');
+    const firstAct = await page.$$eval('#nav-actions .nav-act-btn', bs => bs.map(b => b.querySelector('.nav-lbl').textContent));
+    check(tag, 'recherche « joueur » : action « Trouver un joueur » en tête', /^Trouver un joueur/.test(firstAct[0] ?? ''), firstAct.join(' | '));
+    await page.fill('#nav-search', 'recommencer');
+    await page.screenshot({ path: `${OUT}/pc-1280-recherche-action.png` });
+    await page.keyboard.press('Enter'); await page.waitForTimeout(500);
+    check(tag, '« recommencer » + Entrée → rubrique Joueurs, curseur sur le pseudo, aide affichée',
+      (await visibleSection(page)).join() === 'tab-players' && await page.evaluate(() => document.activeElement.id) === 'player-search-input'
+      && await page.isVisible('#players-hint') && page.url().endsWith('#players'));
+    const top = await page.evaluate(() => Math.round(document.getElementById('player-search-input').getBoundingClientRect().top));
+    check(tag, 'recherche du pseudo visible en haut de la rubrique (sans défiler)', top > 0 && top < 400, `${top}px`);
+    await page.keyboard.type(process.env.PLAYER || 'navjoueur');
+    await page.waitForSelector('#player-search-suggest li[role="option"]', { timeout: 4000 });
+    await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(900);
+    const pd = await page.evaluate(() => ({ open: document.getElementById('pd-sec-tests').open, focus: document.activeElement.closest('#pd-sec-tests') !== null,
+      btn: !!document.getElementById('btn-tr-reset').offsetParent, dlg: document.getElementById('tr-dialog').open, partial: document.getElementById('pd-sec-partial').open,
+      hint: document.getElementById('players-hint').classList.contains('hidden') }));
+    check(tag, 'joueur choisi → fiche ouverte directement sur « Essais de test », bouton visible, rien déclenché',
+      pd.open && pd.focus && pd.btn && !pd.dlg && !pd.partial && pd.hint && !posts.length, JSON.stringify(pd) + posts.join());
+    await page.screenshot({ path: `${OUT}/pc-1280-joueur-essais.png` });
+    await page.click('#btn-pd-antibot'); await page.waitForTimeout(700);
+    check(tag, 'fiche joueur → 🛡 Anti-bot de ce joueur : fiche anti-bot ouverte par-dessus', await page.evaluate(() => document.getElementById('sec-player-dialog').open && /Fiche joueur — /.test(document.getElementById('sec-player-title').textContent)));
+    await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+    check(tag, 'fermeture : retour sur la rubrique Joueurs', (await visibleSection(page)).join() === 'tab-players' && !(await page.evaluate(() => document.getElementById('sec-player-dialog').open)));
+    // sous-rubriques Économie : lien direct, F5, saisie conservée
+    await page.goto(`${BASE}/admin/#economy/ledger`); await page.reload(); await page.waitForSelector('#admin-app:not(.hidden)'); await page.waitForTimeout(700);
+    const subVis = () => page.evaluate(() => [...document.querySelectorAll('#tab-economy [data-sub]')].filter(e => e.offsetParent).map(e => e.dataset.sub));
+    const sv = await subVis();
+    check(tag, 'lien direct #economy/ledger : seul le registre de gemmes affiché, sous-menu actif', new Set(sv).size === 1 && sv[0] === 'ledger'
+      && await page.getAttribute('.nav-subs .nav-sub-btn[aria-current="true"]', 'data-subid') === 'ledger' && await page.getAttribute('.sub-nav .nav-sub-btn[aria-current="true"]', 'data-subid') === 'ledger');
+    await page.screenshot({ path: `${OUT}/pc-1280-economie-registre.png` });
+    await page.click('.sub-nav .nav-sub-btn[data-subid="gains"]'); await page.waitForTimeout(200);
+    await page.fill('#eco-coin-gain', '1.3');
+    await page.click('.nav-subs .nav-sub-btn[data-subid="rules"]'); await page.waitForTimeout(200);
+    const urlRules = page.url();
+    await page.click('.tab-btn[data-tab="blocks"]'); await page.waitForTimeout(400);
+    await page.click('.tab-btn[data-tab="economy"]'); await page.waitForTimeout(600);
+    const back = await subVis();
+    await page.click('.sub-nav .nav-sub-btn[data-subid="gains"]'); await page.waitForTimeout(200);
+    check(tag, 'sous-rubrique retenue, URL #economy/rules, saisie « gains » conservée', urlRules.endsWith('#economy/rules') && back[0] === 'rules' && await page.inputValue('#eco-coin-gain') === '1.3', `${urlRules} ${back}`);
+    await page.fill('#eco-coin-gain', '1.0');
+    // plan
+    await page.click('#nav-plan-btn'); await page.waitForTimeout(300);
+    const plan = await page.evaluate(() => ({ open: document.getElementById('nav-plan-dialog').open, acts: document.querySelectorAll('#nav-plan-actions .nav-plan-link').length,
+      tree: document.querySelectorAll('#nav-plan-tree .nav-plan-link').length, tabs: document.querySelectorAll('.tab-btn').length }));
+    check(tag, 'plan : toutes les actions et toutes les rubriques (+ sous-rubriques)', plan.open && plan.acts >= 20 && plan.tree >= plan.tabs + 4, JSON.stringify(plan));
+    await page.screenshot({ path: `${OUT}/pc-1280-plan.png` });
+    await page.click('#nav-plan-actions .nav-plan-link[href="#a/gains"]'); await page.waitForTimeout(600);
+    check(tag, 'plan → « Modifier les gains » : Économie › Gains, curseur sur le multiplicateur, plan fermé',
+      !(await page.evaluate(() => document.getElementById('nav-plan-dialog').open)) && (await visibleSection(page)).join() === 'tab-economy'
+      && await page.evaluate(() => document.activeElement.id) === 'eco-coin-gain');
+    // lien direct ouvert dans un nouvel onglet (chargement complet, session admin conservée)
+    const p2 = await ctx.newPage();
+    p2.on('pageerror', e => errors.push(`${tag}: ${e.message}`));
+    await p2.goto(`${BASE}/admin/#a/invite`); await p2.waitForSelector('#admin-app:not(.hidden)'); await p2.waitForTimeout(700);
+    check(tag, 'lien direct #a/invite (nouvel onglet) : Bêta fermée, focus sur « Inviter un testeur », aucune fiche ouverte, URL #beta',
+      (await visibleSection(p2)).join() === 'tab-beta' && await p2.evaluate(() => document.activeElement.id) === 'btn-beta-invite-open' && !(await p2.$('dialog[open]')) && p2.url().endsWith('#beta'));
+    await p2.close();
     // lien direct + ancien lien
     await page.goto(`${BASE}/admin/#season-overview`); await page.waitForSelector('#admin-app:not(.hidden)'); await page.waitForTimeout(500);
     check(tag, 'lien direct #season-overview (ancien « Ligues & Saisons ») → « Saison en cours »',
@@ -154,6 +215,21 @@ const visibleSection = page => page.evaluate(() => [...document.querySelectorAll
     const sticky = await page.evaluate(() => [Math.round(document.getElementById('admin-nav').getBoundingClientRect().top), Math.round(scrollY)]);
     check(tag, 'barre « Rubriques » accessible après défilement', sticky[0] === 0 && sticky[1] > 100, String(sticky));
     await page.screenshot({ path: `${OUT}/mobile-390-defilement.png` });
+    // recherche d'action et plan sur smartphone
+    await page.click('#nav-menu-btn'); await page.waitForTimeout(150);
+    await page.fill('#nav-search', 'reset');
+    await page.tap('#nav-actions .nav-act-btn'); await page.waitForTimeout(500);
+    check(tag, 'recherche « reset » → action : rubrique Joueurs, menu refermé', (await visibleSection(page)).join() === 'tab-players' && await page.getAttribute('#nav-menu-btn', 'aria-expanded') === 'false');
+    await page.screenshot({ path: `${OUT}/mobile-390-joueurs.png` });
+    await page.click('#nav-menu-btn'); await page.waitForTimeout(150);
+    await page.tap('#nav-plan-btn'); await page.waitForTimeout(300);
+    const mplan = await page.evaluate(() => { const r = document.getElementById('nav-plan-dialog').getBoundingClientRect(); return { open: document.getElementById('nav-plan-dialog').open, w: Math.round(r.width), right: Math.round(r.right), vw: document.documentElement.clientWidth }; });
+    check(tag, 'plan lisible sur smartphone (dans l\'écran)', mplan.open && mplan.right <= mplan.vw, JSON.stringify(mplan));
+    await page.screenshot({ path: `${OUT}/mobile-390-plan.png` });
+    await page.tap('#nav-plan-tree .nav-plan-link[href="#economy/gemshop"]'); await page.waitForTimeout(600);
+    const msub = await page.evaluate(() => ({ s: [...document.querySelectorAll('#tab-economy [data-sub]')].filter(e => e.offsetParent).map(e => e.dataset.sub), bar: !!document.querySelector('.sub-nav').offsetParent, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+    check(tag, 'plan → Boutique en gemmes : sous-rubrique seule, barre de sous-rubriques en page, sans débordement', msub.s.every(x => x === 'gemshop') && msub.bar && msub.over <= 0, JSON.stringify(msub));
+    await page.screenshot({ path: `${OUT}/mobile-390-economie.png` });
     await admOpenTab(page, 'news'); await page.waitForTimeout(400);
     await page.goto(`${BASE}/`); await page.goBack(); await page.waitForSelector('#admin-app:not(.hidden)'); await page.waitForTimeout(500);
     check(tag, 'retour navigateur : rubrique retrouvée', (await visibleSection(page)).join() === 'tab-news');
