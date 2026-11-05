@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 690/690 textes. Absents → français. */
+/* Italian (preview) : 728/728 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -441,6 +441,46 @@ I18n.registerLocale("it", {
   "relic_upgraded": "{name} livello {n}!",
   "save_conflict": "Progressi aggiornati dal server (altro dispositivo o intervento admin).",
   "skin_activated": "Skin attivata!"
+ },
+ "pickaxe": {
+  "blunt": "🪫 Piccone spuntato: 1 danno per colpo — bonus di nuovo attivi tra {time}",
+  "bought_refill": "+{add} colpi ricaricati.",
+  "bought_tree": "Miglioramento acquistato: {name}.",
+  "btn_coins": "Ricarica — {cost} 🪙",
+  "btn_gems": "Migliora — {price} 💎",
+  "btn_refill": "Ricarica",
+  "cap_desc": "{now} → {next} colpi",
+  "cap_name": "Capacità della riserva",
+  "cap_value": "{n} colpi",
+  "confirm_after": "Dopo l’acquisto",
+  "confirm_back": "Annulla",
+  "confirm_balance": "Gemme rimanenti",
+  "confirm_before": "Ora",
+  "confirm_note": "Acquisto definitivo con gemme, conservato da una stagione all’altra e su tutti i tuoi dispositivi.",
+  "confirm_ok": "Acquista",
+  "confirm_price": "Prezzo",
+  "confirm_title": "Miglioramento permanente",
+  "emptied_toast": "Riserva di colpi vuota: il piccone è spuntato (1 danno per colpo). I suoi bonus tornano a {n} colpi, tra {time}.",
+  "gauge": "⛏ Riserva: {n} / {cap} colpi · +1 ogni {sec} s",
+  "gauge_full": "⛏ Riserva piena: {cap} colpi",
+  "level": "Livello {n} / {max}",
+  "maxed": "Livello massimo",
+  "not_enough_coins": "{cost} 🪙 (non bastano)",
+  "not_enough_gems": "{price} 💎 (non bastano)",
+  "refill_desc": "+{add} colpi per {cost} monete",
+  "refill_full": "Riserva piena",
+  "refill_name": "Ricarica +{pct}%",
+  "resumed_toast": "Piccone affilato: i suoi bonus sono tornati.",
+  "seconds": "{n} s",
+  "shop_intro": "Ogni colpo a piena potenza consuma 1 carica. La riserva si ricarica da sola, anche offline. A riserva vuota continui a scavare, con 1 danno per colpo. L’Auto-Dig non è interessato.",
+  "shop_permanent": "Miglioramenti permanenti (gemme)",
+  "shop_refills": "Ricariche immediate (monete)",
+  "shop_section": "⛏ Piccone e manutenzione",
+  "shop_status": "Riserva: {n} / {cap} colpi · piena tra {time}",
+  "shop_status_full": "Riserva piena: {cap} colpi",
+  "speed_desc": "1 colpo / {now} s → 1 colpo / {next} s",
+  "speed_name": "Velocità di ricarica",
+  "speed_value": "1 colpo ogni {sec} s"
  },
  "points": {
   "balance": "Saldo:",

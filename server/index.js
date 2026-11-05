@@ -101,6 +101,7 @@ const rewardPoints = require('./rewardPoints');
 const gemLedger = require('./gemLedger');
 const economyRules = require('./economyRules');
 const gemShop = require('./gemShop');
+const pickaxeCharges = require('./pickaxeCharges');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
 const rewardTables = require('./rewardTables');
@@ -547,6 +548,9 @@ app.post('/api/me/save', limit.save, (req, res) => {
     catch (err) { console.error('[POST /api/me/save] collection', err.message); }
     // Registre de gemmes (#49) : observation après validation des blocs (badges) ; sauvegarde jamais modifiée.
     // `gems` n'est renvoyé qu'en mode `enforce` (activation réservée au propriétaire).
+    // Pioche à charges (#71) : contrôle anti-fraude en observation (temps serveur), sauvegarde jamais modifiée
+    try { pickaxeCharges.observeSave(req.session.userId, data, { revision: version }); }
+    catch (err) { console.error('[POST /api/me/save] pioche', err.message); }
     let gemsAuthoritative = null;
     try { if (gemLedger.observeSave(req.session.userId, data, { revision: version })) gemsAuthoritative = gemLedger.authoritativeBalance(req.session.userId); }
     catch (err) { console.error('[POST /api/me/save] gemmes', err.message); }
@@ -745,6 +749,22 @@ function adsRoute(label, fn) {
     }
   };
 }
+
+function pickaxeRoute(label, fn) {
+  return (req, res) => {
+    try { res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof pickaxeCharges.PickaxeError) return res.status(err.status).json({ error: err.message });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+
+// Pioche à charges (#71) : configuration effective pour ce joueur ({ enabled: false } tant que le drapeau est OFF).
+app.get('/api/pickaxe/config', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  pickaxeRoute('GET /api/pickaxe/config', r => pickaxeCharges.publicConfig(r.session.userId ?? null))(req, res);
+});
 
 // Configuration lue par le jeu : emplacements actifs pour CE domaine (jamais de clé de régie).
 app.get('/api/ads/config', (req, res) => {
@@ -1749,6 +1769,12 @@ app.delete('/api/admin/leagues/:id', requireAdmin, (req, res) => {
 });
 
 // Publicité (#45) : réglages, emplacements, état effectif par domaine, cadres servis.
+app.get('/api/admin/pickaxe', requireAdmin, pickaxeRoute('GET /api/admin/pickaxe', () => pickaxeCharges.adminSummary()));
+app.put('/api/admin/pickaxe/settings', requireAdmin, pickaxeRoute('PUT /api/admin/pickaxe/settings', req => {
+  const { note, ...patch } = req.body ?? {};
+  const r = pickaxeCharges.saveSettings(patch, { note });
+  return { changed: r.changed, ...pickaxeCharges.adminSummary() };
+}));
 app.get('/api/admin/ads', requireAdmin, adsRoute('GET /api/admin/ads', req => ads.adminView(req.hostname)));
 app.put('/api/admin/ads/settings', requireAdmin, adsRoute('PUT /api/admin/ads/settings', req => {
   ads.updateSettings(req.body || {});
@@ -2444,6 +2470,7 @@ xLink.init();                    // compte X lié, historique, demandes de réco
 gemLedger.init();                // registre de gemmes de référence, désactivé par défaut (#49)
 economyRules.init();             // règles économiques v1 = valeurs en vigueur, barème A en brouillon (#49)
 gemShop.init();                  // boutique en gemmes, fermée par défaut (#49)
+pickaxeCharges.init();           // pioche à charges : réglages, drapeau OFF par défaut, écarts observés (#71)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)
 badgeAi.init();                  // propositions de badges assistées par IA (#38)
 news.init();                     // centre d'actualités : annonces, lu par compte, IA, faits joueurs (#50)

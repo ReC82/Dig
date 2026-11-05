@@ -2573,6 +2573,272 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "pickaxe.blunt": {
+   "text": "🪫 Piccone spuntato: 1 danno per colpo — bonus di nuovo attivi tra {time}",
+   "src": "b2a45fa2a210",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.bought_refill": {
+   "text": "+{add} colpi ricaricati.",
+   "src": "e4ef7c66ccd4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.bought_tree": {
+   "text": "Miglioramento acquistato: {name}.",
+   "src": "7068c2b6f385",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.btn_coins": {
+   "text": "Ricarica — {cost} 🪙",
+   "src": "f6adbd09f9f5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.btn_gems": {
+   "text": "Migliora — {price} 💎",
+   "src": "489bd582370f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.btn_refill": {
+   "text": "Ricarica",
+   "src": "a31e80e667e9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.cap_desc": {
+   "text": "{now} → {next} colpi",
+   "src": "35cd23a85950",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.cap_name": {
+   "text": "Capacità della riserva",
+   "src": "b17b1dfb42a2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.cap_value": {
+   "text": "{n} colpi",
+   "src": "63a5bc6ba2fb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_after": {
+   "text": "Dopo l’acquisto",
+   "src": "20e2540d4d57",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_back": {
+   "text": "Annulla",
+   "src": "af12de10a27c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_balance": {
+   "text": "Gemme rimanenti",
+   "src": "48a5d15d514a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_before": {
+   "text": "Ora",
+   "src": "1f1f6c1851fb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_note": {
+   "text": "Acquisto definitivo con gemme, conservato da una stagione all’altra e su tutti i tuoi dispositivi.",
+   "src": "1363342a2b10",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_ok": {
+   "text": "Acquista",
+   "src": "22e8e33b8fec",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_price": {
+   "text": "Prezzo",
+   "src": "f0a6c453a586",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.confirm_title": {
+   "text": "Miglioramento permanente",
+   "src": "428c6ddfe0ea",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.emptied_toast": {
+   "text": "Riserva di colpi vuota: il piccone è spuntato (1 danno per colpo). I suoi bonus tornano a {n} colpi, tra {time}.",
+   "src": "60051f495ac4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.gauge": {
+   "text": "⛏ Riserva: {n} / {cap} colpi · +1 ogni {sec} s",
+   "src": "89251813e224",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.gauge_full": {
+   "text": "⛏ Riserva piena: {cap} colpi",
+   "src": "aed054693732",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.level": {
+   "text": "Livello {n} / {max}",
+   "src": "4e49c081d36e",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.maxed": {
+   "text": "Livello massimo",
+   "src": "db31af891fb1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.not_enough_coins": {
+   "text": "{cost} 🪙 (non bastano)",
+   "src": "f3820a202528",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.not_enough_gems": {
+   "text": "{price} 💎 (non bastano)",
+   "src": "743211fa6e64",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.refill_desc": {
+   "text": "+{add} colpi per {cost} monete",
+   "src": "6bb496b0649a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.refill_full": {
+   "text": "Riserva piena",
+   "src": "8b2dab1f995f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.refill_name": {
+   "text": "Ricarica +{pct}%",
+   "src": "86063daf3d8f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.resumed_toast": {
+   "text": "Piccone affilato: i suoi bonus sono tornati.",
+   "src": "15e83ff61e6f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.seconds": {
+   "text": "{n} s",
+   "src": "c15cfcdf485f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.shop_intro": {
+   "text": "Ogni colpo a piena potenza consuma 1 carica. La riserva si ricarica da sola, anche offline. A riserva vuota continui a scavare, con 1 danno per colpo. L’Auto-Dig non è interessato.",
+   "src": "bef80b53602c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.shop_permanent": {
+   "text": "Miglioramenti permanenti (gemme)",
+   "src": "94c6ce6d8f4c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.shop_refills": {
+   "text": "Ricariche immediate (monete)",
+   "src": "75e4d1eac759",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.shop_section": {
+   "text": "⛏ Piccone e manutenzione",
+   "src": "719068363d74",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.shop_status": {
+   "text": "Riserva: {n} / {cap} colpi · piena tra {time}",
+   "src": "95c8bdd05199",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.shop_status_full": {
+   "text": "Riserva piena: {cap} colpi",
+   "src": "23903f33524f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.speed_desc": {
+   "text": "1 colpo / {now} s → 1 colpo / {next} s",
+   "src": "d36f6399a777",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.speed_name": {
+   "text": "Velocità di ricarica",
+   "src": "3d5af4beae09",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
+  "pickaxe.speed_value": {
+   "text": "1 colpo ogni {sec} s",
+   "src": "09e3399e5bab",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #71)",
+   "at": "2026-11-05T01:31:31.078Z"
+  },
   "points.balance": {
    "text": "Saldo:",
    "src": "eac226b34604",

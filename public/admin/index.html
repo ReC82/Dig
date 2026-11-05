@@ -2084,6 +2084,85 @@
     </dialog>
   </section>
 
+  <!-- Pioche à charges (#71) : drapeau (off / testeurs / tous), réglages journalisés, écarts anti-fraude observés -->
+  <section id="tab-pickaxe" class="tab-content hidden">
+    <div class="section-header">
+      <h2>🔋 Pioche à charges</h2>
+      <button class="btn btn-outline" id="btn-refresh-pickaxe" type="button">↻ Rafraîchir</button>
+    </div>
+    <p id="pk-banner" class="contest-banner"></p>
+    <p class="muted" style="font-size:0.8rem">Chaque coup manuel à pleine puissance consomme 1 charge ; à 0 la pioche est émoussée (1 dégât par coup, sans les bonus de la pioche)
+      jusqu'au seuil de reprise. Recharge continue, y compris hors ligne. Auto-Dig, bonus de pièces et Chance non concernés ; aucun blocage du minage.
+      Les valeurs par défaut sont des valeurs de départ <strong>prudentes non validées</strong> (simulation : rapport #71).</p>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Activation (drapeau)</h3>
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+        <label>Mode<select id="pk-mode" data-adm-noguard>
+          <option value="off">OFF — jeu inchangé pour tous</option>
+          <option value="testers">Testeurs seulement (comptes listés)</option>
+          <option value="on">Tous les joueurs</option>
+        </select></label>
+        <label>Testeurs (pseudos, séparés par des virgules)<input id="pk-testers" data-adm-noguard type="text" maxlength="1000" placeholder="ex. ReC82"></label>
+      </div>
+      <div class="form-actions">
+        <button class="btn" id="btn-pk-mode" type="button">Appliquer l'activation</button>
+      </div>
+      <p class="muted" style="font-size:0.78rem">OFF = arrêt d'urgence : effet chez les joueurs en moins d'une minute, réserve et niveaux achetés conservés (rien n'est effacé).</p>
+      <p id="pk-mode-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card" id="pk-settings-card">
+      <h3 class="overview-card-title">Réglages</h3>
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px">
+        <label>Capacité de base (coups)<input id="pk-capacity" type="number" min="10" max="1000000" step="1"></label>
+        <label>Recharge de base (secondes par coup)<input id="pk-regen" type="number" min="0.2" max="3600" step="0.1"></label>
+        <label>Seuil de reprise des bonus (% de la réserve)<input id="pk-threshold" type="number" min="0" max="50" step="1"></label>
+        <label>Prix d'une charge en pièces à 1 m (× 1 + 5 %/m)<input id="pk-coins" type="number" min="0" max="1000000" step="0.1"></label>
+      </div>
+      <div class="form-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:8px;margin-top:8px">
+        <label>Arbre capacité — multiplicateurs par niveau (niveau 0 = 1 ; séparés par « ; »)<input id="pk-cap-mult" type="text" maxlength="300"></label>
+        <label>Arbre capacité — prix en gemmes des niveaux 1, 2, …<input id="pk-cap-prices" type="text" maxlength="300"></label>
+        <label>Arbre vitesse — multiplicateurs de la durée de recharge (niveau 0 = 1)<input id="pk-speed-mult" type="text" maxlength="300"></label>
+        <label>Arbre vitesse — prix en gemmes des niveaux 1, 2, …<input id="pk-speed-prices" type="text" maxlength="300"></label>
+        <label>Recharges en pièces (% de la capacité, séparés par « ; »)<input id="pk-packs" type="text" maxlength="100"></label>
+      </div>
+      <div class="form-actions">
+        <label><input type="checkbox" id="pk-refill-enabled"> Recharges en pièces proposées</label>
+        <input id="pk-note" type="text" maxlength="300" placeholder="Note pour le journal (facultatif)">
+        <button class="btn" id="btn-pk-settings" type="button">Enregistrer les réglages</button>
+      </div>
+      <p id="pk-settings-msg" class="hidden"></p>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Aperçu des réglages enregistrés</h3>
+      <p id="pk-preview-summary" class="muted" style="font-size:0.8rem"></p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+        <div style="overflow-x:auto"><table><thead><tr><th>Niveau capacité</th><th>Coups</th><th>Prix 💎</th></tr></thead><tbody id="pk-prev-cap"></tbody></table></div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Niveau vitesse</th><th>s / coup</th><th>Prix 💎</th></tr></thead><tbody id="pk-prev-speed"></tbody></table></div>
+        <div style="overflow-x:auto"><table><thead><tr><th>Recharge</th><th>Coups ajoutés (réserve vide)</th><th>Prix à 100 m</th></tr></thead><tbody id="pk-prev-refill"></tbody></table></div>
+      </div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Écarts anti-fraude observés (50 derniers)</h3>
+      <p class="muted" style="font-size:0.78rem">Contrôle sur le temps du serveur à chaque sauvegarde : réserve au-dessus de la capacité, recharge trop rapide,
+        coups à pleine puissance au-delà des charges disponibles, niveau d'arbre hors barème. Observation seulement : aucune sauvegarde n'est modifiée, aucune sanction automatique.</p>
+      <div style="overflow-x:auto"><table><thead><tr><th>Date (UTC)</th><th>Joueur</th><th>Type</th><th>Écart</th><th>Détails</th></tr></thead><tbody id="pk-anomalies"></tbody></table></div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Joueurs observés</h3>
+      <div style="overflow-x:auto"><table><thead><tr><th>Joueur</th><th>Réserve</th><th>Niv. capacité</th><th>Niv. vitesse</th><th>Coups pleins (cumul)</th><th>Charges achetées</th><th>Dernière sauvegarde (UTC)</th></tr></thead><tbody id="pk-players"></tbody></table></div>
+    </div>
+
+    <div class="overview-card">
+      <h3 class="overview-card-title">Journal des réglages</h3>
+      <ul id="pk-audit" class="muted" style="font-size:0.78rem"></ul>
+    </div>
+  </section>
+
   <section id="tab-missions" class="tab-content hidden">
     <div class="section-header">
       <h2>🎯 Missions quotidiennes</h2>

@@ -110,6 +110,14 @@
           <div id="hp-bar"></div>
         </div>
         <div id="hp-text"></div>
+        <!-- Pioche à charges (#71) : affichée seulement si le serveur l'active pour ce joueur -->
+        <div id="pick-charges" class="pick-charges" hidden>
+          <div class="pick-charges-bar" aria-hidden="true"><div id="pick-charges-fill"></div></div>
+          <div class="pick-charges-row">
+            <span id="pick-charges-text"></span>
+            <button id="btn-pick-refill" type="button" class="pick-charges-btn" data-i18n="pickaxe.btn_refill">Recharger</button>
+          </div>
+        </div>
         <div id="block-reward"></div>
 
         <!-- Bonus ×2 (publicité simulée). Noms neutres : les bloqueurs masquent .ad-btn, #ad-… (#46) -->
@@ -362,6 +370,7 @@
   <script src="js/dailyMissions.js"></script>
   <script src="js/relics.js"></script>
   <script src="js/monetization.js"></script>
+  <script src="js/pickaxeCharges.js"></script>
   <script src="js/chests.js"></script>
   <script src="js/notifLog.js"></script>
   <script src="js/save.js"></script>

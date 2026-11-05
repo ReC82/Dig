@@ -3580,3 +3580,22 @@ body.has-ad-top.ad-top-collapsed header { padding-top: calc(14px + env(safe-area
 .hdr-ico-wrap .ui-ico { width: 30px; height: 30px; vertical-align: middle; }
 .upgrade-icon .ui-ico, .quest-icon .ui-ico, .mission-icon .ui-ico, .streak-icon .ui-ico { width: 1.35em; height: 1.35em; }
 .lb-rank .ui-ico { width: 1.4em; height: 1.4em; }
+
+/* ── Pioche à charges (#71) ─────────────────── */
+.pick-charges { width: 220px; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pick-charges[hidden] { display: none; }
+.pick-charges-bar { width: 170px; height: 6px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
+#pick-charges-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #0284c7, #38bdf8); border-radius: 3px; transition: width 0.2s ease; }
+.pick-charges.is-blunt #pick-charges-fill { background: linear-gradient(90deg, #6b7280, #9ca3af); }
+.pick-charges-row { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; font-size: 0.7rem; color: var(--muted); text-align: center; }
+.pick-charges.is-blunt .pick-charges-row { color: #fbbf24; }
+.pick-charges-btn { font: inherit; font-size: 0.68rem; padding: 2px 8px; min-height: 24px; border-radius: 10px; border: 1px solid rgba(56,189,248,0.45); background: transparent; color: #7dd3fc; cursor: pointer; }
+.pick-charges-btn[hidden] { display: none; }
+.pick-charges-btn:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.float-text.dmg-blunt { color: #9ca3af; }
+.pick-shop-intro { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px; margin-bottom: 10px; }
+.pick-shop-status { font-size: 0.8rem; font-weight: 700; color: #7dd3fc; margin: 0 0 4px; }
+.pick-shop-status.is-blunt { color: #fbbf24; }
+.pick-shop-help { font-size: 0.68rem; color: var(--muted); margin: 0; line-height: 1.4; }
+.pick-shop-sub { font-size: 0.7rem; color: var(--muted); margin: 12px 0 6px; font-weight: 700; }
+.pick-card .shop-btn { width: 100%; }

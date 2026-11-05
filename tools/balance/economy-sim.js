@@ -260,8 +260,10 @@ function relicValue(p, id) {
 }
 
 /** Nouveau joueur (ressources permanentes : gemmes plafonnées, fragments, reliques). */
-function newPlayer() {
-  return { gems: 0, frags: 0, relics: {}, quests: false, streak: 0, lastDay: -99, collected: {} };
+function newPlayer(o = {}) {
+  const ch = o.charges ? { capacity: o.charges.capacity, regenS: o.charges.regenS, threshold: o.charges.threshold ?? 0.1,
+    charges: o.charges.capacity, at: 0, depleted: false } : null;
+  return { gems: 0, frags: 0, relics: {}, quests: false, streak: 0, lastDay: -99, collected: {}, ch };
 }
 
 function newSeason(p) {
@@ -356,11 +358,44 @@ function setBoost(s, mult, seconds, now) {
 }
 
 /**
+ * Pioche à charges (#71), option `charges` d'un profil : { capacity, regenS, threshold }.
+ * Chaque coup manuel consomme 1 charge ; à 0, la pioche est « émoussée » : 1 dégât par coup, sans
+ * bonus (Œil du mineur compris), et les coups ne consomment plus rien jusqu'à ce que la réserve
+ * revienne à `threshold` × capacité (recharge continue, y compris hors ligne). L'Auto-Dig n'est
+ * pas concerné. Même règle que public/js/pickaxeCharges.js (vérifié par test).
+ * @returns {number} durée (s) pour casser le bloc
+ */
+function chargesRegen(c, t) {
+  if (t > c.at) { c.charges = Math.min(c.capacity, c.charges + (t - c.at) / c.regenS); c.at = t; }
+  if (c.depleted && c.charges >= Math.max(1, c.threshold * c.capacity)) c.depleted = false;
+}
+
+function breakWithCharges(c, m, hp, damage, autodig, cps, t0) {
+  const step = 1 / cps;
+  const auto = autodig / cps;
+  let rem = hp, tt = 0;
+  while (rem > 0) {
+    chargesRegen(c, t0 + tt);
+    const full = !c.depleted && c.charges >= 1;
+    if (full) {
+      c.charges -= 1;
+      if (c.charges < 1) { c.depleted = true; m.depletions = (m.depletions ?? 0) + 1; if (m.firstEmptyS == null) m.firstEmptyS = m.activeS + (t0 + tt - (m.sessStart ?? t0)); }
+      m.fullHits = (m.fullHits ?? 0) + 1;
+    }
+    m.hits = (m.hits ?? 0) + 1;
+    rem -= (full ? damage : 1) + auto;
+    tt += step;
+  }
+  return Math.max(step, tt);
+}
+
+/**
  * Mine pendant `seconds` (clic à `cps` ou Auto-Dig seul si cps = 0). `now` : horloge de la
  * saison (s) pour les boosts. Coffre de la mine : popup de `chestWait()` secondes.
  */
 function mine(p, s, rules, o, random, { seconds, cps, now, chestWait, ad, playedS0 }) {
   const end = now + seconds;
+  if (cps > 0) s.m.sessStart = now;
   let t = now;
   while (t < end) {
     if (ad && t >= s.adNext) { setBoost(s, AD_BOOST.mult, AD_BOOST.seconds, t); s.adNext = t + AD_COOLDOWN_S; }
@@ -373,7 +408,9 @@ function mine(p, s, rules, o, random, { seconds, cps, now, chestWait, ad, played
     const damage = s.pick + relicValue(p, 'eye_of_miner');
     const autodig = s.auto + relicValue(p, 'ancient_engine');
     let dt;
-    if (cps > 0) {
+    if (cps > 0 && o.charges) {
+      dt = breakWithCharges(p.ch, s.m, hp, damage, autodig, cps, t);   // pioche à charges (#71) : coup par coup
+    } else if (cps > 0) {
       const rate = damage * cps + autodig;
       dt = Math.max(1, Math.ceil(hp / rate * cps)) / cps;
     } else {
@@ -536,6 +573,7 @@ function buyShopChests(p, s, rules, random, final) {
 /** Une saison de 7 jours. `seasonIndex` sert à la date des missions du jour. */
 function playSeason(p, rules, o, random, seasonIndex) {
   const s = newSeason(p);
+  if (p.ch) Object.assign(p.ch, { charges: p.ch.capacity, at: 0, depleted: false });   // 7 jours entre deux saisons : réserve pleine
   s.m.shop.openingsLeft = o.shopOpenings ?? 0;
   const lastDay = o.days[o.days.length - 1];
   let playedS = 0;
@@ -639,7 +677,7 @@ function simulatePlayers({ profile, rules, runs, seasons = 1, seed = 49, options
   const out = [];
   for (let r = 0; r < runs; r++) {
     const random = rng(seed * 100_003 + r);
-    const p = newPlayer();
+    const p = newPlayer(o);
     if (o.skipRelics) p.skipRelics = o.skipRelics;
     const list = [];
     for (let k = 0; k < seasons; k++) list.push(playSeason(p, rules, o, random, k));

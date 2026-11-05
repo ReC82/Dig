@@ -529,6 +529,7 @@ const ADM_NAV = [
   { id: 'blocks',          group: 'game',        order: 10, icon: '🧱', label: 'Blocs',                    keywords: 'catalogue minerais matériaux ia',               load: () => { loadBlocks(); loadAi(); } },
   { id: 'rewards',         group: 'game',        order: 20, icon: '🎲', label: 'Coffres & drops',          keywords: 'récompenses tables butin loot',                 load: () => loadRewards() },
   { id: 'upgrades',        group: 'game',        order: 30, icon: '⬆', label: 'Améliorations',            keywords: 'niveaux barème suspension urgence',             load: () => loadUpgrades() },
+  { id: 'pickaxe',         group: 'game',        order: 35, icon: '🔋', label: 'Pioche à charges',         keywords: 'réserve coups charges recharge usure durabilité drapeau testeurs', load: () => loadPickaxe() },
   { id: 'relics',          group: 'game',        order: 40, icon: '🔮', label: 'Reliques',                 keywords: 'effets coûts',                                  load: () => loadRelics() },
   { id: 'missions',        group: 'game',        order: 50, icon: '🎯', label: 'Missions quotidiennes',    keywords: 'quêtes journalières',                           load: () => loadMissions() },
   { id: 'economy',         group: 'game',        order: 60, icon: '💰', label: 'Économie & joueurs',       keywords: 'gemmes registre joueur fiche règles boutique de gemmes', load: () => { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); } },
@@ -11790,3 +11791,128 @@ async function mqBackTo(id) {
 }
 
 admRefreshButton('btn-refresh-missions', loadMissions, 'Missions');
+
+// ── Pioche à charges (#71) ───────────────────────────────────────────────────
+// Drapeau (off / testeurs / tous) appliqué à part ; réglages protégés contre la perte de saisie (#61).
+
+const PK_KIND = {
+  over_capacity: 'Réserve au-dessus de la capacité', fast_regen: 'Recharge trop rapide',
+  full_hits: 'Coups pleins sans charge', tree_level: 'Niveau d\'arbre hors barème',
+};
+const _pkZone = admZone(document.getElementById('pk-settings-card'));
+let _pk = null;
+
+const pkList = arr => arr.map(v => String(v).replace('.', ',')).join(' ; ');
+function pkRows(tbodyId, rows) {
+  const tb = document.getElementById(tbodyId);
+  tb.textContent = '';
+  for (const cells of rows) {
+    const tr = document.createElement('tr');
+    for (const c of cells) { const td = document.createElement('td'); td.textContent = c; tr.appendChild(td); }
+    tb.appendChild(tr);
+  }
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = tb.closest('table').querySelectorAll('th').length;
+    td.className = 'muted';
+    td.textContent = 'Aucun élément.';
+    tr.appendChild(td);
+    tb.appendChild(tr);
+  }
+}
+
+function renderPickaxe(data) {
+  _pk = data;
+  const s = data.settings;
+  const banner = document.getElementById('pk-banner');
+  banner.className = `contest-banner contest-banner--${s.mode === 'off' ? 'locked' : 'open'}`;
+  banner.textContent = s.mode === 'on' ? '🔋 Pioche à charges ACTIVE pour tous les joueurs.'
+    : s.mode === 'testers' ? `🧪 Pioche à charges active pour ${data.testers.length} testeur(s) : ${data.testers.map(x => x.username).join(', ') || 'aucun'}.`
+    : '🔒 Pioche à charges désactivée : jeu inchangé.';
+  document.getElementById('pk-mode').value = s.mode;
+  document.getElementById('pk-testers').value = data.testers.map(x => x.username).join(', ');
+  if (!admZoneDirty(_pkZone)) {
+    document.getElementById('pk-capacity').value = s.capacity;
+    document.getElementById('pk-regen').value = s.regenSeconds;
+    document.getElementById('pk-threshold').value = Math.round(s.resumeThreshold * 100);
+    document.getElementById('pk-coins').value = s.refillCoinsPerCharge;
+    document.getElementById('pk-cap-mult').value = pkList(s.capacityMult);
+    document.getElementById('pk-cap-prices').value = pkList(s.capacityPrices);
+    document.getElementById('pk-speed-mult').value = pkList(s.speedMult);
+    document.getElementById('pk-speed-prices').value = pkList(s.speedPrices);
+    document.getElementById('pk-packs').value = pkList(s.refillPacks);
+    document.getElementById('pk-refill-enabled').checked = s.refillEnabled;
+    document.getElementById('pk-note').value = '';
+    admZoneClean(_pkZone);
+  }
+  const pv = data.preview;
+  document.getElementById('pk-preview-summary').textContent =
+    `Réserve de base ${s.capacity.toLocaleString('fr-BE')} coups, +1 toutes les ${String(s.regenSeconds).replace('.', ',')} s : pleine en ${pv.fullRefillMinutes} min ; `
+    + `bonus de retour à ${Math.round(s.resumeThreshold * 100)} % de la réserve. Recharges en pièces : ${s.refillEnabled ? 'proposées' : 'masquées'}.`;
+  pkRows('pk-prev-cap', pv.capacity.map(r => [r.level, r.value.toLocaleString('fr-BE'), r.level ? r.price : '—']));
+  pkRows('pk-prev-speed', pv.speed.map(r => [r.level, String(r.value).replace('.', ','), r.level ? r.price : '—']));
+  pkRows('pk-prev-refill', pv.refill100m.map(r => [`+${r.pct} %`, r.add.toLocaleString('fr-BE'), `${r.coins.toLocaleString('fr-BE')} 🪙`]));
+  pkRows('pk-anomalies', data.anomalies.map(a => [a.created_at, a.username ?? `#${a.user_id}`, PK_KIND[a.kind] ?? a.kind, a.amount, a.details ?? '']));
+  pkRows('pk-players', data.players.map(p => [p.username ?? `#${p.user_id}`, Math.floor(p.charges).toLocaleString('fr-BE'), p.cap_level, p.speed_level,
+    p.full_hits.toLocaleString('fr-BE'), p.refilled.toLocaleString('fr-BE'), p.updated_at]));
+  const ul = document.getElementById('pk-audit');
+  ul.textContent = '';
+  for (const a of data.audit) {
+    const li = document.createElement('li');
+    let mode = '';
+    try { mode = JSON.parse(a.new_value).mode; } catch { /* valeur illisible : date seule */ }
+    li.textContent = `${a.created_at} UTC — mode ${mode}${a.note ? ` — ${a.note}` : ''}`;
+    ul.appendChild(li);
+  }
+  if (!data.audit.length) { const li = document.createElement('li'); li.textContent = 'Aucune modification depuis l\'installation (valeurs par défaut).'; ul.appendChild(li); }
+}
+
+async function loadPickaxe() {
+  const { ok, data } = await api('GET', '/api/admin/pickaxe');
+  if (!ok) { adMessage('pk-settings-msg', data.error || 'Erreur lors du chargement.', false); return; }
+  renderPickaxe(data);
+}
+
+admRefreshButton('btn-refresh-pickaxe', loadPickaxe, 'Pioche à charges');
+
+document.getElementById('btn-pk-mode').addEventListener('click', async () => {
+  const mode = document.getElementById('pk-mode').value;
+  const testers = document.getElementById('pk-testers').value;
+  if (mode === 'on' && _pk?.settings.mode !== 'on') {
+    const yes = await admConfirm({
+      title: 'Activer la pioche à charges pour tous ?',
+      text: 'Tous les joueurs (y compris sans compte) verront la réserve de coups dans la minute.',
+      impact: ['Réglages bêta non validés : la descente des joueurs actifs est ralentie (voir le rapport #71).', 'Retour arrière : repasser en OFF (aucune donnée effacée).'],
+      ok: 'Activer pour tous', danger: true,
+    });
+    if (!yes) return;
+  }
+  const { ok, data } = await api('PUT', '/api/admin/pickaxe/settings', { mode, testers, note: `activation : ${mode}` });
+  if (!ok) return adMessage('pk-mode-msg', data.error || 'Erreur.', false);
+  adMessage('pk-mode-msg', data.changed ? 'Activation enregistrée.' : 'Aucun changement.', true);
+  renderPickaxe(data);
+});
+
+document.getElementById('btn-pk-settings').addEventListener('click', async () => {
+  const v = id => document.getElementById(id).value;
+  const body = {
+    capacity: Number(v('pk-capacity')), regenSeconds: Number(v('pk-regen')), resumeThreshold: Number(v('pk-threshold')) / 100,
+    refillCoinsPerCharge: Number(v('pk-coins')),
+    capacityMult: v('pk-cap-mult'), capacityPrices: v('pk-cap-prices'), speedMult: v('pk-speed-mult'), speedPrices: v('pk-speed-prices'),
+    refillPacks: v('pk-packs'), refillEnabled: document.getElementById('pk-refill-enabled').checked, note: v('pk-note'),
+  };
+  if (_pk?.settings.mode !== 'off') {
+    const yes = await admConfirm({
+      title: 'Appliquer ces réglages ?',
+      text: `La pioche à charges est active (${_pk.settings.mode === 'on' ? 'tous les joueurs' : 'testeurs'}) : les nouveaux réglages s'appliquent dans la minute.`,
+      ok: 'Enregistrer',
+    });
+    if (!yes) return;
+  }
+  const { ok, data } = await api('PUT', '/api/admin/pickaxe/settings', body);
+  if (!ok) return adMessage('pk-settings-msg', data.error || 'Erreur.', false);
+  adMessage('pk-settings-msg', data.changed ? 'Réglages enregistrés et journalisés.' : 'Aucun changement.', true);
+  admZoneClean(_pkZone);
+  renderPickaxe(data);
+});

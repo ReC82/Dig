@@ -157,7 +157,11 @@ test('budget : dégâts max par clic et par seconde = valeurs max du client', ()
   assert.ok(antibot.MAX_HP_REDUCTION >= Math.min(0.9, relicMax('hp_reduction')));
   // Une seule source de dégâts par type : clic (GameState.damage) et Auto-Dig (1 coup par seconde)
   const main = fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8');
-  assert.deepStrictEqual([...main.matchAll(/Blocks\.hit\(([^)]*)\)/g)].map(m => m[1]).sort(), ['GameState.damage', 'dmg']);
+  // Pioche à charges (#71) : le coup manuel passe par PickaxeCharges.hit(GameState.damage), qui renvoie ces dégâts ou 1
+  assert.deepStrictEqual([...main.matchAll(/Blocks\.hit\(([^)]*)\)/g)].map(m => m[1]).sort(), ['dmg', 'strike.damage']);
+  assert.match(main, /const strike = PickaxeCharges\.hit\(GameState\.damage\);/);
+  const pick = fs.readFileSync(path.join(ROOT, 'public/js/pickaxeCharges.js'), 'utf8');
+  assert.deepStrictEqual([...pick.matchAll(/return \{ damage: ([\w.]+),/g)].map(m => m[1]).sort(), ['1', 'fullDamage', 'fullDamage']);
   assert.match(main, /setInterval\(autoDigTick,\s*1_000\)/);
 });
 
