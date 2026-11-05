@@ -1214,6 +1214,16 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .sec-fiche .sec-banner { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.82rem; margin: 6px 0; }
 .sec-fiche table { font-size: 0.78rem; }
 .sec-fiche .sec-wrap { overflow-x: auto; }
+.sec-fiche .sec-summary { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 4px 0 8px; }
+.sec-fiche .sec-summary-verdict { font-weight: 600; font-size: 0.9rem; margin: 0 0 8px; }
+.sec-fiche .sec-summary-modes { font-size: 0.76rem; margin: 8px 0 0; }
+.sec-fiche .sec-acc-tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin: 0 0 6px; }
+.sec-fiche .sec-acc { border: 1px solid var(--border); border-radius: 8px; margin: 0 0 6px; min-width: 0; }
+.sec-fiche .sec-acc > .sec-kv, .sec-fiche .sec-acc > .sec-wrap, .sec-fiche .sec-acc > .sec-banner { margin-top: 4px; }
+@media (max-width: 600px) {
+  .sec-fiche .sec-acc .bk-acc-title { flex: 1 1 0; min-width: 0; }
+  .sec-fiche .sec-acc .bk-acc-sum { flex-basis: 100%; padding-left: 1.2em; }
+}
 
 /* ── Publicité (#45, recette du 04/11) : cases à cocher en ligne avec leur libellé (zone de clic
    = case + texte), actions regroupées à droite sous un filet, champs sombres harmonisés. ── */
