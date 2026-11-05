@@ -2,6 +2,194 @@
 
 Lien : https://github.com/ReC82/Dig/issues/68
 
+## Session du 05/11/2026, soir (DIGORCH) — bonus « trois missions » : barème chiffré, brouillon et simulateur, désactivé
+
+Suite à l'arbitrage du propriétaire du 05/11 (17:31 Bruxelles) : accord de principe sur un **bonus pour les
+3 missions du jour réussies**, pour **tous les joueurs** (débutants compris), **adapté à la profondeur**,
+sans boule de neige ni pay-to-win. Il demande un **barème chiffré et simulé avec #49** avant validation, la
+mécanique **en brouillon ou derrière un drapeau OFF**, aucune activation, et une recette courte pour plus tard.
+
+### 1. État réel
+
+**Déployé en production (SHA d9a96a0) — en attente de recette, rien d'activé.** Les joueurs ne voient
+**aucun changement** : les fichiers du jeu sont identiques à la version précédente, le moteur de missions reste
+sur « Désactivé » et le bonus n'est lu ni par le jeu ni par le moteur serveur. Le pilote n'a pas été activé.
+
+### 2. Résultat et changements
+
+- **Catalogue** (`server/missionCatalog.js`) : nouveau réglage **« Bonus trois missions »**, versionné avec le
+  catalogue (brouillon → publication → retour arrière, journal).
+  - Forme : `{ enabled, bands: [{ fromDepth, coins, gems }] }`. Les versions publiées avant ce réglage valent
+    « aucun bonus, désactivé ».
+  - Garde-fous (validation) : premier palier **à 1 m** (accessible à tous), paliers strictement croissants,
+    **gemmes de 0 à 3** par palier, pièces de 0 à 1 000 000, 6 paliers au plus. Les montants sont **fixes par
+    palier**, jamais un pourcentage des revenus : pas de boule de neige.
+  - Le palier appliqué est celui de la profondeur du joueur au début de la journée.
+  - Même publié et marqué « activé », le bonus n'a **aucun effet** : un avertissement le rappelle à la publication.
+- **Proposition de barème** (désactivée), chargée avec « Charger la proposition adaptative » ou
+  « Remplir avec le barème proposé » :
+
+  | Profondeur | Pièces | Gemmes |
+  |---|---|---|
+  | dès 1 m | 300 | 1 |
+  | dès 50 m | 2 000 | 1 |
+  | dès 150 m | 10 000 | 1 |
+  | dès 300 m | 40 000 | 2 |
+
+- **Simulateur des missions** : pour chaque profil, journées complètes, bonus gagné (« si activé » quand il est
+  désactivé), part des pièces et des gemmes du minage. Les missions tirées sont strictement les mêmes avec ou
+  sans bonus.
+- **Simulateur économique #49** (`tools/balance/economy-sim.js`) : prise en charge des paliers
+  (`missionSetBands`), pour chiffrer l'effet sur une saison avec les profils de #49.
+- **Admin → 🎯 Missions** : carte **« 🎁 Bonus trois missions »** (état, paliers, origine brouillon/version) et
+  fenêtre « Modifier le bonus… » (paliers, « ＋ Palier », « Remplir avec le barème proposé », protégée contre la
+  perte de saisie). Les écarts apparaissent dans le brouillon. Route :
+  `PUT /api/admin/missions/draft/set-bonus` (admin seulement).
+- **Tests** : 1 test catalogue (validation, brouillon, publication, retour arrière, simulation, moteur non
+  concerné), 1 test du simulateur économique, essai navigateur `test/e2e/missions-bonus.e2e.js`.
+
+### 3. Chiffres du barème proposé
+
+**a) Simulateur des missions** — 28 jours depuis le 09/11, source « Proposition » (objectifs adaptés à la
+profondeur), profils du catalogue :
+
+| Profil | Journées complètes | Bonus en pièces (part des pièces du minage) | Bonus en gemmes (part des gemmes trouvées en minant) |
+|---|---|---|---|
+| Débutant 20 m | 28/28 | 8 400 (2,8 %) | 28 💎 (97 % : environ le double) |
+| Régulier 100 m | 26/28 | 52 000 (0,8 %) | 26 💎 (18 %) |
+| Avancé 250 m | 28/28 | 280 000 (0,5 %) | 28 💎 (10 %) |
+| Très avancé 500 m | 28/28 | 1 120 000 (0,9 %) | 56 💎 (24 %) |
+
+Avec la proposition, un débutant ne gagne plus de gemmes par les missions elles-mêmes (aucune gemme avant 35 m).
+Avec la v1, il en gagnait 15 en 28 jours. Le bonus remplace donc ces gemmes (28 si tout est fait).
+
+**b) Simulateur économique #49** — 300 joueurs par profil, mêmes graines. Les missions y sont celles du jeu actuel
+(objectifs fixes), ce qui donne moins de journées complètes : ces chiffres sont donc une **borne basse**.
+
+Une saison (7 jours), règles actuelles → règles actuelles + bonus :
+
+| Profil #49 | 💎 gagnées | 💎 perdues au plafond | Pièces | Profondeur médiane |
+|---|---|---|---|---|
+| Débutant (20 min/j, 4 j/7) | 17,9 → 20,7 (+16 %) | 0 → 0 | +2,6 % | 309 → 310 m |
+| Régulier (1 h/j) | 94,6 → 100,3 (+6 %) | 0 → 0 | ≈ 0 % | 1 341 → 1 347 m |
+| Assidu (3 h/j + 4 h) | 224,4 → 229,5 (+2 %) | 59,4 → 64,5 | ≈ 0 % | 3 207 → 3 207 m |
+| Automatique (15 min/j + 8 h) | 61,3 → 67,8 (+11 %) | 0 → 0 | +7,7 % | 859 → 879 m (+2 %) |
+
+Saison 4 (effet à long terme) : profondeur inchangée (débutant 482 → 485 m, régulier 1 779 → 1 779 m,
+assidu 3 385 → 3 385 m, automatique 1 633 → 1 635 m). Le surplus de gemmes des joueurs assidus finit
+surtout **perdu au plafond** (régulier 75 → 86, assidu 187 → 198, automatique 65 → 76 💎 perdues par saison).
+
+Avec le **barème A de #49**, son bonus fixe de +1 💎 comparé aux paliers proposés donne : débutant 28,2 → 28,2 ;
+régulier 212,3 → 213,3 ; assidu 574,4 → 576,5 ; automatique 128,5 → 131,2 💎. Les deux sont presque
+équivalents : les paliers ajoutent surtout des pièces, et une deuxième gemme seulement à partir de 300 m.
+
+**Lecture** :
+
+- **Coût en pièces : négligeable** (moins de 3 % des pièces du minage), et il ne grandit pas avec les revenus.
+- **Rareté des gemmes** : le bonus profite surtout aux **débutants** (+16 % par saison, jusqu'au double par jour
+  si les missions sont adaptées). Pour les joueurs avancés, l'effet est faible (+2 à +6 %) et le surplus bute
+  sur le plafond de saison. Cela renforce le besoin d'un débouché (boutique en gemmes, #49).
+- **Boule de neige** : seul le profil automatique avance un peu plus vite (+2 % de profondeur la première
+  saison), parce qu'il achète l'Auto-Dig plus tôt. L'effet disparaît ensuite. Aucun effet sur le classement
+  (il ne compte que les blocs cassés à la main, #73).
+- **Pay-to-win** : non. Le bonus ne s'achète pas et ne dépend ni d'achats ni de publicités. Il est crédité
+  sans multiplicateur de boost.
+
+### 4. SHA, branche, procédure de test
+
+- Branche : `feature/68-missions-quotidiennes` (commit `f85f959`). SHA sur `develop` : **`d9a96a0`**.
+- `npm test` : **795/795** sur la branche, sur `develop` et sur la release au SHA exact.
+- Tests ciblés : `node --test test/mission-catalog.test.js test/economy-sim.test.js`.
+- Essai navigateur, uniquement sur une base de test : `PORT=3101 DB_FILE=test-68.sqlite NODE_ENV=test
+  ADMIN_SECRET=… node server/index.js`, puis `PW=… CHROME=… BASE=http://127.0.0.1:3101 ADMIN=…
+  node test/e2e/missions-bonus.e2e.js`.
+
+### 5. Vérifications effectuées
+
+- Validation : refus d'un premier palier au-delà de 1 m, de plus de 3 gemmes, de paliers non croissants, de
+  montants négatifs, d'un bonus activé sans récompense, de plus de 6 paliers.
+- Brouillon : écart visible, rien de publié. Un retour à « aucun palier » supprime le brouillon redevenu
+  identique. La proposition reste désactivée. Publication avec avertissement, puis retour arrière (bonus
+  retiré). Journal `draft_set_bonus`.
+- Simulateur : bonus = palier × journées complètes. Missions, objectifs et récompenses identiques avec ou sans
+  bonus. Le moteur serveur (`missionsLive.js`) ne lit pas le réglage (test).
+- Navigateur (Chromium, PC 1280×900 et mobile 390×844, base de test) : carte « Aucun bonus », barème proposé
+  rempli (4 paliers, désactivé), enregistré dans le brouillon, écart affiché, simulateur avec les lignes 🎁
+  (débutant palier 1 m, très avancé palier 300 m). Aucune publication, aucune erreur JavaScript. La fenêtre a
+  été corrigée pour le mobile (colonnes lisibles, aucun défilement horizontal).
+- Le simulateur économique reproduit exactement les valeurs de référence de #49 (17,9 / 94,6 / 224,4 / 61,3 💎).
+
+**Impact sur les données joueurs : aucun.** Pas de nouvelle table, pas de migration. Le réglage est rangé
+dans le contenu (JSON) des versions et du brouillon du catalogue. Votre brouillon de missions en production
+(image « Briseur ») est lu sans changement.
+
+### 6. Déploiement
+
+- SHA déployé : **`d9a96a0`** le 05/11 à 18:23 (Bruxelles). `main` a avancé en avance rapide depuis `b4d6ae4`
+  (inclut aussi les commits de rapport de #78), puis `scripts/deploy.sh` de la release a été exécuté.
+- **Avant** : `npm ci` + `npm test` sur le SHA exact : 795/795. Une copie de la base de production a été
+  démarrée en `NODE_ENV=production` (port 3122) : `/health` et `/api/version` OK. Les empreintes (lignes et
+  hachage) de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` sont
+  **identiques**, la liste des tables est **identique**. Copie supprimée.
+- Sauvegarde pré-déploiement vérifiée : `~/backups/dig/dig-20261105-182258-pre-deploy-d9a96a0.sqlite`.
+- **Après** : dig.lodygames.com et dig.lodylands.com renvoient 200 et `/api/version` = `1.0.0+d9a96a0` ;
+  journal sans erreur ; `quick_check` ok ; empreintes identiques à la sauvegarde ; drapeau du moteur absent
+  (donc OFF) ; brouillon du catalogue toujours présent ; page admin servie avec la nouvelle carte.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep b4d6ae4` puis `sudo systemctl restart dig`.
+  Aucune dépendance modifiée, aucun schéma modifié.
+
+**Recette courte (5 min, quand vous serez disponible ; rien n'est activé pour les joueurs)** :
+
+1. Admin → 🎯 Missions → carte **« 🎁 Bonus trois missions »** : « Aucun bonus (jeu actuel) ».
+2. Simulateur : source **« Proposition adaptative »**, 7 jours, les 4 profils, « Simuler ». Sous chaque
+   journée complète, une ligne « 🎁 bonus trois missions (si activé) » apparaît. Sous chaque profil, le total
+   s'affiche avec la part des pièces et des gemmes du minage (rien n'est écrit).
+3. Facultatif : « Modifier le bonus… » → « Remplir avec le barème proposé » → ajustez → « Enregistrer dans le
+   brouillon ». Simulez ensuite avec la source « Brouillon ». Pour retirer le bonus du brouillon : supprimez
+   tous les paliers (✕), puis « Enregistrer dans le brouillon ».
+   ⚠️ N'utilisez pas « Abandonner le brouillon » : vous perdriez aussi votre image « Briseur ».
+
+Classement : **Après lancement.**
+
+### 7. Choix techniques faits seul
+
+- **Montants fixes par palier, pas un pourcentage** : la demande « plus élevé pour un joueur avancé, sans boule
+  de neige » est tenue par 4 paliers fixes. Le bonus reste inférieur à 3 % des pièces du minage à toute
+  profondeur, et le plafond de 3 gemmes est vérifié à l'enregistrement.
+- **Réglage du catalogue plutôt que de #49** : le bonus dépend des missions du jour (même version, même
+  publication, même retour arrière). Le réglage `missionSetBonus` de #49 reste une référence, et le barème A
+  n'est pas approuvé (question 2 ci-dessous).
+- **Pas de branchement dans le moteur** : le propriétaire demande « brouillon ou drapeau OFF » et aucun changement
+  effectif. Le moteur serveur ne lit donc pas le réglage, même publié. Le branchement (réclamation unique du
+  bonus en une transaction, registre de gemmes #49) se fera après votre validation du barème.
+- **Simulation #49 sur les missions actuelles** : le simulateur de saison de #49 tire les missions du jeu
+  actuel. Ses chiffres sont une borne basse. Le simulateur du catalogue donne la borne haute, avec les
+  objectifs adaptés.
+
+### 8. Décisions demandées au propriétaire
+
+1. **Barème du bonus** : a) adopter les paliers proposés (1 💎 pour tous, 2 💎 dès 300 m ; 300 / 2 000 /
+   10 000 / 40 000 pièces) ; b) 1 💎 pour tous sans deuxième gemme, avec les paliers de pièces ; c) l'ajuster
+   dans la fenêtre. *Recommandation : a)* (au plus +7 💎 par semaine, surtout absorbés par le plafond chez les
+   assidus).
+2. **Lien avec #49** : le bonus des missions **remplace** le « bonus trois missions » fixe du barème A (pas de
+   cumul) ? *Recommandation : oui, remplacer.*
+3. **Ensuite** : autorisez-vous le branchement dans le moteur serveur, derrière le drapeau OFF, une fois 1 et 2
+   tranchés ? Il suivrait la recette en Pilote sur votre compte testeur. *Recommandation : oui.*
+
+Les questions précédentes restent ouvertes et inchangées : barème des objectifs par profondeur, gemmes des
+débutants (le bonus est l'option « c », désormais chiffrée), rotation par joueur et minuit Bruxelles, ordre
+d'activation.
+
+### 9. Restant à réaliser
+
+- Branchement du bonus dans le moteur serveur et le jeu, après validation (question 3). **Après lancement.**
+- Activation Pilote puis « Tous les joueurs », sur votre décision. **Après lancement.**
+- Restants des sessions précédentes : nouveaux compteurs (blocs cassés à la main, coffres achetés, fragments,
+  #71), aide IA pour les textes. **Après lancement.**
+
+---
+
 ## Session du 05/11/2026, après-midi (DIGORCH) — étape B technique : attribution et réclamation côté serveur, drapeau OFF
 
 Suite au commentaire du propriétaire du 05/11 (15:59 Bruxelles) : « étape B technique en autonomie, derrière un
