@@ -1798,7 +1798,7 @@ app.get('/api/admin/config', requireAdmin, (req, res) => {
 });
 
 /** Actions consignées dans le journal anti-autoclicker (anomalies et corrections admin uniquement). */
-const ANTICHEAT_ACTIONS = ['flagged', 'reduced', 'rejected', 'depth_capped', 'depth_rejected', 'damage_capped', 'admin_fix'];
+const ANTICHEAT_ACTIONS = ['flagged', 'reduced', 'rejected', 'depth_capped', 'depth_rejected', 'damage_capped', 'exact_capped', 'admin_fix'];
 
 /**
  * GET /api/admin/anticheat/logs?limit=100&offset=0&action=

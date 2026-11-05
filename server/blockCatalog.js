@@ -37,6 +37,7 @@ const vm   = require('vm');
 
 const db      = require('./db');
 const antibot = require('./antibot');
+const blockHp = require('./blockHp');
 
 const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];
 const RARITIES   = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
@@ -523,6 +524,9 @@ function minHpSegments() {
 }
 
 function refreshAntibot() {
+  // PV réels (#77) : catalogue intégré au jeu + toutes les versions publiées
+  blockHp.setCatalogs(originTypes(), conn().prepare('SELECT version, types FROM block_catalog_versions').all()
+    .map(r => ({ version: r.version, types: JSON.parse(r.types) })));
   return antibot.setMinHpSegments(minHpSegments());
 }
 

@@ -16,6 +16,8 @@
  * Interrupteurs (config admin, effet immédiat) :
  *   antibot_mode       = off | shadow            (défaut shadow ; enforce réservé au lot C)
  *   damage_budget_mode = off | shadow | enforce  (défaut enforce)
+ *   exact_hp_mode      = off | shadow | enforce  (défaut shadow) — budget aux PV RÉELS de chaque
+ *                        bloc, recalculés depuis la graine et le n° du bloc (#77, server/blockHp.js)
  *   Variable d'environnement ANTIBOT=off : désactive tout #25, prioritaire sur l'admin.
  */
 
@@ -161,9 +163,11 @@ function maxDamageRate(handRate) {
  * @param {number} p.target       Profondeur visée (déclarée, déjà bornée par #9)
  * @param {number} p.handRate     Clics/s max (depth_max_cps)
  * @param {boolean} [p.uncapped]  Sans limite de temps ni plafond (estimation de l'écart « expliqué »)
+ * @param {Function} [p.reach]    (from, crédit, target) → { depth, spent } : coût des blocs
+ *                                (défaut : PV minimum ; #77 : PV réels recalculés)
  * @returns {{ depth: number, credit: number, refClicks: number, pendingClicks: number }}
  */
-function applyDamageBudget({ fromDepth, credit, claimedClicks, refClicks, dtSecs, target, handRate, uncapped = false }) {
+function applyDamageBudget({ fromDepth, credit, claimedClicks, refClicks, dtSecs, target, handRate, uncapped = false, reach = reachableDepth }) {
   const dt       = Math.max(0, dtSecs);
   const ref      = claimedClicks < refClicks ? claimedClicks : refClicks; // compteur revenu en arrière
   const pending  = claimedClicks - ref;
@@ -173,7 +177,7 @@ function applyDamageBudget({ fromDepth, credit, claimedClicks, refClicks, dtSecs
     + credited * MAX_CLICK_DAMAGE
     + dt * MAX_AUTODIG_DPS * AUTODIG_MARGIN);
   const from     = Math.max(1, fromDepth);
-  const r        = reachableDepth(from, avail, target);
+  const r        = reach(from, avail, target);
   return { depth: r.depth, credit: avail - r.spent, refClicks: ref + credited, pendingClicks: pending - credited };
 }
 
@@ -203,6 +207,8 @@ function getHitLimits(config = {}) {
 
 const ANTIBOT_MODES = ['off', 'shadow'];
 const BUDGET_MODES  = ['off', 'shadow', 'enforce'];
+/** PV réels (#77) : observation par défaut (aucun joueur freiné avant décision du propriétaire). */
+const EXACT_HP_DEFAULT = 'shadow';
 
 function _envOff(env) {
   return String(env.ANTIBOT ?? '').toLowerCase() === 'off';
@@ -223,6 +229,16 @@ function getDamageBudgetMode(config, env = process.env) {
 }
 
 /**
+ * Mode du budget aux PV réels (#77) : off | shadow | enforce. Jamais plus actif que le budget de
+ * dégâts (#25) : budget off → off ; ANTIBOT=off → off.
+ */
+function getExactHpMode(config, env = process.env) {
+  if (getDamageBudgetMode(config, env) === 'off') return 'off';
+  const v = String(config?.exact_hp_mode ?? EXACT_HP_DEFAULT).toLowerCase();
+  return BUDGET_MODES.includes(v) ? v : EXACT_HP_DEFAULT;
+}
+
+/**
  * Validation des clés de config #25 (PUT /api/admin/config).
  * @returns {{ value: string } | { error: string } | null}  null : clé non concernée
  */
@@ -237,8 +253,8 @@ function validateConfigValue(key, raw) {
     const n = Number(v);
     return Number.isFinite(n) && n >= min && n <= max ? { value: String(n) } : { error: `${key} : nombre de ${min} à ${max} attendu.` };
   }
-  if (key === 'damage_budget_mode') {
-    return BUDGET_MODES.includes(v) ? { value: v } : { error: 'damage_budget_mode : off, shadow ou enforce attendu.' };
+  if (key === 'damage_budget_mode' || key === 'exact_hp_mode') {
+    return BUDGET_MODES.includes(v) ? { value: v } : { error: `${key} : off, shadow ou enforce attendu.` };
   }
   return null;
 }
@@ -314,6 +330,11 @@ const SIGNALS = {
   burst_clicks:    { cat: 'burst',      points: 4  }, // rafales > 25 clics/s
   throttled_hits:  { cat: 'burst',      points: 4  }, // #74 : coups au-delà de la cadence maximale (sans effet en jeu)
   regular_clicks:  { cat: 'regularity', points: 2  }, // rythme quasi parfait et long (jamais seul)
+  // PV réels (#77) : observation seule, 0 point — journalisés sans changer le score de risque
+  exact_hp_budget: { cat: 'proof',      points: 0  }, // profondeur au-delà des PV réels recalculés
+  block_hp_mismatch:{ cat: 'proof',     points: 0  }, // PV max du bloc courant < PV recalculés
+  block_seed_changed:{ cat: 'proof',    points: 0  }, // graine des blocs changée en cours de saison
+  block_seq_skips: { cat: 'proof',      points: 0  }, // plus de blocs sautés que de rerolls déclarés
 };
 
 /** Niveaux de réponse (docs/ANTI-BOT.md § 5) — en mode shadow, aucun n'est appliqué. */
@@ -361,6 +382,14 @@ function recordSignals(userId, seasonId, signals, { config, nowMs = Date.now(), 
   const db = getDb();
   return db.transaction(() => {
     const before = getRisk(userId, seasonId, nowMs);
+    // Observations à 0 point (#77) : journal seul, le score de risque n'est ni modifié ni créé
+    const scored = signals.filter(s => SIGNALS[s.type]?.points !== 0);
+    for (const s of signals) {
+      if (SIGNALS[s.type]?.points !== 0) continue;
+      logSecurityEvent(s.type, { userId, seasonId, scoreBefore: before.score, scoreAfter: before.score, details: s.details ?? null, ip });
+    }
+    if (!scored.length) return { score: before.score, level: before.level };
+    signals = scored;
     const comps  = { ...before.components };
     let score    = before.score;
     for (const s of signals) {
@@ -602,13 +631,13 @@ const _sampleInt = v => (Number.isSafeInteger(v) && v >= 0 && v <= COUNTER_MAX ?
  * Une ligne agrégée par sauvegarde contrôlée : compteurs déclarés, profondeur retenue et résumé
  * de télémétrie normalisé. Sert uniquement au diagnostic admin (aucun effet sur le jeu).
  */
-function recordSaveSample(userId, seasonId, { reportedDepth, acceptedDepth, budgetDepth, seasonStats, blocksDestroyed, autodigLevel, acAction, telemetry }, nowMs = Date.now()) {
+function recordSaveSample(userId, seasonId, { reportedDepth, acceptedDepth, budgetDepth, exactDepth, seasonStats, blocksDestroyed, autodigLevel, acAction, telemetry }, nowMs = Date.now()) {
   const db = getDb();
   db.prepare(`
-    INSERT INTO antibot_save_samples (user_id, season_id, at_ms, reported_depth, accepted_depth, budget_depth,
+    INSERT INTO antibot_save_samples (user_id, season_id, at_ms, reported_depth, accepted_depth, budget_depth, exact_depth,
       manual_clicks, manual_blocks, auto_blocks, blocks_destroyed, autodig_level, ac_action, tel)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(userId, seasonId, nowMs, _sampleInt(reportedDepth), _sampleInt(acceptedDepth), _sampleInt(budgetDepth),
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, seasonId, nowMs, _sampleInt(reportedDepth), _sampleInt(acceptedDepth), _sampleInt(budgetDepth), _sampleInt(exactDepth),
          _sampleInt(seasonStats?.manualClicks), _sampleInt(seasonStats?.manualBlocks), _sampleInt(seasonStats?.autoBlocks),
          _sampleInt(blocksDestroyed), _sampleInt(autodigLevel), acAction ? String(acAction).slice(0, 20) : null,
          telemetry ? JSON.stringify(telemetry) : null);
@@ -671,6 +700,12 @@ function playerReport(userId, { seasonId = null, config = {}, nowMs = Date.now()
     lastCheck: _utc(dt.updated_ms), acceptedDepth: dt.accepted_depth, depthGap: dt.last_gap ?? 0,
     budgetDepth: dt.dmg_depth, budgetGap: _r1(dt.dmg_gap ?? 0), budgetCredit: _r1(dt.dmg_credit),
     refClicks: dt.ref_clicks, refAuto: dt.ref_auto,
+    // PV réels (#77) : profondeur couverte, écart à la dernière sauvegarde, graine épinglée connue
+    ...(() => {
+      const x = _json(dt.xhp_state);
+      return x ? { exactDepth: x.depth ?? null, exactGap: x.gap ?? 0, exactCredit: _r1(x.credit), exactSeedPinned: x.seed != null,
+        exactSeedChanges: x.seedChanges ?? 0 } : {};
+    })(),
   } : null;
   const clicks = ct && ct.season_id === sid ? {
     lastSave: ct.last_save_at ? ct.last_save_at.replace(' ', 'T') + 'Z' : null,
@@ -760,7 +795,7 @@ function playerReport(userId, { seasonId = null, config = {}, nowMs = Date.now()
     const dClicks = d('manual_clicks');
     return {
       at: _utc(r.at_ms), dtSecs: _r1(dtSecs),
-      reportedDepth: r.reported_depth, acceptedDepth: r.accepted_depth, budgetDepth: r.budget_depth,
+      reportedDepth: r.reported_depth, acceptedDepth: r.accepted_depth, budgetDepth: r.budget_depth, exactDepth: r.exact_depth ?? null,
       dDepth: d('accepted_depth'), dClicks, dManualBlocks: d('manual_blocks'), dAutoBlocks: d('auto_blocks'),
       dBlocksDestroyed: d('blocks_destroyed'),
       serverCps: dtSecs > 0 && dClicks != null ? _r1(dClicks / dtSecs) : null,
@@ -848,7 +883,7 @@ module.exports = {
   MIN_HP_SEGMENTS, DAMAGE_POOL_SECS, DAMAGE_LOG_GAP, setMinHpSegments, getMinHpSegments,
   damageCost, minBlockHp, reachableDepth, maxDamageRate, applyDamageBudget,
   // Interrupteurs
-  getAntibotMode, getDamageBudgetMode, validateConfigValue, getHitLimits, HIT_RATE_DEFAULT, HIT_BURST_DEFAULT,
+  getAntibotMode, getDamageBudgetMode, getExactHpMode, validateConfigValue, getHitLimits, HIT_RATE_DEFAULT, HIT_BURST_DEFAULT,
   // Lot A
   configure, hashIp, logSecurityEvent, purgeOldEvents, startPurgeScheduler,
   SIGNALS, CATEGORY_CAPS, riskLevel, getRisk, recordSignals,
