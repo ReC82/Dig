@@ -1058,7 +1058,7 @@ async function renderEvents() {
     html += `<h3 class="collection-archives-title">${escapeHtml(t('events.souvenirs'))}</h3>`;
     for (const ev of d.souvenirs) html += section(ev, `${ev.icon} ${_badgeText(ev.names)} · ${ev.items.length}`, '');
   }
-  el.innerHTML = `<div class="section-divider"><span>${escapeHtml(t('events.section'))}</span>${DigHelp.tipHtml('events')}</div>${html}`;
+  el.innerHTML = `<div class="section-divider"><span>${escapeHtml(t('events.section'))}</span>${typeof DigHelp !== 'undefined' ? DigHelp.tipHtml('events') : ''}</div>${html}`;
   const all = [...d.active.map(ev => ({ ev, active: true })), ...d.souvenirs.map(ev => ({ ev, active: false }))];
   el.querySelectorAll('.find-card').forEach(b => b.addEventListener('click', () => {
     const entry = all.find(e => e.ev.id === b.dataset.ev);
