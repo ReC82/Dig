@@ -11179,16 +11179,17 @@ function upArtNode(u, size = 32) {
 }
 
 async function loadUpgrades() {
-  const { ok, data } = await api('GET', '/api/admin/upgrades');
+  const { ok, status, data } = await api('GET', '/api/admin/upgrades');
+  // ⚠ du menu : incident serveur à traiter, jamais une suspension volontaire connue (ni une coupure réseau).
+  if (ok || status >= 500) admNavFlag('upgrades', ok ? null : 'chargement du catalogue impossible (erreur serveur)');
   if (!ok) { ptMessage('up-msg', data.error || 'Erreur lors du chargement.', false); return; }
   _up = data;
   const pub = data.published;
   document.getElementById('up-version').textContent = `— version ${pub.version} en vigueur`;
   document.getElementById('up-mult').textContent = `×${data.costMultiplier}`;
   const suspended = Object.values(data.controls).filter(c => c.purchases || c.effects || c.hidden).length;
-  admNavFlag('upgrades', suspended ? `${suspended} amélioration(s) suspendue(s) en urgence` : null);
   document.getElementById('up-summary').textContent =
-    `Version ${pub.version} en vigueur : ${pub.upgrades.length} améliorations, ${suspended} suspendue(s). ${data.holders.saves} sauvegarde(s) cloud analysée(s) pour l'usage.`;
+    `Version ${pub.version} en vigueur : ${pub.upgrades.length} améliorations, ${suspended ? `${suspended} désactivée(s) volontairement` : 'aucune désactivée'}. ${data.holders.saves} sauvegarde(s) cloud analysée(s) pour l'usage.`;
   upRenderControls();
   upRenderDraft();
   upRenderList();
@@ -11216,7 +11217,7 @@ function upRenderControls() {
     addCell(tr, any ? `${c.reason ?? ''}${c.updatedAt ? ` (${admBrussels(c.updatedAt)})` : ''}` : '');
     addButtonCell(tr, any ? 'Réactiver / modifier…' : 'Suspendre…', () => upCtlOpen(u.id));
   }
-  document.getElementById('up-ctl-count').textContent = n ? `— ${n} suspendue(s)` : '— aucune suspension';
+  document.getElementById('up-ctl-count').textContent = n ? `— ${n} désactivée(s)` : '— aucune suspension';
 }
 
 function upRenderDraft() {
