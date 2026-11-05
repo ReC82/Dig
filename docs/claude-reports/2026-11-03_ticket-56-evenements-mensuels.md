@@ -1,5 +1,89 @@
 # Ticket #56 — Événements mensuels : objets exclusifs à miner et calendrier automatique
 
+# Mise à jour du 05/11/2026, ~17 h (Bruxelles) — tests automatiques manquants (priorisation du propriétaire)
+
+Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Demande prise en compte : [priorisation du 05/11](https://github.com/ReC82/Dig/issues/56#issuecomment-6661250025). Elle demande de continuer uniquement le câblage technique et les tests automatiques manquants (activation par dates, drops, conservation des souvenirs, traduction et rendu joueur), en environnement de test. Elle interdit de publier un événement, de toucher aux taux ou aux récompenses, et de générer des images payantes. Les recettes #56-H et #56-I ne sont pas à refaire.
+
+## 1. État réel
+
+**Intégré dans develop — non déployé.** La raison : seul un fichier de tests est ajouté. Aucun code exécuté par le serveur ou le navigateur n'a changé, donc un redémarrage de la production n'apporterait rien. Il partira avec le prochain déploiement ordinaire. La production reste en `1.0.0+922e21d`, qui contient déjà tout le #56 livré. Classement : **Après lancement**.
+
+Rien n'a été publié ni modifié en production : Noël 2026 reste en **brouillon**, et aucun taux, aucune récompense, aucune traduction ni aucune image n'a été touché. Aucun appel IA n'a été fait.
+
+## 2. Résultat et changements
+
+Nouveau fichier `test/monthly-events-coverage.test.js` (10 tests). Il utilise une base temporaire hors de `server/data/` et exécute le vrai code du serveur et du panneau joueur. Le câblage existant n'avait pas d'anomalie : **aucun correctif de code n'a été nécessaire.**
+
+- **Activation par les dates seules** (sans tâche planifiée) :
+  - planifié → actif **à la milliseconde du début** (début inclus) → terminé **à la fin** (fin exclue) ;
+  - l'invité voit un événement public actif, sans aucun objet révélé ;
+  - « Bientôt » apparaît à **J-7 exactement** (rien à J-7 moins 1 ms), puis bascule dans « en cours » au début ; les objets désactivés ne sont pas comptés ;
+  - le minage fait **avant le début ne compte jamais** : aucun curseur n'est créé avant le début, et la première sauvegarde pendant l'événement sert de référence.
+- **Drops** :
+  - événement public : drops pour tout compte connecté ;
+  - borne de **probabilité** : 3 blocs à 10 % donnent 1 − 0,9³ = 27,1 %. Un tirage juste en dessous trouve l'objet, un tirage juste au-dessus le manque ;
+  - borne de **profondeur** : 29 m < 30 m exclut l'objet, 30 m l'inclut ;
+  - un objet **désactivé** ne tombe jamais ;
+  - le **barème de la fiche est inchangé** après les tirages ;
+  - un testeur dont le compte a **disparu** perd l'événement TEST mais garde le public ;
+  - **deux événements simultanés** ont des curseurs indépendants (catégorie pierre pour l'un, coffre pour l'autre).
+- **Noël 2026 de bout en bout, en base de TEST uniquement** : le vrai fichier préparé est importé (brouillon), puis planifié **dans la base temporaire seulement**. Résultats :
+  - planifié le 30/11 à 23:59:59 (Bruxelles), actif le 1/12 à 00:00, terminé le 1/1 à 00:00, annoncé le 25/11 ;
+  - à 31 m, avec du charbon, de la pierre et un coffre : la clochette (pierre, ≥ 25 m), la guirlande (≥ 10 m) et le charbon (minerai) tombent. La boule à neige (≥ 40 m) et la carte du traîneau (≥ 80 m) ne tombent pas ;
+  - après la fin, plus aucun objet ne tombe et les trois restent en souvenirs ;
+  - le barème est identique au fichier préparé.
+- **Souvenirs** :
+  - le **reset complet #75** les archive dans l'instantané ; le nouvel essai repart d'une référence vierge ;
+  - la **restauration** les rend à l'identique, sans second exemplaire ;
+  - un objet trouvé puis désactivé reste visible, tandis qu'un objet non trouvé et désactivé est masqué ;
+  - après la fin, l'objet reste en souvenir, traduit dans les 4 langues, avec l'emoji tant qu'aucune image n'est publiée.
+- **Traduction et rendu joueur** : le vrai panneau « 🎉 Événements » de `public/js/main.js` est exécuté avec `i18n.js` et la locale italienne générée :
+  - FR/EN/NL/ES : nom de l'événement, accroche, compteur « 1 / 2 », « Souvenirs », « Bientôt » dans la langue ;
+  - IT : textes du jeu en italien, contenu de l'événement en repli français (il n'existe qu'en 4 langues) ;
+  - un objet non trouvé reste « ??? » : le serveur ne renvoie ni son nom, ni sa description, ni son icône ;
+  - noms, souvenirs et adresse d'image sont **échappés** (guillemets, `<script>`, attribut `onerror`) ;
+  - le panneau est masqué quand il n'y a rien à afficher ;
+  - les 11 textes `events.*` existent en propre en FR, EN, NL, ES et IT.
+- **Contrôle par mutation** (code cassé volontairement, puis remis en état) : début exclu → 3 échecs ; objet désactivé ou profondeur mal bornée → 1 échec ; nom non échappé → 1 échec ; langue ignorée → 1 échec ; souvenirs absents du reset #75 → 1 échec. L'unicité d'un objet est déjà protégée deux fois (objet déjà possédé + `INSERT OR IGNORE`) et couverte par `test/monthly-events.test.js`.
+
+## 3. SHA et procédure de test
+
+- Branche `feature/56-evenements-mensuels`. SHA sur develop : voir le commentaire GitHub du 05/11 (merge `--no-ff`).
+- `node --test test/monthly-events-coverage.test.js` → 10/10. `npm test` complet sur la branche : **782/782**.
+
+## 4. Vérifications, limites, données
+
+- Tests : `npm test` complet sur la branche et sur develop après fusion (résultats dans le commentaire GitHub).
+- Aucune migration. Aucune donnée joueur lue ou écrite hors base temporaire. Seule une lecture `-readonly` de la base de production a été faite, pour préparer le test ci-dessous : il reste 3 souvenirs de l'ancien événement TEST sur le compte `testeur`, et Noël est en brouillon.
+- **Limite** : ces tests ne remplacent pas un essai en jeu sur un événement public réel. Ce dernier reste soumis aux décisions sur le barème et les dates de Noël.
+
+## 5. Déploiement et test à faire par le propriétaire
+
+Non déployé, car seuls des tests ont été ajoutés. **Test joueur concret sur ce qui est DÉJÀ en production** (aucun formulaire admin, environ 3 min) :
+1. Sur le jeu, connectez-vous avec le compte `testeur`, puis ouvrez **Collection**. **Attendu** : la section « 🎉 Événements » montre « Souvenirs d'événements », avec « 🧪 Événement test · 3 » et ses 3 objets (🔩 Boulon, 🪨 Caillou, 🎟️ Ticket de test).
+2. Touchez un objet. **Attendu** : la fiche s'ouvre avec « Terminé le 5 novembre 2026 », et « Trouvé le 3 novembre 2026 » (caillou) ou « Trouvé le 5 novembre 2026 » (boulon, ticket : trouvés à 0 h 32, heure de Bruxelles).
+3. Passez la langue en EN, NL puis ES. **Attendu** : « Test bolt », « Testbout », « Tornillo de prueba », etc., et des libellés traduits.
+4. Faites F5. **Attendu** : les souvenirs sont toujours là. Avec un autre compte sans trouvaille (ex. `lody`) : aucune section Événements.
+
+## 6. Choix techniques faits seul
+
+- Les tests sont regroupés dans un fichier séparé, pour garder lisible `test/monthly-events.test.js` (19 tests). Chaque test utilise des années distinctes (2031–2037) pour éviter tout recouvrement de dates entre événements.
+- Rendu joueur testé par exécution en `vm` des fonctions réelles extraites de `main.js` (méthode déjà utilisée par `test/block-resume.test.js`), sans navigateur ni dépendance ajoutée.
+- Pas de nouveau « drapeau » : sans événement planifié, aucun drop n'est possible. C'est le cas en production, où Noël est en brouillon et le seul événement TEST est terminé. Le drapeau est donc OFF de fait.
+
+## 7. Décisions demandées au propriétaire
+
+Aucune nouvelle décision pour ce lot. Les questions en attente restent celles du premier incrément : barème de Noël (recommandé : diviser par 2 les 3 premiers objets), dates (recommandé : 1/12 → 1/1), planification avant le 24/11, thèmes 2027.
+
+## 8. Restant à réaliser
+
+- **Après lancement** :
+  - planifier Noël après les décisions ci-dessus (rien ne sera publié sans elles) ;
+  - illustrations (#65, génération payante non autorisée ici) ;
+  - piste repérée, non implémentée : l'identifiant d'un objet non trouvé (ex. `noel26_carte_traineau`) est visible dans la réponse `/api/events`, ce qui peut donner un indice. On pourrait le remplacer par un identifiant opaque.
+
+---
+
 # Mise à jour du 04/11/2026, ~19 h (Bruxelles) — contraste des onglets de langue
 
 Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Retour pris en compte : [recette du 04/11](https://github.com/ReC82/Dig/issues/56#issuecomment-6630145253) (« OK mais pas très visible, noir sur gris foncé »). Les recettes du 04/11 valident aussi, sans rien modifier : statut TEST inactif, sélection du compte `testeur`, liste compacte et menu « + Ajouter » (#56-H), fiche d'objet (#56-I). Ces contrôles ne sont plus à refaire.
