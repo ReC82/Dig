@@ -736,7 +736,7 @@ async function openShopChest(chestId) {
 
     if (!ok) {
       if (btn) btn.disabled = false;
-      if (status === 409 && data?.notController) { _lockPlay('device'); return; }
+      if (status === 409 && data?.notController) { _lockPlay(data.adminReset ? 'reset' : 'device'); return; }
       showAchievement('❌', data?.error ?? t('ui.shop_chest_error'));
       return;
     }
@@ -1809,6 +1809,7 @@ async function _pushSave(retry) {
     return 'ok';
   }
   // Un autre appareil a la main : reprise automatique s'il ne joue plus (bail expiré), sinon verrou
+  if (res.status === 409 && res.data?.adminReset) { _lockPlay('reset'); return 'locked'; }
   if (res.status === 409 && res.data?.notController) { _playHeartbeat(true); return 'locked'; }
   if (res.status === 409 && res.data?.conflict) return _handleSaveConflict(res.data.save, retry);
   if (res.status === 401) { _account = null; _cloudReady = false; }
@@ -1959,13 +1960,15 @@ function _lockPlay(reason) {
   clearTimeout(_cloudTimer);
   _cloudTimer = null;
   Save.disabled = true;
-  const device = reason === 'device';
-  NotifLog.add({ icon: device ? '📱' : '🗂️', type: 'warning', text: t(device ? 'ui.device_inactive_title' : 'ui.tab_inactive_title') });
+  // 'reset' : un reset ou une restauration admin (#75) a repris la main — rechargement obligatoire
+  const key = reason === 'reset' ? 'admin_reset' : reason === 'device' ? 'device_inactive' : 'tab_inactive';
+  const icon = reason === 'reset' ? '🔄' : reason === 'device' ? '📱' : '🗂️';
+  NotifLog.add({ icon, type: 'warning', text: t(`ui.${key}_title`) });
   const modal = document.getElementById('tab-inactive-modal');
   if (!modal) return;
-  document.getElementById('tab-inactive-icon').textContent = device ? '📱' : '🗂️';
-  document.getElementById('tab-inactive-title').textContent = t(device ? 'ui.device_inactive_title' : 'ui.tab_inactive_title');
-  document.getElementById('tab-inactive-text').textContent  = t(device ? 'ui.device_inactive_text' : 'ui.tab_inactive_text');
+  document.getElementById('tab-inactive-icon').textContent = icon;
+  document.getElementById('tab-inactive-title').textContent = t(`ui.${key}_title`);
+  document.getElementById('tab-inactive-text').textContent  = t(`ui.${key}_text`);
   modal.hidden = false;
 }
 
@@ -1986,6 +1989,7 @@ async function _playHeartbeat(force = false) {
   try {
     const { ok, data } = await _apiFetch('POST', '/api/me/play/heartbeat', { controllerId: _tabId });
     if (!ok || data.active || Save.disabled) return;
+    if (data.adminReset) { _lockPlay('reset'); return; }
     if (data.canResume) {
       const claim = await _apiFetch('POST', '/api/me/play/claim', { controllerId: _tabId, onlyIfFree: true });
       if (claim.ok) { await _syncAfterLogin(false); return; }

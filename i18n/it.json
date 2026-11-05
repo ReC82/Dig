@@ -4155,6 +4155,20 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "ui.admin_reset_text": {
+   "text": "Un amministratore ha azzerato questo account per una nuova prova. Questa pagina non può più salvare nulla: tocca «Gioca qui» per ricaricare e ripartire dal nuovo stato.",
+   "src": "3d64727d1936",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #75)",
+   "at": "2026-11-05T00:45:11.969Z"
+  },
+  "ui.admin_reset_title": {
+   "text": "Progressi azzerati dal team",
+   "src": "91261c788fd3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #75)",
+   "at": "2026-11-05T00:45:11.969Z"
+  },
   "ui.block_aria": {
    "text": "Scava il blocco (Invio o Spazio)",
    "src": "6f5fe1640897",

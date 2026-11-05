@@ -2089,6 +2089,7 @@ async function searchPlayers() {
 }
 
 async function viewPlayerSave(userId, username) {
+  if (userId !== _currentPlayerId) document.getElementById('tr-done').classList.add('hidden');
   _currentPlayerId   = userId;
   _currentPlayerName = username;
   const { ok, data } = await api('GET', `/api/admin/players/${userId}/save`);
@@ -2101,7 +2102,7 @@ async function viewPlayerSave(userId, username) {
 
   document.getElementById('pd-username').textContent = `${username} (ID ${userId})`;
   const s = data.save;
-  if (!s) { card.classList.remove('hidden'); return; }
+  if (!s) { card.classList.remove('hidden'); loadTestRuns(userId); return; }
 
   document.getElementById('pd-coins').textContent   = (s.coins ?? 0).toLocaleString();
   document.getElementById('pd-depth').textContent   = `${s.depth ?? 1} m`;
@@ -2129,6 +2130,7 @@ async function viewPlayerSave(userId, username) {
 
   card.classList.remove('hidden');
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  loadTestRuns(userId);
 }
 
 document.getElementById('btn-close-player-detail').addEventListener('click', () => {
@@ -2171,6 +2173,188 @@ document.getElementById('btn-confirm-player-reset').addEventListener('click', as
     viewPlayerSave(_currentPlayerId, _currentPlayerName);
   }
 });
+
+// ── Essais de test : reset complet, historique, restauration (#75) ───────────
+// Aperçu serveur (impact + révision) → fiche de confirmation : motif + pseudo exact saisi → envoi avec un
+// identifiant de requête (un double clic ou un renvoi réseau ne réinitialise jamais deux fois). Le serveur
+// refuse si la sauvegarde a changé depuis l'aperçu. Rendu en textContent uniquement (#15).
+
+const TR_END = { test_reset: 'Recommencé à zéro', restore: 'Restauration d\'un essai', season_reset_partial: 'Réinit. saisonnière partielle' };
+const TR_KEYS = { depth: 'Profondeur actuelle (m)', rankedMaxDepth: 'Profondeur classée (m)', manualBlocksValidated: 'Blocs manuels validés',
+  manualClicks: 'Clics manuels', blocksDestroyed: 'Blocs détruits', pickaxeLevel: 'Niveau de pioche', autodigLevelEnd: 'Niveau Auto-Dig',
+  autodigLevel: 'Niveau Auto-Dig', coins: 'Pièces', gems: 'Gemmes', relics: 'Reliques', riskScore: 'Score de risque', riskLevel: 'Niveau de risque' };
+let _trCtx = null;   // { mode: 'reset'|'restore', userId, runId, username, expectedRevision, requestId }
+
+function trDuration(sec) {
+  if (sec === null || sec === undefined) return '—';
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`;
+}
+const trNum = v => (v === null || v === undefined ? '—' : Number(v).toLocaleString('fr-BE'));
+function trDecisions(st) {
+  const parts = Object.entries(st.serverDecisions ?? {}).filter(([k]) => !k.startsWith('admin_')).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`);
+  const ac = Object.entries(st.anticheatActions ?? {}).map(([k, n]) => `autoclic ${k} ×${n}`);
+  return [...parts, ...ac].join(', ') || 'aucune';
+}
+
+function trRow(tbody, label, run, st, endLabel) {
+  const tr = document.createElement('tr');
+  addCell(tr, label);
+  addCell(tr, `${admBrussels(st.startedAt)} → ${run ? admBrussels(st.endedAt) : 'en cours'}`);
+  addCell(tr, trDuration(st.durationSec));
+  addCell(tr, endLabel);
+  addCell(tr, `${trNum(st.rankedMaxDepth)} / ${trNum(st.depth)}`);
+  addCell(tr, `${trNum(st.manualBlocksValidated)} / ${trNum(st.manualBlocksDeclared)}`);
+  addCell(tr, `${trNum(st.manualClicks)} (${trNum(st.suspiciousClicks)})`);
+  addCell(tr, `${trNum(st.autodigLevelEnd)} / ${st.autodigLevelMaxSeen === null || st.autodigLevelMaxSeen === undefined ? 'non journalisé' : trNum(st.autodigLevelMaxSeen)}`);
+  addCell(tr, `${trNum(st.coins)} / ${trNum(st.gems)}`);
+  addCell(tr, `${st.riskScore ?? 0} (niv. ${st.riskLevel ?? 0})`);
+  addCell(tr, trDecisions(st)).style.fontSize = '0.8rem';
+  if (run) addButtonCell(tr, 'Restaurer…', e => trOpenRestore(run, e.currentTarget));
+  else addCell(tr, '');
+  tbody.appendChild(tr);
+}
+
+async function loadTestRuns(userId) {
+  const tbody = document.querySelector('#tr-table tbody');
+  const { ok, data } = await api('GET', `/api/admin/players/${userId}/test-runs`);
+  if (userId !== _currentPlayerId) return;
+  tbody.textContent = '';
+  admShowError(document.getElementById('tr-err'), ok ? '' : (data.error ?? 'Historique des essais indisponible.'));
+  if (!ok) return;
+  for (const r of data.runs) {
+    trRow(tbody, `n° ${r.runNo}`, r, r.stats, `${TR_END[r.endKind] ?? r.endKind}${r.reason ? ` — ${r.reason}` : ''}`);
+  }
+  trRow(tbody, `n° ${data.current.runNo} (en cours)`, null, data.current.stats, '—');
+  const g = document.getElementById('tr-guard');
+  g.textContent = data.guard ? `Garde active depuis le dernier ${data.guard.kind === 'restore' ? 'retour à un essai' : 'reset'} : une sauvegarde d'un ancien onglet ou d'un client sans révision est refusée (révision minimale ${data.guard.revision}).` : '';
+  g.classList.toggle('hidden', !data.guard);
+  const a = data.auditChain;
+  document.getElementById('tr-audit').textContent = `Journal d'audit des essais : ${a.entries} entrée(s), chaîne d'empreintes ${a.ok ? 'intacte ✓' : `ROMPUE à l'entrée ${a.brokenAt} ⚠`}.`
+    + (data.runs.length ? '' : ' Aucun essai archivé : l\'essai n° 1 court depuis l\'inscription ; ses détails antérieurs non journalisés ne sont pas reconstitués.');
+}
+
+function trFillDialog({ title, text, diff, impact, confirmLabel, username }) {
+  document.getElementById('tr-dialog-title').textContent = title;
+  document.getElementById('tr-dialog-text').textContent = text;
+  const tbody = document.querySelector('#tr-diff tbody');
+  tbody.textContent = '';
+  for (const d of diff) {
+    const tr = document.createElement('tr');
+    addCell(tr, TR_KEYS[d.key] ?? d.key);
+    addCell(tr, trNum(d.current));
+    const after = addCell(tr, trNum(d.restored));
+    if (d.current !== d.restored) after.style.fontWeight = '700';
+    tbody.appendChild(tr);
+  }
+  const ul = document.getElementById('tr-impact');
+  ul.textContent = '';
+  for (const line of impact) ul.appendChild(Object.assign(document.createElement('li'), { textContent: line }));
+  document.getElementById('tr-confirm-name').textContent = username;
+  document.getElementById('tr-confirm-input').value = '';
+  document.getElementById('tr-reason').value = '';
+  const btn = document.getElementById('btn-tr-confirm');
+  btn.textContent = confirmLabel;
+  btn.disabled = true;
+  admShowError(document.getElementById('tr-msg'), '');
+}
+
+function trCheck() {
+  const ok = _trCtx && document.getElementById('tr-confirm-input').value === _trCtx.username
+    && document.getElementById('tr-reason').value.trim().length >= 3;
+  document.getElementById('btn-tr-confirm').disabled = !ok;
+}
+
+async function trOpenReset(opener) {
+  const userId = _currentPlayerId;
+  if (!userId) return;
+  const { ok, data } = await api('GET', `/api/admin/players/${userId}/test-runs/reset-preview`);
+  if (!ok) { admShowError(document.getElementById('tr-err'), data.error ?? 'Aperçu indisponible.'); return; }
+  const c = data.current, a = data.after;
+  _trCtx = { mode: 'reset', userId, username: data.username, expectedRevision: data.expectedRevision, requestId: crypto.randomUUID() };
+  const rows = Object.entries(data.rowsToArchive).filter(([, n]) => n > 0).map(([k, n]) => `${k} (${n})`).join(', ') || 'aucune ligne serveur';
+  trFillDialog({
+    title: `Recommencer un test à zéro — ${data.username}`,
+    text: `L'essai n° ${data.currentRunNo} (révision de sauvegarde ${data.expectedRevision ?? 'aucune'}) est archivé avec un instantané complet et restaurable, puis le personnage repart comme une inscription neuve (essai n° ${data.currentRunNo + 1}).`,
+    diff: ['depth', 'rankedMaxDepth', 'manualBlocksValidated', 'coins', 'gems', 'pickaxeLevel', 'relics', 'riskScore']
+      .map(k => ({ key: k, current: c[k], restored: a[k] ?? 0 })).concat([{ key: 'autodigLevel', current: c.autodigLevelEnd, restored: a.autodigLevel }]),
+    impact: [
+      `Archivé puis remis à zéro : sauvegarde, ${rows}.`,
+      'Le joueur disparaît du classement de la saison active jusqu\'à son prochain bloc cassé à la main ; ligue de départ.',
+      'Score de risque : l\'ancien est archivé et journalisé (security_events « admin_test_reset »), le nouvel essai repart à 0 ; aucun journal anti-bot n\'est effacé.',
+      ...data.kept.map(k => `Conservé : ${k}.`),
+      'Toutes les pages ouvertes du joueur (onglets, PWA, autres appareils) perdent la main avec un message et doivent recharger ; aucune ancienne sauvegarde ne peut revenir.',
+    ],
+    confirmLabel: `Archiver l'essai n° ${data.currentRunNo} et remettre à zéro`,
+    username: data.username,
+  });
+  admDialogOpen('tr-dialog', opener, 'tr-reason');
+}
+
+async function trOpenRestore(run, opener) {
+  const userId = _currentPlayerId;
+  if (!userId) return;
+  const { ok, data } = await api('GET', `/api/admin/players/${userId}/test-runs/${run.id}/restore-preview`);
+  if (!ok) { admShowError(document.getElementById('tr-err'), data.error ?? 'Aperçu indisponible.'); return; }
+  _trCtx = { mode: 'restore', userId, runId: run.id, username: data.username, expectedRevision: data.expectedRevision, requestId: crypto.randomUUID() };
+  trFillDialog({
+    title: `Restaurer l'essai n° ${data.runNo} — ${data.username}`,
+    text: `Remet l'état archivé de l'essai n° ${data.runNo} (${TR_END[run.endKind] ?? run.endKind}, ${admBrussels(run.endedAt)}). ${data.seasonNote}`,
+    diff: data.diff,
+    impact: [
+      'L\'essai en cours est d\'abord archivé avec un instantané complet (il reste restaurable : rien n\'est détruit).',
+      'Saisons clôturées, points de récompense, commandes et journaux anti-bot inchangés ; aucun gain ni cadeau n\'est crédité en plus de l\'état archivé.',
+      'Toutes les pages ouvertes du joueur perdent la main et doivent recharger.',
+    ],
+    confirmLabel: `Restaurer l'essai n° ${data.runNo}`,
+    username: data.username,
+  });
+  admDialogOpen('tr-dialog', opener, 'tr-reason');
+}
+
+async function trConfirm() {
+  const ctx = _trCtx;
+  if (!ctx) return;
+  const btn = document.getElementById('btn-tr-confirm');
+  btn.disabled = true;
+  const body = { confirmUsername: document.getElementById('tr-confirm-input').value, expectedRevision: ctx.expectedRevision,
+    requestId: ctx.requestId, reason: document.getElementById('tr-reason').value.trim() };
+  const path = ctx.mode === 'reset' ? `/api/admin/players/${ctx.userId}/test-runs/reset` : `/api/admin/players/${ctx.userId}/test-runs/${ctx.runId}/restore`;
+  const { ok, data } = await api('POST', path, body);
+  if (!ok) { admShowError(document.getElementById('tr-msg'), data.error ?? 'Erreur : aucune modification appliquée.'); trCheck(); return; }
+  _trCtx = null;
+  document.getElementById('tr-dialog').close();
+  const done = document.getElementById('tr-done');
+  done.textContent = ctx.mode === 'reset'
+    ? `Essai n° ${data.runNo} archivé (${data.testRunId}) ; essai n° ${data.newRunNo} commencé — révision ${data.revision}.${data.replayed ? ' (requête déjà traitée : rien de plus n\'a été modifié)' : ''}`
+    : `Essai n° ${data.restoredRunNo} restauré ; l'essai précédent est archivé sous le n° ${data.runNo} — révision ${data.revision}.`;
+  done.classList.remove('hidden');
+  if (ctx.userId === _currentPlayerId) viewPlayerSave(_currentPlayerId, _currentPlayerName);
+}
+
+/** Export : téléchargement via fetch (la session admin exige l'en-tête X-Dig-Admin, un lien simple ne suffit pas). */
+async function trExport(format) {
+  const userId = _currentPlayerId;
+  if (!userId) return;
+  const q = format === 'csv' ? 'format=csv' : 'format=json&full=1';
+  let res;
+  try { res = await fetch(`/api/admin/players/${userId}/test-runs/export?${q}`, { headers: { 'X-Dig-Admin': '1' }, credentials: 'same-origin', cache: 'no-store' }); }
+  catch { admShowError(document.getElementById('tr-err'), 'Export impossible : serveur injoignable.'); return; }
+  if (!res.ok) { admShowError(document.getElementById('tr-err'), `Export refusé (${res.status}).`); return; }
+  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? `essais-${userId}.${format}`;
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+admDialogSetup('tr-dialog');
+document.getElementById('tr-confirm-input').addEventListener('input', trCheck);
+document.getElementById('tr-reason').addEventListener('input', trCheck);
+document.getElementById('btn-tr-confirm').addEventListener('click', trConfirm);
+document.getElementById('btn-tr-reset').addEventListener('click', e => trOpenReset(e.currentTarget));
+document.getElementById('btn-tr-export-csv').addEventListener('click', () => trExport('csv'));
+document.getElementById('btn-tr-export-json').addEventListener('click', () => trExport('json'));
 
 // ── Anti-bot (#25) ───────────────────────────────────────────────────────────
 
