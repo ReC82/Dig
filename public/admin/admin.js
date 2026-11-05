@@ -11934,6 +11934,7 @@ async function loadMissions() {
   mqRenderDraft();
   mqRenderList();
   mqRenderRotation();
+  mqRenderBonus();
   mqRenderVersions();
   loadMissionAudit();
   loadMissionActivation();
@@ -12025,7 +12026,7 @@ function mqRenderDraft() {
   body.textContent = '';
   for (const c of d.changes) {
     const m = d.missions.find(x => x.id === c.id) ?? {};
-    const name = c.kind === 'rotation' ? '🔁 Rotation' : `${m.icon ?? ''} ${m.names?.fr ?? c.id}`;
+    const name = c.kind === 'rotation' ? '🔁 Rotation' : c.kind === 'setBonus' ? '🎁 Bonus trois missions' : `${m.icon ?? ''} ${m.names?.fr ?? c.id}`;
     if (c.kind === 'added') {
       const tr = body.insertRow();
       addCell(tr, name); addCell(tr, 'nouvelle mission'); addCell(tr, '—'); addCell(tr, `${mqType(m.type)?.label ?? m.type} · ${mqBandsText(m.bands)}`);
@@ -12033,6 +12034,11 @@ function mqRenderDraft() {
     }
     for (const f of c.fields) {
       const tr = body.insertRow();
+      if (c.kind === 'setBonus') {
+        addCell(tr, name); addCell(tr, f.field === 'enabled' ? 'Activé' : 'Paliers');
+        addCell(tr, mqBonusText(f.field, f.before)); addCell(tr, mqBonusText(f.field, f.after));
+        continue;
+      }
       addCell(tr, name); addCell(tr, (c.kind === 'rotation' ? MQ_ROT_LABELS : MQ_FIELDS)[f.field] ?? f.field);
       addCell(tr, mqFieldText(f.field, f.before)); addCell(tr, mqFieldText(f.field, f.after));
     }
@@ -12084,6 +12090,68 @@ function mqRenderRotation() {
   for (const k of Object.keys(MQ_ROT_LABELS)) ul.appendChild(aiEl('li', {}, `${MQ_ROT_LABELS[k]} : ${mqRotValue(k, rot[k])}`));
 }
 
+// ── Bonus trois missions (05/11) : brouillon seulement, non lu par le jeu ──
+
+const mqSetBonus = () => _mq?.draft?.setBonus ?? _mq?.published?.setBonus ?? { enabled: false, bands: [] };
+const mqBandText = b => `à partir de ${b.fromDepth} m : ${b.coins.toLocaleString('fr-BE')} 💰${b.gems ? ` + ${b.gems} 💎` : ''}`;
+function mqBonusText(field, v) {
+  if (field === 'enabled') return v ? 'oui' : 'non';
+  return Array.isArray(v) && v.length ? v.map(mqBandText).join(' · ') : 'aucun palier';
+}
+function mqRenderBonus() {
+  const b = mqSetBonus();
+  document.getElementById('mq-bonus-src').textContent = _mq.draft?.changes?.some(c => c.kind === 'setBonus') ? '— brouillon (non publié)' : `— version ${_mq.published.version}`;
+  document.getElementById('mq-bonus-state').textContent = !b.bands.length ? 'Aucun bonus (jeu actuel).'
+    : b.enabled ? 'Marqué activé dans le catalogue — le jeu ne l\'applique pas encore (branchement après validation du barème).' : 'Désactivé (préparation) — chiffré dans le simulateur.';
+  const ul = document.getElementById('mq-bonus-view');
+  ul.textContent = '';
+  for (const band of b.bands) ul.appendChild(aiEl('li', {}, mqBandText(band)));
+}
+let _mqBonusSnap = '';
+function mqBonusRow(band = { fromDepth: '', coins: 0, gems: 0 }) {
+  const tr = document.getElementById('mq-bonus-rows').insertRow();
+  for (const [k, max, label] of [['fromDepth', 100000, 'À partir de (m)'], ['coins', 1000000, 'Pièces'], ['gems', 3, 'Gemmes']]) {
+    const td = tr.insertCell();
+    td.appendChild(aiEl('input', { type: 'number', min: k === 'fromDepth' ? '1' : '0', max: String(max), step: '1', value: String(band[k]), 'data-k': k, 'aria-label': label }));
+  }
+  const td = tr.insertCell();
+  const del = aiEl('button', { type: 'button', class: 'btn btn-outline btn-sm', 'aria-label': 'Retirer ce palier' }, '✕');
+  del.addEventListener('click', () => tr.remove());
+  td.appendChild(del);
+}
+function mqBonusFill(b) {
+  document.getElementById('mq-bonus-enabled').checked = !!b.enabled;
+  document.getElementById('mq-bonus-rows').textContent = '';
+  for (const band of b.bands) mqBonusRow(band);
+}
+function mqBonusRead() {
+  return { enabled: document.getElementById('mq-bonus-enabled').checked,
+    bands: [...document.querySelectorAll('#mq-bonus-rows tr')].map(tr => Object.fromEntries(
+      [...tr.querySelectorAll('input[data-k]')].map(i => [i.dataset.k, i.value === '' ? null : Number(i.value)]))) };
+}
+admDialogSetup('mq-bonus-dialog', { dirty: () => JSON.stringify(mqBonusRead()) !== _mqBonusSnap, keep: 'Enregistrer dans le brouillon' });
+document.getElementById('btn-mq-bonus').addEventListener('click', e => {
+  if (!_mq) return;
+  mqBonusFill(mqSetBonus());
+  document.getElementById('mq-bonus-issues').classList.add('hidden');
+  _mqBonusSnap = JSON.stringify(mqBonusRead());
+  admDialogOpen('mq-bonus-dialog', e.currentTarget, 'mq-bonus-enabled');
+});
+document.getElementById('btn-mq-bonus-add').addEventListener('click', () => {
+  if (document.querySelectorAll('#mq-bonus-rows tr').length < (_mq?.setBonusLimits?.maxBands ?? 6)) mqBonusRow();
+});
+document.getElementById('btn-mq-bonus-proposal').addEventListener('click', () => {
+  mqBonusFill({ enabled: document.getElementById('mq-bonus-enabled').checked, bands: _mq.proposal.setBonus.bands });
+});
+document.getElementById('btn-mq-bonus-save').addEventListener('click', async () => {
+  const { ok, data } = await api('PUT', '/api/admin/missions/draft/set-bonus', { setBonus: mqBonusRead() });
+  if (!ok) return mqIssues(data, 'mq-bonus-issues');
+  _mqBonusSnap = JSON.stringify(mqBonusRead());
+  document.getElementById('mq-bonus-dialog').close();
+  ptMessage('mq-msg', data.draftDropped ? 'Bonus identique à la version en vigueur : aucun brouillon en attente.' : 'Bonus enregistré dans le brouillon. Rien ne change en jeu.', true);
+  loadMissions();
+});
+
 function mqRenderVersions() {
   const body = document.getElementById('mq-versions-body');
   body.textContent = '';
@@ -12105,7 +12173,7 @@ async function loadMissionAudit() {
   body.textContent = '';
   if (!ok) return;
   const labels = { migrate: 'version d\'origine', draft_add: 'ajout (brouillon)', draft_update: 'modification (brouillon)', draft_revert: 'modification annulée',
-    draft_remove: 'retrait du brouillon', draft_discard: 'brouillon abandonné', draft_clean: 'brouillon identique supprimé', draft_rotation: 'rotation (brouillon)',
+    draft_remove: 'retrait du brouillon', draft_discard: 'brouillon abandonné', draft_clean: 'brouillon identique supprimé', draft_rotation: 'rotation (brouillon)', draft_set_bonus: 'bonus trois missions (brouillon)',
     draft_proposal: 'proposition adaptative chargée (brouillon)', publish: 'publication', rollback: 'retour arrière' };
   for (const a of data.audit) {
     const tr = body.insertRow();
@@ -12465,6 +12533,7 @@ document.getElementById('btn-mq-simulate').addEventListener('click', async () =>
       addCell(tr, d.date);
       const cell = addCell(tr, '');
       for (const m of d.missions) cell.appendChild(aiEl('div', {}, `${m.done ? '✓' : '✗'} ${m.icon} ${m.text} → ${m.reward.coins} 💰${m.reward.gems ? ` + ${m.reward.gems} 💎` : ''}${m.repeated ? ' (déjà hier)' : ''}`));
+      if (d.setBonus) cell.appendChild(aiEl('div', { class: 'muted' }, `🎁 bonus trois missions${p.stats.setBonus.enabled ? '' : ' (si activé)'} : ${d.setBonus.coins.toLocaleString('fr-BE')} 💰${d.setBonus.gems ? ` + ${d.setBonus.gems} 💎` : ''}`));
       addCell(tr, d.excluded.map(x => `${x.id} : ${x.reason}`).join(' · ') || '—');
     }
     wrap.appendChild(table);
@@ -12473,6 +12542,13 @@ document.getElementById('btn-mq-simulate').addEventListener('click', async () =>
     box.appendChild(aiEl('p', { style: 'font-size:0.78rem;margin:4px 0 10px' },
       `${s.assigned} missions, ${Math.round(s.completionRate * 100)} % atteignables · ${s.distinctDays}/${p.plan.length} journées différentes · ${s.repeatsFromYesterday} reprise(s) de la veille · `
       + `récompenses si tout est fait : ${s.coinsIfCompleted.toLocaleString('fr-BE')} 💰, ${s.gemsIfCompleted} 💎 · fréquence : ${Object.entries(s.frequency).map(([k, n]) => `${k} ${n}`).join(', ')}.`));
+    const sb = s.setBonus;
+    if (sb?.band) {
+      const pct = x => (x == null ? '—' : `${(x * 100).toLocaleString('fr-BE', { maximumFractionDigits: 1 })} %`);
+      box.appendChild(aiEl('p', { style: 'font-size:0.78rem;margin:-6px 0 10px' },
+        `🎁 Bonus trois missions${sb.enabled ? '' : ' (désactivé — chiffres si activé)'} : palier ${mqBandText(sb.band)} · ${sb.daysAllDone}/${p.plan.length} journées complètes → `
+        + `${sb.coins.toLocaleString('fr-BE')} 💰 (${pct(sb.coinsVsMining)} des pièces du minage) et ${sb.gems} 💎 (${pct(sb.gemsVsMining)} des gemmes trouvées en minant).`));
+    }
     out.appendChild(box);
   }
 });

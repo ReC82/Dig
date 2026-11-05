@@ -2284,6 +2284,16 @@
       <p class="muted" style="font-size:0.72rem;margin:4px 0 0">La proposition adapte les objectifs à la profondeur (tranches) et rend la rotation pondérée, propre à chaque joueur et anti-répétition. Les récompenses <em>par unité</em> restent celles du jeu. Rien n'est publié : comparez d'abord dans le simulateur (source « Proposition »).</p>
     </div>
 
+    <div class="overview-card" id="mq-bonus">
+      <h3 class="overview-card-title">🎁 Bonus trois missions <span id="mq-bonus-src" class="muted"></span></h3>
+      <p id="mq-bonus-state" style="font-size:0.8rem;margin:4px 0"></p>
+      <ul id="mq-bonus-view" style="font-size:0.8rem;margin:4px 0"></ul>
+      <div class="form-actions">
+        <button class="btn btn-outline" id="btn-mq-bonus" type="button">Modifier le bonus…</button>
+      </div>
+      <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Récompense en plus quand <strong>toutes</strong> les missions du jour sont réussies, pour tous les joueurs (débutants compris), par palier de profondeur. Montants <strong>fixes</strong> par palier (jamais proportionnels aux revenus) et gemmes plafonnées à 3 : pas de boule de neige, rien d'achetable. <strong>Préparation seulement</strong> : le jeu ne l'applique pas, même publié, tant que le propriétaire n'a pas validé le barème. Le simulateur chiffre son coût (« si activé »).</p>
+    </div>
+
     <div class="overview-card" data-adm-noguard>
       <h3 class="overview-card-title">🧪 Simulateur de rotation</h3>
       <p class="muted" style="font-size:0.75rem;margin:0 0 6px">Aucune écriture : calcule les missions de journées successives pour des profils types, avec l'historique anti-répétition et une complétion estimée (activité du profil : 1 bloc = 1 m, catalogue de blocs publié, Chance et Sac du profil).</p>
@@ -2448,6 +2458,30 @@
         <button class="btn btn-outline" id="btn-mq-duplicate" type="button">Dupliquer</button>
         <button class="btn btn-outline hidden" id="btn-mq-revert" type="button">Annuler les modifications de cette mission</button>
         <button class="btn btn-outline hidden" id="btn-mq-remove" type="button">Retirer du brouillon</button>
+        <button class="btn btn-outline" type="button" data-close>Fermer</button>
+      </div>
+    </dialog>
+
+    <dialog id="mq-bonus-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="mq-bonus-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="mq-bonus-title">Bonus trois missions</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <ul id="mq-bonus-issues" class="error hidden"></ul>
+      <label class="adm-check"><input id="mq-bonus-enabled" type="checkbox"> Marqué « activé » dans le catalogue (le jeu ne l'applique pas encore)</label>
+      <div class="bk-table-wrap">
+        <table class="bk-table mq-bonus-table">
+          <thead><tr><th>Dès (m)</th><th>Pièces</th><th>Gemmes</th><th><span class="visually-hidden">Retirer</span></th></tr></thead>
+          <tbody id="mq-bonus-rows"></tbody>
+        </table>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-outline" id="btn-mq-bonus-add" type="button">＋ Palier</button>
+        <button class="btn btn-outline" id="btn-mq-bonus-proposal" type="button">Remplir avec le barème proposé</button>
+      </div>
+      <p class="muted" style="font-size:0.72rem">Le palier utilisé est le dernier dont la profondeur est atteinte (profondeur du joueur au début de la journée). Le premier palier commence à 1 m. Gemmes de 0 à 3 par palier. Au plus 6 paliers.</p>
+      <div class="form-actions bk-dialog-foot">
+        <button class="btn btn-primary" id="btn-mq-bonus-save" type="button">Enregistrer dans le brouillon</button>
         <button class="btn btn-outline" type="button" data-close>Fermer</button>
       </div>
     </dialog>

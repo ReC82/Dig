@@ -206,6 +206,54 @@ test('rotation adaptative : plafond de la journée de référence, anti-répéti
   assert.deepStrictEqual(plan('a', false), plan('b', false));
 });
 
+test('bonus trois missions (05/11) : désactivé par défaut, validé, brouillon → publication, simulé, sans effet sur les missions', () => {
+  const pubBefore = clone(catalog.getPublished());
+  assert.deepStrictEqual(pubBefore.setBonus, { enabled: false, bands: [] }, 'versions sans réglage = aucun bonus');
+  // Validation : premier palier à 1 m (débutants compris), paliers croissants, gemmes ≤ 3, activé ⇒ une récompense
+  const ok = { enabled: false, bands: [{ fromDepth: 1, coins: 300, gems: 1 }, { fromDepth: 150, coins: 10000, gems: 2 }] };
+  assert.deepStrictEqual(catalog.normalizeSetBonus(ok), ok);
+  for (const bad of [{ bands: [{ fromDepth: 35, coins: 1, gems: 0 }] }, { bands: [{ fromDepth: 1, coins: 1, gems: 4 }] },
+    { bands: [{ fromDepth: 1, coins: 1, gems: 0 }, { fromDepth: 1, coins: 2, gems: 0 }] }, { bands: [{ fromDepth: 1, coins: -5, gems: 0 }] },
+    { enabled: true, bands: [{ fromDepth: 1, coins: 0, gems: 0 }] }, { bands: Array.from({ length: 7 }, (_, i) => ({ fromDepth: i + 1, coins: 1, gems: 0 })) }]) {
+    assert.strictEqual(code(() => catalog.normalizeSetBonus(bad)), 400, JSON.stringify(bad));
+  }
+  assert.deepStrictEqual(catalog.setBonusFor(ok, 20), { fromDepth: 1, coins: 300, gems: 1 });
+  assert.deepStrictEqual(catalog.setBonusFor(ok, 500), { fromDepth: 150, coins: 10000, gems: 2 });
+  // Proposition : paliers chargés, toujours désactivés
+  catalog.loadProposalIntoDraft();
+  assert.deepStrictEqual(catalog.getDraft().setBonus, catalog.PROPOSAL.setBonus);
+  assert.strictEqual(catalog.getDraft().setBonus.enabled, false);
+  catalog.discardDraft();
+  // Brouillon seul : écart visible, rien de publié ; identique à la version en vigueur → brouillon supprimé
+  assert.strictEqual(catalog.setDraftSetBonus(ok).draftDropped, false);
+  assert.deepStrictEqual(catalog.getPublished(), pubBefore, 'rien de publié');
+  assert.ok(catalog.buildAdminView().draft.changes.some(c => c.kind === 'setBonus'));
+  assert.strictEqual(catalog.setDraftSetBonus({ enabled: false, bands: [] }).draftDropped, true);
+  // Simulation : coût chiffré (même désactivé), missions identiques avec ou sans bonus
+  catalog.setDraftSetBonus(ok);
+  const sim = catalog.simulate({ source: 'draft', days: 3, start: '2026-11-09', profiles: [{ id: 'debutant' }] });
+  const pub = catalog.simulate({ source: 'published', days: 3, start: '2026-11-09', profiles: [{ id: 'debutant' }] });
+  const sb = sim.profiles[0].stats.setBonus;
+  assert.strictEqual(sb.enabled, false);
+  assert.deepStrictEqual(sb.band, { fromDepth: 1, coins: 300, gems: 1 });
+  const full = sim.profiles[0].plan.filter(d => d.allDone).length;
+  assert.strictEqual(sb.daysAllDone, full);
+  assert.deepStrictEqual([sb.coins, sb.gems], [300 * full, full]);
+  assert.deepStrictEqual(sim.profiles[0].plan.map(d => d.missions.map(m => [m.id, m.target, m.reward])), pub.profiles[0].plan.map(d => d.missions.map(m => [m.id, m.target, m.reward])));
+  assert.strictEqual(pub.profiles[0].stats.setBonus.band, null);
+  // Publication (avertissement : non appliqué en jeu) puis retour arrière : réglage suivi par version
+  catalog.setDraftSetBonus({ ...ok, enabled: true });
+  const p = catalog.publishDraft({ note: 'test bonus' });
+  assert.ok(p.warnings.some(w => /ne l'applique pas/.test(w)));
+  assert.deepStrictEqual(catalog.getPublished().setBonus, { ...ok, enabled: true });
+  assert.deepStrictEqual(catalog.getPublished().missions, pubBefore.missions, 'missions inchangées');
+  catalog.rollbackTo(pubBefore.version);
+  assert.deepStrictEqual(catalog.getPublished().setBonus, { enabled: false, bands: [] });
+  assert.ok(catalog.listAudit().some(a => a.action === 'draft_set_bonus'));
+  // Le moteur serveur (missionsLive) ne lit pas ce réglage
+  assert.ok(!/setBonus/.test(fs.readFileSync(path.join(ROOT, 'server', 'missionsLive.js'), 'utf8')));
+});
+
 test('le jeu n\'est pas modifié : missions du client et sauvegarde inchangées', () => {
   const src = fs.readFileSync(path.join(ROOT, 'public', 'js', 'dailyMissions.js'), 'utf8');
   assert.ok(!/api\/missions|missionCatalog/.test(src), 'le client ne lit pas le catalogue');
@@ -257,7 +305,7 @@ test('routes : administration protégée, aperçu et simulateur sans écriture',
   };
   for (const [m, u] of [['GET', '/api/admin/missions'], ['PUT', '/api/admin/missions/draft/missions/find_gems'], ['POST', '/api/admin/missions/publish'],
     ['POST', '/api/admin/missions/rollback'], ['DELETE', '/api/admin/missions/draft'], ['GET', '/api/admin/missions/audit'],
-    ['PUT', '/api/admin/missions/draft/rotation'], ['POST', '/api/admin/missions/draft/proposal'], ['POST', '/api/admin/missions/preview'],
+    ['PUT', '/api/admin/missions/draft/rotation'], ['PUT', '/api/admin/missions/draft/set-bonus'], ['POST', '/api/admin/missions/draft/proposal'], ['POST', '/api/admin/missions/preview'],
     ['POST', '/api/admin/missions/simulate'], ['POST', '/api/admin/missions/draft/missions/find_gems/revert'], ['DELETE', '/api/admin/missions/draft/missions/x_y']]) {
     assert.strictEqual((await call(m, u, m === 'GET' ? undefined : {}, { auth: false })).status, 401, `${m} ${u}`);
   }

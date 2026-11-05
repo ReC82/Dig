@@ -104,6 +104,8 @@ function currentRules(config = PROD_CONFIG) {
     dailyGems: G.Daily.REWARDS.map(r => r.gems),
     /** Gemmes en plus quand les 3 missions du jour sont réussies (actuel : 0). */
     missionSetGems: 0,
+    /** Bonus trois missions par palier de profondeur [{ fromDepth, coins, gems }] (#68 ; actuel : aucun). */
+    missionSetBands: [],
     /** Gemmes d'une mission réussie : fonction réelle de dailyMissions.js (rewardFn). */
     missionGems: (def, target) => def.rewardFn(target).gems,
     questGems: G.Quests.DEFS.reduce((s, q) => s + (q.reward.gems || 0), 0),
@@ -633,6 +635,12 @@ function playSeason(p, rules, o, random, seasonIndex) {
       s.coins += m.reward.coins; s.m.coins.missions += m.reward.coins;
     }
     if (done === missions.length && rules.missionSetGems) { p.gems += rules.missionSetGems; s.m.gems.missions += rules.missionSetGems; }
+    // Bonus trois missions par palier de profondeur (#68, catalogue des missions) : palier du début de journée
+    const setBand = done === missions.length ? [...(rules.missionSetBands ?? [])].reverse().find(b => baseline.depth >= b.fromDepth) : null;
+    if (setBand) {
+      p.gems += setBand.gems; s.m.gems.missions += setBand.gems;
+      s.coins += setBand.coins; s.m.coins.missions += setBand.coins;
+    }
     buyUpgrades(p, s, rules, o, playedS);
     // 04/11 : coffres de la boutique dès que tout est au max en pièces, et le dernier jour joué
     if (o.shopBuy && (s.m.maxedAt !== null || day === lastDay)) buyShopChests(p, s, rules, random, day === lastDay);

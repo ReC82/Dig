@@ -113,6 +113,16 @@ const ROTATION_FIELDS = {
 };
 const ORIGIN_ROTATION = { mode: 'origin', perDay: 3, maxPerCategory: 5, repeatDays: 0, repeatFactor: 1, perPlayer: false, dayBlocks: 0, timezone: 'browser' };
 
+/**
+ * Bonus « toutes les missions du jour réussies » (arbitrage du propriétaire du 05/11) : accessible à
+ * tous, par palier de profondeur (montants FIXES par palier, jamais proportionnels aux revenus : pas
+ * de boule de neige), gemmes plafonnées. Brouillon et simulateur seulement : le jeu et le moteur
+ * serveur (missionsLive.js) ne le lisent PAS ; `enabled` reste false tant que le propriétaire n'a
+ * pas validé un barème. Absent des versions publiées avant ce réglage = désactivé, aucun palier.
+ */
+const SET_BONUS_LIMITS = { maxBands: 6, coins: [0, 1_000_000], gems: [0, 3] };
+const ORIGIN_SET_BONUS = { enabled: false, bands: [] };
+
 class CatalogError extends Error {
   constructor(status, message, details) { super(message); this.status = status; this.details = details; }
 }
@@ -182,6 +192,11 @@ function originMissions() {
  */
 const PROPOSAL = {
   rotation: { mode: 'adaptive', perDay: 3, maxPerCategory: 2, repeatDays: 2, repeatFactor: 0.25, perPlayer: true, dayBlocks: 100, timezone: 'Europe/Brussels' },
+  // Bonus trois missions proposé le 05/11 (chiffres : rapport #68) — désactivé jusqu'à validation
+  setBonus: { enabled: false, bands: [
+    { fromDepth: 1, coins: 300, gems: 1 }, { fromDepth: 50, coins: 2000, gems: 1 },
+    { fromDepth: 150, coins: 10000, gems: 1 }, { fromDepth: 300, coins: 40000, gems: 2 },
+  ] },
   missions: {
     break_blocks: { weight: 10, bands: [{ fromDepth: 1, targets: [20, 40, 60] }, { fromDepth: 100, targets: [50, 75, 100] }] },
     earn_coins:   { weight: 8, bands: [{ fromDepth: 1, targets: [500, 1000, 2000] }, { fromDepth: 50, targets: [5000, 10000, 20000] }, { fromDepth: 150, targets: [30000, 60000, 100000] }, { fromDepth: 300, targets: [100000, 200000, 400000] }] },
@@ -243,7 +258,7 @@ function init() {
   `);
   conn().transaction(() => {
     if (conn().prepare('SELECT 1 FROM mission_catalog_versions LIMIT 1').get()) return;
-    const content = { missions: originMissions(), rotation: { ...ORIGIN_ROTATION } };
+    const content = { missions: originMissions(), rotation: { ...ORIGIN_ROTATION } };   // sans setBonus = désactivé
     conn().prepare("INSERT INTO mission_catalog_versions (version, content, source, note) VALUES (1, ?, 'origin', ?)")
       .run(JSON.stringify(content), 'Conversion à l\'identique des six missions quotidiennes du jeu (#68)');
     _audit('migrate', 1, { missions: content.missions.length });
@@ -260,16 +275,17 @@ function _audit(action, version, details) {
 
 let _published = null;
 function _invalidate() { _published = null; }
+const _originSetBonus = () => ({ ...ORIGIN_SET_BONUS, bands: [] });
 
 function _row(r) {
   if (!r) return null;
   const c = JSON.parse(r.content);
-  return { version: r.version, missions: c.missions, rotation: c.rotation, source: r.source, note: r.note, fromVersion: r.from_version, createdAt: r.created_at };
+  return { version: r.version, missions: c.missions, rotation: c.rotation, setBonus: c.setBonus ?? _originSetBonus(), source: r.source, note: r.note, fromVersion: r.from_version, createdAt: r.created_at };
 }
 
 function getPublished() {
   if (!_published) _published = _row(conn().prepare('SELECT * FROM mission_catalog_versions ORDER BY version DESC LIMIT 1').get());
-  return _published ?? { version: 0, missions: originMissions(), rotation: { ...ORIGIN_ROTATION }, source: 'origin' };
+  return _published ?? { version: 0, missions: originMissions(), rotation: { ...ORIGIN_ROTATION }, setBonus: _originSetBonus(), source: 'origin' };
 }
 
 function getVersion(version) {
@@ -284,7 +300,7 @@ function getDraft() {
   const r = conn().prepare('SELECT * FROM mission_catalog_draft WHERE id = 1').get();
   if (!r) return null;
   const c = JSON.parse(r.content);
-  return { missions: c.missions, rotation: c.rotation, basedOn: r.based_on, updatedAt: r.updated_at };
+  return { missions: c.missions, rotation: c.rotation, setBonus: c.setBonus ?? _originSetBonus(), basedOn: r.based_on, updatedAt: r.updated_at };
 }
 
 function publishedIds() {
@@ -386,15 +402,45 @@ function normalizeRotation(input) {
   };
 }
 
+/** Bonus trois missions : paliers croissants par profondeur, montants bornés. */
+function normalizeSetBonus(input) {
+  const b = input ?? {};
+  if (!Array.isArray(b.bands ?? [])) throw new CatalogError(400, 'Bonus trois missions : paliers attendus.');
+  const raw = b.bands ?? [];
+  if (raw.length > SET_BONUS_LIMITS.maxBands) throw new CatalogError(400, `Bonus trois missions : au plus ${SET_BONUS_LIMITS.maxBands} paliers.`);
+  const bands = raw.map((x, i) => {
+    const fromDepth = Number(x?.fromDepth), coins = Number(x?.coins ?? 0), gems = Number(x?.gems ?? 0);
+    if (!_isInt(fromDepth, 1, DEPTH_MAX)) throw new CatalogError(400, `Bonus trois missions, palier ${i + 1} : profondeur entière de 1 à ${DEPTH_MAX}.`);
+    if (!_isInt(coins, ...SET_BONUS_LIMITS.coins)) throw new CatalogError(400, `Bonus trois missions, palier ${i + 1} : pièces de 0 à ${SET_BONUS_LIMITS.coins[1]}.`);
+    if (!_isInt(gems, ...SET_BONUS_LIMITS.gems)) throw new CatalogError(400, `Bonus trois missions, palier ${i + 1} : gemmes de 0 à ${SET_BONUS_LIMITS.gems[1]} (plafond anti-inflation).`);
+    return { fromDepth, coins, gems };
+  });
+  for (let i = 1; i < bands.length; i++) {
+    if (bands[i].fromDepth <= bands[i - 1].fromDepth) throw new CatalogError(400, 'Bonus trois missions : profondeurs des paliers strictement croissantes.');
+  }
+  if (bands.length && bands[0].fromDepth !== 1) throw new CatalogError(400, 'Bonus trois missions : le premier palier commence à 1 m (accessible à tous, débutants compris).');
+  const enabled = b.enabled === true;
+  if (enabled && !bands.some(x => x.coins || x.gems)) throw new CatalogError(400, 'Bonus trois missions activé sans aucune récompense.');
+  return { enabled, bands };
+}
+
+/** Palier du bonus trois missions à une profondeur (null si aucun). */
+function setBonusFor(setBonus, depth) {
+  const band = [...(setBonus?.bands ?? [])].reverse().find(b => depth >= b.fromDepth);
+  return band ? { fromDepth: band.fromDepth, coins: band.coins, gems: band.gems } : null;
+}
+
 /**
  * Valide un catalogue complet (brouillon avant publication).
  * @returns {{ errors: string[], warnings: string[], missions: object[], rotation: object|null }}
  */
-function validateCatalog(raw, rotationRaw, { requiredIds = publishedIds() } = {}) {
+function validateCatalog(raw, rotationRaw, { requiredIds = publishedIds(), setBonus: setBonusRaw = ORIGIN_SET_BONUS } = {}) {
   const errors = [], warnings = [];
-  let rotation = null;
+  let rotation = null, setBonus = null;
   try { rotation = normalizeRotation(rotationRaw); } catch (err) { if (!(err instanceof CatalogError)) throw err; errors.push(err.message); }
-  if (!Array.isArray(raw) || !raw.length) return { errors: [...errors, 'Catalogue vide.'], warnings, missions: [], rotation };
+  try { setBonus = normalizeSetBonus(setBonusRaw); } catch (err) { if (!(err instanceof CatalogError)) throw err; errors.push(err.message); }
+  if (setBonus?.enabled) warnings.push('Bonus trois missions activé : le jeu ne l\'applique pas encore (moteur à brancher après validation du barème).');
+  if (!Array.isArray(raw) || !raw.length) return { errors: [...errors, 'Catalogue vide.'], warnings, missions: [], rotation, setBonus };
   if (raw.length > MAX_MISSIONS) errors.push(`Au plus ${MAX_MISSIONS} missions.`);
   const missions = [];
   const seen = new Set();
@@ -424,7 +470,7 @@ function validateCatalog(raw, rotationRaw, { requiredIds = publishedIds() } = {}
   if (rotation?.mode === 'origin' && missions.some(x => x.bands.length > 1)) {
     warnings.push('Rotation « origin » : seule la première tranche de profondeur est utilisée (comme le jeu actuel).');
   }
-  return { errors, warnings, missions, rotation };
+  return { errors, warnings, missions, rotation, setBonus };
 }
 
 /** Écarts entre deux catalogues, champ par champ (missions + réglages de rotation). */
@@ -441,21 +487,26 @@ function diff(from, to) {
   const rf = Object.keys(ROTATION_FIELDS).filter(k => JSON.stringify(from.rotation?.[k] ?? null) !== JSON.stringify(to.rotation?.[k] ?? null))
     .map(k => ({ field: k, before: from.rotation?.[k] ?? null, after: to.rotation?.[k] ?? null }));
   if (rf.length) changes.push({ id: '(rotation)', kind: 'rotation', fields: rf });
+  if (from.setBonus !== undefined || to.setBonus !== undefined) {
+    const a = from.setBonus ?? ORIGIN_SET_BONUS, b = to.setBonus ?? ORIGIN_SET_BONUS;
+    const bf = ['enabled', 'bands'].filter(k => JSON.stringify(a[k]) !== JSON.stringify(b[k])).map(k => ({ field: k, before: a[k], after: b[k] }));
+    if (bf.length) changes.push({ id: '(bonus)', kind: 'setBonus', fields: bf });
+  }
   return changes;
 }
 
 // ── Brouillon, publication, retour arrière ────────────────────────────────────
 
-function _saveDraft(missions, rotation, basedOn) {
+function _saveDraft(missions, rotation, basedOn, setBonus) {
   conn().prepare(`INSERT INTO mission_catalog_draft (id, content, based_on, updated_at) VALUES (1, ?, ?, datetime('now'))
     ON CONFLICT(id) DO UPDATE SET content = excluded.content, based_on = excluded.based_on, updated_at = excluded.updated_at`)
-    .run(JSON.stringify({ missions, rotation }), basedOn);
+    .run(JSON.stringify({ missions, rotation, setBonus: setBonus ?? _originSetBonus() }), basedOn);
 }
 
 function _draftOrCurrent() {
   const current = getPublished();
   // Copie : la version en vigueur est en cache et ne doit jamais être modifiée en place
-  return getDraft() ?? { ...JSON.parse(JSON.stringify({ missions: current.missions, rotation: current.rotation })), basedOn: current.version };
+  return getDraft() ?? { ...JSON.parse(JSON.stringify({ missions: current.missions, rotation: current.rotation, setBonus: current.setBonus })), basedOn: current.version };
 }
 
 /** Brouillon identique à la version en vigueur : supprimé (aucun changement en attente). */
@@ -478,7 +529,7 @@ function upsertDraftMission(input) {
     if (i < 0 && draft.missions.length >= MAX_MISSIONS) throw new CatalogError(400, `Au plus ${MAX_MISSIONS} missions.`);
     const before = i >= 0 ? draft.missions[i] : null;
     if (i >= 0) draft.missions[i] = x; else draft.missions.push(x);
-    _saveDraft(draft.missions, draft.rotation, draft.basedOn);
+    _saveDraft(draft.missions, draft.rotation, draft.basedOn, draft.setBonus);
     _audit(i >= 0 ? 'draft_update' : 'draft_add', null, { id: x.id, changes: before ? diff({ missions: [before] }, { missions: [x] })[0]?.fields ?? [] : null });
     return { mission: x, draftDropped: _dropIfClean() };
   })();
@@ -490,9 +541,21 @@ function setDraftRotation(input) {
   return conn().transaction(() => {
     const draft = _draftOrCurrent();
     const changes = diff({ missions: [], rotation: draft.rotation }, { missions: [], rotation }).flatMap(c => c.fields);
-    _saveDraft(draft.missions, rotation, draft.basedOn);
+    _saveDraft(draft.missions, rotation, draft.basedOn, draft.setBonus);
     _audit('draft_rotation', null, { changes });
     return { rotation, draftDropped: _dropIfClean() };
+  })();
+}
+
+/** Modifie le bonus trois missions dans le brouillon (jamais lu par le jeu tant que non branché). */
+function setDraftSetBonus(input) {
+  const setBonus = normalizeSetBonus(input);
+  return conn().transaction(() => {
+    const draft = _draftOrCurrent();
+    const changes = diff({ missions: [], setBonus: draft.setBonus }, { missions: [], setBonus }).flatMap(c => c.fields);
+    _saveDraft(draft.missions, draft.rotation, draft.basedOn, setBonus);
+    _audit('draft_set_bonus', null, { changes });
+    return { setBonus, draftDropped: _dropIfClean() };
   })();
 }
 
@@ -507,9 +570,11 @@ function loadProposalIntoDraft() {
       const p = PROPOSAL.missions[m.id];
       if (p) Object.assign(m, JSON.parse(JSON.stringify(p)));
     }
-    const v = validateCatalog(draft.missions, PROPOSAL.rotation);
+    // Bonus trois missions : paliers proposés, état (activé ou non) du brouillon conservé
+    const setBonus = { ...JSON.parse(JSON.stringify(PROPOSAL.setBonus)), enabled: draft.setBonus?.enabled === true };
+    const v = validateCatalog(draft.missions, PROPOSAL.rotation, { setBonus });
     if (v.errors.length) throw new CatalogError(400, 'Proposition incompatible avec le brouillon.', v.errors);
-    _saveDraft(v.missions, v.rotation, draft.basedOn);
+    _saveDraft(v.missions, v.rotation, draft.basedOn, v.setBonus);
     _audit('draft_proposal', null, { missions: Object.keys(PROPOSAL.missions) });
     return { draftDropped: _dropIfClean() };
   })();
@@ -524,7 +589,7 @@ function revertDraftMission(id) {
     const i = draft ? draft.missions.findIndex(m => m.id === id) : -1;
     if (i < 0 || !diff({ missions: [pub] }, { missions: [draft.missions[i]] }).length) throw new CatalogError(409, `« ${id} » n'a aucune modification dans le brouillon.`);
     draft.missions[i] = pub;
-    _saveDraft(draft.missions, draft.rotation, draft.basedOn);
+    _saveDraft(draft.missions, draft.rotation, draft.basedOn, draft.setBonus);
     _audit('draft_revert', null, { id });
     return { mission: pub, draftDropped: _dropIfClean() };
   })();
@@ -536,7 +601,7 @@ function removeDraftMission(id) {
     if (publishedIds().has(id)) throw new CatalogError(409, `« ${id} » est déjà publiée : archivez-la au lieu de la supprimer.`);
     const draft = getDraft();
     if (!draft || !draft.missions.some(m => m.id === id)) throw new CatalogError(404, 'Mission absente du brouillon.');
-    _saveDraft(draft.missions.filter(m => m.id !== id), draft.rotation, draft.basedOn);
+    _saveDraft(draft.missions.filter(m => m.id !== id), draft.rotation, draft.basedOn, draft.setBonus);
     _audit('draft_remove', null, { id });
     _dropIfClean();
   })();
@@ -557,13 +622,13 @@ function publishDraft({ note, expectedBasedOn } = {}) {
     if (draft.basedOn !== current.version || (expectedBasedOn != null && Number(expectedBasedOn) !== current.version)) {
       throw new CatalogError(409, `Le brouillon part de la version ${draft.basedOn}, la version en vigueur est la ${current.version} : rechargez.`);
     }
-    const v = validateCatalog(draft.missions, draft.rotation);
+    const v = validateCatalog(draft.missions, draft.rotation, { setBonus: draft.setBonus });
     if (v.errors.length) throw new CatalogError(400, 'Brouillon invalide.', v.errors);
     const changes = diff(current, v);
     if (!changes.length) throw new CatalogError(409, 'Aucun changement par rapport à la version en vigueur.');
     const version = current.version + 1;
     conn().prepare("INSERT INTO mission_catalog_versions (version, content, source, note, from_version) VALUES (?, ?, 'publish', ?, ?)")
-      .run(version, JSON.stringify({ missions: v.missions, rotation: v.rotation }), _text(note, 300) || null, current.version);
+      .run(version, JSON.stringify({ missions: v.missions, rotation: v.rotation, setBonus: v.setBonus }), _text(note, 300) || null, current.version);
     conn().prepare('DELETE FROM mission_catalog_draft WHERE id = 1').run();
     _audit('publish', version, { changes });
     return { version, changes, warnings: v.warnings };
@@ -581,11 +646,11 @@ function rollbackTo(target, { note } = {}) {
     if (old.version === current.version) throw new CatalogError(409, 'Cette version est déjà en vigueur.');
     const ids = new Set(old.missions.map(x => x.id));
     const missions = [...old.missions, ...current.missions.filter(x => !ids.has(x.id)).map(x => ({ ...x, active: false }))];
-    const v = validateCatalog(missions, old.rotation);
+    const v = validateCatalog(missions, old.rotation, { setBonus: old.setBonus });
     if (v.errors.length) throw new CatalogError(400, 'Retour arrière impossible.', v.errors);
     const version = current.version + 1;
     conn().prepare("INSERT INTO mission_catalog_versions (version, content, source, note, from_version) VALUES (?, ?, 'rollback', ?, ?)")
-      .run(version, JSON.stringify({ missions: v.missions, rotation: v.rotation }), _text(note, 300) || `Retour à la version ${old.version}`, old.version);
+      .run(version, JSON.stringify({ missions: v.missions, rotation: v.rotation, setBonus: v.setBonus }), _text(note, 300) || `Retour à la version ${old.version}`, old.version);
     conn().prepare('DELETE FROM mission_catalog_draft WHERE id = 1').run();
     _audit('rollback', version, { to: old.version, changes: diff(current, v) });
     return { version, restored: old.version };
@@ -807,6 +872,8 @@ function simulate({ source = 'draft', profiles = PROFILES, days = 7, start = nul
       const cats = {};
       let distinctSets = new Set();
       let repeats = 0, completed = 0, assigned = 0, coins = 0, gems = 0;
+      const bonusBand = setBonusFor(cat.setBonus, profile.depth);
+      const bonus = { daysAllDone: 0, coins: 0, gems: 0 };
       const plan = [];
       for (let i = 0; i < Number(days); i++) {
         const date = _addDays(startDate, i);
@@ -824,13 +891,20 @@ function simulate({ source = 'draft', profiles = PROFILES, days = 7, start = nul
           return { ...x, name: m.names.fr, icon: m.icon, image: m.image, text: _fill(m.descs.fr, x.target), expected: expected == null ? null : _round(expected), done, repeated: prev.has(x.id) };
         });
         distinctSets.add(missions.map(x => `${x.id}:${x.target}`).sort().join(','));
-        plan.push({ date, missions: rows, excluded });
+        // Bonus trois missions : toutes les missions du jour réussies (chiffré même s'il est désactivé)
+        const allDone = rows.length > 0 && rows.every(x => x.done);
+        if (allDone) { bonus.daysAllDone++; bonus.coins += bonusBand?.coins ?? 0; bonus.gems += bonusBand?.gems ?? 0; }
+        plan.push({ date, missions: rows, excluded, allDone, setBonus: allDone ? bonusBand : null });
         history.unshift(missions.map(x => x.id));
       }
       return {
         profile, activity, plan,
         stats: { assigned, completed, completionRate: assigned ? _round(completed / assigned) : 0, repeatsFromYesterday: repeats,
-          distinctDays: distinctSets.size, frequency: freq, categories: cats, coinsIfCompleted: coins, gemsIfCompleted: gems },
+          distinctDays: distinctSets.size, frequency: freq, categories: cats, coinsIfCompleted: coins, gemsIfCompleted: gems,
+          // Coût du bonus rapporté à l'activité du profil (pièces des blocs, gemmes trouvées) sur la période
+          setBonus: { enabled: cat.setBonus?.enabled === true, band: bonusBand, ...bonus,
+            coinsVsMining: activity.coins ? _round(bonus.coins / (activity.coins * Number(days))) : null,
+            gemsVsMining: activity.gems ? _round(bonus.gems / (activity.gems * Number(days))) : null } },
       };
     }),
   };
@@ -842,14 +916,14 @@ function _fill(desc, n) {
 
 function _sourceCatalog(source) {
   const pub = getPublished();
-  if (source === 'published') return { version: pub.version, missions: pub.missions, rotation: pub.rotation };
+  if (source === 'published') return { version: pub.version, missions: pub.missions, rotation: pub.rotation, setBonus: pub.setBonus };
   const draft = getDraft();
-  const base = draft ? { version: `brouillon (base v${draft.basedOn})`, missions: draft.missions, rotation: draft.rotation }
-    : { version: pub.version, missions: pub.missions, rotation: pub.rotation };
+  const base = draft ? { version: `brouillon (base v${draft.basedOn})`, missions: draft.missions, rotation: draft.rotation, setBonus: draft.setBonus }
+    : { version: pub.version, missions: pub.missions, rotation: pub.rotation, setBonus: pub.setBonus };
   if (source === 'draft') return base;
   if (source === 'proposal') {
     const missions = JSON.parse(JSON.stringify(base.missions)).map(m => (PROPOSAL.missions[m.id] ? { ...m, ...JSON.parse(JSON.stringify(PROPOSAL.missions[m.id])) } : m));
-    return { version: `proposition sur ${base.version}`, missions, rotation: { ...PROPOSAL.rotation } };
+    return { version: `proposition sur ${base.version}`, missions, rotation: { ...PROPOSAL.rotation }, setBonus: JSON.parse(JSON.stringify(PROPOSAL.setBonus)) };
   }
   throw new CatalogError(400, 'Simulation : source « published », « draft » ou « proposal ».');
 }
@@ -880,7 +954,7 @@ function previewMission(input, { rotation = null } = {}) {
 function buildAdminView() {
   const published = getPublished();
   const draft = getDraft();
-  const validation = draft ? validateCatalog(draft.missions, draft.rotation) : null;
+  const validation = draft ? validateCatalog(draft.missions, draft.rotation, { setBonus: draft.setBonus }) : null;
   const changes = draft ? diff(published, validation) : [];
   const pending = draft && (changes.length || draft.basedOn !== published.version || draft.missions.length !== published.missions.length);
   return {
@@ -889,7 +963,7 @@ function buildAdminView() {
     draft: pending ? { ...draft, errors: validation.errors, warnings: validation.warnings, changes } : null,
     publishedIds: [...publishedIds()],
     versions: listVersions(),
-    types: TYPES, unavailable: UNAVAILABLE, categories: CATEGORIES, rotationFields: ROTATION_FIELDS,
+    types: TYPES, unavailable: UNAVAILABLE, categories: CATEGORIES, rotationFields: ROTATION_FIELDS, setBonusLimits: SET_BONUS_LIMITS,
     proposal: PROPOSAL, profiles: PROFILES, upgradeMax: UPGRADE_MAX,
     langs: LANGS,
     limits: { maxMissions: MAX_MISSIONS, maxBands: MAX_BANDS, maxTargets: MAX_TARGETS },
@@ -897,10 +971,10 @@ function buildAdminView() {
 }
 
 module.exports = {
-  CatalogError, TYPES, UNAVAILABLE, CATEGORIES, ROTATION_FIELDS, ORIGIN_ROTATION, PROPOSAL, PROFILES, LANGS,
+  CatalogError, TYPES, UNAVAILABLE, CATEGORIES, ROTATION_FIELDS, ORIGIN_ROTATION, ORIGIN_SET_BONUS, SET_BONUS_LIMITS, PROPOSAL, PROFILES, LANGS,
   init, clientMissions, originMissions, getPublished, getVersion, getDraft, listVersions, publishedIds, isLive,
-  normalizeMission, normalizeRotation, validateCatalog, diff,
-  upsertDraftMission, setDraftRotation, loadProposalIntoDraft, revertDraftMission, removeDraftMission, discardDraft,
+  normalizeMission, normalizeRotation, normalizeSetBonus, setBonusFor, validateCatalog, diff,
+  upsertDraftMission, setDraftRotation, setDraftSetBonus, loadProposalIntoDraft, revertDraftMission, removeDraftMission, discardDraft,
   publishDraft, rollbackTo, listAudit, buildAdminView,
   rewardFor, expectedPerDay, eligibility, planDay, simulate, previewMission,
 };

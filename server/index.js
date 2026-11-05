@@ -1443,6 +1443,10 @@ app.post('/api/admin/missions/draft/missions/:id/revert', requireAdmin, catalogR
 app.put('/api/admin/missions/draft/rotation', requireAdmin, catalogRoute('PUT /api/admin/missions/draft/rotation',
   req => missionCatalog.setDraftRotation(req.body?.rotation)));
 
+// Bonus trois missions (#68, 05/11) : brouillon seulement, le jeu ne le lit pas
+app.put('/api/admin/missions/draft/set-bonus', requireAdmin, catalogRoute('PUT /api/admin/missions/draft/set-bonus',
+  req => missionCatalog.setDraftSetBonus(req.body?.setBonus)));
+
 app.post('/api/admin/missions/draft/proposal', requireAdmin, catalogRoute('POST /api/admin/missions/draft/proposal',
   () => missionCatalog.loadProposalIntoDraft()));
 
