@@ -38,9 +38,11 @@
     </div>
     <div id="nav-panel" class="nav-panel">
       <div class="nav-search-wrap">
-        <input id="nav-search" type="search" placeholder="Aller à une rubrique…" aria-label="Aller à une rubrique (Entrée : première rubrique trouvée)" autocomplete="off">
+        <input id="nav-search" type="search" placeholder="Rubrique ou action (ex. joueur, reset)…" aria-label="Chercher une rubrique ou une action (Entrée : premier résultat)" autocomplete="off">
       </div>
-      <p id="nav-search-empty" class="nav-search-empty muted hidden" role="status">Aucune rubrique ne correspond.</p>
+      <button id="nav-plan-btn" class="nav-plan-btn" type="button" aria-haspopup="dialog" title="Plan du panel et actions courantes"><span class="nav-ico" aria-hidden="true">🧭</span> <span class="nav-lbl">Plan &amp; actions courantes</span></button>
+      <p id="nav-search-empty" class="nav-search-empty muted hidden" role="status">Aucune rubrique ni action ne correspond.</p>
+      <div id="nav-actions" class="nav-actions hidden" role="group" aria-label="Actions trouvées"></div>
       <div id="nav-groups" class="nav-groups"></div>
     </div>
   </nav>
@@ -260,7 +262,7 @@
     </div>
 
     <!-- Clôture manuelle -->
-    <div class="overview-card danger-zone">
+    <div class="overview-card danger-zone" id="season-critical-card">
       <h3 class="overview-card-title">Zone critique</h3>
       <p class="muted" style="margin-bottom:12px">Clore manuellement la saison active — les promotions seront appliquées et une nouvelle saison démarrera automatiquement.</p>
       <button class="btn btn-danger" id="btn-close-season-manual">⚠ Clore la saison active</button>
@@ -323,11 +325,135 @@
     </div>
   </section>
 
-  <!-- Tab Économie & Joueurs -->
+  <!-- Rubrique Joueurs (#70, recette du 05/11) : recherche du pseudo en tête, fiche avec essais de test et anti-bot -->
+  <section id="tab-players" class="tab-content hidden">
+    <div class="section-header">
+      <h2>👤 Gestion des joueurs</h2>
+    </div>
+    <p class="muted" style="margin-bottom:12px;font-size:0.85rem">Tapez un pseudo puis choisissez-le : la fiche s'ouvre ici avec sa progression, ses <strong>essais de test</strong> (« Recommencer un test à zéro », exports) et un accès direct à sa <strong>fiche anti-bot</strong>. Aucune action n'est lancée sans confirmation.</p>
+    <!-- Recherche de joueurs -->
+    <div class="overview-card">
+      <h3 class="overview-card-title">🔎 Trouver un joueur</h3>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+        <div class="player-ac" style="flex:1;min-width:180px">
+          <input type="text" id="player-search-input" placeholder="Pseudo du joueur (2 lettres ou plus : suggestions)…" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="player-search-suggest"
+                 aria-label="Rechercher un joueur par pseudo">
+          <ul id="player-search-suggest" class="player-ac-list hidden" role="listbox" aria-label="Joueurs suggérés"></ul>
+        </div>
+        <button class="btn" id="btn-player-search">Rechercher</button>
+      </div>
+      <p class="muted" style="margin:-8px 0 12px;font-size:0.85rem">Choisir une suggestion ouvre directement la fiche du joueur (sélection par identifiant, sans e-mail). « Rechercher » affiche le tableau complet.</p>
+      <p id="players-hint" class="players-hint hidden" role="status"></p>
+      <div id="player-search-results" class="hidden">
+        <table id="player-results-table">
+          <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Ligue</th><th>Depuis</th><th>Action</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Détails d'un joueur -->
+    <div id="player-detail-card" class="overview-card hidden">
+      <div class="section-header" style="margin-bottom:12px">
+        <h3 class="overview-card-title" style="margin:0">👤 <span id="pd-username">—</span></h3>
+        <div class="form-actions pd-actions" style="margin:0">
+          <button class="btn btn-outline btn-sm" id="btn-pd-goto-tests" type="button">🧪 Essais de test</button>
+          <button class="btn btn-outline btn-sm" id="btn-pd-antibot" type="button">🛡 Anti-bot de ce joueur</button>
+          <button class="btn btn-outline btn-sm" id="btn-close-player-detail" type="button">Fermer</button>
+        </div>
+      </div>
+      <p class="muted" style="font-size:0.8rem;margin-bottom:8px">Ouvrir une section ne modifie rien : chaque réinitialisation demande sa propre confirmation.</p>
+      <details class="pd-sec" id="pd-sec-save" open><summary>📈 Progression (sauvegarde)</summary>
+      <div class="stat-grid">
+        <div class="stat-item"><span class="stat-label">💰 Coins</span><span class="stat-value" id="pd-coins">—</span></div>
+        <div class="stat-item"><span class="stat-label">⛏ Profondeur</span><span class="stat-value" id="pd-depth">—</span></div>
+        <div class="stat-item"><span class="stat-label">🪨 Pioche niv.</span><span class="stat-value" id="pd-pickaxe">—</span></div>
+        <div class="stat-item"><span class="stat-label">💎 Gems</span><span class="stat-value" id="pd-gems">—</span></div>
+        <div class="stat-item"><span class="stat-label">🔮 Fragments</span><span class="stat-value" id="pd-frags">—</span></div>
+        <div class="stat-item"><span class="stat-label">✨ Reliques</span><span class="stat-value" id="pd-relics">—</span></div>
+        <div class="stat-item"><span class="stat-label">⬆ Chance</span><span class="stat-value" id="pd-luck">—</span></div>
+        <div class="stat-item"><span class="stat-label">⬆ Sac</span><span class="stat-value" id="pd-bag">—</span></div>
+        <div class="stat-item"><span class="stat-label">⬆ Auto-dig</span><span class="stat-value" id="pd-autodig">—</span></div>
+        <div class="stat-item"><span class="stat-label">📦 Coffres simples achetés (saison)</span><span class="stat-value" id="pd-chest-simple">—</span></div>
+        <div class="stat-item"><span class="stat-label">💎 Coffres rares achetés (saison)</span><span class="stat-value" id="pd-chest-rare">—</span></div>
+        <div class="stat-item"><span class="stat-label">🏺 Coffres antiques achetés (saison)</span><span class="stat-value" id="pd-chest-antique">—</span></div>
+        <div class="stat-item" title="Date et heure de la dernière sauvegarde reçue par le serveur (heure de Bruxelles, UTC entre parenthèses)."><span class="stat-label">⏱ Dernière sauvegarde</span><span class="stat-value" id="pd-updated">—</span></div>
+        <div class="stat-item" title="Nombre d'enregistrements de cette sauvegarde sur le serveur (augmente à chaque sauvegarde acceptée)."><span class="stat-label">🔁 Révision serveur</span><span class="stat-value" id="pd-revision">—</span></div>
+        <div class="stat-item" title="Version du FORMAT de la sauvegarde (structure des données du jeu), et non le nombre de sauvegardes."><span class="stat-label">🔢 Format de sauvegarde</span><span class="stat-value" id="pd-version">—</span></div>
+      </div>
+      </details>
+
+      <!-- Essais de test (#75) -->
+      <details class="pd-sec" id="pd-sec-tests" open><summary>🧪 Essais de test — recommencer un test à zéro, exports</summary>
+      <div id="tr-card" class="danger-zone" style="margin-top:8px;padding:12px;border-radius:8px">
+        <div class="section-header" style="margin-bottom:8px">
+          <h4 style="margin:0">🧪 Essais de test</h4>
+          <div class="form-actions" style="margin:0">
+            <button class="btn btn-outline btn-sm" id="btn-tr-export-csv" type="button">Exporter CSV</button>
+            <button class="btn btn-outline btn-sm" id="btn-tr-export-json" type="button">Exporter JSON complet</button>
+            <button class="btn btn-danger btn-sm" id="btn-tr-reset" type="button">🔄 Recommencer un test à zéro</button>
+          </div>
+        </div>
+        <p class="muted" style="font-size:0.85rem">« Recommencer un test à zéro » archive d'abord un instantané complet de l'essai en cours (restaurable), puis remet le personnage à l'état d'une inscription neuve : sauvegarde, classement de la saison active, suivis profondeur / clics, score de risque, badges, collection, gemmes, ligue. Le compte, l'accès, l'invitation, les points de récompense, les saisons clôturées et tous les journaux anti-bot restent intacts. Toutes les pages ouvertes du joueur perdent la main et doivent recharger.</p>
+        <p id="tr-guard" class="muted hidden" style="font-size:0.85rem"></p>
+        <p id="tr-done" class="success hidden"></p>
+        <p id="tr-err" class="error hidden"></p>
+        <div class="table-wrapper">
+          <table id="tr-table">
+            <thead><tr><th>Essai</th><th>Période (Bruxelles)</th><th>Durée</th><th>Fin</th><th>Profondeur classée / actuelle</th><th>Blocs manuels validés / déclarés</th><th>Clics (suspects)</th><th>Auto-Dig fin / max vu</th><th>Pièces / gemmes</th><th>Risque</th><th>Décisions serveur</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p id="tr-audit" class="muted" style="font-size:0.8rem;margin-top:6px"></p>
+      </div>
+      </details>
+
+      <!-- Réinitialisation saisonnière partielle (ancien « reset saisonnier ») -->
+      <details class="pd-sec" id="pd-sec-partial"><summary>⚠ Réinitialisation saisonnière partielle (sauvegarde seule)</summary>
+      <div class="danger-zone" style="margin-top:8px;padding:12px;border-radius:8px">
+        <p class="muted" style="margin-bottom:10px">Les compteurs de coffres sont les achats en boutique pendant la saison. <strong>Réinitialisation saisonnière partielle</strong> : remet seulement la sauvegarde (pièces, profondeur, améliorations, coffres) à zéro ; gemmes plafonnées, reliques, fragments et collection conservés. <strong>Le classement de la saison, les suivis anti-bot et le score de risque ne changent pas</strong> (le joueur garde son rang). Pour un nouvel essai propre : « Recommencer un test à zéro » ci-dessus. Un instantané est archivé avant l'écriture.</p>
+        <button class="btn btn-danger btn-sm" id="btn-season-reset-player">⚠ Réinitialisation saisonnière partielle</button>
+        <div id="player-reset-confirm" class="confirm-dialog hidden" style="margin-top:10px">
+          <p>Confirmer la réinitialisation saisonnière partielle pour <strong id="pr-confirm-name"></strong> ?</p>
+          <p class="muted" style="margin-top:4px;font-size:0.85rem">Sauvegarde seule : classement et anti-bot inchangés. Gemmes plafonnées, reliques/fragments conservés. Instantané restaurable archivé avant.</p>
+          <div class="form-actions" style="margin-top:10px">
+            <button class="btn btn-danger btn-sm" id="btn-confirm-player-reset">Confirmer</button>
+            <button class="btn btn-outline btn-sm" id="btn-cancel-player-reset">Annuler</button>
+          </div>
+        </div>
+        <p id="player-reset-msg" class="success hidden" style="margin-top:8px">Reset appliqué !</p>
+        <p id="player-reset-err" class="error hidden" style="margin-top:8px"></p>
+      </div>
+      </details>
+    </div>
+
+    <!-- Confirmation « Recommencer un test à zéro » (#75) : hors des sections repliables -->
+      <dialog id="tr-dialog" class="bk-dialog adm-dialog" aria-labelledby="tr-dialog-title">
+        <h3 class="overview-card-title" id="tr-dialog-title"></h3>
+        <p id="tr-dialog-text"></p>
+        <div class="table-wrapper">
+          <table id="tr-diff"><thead><tr><th>Valeur</th><th>Actuellement</th><th>Après confirmation</th></tr></thead><tbody></tbody></table>
+        </div>
+        <ul class="adm-confirm-impact" id="tr-impact"></ul>
+        <div class="adm-form">
+          <label>Motif (obligatoire, sans donnée personnelle) <textarea id="tr-reason" rows="2" maxlength="300"></textarea></label>
+          <label>Pour confirmer, saisissez exactement le pseudo <strong id="tr-confirm-name"></strong> <input type="text" id="tr-confirm-input" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <p id="tr-msg" class="error hidden"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" data-close>Annuler</button>
+          <button type="button" class="btn btn-danger" id="btn-tr-confirm" disabled>Confirmer</button>
+        </div>
+      </dialog>
+  </section>
+
+  <!-- Tab Économie (sous-rubriques #70) -->
   <section id="tab-economy" class="tab-content hidden">
+    <div class="section-header"><h2>💰 Économie</h2></div>
 
     <!-- Multiplicateurs économiques -->
-    <div class="overview-card">
+    <div class="overview-card" data-sub="gains">
       <h3 class="overview-card-title">Multiplicateurs économiques</h3>
       <p class="muted" style="margin-bottom:12px">Appliquées en jeu sans redéploiement : au prochain chargement de page, ou sous 5 minutes pour une partie ouverte. 1.0 = pas de modification (bornes : 0.1 à 10).</p>
       <div class="params-grid" id="eco-multipliers-grid">
@@ -347,7 +473,7 @@
     </div>
 
     <!-- Coûts des coffres -->
-    <div class="overview-card">
+    <div class="overview-card" data-sub="gains">
       <h3 class="overview-card-title">Coûts des coffres</h3>
       <p class="muted" style="margin-bottom:12px">Override les coûts par défaut (vide = valeur par défaut du code).</p>
       <div class="params-grid" id="eco-chest-costs-grid">
@@ -366,14 +492,14 @@
       </div>
     </div>
 
-    <div class="form-actions" style="margin-bottom:24px">
+    <div class="form-actions" style="margin-bottom:24px" data-sub="gains">
       <button class="btn" id="btn-save-economy">Enregistrer les paramètres économiques</button>
       <p id="eco-msg" class="success hidden">Paramètres sauvegardés !</p>
       <p id="eco-err" class="error hidden"></p>
     </div>
 
     <!-- Registre de gemmes de référence (#49) -->
-    <div class="overview-card" id="gem-ledger-card">
+    <div class="overview-card" id="gem-ledger-card" data-sub="ledger">
       <div class="section-header" style="margin-bottom:8px">
         <h3 class="overview-card-title" style="margin:0">💎 Registre de gemmes (serveur)</h3>
         <button class="btn btn-outline btn-sm" id="btn-refresh-gem-ledger">↻ Rafraîchir</button>
@@ -412,7 +538,7 @@
     </div>
 
     <!-- Règles économiques versionnées (#49, lot 1.2) -->
-    <div class="overview-card" id="eco-rules-card">
+    <div class="overview-card" id="eco-rules-card" data-sub="rules">
       <div class="section-header" style="margin-bottom:8px">
         <h3 class="overview-card-title" style="margin:0">📐 Règles économiques (référence)</h3>
         <button class="btn btn-outline btn-sm" id="btn-refresh-eco-rules">↻ Rafraîchir</button>
@@ -462,7 +588,7 @@
     </div>
 
     <!-- Boutique en gemmes (#49, lot 2.6) -->
-    <div class="overview-card" id="gem-shop-card">
+    <div class="overview-card" id="gem-shop-card" data-sub="gemshop">
       <div class="section-header" style="margin-bottom:8px">
         <h3 class="overview-card-title" style="margin:0">🛒 Boutique en gemmes</h3>
         <button class="btn btn-outline btn-sm" id="btn-refresh-gem-shop">↻ Rafraîchir</button>
@@ -479,109 +605,6 @@
       </div>
       <p id="gs-msg" class="success hidden"></p>
       <p id="gs-err" class="error hidden"></p>
-    </div>
-
-    <!-- Recherche de joueurs -->
-    <div class="overview-card">
-      <h3 class="overview-card-title">Debug joueur</h3>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-        <div class="player-ac" style="flex:1;min-width:180px">
-          <input type="text" id="player-search-input" placeholder="Pseudo (2 lettres ou plus : suggestions)…" autocomplete="off"
-                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="player-search-suggest"
-                 aria-label="Rechercher un joueur par pseudo">
-          <ul id="player-search-suggest" class="player-ac-list hidden" role="listbox" aria-label="Joueurs suggérés"></ul>
-        </div>
-        <button class="btn" id="btn-player-search">Rechercher</button>
-      </div>
-      <p class="muted" style="margin:-8px 0 12px;font-size:0.85rem">Choisir une suggestion ouvre directement la fiche du joueur (sélection par identifiant, sans e-mail). « Rechercher » affiche le tableau complet.</p>
-      <div id="player-search-results" class="hidden">
-        <table id="player-results-table">
-          <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Ligue</th><th>Depuis</th><th>Action</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Détails d'un joueur -->
-    <div id="player-detail-card" class="overview-card hidden">
-      <div class="section-header" style="margin-bottom:12px">
-        <h3 class="overview-card-title" style="margin:0">👤 <span id="pd-username">—</span></h3>
-        <button class="btn btn-outline btn-sm" id="btn-close-player-detail">Fermer</button>
-      </div>
-      <div class="stat-grid">
-        <div class="stat-item"><span class="stat-label">💰 Coins</span><span class="stat-value" id="pd-coins">—</span></div>
-        <div class="stat-item"><span class="stat-label">⛏ Profondeur</span><span class="stat-value" id="pd-depth">—</span></div>
-        <div class="stat-item"><span class="stat-label">🪨 Pioche niv.</span><span class="stat-value" id="pd-pickaxe">—</span></div>
-        <div class="stat-item"><span class="stat-label">💎 Gems</span><span class="stat-value" id="pd-gems">—</span></div>
-        <div class="stat-item"><span class="stat-label">🔮 Fragments</span><span class="stat-value" id="pd-frags">—</span></div>
-        <div class="stat-item"><span class="stat-label">✨ Reliques</span><span class="stat-value" id="pd-relics">—</span></div>
-        <div class="stat-item"><span class="stat-label">⬆ Chance</span><span class="stat-value" id="pd-luck">—</span></div>
-        <div class="stat-item"><span class="stat-label">⬆ Sac</span><span class="stat-value" id="pd-bag">—</span></div>
-        <div class="stat-item"><span class="stat-label">⬆ Auto-dig</span><span class="stat-value" id="pd-autodig">—</span></div>
-        <div class="stat-item"><span class="stat-label">📦 Coffres simples achetés (saison)</span><span class="stat-value" id="pd-chest-simple">—</span></div>
-        <div class="stat-item"><span class="stat-label">💎 Coffres rares achetés (saison)</span><span class="stat-value" id="pd-chest-rare">—</span></div>
-        <div class="stat-item"><span class="stat-label">🏺 Coffres antiques achetés (saison)</span><span class="stat-value" id="pd-chest-antique">—</span></div>
-        <div class="stat-item" title="Date et heure de la dernière sauvegarde reçue par le serveur (heure de Bruxelles, UTC entre parenthèses)."><span class="stat-label">⏱ Dernière sauvegarde</span><span class="stat-value" id="pd-updated">—</span></div>
-        <div class="stat-item" title="Nombre d'enregistrements de cette sauvegarde sur le serveur (augmente à chaque sauvegarde acceptée)."><span class="stat-label">🔁 Révision serveur</span><span class="stat-value" id="pd-revision">—</span></div>
-        <div class="stat-item" title="Version du FORMAT de la sauvegarde (structure des données du jeu), et non le nombre de sauvegardes."><span class="stat-label">🔢 Format de sauvegarde</span><span class="stat-value" id="pd-version">—</span></div>
-      </div>
-
-      <!-- Essais de test (#75) -->
-      <div id="tr-card" class="danger-zone" style="margin-top:16px;padding:12px;border-radius:8px">
-        <div class="section-header" style="margin-bottom:8px">
-          <h4 style="margin:0">🧪 Essais de test</h4>
-          <div class="form-actions" style="margin:0">
-            <button class="btn btn-outline btn-sm" id="btn-tr-export-csv" type="button">Exporter CSV</button>
-            <button class="btn btn-outline btn-sm" id="btn-tr-export-json" type="button">Exporter JSON complet</button>
-            <button class="btn btn-danger btn-sm" id="btn-tr-reset" type="button">🔄 Recommencer un test à zéro</button>
-          </div>
-        </div>
-        <p class="muted" style="font-size:0.85rem">« Recommencer un test à zéro » archive d'abord un instantané complet de l'essai en cours (restaurable), puis remet le personnage à l'état d'une inscription neuve : sauvegarde, classement de la saison active, suivis profondeur / clics, score de risque, badges, collection, gemmes, ligue. Le compte, l'accès, l'invitation, les points de récompense, les saisons clôturées et tous les journaux anti-bot restent intacts. Toutes les pages ouvertes du joueur perdent la main et doivent recharger.</p>
-        <p id="tr-guard" class="muted hidden" style="font-size:0.85rem"></p>
-        <p id="tr-done" class="success hidden"></p>
-        <p id="tr-err" class="error hidden"></p>
-        <div class="table-wrapper">
-          <table id="tr-table">
-            <thead><tr><th>Essai</th><th>Période (Bruxelles)</th><th>Durée</th><th>Fin</th><th>Profondeur classée / actuelle</th><th>Blocs manuels validés / déclarés</th><th>Clics (suspects)</th><th>Auto-Dig fin / max vu</th><th>Pièces / gemmes</th><th>Risque</th><th>Décisions serveur</th><th></th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-        <p id="tr-audit" class="muted" style="font-size:0.8rem;margin-top:6px"></p>
-      </div>
-
-      <dialog id="tr-dialog" class="bk-dialog adm-dialog" aria-labelledby="tr-dialog-title">
-        <h3 class="overview-card-title" id="tr-dialog-title"></h3>
-        <p id="tr-dialog-text"></p>
-        <div class="table-wrapper">
-          <table id="tr-diff"><thead><tr><th>Valeur</th><th>Actuellement</th><th>Après confirmation</th></tr></thead><tbody></tbody></table>
-        </div>
-        <ul class="adm-confirm-impact" id="tr-impact"></ul>
-        <div class="adm-form">
-          <label>Motif (obligatoire, sans donnée personnelle) <textarea id="tr-reason" rows="2" maxlength="300"></textarea></label>
-          <label>Pour confirmer, saisissez exactement le pseudo <strong id="tr-confirm-name"></strong> <input type="text" id="tr-confirm-input" autocomplete="off" spellcheck="false"></label>
-        </div>
-        <p id="tr-msg" class="error hidden"></p>
-        <div class="form-actions">
-          <button type="button" class="btn btn-outline" data-close>Annuler</button>
-          <button type="button" class="btn btn-danger" id="btn-tr-confirm" disabled>Confirmer</button>
-        </div>
-      </dialog>
-
-      <!-- Réinitialisation saisonnière partielle (ancien « reset saisonnier ») -->
-      <div class="danger-zone" style="margin-top:16px;padding:12px;border-radius:8px">
-        <p class="muted" style="margin-bottom:10px">Les compteurs de coffres sont les achats en boutique pendant la saison. <strong>Réinitialisation saisonnière partielle</strong> : remet seulement la sauvegarde (pièces, profondeur, améliorations, coffres) à zéro ; gemmes plafonnées, reliques, fragments et collection conservés. <strong>Le classement de la saison, les suivis anti-bot et le score de risque ne changent pas</strong> (le joueur garde son rang). Pour un nouvel essai propre : « Recommencer un test à zéro » ci-dessus. Un instantané est archivé avant l'écriture.</p>
-        <button class="btn btn-danger btn-sm" id="btn-season-reset-player">⚠ Réinitialisation saisonnière partielle</button>
-        <div id="player-reset-confirm" class="confirm-dialog hidden" style="margin-top:10px">
-          <p>Confirmer la réinitialisation saisonnière partielle pour <strong id="pr-confirm-name"></strong> ?</p>
-          <p class="muted" style="margin-top:4px;font-size:0.85rem">Sauvegarde seule : classement et anti-bot inchangés. Gemmes plafonnées, reliques/fragments conservés. Instantané restaurable archivé avant.</p>
-          <div class="form-actions" style="margin-top:10px">
-            <button class="btn btn-danger btn-sm" id="btn-confirm-player-reset">Confirmer</button>
-            <button class="btn btn-outline btn-sm" id="btn-cancel-player-reset">Annuler</button>
-          </div>
-        </div>
-        <p id="player-reset-msg" class="success hidden" style="margin-top:8px">Reset appliqué !</p>
-        <p id="player-reset-err" class="error hidden" style="margin-top:8px"></p>
-      </div>
     </div>
 
   </section>
@@ -624,7 +647,7 @@
         <tbody id="sec-accounts-body"><tr><td colspan="4" class="muted">Aucun compte à risque.</td></tr></tbody>
       </table>
     </div>
-    <div class="overview-card">
+    <div class="overview-card" id="sec-journal-card">
       <div class="section-header" style="margin-bottom:12px">
         <h3 class="overview-card-title" style="margin:0">Journal de sécurité</h3>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -686,6 +709,19 @@
       </div>
     </div>
     <div id="sec-player-body"></div>
+  </dialog>
+
+  <!-- Plan du panel (#70, recette du 05/11) : généré depuis les registres ADM_NAV / ADM_NAV_ACTIONS, donc toujours à jour -->
+  <dialog id="nav-plan-dialog" class="bk-dialog adm-dialog" aria-labelledby="nav-plan-title">
+    <div class="section-header bk-dialog-head">
+      <h3 class="overview-card-title" id="nav-plan-title">🧭 Plan du panel et actions courantes</h3>
+      <button type="button" class="btn btn-outline" data-close aria-label="Fermer le plan">✕ Fermer</button>
+    </div>
+    <p class="muted" style="font-size:0.82rem">Chaque lien ouvre la bonne rubrique et place le curseur au bon endroit. <strong>Rien n'est publié, enregistré ni réinitialisé</strong> par ces liens : l'action elle-même reste un bouton avec sa confirmation. Raccourci : touche « / » puis tapez une action.</p>
+    <h4 class="nav-plan-h">Actions courantes</h4>
+    <div id="nav-plan-actions" class="nav-plan-actions"></div>
+    <h4 class="nav-plan-h">Toutes les rubriques</h4>
+    <div id="nav-plan-tree" class="nav-plan-tree"></div>
   </dialog>
 
   <!-- Tab Concours (#30) -->
@@ -811,7 +847,7 @@
       </div>
     </dialog>
 
-    <div class="overview-card">
+    <div class="overview-card" id="ct-winners-card">
       <div class="section-header" style="margin-bottom:12px">
         <h3 class="overview-card-title" style="margin:0">Gagnants et remise des lots</h3>
         <select id="ct-winners-mode" class="league-select">
@@ -891,7 +927,7 @@
       </div>
     </div>
 
-    <div class="overview-card">
+    <div class="overview-card" id="pt-adjust-card">
       <h3 class="overview-card-title">Ajustement manuel (motivé, tracé)</h3>
       <div class="form-actions">
         <input id="pt-adj-user" type="number" min="1" placeholder="ID joueur">
@@ -1050,7 +1086,7 @@
     </dialog>
 
 
-    <div class="overview-card">
+    <div class="overview-card" id="sh-orders-card">
       <h3 class="overview-card-title">Commandes</h3>
       <p id="sh-totals" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
       <div class="form-actions">
