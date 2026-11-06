@@ -12,7 +12,7 @@ un clic dans le brouillon de l'admin #37, le simulateur et les tests.
 
 ### 1. État réel
 
-**Déployé en production (SHA indiqué au § 6) — en attente de décision du propriétaire.** Le jeu
+**Déployé en production (`c5ae266`) — en attente de décision du propriétaire.** Le jeu
 n'a pas changé : les préréglages ne remplissent que le brouillon de 🎲 Coffres & drops. Classement :
 **Bloquant MVP public** pour la décision (conversion pièces → fragments illimitée encore ouverte,
 voir § 2) ; le reste (tirage serveur des coffres minés, #85) **Après lancement**.
@@ -138,7 +138,7 @@ reste dans #85 et ne retarde pas #84.
 
 ### 7. SHA, branche, procédure de test
 
-Branche `feature/49-audit-economie`, commit `d591e5f` ; SHA d'intégration et de déploiement au § 8.
+Branche `feature/49-audit-economie`, commits `d591e5f` (code) et `bdb5577` (rapport) ; **`develop` = `c5ae266`, déployé**.
 
 - `node --test test/fragment-presets.test.js` ; `npm test` complet.
 - `node tools/balance/fragment-rarity-sim.js --runs 2500 --hour-runs 10000 --pack-runs 2000`
@@ -156,7 +156,15 @@ Branche `feature/49-audit-economie`, commit `d591e5f` ; SHA d'intégration et de
   390×844 : préréglage R chargé, bandeau « brouillon en cours (6 coffres modifiés, non visible en
   jeu) », écarts listés, aucun débordement, aucune erreur JavaScript ; simulation du brouillon par
   l'API conforme (0 / 0,35 / 1,9 / 0,05 / 0,18 / 0,35 🔮) ; `GET /api/shop/chests` inchangé.
-- Déploiement : voir la section « Déploiement du 06/11 » ci-dessous.
+- **Déploiement du 06/11 : `c5ae266` (develop) en production** — tests 861/861 sur l'arbre exact de
+  la release ; copie de la base de production démarrée sur le port 3122 : santé et version OK,
+  empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`,
+  `player_click_tracking` identiques avant/après ; `main` avancé en avance rapide ; `deploy.sh` :
+  sauvegarde vérifiée `dig-20261106-204753-pre-deploy-c5ae266.sqlite`, santé et version vérifiées ;
+  deux domaines 200 + `1.0.0+c5ae266` ; journal sans erreur ; `quick_check` ok ; empreintes des six
+  tables identiques à la sauvegarde. En production : tables des coffres **v1 seule, aucun brouillon**,
+  `GET /api/shop/chests` inchangé (simple 800 / illimité, rare 15 000 / illimité, antique 5).
+  Retour arrière : `git -C /home/ubuntu/Dig reset --keep 3a87ffd` + redémarrage (aucune migration).
 
 ### 9. Test à faire par le propriétaire (aucun effet en jeu tant que vous ne publiez pas)
 
