@@ -2092,21 +2092,36 @@
           </div>
           <div role="group" class="nw-sec" aria-labelledby="up-sec-sim">
             <h4 id="up-sec-sim">4. Simulation avant / après</h4>
+            <p class="muted" style="font-size:0.78rem;margin:0 0 6px">Compare <strong>ce que le jeu utilise aujourd'hui</strong> avec <strong>les valeurs de cette fiche</strong>, même non enregistrées. Rien n'est appliqué ici : seule la publication du brouillon change le jeu.</p>
+            <div id="up-sim-summary" class="up-sim-summary" aria-live="polite">
+              <p class="up-sim-summary-title"><strong>Ce qui change</strong></p>
+              <ul id="up-sim-changes"></ul>
+            </div>
             <div class="nw-opts-grid">
-              <label>Profil faible : pièces gagnées par minute<input id="up-sim-weak" type="number" min="1" step="1" value="300" data-adm-noguard></label>
-              <label>Profil fort : pièces gagnées par minute<input id="up-sim-strong" type="number" min="1" step="1" value="20000" data-adm-noguard></label>
+              <div class="bk-field"><label><span>Joueur qui gagne peu de pièces (pièces par minute) <button type="button" class="bk-info" aria-expanded="false" aria-controls="up-h-weak" aria-label="Aide : joueur qui gagne peu">ⓘ</button></span><input id="up-sim-weak" type="number" min="1" step="1" value="300" data-adm-noguard></label><small id="up-h-weak" class="bk-hint" hidden>Cas de simulation <strong>hypothétique et modifiable</strong> (exemple : 300 pièces par minute, un joueur qui débute). Ce n'est ni un compte réel, ni un niveau, ni un classement de joueurs : changez la valeur pour tester un autre rythme. Ce champ n'est jamais enregistré.</small></div>
+              <div class="bk-field"><label><span>Joueur qui gagne beaucoup de pièces (pièces par minute) <button type="button" class="bk-info" aria-expanded="false" aria-controls="up-h-strong" aria-label="Aide : joueur qui gagne beaucoup">ⓘ</button></span><input id="up-sim-strong" type="number" min="1" step="1" value="20000" data-adm-noguard></label><small id="up-h-strong" class="bk-hint" hidden>Cas de simulation <strong>hypothétique et modifiable</strong> (exemple : 20 000 pièces par minute, un joueur avancé). Ce n'est ni un compte réel, ni un niveau, ni un classement de joueurs. Ce champ n'est jamais enregistré.</small></div>
             </div>
-            <div class="bk-table-wrap">
-              <table class="bk-table">
-                <thead><tr><th></th><th class="num">En vigueur</th><th class="num">Fiche</th><th class="num">Écart</th></tr></thead>
-                <tbody id="up-sim-body"></tbody>
-              </table>
-            </div>
-            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Temps = cumul des prix réels ÷ revenu par minute (hors gemmes, sans dépense ailleurs) : ordre de grandeur pour comparer, pas une prévision.</p>
-            <div id="up-compare" class="hidden">
-              <p class="muted" style="font-size:0.75rem;margin:6px 0 2px"><strong>Comparaison avec la version en vigueur</strong> :</p>
-              <ul id="up-compare-list" style="font-size:0.78rem;margin:0"></ul>
-            </div>
+            <details id="up-sim-details" class="bk-acc">
+              <summary>Détail chiffré et comparaison champ par champ</summary>
+              <div class="bk-table-wrap">
+                <table class="bk-table">
+                  <thead><tr><th></th>
+                    <th class="num">En jeu actuellement <button type="button" class="bk-info" aria-expanded="false" aria-controls="up-h-cols" aria-label="Aide : colonnes">ⓘ</button></th>
+                    <th class="num">Fiche ouverte <button type="button" class="bk-info" aria-expanded="false" aria-controls="up-h-cols" aria-label="Aide : colonnes">ⓘ</button></th>
+                    <th class="num up-sim-gap">Écart <button type="button" class="bk-info" aria-expanded="false" aria-controls="up-h-cols" aria-label="Aide : colonnes">ⓘ</button></th></tr></thead>
+                  <tbody id="up-sim-body"></tbody>
+                </table>
+              </div>
+              <small id="up-h-cols" class="bk-hint" hidden><strong>En jeu actuellement</strong> : paramètres de la version publiée, ceux que le jeu utilise en ce moment. <strong>Fiche ouverte</strong> : valeurs affichées dans cette fiche (proposées), même si elles ne sont ni enregistrées ni publiées. <strong>Écart</strong> : différence prévisionnelle entre les deux, sans aucun effet immédiat.</small>
+              <small id="up-h-total" class="bk-hint" hidden><strong>Coût total</strong> : somme des prix réels (prix de la fiche × multiplicateur de Config) de chaque niveau, du premier achat jusqu'au nombre de niveaux maximum. C'est ce que paie un joueur qui achète tous les niveaux.</small>
+              <small id="up-h-gems" class="bk-hint" hidden><strong>Gemmes</strong> : somme des prix en gemmes de tous les niveaux. Elles sont comptées à part car elles ne se gagnent pas à un rythme par minute comme les pièces ; elles ne sont donc pas dans le temps estimé. Les prix en gemmes se modifient niveau par niveau dans la section 3 (colonne « Gemmes »), seulement pour les améliorations qui en coûtent (Auto-Dig).</small>
+              <small id="up-h-time" class="bk-hint" hidden><strong>Temps estimé</strong> : coût total en pièces ÷ pièces gagnées par minute du cas simulé, arrondi. Sans gemmes ni autres dépenses du joueur : c'est un ordre de grandeur pour comparer, pas une durée garantie.</small>
+              <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Modifiable dans la section 3 : prix en pièces par niveau, prix en gemmes (Auto-Dig), effet par niveau et, quand il n'est pas verrouillé, le nombre de niveaux. Les deux rythmes ci-dessus servent seulement au calcul.</p>
+              <div id="up-compare" class="hidden">
+                <p class="muted" style="font-size:0.75rem;margin:6px 0 2px"><strong>Champs modifiés par rapport au jeu actuel</strong> :</p>
+                <ul id="up-compare-list" style="font-size:0.78rem;margin:0"></ul>
+              </div>
+            </details>
           </div>
         </div>
       </div>

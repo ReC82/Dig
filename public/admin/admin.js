@@ -11512,8 +11512,8 @@ function upTotals(u, upTo = u.maxLevel) {
 function upDuration(min) {
   if (!Number.isFinite(min)) return '—';
   if (min < 60) return `${Math.max(1, Math.round(min))} min`;
-  if (min < 60 * 48) return `${Math.round(min / 6) / 10} h`;
-  return `${Math.round(min / 144) / 10} j`;
+  if (min < 60 * 48) return `${(Math.round(min / 6) / 10).toLocaleString('fr-FR')} h`;
+  return `${(Math.round(min / 144) / 10).toLocaleString('fr-FR')} j`;
 }
 function upCtlText(c) {
   const on = UP_CTL.filter(([k]) => c?.[k]).map(([, l]) => l.toLowerCase());
@@ -11755,35 +11755,52 @@ function upRefresh() {
       tr.querySelector('.up-fx').textContent = upEffectAt(u, lvl);
     });
   }
-  // Simulation : coût total, temps pour le profil faible/fort, effet au maximum
+  // Simulation : coût total, temps pour les deux rythmes simulés, effet au maximum (#69-D : libellés + résumé)
   const weak = Math.max(1, Number(document.getElementById('up-sim-weak').value) || 1);
   const strong = Math.max(1, Number(document.getElementById('up-sim-strong').value) || 1);
   const sim = document.getElementById('up-sim-body');
   sim.textContent = '';
+  const changes = document.getElementById('up-sim-changes');
+  changes.textContent = '';
   const safe = x => { try { return upTotals(x); } catch (_) { return { coins: NaN, gems: 0 }; } };
   const upTo = ty.reroll ? 20 : null;
   const a = pub ? (upTo ? upTotals(pub, upTo) : upTotals(pub)) : null;
   const b = upTo ? safe({ ...u, maxLevel: upTo }) : safe(u);
-  const line = (label, av, bv, fmt = upNum) => {
+  const pct = (av, bv) => {
+    const r = (bv / av - 1) * 100;
+    const d = Math.abs(r) < 1 ? Math.round(r * 100) / 100 : Math.round(r * 10) / 10;
+    return `${r > 0 ? '+' : ''}${d.toLocaleString('fr-FR')} %`;
+  };
+  const labelCell = (tr, label, hint) => {
+    const td = addCell(tr, label);
+    if (hint) {
+      td.append(' ');
+      td.appendChild(aiEl('button', { type: 'button', class: 'bk-info', 'aria-expanded': 'false', 'aria-controls': hint, 'aria-label': `Aide : ${label}` }, 'ⓘ'));
+    }
+  };
+  const line = (label, av, bv, fmt = upNum, hint = null) => {
     const tr = sim.insertRow();
-    addCell(tr, label);
+    labelCell(tr, label, hint);
     addCell(tr, av == null ? '—' : fmt(av)).className = 'num';
     addCell(tr, Number.isFinite(bv) ? fmt(bv) : '—').className = 'num';
-    const r = av != null && Number.isFinite(bv) && av ? (bv / av - 1) * 100 : null;
-    const d = r == null ? null : Math.abs(r) < 1 ? Math.round(r * 100) / 100 : Math.round(r * 10) / 10;
-    addCell(tr, d == null ? '—' : bv === av ? '=' : `${r > 0 ? '+' : ''}${d.toLocaleString('fr-FR')} %`).className = 'num';
+    const known = av != null && Number.isFinite(bv);
+    const same = known && fmt(av) === fmt(bv);
+    addCell(tr, !known ? '—' : same ? 'inchangé' : av ? pct(av, bv) : 'nouveau').className = 'num up-sim-gap';
+    if (known && !same) changes.appendChild(aiEl('li', {}, `${label} : ${fmt(av)} → ${fmt(bv)}${av ? ` (${pct(av, bv)})` : ''}`));
   };
-  const label = upTo ? 'Coût des 20 premiers rerolls (pièces)' : 'Coût total jusqu\'au maximum (pièces)';
-  line(label, a?.coins, b.coins);
-  if (ty.gems) line('Gemmes jusqu\'au maximum', a?.gems, b.gems);
-  line(`Temps, profil faible (${upNum(weak)}/min)`, a ? a.coins / weak : null, b.coins / weak, upDuration);
-  line(`Temps, profil fort (${upNum(strong)}/min)`, a ? a.coins / strong : null, b.coins / strong, upDuration);
+  const label = upTo ? 'Coût des 20 premiers rerolls, en pièces' : 'Coût total de tous les niveaux, en pièces';
+  line(label, a?.coins, b.coins, upNum, 'up-h-total');
+  if (ty.gems) line('Gemmes pour tous les niveaux', a?.gems, b.gems, upNum, 'up-h-gems');
+  line(`Temps estimé, joueur qui gagne peu (${upNum(weak)} pièces/min)`, a ? a.coins / weak : null, b.coins / weak, upDuration, 'up-h-time');
+  line(`Temps estimé, joueur qui gagne beaucoup (${upNum(strong)} pièces/min)`, a ? a.coins / strong : null, b.coins / strong, upDuration, 'up-h-time');
   if (!ty.reroll) {
     const tr = sim.insertRow();
-    addCell(tr, 'Effet au niveau maximum');
-    addCell(tr, pub ? upEffectAt(pub, pub.maxLevel) : '—').className = 'num';
-    addCell(tr, upEffectAt(u, u.maxLevel)).className = 'num';
-    addCell(tr, '');
+    labelCell(tr, 'Effet au niveau maximum');
+    const av = pub ? upEffectAt(pub, pub.maxLevel) : null, bv = upEffectAt(u, u.maxLevel);
+    addCell(tr, av ?? '—').className = 'num';
+    addCell(tr, bv).className = 'num';
+    addCell(tr, av == null ? '—' : av === bv ? 'inchangé' : 'modifié').className = 'num up-sim-gap';
+    if (av != null && av !== bv) changes.appendChild(aiEl('li', {}, `Effet au niveau maximum : ${av} → ${bv}`));
   }
   // Comparaison avec la version en vigueur
   const ul = document.getElementById('up-compare-list');
@@ -11795,6 +11812,16 @@ function upRefresh() {
     }
   }
   document.getElementById('up-compare').classList.toggle('hidden', !ul.children.length);
+  // Résumé « ce qui change » (#69-D) : chiffres d'abord ; s'il n'y en a pas, dire clairement qu'il n'y a rien
+  if (!pub) changes.appendChild(aiEl('li', {}, 'Pas encore de version en jeu pour cette amélioration : rien à comparer.'));
+  else if (!changes.children.length) {
+    changes.appendChild(aiEl('li', {}, ul.children.length
+      ? `Aucun changement de coût, de temps ni d'effet. Autres champs modifiés : ${ul.children.length} (voir le détail).`
+      : 'Aucun changement proposé : la fiche correspond aux paramètres utilisés en jeu.'));
+  }
+  const noChange = !!pub && !ul.children.length;
+  document.getElementById('up-sim-summary').classList.toggle('up-sim-same', noChange);
+  for (const el of document.querySelectorAll('#up-dialog .up-sim-gap')) el.classList.toggle('hidden', noChange);
   const art = document.getElementById('up-art');
   art.textContent = '';
   art.appendChild(upArtNode({ ...u, icon: u.icon || '⬆' }, 56));
@@ -11850,6 +11877,19 @@ function upOpen(upgrade, opener) {
   admDialogOpen('up-dialog', opener, null);
 }
 
+// Aides ⓘ de la fiche Amélioration (#69-D) : une seule aide ouverte à la fois
+document.getElementById('up-dialog').addEventListener('click', e => {
+  const b = e.target.closest('.bk-info');
+  if (!b) return;
+  e.preventDefault();
+  const h = document.getElementById(b.getAttribute('aria-controls'));
+  if (!h) return;
+  const show = h.hidden;
+  for (const o of document.querySelectorAll('#up-dialog .bk-hint')) o.hidden = true;
+  for (const o of document.querySelectorAll('#up-dialog .bk-info')) o.setAttribute('aria-expanded', 'false');
+  h.hidden = !show;
+  b.setAttribute('aria-expanded', String(show));
+});
 admDialogSetup('up-dialog', { dirty: () => JSON.stringify(upRead()) !== _upSnap, keep: 'Enregistrer dans le brouillon' });
 
 function upIssues(data, id = 'up-issues') {
