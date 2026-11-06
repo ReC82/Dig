@@ -1582,6 +1582,10 @@ app.get('/api/admin/rewards', requireAdmin, catalogRoute('GET /api/admin/rewards
 app.put('/api/admin/rewards/draft', requireAdmin, catalogRoute('PUT /api/admin/rewards/draft',
   req => rewardTables.saveDraft(req.body?.tables, { costs: chestCosts() })));
 
+// #49 (06/11) : préréglage « rareté des fragments » → brouillon seulement (jamais publié ici)
+app.post('/api/admin/rewards/draft/preset', requireAdmin, catalogRoute('POST /api/admin/rewards/draft/preset',
+  req => rewardTables.applyPreset(String(req.body?.preset ?? ''), { costs: chestCosts() })));
+
 app.delete('/api/admin/rewards/draft', requireAdmin, catalogRoute('DELETE /api/admin/rewards/draft',
   () => ({ discarded: rewardTables.discardDraft() })));
 

@@ -59,6 +59,139 @@ function originTables() {
   return structuredClone(_origin);
 }
 
+// ── Préréglages « rareté des fragments » (#49, demande du propriétaire du 06/11) ──────────────
+
+/**
+ * Barèmes proposés pour rendre les fragments plus rares, chiffrés par
+ * tools/balance/fragment-rarity-sim.js. Un préréglage ne fait que REMPLIR LE BROUILLON : rien
+ * n'est publié, le jeu garde la version en vigueur tant que l'administrateur ne publie pas.
+ * Gemmes inchangées (elles relèvent d'Admin → Économie) ; le poids retiré aux fragments passe
+ * aux pièces et aux boosts ; l'espérance en pièces d'un coffre de boutique reste < 80 % de son prix.
+ *  - prudente (P) : ≈ −50 % de fragments par coffre miné, boutique limitée à 20 / 10 / 5 par saison
+ *    avec des quantités divisées par deux ;
+ *  - rare (R)     : ≈ −70 % par coffre miné, plus aucun fragment dans le coffre simple, coffre rare
+ *    et antique limités et fortement réduits : la conversion pièces → fragments est bornée à
+ *    ≈ 2 % des besoins des reliques par saison.
+ */
+const PRESETS = {
+  fragments_prudente: {
+    label: 'Fragments — variante prudente (P)',
+    tables: {
+      shop: {
+        simple:  { maxPerSeason: 20, table: [
+          { weight: 45, type: 'coins',  min: 500, max: 1000 },
+          { weight: 15, type: 'relics', amount: 1 },
+          { weight: 30, type: 'boost',  mult: 2, minutes: 5 },
+          { weight: 10, type: 'coins',  min: 2000, max: 3500, jackpot: true },
+        ] },
+        rare:    { maxPerSeason: 10, table: [
+          { weight: 40, type: 'coins',      min: 5000, max: 9000 },
+          { weight: 30, type: 'relics',     amount: 2 },
+          { weight: 12, type: 'relics',     amount: 4 },
+          { weight:  8, type: 'boost',      mult: 2, minutes: 15 },
+          { weight:  8, type: 'collection', amount: 1 },
+          { weight:  2, type: 'coins',      min: 15000, max: 25000, jackpot: true },
+        ] },
+        antique: { maxPerSeason: 5, table: [
+          { weight: 30, type: 'coins',      min: 25000, max: 40000 },
+          { weight: 25, type: 'relics',     amount: 10 },
+          { weight: 18, type: 'relics',     amount: 15 },
+          { weight: 10, type: 'boost',      mult: 3, minutes: 20 },
+          { weight: 12, type: 'collection', amount: 1 },
+          { weight:  4, type: 'relics',     amount: 25 },
+          { weight:  1, type: 'coins',      min: 100000, max: 150000, jackpot: true },
+        ] },
+      },
+      mined: {
+        commun: [
+          { weight: 55, type: 'coins',  min: 80,  max: 180 },
+          { weight: 35, type: 'coins',  min: 200, max: 400 },
+          { weight: 10, type: 'relics', amount: 1 },
+        ],
+        rare: [
+          { weight: 50, type: 'coins',  min: 300, max: 600 },
+          { weight: 15, type: 'relics', amount: 1 },
+          { weight: 30, type: 'boost',  mult: 2, minutes: 3 },
+          { weight:  5, type: 'relics', amount: 2 },
+        ],
+        epique: [
+          { weight: 35, type: 'coins',  min: 600, max: 1200 },
+          { weight: 30, type: 'boost',  mult: 3, minutes: 5 },
+          { weight: 20, type: 'relics', amount: 1 },
+          { weight: 15, type: 'relics', amount: 2 },
+        ],
+      },
+    },
+  },
+  fragments_rare: {
+    label: 'Fragments — variante nettement plus rare (R)',
+    tables: {
+      shop: {
+        simple:  { maxPerSeason: 20, table: [
+          { weight: 45, type: 'coins',  min: 500, max: 1000 },
+          { weight: 45, type: 'boost',  mult: 2, minutes: 5 },
+          { weight: 10, type: 'coins',  min: 2000, max: 3500, jackpot: true },
+        ] },
+        rare:    { maxPerSeason: 10, table: [
+          { weight: 45, type: 'coins',      min: 5000, max: 9000 },
+          { weight: 25, type: 'relics',     amount: 1 },
+          { weight:  5, type: 'relics',     amount: 2 },
+          { weight: 15, type: 'boost',      mult: 2, minutes: 15 },
+          { weight:  8, type: 'collection', amount: 1 },
+          { weight:  2, type: 'coins',      min: 15000, max: 25000, jackpot: true },
+        ] },
+        antique: { maxPerSeason: 5, table: [
+          { weight: 35, type: 'coins',      min: 25000, max: 40000 },
+          { weight: 25, type: 'relics',     amount: 4 },
+          { weight: 15, type: 'relics',     amount: 6 },
+          { weight: 18, type: 'boost',      mult: 3, minutes: 20 },
+          { weight:  6, type: 'collection', amount: 1 },
+          { weight:  1, type: 'coins',      min: 100000, max: 150000, jackpot: true },
+        ] },
+      },
+      mined: {
+        commun: [
+          { weight: 60, type: 'coins',  min: 80,  max: 180 },
+          { weight: 35, type: 'coins',  min: 200, max: 400 },
+          { weight:  5, type: 'relics', amount: 1 },
+        ],
+        rare: [
+          { weight: 55, type: 'coins',  min: 300, max: 600 },
+          { weight: 12, type: 'relics', amount: 1 },
+          { weight: 30, type: 'boost',  mult: 2, minutes: 3 },
+          { weight:  3, type: 'relics', amount: 2 },
+        ],
+        epique: [
+          { weight: 40, type: 'coins',  min: 600, max: 1200 },
+          { weight: 35, type: 'boost',  mult: 3, minutes: 5 },
+          { weight: 15, type: 'relics', amount: 1 },
+          { weight: 10, type: 'relics', amount: 2 },
+        ],
+      },
+    },
+  },
+};
+
+/** Tables complètes d'un préréglage (copie). */
+function presetTables(id) {
+  const p = PRESETS[id];
+  if (!p) throw new RewardError(400, `Préréglage inconnu : ${id}.`);
+  return structuredClone(p.tables);
+}
+
+/**
+ * Remplace le brouillon par les tables d'un préréglage (aucune publication). Recharger le même
+ * préréglage ne change rien ; le brouillon reste abandonnable et la version en vigueur intacte.
+ */
+function applyPreset(id, { costs } = {}) {
+  const tables = presetTables(id);
+  return conn().transaction(() => {
+    const out = saveDraft(tables, { costs });
+    _audit('draft_preset', null, { preset: id });
+    return out;
+  })();
+}
+
 // ── Base ──────────────────────────────────────────────────────────────────────
 
 function init() {
@@ -384,11 +517,12 @@ function buildAdminView({ costs = getEconomy({}).chestCosts } = {}) {
     versions: listVersions(),
     costs,
     shopIds: SHOP_IDS, minedIds: MINED_IDS, shopTypes: SHOP_TYPES, minedTypes: MINED_TYPES, limits: LIMITS,
+    presets: Object.entries(PRESETS).map(([id, p]) => ({ id, label: p.label })),
   };
 }
 
 module.exports = {
-  RewardError, SHOP_IDS, MINED_IDS, LIMITS,
+  RewardError, SHOP_IDS, MINED_IDS, LIMITS, PRESETS, presetTables, applyPreset,
   init, originTables, getPublished, getVersion, getDraft, listVersions, publicMined,
   validateTables, tableStats, diff, simulate,
   saveDraft, discardDraft, publishDraft, rollbackTo, listAudit, buildAdminView,
