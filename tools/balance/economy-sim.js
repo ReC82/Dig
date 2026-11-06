@@ -296,6 +296,7 @@ function newSeason(p) {
       maxedAt: null,                                     // heures de jeu : toutes les améliorations en pièces au maximum
       maxedDepth: null,                                  // profondeur à ce moment
       shopChestsBought: 0,
+      manualBlocks: 0,                                   // blocs détruits au clic (classement #73)
       shop: { simple: 0, rare: 0, antique: 0, openingsLeft: 0, hitLimit: false, blocked: false },   // achats du 04/11 (shopBuy)
     },
     gemsStart: p.gems,
@@ -436,6 +437,7 @@ function mine(p, s, rules, o, random, { seconds, cps, now, chestWait, ad, played
     t += dt + BREAK_ANIM_S;
     if (t > end) break;                              // bloc non terminé à la fin de la séance
     s.depth++; s.stats.blocks++;
+    if (cps > 0) s.m.manualBlocks++;
     if (o.onBlock) o.onBlock(type, s.depth - 1, t);   // outils dérivés (#39 drops saisonniers), sans effet ici
     if (s.depth > s.m.maxDepth) s.m.maxDepth = s.depth;
     const id = G.Blocks.idOf(type);

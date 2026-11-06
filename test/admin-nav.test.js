@@ -130,7 +130,7 @@ test('rubrique Joueurs distincte : recherche du pseudo en tête, fiche avec essa
 test('Économie : sous-rubriques séparées (gains, registre, règles, boutique en gemmes)', () => {
   const eco = ctx.N.find(t => t.id === 'economy');
   assert.strictEqual(eco.label, 'Économie');
-  assert.deepStrictEqual([...eco.subs.map(s => s.id)], ['gains', 'ledger', 'rules', 'gemshop']);
+  assert.deepStrictEqual([...eco.subs.map(s => s.id)], ['gains', 'ledger', 'rules', 'gemshop', 'fragpack']);
   const sec = HTML.slice(HTML.indexOf('<section id="tab-economy"'), HTML.indexOf('</section>', HTML.indexOf('<section id="tab-economy"')));
   for (const s of eco.subs) assert.match(sec, new RegExp(`data-sub="${s.id}"`), s.id);
   assert.match(sec, /id="gem-ledger-card" data-sub="ledger"/);

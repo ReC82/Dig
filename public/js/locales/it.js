@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 879/879 textes. Absents → français. */
+/* Italian (preview) : 890/890 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -342,6 +342,19 @@ I18n.registerLocale("it", {
    "desc": "Un dente affilato di una creatura sotterranea.",
    "name": "Dente di mostro"
   }
+ },
+ "fragpack": {
+  "btn_buy": "Acquista — {price}",
+  "btn_limit": "Limite raggiunto",
+  "btn_unavailable": "Non disponibile",
+  "desc": "Servono a sbloccare e migliorare le reliquie: bonus permanenti, conservati da una stagione all’altra.",
+  "error": "Acquisto non possibile per ora. Nessun pagamento è stato effettuato.",
+  "free": "Anche gratis: forzieri trovati scavando.",
+  "left": "Ancora acquistabili: {n}",
+  "limit": "Limite: {account} per account · {season} per stagione",
+  "name": "{n} frammenti",
+  "section": "🔮 Frammenti di reliquia",
+  "transparency": "Acquisto facoltativo e una tantum. Prezzo totale IVA inclusa: {price}."
  },
  "giftshop": {
   "b_closed": "Scambi chiusi",
