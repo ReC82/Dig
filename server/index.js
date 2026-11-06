@@ -860,6 +860,19 @@ app.get('/api/upgrades/catalog', (req, res) => {
   catch (err) { console.error('[GET /api/upgrades/catalog]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
+// Confirmation d'un achat payé en gemmes (#69) : { id, level, gems, version } → 200 si le prix est
+// celui de la version publiée (celle que débite le registre #49), sinon 409 + barème à jour. Le jeu
+// ne débite les gemmes qu'après ce feu vert : jamais au prix d'un barème périmé.
+app.post('/api/upgrades/purchase-check', limit.shop, (req, res) => {
+  try {
+    const r = upgradeCatalog.checkPurchase(req.body ?? {});
+    res.status(r.ok ? 200 : 409).json(r);
+  } catch (err) {
+    if (err instanceof upgradeCatalog.CatalogError) return res.status(err.status).json({ error: err.message });
+    console.error('[POST /api/upgrades/purchase-check]', err); res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
 function catalogRoute(label, fn) {
   return async (req, res) => {
     try { res.json(await fn(req)); }

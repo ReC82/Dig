@@ -40,7 +40,11 @@ const db = require('./db');
 
 const MODES = ['off', 'observe', 'enforce'];
 const TZ = 'Europe/Brussels';
-/** Coûts en gemmes de l'Auto-Dig par niveau atteint (public/js/balance.js AUTODIG, vérifié par test). */
+/**
+ * Coûts en gemmes de l'Auto-Dig d'ORIGINE par niveau atteint (public/js/balance.js AUTODIG, vérifié
+ * par test). Depuis #69, le débit lit la version publiée du barème des améliorations
+ * (upgradeCatalog.autodigGemCosts) : ces valeurs ne servent plus que de repli si le barème est illisible.
+ */
 const AUTODIG_GEM_COST = { 1: 0, 2: 0, 3: 4, 4: 8, 5: 18, 6: 35 };
 /**
  * Allocation par jour pour les sources calculées par le navigateur. Barème actuel : série (jour 7 :
@@ -221,9 +225,15 @@ function _pickaxeCost(ref, cur) {
   return treeCost(s.capacityPrices, ref.cap ?? 0, cur.cap) + treeCost(s.speedPrices, ref.speed ?? 0, cur.speed);
 }
 
-function _autodigCost(from, to) {
+/** Prix en gemmes de l'Auto-Dig : version publiée du barème des améliorations (#69), le même que le jeu. */
+function _autodigPrices() {
+  try { return require('./upgradeCatalog').autodigGemCosts(); }
+  catch (_) { return { version: null, costs: AUTODIG_GEM_COST }; }
+}
+
+function _autodigCost(from, to, costs = AUTODIG_GEM_COST) {
   let c = 0;
-  for (let l = from + 1; l <= to; l++) c += AUTODIG_GEM_COST[l] ?? 0;
+  for (let l = from + 1; l <= to; l++) c += costs[l] ?? 0;
   return c;
 }
 
@@ -300,11 +310,12 @@ function observeSave(userId, data, { revision, nowMs = Date.now(), force = false
     }
 
     // 2. Dépenses Auto-Dig (montée de niveau dans la saison)
-    const spent = _autodigCost(refAutodig, autodig);
+    const prices = autodig > refAutodig ? _autodigPrices() : null;
+    const spent = prices ? _autodigCost(refAutodig, autodig, prices.costs) : 0;
     if (spent > 0) {
       const d = Math.min(spent, balance);
       balance -= d; debited += d;
-      _entry(userId, `${key}:autodig`, -d, balance, 'autodig', { from: refAutodig, to: autodig, cost: spent });
+      _entry(userId, `${key}:autodig`, -d, balance, 'autodig', { from: refAutodig, to: autodig, cost: spent, catalogVersion: prices.version });
       if (d < spent) _anomaly(userId, 'spend_over_balance', spent - d, { revision, from: refAutodig, to: autodig });
     }
     refAutodig = Math.max(refAutodig, autodig);

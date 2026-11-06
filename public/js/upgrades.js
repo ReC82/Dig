@@ -138,6 +138,7 @@ const Upgrades = {
   controlsRev: -1,
   controls: {},
   CATALOG_URL: '/api/upgrades/catalog',
+  PURCHASE_CHECK_URL: '/api/upgrades/purchase-check',
   CATALOG_STORAGE_KEY: 'dig.upgradeCatalog.v1',
   _TABLES: { pickaxe: 'PICKAXE', luck: 'LUCK', bag: 'BAG', fragment_shop: 'FRAGMENT_SHOP' },
 
@@ -199,6 +200,33 @@ const Upgrades = {
         return true;
       })
       .catch(() => false);
+  },
+
+  /** Achat confirmé par le serveur avant débit : l'Auto-Dig, seule amélioration payable en gemmes. */
+  needsServerCheck(id) { return id === 'autodig'; },
+
+  /**
+   * Demande au serveur si le prix du prochain niveau est celui de la version publiée (celle que
+   * débite le registre de gemmes #49). Prix périmé ou achats suspendus → barème à jour appliqué,
+   * achat refusé. Sans réseau : refus si le niveau coûte des gemmes, sinon achat en pièces comme avant.
+   * @returns {Promise<{ ok: boolean, code?: string, gems?: number }>}
+   */
+  confirmPurchase(id) {
+    const cost = this.getCost(id);
+    if (!cost) return Promise.resolve({ ok: false, code: 'max' });
+    if (typeof fetch === 'undefined') return Promise.resolve(cost.gems > 0 ? { ok: false, code: 'offline' } : { ok: true });
+    const body = { id, level: this.getLevel(id) + 1, gems: cost.gems, version: this.catalogVersion };
+    return fetch(this.PURCHASE_CHECK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(r => r.json().catch(() => null).then(data => ({ status: r.status, data })))
+      .then(({ status, data }) => {
+        if (status === 200 && data?.ok) return { ok: true };
+        if (status === 409 && data?.catalog && this.applyCatalog(data.catalog)) {
+          try { localStorage.setItem(this.CATALOG_STORAGE_KEY, JSON.stringify(data.catalog)); } catch (_) { /* quota */ }
+          return { ok: false, code: data.code, gems: data.gems };
+        }
+        return cost.gems > 0 ? { ok: false, code: 'offline' } : { ok: true };
+      })
+      .catch(() => (cost.gems > 0 ? { ok: false, code: 'offline' } : { ok: true }));
   },
 
   isHidden(id)            { return this.controls[id]?.hidden === true; },

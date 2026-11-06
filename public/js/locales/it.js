@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 843/843 textes. Absents → français. */
+/* Italian (preview) : 845/845 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -1125,6 +1125,8 @@ I18n.registerLocale("it", {
    "effect": "Danni per clic: {cur} → {next}",
    "name": "Piccone"
   },
+  "price_updated": "Prezzo aggiornato: questo livello ora costa {gems} 💎. Controlla e riprova.",
+  "purchase_offline": "Serve una connessione per confermare un acquisto in gemme. Riprova.",
   "suspended_effects": "Effetto sospeso temporaneamente — il tuo livello è conservato",
   "suspended_purchases": "Acquisti sospesi temporaneamente"
  }

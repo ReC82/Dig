@@ -5955,6 +5955,20 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "upgrade.price_updated": {
+   "text": "Prezzo aggiornato: questo livello ora costa {gems} 💎. Controlla e riprova.",
+   "src": "8337e20af546",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #69, relu)",
+   "at": "2026-11-06T08:46:26.779Z"
+  },
+  "upgrade.purchase_offline": {
+   "text": "Serve una connessione per confermare un acquisto in gemme. Riprova.",
+   "src": "f39953d7c3b9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #69, relu)",
+   "at": "2026-11-06T08:46:26.779Z"
+  },
   "upgrade.suspended_effects": {
    "text": "Effetto sospeso temporaneamente — il tuo livello è conservato",
    "src": "8101d609bcfd",

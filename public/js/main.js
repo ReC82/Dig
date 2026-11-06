@@ -590,7 +590,23 @@ function renderUpgrades() {
       </button>`;
 
     if (!maxed && !paused) {
-      card.querySelector('.upgrade-btn').addEventListener('click', () => {
+      card.querySelector('.upgrade-btn').addEventListener('click', async (e) => {
+        // Auto-Dig (#69) : prix confirmé par le serveur avant tout débit (prix périmé → refus + barème à jour)
+        if (Upgrades.needsServerCheck(def.id)) {
+          const btn = e.currentTarget;
+          if (btn.dataset.checking) return;
+          btn.dataset.checking = '1';
+          btn.disabled = true;
+          const check = await Upgrades.confirmPurchase(def.id);
+          delete btn.dataset.checking;
+          if (!check.ok) {
+            const msg = check.code === 'stale_price' ? t('upgrade.price_updated', { gems: check.gems ?? 0 })
+              : check.code === 'suspended' ? t('upgrade.suspended_purchases') : t('upgrade.purchase_offline');
+            showAchievement('⚠️', msg, 'warning');
+            renderUpgrades();
+            return;
+          }
+        }
         if (Upgrades.buy(def.id)) {
           if (def.id === 'block_reroll') {
             Blocks.spawn(GameState.depth);

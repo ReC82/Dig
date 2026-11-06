@@ -456,6 +456,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Niveau {cur}\u00a0→\u00a0{next}', max_level: 'Niveau maximal atteint',
+        price_updated: 'Prix mis à jour : ce niveau coûte maintenant {gems} 💎. Vérifiez puis réessayez.', purchase_offline: 'Connexion nécessaire pour confirmer un achat en gemmes. Réessayez.',
         suspended_purchases: 'Achats suspendus temporairement', suspended_effects: 'Effet suspendu temporairement — votre niveau est conservé',
         pickaxe:  { name: 'Pioche',    desc: '{damage} dégât{s} par clic', effect: 'Dégâts par clic\u00a0: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Chance',    desc: 'Plus de rares, sans ralentir',
@@ -1340,6 +1341,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Level {cur}\u00a0→\u00a0{next}', max_level: 'Maximum level reached',
+        price_updated: 'Price updated: this level now costs {gems} 💎. Check and try again.', purchase_offline: 'A connection is needed to confirm a gem purchase. Try again.',
         suspended_purchases: 'Purchases temporarily paused', suspended_effects: 'Effect temporarily paused — your level is kept',
         pickaxe:  { name: 'Pickaxe',   desc: '{damage} damage per click', effect: 'Damage per click: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Luck',      desc: 'More rares, no slowdown',
@@ -2224,6 +2226,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Niveau {cur}\u00a0→\u00a0{next}', max_level: 'Maximaal niveau bereikt',
+        price_updated: 'Prijs bijgewerkt: dit niveau kost nu {gems} 💎. Controleer en probeer opnieuw.', purchase_offline: 'Verbinding nodig om een aankoop met edelstenen te bevestigen. Probeer opnieuw.',
         suspended_purchases: 'Aankopen tijdelijk gepauzeerd', suspended_effects: 'Effect tijdelijk gepauzeerd — je niveau blijft behouden',
         pickaxe:  { name: 'Houweel',      desc: '{damage} schade per klik', effect: 'Schade per klik: {cur}\u00a0→\u00a0{next}', },
         luck:     { name: 'Geluk',        desc: 'Meer zeldzame blokken, zonder trager te graven',
@@ -3108,6 +3111,7 @@ const I18n = (() => {
       },
       upgrade: {
         next_level: 'Nivel {cur} → {next}', max_level: 'Nivel máximo alcanzado',
+        price_updated: 'Precio actualizado: este nivel cuesta ahora {gems} 💎. Revísalo e inténtalo de nuevo.', purchase_offline: 'Se necesita conexión para confirmar una compra con gemas. Inténtalo de nuevo.',
         suspended_purchases: 'Compras suspendidas temporalmente', suspended_effects: 'Efecto suspendido temporalmente — tu nivel se conserva',
         pickaxe:  { name: 'Pico',      desc: '{damage} de daño por clic', effect: 'Daño por clic: {cur} → {next}', },
         luck:     { name: 'Suerte',    desc: 'Más bloques raros, sin frenar',

@@ -2,8 +2,11 @@
  * Tests des améliorations administrables et de la suspension d'urgence, ticket #69 :
  * - migration : la version 1 reprend à l'identique les six améliorations du client (prix par
  *   niveau, niveaux, effet par niveau du Sac et de la Chance, reroll) et leurs noms ; idempotente ;
- * - validation : ensemble fixe d'améliorations, verrous anti-bot (#25) et gemmes (#49), bornes,
- *   nombre de niveaux jamais en baisse ;
+ * - validation : ensemble fixe d'améliorations, verrous anti-bot (#25), bornes, nombre de niveaux
+ *   jamais en baisse ;
+ * - prix en gemmes de l'Auto-Dig éditables (recette du 06/11, base isolée) : brouillon sans effet,
+ *   publication lue par le registre serveur (#49, débit exact), achat au prix périmé refusé,
+ *   retour arrière ; client : confirmation serveur avant débit ;
  * - brouillon → publication explicite avec note, version périmée refusée, retour arrière, journal
  *   en ajout seul ;
  * - suspension (recette sur base isolée) : aperçu sans effet, motif, confirmation par l'identifiant,
@@ -40,8 +43,8 @@ const catalog = require('../server/upgradeCatalog');
 db.initDb();
 catalog.init();
 
-function loadClient() {
-  const ctx = { console, Math, JSON, Number, Object, Array, String, Set, Map, t: k => k, I18n: { getCurrent: () => 'fr', has: () => false } };
+function loadClient(extra = {}) {
+  const ctx = { console, Math, JSON, Number, Object, Array, String, Set, Map, Promise, t: k => k, I18n: { getCurrent: () => 'fr', has: () => false }, ...extra };
   vm.createContext(ctx);
   for (const f of ['gameState.js', 'balance.js', 'blocks.js', 'upgrades.js', 'relics.js']) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8'), ctx, { filename: f });
@@ -89,7 +92,15 @@ test('validation : verrous moteur, bornes, niveaux jamais en baisse', () => {
   const pick = pubOf('pickaxe'), auto = pubOf('autodig'), bag = pubOf('bag'), luck = pubOf('luck'), rr = pubOf('block_reroll');
   assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...pick, id: 'turbo' })), 400, 'type inconnu');
   assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...pick, maxLevel: 16, costs: [...pick.costs, 900000] })), 400, 'pioche verrouillée à 15 (anti-bot)');
-  assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...auto, gems: [0, 0, 1, 8, 18, 35] })), 400, 'gemmes verrouillées');
+  assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...auto, maxLevel: 7, costs: [...auto.costs, 0], gems: [...auto.gems, 50] })), 400, 'Auto-Dig verrouillé à 6 niveaux (anti-bot)');
+  for (const g of [[0, 0, -1, 8, 18, 35], [0, 0, 4.5, 8, 18, 35], [0, 0, 4, 8, 18, 1001], [0, 0, 4, 8, 18], [0, 0, 4, 8, 18, 'x']]) {
+    assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...auto, gems: g })), 400, `gemmes hors bornes : ${g}`);
+  }
+  assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...auto, gems: [0, 0, 0, 8, 18, 35] })), 400, 'niveau gratuit (0 pièce, 0 gemme) refusé');
+  assert.deepStrictEqual(catalog.normalizeUpgrade({ ...auto, gems: [0, 0, 6, 8, 18, 35] }).gems, [0, 0, 6, 8, 18, 35], 'gemmes éditables');
+  assert.deepStrictEqual(catalog.normalizeUpgrade({ ...auto, costs: [800, 3000, 0, 0, 0, 500], gems: [0, 0, 4, 8, 18, 0] }).gems, [0, 0, 4, 8, 18, 0], 'niveau passé en pièces');
+  assert.match(catalog.validateCatalog(clone(catalog.getPublished().upgrades).map(u => (u.id === 'autodig' ? { ...u, gems: [0, 0, 4, 8, 30, 20] } : u))).warnings.join(' '),
+    /gemmes du niveau 6 est inférieur/);
   assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...bag, perLevel: 2 })), 400, 'effet du Sac borné');
   assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...luck, costs: luck.costs.slice(1) })), 400, 'un prix par niveau');
   assert.strictEqual(code(() => catalog.normalizeUpgrade({ ...bag, costs: [0, ...bag.costs.slice(1)] })), 400, 'prix nul refusé');
@@ -198,6 +209,70 @@ test('suspension d\'urgence (base isolée) : aperçu, motif, confirmation, réac
   catalog._resetRateForTests();
 });
 
+test('gemmes de l\'Auto-Dig (recette base isolée) : brouillon sans effet, débit serveur exact, prix périmé refusé, retour arrière', () => {
+  const gems = require('../server/gemLedger');
+  require('../server/blockCatalog').init();
+  require('../server/badges').init();
+  gems.init();
+  const conn = db.getDb();
+  const v0 = catalog.getPublished().version;
+  const auto = pubOf('autodig');
+  assert.deepStrictEqual(auto.gems, [0, 0, 4, 8, 18, 35]);
+  const uid = conn.prepare("INSERT INTO users (username, password_hash) VALUES ('gemmes69', 'x')").run().lastInsertRowid;
+  const season = db.getActiveSeason()?.id ?? null;
+  let rev = 0;
+  const observe = (g, autodig) => gems.observeSave(uid, { gems: g, upgrades: { autodig }, stats: { minedByType: {} }, seasonStats: { seasonId: season } },
+    { revision: ++rev, force: true, nowMs: Date.parse('2026-11-06T10:00:00Z') });
+  const lastDebit = () => conn.prepare("SELECT delta, details FROM gem_ledger WHERE user_id = ? AND reason = 'autodig' ORDER BY id DESC LIMIT 1").get(uid);
+  observe(100, 2);   // ouverture : 100 gemmes, Auto-Dig niveau 2
+
+  // 1. Brouillon : niveau 3 à 6 gemmes → aucun effet sur le jeu, le contrôle d'achat ni le registre
+  catalog.upsertDraftUpgrade({ ...auto, gems: [0, 0, 6, 8, 18, 35] });
+  assert.deepStrictEqual(catalog.publicCatalog().upgrades.find(u => u.id === 'autodig').gems, [0, 0, 4, 8, 18, 35], 'jeu inchangé');
+  assert.deepStrictEqual(catalog.autodigGemCosts(), { version: v0, costs: { 1: 0, 2: 0, 3: 4, 4: 8, 5: 18, 6: 35 } }, 'registre inchangé');
+  assert.strictEqual(catalog.checkPurchase({ id: 'autodig', level: 3, gems: 4 }).ok, true);
+  assert.strictEqual(catalog.checkPurchase({ id: 'autodig', level: 3, gems: 6 }).code, 'stale_price', 'prix du brouillon refusé');
+  const view = catalog.buildAdminView();
+  assert.deepStrictEqual(view.draft.changes, [{ id: 'autodig', kind: 'changed', fields: [{ field: 'gems', before: [0, 0, 4, 8, 18, 35], after: [0, 0, 6, 8, 18, 35] }] }]);
+  assert.strictEqual(view.limits.gemMax, 1000);
+
+  // 2. Publication (base de test) : le jeu ET le registre lisent la même version, mêmes prix
+  const p = catalog.publishDraft({ note: 'essai gemmes isolé', expectedBasedOn: v0 });
+  const pubCat = catalog.publicCatalog();
+  assert.strictEqual(pubCat.version, p.version);
+  assert.deepStrictEqual(pubCat.upgrades.find(u => u.id === 'autodig').gems, [0, 0, 6, 8, 18, 35]);
+  assert.deepStrictEqual(catalog.autodigGemCosts(), { version: p.version, costs: { 1: 0, 2: 0, 3: 6, 4: 8, 5: 18, 6: 35 } });
+  // Client périmé (prix 4) : refusé avec le barème à jour ; prix publié (6) : accepté
+  const stale = catalog.checkPurchase({ id: 'autodig', level: 3, gems: 4, version: v0 });
+  assert.deepStrictEqual([stale.ok, stale.code, stale.gems, stale.version], [false, 'stale_price', 6, p.version]);
+  assert.deepStrictEqual(stale.catalog, pubCat);
+  assert.deepStrictEqual(catalog.checkPurchase({ id: 'autodig', level: 3, gems: 6, version: p.version }), { ok: true, version: p.version, level: 3, gems: 6 });
+  for (const bad of [{ id: 'bag', level: 1, gems: 0 }, { id: 'autodig', level: 7, gems: 0 }, { id: 'autodig', level: 0, gems: 0 }]) {
+    assert.strictEqual(code(() => catalog.checkPurchase(bad)), 400, JSON.stringify(bad));
+  }
+  // Débit serveur exact au prix publié (niveau 2 → 3 : 6 gemmes), version notée dans le journal
+  const r = observe(94, 3);
+  assert.strictEqual(r.debited, 6);
+  assert.strictEqual(r.balance, 94);
+  assert.deepStrictEqual([lastDebit().delta, JSON.parse(lastDebit().details).catalogVersion], [-6, p.version]);
+  // Rejeu de la même révision : jamais débité deux fois
+  assert.strictEqual(gems.observeSave(uid, { gems: 94, upgrades: { autodig: 3 }, stats: { minedByType: {} }, seasonStats: { seasonId: season } }, { revision: rev, force: true }).replayed, true);
+
+  // 3. Retour arrière : prix d'origine pour le jeu, le contrôle d'achat et le registre
+  const rb = catalog.rollbackTo(v0, { note: 'fin essai gemmes' });
+  assert.deepStrictEqual(catalog.autodigGemCosts().costs, { 1: 0, 2: 0, 3: 4, 4: 8, 5: 18, 6: 35 });
+  assert.strictEqual(catalog.autodigGemCosts().version, rb.version);
+  assert.strictEqual(catalog.checkPurchase({ id: 'autodig', level: 4, gems: 8 }).ok, true);
+  assert.strictEqual(catalog.checkPurchase({ id: 'autodig', level: 3, gems: 6 }).code, 'stale_price');
+  assert.strictEqual(observe(86, 4).debited, 8, 'niveau 4 débité au prix d\'origine');
+  // Achats suspendus : refus explicite
+  catalog.setControl('autodig', { purchases: true }, { reason: 'essai gemmes' });
+  assert.strictEqual(catalog.checkPurchase({ id: 'autodig', level: 5, gems: 18 }).code, 'suspended');
+  catalog.setControl('autodig', {}, { reason: 'fin essai gemmes' });
+  catalog._resetRateForTests();
+  assert.deepStrictEqual(catalog.publicCatalog().upgrades, catalog.getVersion(v0).upgrades, 'barème final = origine');
+});
+
 test('client : barème appliqué, achats bloqués, effets suspendus puis rétablis sans toucher aux niveaux', () => {
   const { GameState, Balance, Blocks, Upgrades, Relics } = loadClient();
   const cat = clone(catalog.publicCatalog());
@@ -255,6 +330,53 @@ test('client : barème appliqué, achats bloqués, effets suspendus puis rétabl
   assert.strictEqual(Upgrades.catalogVersion, 99);
 });
 
+test('client : achat Auto-Dig confirmé par le serveur avant débit, prix périmé refusé', async () => {
+  let reply = null;
+  const calls = [];
+  const store = {};
+  const fetch = async (url, opts) => { calls.push([url, JSON.parse(opts.body)]); return reply(); };
+  const localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
+  const { GameState, Upgrades } = loadClient({ fetch, localStorage });
+  const cat = clone(catalog.publicCatalog());
+  Upgrades.applyCatalog(cat);
+  GameState.gems = 100; GameState.coins = 1e6;
+  GameState.upgrades.autodig = 2;
+  const res = (status, data) => () => Promise.resolve({ status, json: async () => data });
+
+  // Prix confirmé : le jeu peut débiter (4 gemmes)
+  reply = res(200, { ok: true, version: cat.version, level: 3, gems: 4 });
+  assert.deepStrictEqual(clone(await Upgrades.confirmPurchase('autodig')), { ok: true });
+  assert.deepStrictEqual(calls.at(-1), ['/api/upgrades/purchase-check', { id: 'autodig', level: 3, gems: 4, version: cat.version }]);
+  assert.strictEqual(GameState.gems, 100, 'la confirmation ne débite rien');
+
+  // Prix périmé : barème à jour appliqué et mémorisé, achat refusé, rien débité
+  const fresh = clone(cat);
+  fresh.version = cat.version + 1;
+  fresh.upgrades.find(u => u.id === 'autodig').gems = [0, 0, 6, 8, 18, 35];
+  reply = res(409, { ok: false, code: 'stale_price', version: fresh.version, level: 3, gems: 6, catalog: fresh });
+  assert.deepStrictEqual(clone(await Upgrades.confirmPurchase('autodig')), { ok: false, code: 'stale_price', gems: 6 });
+  assert.strictEqual(Upgrades.catalogVersion, fresh.version);
+  assert.deepStrictEqual(clone(Upgrades.getCost('autodig')), { coins: 0, gems: 6 });
+  assert.strictEqual(JSON.parse(store[Upgrades.CATALOG_STORAGE_KEY]).version, fresh.version);
+  assert.deepStrictEqual([GameState.gems, GameState.upgrades.autodig], [100, 2]);
+  // Le nouvel essai annonce le prix à jour
+  reply = res(200, { ok: true });
+  assert.strictEqual((await Upgrades.confirmPurchase('autodig')).ok, true);
+  assert.strictEqual(calls.at(-1)[1].gems, 6);
+  assert.strictEqual(Upgrades.buy('autodig'), true);
+  assert.deepStrictEqual([GameState.gems, GameState.upgrades.autodig], [94, 3]);
+
+  // Sans réseau : niveau en gemmes refusé ; niveau en pièces (1 → 2) acheté comme avant
+  reply = () => Promise.reject(new Error('hors ligne'));
+  assert.deepStrictEqual(clone(await Upgrades.confirmPurchase('autodig')), { ok: false, code: 'offline' });
+  GameState.upgrades.autodig = 1;
+  assert.deepStrictEqual(clone(await Upgrades.confirmPurchase('autodig')), { ok: true });
+  // Réponse serveur inattendue (500) : même règle
+  reply = res(500, { error: 'x' });
+  GameState.upgrades.autodig = 3;
+  assert.strictEqual((await Upgrades.confirmPurchase('autodig')).code, 'offline');
+});
+
 test('routes : catalogue public, administration protégée, suspension puis réactivation', async (t) => {
   const httpDb = path.join(dir, 'http.sqlite');
   const server = spawn(process.execPath, ['server/index.js'], {
@@ -306,6 +428,12 @@ test('routes : catalogue public, administration protégée, suspension puis réa
   assert.strictEqual(set.status, 200, JSON.stringify(set.body));
   assert.deepStrictEqual((await call('GET', '/api/upgrades/catalog', undefined, { auth: false })).body.controls, { autodig: { purchases: false, effects: true, hidden: false } });
   assert.strictEqual((await call('POST', '/api/admin/upgrades/autodig/controls', { controls: {}, reason: 'fin du test HTTP' })).status, 200);
+  // Confirmation d'achat en gemmes (#69), publique : prix publié accepté, périmé refusé (409 + barème)
+  const ok = await call('POST', '/api/upgrades/purchase-check', { id: 'autodig', level: 3, gems: 4, version: 1 }, { auth: false });
+  assert.deepStrictEqual([ok.status, ok.body.ok, ok.body.gems], [200, true, 4]);
+  const stale = await call('POST', '/api/upgrades/purchase-check', { id: 'autodig', level: 3, gems: 2, version: 1 }, { auth: false });
+  assert.deepStrictEqual([stale.status, stale.body.code, stale.body.gems, stale.body.catalog.version], [409, 'stale_price', 4, 1]);
+  assert.strictEqual((await call('POST', '/api/upgrades/purchase-check', { id: 'bag', level: 1, gems: 0 }, { auth: false })).status, 400);
   const after = (await call('GET', '/api/upgrades/catalog', undefined, { auth: false })).body;
   assert.deepStrictEqual([after.version, after.controls, after.upgrades], [1, {}, pub.body.upgrades], 'rien de publié, aucune suspension restante');
   const audit = await call('GET', '/api/admin/upgrades/audit');
