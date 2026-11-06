@@ -3,7 +3,7 @@
  *   Admin → Missions → carte « Activation en jeu » : désactivé par défaut → mode Pilote pour un compte
  *   de test → jeu (ce compte) : onglet Quotidien, missions du serveur terminées → réclamer → crédit,
  *   carte « réclamée », F5 : toujours réclamée, pièces non recréditées → admin : inspection du joueur →
- *   retour à « Désactivé ». Ordinateur 1280×900 et smartphone 390×844 (un compte par format).
+ *   retour à « Désactivé ». Pilotes et joueur inspecté choisis par saisie partielle (#68-E). Ordinateur 1280×900 et smartphone 390×844 (un compte par format).
  *
  * Lancer (serveur de test démarré, base jetable) :
  *   PW=/chemin/node_modules/playwright-core BASE=http://127.0.0.1:3101 ADMIN=<secret> SHOTS=/tmp/dossier \
@@ -42,9 +42,20 @@ const progressed = d => ({ ...d, depth: d.depth + 200, stats: { ...d.stats, bloc
   totalCoinsEarned: d.stats.totalCoinsEarned + 100000, gemsFound: d.stats.gemsFound + 10, chestsFound: d.stats.chestsFound + 10,
   totalUpgradesBought: d.stats.totalUpgradesBought + 10 }, lastSaveTime: Date.now() });
 
+/** Saisie partielle (3 dernières lettres) puis choix du compte exact dans la liste de suggestions. */
+async function pickPlayer(page, input, list, name) {
+  await page.fill(input, '');
+  await page.type(input, name.slice(-3));
+  const opt = page.locator(`${list} [role=option]`).filter({ has: page.locator('strong', { hasText: new RegExp(`^${name}$`) }) });
+  await opt.waitFor();
+  await opt.dispatchEvent('mousedown');
+}
+
 async function adminSetMode(page, mode, pilots) {
   await page.selectOption('#mq-act-mode', mode);
-  await page.fill('#mq-act-pilots', pilots.join(', '));
+  // Pastilles (#68-E) : retirer les comptes en place, puis choisir chaque pilote dans les suggestions
+  while (await page.locator('#mq-act-pilots .ev-chip-x').count()) await page.locator('#mq-act-pilots .ev-chip-x').first().click();
+  for (const p of pilots) await pickPlayer(page, '#mq-act-pilots input', '#mq-act-pilots [role=listbox]', p);
   await page.click('#btn-mq-act-save');
   await page.waitForSelector('#adm-confirm[open]');
   await page.click('#adm-confirm-yes');
@@ -124,9 +135,9 @@ async function steps(browser, tag, viewport) {
   log(`${tag} : F5 — toujours réclamée ; nouvelle réclamation = rejeu sans crédit`);
 
   // ── Admin : inspection, puis retour à « Désactivé » ──
-  await adm.fill('#mq-act-user', name);
-  await adm.click('#btn-mq-act-inspect');
+  await pickPlayer(adm, '#mq-act-user', '#mq-act-user-list', name);
   await adm.waitForFunction(() => /réclamée/.test(document.querySelector('#mq-act-out').textContent));
+  assert.match(await adm.textContent('#mq-act-out'), /Source des missions : Serveur \(Pilote\)/);
   await adm.locator('#mq-act').scrollIntoViewIfNeeded();
   await adm.screenshot({ path: `${SHOTS}/${tag}-4-inspection.png` });
   await adminSetMode(adm, 'off', []);

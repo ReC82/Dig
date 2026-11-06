@@ -2,6 +2,57 @@
 
 Lien : https://github.com/ReC82/Dig/issues/68
 
+## Session du 06/11/2026, midi (DIGORCH) — recette #68-E : recherche de joueur, source des missions, repère pilote
+
+**État réel : Déployé en production (SHA `9d44664`) — en attente de recette.** Aucun calcul, barème, bonus, catalogue ni état du drapeau modifié. Aucune migration.
+
+### Origine
+Recette du propriétaire du 06/11 ([#68-E, 1](https://github.com/ReC82/Dig/issues/68#issuecomment-6682377693), [#68-E, 2](https://github.com/ReC82/Dig/issues/68#issuecomment-6682539471)) : « ça fonctionne mais pas la recherche d'utilisateur » et « je ne sais pas différencier avec un joueur standard ». Les validations #68-C (quatre paliers du bonus affichés) et #68-D (contrôles d'activation) ne demandaient rien.
+
+**Diagnostic** : le champ « Voir les missions d'un joueur » faisait une recherche **exacte** du pseudo (`/api/admin/missions/live/player?username=`) ; un pseudo partiel ou mal orthographié donnait seulement « Joueur inconnu ». La route fonctionnait. La liste des pilotes était aussi un champ texte libre.
+
+### Changements
+- **Admin → 🎯 Missions → 🚦 Activation en jeu**
+  - **Voir les missions d'un joueur** : saisie partielle avec suggestions (2 lettres ou plus, clavier ↑ ↓ Entrée), via l'API admin déjà en place `/api/admin/players/suggest` (pseudo et ID seulement, jamais d'e-mail). Le joueur choisi est inspecté par son ID stable. Cette recherche est indépendante de la liste des pilotes.
+  - Encadré **« Source des missions : Serveur (Pilote) / Serveur (tous les joueurs) / Navigateur (standard) »**, avec pseudo et ID, la raison (« activation désactivée », « joueur non autorisé au pilote », « compte listé dans le pilote », « actif pour tous ») et la journée de référence (minuit Europe/Bruxelles).
+  - Si une attribution existe : version du catalogue, date et heure d'attribution, dernière lecture de progression, profil à l'attribution, puis par mission le nom, la progression, la récompense et l'état (« en cours », « terminée, à réclamer », « réclamée le … »).
+  - Des messages distincts pour **compte inexistant** (404), **aucune attribution encore** (pilote qui n'a pas encore ouvert l'écran Missions), **missions calculées par le navigateur** et **erreur de l'API** (code affiché).
+  - **Comptes pilotes** : pastilles choisies dans les mêmes suggestions et retirables (✕). L'enregistrement se fait par ID. L'API accepte encore les pseudos exacts (ancien format).
+  - L'inspection est en **lecture seule** et ne crée aucune attribution (vérifié par test).
+- **Jeu** : sous les missions du jour, une petite ligne grise « 🧪 Mode test : missions du serveur » (FR/EN/NL/ES/IT). Elle n'apparaît que pour un compte listé en mode Pilote, jamais en mode Tous les joueurs ni pour un compte standard. `/api/me/missions` renvoie `pilot: true` seulement à ces comptes, qui sont les seuls à recevoir `live: true` en mode pilote. Aucune information sur les autres comptes n'est exposée.
+- Fichiers : `server/missionsLive.js` (`sourceFor`, `inspectPlayer` par ID ou pseudo, pilotes `{ id }`, `pilotAccounts`, `pilot`), `server/index.js` (route d'inspection `userId`), `public/admin/{index.html,admin.js,admin.css}` (le sélecteur `evTesterPicker` de #56-B est rendu paramétrable et réutilisé), `public/js/main.js`, `public/js/i18n.js`, `i18n/it.json` + `public/js/locales/it.js`, `public/css/style.css`, tests `test/missions-live.test.js` et `test/e2e/missions-live.e2e.js`.
+
+### SHA, tests
+- Branche `feature/68-missions-quotidiennes` : `c8cdf71` (code). `develop` : `9d44664` (déployé), puis un commit de test e2e et de rapport (non redéployé : sans effet sur le jeu).
+- `npm test` **823/823** sur la branche, sur `develop` et sur la release `9d44664`. Nouveau test unitaire #68-E : source et raison pour les quatre cas, pilote par ID (ID inconnu refusé, pas de doublon entre pseudo et ID), inspection sans attribution, compte inexistant, ID invalide, saisie vide, `pilot: true` pour le seul compte pilote, F5 = mêmes missions avec une seule attribution, `pilot: false` en mode Tous. Test HTTP : inspection par `userId`, source serveur, `claimedAt` renseigné, 404 pour un compte inexistant, 401 sans session admin, suggestions partielles sans e-mail, pilote enregistré par ID.
+- Navigateur (Chromium, base neuve, port 3101) : PC 1280, mobile 390 et 320. Les suggestions apparaissent sur « eur », l'inspection affiche Navigateur puis Serveur (Pilote) après l'enregistrement, « joueur non autorisé au pilote » pour l'autre compte, le message « Compte inexistant » s'affiche, aucun défilement horizontal. Dans le jeu, le compte pilote voit le repère et un compte standard ne voit rien. `test/e2e/missions-live.e2e.js` passe sur PC et mobile (pilote choisi dans les suggestions, réclamation unique, F5, inspection « réclamée » avec « Source des missions : Serveur (Pilote) », retour à Désactivé).
+
+### Déploiement
+- Copie de la base de production, démarrage `NODE_ENV=production` : `/health` ok, version `1.0.0+9d44664`, empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` et tables de missions **identiques**. Copie supprimée.
+- `main` avancé en avance rapide `7af04f9 → 9d44664`, puis `scripts/deploy.sh` de la release. Sauvegarde vérifiée : `dig-20261106-120149-pre-deploy-9d44664.sqlite`.
+- Après le déploiement : les 2 domaines répondent 200 avec `1.0.0+9d44664`, journal sans erreur, `quick_check` ok, empreintes **identiques** à la sauvegarde. Le drapeau était sur **Désactivé** avant le déploiement : le propriétaire l'a remis lui-même après son essai, et je n'y ai pas touché.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 7af04f9` + `sudo systemctl restart dig` (aucune migration, lock inchangé).
+
+### Test fonctionnel à faire par le propriétaire (5 min, base réelle, vous restez maître du drapeau)
+1. /admin/ (**Ctrl+F5**) → 🎯 Missions → 🚦 Activation en jeu → « Voir les missions d'un joueur » : tapez **2 ou 3 lettres** de votre compte testeur et choisissez-le dans la liste. Attendu : « Source des missions : Navigateur (standard) — activation désactivée… » (le drapeau est sur Désactivé).
+2. Tapez un pseudo qui n'existe pas, puis **Afficher** : attendu « Compte inexistant… ».
+3. *(Facultatif, seulement si vous le décidez)* Mode **Pilote**, « Comptes pilotes » : tapez quelques lettres, choisissez votre testeur (pastille), **Enregistrer…**. Réinspectez-le : attendu « Serveur (Pilote) — compte listé dans le pilote ». Inspectez un autre compte : attendu « joueur non autorisé au pilote ».
+4. Dans le jeu avec le compte testeur → Quotidien : sous les missions, la petite ligne « 🧪 Mode test : missions du serveur ». Avec un autre compte, elle n'apparaît pas. Réclamez une mission terminée, faites F5 : elle reste « réclamée » sans nouveau gain. Dans l'admin, l'inspection indique « réclamée le … ».
+5. Remettez **Désactivé** si vous le souhaitez.
+
+**Classement : Après lancement** (le jeu standard est inchangé tant que le drapeau est sur Désactivé).
+
+### Choix techniques
+- J'ai réutilisé l'API `/api/admin/players/suggest` et le sélecteur à pastilles de #56-B plutôt que d'en créer d'autres : la même ergonomie, sans e-mail.
+- L'inspection se fait par ID une fois le joueur choisi, ce qui évite toute ambiguïté sur le pseudo. La saisie exacte reste possible avec Entrée ou Afficher.
+- Le repère du jeu est réservé au mode pilote et calculé par le serveur (`pilot`), et il n'est jamais affiché à un compte standard. Pas de badge en mode Tous, pour ne pas encombrer l'interface normale.
+
+### Décisions demandées
+Aucune nouvelle décision pour cette correction. Les questions déjà posées restent ouvertes : barème du bonus trois missions, remplacement du bonus fixe #49, branchement du bonus dans le moteur, barème des objectifs, ordre d'activation Pilote puis Tous.
+
+### Reste à faire
+La recette #68-E par le propriétaire (étapes ci-dessus), puis ses arbitrages sur le barème et l'activation.
+
 ## Session du 06/11/2026, matin (DIGORCH) — réserves UX de la recette : fiche Mission compacte et simulateur lisible
 
 **État réel : Déployé en production (SHA `7af04f9`) — en attente de recette.** Présentation seule : aucun calcul, objectif, barème, coût, nombre de gemmes, état de publication ni d'activation modifié.
