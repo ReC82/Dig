@@ -316,7 +316,7 @@ const HALF_LIFE_MS = 24 * 3600_000;
  * Catégories de signaux et plafond de chacune : un seul type d'indice ne peut pas dépasser
  * le niveau 1 (30). Seules les preuves (impossibilités physiques) peuvent aller au-delà.
  */
-const CATEGORY_CAPS = { proof: 100, cps: 25, untrusted: 25, burst: 15, regularity: 10 };
+const CATEGORY_CAPS = { proof: 100, cps: 25, untrusted: 25, burst: 15, regularity: 10, activity: 20, pattern: 10 };
 
 /** Points par signal. */
 const SIGNALS = {
@@ -330,6 +330,9 @@ const SIGNALS = {
   burst_clicks:    { cat: 'burst',      points: 4  }, // rafales > 25 clics/s
   throttled_hits:  { cat: 'burst',      points: 4  }, // #74 : coups au-delà de la cadence maximale (sans effet en jeu)
   regular_clicks:  { cat: 'regularity', points: 2  }, // rythme quasi parfait et long (jamais seul)
+  // Lot C (06/11) : durée de minage mesurée par le serveur et gigue synthétique (indices seulement)
+  sustained_activity:{ cat: 'activity', points: 10 }, // série de minage manuel sans pause ≥ ½ seuil de défi
+  narrow_jitter:   { cat: 'pattern',    points: 5  }, // ≥ 3 000 intervalles quasi sans pause, 2 classes voisines
   // PV réels (#77) : observation seule, 0 point — journalisés sans changer le score de risque
   exact_hp_budget: { cat: 'proof',      points: 0  }, // profondeur au-delà des PV réels recalculés
   block_hp_mismatch:{ cat: 'proof',     points: 0  }, // PV max du bloc courant < PV recalculés
@@ -420,6 +423,22 @@ function recordSignals(userId, seasonId, signals, { config, nowMs = Date.now(), 
   })();
 }
 
+/**
+ * Défi résolu (lot C) : allègement à court terme — les indices (hors preuves) sont divisés par deux.
+ * Une activité suspecte qui persiste les fait remonter et peut redéclencher un défi.
+ */
+function relieveRisk(userId, seasonId, { nowMs = Date.now(), factor = 0.5 } = {}) {
+  const db = getDb();
+  const before = getRisk(userId, seasonId, nowMs);
+  if (!(before.score > 0)) return { before: 0, after: 0 };
+  const comps = {};
+  for (const [k, v] of Object.entries(before.components)) comps[k] = k === 'proof' ? v : v * factor;
+  const score = _total(comps);
+  db.prepare('UPDATE risk_scores SET components = ?, score = ?, level = ?, updated_ms = ? WHERE user_id = ? AND season_id = ?')
+    .run(JSON.stringify(comps), score, riskLevel(score), nowMs, userId, seasonId);
+  return { before: before.score, after: score };
+}
+
 // ── Lot A : signaux tirés de la sauvegarde ───────────────────────────────────
 
 const COUNTER_FIELDS = ['maxDepth', 'manualClicks', 'manualBlocks', 'autoBlocks', 'suspiciousBlocks', 'throttledHits'];
@@ -499,6 +518,8 @@ function getTimings() {
  */
 const EVENT_GROUPS = {
   player: [...Object.keys(SIGNALS), 'risk_level'],
+  // Lot C : défis (simulés en Observation) et suspensions du minage manuel
+  responses: ['challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started', 'antibot_admin'],
   admin:  ['admin_action', 'admin_config', 'admin_login', 'admin_login_failed'],
   system: ['standings_frozen', 'standings_freeze_failed'],
 };
@@ -901,7 +922,7 @@ module.exports = {
   getAntibotMode, getDamageBudgetMode, getExactHpMode, validateConfigValue, getHitLimits, HIT_RATE_DEFAULT, HIT_BURST_DEFAULT,
   // Lot A
   configure, hashIp, logSecurityEvent, purgeOldEvents, startPurgeScheduler,
-  SIGNALS, CATEGORY_CAPS, riskLevel, getRisk, recordSignals,
+  SIGNALS, CATEGORY_CAPS, riskLevel, getRisk, recordSignals, relieveRisk,
   forgedCounters, normalizeTelemetry, telemetrySignals, TELEMETRY_BINS,
   recordTiming, getTimings, buildSummary, listEvents, EVENT_GROUPS, EVENT_PERIODS,
 };

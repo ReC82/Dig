@@ -1729,6 +1729,12 @@ async function _apiFetch(method, url, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// Vérification anti-bot du minage manuel (#25 lot C) : branchée dès le chargement (F5 compris)
+if (typeof AntibotGate !== 'undefined') AntibotGate.init({
+  api: _apiFetch, t,
+  counters: () => ({ manualClicks: GameState.seasonStats.manualClicks || 0, manualBlocks: GameState.seasonStats.manualBlocks || 0 }),
+});
+
 /** Relit le compte connecté (adresse e-mail, vérification) et la disponibilité des e-mails. */
 async function _loadAccount() {
   const { ok, data } = await _apiFetch('GET', '/api/me');
@@ -1927,6 +1933,8 @@ async function _pushSave(retry) {
   if (res.ok) {
     _teleConsume(tele);
     _setCloudMeta(res.data.revision);
+    // Défi / suspension du minage manuel décidés par le serveur (#25 lot C, mode Appliqué seulement)
+    if ('antibot' in res.data && typeof AntibotGate !== 'undefined') AntibotGate.update(res.data.antibot);
     if (Array.isArray(res.data.badgesEarned) && res.data.badgesEarned.length) _onBadgesEarned(res.data.badgesEarned);
     if (Array.isArray(res.data.eventFinds) && res.data.eventFinds.length) _onEventFinds(res.data.eventFinds);
     // Collection à chance croissante (#39) : objet tiré par le serveur, ajouté et annoncé comme un drop
@@ -2068,6 +2076,7 @@ async function _syncAfterLogin(forceCloud = false) {
       await _syncToCloud();
     }
     _loadLiveMissions(true);   // missions du serveur (#68) si le drapeau est actif pour ce compte
+    if (typeof AntibotGate !== 'undefined') AntibotGate.refresh();     // vérification anti-bot en attente (#25 lot C : F5, autre appareil)
     if (_tutoBooted) DigTutorial.onAccount(_account, { fresh: _tutoIsFresh() });   // l'état du tutoriel suit le compte (#79)
   } catch (_) { /* silencieux */ }
 }
@@ -4068,6 +4077,9 @@ function onBlockHit(cx, cy, ev) {
 
   // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
   if (!Blocks.current) { spawnBlock(); return; }
+
+  // Vérification anti-bot en cours (#25 lot C) : aucun coup manuel compté ; la fenêtre se rouvre
+  if (typeof AntibotGate !== 'undefined' && AntibotGate.blocksManual()) { AntibotGate.show(); return; }
 
   _teleRecord(ev);
   _recordClickTs();

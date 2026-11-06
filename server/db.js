@@ -778,6 +778,70 @@ function initDb() {
     _db.prepare('ALTER TABLE antibot_save_samples ADD COLUMN exact_depth INTEGER').run();
     console.log('[db] Migration : antibot_save_samples.exact_depth ajouté');
   }
+  // Réponses anti-bot (#25 lot C, décision du 06/11) : mesures d'activité manuelle, défis et
+  // suspensions du MINAGE MANUEL. Tables ajoutées seules ; aucune donnée existante modifiée.
+  _db.exec(`
+    CREATE TABLE IF NOT EXISTS antibot_activity (
+      user_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      season_id         INTEGER,
+      last_ms           INTEGER,
+      last_clicks       INTEGER,
+      last_blocks       INTEGER,
+      streak_active_s   REAL    NOT NULL DEFAULT 0,
+      pause_s           REAL    NOT NULL DEFAULT 0,
+      buckets           TEXT    NOT NULL DEFAULT '[]',
+      tel_h             TEXT,
+      force_mode        TEXT,
+      violation_level   INTEGER NOT NULL DEFAULT 0,
+      last_violation_ms INTEGER,
+      last_challenge_ms INTEGER,
+      rebase_clicks     INTEGER,
+      rebase_blocks     INTEGER,
+      updated_ms        INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS antibot_challenges (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      season_id         INTEGER,
+      status            TEXT    NOT NULL,
+      mode              TEXT    NOT NULL,
+      origin            TEXT    NOT NULL DEFAULT 'auto',
+      reasons           TEXT,
+      created_ms        INTEGER NOT NULL,
+      seen_ms           INTEGER,
+      seen_clicks       INTEGER,
+      resolved_ms       INTEGER,
+      puzzle_id         TEXT,
+      puzzle_hash       TEXT,
+      puzzle_kind       TEXT,
+      puzzle_issued_ms  INTEGER,
+      puzzle_expires_ms INTEGER,
+      puzzle_window_ms  INTEGER,
+      puzzle_count      INTEGER NOT NULL DEFAULT 0,
+      fails             INTEGER NOT NULL DEFAULT 0,
+      expirations       INTEGER NOT NULL DEFAULT 0,
+      held_clicks       INTEGER NOT NULL DEFAULT 0,
+      violations        INTEGER NOT NULL DEFAULT 0,
+      admin_note        TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_antibot_challenges_user ON antibot_challenges (user_id, status, id DESC);
+    CREATE TABLE IF NOT EXISTS antibot_suspensions (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      season_id    INTEGER,
+      challenge_id INTEGER,
+      level        INTEGER NOT NULL,
+      starts_ms    INTEGER NOT NULL,
+      ends_ms      INTEGER NOT NULL,
+      status       TEXT    NOT NULL DEFAULT 'active',
+      origin       TEXT    NOT NULL DEFAULT 'auto',
+      reason       TEXT,
+      held_clicks  INTEGER NOT NULL DEFAULT 0,
+      lifted_ms    INTEGER,
+      admin_note   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_antibot_suspensions_user ON antibot_suspensions (user_id, status, id DESC);
+  `);
 
   // Session de jeu unique par compte (#35) : un seul contrôleur (onglet, appareil, PWA) peut
   // miner et écrire la sauvegarde. Table ajoutée, aucune donnée existante modifiée.
@@ -949,6 +1013,16 @@ function initDb() {
   cfgStmt.run('damage_budget_mode',           'enforce');
   // PV réels des blocs (#77) : observation d'abord, rejet strict seulement sur décision du propriétaire
   cfgStmt.run('exact_hp_mode',                'shadow');
+  // Réponses anti-bot (#25 lot C) : Observation par défaut — Appliqué seulement sur décision du propriétaire
+  cfgStmt.run('antibot_response_mode',        'observe');
+  cfgStmt.run('ab_streak_min',                '60');    // défi : minage manuel continu sans pause (min)
+  cfgStmt.run('ab_active6h_min',              '180');   // défi : minage manuel actif sur 6 h (min)
+  cfgStmt.run('ab_active24h_min',             '360');   // défi : minage manuel actif sur 24 h (min)
+  cfgStmt.run('ab_challenge_score',           '60');    // défi : score de risque multi-signal
+  cfgStmt.run('ab_cooldown_min',              '30');
+  cfgStmt.run('ab_violation_clicks',          '30');    // clics pendant un défi affiché = violation confirmée
+  cfgStmt.run('ab_suspension_ladder',         '5,15,30,60,120,720,1440');
+  cfgStmt.run('ab_decay_days',                '30');
   // Économie — multiplicateurs globaux (informations + appliqués par chestShop)
   cfgStmt.run('upgrade_cost_multiplier',  '1.0');   // ×coût des upgrades saisonniers
   cfgStmt.run('coin_gain_multiplier',     '1.0');   // ×gains de pièces (blocs)

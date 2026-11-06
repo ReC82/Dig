@@ -418,3 +418,45 @@ client modifié qui déclare ces maxima progresse au rythme d'un tel joueur à 1
 #74 (autoclicker sur le vrai jeu, ≈ 18 coups/s moyens) reste sous cette borne : il est traité par
 le limiteur de cadence du client (#74). Les gains (pièces, gemmes) restent calculés par le client
 (#49, P0-3).
+
+## 12. Lot C — défis ponctuels et suspensions progressives du minage manuel (06/11/2026)
+
+Décision du propriétaire du 06/11 (issue #25) : résister aux autoclickers qui imitent l'humain
+(gigue aléatoire, pauses, cadence modérée, activité toute la nuit) sans pénaliser les joueurs rapides.
+Code : `server/antibotResponses.js`, intégration `server/seasons.js` (`_syncPlayerRanking`),
+client `public/js/antibotGate.js`, tests `test/antibot-lot-c.test.js` et `test/e2e/antibot-challenge.e2e.js`.
+
+**Mesures serveur** (horloge serveur, compteurs déclarés — sous-déclarer ne rapporte rien) :
+série de minage manuel sans pause (une pause ≥ 3 min la coupe ; temps actif = min(durée, clics ÷ 2)),
+temps actif sur 6 h et 24 h glissantes (paquets de 10 min), score de risque multi-signal (+ deux
+indices nouveaux : `sustained_activity`, `narrow_jitter`). Aucune cadence ni gigue n'exonère.
+
+**Défi** (jamais une sanction) si : série ≥ `ab_streak_min` (60), ou actif 6 h ≥ `ab_active6h_min`
+(180), ou actif 24 h ≥ `ab_active24h_min` (360), ou score ≥ `ab_challenge_score` (60, délai
+`ab_cooldown_min`). Résoudre remet les mesures à zéro et divise les indices (hors preuves) par deux.
+Tant qu'un défi est en attente (Appliqué) : les clics manuels de chaque sauvegarde sont « consommés »
+sans crédit (références de #9, #25-B, #77 et #10 avancées) → ni profondeur manuelle, ni blocs classés,
+ni tirages serveur qui en dépendent ; l'Auto-Dig continue (jamais classé). Le client officiel bloque
+les coups et affiche une fenêtre non destructive (fermable, version accessible texte).
+
+**Énigme maison** : grille de 6 symboles, toucher 2 cibles dans l'ordre (1/30 au hasard) ou calcul
+simple accessible ; décidée et vérifiée par le serveur, solution hachée, usage unique (toute réponse
+la consomme), 5 min de validité, réponse < 1,2 s refusée, 15 énigmes / 10 min. Échec, expiration,
+erreur réseau : nouvelle énigme, aucune sanction.
+
+**Violation confirmée → suspension** : uniquement si, après l'affichage du défi (relevé du compteur
+de clics), ≥ `ab_violation_clicks` (30) clics manuels sont encore déclarés — impossible avec le jeu
+officiel. Paliers `ab_suspension_ladder` 5, 15, 30 min, 1, 2, 12, 24 h ; −1 palier par
+`ab_decay_days` (30) jours sans violation ; minage manuel seulement (compte, Auto-Dig, boutique
+libres) ; fin affichée à l'heure de Bruxelles ; levée / annulation / palier ajustables par l'admin,
+tout est journalisé (`suspension_started`, `antibot_admin`, audit admin).
+
+**Modes** `antibot_response_mode` : `off` (Désactivé), `observe` (Observation, défaut : défis
+simulés `challenge_shadow`, rien montré ni retiré), `enforce` (Appliqué). Essai sur un compte
+consentant : `force_mode = enforce` (fiche admin) pendant que le global reste en Observation.
+
+**Risques résiduels** : un script spécifique au DOM du jeu peut résoudre l'énigme maison (CAPTCHA
+tiers — Turnstile recommandé : gratuit, sans cookie publicitaire, mode invisible — à brancher sur la
+même interface si le propriétaire fournit les clés) ; un humain qui résout chaque heure garde son
+automate (≈ 1 défi / h, aucune nuit sans humain) ; les pièces/gains restent déclarés par le client
+(#74) ; ≤ 12 s de clics entre la dernière sauvegarde retenue et la résolution peuvent être crédités.

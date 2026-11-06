@@ -1304,6 +1304,15 @@ const CONFIG_GROUPS = [
     manual_hit_rate:          { label: 'Coups/s max (cadence de frappe)', hint: 'Au-delà, un coup ne fait aucun dégât ni gain et n\'est pas crédité par le serveur (#74). 4 à 30.', type: 'number', min: 4, max: 30, step: 1 },
     manual_hit_burst:         { label: 'Rafale de coups tolérée', hint: 'Coups rapides acceptés d\'affilée avant le plafond de cadence (#74). 1 à 200.', type: 'number', min: 1, max: 200, step: 1 },
     antibot_mode:             { label: 'Mode anti-bot', hint: 'off = arrêt ; shadow = observation seule, aucune sanction (#25).', type: 'enum', options: ['off', 'shadow'] },
+    antibot_response_mode:    { label: 'Défis et suspensions du minage manuel', hint: 'off = Désactivé ; observe = Observation (défis simulés, rien montré ni retiré — défaut) ; enforce = Appliqué (décision du propriétaire). Aussi réglable dans Anti-bot (#25 lot C).', type: 'enum', options: ['off', 'observe', 'enforce'] },
+    ab_streak_min:            { label: 'Défi : minage manuel continu sans pause (min)', hint: 'Une pause de 3 min coupe la série. 10 à 600 (défaut 60).', type: 'number', min: 10, max: 600, step: 1 },
+    ab_active6h_min:          { label: 'Défi : minage manuel actif sur 6 h (min)', hint: '30 à 360 (défaut 180).', type: 'number', min: 30, max: 360, step: 1 },
+    ab_active24h_min:         { label: 'Défi : minage manuel actif sur 24 h (min)', hint: '60 à 1440 (défaut 360).', type: 'number', min: 60, max: 1440, step: 1 },
+    ab_challenge_score:       { label: 'Défi : score de risque', hint: 'Multi-signal (#25). 20 à 100 (défaut 60).', type: 'number', min: 20, max: 100, step: 1 },
+    ab_cooldown_min:          { label: 'Délai minimal entre deux défis par score (min)', hint: '0 à 240 (défaut 30). Les seuils de durée repartent de zéro après un défi.', type: 'number', min: 0, max: 240, step: 1 },
+    ab_violation_clicks:      { label: 'Violation : clics pendant un défi affiché', hint: 'Le jeu officiel bloque les coups pendant le défi. 5 à 1000 (défaut 30).', type: 'number', min: 5, max: 1000, step: 1 },
+    ab_suspension_ladder:     { label: 'Paliers de suspension (minutes)', hint: 'Séparés par des virgules ; le dernier s\'applique au-delà. Défaut 5,15,30,60,120,720,1440.', type: 'text' },
+    ab_decay_days:            { label: 'Jours sans violation pour redescendre d\'un palier', hint: '1 à 365 (défaut 30).', type: 'number', min: 1, max: 365, step: 1 },
     damage_budget_mode:       { label: 'Budget de dégâts (profondeur)', hint: 'off = arrêt ; shadow = observation ; enforce = profondeur plafonnée (#25).', type: 'enum', options: ['off', 'shadow', 'enforce'] },
     exact_hp_mode:            { label: 'Budget aux PV réels des blocs', hint: 'PV de chaque bloc recalculés par le serveur (#77). shadow = calcul et journal seuls (aucun joueur freiné) ; enforce = profondeur plafonnée ; off = arrêt.', type: 'enum', options: ['off', 'shadow', 'enforce'] },
   } },
@@ -2710,7 +2719,7 @@ document.getElementById('btn-tr-export-json').addEventListener('click', () => tr
 
 const SEC_LEVELS = ['0 — rien', '1 — journaliser', '2 — limiter', '3 — défi', '4 — suspension'];
 
-const SEC_GROUP_LABELS = { player: 'Anomalies joueur', admin: 'Audit admin', system: 'Système', other: 'Autres' };
+const SEC_GROUP_LABELS = { player: 'Anomalies joueur', responses: 'Réponses', admin: 'Audit admin', system: 'Système', other: 'Autres' };
 
 async function loadSecurity() {
   const filter = document.getElementById('sec-filter-type').value;
@@ -2719,10 +2728,12 @@ async function loadSecurity() {
   if (filter.startsWith('group:')) params.set('group', filter.slice(6));
   else if (filter) params.set('type', filter);
   if (days) params.set('days', days);
-  const [sum, ev] = await Promise.all([
+  const [sum, ev, resp] = await Promise.all([
     api('GET', '/api/admin/security/summary'),
     api('GET', '/api/admin/security/events?' + params),
+    api('GET', '/api/admin/security/responses'),
   ]);
+  secRenderResponses(resp);
 
   const status = document.getElementById('sec-status');
   status.innerHTML = '';
@@ -2731,7 +2742,7 @@ async function loadSecurity() {
     const g = s.eventsByGroup ?? {};
     const per = k => { const v = g[k] ?? { d1: 0, d7: 0, d30: 0 }; return `${v.d1} (24 h) · ${v.d7} (7 j) · ${v.d30} (30 j)`; };
     const lines = [
-      `Mode observation : ${s.antibotMode}${s.envOverride ? ' (forcé par ANTIBOT=off)' : ''} — sanctions : ${s.sanctionsApplied ? 'appliquées' : 'désactivées (aucun niveau appliqué)'}`,
+      `Mode observation : ${s.antibotMode}${s.envOverride ? ' (forcé par ANTIBOT=off)' : ''} — défis et suspensions : ${SEC_RESP_MODES[s.responseMode] ?? s.responseMode ?? '—'}${s.sanctionsApplied ? ' (appliqués aux joueurs)' : ' (aucune sanction appliquée)'}`,
       `Budget de dégâts : ${s.damageBudgetMode}`,
       `Saison : ${s.seasonId ?? '—'} — ${s.trackedAccounts} compte(s) suivi(s), ${s.checkedLast24h} contrôlé(s) dans les 24 dernières heures`,
       `Comptes par niveau de risque (non appliqués) : ${s.levels.map((n, i) => `N${i} ${n}`).join(' · ')}`,
@@ -2813,6 +2824,162 @@ async function loadSecurity() {
 }
 
 admRefreshButton('btn-refresh-sec', loadSecurity, 'Anti-bot');
+
+// ── Réponses anti-bot (#25 lot C) : mode, compteurs, défis et suspensions ────
+
+const SEC_RESP_MODES = { off: 'Désactivé', observe: 'Observation', enforce: 'Appliqué' };
+const SEC_CH_STATUS = { pending: 'défi imposé — minage refusé au classement', shadow: 'détecté (défi simulé)', solved: 'résolu', cancelled: 'annulé (admin)' };
+const SEC_REASONS = { risk_score: 'score de risque', continuous_mining: 'minage continu', active_6h: 'temps actif 6 h', active_24h: 'temps actif 24 h', admin_test: 'essai admin' };
+
+async function secSetResponseMode(mode, btn) {
+  if (mode === 'enforce') {
+    const yes = await admConfirm({ title: 'Passer les défis et suspensions en « Appliqué » pour tous les joueurs ?',
+      text: 'Décision réservée au propriétaire, après le rapport faux positifs / mobile.',
+      impact: ['Les joueurs au seuil reçoivent un défi ; leurs clics manuels ne comptent plus au classement tant qu\'il n\'est pas résolu.',
+        'Des suspensions de 5 min à 24 h deviennent possibles (clics poursuivis pendant un défi affiché).',
+        'Réversible à tout moment (Observation ou Désactivé) ; rien n\'est supprimé.'],
+      ok: 'Passer en Appliqué', danger: true });
+    if (!yes) return;
+  }
+  const { ok, data } = await api('PUT', '/api/admin/config', { key: 'antibot_response_mode', value: mode });
+  if (!ok) { await admConfirm({ title: 'Mode non modifié', text: data?.error ?? 'Erreur.', cancel: null, ok: 'OK' }); return; }
+  loadSecurity();
+  btn?.focus();
+}
+
+function secRenderResponses(resp) {
+  const modeBox = document.getElementById('sec-resp-mode');
+  const stats = document.getElementById('sec-resp-stats');
+  if (!modeBox) return;
+  modeBox.innerHTML = '';
+  stats.innerHTML = '';
+  if (!resp?.ok) { stats.appendChild(secEl('p', 'error', 'Erreur lors du chargement des réponses.')); return; }
+  const r = resp.data;
+  modeBox.appendChild(secEl('span', 'sec-resp-label', 'Mode global : '));
+  for (const [k, label] of Object.entries(SEC_RESP_MODES)) {
+    const b = secEl('button', `btn btn-sm ${r.mode === k ? '' : 'btn-outline'}`, label + (k === r.modeDefault ? ' (défaut)' : ''));
+    b.type = 'button';
+    b.dataset.admKey = `sec-resp-mode-${k}`;
+    b.setAttribute('aria-pressed', String(r.mode === k));
+    if (r.mode !== k) b.addEventListener('click', () => secSetResponseMode(k, b));
+    modeBox.appendChild(b);
+  }
+  const c = r.last7d;
+  const ladder = r.params.ab_suspension_ladder.map(m => (m >= 60 ? `${m / 60} h` : `${m} min`)).join(' → ');
+  for (const line of [
+    `7 derniers jours : ${c.shadow} défi(s) simulé(s) (Observation) · ${c.issued} imposé(s) · ${c.solved} résolu(s) · ${c.pending} en attente · ${c.fails} échec(s) · ${c.expirations} énigme(s) expirée(s) · ${c.heldClicks} clic(s) non crédités · ${c.players} joueur(s)`,
+    `Suspensions (7 j) : ${c.suspensions} · actives : ${c.activeSuspensions} · levées : ${c.liftedSuspensions} — paliers : ${ladder} (−1 palier après ${r.params.ab_decay_days} j sans violation)`,
+    `Seuils : défi si série sans pause ≥ ${r.params.ab_streak_min} min, ou ≥ ${r.params.ab_active6h_min} min actives sur 6 h, ou ≥ ${r.params.ab_active24h_min} min sur 24 h, ou score ≥ ${r.params.ab_challenge_score} ; violation = ${r.params.ab_violation_clicks} clics pendant un défi affiché (Config → Protections).`,
+    `Comptes en essai « Appliqué » : ${r.testAccounts.length ? r.testAccounts.map(a => `${a.username} (#${a.userId})`).join(', ') : 'aucun'}`,
+  ]) stats.appendChild(secEl('p', 'sec-resp-line', line));
+
+  const chBody = document.getElementById('sec-resp-ch-body');
+  chBody.innerHTML = '';
+  if (!r.challenges.length) chBody.innerHTML = '<tr><td colspan="7" class="muted">Aucun défi (ni simulé ni imposé).</td></tr>';
+  for (const ch of r.challenges) {
+    const tr = document.createElement('tr');
+    addCell(tr, secDate(ch.createdAt)).className = 'muted';
+    secPlayerCell(tr, ch.username, ch.userId);
+    addCell(tr, `${SEC_CH_STATUS[ch.status] ?? ch.status}${ch.seenAt ? ' · vu' : ''}`);
+    addCell(tr, ch.reasons.map(x => SEC_REASONS[x] ?? x).join(', '));
+    addCell(tr, `${ch.fails} / ${ch.expirations}`);
+    addCell(tr, ch.heldClicks);
+    const td = addCell(tr, '');
+    if (ch.status === 'pending') {
+      const b = secEl('button', 'btn btn-sm btn-outline', 'Annuler le défi');
+      b.type = 'button';
+      b.dataset.admKey = `sec-ch-cancel-${ch.id}`;
+      b.addEventListener('click', async () => {
+        if (!await admConfirm({ title: `Annuler le défi de ${ch.username} ?`, impact: ['Ses clics manuels comptent de nouveau au classement dès la prochaine sauvegarde.'], ok: 'Annuler le défi' })) return;
+        await api('POST', `/api/admin/security/challenge/${ch.id}/cancel`, { note: 'panel' });
+        loadSecurity();
+      });
+      td.appendChild(b);
+    }
+    chBody.appendChild(tr);
+  }
+  const suBody = document.getElementById('sec-resp-su-body');
+  suBody.innerHTML = '';
+  if (!r.suspensions.length) suBody.innerHTML = '<tr><td colspan="7" class="muted">Aucune suspension.</td></tr>';
+  for (const su of r.suspensions) {
+    const tr = document.createElement('tr');
+    addCell(tr, secDate(su.startsAt)).className = 'muted';
+    secPlayerCell(tr, su.username, su.userId);
+    addCell(tr, `${su.level}`);
+    addCell(tr, secDate(su.endsAt));
+    addCell(tr, su.status === 'active' ? `active — ${su.remainingMin} min restantes` : su.status === 'lifted' ? 'levée (admin)' : 'terminée');
+    addCell(tr, su.heldClicks);
+    const td = addCell(tr, '');
+    if (su.status === 'active') {
+      const b = secEl('button', 'btn btn-sm btn-outline', 'Lever');
+      b.type = 'button';
+      b.dataset.admKey = `sec-su-lift-${su.id}`;
+      b.addEventListener('click', async () => {
+        if (!await admConfirm({ title: `Lever la suspension de ${su.username} ?`, impact: ['Le minage manuel reprend (un défi en attente reste à résoudre).', 'Le palier de violation est conservé (ajustable dans la fiche).'], ok: 'Lever' })) return;
+        await api('POST', `/api/admin/security/suspension/${su.id}/lift`, { note: 'panel' });
+        loadSecurity();
+      });
+      td.appendChild(b);
+    }
+    suBody.appendChild(tr);
+  }
+}
+
+/** Section « Défi et suspension » de la fiche joueur (lot C) : état distinct, mesures, actions d'essai. */
+function secLotCSection(d) {
+  const L = d.lotC;
+  const box = secEl('section', `sec-lotc${L.state !== 'normal' ? ' sec-lotc--warn' : ''}`);
+  box.id = 'sec-lotc';
+  box.appendChild(secEl('h4', 'sec-lotc-title', 'Défi et suspension du minage manuel'));
+  const state = L.state === 'suspended' ? `Sanction : minage manuel suspendu jusqu'au ${secDate(L.suspension.endsAt)} (palier ${L.suspension.level})`
+    : L.state === 'challenge' ? 'Défi imposé — minage manuel refusé au classement jusqu\'à résolution'
+    : L.mode === 'observe' ? 'Normal — Observation : un défi éventuel est seulement simulé et journalisé'
+    : L.mode === 'off' ? 'Normal — réponses désactivées' : 'Normal';
+  box.appendChild(secEl('p', 'sec-lotc-state', state));
+  const m = L.metrics, t = L.thresholds;
+  for (const line of [
+    `Mode pour ce compte : ${SEC_RESP_MODES[L.mode]}${L.testEnforce ? ' (essai Appliqué sur ce compte)' : ''} — global : ${SEC_RESP_MODES[L.globalMode]}`,
+    `Clics manuels comptés au classement : ${L.manualRanked ? 'oui' : 'non (retenus)'}`,
+    `Série sans pause : ${m.streakMin} / ${t.streakMin} min · actif 6 h : ${m.active6hMin} / ${t.active6hMin} min · actif 24 h : ${m.active24hMin} / ${t.active24hMin} min`,
+    `Palier de violation : ${L.effectiveViolationLevel}${L.violationLevel !== L.effectiveViolationLevel ? ` (enregistré ${L.violationLevel}, décru)` : ''} — prochaine suspension : ${L.nextSuspensionMin} min`,
+    `Dernier défi : ${L.lastChallengeAt ? secDate(L.lastChallengeAt) : 'aucun'} — défis : ${L.history.challenges.length}, suspensions : ${L.history.suspensions.length} (20 derniers)`,
+  ]) {
+    const p = secEl('p', 'sec-lotc-line', line);
+    p.appendChild(secSrc('server'));
+    box.appendChild(p);
+  }
+  const uid = d.player.userId;
+  const actions = secEl('div', 'sec-lotc-actions');
+  const act = (label, key, fn) => {
+    const b = secEl('button', 'btn btn-sm btn-outline', label);
+    b.type = 'button';
+    b.dataset.admKey = key;
+    b.addEventListener('click', async () => { if (await fn()) secOpenPlayer(String(uid), b, d.season?.id ?? null); });
+    actions.appendChild(b);
+  };
+  act(L.testEnforce ? 'Arrêter l\'essai Appliqué' : 'Essai Appliqué sur ce compte', 'sec-lotc-test', async () => {
+    if (!L.testEnforce && !await admConfirm({ title: `Essai « Appliqué » pour ${d.player.username} seulement ?`,
+      impact: ['Compte de test consentant uniquement : défis réels, clics manuels retenus pendant un défi, suspensions possibles.', 'Les autres joueurs restent dans le mode global.', 'Réversible : « Arrêter l\'essai ».'], ok: 'Activer l\'essai' })) return false;
+    const { ok } = await api('POST', `/api/admin/security/player/${uid}/test-mode`, { enforce: !L.testEnforce });
+    return ok;
+  });
+  act('Émettre un défi d\'essai', 'sec-lotc-challenge', async () => {
+    const { ok, data } = await api('POST', `/api/admin/security/player/${uid}/challenge`, {});
+    if (!ok) await admConfirm({ title: 'Défi non émis', text: data?.error ?? 'Erreur.', cancel: null, ok: 'OK' });
+    else if (data.mode !== 'enforce') await admConfirm({ title: 'Défi simulé (Observation)', text: 'Le compte n\'est pas en Appliqué : le défi est seulement journalisé, rien n\'est montré au joueur. Activez d\'abord l\'essai Appliqué.', cancel: null, ok: 'OK' });
+    return ok;
+  });
+  if (L.violationLevel > 0) {
+    act('Remettre le palier à 0', 'sec-lotc-level', async () => {
+      if (!await admConfirm({ title: 'Remettre le palier de violation à 0 ?', impact: ['La prochaine suspension éventuelle repartira de 5 min.'], ok: 'Remettre à 0' })) return false;
+      return (await api('POST', `/api/admin/security/player/${uid}/violation-level`, { level: 0 })).ok;
+    });
+  }
+  if (L.challenge) act('Annuler le défi', 'sec-lotc-cancel', async () => (await api('POST', `/api/admin/security/challenge/${L.challenge.id}/cancel`, { note: 'fiche' })).ok);
+  if (L.suspension) act('Lever la suspension', 'sec-lotc-lift', async () => (await api('POST', `/api/admin/security/suspension/${L.suspension.id}/lift`, { note: 'fiche' })).ok);
+  box.appendChild(actions);
+  return box;
+}
 
 // ── Fiche joueur anti-bot (#25, demande du 04/11) — lecture seule ────────────
 
@@ -3187,6 +3354,8 @@ function secRenderPlayer(d) {
     d.events.recent.map(e => [e.created_at, e.type, e.score_after == null ? '' : `${e.score_before ?? 0} → ${e.score_after}`, e.details ?? '']),
     'Aucune alerte.'));
 
+  // Lot C : état de défi / suspension et actions d'essai, sous les 4 cartes de la vue essentielle
+  if (d.lotC) cards.after(secLotCSection(d));
   body.appendChild(root);
 }
 
