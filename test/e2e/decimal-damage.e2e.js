@@ -108,12 +108,42 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     await page.waitForSelector('#mb-preview:not(.hidden)');
     const prev = await page.evaluate(() => ({ fr: document.getElementById('mb-prev-fr').textContent, state: document.getElementById('mb-prev-state').textContent,
       sims: document.querySelectorAll('#mb-prev-sim tr').length, samples: document.querySelectorAll('#mb-prev-samples tr').length }));
-    check('admin', 'D aperçu : texte, état, dates repères, simulation', /^\+0,25 dégât par coup sur le bloc/.test(prev.fr) && /brouillon/.test(prev.state) && prev.sims >= 5 && prev.samples === 5, JSON.stringify(prev));
+    check('admin', 'D aperçu : texte, état, dates repères, simulation', /^\+0,25 dégât par coup sur le bloc/.test(prev.fr) && /s'il était publié/.test(prev.state) && prev.sims >= 5 && prev.samples === 5, JSON.stringify(prev));
+    // Recette #81-B : statut réel séparé, explications chiffrées, tableau des blocs, aides ⓘ
+    const help = await page.evaluate(() => ({
+      real: document.querySelector('#mb-preview .mb-real').textContent,
+      samples: [...document.querySelectorAll('#mb-prev-samples tr td:last-child')].map(td => td.textContent),
+      row1: [...document.querySelectorAll('#mb-prev-sim tr:first-child td')].map(td => td.textContent),
+      explain: [...document.querySelectorAll('#mb-prev-explain li')].map(li => li.textContent),
+      pool: document.querySelectorAll('#mb-prev-pool tr').length,
+      source: [...document.querySelectorAll('#mb-source option')].map(o => o.textContent)[0],
+    }));
+    check('admin', '81-B statut réel « brouillon » séparé, dates repères au conditionnel', /Statut réel : brouillon/.test(help.real) && help.samples.every(t => /^(Serait|Pas encore)/.test(t)), JSON.stringify(help.samples));
+    check('admin', '81-B tableau : 193,92 → 182,12, −6,09 %, 30,9 % visés', help.row1[1] === '193,92' && help.row1[2] === '182,12' && help.row1[3] === '−6,09 %' && help.row1[5] === '30,9 %', JSON.stringify(help.row1));
+    check('admin', '81-B explications chiffrées et blocs possibles', help.explain.length >= 3 && /5 ÷ 1,25 = 4/.test(help.explain[0]) && help.pool >= 10 && help.source === 'Aucun', JSON.stringify(help.explain));
+    await page.click('#mb-dialog .bk-info[aria-controls="mb-h-dates"]');
+    check('admin', '81-B aide ⓘ des dates', await page.isVisible('#mb-h-dates') && /incluses/.test(await page.textContent('#mb-h-dates')));
+    await page.click('#mb-sim-help summary');
+    await page.screenshot({ path: `${SHOTS}/81b-admin-explications.png`, fullPage: true });
     await page.screenshot({ path: `${SHOTS}/81-admin-apercu.png`, fullPage: true });
     await page.click('#btn-mb-save');
     await page.waitForFunction(() => !document.getElementById('mb-dialog').open);
     const row = await page.textContent('#mb-list');
-    check('admin', 'D brouillon listé, inactif en jeu', /pierre/i.test(row) && /inactif en jeu/.test(row));
+    check('admin', 'D brouillon listé, jamais appliqué', /pierre/i.test(row) && /jamais appliqué/.test(row));
+    // Recette #81-B : fiche et simulation lisibles sur smartphone (390 px), sans débordement de la page
+    const mob = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: await ctx.storageState() });
+    const mp = await mob.newPage();
+    mp.on('pageerror', e => errors.push('pageerror mobile ' + e.message));
+    await mp.goto(BASE + '/admin#microbonus');
+    if (await mp.isVisible('#secret-input')) { await mp.fill('#secret-input', SECRET); await mp.click('#secret-btn'); }
+    await mp.waitForSelector('#btn-mb-add', { state: 'visible' });
+    await mp.click('#btn-mb-add');
+    await mp.click('#mb-examples button:first-child');
+    await mp.waitForSelector('#mb-preview:not(.hidden)');
+    const over = await mp.evaluate(() => ({ page: document.documentElement.scrollWidth, dlg: document.getElementById('mb-dialog').scrollWidth, w: innerWidth }));
+    check('admin', '81-B mobile 390 : fiche sans débordement horizontal', over.page <= over.w && over.dlg <= over.w, JSON.stringify(over));
+    await mp.screenshot({ path: `${SHOTS}/81b-admin-mobile.png`, fullPage: true });
+    await mob.close();
     const play = await ctx.newPage();
     await play.addInitScript(() => localStorage.setItem('dig_lang', 'fr'));
     await play.goto(BASE + '/');
