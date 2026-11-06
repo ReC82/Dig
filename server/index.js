@@ -489,6 +489,9 @@ function savePayload(row, userId = null) {
     // Registre de gemmes (#49) : le solde de référence ne fait foi qu'en mode `enforce` (désactivé par défaut)
     try { gemLedger.mergeInto(userId, data); }
     catch (err) { console.error('[savePayload] gemmes', err.message); }
+    // Missions déjà payées par le serveur : affichées « réclamées » même en mode OFF (#83)
+    try { missionsLive.mergeInto(userId, data); }
+    catch (err) { console.error('[savePayload] missions', err.message); }
   }
   return { data, revision: row.version, version: row.version, saved_at: row.saved_at };
 }
@@ -522,6 +525,15 @@ app.post('/api/me/save', limit.save, (req, res) => {
       if (baseRevision === undefined && testRuns.getGuard(req.session.userId)) return { conflict: true, current: getUserSave(req.session.userId) };
       // Collection (#39) : objets donnés par le serveur gardés, objets « serveur seul » falsifiés retirés
       collectionPity.mergeInto(req.session.userId, data, { strip: true });
+      // Mission déjà payée par le serveur réclamée une 2e fois par le navigateur (#83) : refusée, version serveur reprise
+      const current = getUserSave(req.session.userId);
+      let prevData = null;
+      try { prevData = current ? JSON.parse(current.data) : null; } catch (_) { prevData = null; }
+      const doubled = missionsLive.guardSave(req.session.userId, prevData, data);
+      if (doubled) {
+        logUserEvent(req.session.userId, 'daily_mission_double_claim_blocked', doubled);
+        return { conflict: true, current };
+      }
       return upsertUserSave(req.session.userId, JSON.stringify(data), { expectedVersion: baseRevision });
     });
     if (result.notController) return res.status(409).json(notControllerBody(req.session.userId));

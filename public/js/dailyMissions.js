@@ -80,7 +80,40 @@ const DailyMissions = {
   _COUNTER: { break_blocks: 'blocksDestroyed', earn_coins: 'totalCoinsEarned', open_chests: 'chestsFound',
     buy_upgrades: 'totalUpgradesBought', find_gems: 'gemsFound', depth_gain: 'depth' },
 
-  setLive(view) { this._live = view && view.live === true && Array.isArray(view.missions) ? view : null; },
+  // Missions déjà payées par le serveur, par jour (#83) : { 'YYYY-MM-DD': ['earn_coins', …] }. Reçues en
+  // mode OFF (`paid`) ou déduites des missions serveur réclamées : la mission du navigateur de même
+  // identifiant, le même jour, devient « réclamée » sans crédit local (aucun second paiement).
+  _paid: {},
+
+  /** @returns {boolean} true si des missions du navigateur viennent d'être marquées payées. */
+  setLive(view) {
+    this._live = view && view.live === true && Array.isArray(view.missions) ? view : null;
+    if (view && view.paid && typeof view.paid === 'object') this._paid = view.paid;
+    else if (this._live) this._paid = { [this._live.day]: this._live.missions.filter(m => m.claimed && !m.claimedBy).map(m => m.id) };
+    else this._paid = {};
+    return this._applyPaid();
+  },
+
+  /** Marque « réclamées » (serverPaid) les missions du navigateur déjà payées par le serveur. */
+  _applyPaid() {
+    const dm = GameState.dailyMissions;
+    const ids = (this._paid && this._paid[dm.date]) || [];
+    let changed = false;
+    for (const m of dm.missions) {
+      // Déjà réclamée par le navigateur : reste une réclamation navigateur (le serveur ne la paiera pas)
+      if (ids.includes(m.id) && !m.claimed) { m.claimed = true; m.serverPaid = true; changed = true; }
+    }
+    return changed;
+  },
+
+  /** Marque une mission serveur réclamée et la mission du navigateur de même identifiant (#83). */
+  markServerClaimed(m) {
+    const day = this._live?.day;
+    if (!day) return;
+    const list = (this._paid[day] = this._paid[day] || []);
+    if (!list.includes(m.id)) list.push(m.id);
+    this._applyPaid();
+  },
   isLive() { return !!this._live; },
 
   _counter(type) {
@@ -175,6 +208,7 @@ const DailyMissions = {
       gemsFound:           GameState.stats.gemsFound,
       depth:               GameState.depth,
     };
+    this._applyPaid();   // nouveau jour : missions déjà payées par le serveur ce jour-là (#83)
   },
 
   // ── Progression ───────────────────────────────────────────────────────────
@@ -245,7 +279,7 @@ const DailyMissions = {
   claim(idx) {
     if (this._live) return null;   // réclamation par le serveur uniquement (POST /api/me/missions/claim)
     const m = GameState.dailyMissions.missions[idx];
-    if (!m || m.claimed || !this.isDone(idx)) return null;
+    if (!m || m.claimed || m.serverPaid || !this.isDone(idx)) return null;
 
     m.claimed = true;
     if (m.reward.coins > 0) GameState.addCoins(m.reward.coins);

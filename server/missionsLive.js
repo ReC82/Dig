@@ -24,6 +24,16 @@
  *   - Réclamation : transaction unique (contrôleur de partie #35, progression, ligne de réclamation
  *     joueur + jour + emplacement en clé primaire, crédit dans la sauvegarde, nouvelle révision) :
  *     une seconde réclamation (double clic, F5, deux appareils) renvoie la première sans recréditer.
+ *
+ * Un seul paiement par joueur, jour et mission, QUEL QUE SOIT LE MOTEUR (#83) : identité canonique
+ * joueur + jour + identifiant de mission, partagée par les deux moteurs.
+ *   - Missions payées par le serveur → marquées « réclamées » (`serverPaid`) dans la sauvegarde
+ *     renvoyée au client (mergeInto) et listées dans la vue OFF (`paid`) : au retour en mode OFF, le
+ *     jeu affiche « Réclamé » au lieu de reproposer la récompense.
+ *   - Une sauvegarde qui passe à « réclamée » côté navigateur une mission déjà payée par le serveur
+ *     est refusée (guardSave → 409 conflit, la version serveur est reprise) : aucun crédit local.
+ *   - Une mission déjà réclamée par le navigateur aujourd'hui (sauvegarde serveur) n'est pas payée
+ *     une seconde fois par le serveur (passage OFF → pilote / tous).
  */
 
 'use strict';
@@ -288,6 +298,62 @@ function observeSave(userId, data, { nowMs = Date.now() } = {}) {
   });
 }
 
+// ── Paiement unique quel que soit le moteur (#83) ─────────────────────────────
+
+const _isDay = d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d);
+
+/** Identifiants de missions payées par le serveur, par jour : { 'YYYY-MM-DD': ['earn_coins', …] }. */
+function paidByServer(userId, days) {
+  const out = {};
+  const q = conn().prepare('SELECT mission_id FROM daily_mission_claims WHERE user_id = ? AND day = ? ORDER BY slot');
+  for (const day of new Set(days.filter(_isDay))) {
+    const ids = q.all(userId, day).map(r => r.mission_id);
+    if (ids.length) out[day] = [...new Set(ids)];
+  }
+  return out;
+}
+
+/** Missions réclamées (et créditées) par le navigateur pour `day` dans une sauvegarde. */
+function browserClaimed(data, day) {
+  const dm = data?.dailyMissions;
+  if (!dm || dm.date !== day || !Array.isArray(dm.missions)) return new Set();
+  return new Set(dm.missions.filter(m => m && m.claimed === true && m.serverPaid !== true).map(m => String(m.id)));
+}
+
+/**
+ * Marque « réclamées par le serveur » les missions du navigateur déjà payées par le serveur le
+ * même jour (sauvegarde RENVOYÉE au client ; jamais écrite ici). Retourne le nombre de missions marquées.
+ */
+function mergeInto(userId, data) {
+  const dm = data?.dailyMissions;
+  if (!dm || !_isDay(dm.date) || !Array.isArray(dm.missions)) return 0;
+  const paid = new Set(paidByServer(userId, [dm.date])[dm.date] ?? []);
+  let marked = 0;
+  for (const m of dm.missions) {
+    // Déjà réclamée par le navigateur : laissée telle quelle (elle reste une réclamation navigateur)
+    if (m && paid.has(String(m.id)) && m.claimed !== true) { m.claimed = true; m.serverPaid = true; marked++; }
+  }
+  return marked;
+}
+
+/**
+ * Frontière serveur (POST /api/me/save, dans la transaction d'écriture) : refuse une sauvegarde qui
+ * fait passer à « réclamée par le navigateur » une mission déjà payée par le serveur le même jour
+ * (ancien client, retour en mode OFF, autre appareil). `prevData` = sauvegarde serveur actuelle.
+ * @returns {null | { day, missions: string[] }}  null = sauvegarde acceptée
+ */
+function guardSave(userId, prevData, nextData) {
+  const dm = nextData?.dailyMissions;
+  if (!dm || !_isDay(dm.date) || !Array.isArray(dm.missions)) return null;
+  const claimedNow = browserClaimed(nextData, dm.date);
+  if (!claimedNow.size) return null;
+  const paid = paidByServer(userId, [dm.date])[dm.date];
+  if (!paid) return null;
+  const before = browserClaimed(prevData, dm.date);
+  const doubled = paid.filter(id => claimedNow.has(id) && !before.has(id));
+  return doubled.length ? { day: dm.date, missions: doubled } : null;
+}
+
 function _progress(dayRow, m) {
   return Math.min(m.target, dayRow.counters[m.type]?.gained ?? 0);
 }
@@ -302,10 +368,16 @@ function _claims(userId, day) {
  * gagné depuis (compteur local − base), sans jamais pouvoir réclamer sur cette estimation.
  */
 function playerView(userId, { nowMs = Date.now() } = {}) {
-  if (!isLiveFor(userId)) return { live: false };
+  if (!isLiveFor(userId)) {
+    // Missions du navigateur : celles déjà payées par le serveur (aujourd'hui, hier) restent « réclamées » (#83)
+    const paid = paidByServer(userId, [today(nowMs), today(nowMs - 86_400_000)]);
+    return Object.keys(paid).length ? { live: false, paid } : { live: false };
+  }
   const row = db.runTransaction(() => ensureDay(userId, { nowMs }));
   if (!row) return { live: true, pilot: getMode() === 'pilot', day: today(nowMs), missions: [] };
   const claims = _claims(userId, row.day);
+  // Réclamées plus tôt aujourd'hui par le navigateur (mode OFF) : déjà payées, jamais reproposées (#83)
+  const byBrowser = browserClaimed(_saveData(userId).data, row.day);
   const version = missionCatalog.getVersion(row.catalog_version) ?? missionCatalog.getPublished();
   const defs = new Map((version.missions ?? []).map(m => [m.id, m]));
   return {
@@ -317,9 +389,11 @@ function playerView(userId, { nowMs = Date.now() } = {}) {
     missions: row.missions.map(m => {
       const def = defs.get(m.id) ?? {};
       const c = claims.get(m.slot);
+      const done = !!c || byBrowser.has(m.id);
       return {
         slot: m.slot, id: m.id, type: m.type, target: m.target, reward: c ? { coins: c.coins, gems: c.gems } : m.reward,
-        progress: c ? m.target : _progress(row, m), base: row.counters[m.type]?.last ?? 0, claimed: !!c,
+        progress: done ? m.target : _progress(row, m), base: row.counters[m.type]?.last ?? 0, claimed: done,
+        ...(!c && done ? { claimedBy: 'browser' } : {}),
         icon: def.icon ?? '🎯', image: def.image ?? null, names: def.names ?? {}, descs: def.descs ?? {},
       };
     }),
@@ -347,6 +421,8 @@ function claim(userId, { slot, day = null, mayWrite = () => true, nowMs = Date.n
     if (prev) {
       return { replayed: true, slot, reward: { coins: prev.coins, gems: prev.gems }, coins: data.coins, gems: data.gems, revision: saveRow.version };
     }
+    // Déjà réclamée aujourd'hui par le navigateur (avant le passage en mode serveur) : pas de second paiement (#83)
+    if (browserClaimed(data, current).has(m.id)) throw new MissionError(409, 'Mission déjà réclamée aujourd\'hui.', 'already_claimed');
     dayRow = _accumulate(userId, dayRow, data);
     const progress = _progress(dayRow, m);
     if (progress < m.target) throw new MissionError(409, 'Mission pas encore terminée.', 'not_done');
@@ -363,6 +439,10 @@ function claim(userId, { slot, day = null, mayWrite = () => true, nowMs = Date.n
     // Mémo dans la sauvegarde (affichage hors ligne, anciens écrans) ; la table des réclamations fait foi
     const dm = data.dailyMissions && typeof data.dailyMissions === 'object' ? data.dailyMissions : {};
     data.dailyMissions = { ...dm, server: { day: current, claimed: [...new Set([...(dm.server?.day === current ? dm.server.claimed ?? [] : []), slot])] } };
+    // Même mission côté navigateur marquée payée par le serveur : un retour en mode OFF ne la repropose pas (#83)
+    if (dm.date === current && Array.isArray(dm.missions)) {
+      data.dailyMissions.missions = dm.missions.map(x => (x && String(x.id) === m.id && x.claimed !== true ? { ...x, claimed: true, serverPaid: true } : x));
+    }
     const { version } = db.upsertUserSave(userId, JSON.stringify(data));
     conn().prepare(`INSERT INTO daily_mission_claims (user_id, day, slot, mission_id, target, coins, gems, progress, revision, details)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -425,4 +505,4 @@ function inspectPlayer(query, { nowMs = Date.now() } = {}) {
 }
 
 module.exports = { MissionError, MODES, TZ, init, getSettings, getMode, isLiveFor, setSettings, adminSettings, listAudit,
-  today, ensureDay, observeSave, playerView, claim, sourceFor, inspectPlayer };
+  today, ensureDay, observeSave, playerView, claim, sourceFor, inspectPlayer, paidByServer, browserClaimed, mergeInto, guardSave };

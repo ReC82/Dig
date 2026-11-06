@@ -75,6 +75,8 @@ const Save = {
           target:  m.target,
           reward:  { coins: m.reward.coins, gems: m.reward.gems },
           claimed: m.claimed,
+          // Payée par le serveur (#83) : réclamée sans crédit local, jamais reproposée en mode OFF
+          ...(m.serverPaid ? { serverPaid: true } : {}),
         })),
         baselineStats: GameState.dailyMissions.baselineStats
           ? { ...GameState.dailyMissions.baselineStats } : null,
@@ -196,6 +198,7 @@ const Save = {
           target:  Number(m.target ?? 0),
           reward:  { coins: Number(m.reward?.coins ?? 0), gems: Number(m.reward?.gems ?? 0) },
           claimed: Boolean(m.claimed),
+          ...(m.serverPaid === true ? { serverPaid: true } : {}),
         }))
       : [];
     GameState.dailyMissions.baselineStats =
