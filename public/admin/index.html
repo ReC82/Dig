@@ -630,6 +630,41 @@
       <p class="muted" style="font-size:0.8rem">Chaque sauvegarde cloud d'un joueur est contrôlée (profondeur, budget de dégâts, anti-autoclic, télémétrie). <strong>Une sauvegarde normale ne crée aucune entrée de journal</strong> : seules les anomalies sont consignées. Le dernier contrôle de chaque joueur est affiché ci-dessous sans rien journaliser. Zéro anomalie signifie qu'aucun seuil n'a été franchi, pas que chaque détecteur a été éprouvé.</p>
       <div id="sec-status"></div>
     </div>
+    <!-- Lot C (#25, décision du 06/11) : défis et suspensions du minage manuel -->
+    <div class="overview-card" id="sec-resp-card">
+      <h3 class="overview-card-title">Réponses : défis et suspensions du minage manuel</h3>
+      <p class="muted" style="font-size:0.78rem">Le serveur mesure le minage manuel (série sans pause, temps actif sur 6 h / 24 h) et le score de risque. Au seuil : un <strong>défi</strong> (jamais une sanction). Tant qu'il est en attente, les clics manuels ne comptent plus au classement ; Auto-Dig, boutique et compte restent libres. <strong>Suspension</strong> (5 min → 24 h) uniquement si des clics continuent pendant un défi affiché. Désactivé = rien ; Observation = défis simulés, journalisés, rien n'est montré ni retiré ; Appliqué = réel.</p>
+      <div id="sec-resp-mode" class="sec-resp-mode"></div>
+      <div id="sec-resp-stats"></div>
+      <h4 class="sec-resp-sub">Défis récents</h4>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Joueur</th><th>État</th><th>Motifs</th><th>Échecs / expirés</th><th>Clics retenus</th><th>Action</th></tr></thead>
+          <tbody id="sec-resp-ch-body"><tr><td colspan="7" class="muted">Aucun défi.</td></tr></tbody>
+        </table>
+      </div>
+      <h4 class="sec-resp-sub">Suspensions du minage manuel</h4>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Début (UTC)</th><th>Joueur</th><th>Palier</th><th>Fin (UTC)</th><th>État</th><th>Clics pendant</th><th>Action</th></tr></thead>
+          <tbody id="sec-resp-su-body"><tr><td colspan="7" class="muted">Aucune suspension.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="overview-card">
+      <details id="sec-protocol">
+        <summary><strong>Protocole de recette — autoclickers Windows / Android (≈ 20 min)</strong></summary>
+        <ol class="sec-protocol">
+          <li><strong>Préparer</strong> un compte de test consentant (snapshot #75 si besoin). Ici : Fiche → « Essai Appliqué sur ce compte ». Le mode global reste <em>Observation</em> : aucun autre joueur n'est concerné.</li>
+          <li><strong>Défi à la main</strong> : Fiche → « Émettre un défi d'essai ». En jeu (≤ 15 s ou F5) : fenêtre « Petite vérification ». Attendu : coups sans effet, Auto-Dig continue, fenêtre fermable puis rouverte par un clic sur le bloc, version accessible (texte), une mauvaise réponse donne une nouvelle énigme sans sanction. Résoudre → minage normal.</li>
+          <li><strong>Autoclicker 8–12 clics/s</strong> (régulier puis bruité) pendant ≈ 65 min, ou réduire temporairement « Minage manuel continu sans pause » à 10 min (Config → Protections) pour un essai de 12 min. Attendu : défi après le seuil ; la fiche passe à « Défi imposé — minage refusé au classement » ; les blocs manuels validés cessent d'augmenter.</li>
+          <li><strong>Laisser l'autoclicker tourner</strong> sur la fenêtre de défi : avec le jeu officiel, aucun clic n'est compté → pas de suspension, classement figé. (Une suspension n'apparaît qu'avec un client modifié qui continue d'envoyer des clics.)</li>
+          <li><strong>Humain rapide 5–8 clics/s</strong> avec pauses (téléphone, double tap) 10–15 min : attendu aucun défi.</li>
+          <li><strong>Remise en état</strong> : Fiche → « Remettre le palier à 0 », lever/annuler si besoin, désactiver l'essai. Remettre le seuil de série à 60 min si modifié.</li>
+        </ol>
+        <p class="muted" style="font-size:0.78rem">À relever pour chaque essai : heure, cadence, blocs manuels déclarés / validés (fiche), état (normal / défi / suspendu), journal « Réponses ». Distinguer : <em>détecté</em> (défi simulé en Observation) · <em>défi imposé</em> · <em>minage refusé au classement</em> · <em>sanction</em> (suspension).</p>
+      </details>
+    </div>
     <div class="overview-card">
       <h3 class="overview-card-title">Fiche d'un joueur</h3>
       <p class="muted" style="font-size:0.78rem;margin-bottom:8px">Pseudo exact ou identifiant ; ou bouton « Fiche » dans les tableaux ci-dessous. Lecture seule : rien n'est modifié ni appliqué au joueur.</p>
@@ -679,6 +714,16 @@
               <option value="block_seq_skips">Blocs sautés / bloc absent (0 point)</option>
               <option value="regular_clicks">Rythme régulier</option>
               <option value="risk_level">Changement de niveau</option>
+            </optgroup>
+            <optgroup label="Réponses (défis, suspensions)">
+              <option value="group:responses">Toutes les réponses</option>
+              <option value="challenge_shadow">Défi simulé (Observation)</option>
+              <option value="challenge_issued">Défi imposé</option>
+              <option value="challenge_solved">Défi résolu</option>
+              <option value="suspension_started">Suspension du minage manuel</option>
+              <option value="antibot_admin">Action admin (essai, levée…)</option>
+              <option value="sustained_activity">Minage continu prolongé (indice)</option>
+              <option value="narrow_jitter">Gigue synthétique (indice)</option>
             </optgroup>
             <optgroup label="Audit admin">
               <option value="group:admin">Tout l'audit admin</option>

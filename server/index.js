@@ -112,6 +112,7 @@ const { validateEconomyValue, getEconomy } = require('./economy');
 const security = require('./security');
 const { createRateLimiters, describeMailLimits } = require('./rateLimits');
 const antibot = require('./antibot');
+const antibotResponses = require('./antibotResponses');
 const playSession = require('./playSession');
 const testRuns = require('./testRuns');
 const ads = require('./ads');
@@ -542,8 +543,10 @@ app.post('/api/me/save', limit.save, (req, res) => {
     }
     const { version } = result;
     // Sync saisonnier piggybacked
+    // Anti-bot (#25 lot C) : défi ou suspension du minage manuel à afficher (mode Appliqué seulement)
+    let antibotState = null;
     if (data.seasonStats) {
-      try { checkAndRotateSeason(); syncPlayerRanking(req.session.userId, data.seasonStats, { telemetry, ip: req.ip, save: data }); }
+      try { checkAndRotateSeason(); antibotState = syncPlayerRanking(req.session.userId, data.seasonStats, { telemetry, ip: req.ip, save: data }) ?? null; }
       catch (err) { console.error('[POST /api/me/save] sync saisonnier', err.message); }
     }
     // Badges honorifiques (#38) : statistiques bornées par la profondeur retenue, attribution unique
@@ -573,11 +576,68 @@ app.post('/api/me/save', limit.save, (req, res) => {
     try { if (gemLedger.observeSave(req.session.userId, data, { revision: version })) gemsAuthoritative = gemLedger.authoritativeBalance(req.session.userId); }
     catch (err) { console.error('[POST /api/me/save] gemmes', err.message); }
     res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}), ...(eventFinds.length ? { eventFinds } : {}),
-      ...(collectionFinds.length ? { collectionFinds } : {}), ...(gemsAuthoritative !== null ? { gems: gemsAuthoritative } : {}) });
+      ...(collectionFinds.length ? { collectionFinds } : {}), ...(gemsAuthoritative !== null ? { gems: gemsAuthoritative } : {}),
+      antibot: antibotState });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
+});
+
+// ── Anti-bot, défi et suspension du minage manuel (#25 lot C) ─────────────────
+// Le défi est décidé par le serveur (sauvegardes) ; ces routes permettent seulement de le voir,
+// d'obtenir une énigme (usage unique, 5 min) et d'y répondre. Rien ici ne peut lever une
+// suspension ni créditer des clics. Mode Observation : aucun état n'est renvoyé au joueur.
+
+const _int = v => (Number.isSafeInteger(v) && v >= 0 ? v : null);
+
+/** GET /api/me/antibot — état courant (F5, second appareil) ; null si rien à afficher. */
+app.get('/api/me/antibot', (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    res.json({ ok: true, antibot: antibotResponses.playerStatus(req.session.userId, { config: getAdminConfig() }) });
+  } catch (err) { console.error('[GET /api/me/antibot]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/me/antibot/seen { challengeId, manualClicks } — le défi est affiché (relevé du compteur). */
+app.post('/api/me/antibot/seen', limit.play, (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    const { challengeId, manualClicks } = req.body ?? {};
+    if (!Number.isSafeInteger(challengeId)) return res.status(400).json({ error: 'challengeId invalide.' });
+    res.json({ ok: antibotResponses.markSeen(req.session.userId, challengeId, { manualClicks: _int(manualClicks) }) });
+  } catch (err) { console.error('[POST /api/me/antibot/seen]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/me/antibot/puzzle { challengeId, kind: grid|text } — nouvelle énigme (relance plafonnée). */
+app.post('/api/me/antibot/puzzle', limit.play, (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    const { challengeId, kind } = req.body ?? {};
+    if (!Number.isSafeInteger(challengeId)) return res.status(400).json({ error: 'challengeId invalide.' });
+    const p = antibotResponses.newPuzzle(req.session.userId, challengeId, { kind: kind === 'text' ? 'text' : 'grid' });
+    if (p.error === 'no_challenge') return res.status(404).json({ error: 'Aucun défi en attente.', code: p.error });
+    if (p.error) return res.status(429).json({ error: 'Trop d\'énigmes demandées, réessayez plus tard.', code: p.error, retryAt: p.retryAt });
+    res.json({ ok: true, puzzle: p });
+  } catch (err) { console.error('[POST /api/me/antibot/puzzle]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/me/antibot/answer { challengeId, puzzleId, answer, manualClicks, manualBlocks } */
+app.post('/api/me/antibot/answer', limit.play, (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    const { challengeId, puzzleId, answer, manualClicks, manualBlocks } = req.body ?? {};
+    if (!Number.isSafeInteger(challengeId) || typeof puzzleId !== 'string' || !/^[0-9a-f]{32}$/.test(puzzleId)
+      || (typeof answer !== 'string' && typeof answer !== 'number')) {
+      return res.status(400).json({ error: 'Réponse invalide.' });
+    }
+    const config = getAdminConfig();
+    const r = antibotResponses.answer(req.session.userId, challengeId, puzzleId, String(answer), {
+      manualClicks: _int(manualClicks), manualBlocks: _int(manualBlocks), config, ip: req.ip });
+    if (r.reason === 'no_challenge') return res.status(404).json({ error: 'Aucun défi en attente.', code: r.reason });
+    res.json({ ok: true, solved: r.solved, reason: r.reason ?? null,
+      antibot: antibotResponses.playerStatus(req.session.userId, { config }) });
+  } catch (err) { console.error('[POST /api/me/antibot/answer]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 // ── Session de jeu unique (#35) ───────────────────────────────────────────────
@@ -1903,7 +1963,7 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
     const { key, value } = req.body ?? {};
     if (!key || value == null) return res.status(400).json({ error: 'Champs key et value requis.' });
     // Paramètres économiques bornés (#20), interrupteurs anti-bot (#25) et paramètres de ligue (#19) : appliqués sans redéploiement.
-    const checked = antibot.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
+    const checked = antibot.validateConfigValue(key, value) ?? antibotResponses.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
       ?? validateEconomyValue(key, value);
     if (checked.error) return res.status(400).json({ error: checked.error });
     const previous = getAdminConfig()[key];
@@ -1962,7 +2022,11 @@ app.delete('/api/admin/season-themes/exclusions/:key', requireAdmin, themeRoute(
 app.get('/api/admin/security/summary', requireAdmin, (req, res) => {
   try {
     const season = getActiveSeason();
-    res.json(antibot.buildSummary(season?.id ?? null, getAdminConfig()));
+    const config = getAdminConfig();
+    const summary = antibot.buildSummary(season?.id ?? null, config);
+    summary.responseMode = antibotResponses.getGlobalMode(config);
+    summary.sanctionsApplied = summary.responseMode === 'enforce';
+    res.json(summary);
   } catch (err) { console.error('[GET /api/admin/security/summary]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
@@ -1993,8 +2057,85 @@ app.get('/api/admin/security/player', requireAdmin, (req, res) => {
     const found = antibot.findPlayer(req.query.q);
     if (!found) return res.status(404).json({ error: 'Joueur introuvable (pseudo exact ou identifiant).' });
     const seasonId = /^\d{1,10}$/.test(String(req.query.seasonId ?? '')) ? parseInt(req.query.seasonId, 10) : null;
-    res.json(antibot.playerReport(found.id, { seasonId, config: getAdminConfig() }));
+    const config = getAdminConfig();
+    const report = antibot.playerReport(found.id, { seasonId, config });
+    // Lot C : état de défi / suspension, mesures d'activité, historique (lecture seule ici)
+    if (report) report.lotC = antibotResponses.playerSection(found.id, { config });
+    res.json(report);
   } catch (err) { console.error('[GET /api/admin/security/player]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+// ── Admin — Réponses anti-bot (#25 lot C) ─────────────────────────────────────
+// Mode global dans Config (antibot_response_mode, défaut observe). Les actions ci-dessous sont
+// tracées par l'audit admin (admin_action) et dans le journal (antibot_admin).
+
+function _abAdminLog(req, details) {
+  try { antibot.logSecurityEvent('antibot_admin', { userId: details.userId ?? null, details, ip: req.ip }); }
+  catch (err) { console.error('[antibot] audit lot C', err.message); }
+}
+
+/** GET /api/admin/security/responses — mode, paramètres, compteurs 7 j, défis et suspensions récents. */
+app.get('/api/admin/security/responses', requireAdmin, (req, res) => {
+  try { res.json(antibotResponses.adminSummary({ config: getAdminConfig() })); }
+  catch (err) { console.error('[GET /api/admin/security/responses]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/admin/security/player/:id/test-mode { enforce: bool } — essai « Appliqué » sur ce seul compte. */
+app.post('/api/admin/security/player/:id/test-mode', requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!getUserById(userId)) return res.status(404).json({ error: 'Joueur introuvable.' });
+    const enforce = req.body?.enforce === true;
+    const mode = antibotResponses.setForceMode(userId, enforce);
+    _abAdminLog(req, { action: 'test_mode', userId, enforce });
+    res.json({ ok: true, forceMode: mode, effectiveMode: antibotResponses.getUserMode(userId, getAdminConfig()) });
+  } catch (err) { console.error('[POST test-mode]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/admin/security/player/:id/challenge — émet un défi d'essai (mode effectif du compte). */
+app.post('/api/admin/security/player/:id/challenge', requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!getUserById(userId)) return res.status(404).json({ error: 'Joueur introuvable.' });
+    const season = getActiveSeason();
+    if (!season) return res.status(409).json({ error: 'Aucune saison active.' });
+    const r = antibotResponses.adminIssueChallenge(userId, season.id, { config: getAdminConfig() });
+    if (r.error) return res.status(409).json({ error: r.error });
+    _abAdminLog(req, { action: 'challenge', userId, challengeId: r.id, mode: r.mode });
+    res.json({ ok: true, ...r });
+  } catch (err) { console.error('[POST challenge]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/admin/security/player/:id/violation-level { level } — ajuste le palier (0 = remise à zéro). */
+app.post('/api/admin/security/player/:id/violation-level', requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const level = req.body?.level;
+    if (!getUserById(userId)) return res.status(404).json({ error: 'Joueur introuvable.' });
+    if (!Number.isInteger(level) || level < 0 || level > 50) return res.status(400).json({ error: 'Palier de 0 à 50 attendu.' });
+    _abAdminLog(req, { action: 'violation_level', userId, level });
+    res.json({ ok: true, level: antibotResponses.setViolationLevel(userId, level) });
+  } catch (err) { console.error('[POST violation-level]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/admin/security/challenge/:id/cancel { note } — annule un défi en attente. */
+app.post('/api/admin/security/challenge/:id/cancel', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!antibotResponses.cancelChallenge(id, { note: req.body?.note })) return res.status(404).json({ error: 'Aucun défi en attente avec cet identifiant.' });
+    _abAdminLog(req, { action: 'cancel_challenge', challengeId: id });
+    res.json({ ok: true });
+  } catch (err) { console.error('[POST cancel challenge]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST /api/admin/security/suspension/:id/lift { note } — lève une suspension active. */
+app.post('/api/admin/security/suspension/:id/lift', requireAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!antibotResponses.liftSuspension(id, { note: req.body?.note })) return res.status(404).json({ error: 'Aucune suspension active avec cet identifiant.' });
+    _abAdminLog(req, { action: 'lift_suspension', suspensionId: id });
+    res.json({ ok: true });
+  } catch (err) { console.error('[POST lift]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 // ── Missions quotidiennes attribuées par le serveur (#68, étape B, drapeau OFF par défaut) ──

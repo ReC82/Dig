@@ -3766,3 +3766,74 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
 
 /* Repère discret des comptes pilotes (#68-E) */
 .mission-live-test { margin: 6px 0 0; text-align: center; font-size: 0.7rem; opacity: 0.6; }
+
+/* ── Vérification anti-bot du minage manuel (#25 lot C) ─────────────────── */
+#antibot-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1150;
+  padding: max(24px, env(safe-area-inset-top, 0px)) 16px max(24px, env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+#antibot-modal[hidden] { display: none; }
+#antibot-inner {
+  background: var(--surface2);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 360px;
+  padding: 24px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+#antibot-icon { font-size: 2.4rem; line-height: 1; }
+#antibot-title { font-size: 1.05rem; font-weight: 800; color: var(--text); margin: 0; }
+#antibot-text { font-size: 0.85rem; color: var(--text); line-height: 1.4; margin: 0; }
+.antibot-muted { font-size: 0.75rem; color: var(--muted); line-height: 1.4; margin: 0; }
+#antibot-puzzle { width: 100%; }
+.antibot-question { font-weight: 700; margin: 6px 0 10px; }
+.antibot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.antibot-tile {
+  min-height: 64px;
+  font-size: 2rem;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  background: var(--surface);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.antibot-tile.picked { border-color: #fbbf24; background: rgba(251, 191, 36, 0.15); }
+.antibot-text-form { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.antibot-text-form input { font-size: 1.1rem; padding: 10px; border-radius: 10px; text-align: center; }
+.antibot-btn {
+  padding: 12px;
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  color: #1a1a1a;
+  font-weight: 800;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#antibot-msg { min-height: 1.2em; font-size: 0.8rem; margin: 0; }
+#antibot-msg.warn { color: #fbbf24; }
+#antibot-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.antibot-btn-ghost {
+  padding: 10px 12px;
+  min-height: 44px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.antibot-btn-ghost[hidden] { display: none; }

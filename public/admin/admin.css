@@ -1596,3 +1596,17 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .up-sim-summary-title { margin: 0 0 2px; }
 .up-sim-summary ul { margin: 0; padding-left: 18px; }
 #up-dialog .bk-field .bk-hint:not([hidden]), #up-dialog details.bk-acc > .bk-hint:not([hidden]) { display: block; margin: 4px 0; }
+
+/* Réponses anti-bot (#25 lot C) */
+.sec-resp-mode { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.sec-resp-label { font-weight: 600; font-size: 0.85rem; }
+.sec-resp-line { font-size: 0.8rem; margin: 2px 0; }
+.sec-resp-sub { font-size: 0.85rem; margin: 12px 0 6px; }
+.sec-protocol { font-size: 0.82rem; line-height: 1.45; padding-left: 20px; }
+.sec-protocol li { margin: 4px 0; }
+.sec-lotc { margin: 10px 0; padding: 10px 12px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; }
+.sec-lotc--warn { border-color: rgba(251, 191, 36, 0.6); }
+.sec-lotc-title { font-size: 0.8rem; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 0.03em; opacity: 0.8; }
+.sec-lotc-state { font-weight: 700; font-size: 0.88rem; margin: 0 0 4px; }
+.sec-lotc-line { font-size: 0.78rem; margin: 2px 0; }
+.sec-lotc-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }

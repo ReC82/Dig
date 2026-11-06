@@ -21,6 +21,7 @@ const { getEconomy } = require('./economy');
 
 const cal = require('./seasonCalendar');
 const antibot = require('./antibot');
+const antibotResponses = require('./antibotResponses');
 const blockHp = require('./blockHp');
 const standings = require('./standings');
 const rewardPoints = require('./rewardPoints');
@@ -932,14 +933,39 @@ function recordAutoBreaks(userId, seasonId, autoBlocks) {
  * Dispatch vers recordManualBreaks ou recordAutoBreaks selon la source du bloc.
  * Appelle processAntiCheat pour calculer les blocs effectivement acceptés.
  */
-function syncPlayerRanking(userId, seasonStats, { telemetry = null, ip = null, save = null } = {}) {
-  if (!seasonStats || typeof seasonStats !== 'object') return;
+function syncPlayerRanking(userId, seasonStats, { telemetry = null, ip = null, save = null, nowMs = Date.now() } = {}) {
+  if (!seasonStats || typeof seasonStats !== 'object') return null;
   const started = process.hrtime.bigint();
-  try { _syncPlayerRanking(userId, seasonStats, telemetry, ip, save); }
+  try { return _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs); }
   finally { antibot.recordTiming(Number(process.hrtime.bigint() - started) / 1e6); }
 }
 
-function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
+/**
+ * Clics manuels déjà « consommés » sans crédit (#25 lot C) : les références des contrôles de
+ * profondeur (#9, budget #25, PV réels #77) et de l'anti-autoclic (#10) avancent jusqu'à ces
+ * compteurs, sans rien créditer. Les références ne reculent jamais.
+ */
+function _consumeManualCounters(userId, seasonId, clicks, blocks) {
+  const t = getDepthTracking(userId);
+  if (t && t.season_id === seasonId) {
+    let x = t.xhp_state;
+    if (x) {
+      try {
+        const o = JSON.parse(x);
+        if (Number.isSafeInteger(o.refClicks)) o.refClicks = Math.max(o.refClicks, clicks);
+        x = JSON.stringify(o);
+      } catch (_) { /* état illisible : laissé tel quel */ }
+    }
+    upsertDepthTracking(userId, { ...t, ref_clicks: Math.max(t.ref_clicks, clicks),
+      dmg_ref_clicks: t.dmg_ref_clicks == null ? null : Math.max(t.dmg_ref_clicks, clicks), xhp_state: x });
+  }
+  const c = getClickTracking(userId);
+  if (c && c.season_id === seasonId) {
+    upsertClickTracking(userId, seasonId, Math.max(c.last_manual_clicks, clicks), Math.max(c.last_blocks, blocks), c.last_save_at, c.accepted_blocks);
+  }
+}
+
+function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs) {
   const { seasonId, maxDepth, manualBlocks, autoBlocks, manualClicks, suspiciousScore } = seasonStats;
 
   // Validation minimale
@@ -956,7 +982,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
     return;
   }
   // Aucun score hors de la période de la saison (avant start_at ou après end_at) — #16
-  if (!isWithinSeason(season)) {
+  if (!isWithinSeason(season, nowMs)) {
     console.warn(`[seasons] syncPlayerRanking : saison ${season.id} hors période (${season.start_at} → ${season.end_at}), score ignoré`);
     return;
   }
@@ -966,13 +992,23 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
   const leagueId   = userLeague ? userLeague.id : null;
   const config     = getAdminConfig();
 
+  // ── Réponses anti-bot (#25 lot C) : défi en attente ou suspension en mode Appliqué →
+  // les clics manuels de cette fenêtre ne créditent ni la profondeur ni les blocs classés ──
+  const tel = antibot.normalizeTelemetry(telemetry);
+  let pre = null;
+  try {
+    pre = antibotResponses.beforeSave(userId, season.id, { claimedClicks: _toCount(manualClicks), claimedBlocks: _toCount(manualBlocks),
+      telemetry: tel, config, nowMs, ip });
+    if (pre.rebase) _consumeManualCounters(userId, season.id, pre.rebase.clicks, pre.rebase.blocks);
+  } catch (err) { console.error('[antibot] réponses (avant)', err.message); }
+
   // ── Profondeur : validée côté serveur à chaque sauvegarde (ticket #9, budget #25) ─
-  const { acceptedDepth, reportedDepth, budgetDepth, exactDepth, signals } = validateDepth(userId, season.id, seasonStats, config, user?.username, Date.now(), save);
+  const { acceptedDepth, reportedDepth, budgetDepth, exactDepth, signals } = validateDepth(userId, season.id, seasonStats, config, user?.username, nowMs, save);
+  if (pre?.signals?.length) signals.push(...pre.signals);
 
   // ── Observation anti-bot (#25, lot A) : indices et preuves, aucune réponse appliquée ──
   const forged = antibot.forgedCounters(seasonStats);
   if (forged.length) signals.push({ type: 'forged_counters', details: { fields: forged } });
-  const tel = antibot.normalizeTelemetry(telemetry);
   signals.push(...antibot.telemetrySignals(tel));
   let acAction = null;
 
@@ -994,7 +1030,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
     });
 
     // Calcule les blocs effectifs validés côté serveur
-    const ac = processAntiCheat(userId, season.id, seasonStats, config, user?.username);
+    const ac = processAntiCheat(userId, season.id, seasonStats, config, user?.username, nowMs);
     const { effectiveManualBlocks } = ac;
     acAction = ac.action;
     if (acAction === 'rejected') signals.push({ type: 'blocks_gt_clicks', details: ac.details });
@@ -1007,7 +1043,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
   }
 
   if (signals.length) {
-    try { antibot.recordSignals(userId, season.id, signals, { config, ip }); }
+    try { antibot.recordSignals(userId, season.id, signals, { config, ip, nowMs }); }
     catch (err) { console.error('[antibot] score de risque', err.message); }
   }
 
@@ -1017,9 +1053,13 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save) {
       antibot.recordSaveSample(userId, season.id, {
         reportedDepth, acceptedDepth, budgetDepth, exactDepth, seasonStats, acAction, telemetry: tel,
         blocksDestroyed: save?.stats?.blocksDestroyed, autodigLevel: save?.upgrades?.autodig,
-      });
+      }, nowMs);
     } catch (err) { console.error('[antibot] échantillon', err.message); }
   }
+
+  // Lot C : défi éventuel d'après les mesures et le score à jour (Observation : simulé, rien d'affiché)
+  try { return antibotResponses.afterSave(userId, season.id, { config, nowMs, ip }); }
+  catch (err) { console.error('[antibot] réponses (après)', err.message); return null; }
 }
 
 const PAGE_SIZE = 50;

@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 848/848 textes. Absents → français. */
+/* Italian (preview) : 879/879 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -106,6 +106,39 @@ I18n.registerLocale("it", {
   "settings_title": "📢 Pubblicità",
   "settings_unset": "Non hai ancora fatto una scelta.",
   "withdraw": "Ritira il mio consenso"
+ },
+ "antibot": {
+  "btn_alt_grid": "Torna ai simboli",
+  "btn_alt_text": "Versione accessibile (testo)",
+  "btn_check": "Conferma",
+  "btn_close": "Chiudi (torno più tardi)",
+  "btn_new": "Altro enigma",
+  "err_expired": "Enigma scaduto — eccone uno nuovo.",
+  "err_network": "Connessione impossibile — riprova; un problema di rete non comporta mai una sanzione.",
+  "err_too_fast": "Troppo veloce — prenditi un secondo e riprova.",
+  "err_too_many": "Troppi tentativi per ora — riprova dopo le {time}.",
+  "err_wrong": "Non è giusto — ecco un nuovo enigma.",
+  "grid_question": "Tocca {a}, poi {b}.",
+  "help": "Una risposta sbagliata o un enigma scaduto non comportano mai una sanzione: basta chiederne un altro.",
+  "keep": "Non si perde nulla: blocco, inventario, potenziamenti, tempo di gioco e Auto-Dig restano invariati.",
+  "susp_help": "Il tuo account resta disponibile (Auto-Dig, negozio, inventario). Un errore? Scrivici tramite Aiuto: il team può revocare la sospensione.",
+  "susp_text": "I clic sono continuati durante la verifica: lo scavo manuale è sospeso fino al {time} (ora di Bruxelles).",
+  "susp_title": "Scavo manuale in pausa",
+  "sym_bell": "la campana",
+  "sym_clover": "il quadrifoglio",
+  "sym_coin": "la moneta",
+  "sym_drop": "la goccia",
+  "sym_fire": "la fiamma",
+  "sym_gem": "il diamante",
+  "sym_heart": "il cuore",
+  "sym_key": "la chiave",
+  "sym_leaf": "la foglia",
+  "sym_moon": "la luna",
+  "sym_pickaxe": "il piccone",
+  "sym_star": "la stella",
+  "text": "Lo scavo manuale conta per la classifica: prima di continuare, mostraci che ci sei. Nel frattempo i tuoi colpi sul blocco non vengono contati.",
+  "text_question": "Versione accessibile: quanto fa {a} + {b}?",
+  "title": "Piccola verifica"
  },
  "badges": {
   "archived": "Ritirato",

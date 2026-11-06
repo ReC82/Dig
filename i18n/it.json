@@ -716,6 +716,223 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "antibot.btn_alt_grid": {
+   "text": "Torna ai simboli",
+   "src": "30234b1d560c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.btn_alt_text": {
+   "text": "Versione accessibile (testo)",
+   "src": "8bcb90a65726",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.btn_check": {
+   "text": "Conferma",
+   "src": "bf217853cd54",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.btn_close": {
+   "text": "Chiudi (torno più tardi)",
+   "src": "a93a1a14baf3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.btn_new": {
+   "text": "Altro enigma",
+   "src": "80fb9af6fd3d",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.err_expired": {
+   "text": "Enigma scaduto — eccone uno nuovo.",
+   "src": "5d67a3338da3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.err_network": {
+   "text": "Connessione impossibile — riprova; un problema di rete non comporta mai una sanzione.",
+   "src": "067f71e80c8f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.err_too_fast": {
+   "text": "Troppo veloce — prenditi un secondo e riprova.",
+   "src": "39d3b545f431",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.err_too_many": {
+   "text": "Troppi tentativi per ora — riprova dopo le {time}.",
+   "src": "2c9e02cf32e7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.err_wrong": {
+   "text": "Non è giusto — ecco un nuovo enigma.",
+   "src": "e35d832ca281",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.grid_question": {
+   "text": "Tocca {a}, poi {b}.",
+   "src": "fb0f3e514407",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.help": {
+   "text": "Una risposta sbagliata o un enigma scaduto non comportano mai una sanzione: basta chiederne un altro.",
+   "src": "cdc472bd9ffb",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.keep": {
+   "text": "Non si perde nulla: blocco, inventario, potenziamenti, tempo di gioco e Auto-Dig restano invariati.",
+   "src": "21e5c312bc93",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.susp_help": {
+   "text": "Il tuo account resta disponibile (Auto-Dig, negozio, inventario). Un errore? Scrivici tramite Aiuto: il team può revocare la sospensione.",
+   "src": "e1b76760e096",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.susp_text": {
+   "text": "I clic sono continuati durante la verifica: lo scavo manuale è sospeso fino al {time} (ora di Bruxelles).",
+   "src": "0e56a5e3067b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.susp_title": {
+   "text": "Scavo manuale in pausa",
+   "src": "896e932c5378",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_bell": {
+   "text": "la campana",
+   "src": "fd5d9dde8c7b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_clover": {
+   "text": "il quadrifoglio",
+   "src": "9f3646c48c68",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_coin": {
+   "text": "la moneta",
+   "src": "9c4753a2712b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_drop": {
+   "text": "la goccia",
+   "src": "896cc8aa3e04",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_fire": {
+   "text": "la fiamma",
+   "src": "cf7ecbe75480",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_gem": {
+   "text": "il diamante",
+   "src": "1fd8d9d2a6f5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_heart": {
+   "text": "il cuore",
+   "src": "ce828b536a33",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_key": {
+   "text": "la chiave",
+   "src": "8b6ab6b36cf1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_leaf": {
+   "text": "la foglia",
+   "src": "355ae7b2452a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_moon": {
+   "text": "la luna",
+   "src": "58b43c2cfcf7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_pickaxe": {
+   "text": "il piccone",
+   "src": "7a7f42fdf87a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.sym_star": {
+   "text": "la stella",
+   "src": "945367398866",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.877Z"
+  },
+  "antibot.text": {
+   "text": "Lo scavo manuale conta per la classifica: prima di continuare, mostraci che ci sei. Nel frattempo i tuoi colpi sul blocco non vengono contati.",
+   "src": "5314afb41ad7",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.text_question": {
+   "text": "Versione accessibile: quanto fa {a} + {b}?",
+   "src": "307c01087e68",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.title": {
+   "text": "Piccola verifica",
+   "src": "716eea44a4be",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-06T18:13:49.876Z"
+  },
   "badges.archived": {
    "text": "Ritirato",
    "src": "b7ec3a1ce2d2",
