@@ -136,8 +136,7 @@ Fichiers modifiés :
    - Vérifier la concordance avec le tableau : 182,12 doit être identique.
 4. **Calendrier** : cocher novembre et mardi.
    - **Attendu** : le texte devient « les mardis en novembre », et les dates repères indiquent « Serait inactif » le lundi 02/11 à 23:59 et « Serait actif » le mardi 03/11 à 00:00.
-   - Saisir ensuite « Du 24/12 au 24/12 ». **Attendu** : « Pas encore commencé » le 23/12 à 23:59, « Serait actif » le 24/12 à 00:00 et à 23:59, « Serait terminé » le 25/12 à 00:00.
-   - Note : avec novembre coché, le 24/12 reste inactif à cause de la règle ET. C'est le comportement voulu, que le test permet aussi de voir.
+   - Décocher ensuite novembre et mardi, puis saisir « Du 24/12 au 24/12 ». **Attendu** : « Pas encore commencé » le 23/12 à 23:59, « Serait actif » le 24/12 à 00:00 et à 23:59, « Serait terminé » le 25/12 à 00:00.
 5. **Souvenir lié** : la liste propose « Noël sous la mine — … ». Cliquer sur les ⓘ.
 6. Ne pas enregistrer, ou enregistrer : la ligne indique « 🔒 Brouillon — jamais appliqué », et rien ne change en jeu.
 
