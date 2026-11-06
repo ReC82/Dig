@@ -2,6 +2,84 @@
 
 Lien : https://github.com/ReC82/Dig/issues/69
 
+## Session du 06/11/2026 (après-midi) — recette #69-D : simulation compréhensible
+
+### 1. Contexte et état réel
+
+Le 06/11 à 12:40, vous avez indiqué que la simulation fonctionnait mais que ses termes restaient trop techniques : « profil fort / faible », « En vigueur » et « Fiche » n'étaient pas expliqués. Vous avez demandé des libellés clairs avec des aides ⓘ, un résumé « ce qui change » en premier, le détail replié, et « Aucun changement proposé » à la place d'une colonne remplie de « = ». Consigne : ne changer aucun montant, aucune formule, aucun paramètre et aucun tarif.
+
+**État : Déployé en production (`f84e594`, 06/11 13:29) — en attente de recette.** Le changement concerne uniquement l'affichage du panel admin. Le jeu, les prix et la base ne changent pas.
+
+Classement : **Après lancement** (outil d'administration).
+
+### 2. Changements réalisés (Admin → ⬆ Améliorations → fiche → « 4. Simulation avant / après »)
+
+- **Phrase d'introduction** : la section compare ce que le jeu utilise aujourd'hui avec les valeurs de la fiche, même si elles ne sont pas enregistrées. Rien n'est appliqué ici : seule la publication du brouillon change le jeu.
+- **Encadré « Ce qui change »**, affiché en premier :
+  - il liste les chiffres qui changent, par exemple « Gemmes pour tous les niveaux : 65 → 67 (+3,1 %) » ;
+  - si la fiche correspond au jeu, il affiche « Aucun changement proposé : la fiche correspond aux paramètres utilisés en jeu. », et la colonne « Écart » est masquée ;
+  - si seul un champ sans effet chiffré change (un nom, par exemple), il l'indique et renvoie au détail.
+- **Les deux rythmes simulés** s'appellent désormais « Joueur qui gagne peu de pièces (pièces par minute) » et « Joueur qui gagne beaucoup de pièces (pièces par minute) ». Leur ⓘ précise qu'il s'agit de cas **hypothétiques et modifiables** : ce ne sont ni des comptes réels, ni des niveaux, ni un classement de joueurs. Ces champs ne sont jamais enregistrés.
+- **Accordéon « Détail chiffré et comparaison champ par champ »**, replié par défaut. Il contient :
+  - le tableau, avec les colonnes **« En jeu actuellement »**, **« Fiche ouverte »** et **« Écart »**. Leur ⓘ explique : version publiée utilisée par le jeu / valeurs de la fiche, même non enregistrées ni publiées / différence prévisionnelle, sans effet immédiat. Dans la colonne « Écart », « inchangé » remplace « = » ;
+  - une ⓘ pour chaque ligne :
+    - « Coût total de tous les niveaux, en pièces » : somme des prix réels (prix de la fiche × multiplicateur de Config), du premier achat jusqu'au maximum ;
+    - « Gemmes pour tous les niveaux » : comptées à part, car elles ne se gagnent pas à un rythme par minute. Elles sont donc exclues du temps estimé. Elles se modifient dans la section 3, colonne « Gemmes », pour l'Auto-Dig ;
+    - « Temps estimé » : total en pièces ÷ pièces par minute du cas simulé, arrondi, sans gemmes ni autres dépenses. C'est un ordre de grandeur, pas une durée garantie ;
+  - une phrase qui rappelle ce qui est modifiable dans la section 3 ;
+  - la liste « Champs modifiés par rapport au jeu actuel ».
+- Les durées s'affichent avec une virgule (« 4,5 j » au lieu de « 4.5 j »).
+- Fichiers : `public/admin/index.html`, `public/admin/admin.js` (`upRefresh`, aides ⓘ de la fiche), `public/admin/admin.css`, nouveau test `test/upgrade-sim-ux.test.js`.
+- **Aucun montant, aucune formule, aucun paramètre ni tarif modifié.** Le barème reste en version 1 (Auto-Dig 0 / 0 / 4 / 8 / 18 / 35 💎). Aucune migration.
+
+### 3. SHA, branche
+
+- Branche `feature/69-ameliorations-admin` (`78e4022`), intégrée dans **`develop` `f84e594`**, déployée.
+
+### 4. Vérifications effectuées
+
+- `npm test` : 831/831 sur la branche avant l'ajout du test, puis 833/833 sur `develop` `f84e594` et sur la release.
+- Chromium, PC 1280×900 et mobile 390×844, sur un serveur de test (port 3101, base de test supprimée ensuite). Fiche Auto-Dig :
+  - à l'ouverture : les 6 champs « Gemmes » sont **modifiables** (0/0/4/8/18/35). L'encadré affiche « Aucun changement proposé… » et la colonne « Écart » est masquée ;
+  - niveau 3 passé à `6`, **sans enregistrer** : l'encadré affiche « Gemmes pour tous les niveaux : 65 → 67 (+3,1 %) ». Dans le tableau, la ligne Gemmes indique 65 / 67 / +3,1 % et les autres lignes « inchangé ». Les aides ⓘ s'ouvrent une à la fois ;
+  - fiche Pioche, prix du niveau 1 passé à 20 000 : « Coût total… : 1 946 450 → 1 966 350 (+1 %) » et « Temps estimé, joueur qui gagne peu… : 4,5 j → 4,6 j (+1 %) » ;
+  - aucune erreur JavaScript.
+- Copie de la base de production démarrée en `NODE_ENV=production` (port 3122) : `/health` ok, version `1.0.0+f84e594`, empreintes des 6 tables joueurs identiques. Copie supprimée.
+
+### 5. Déploiement
+
+- Avant le redémarrage : dernière requête admin à 12:54, déploiement à 13:29. Aucune génération en cours n'a donc été interrompue.
+- `main` avancé en avance rapide `3684330` → `f84e594`, puis `scripts/deploy.sh` (script de la release). Sauvegarde vérifiée : `~/backups/dig/dig-20261106-132926-pre-deploy-f84e594.sqlite`.
+- Après le déploiement :
+  - les 2 domaines répondent 200, version `1.0.0+f84e594` ;
+  - `quick_check` ok ;
+  - empreintes joueurs identiques à la sauvegarde ;
+  - `journalctl` sans erreur ;
+  - la page /admin/ servie contient les nouveaux libellés ;
+  - Chromium (PC et 390 px) sur le jeu et /admin/ : aucune erreur JavaScript.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 3684330` puis `sudo systemctl restart dig`. Aucune donnée n'est concernée.
+
+### 6. Test fonctionnel à faire (3 min, sans publier)
+
+1. /admin/ (Ctrl+F5) → ⬆ Améliorations → **Auto-Dig**. Section 4 : l'encadré « Ce qui change » affiche « Aucun changement proposé… ». Les deux champs s'appellent « Joueur qui gagne peu / beaucoup de pièces » ; cliquer leurs ⓘ.
+2. Section 3, colonne **« Gemmes »**, niveau 3 : remplacer `4` par `6`. L'encadré affiche aussitôt « Gemmes pour tous les niveaux : 65 → 67 (+3,1 %) ». C'est la démonstration demandée : le champ est éditable et son effet apparaît dans la simulation, sans publication.
+3. Ouvrir « Détail chiffré et comparaison champ par champ » : colonnes « En jeu actuellement / Fiche ouverte / Écart » avec leurs ⓘ, puis « inchangé » sur les autres lignes.
+4. **Fermer → « Quitter sans enregistrer »**. Dans le jeu, l'Auto-Dig coûte toujours 4/8/18/35 💎.
+
+### 7. Choix techniques faits seul
+
+- La colonne « Écart » n'est masquée que si **aucun** champ de la fiche ne diffère du jeu. Si seul un nom change, elle reste visible avec « inchangé » sur chaque ligne, et l'encadré renvoie au détail.
+- Le tableau reste dans un accordéon replié, conformément à votre demande de réduire la densité. Sur mobile, il défile horizontalement comme avant ; l'encadré « Ce qui change » suffit pour l'essentiel.
+
+### 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire.
+
+### 9. Restant à réaliser
+
+- Votre recette de #69-D et de la correction #69-A (champ « Gemmes » éditable, test ci-dessus).
+- Hors périmètre, constat inchangé : Fragments et Reroll bloc sont toujours masqués en production par votre session admin du 05/11.
+
 ## Session du 06/11/2026 — correction après recette : coûts en gemmes éditables (#69-A)
 
 ### 1. Contexte et état réel
