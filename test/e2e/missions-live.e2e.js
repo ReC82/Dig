@@ -3,7 +3,8 @@
  *   Admin → Missions → carte « Activation en jeu » : désactivé par défaut → mode Pilote pour un compte
  *   de test → jeu (ce compte) : onglet Quotidien, missions du serveur terminées → réclamer → crédit,
  *   carte « réclamée », F5 : toujours réclamée, pièces non recréditées → admin : inspection du joueur →
- *   retour à « Désactivé ». Pilotes et joueur inspecté choisis par saisie partielle (#68-E). Ordinateur 1280×900 et smartphone 390×844 (un compte par format).
+ *   retour à « Désactivé » → #83 : F5 en mode OFF, la mission payée reste « Réclamé », un ancien état local
+ *   ne crédite rien, une sauvegarde d'ancienne page qui la réclame est refusée (409). Pilotes et joueur inspecté choisis par saisie partielle (#68-E). Ordinateur 1280×900 et smartphone 390×844 (un compte par format).
  *
  * Lancer (serveur de test démarré, base jetable) :
  *   PW=/chemin/node_modules/playwright-core BASE=http://127.0.0.1:3101 ADMIN=<secret> SHOTS=/tmp/dossier \
@@ -142,8 +143,44 @@ async function steps(browser, tag, viewport) {
   await adm.screenshot({ path: `${SHOTS}/${tag}-4-inspection.png` });
   await adminSetMode(adm, 'off', []);
   const off = (await player('GET', '/api/me/missions')).body;
-  assert.deepStrictEqual(off, { live: false });
-  log(`${tag} : inspection admin (réclamée), retour à « Désactivé » → jeu inchangé`);
+  assert.deepStrictEqual(off, { live: false, paid: { [view.day]: [view.missions[0].id] } });
+  log(`${tag} : inspection admin (réclamée), retour à « Désactivé » → mission payée listée (#83)`);
+
+  // ── #83 : retour OFF, rechargement : la mission payée par le serveur reste « Réclamé » ──
+  const paidId = view.missions[0].id;
+  await game.reload();
+  await game.waitForFunction(id => typeof DailyMissions !== 'undefined' && !DailyMissions.isLive()
+    && GameState.dailyMissions.missions.some(m => m.id === id && m.claimed && m.serverPaid), paidId, { timeout: 15000 });
+  await game.evaluate(() => document.querySelectorAll('dialog[open]').forEach(d => d.close()));
+  await game.click('.nav-btn[data-view="daily"]');
+  const idx = await game.evaluate(id => GameState.dailyMissions.missions.findIndex(m => m.id === id), paidId);
+  const card = game.locator('#daily-missions-list .mission-card').nth(idx);
+  await card.locator('.mission-claim-btn[disabled]').waitFor();
+  assert.match(await card.getAttribute('class'), /mission-claimed/);
+  await game.screenshot({ path: `${SHOTS}/${tag}-5-off-reclamee.png` });
+  log(`${tag} : mode OFF après F5 — « ${paidId} » affichée Réclamé, bouton inactif`);
+  // Ancien état local (non réclamé, comme le compte de la recette #68-H) : le clic relit le serveur, aucun crédit
+  const local0 = await game.evaluate(i => { const m = GameState.dailyMissions.missions[i]; m.claimed = false; delete m.serverPaid;
+    // Objectif atteint localement (comme Accumulateur 2000/2000 dans la recette)
+    for (const k of Object.keys(GameState.dailyMissions.baselineStats)) GameState.dailyMissions.baselineStats[k] = -1e6;
+    // Relecture automatique (toutes les 30 s) suspendue : seul le clic doit relire le serveur
+    DailyMissions._paid = {}; _liveMissionsAt = Date.now(); renderDailyMissions(); return GameState.coins; }, idx);
+  await card.locator('.mission-claim-btn:not([disabled])').click();
+  await game.waitForFunction(i => GameState.dailyMissions.missions[i].serverPaid === true, idx);
+  await card.locator('.mission-claim-btn[disabled]').waitFor();
+  assert.strictEqual(await game.evaluate(() => GameState.coins), local0, 'aucun crédit local');
+  // Ancienne page (sans correctif) : sauvegarde « réclamée » + récompense → refusée par le serveur
+  const cur = (await player('GET', '/api/me/save')).body.save;
+  const dm = { ...cur.data.dailyMissions, missions: cur.data.dailyMissions.missions.map(m => (m.id === paidId ? { ...m, claimed: true, serverPaid: undefined } : m)) };
+  const dbl = await game.evaluate(async body => {
+    const res = await fetch('/api/me/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, controllerId: _tabId }) });
+    return { status: res.status, body: await res.json() };
+  }, { data: { ...cur.data, coins: cur.data.coins + view.missions[0].reward.coins, dailyMissions: dm }, baseRevision: cur.revision });
+  assert.deepStrictEqual([dbl.status, dbl.body.conflict], [409, true], JSON.stringify(dbl.body).slice(0, 200));
+  const after = (await player('GET', '/api/me/save')).body.save;
+  assert.ok(after.data.coins < cur.data.coins + view.missions[0].reward.coins, `aucun second crédit (${cur.data.coins} → ${after.data.coins})`);
+  assert.strictEqual(dbl.body.save.data.coins, cur.data.coins, 'version serveur reprise, solde inchangé');
+  log(`${tag} : clic sur un ancien état local → aucun crédit ; sauvegarde d'une ancienne page → 409, solde inchangé`);
 
   await ctx.close();
   await adm.close();

@@ -1606,9 +1606,7 @@ function renderDailyMissions() {
       const btn = card.querySelector('.mission-claim-btn');
       btn.addEventListener('click', () => {
         if (DailyMissions.isLive()) { _claimLiveMission(idx, btn); return; }
-        const reward = DailyMissions.claim(idx);
-        if (!reward) return;
-        _afterMissionClaim(reward);
+        _claimBrowserMission(idx, btn);
       });
     }
 
@@ -1622,6 +1620,24 @@ function renderDailyMissions() {
     note.textContent = t('ui.mission_live_test');
     list.appendChild(note);
   }
+}
+
+/**
+ * Réclamation des missions du navigateur (mode OFF). Compte connecté : état serveur relu d'abord,
+ * une mission déjà payée par le serveur devient « Réclamé » sans crédit (#83).
+ */
+async function _claimBrowserMission(idx, btn) {
+  if (_account) {
+    if (btn) btn.disabled = true;
+    await _loadLiveMissions(true);
+    if (DailyMissions.isLive() || GameState.dailyMissions.missions[idx]?.claimed) {
+      _renderMissionsOnly(); updateDailyBadge(); Save.save();
+      return;
+    }
+  }
+  const reward = DailyMissions.claim(idx);
+  if (!reward) { _renderMissionsOnly(); return; }
+  _afterMissionClaim(reward);
 }
 
 function _afterMissionClaim(reward) {
@@ -1651,10 +1667,11 @@ async function _loadLiveMissions(force = false) {
     const { ok, data } = await _apiFetch('GET', '/api/me/missions');
     if (!ok) return;
     const was = DailyMissions.isLive();
-    DailyMissions.setLive(data);
-    if (was || DailyMissions.isLive()) {
+    const marked = DailyMissions.setLive(data);
+    if (was || DailyMissions.isLive() || marked) {
       if (isViewActive('daily')) { const l = document.getElementById('daily-missions-list'); if (l) _renderMissionsOnly(); }
       updateDailyBadge();
+      if (marked) Save.save();   // missions payées par le serveur : état « réclamé » sauvegardé (#83)
     }
   } catch (_) { /* réseau : on garde l'état connu */ }
   finally { _liveMissionsBusy = false; }
@@ -1695,6 +1712,7 @@ async function _claimLiveMission(idx, btn) {
   if (data.revision) _setCloudMeta(data.revision);
   m.claimed = true;
   m.reward = data.reward;
+  DailyMissions.markServerClaimed(m);   // mission du navigateur de même identifiant : payée (#83)
   if (data.replayed) { _renderMissionsOnly(); renderStats(); updateDailyBadge(); Save.save(); return; }
   _afterMissionClaim(data.reward);
 }
