@@ -2,6 +2,121 @@
 
 Lien : https://github.com/ReC82/Dig/issues/69
 
+## Session du 06/11/2026 — correction après recette : coûts en gemmes éditables (#69-A)
+
+### 1. Contexte et état réel
+
+Le 06/11, vous avez validé la consultation de la fiche Pioche (#69-A) et la simulation du Sac (#69-B). Vous avez demandé une correction : la colonne « Gemmes » (Auto-Dig) était en lecture seule. Vous attendez une gestion réelle des coûts en gemmes, en coordination avec #49.
+
+**État : Déployé en production (`ba083e0`, 06/11 10:50) — en attente de recette.** La release a passé 822/822. Aucune migration : aucune table ni colonne ajoutée.**
+
+Classement : **Après lancement**. Le barème reste strictement identique : 0 / 0 / 4 / 8 / 18 / 35 gemmes. Le jeu ne change pas pour les joueurs tant qu'aucune version n'est publiée.
+
+### 2. Audit (améliorations payées en gemmes)
+
+- **Auto-Dig** est la seule amélioration payée en gemmes : niveaux 3 à 6 = 4 / 8 / 18 / 35 💎. Les niveaux 1 et 2 se paient en pièces (800 et 3 000).
+- **Jeu** : depuis le 04/11, il appliquait déjà les gemmes du barème publié (`Upgrades.applyCatalog`). L'achat restait toutefois décidé par le navigateur seul, avec le barème gardé en cache (relu chaque minute).
+- **Registre de gemmes serveur (#49)** : il débitait la montée de niveau de l'Auto-Dig avec une table codée en dur (`AUTODIG_GEM_COST`). C'était la cause du verrou. Le registre est en mode `off` en production (aucun compte). Il ne débite donc rien aujourd'hui, mais il doit lire les mêmes prix le jour où il sera activé.
+- **Règles économiques (#49, Admin → Économie)** : leurs « coûts Auto-Dig » ne servent que de référence de simulation. Le jeu ne les lit pas. Ce n'était donc pas une seconde vérité appliquée.
+- **Anti-triche** : l'anti-bot (#25) dépend du nombre de niveaux (6 + 14 = 20 dégâts/s), pas du prix. Le nombre de niveaux reste donc verrouillé, et seul le prix devient éditable.
+- **Achats en cours** : un joueur dont le barème est en cache pouvait acheter à l'ancien prix pendant au plus une minute après une publication.
+
+### 3. Changements réalisés
+
+- **Admin → ⬆ Améliorations → fiche Auto-Dig** :
+  - colonne « Gemmes » **éditable par niveau** ;
+  - bornes : entier de 0 à 1 000 ; un niveau ne peut pas être gratuit (0 pièce et 0 gemme refusé) ;
+  - avertissement si un prix en gemmes baisse d'un niveau au suivant ;
+  - simulation « Gemmes jusqu'au maximum » avant/après en % (exemple : 65 → 67, +3,1 %), comparaison champ par champ, puis le circuit existant : brouillon, publication avec note, retour arrière, journal ;
+  - la fiche indique le verrou restant (nombre de niveaux, anti-bot #25) et la règle des gemmes.
+- **Source unique** (`server/upgradeCatalog.js`) :
+  - `autodigGemCosts()` renvoie les prix de la **version publiée, immuable** ;
+  - le jeu (`GET /api/upgrades/catalog`) et le registre de gemmes (`server/gemLedger.js`, débit Auto-Dig) lisent ce même barème ;
+  - le numéro de version est noté dans chaque débit du journal ;
+  - `AUTODIG_GEM_COST` ne sert plus que de repli si le barème est illisible.
+- **Achat au prix périmé refusé** :
+  - nouvelle route publique `POST /api/upgrades/purchase-check` (limitée comme la boutique) ;
+  - avant de débiter quoi que ce soit, le jeu envoie le prix qu'il affiche ;
+  - même prix que la version publiée → achat ;
+  - prix périmé → 409 + barème à jour : le jeu l'applique et le mémorise, l'achat est refusé et un message s'affiche : « Prix mis à jour : ce niveau coûte maintenant 6 💎. Vérifiez puis réessayez. » ;
+  - achats suspendus → refus ;
+  - sans réseau : un niveau payé en gemmes est refusé (« Connexion nécessaire… ») ; un niveau payé en pièces (1 et 2) s'achète comme avant ;
+  - textes en FR/EN/NL/ES et en italien (outil i18n).
+- **Admin → Économie** : la colonne « jeu actuel » des règles lit désormais les prix appliqués (barème des améliorations). Le groupe Auto-Dig est libellé « simulation ; prix appliqués au jeu : ⬆ Améliorations ».
+
+### 4. SHA, branche, procédure de test
+
+- Branche `feature/69-ameliorations-admin` (`f3d1ba1`), intégrée dans **`develop` `ba083e0`**.
+- `node --test test/upgrade-catalog.test.js` (8 tests, dont 2 nouveaux) :
+  - **recette sur base isolée** :
+    - niveau 3 de l'Auto-Dig passé de 4 à 6 💎 dans le brouillon → le jeu, le contrôle d'achat et le registre restent à 4 ;
+    - publication → jeu et registre en version N au prix de 6 ;
+    - un client périmé à 4 est refusé (409 + barème) ; à 6, il est accepté ;
+    - **débit serveur exact de 6** (version notée), et une révision rejouée n'est jamais débitée deux fois ;
+    - retour arrière → 4 partout, niveau 4 débité 8 ;
+    - achats suspendus refusés ;
+  - **client** : confirmation avant débit, aucun débit sur un refus, barème à jour appliqué et mémorisé, nouvel essai au bon prix, règles hors ligne ;
+  - validation : bornes, longueur, niveau gratuit, avertissement de baisse, 7e niveau refusé ;
+  - route HTTP publique : 200, 409 et 400.
+
+### 5. Vérifications effectuées
+
+- `npm test` :
+  - branche : 822/822 ;
+  - `develop` `ba083e0` : 822/822 ;
+  - release : **822/822**.
+- Chromium (PC 1280×900 et mobile 390×844), serveur de test 3101 avec une base de test (supprimée ensuite) :
+  - fiche Auto-Dig : 6 champs gemmes (0/0/4/8/18/35) ; niveau 3 → 6 ; simulation « 65 → 67 (+3,1 %) » ; comparaison « 0 / 0 / 4 / 8 / 18 / 35 → 0 / 0 / 6 / 8 / 18 / 35 » ;
+  - brouillon enregistré, catalogue public toujours à 4 ;
+  - jeu ouvert avec l'ancien barème, puis publication sur la base de test, puis clic sur l'Auto-Dig : **refus**, message « Prix mis à jour : ce niveau coûte maintenant 6 💎 », gemmes 100 inchangées, niveau 2 inchangé ;
+  - nouveau clic : achat à 6 (100 → 94, niveau 3) ;
+  - retour arrière : 4 partout ;
+  - aucune erreur JavaScript.
+- **Impact sur les données des joueurs : aucun.** Aucune table ni colonne ajoutée. Aucun prix, solde ou sauvegarde modifié. Le registre de gemmes reste en mode `off` en production.
+
+### 6. Déploiement
+
+- **SHA déployé : `ba083e0`** (précédent : `5756328`), le 06/11 à 10:50 (Bruxelles), avec `scripts/deploy.sh` de la release.
+- J'ai attendu 10 minutes sans activité admin avant de redémarrer. Vous génériez des pictogrammes dans l'atelier (dernière application à 10:39) : un redémarrage pendant une génération l'aurait interrompue.
+- Copie de la base de production (release, `NODE_ENV=production`, port 3122) :
+  - `/health` ok, version `1.0.0+ba083e0` ;
+  - catalogue v1, gemmes 0/0/4/8/18/35 ;
+  - `purchase-check` niveau 3 à 4 💎 → ok ;
+  - empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` **identiques**, liste des tables identique ; copie supprimée.
+- Sauvegarde vérifiée avant déploiement : `~/backups/dig/dig-20261106-105002-pre-deploy-ba083e0.sqlite`.
+- Après déploiement :
+  - les 2 domaines → 200 et `1.0.0+ba083e0` ;
+  - `journalctl` sans erreur ; `quick_check` = ok ;
+  - empreintes des 6 tables joueurs **identiques** à celles d'avant le déploiement ;
+  - catalogue toujours en version 1 (gemmes inchangées), brouillon vide, registre de gemmes `off` ;
+  - Chromium (PC et 390 px) sur la production : jeu chargé, Auto-Dig 0/0/4/8/18/35, aucune erreur JavaScript.
+- Constat sans action : en production, **Fragments** et **Reroll bloc** sont masqués (achats bloqués) depuis le 05/11 à 11:41 et 11:42, par votre session admin, avec les motifs « Les fragments doivent être récoltable par click et coffre uniquement » et « Ne sert pas a grand chose... ». Je n'y ai pas touché.
+- Retour arrière immédiat possible : `git -C /home/ubuntu/Dig reset --keep 5756328` puis `sudo systemctl restart dig`. Aucune dépendance ni aucun schéma n'a changé.
+
+**Test fonctionnel à faire par le propriétaire** (3 min, **sans publier**) :
+1. /admin/ (Ctrl+F5) → **⬆ Améliorations** → cliquer **Auto-Dig**. La colonne « Gemmes » contient 6 champs modifiables : 0 / 0 / 4 / 8 / 18 / 35.
+2. Mettre le niveau 3 à `6`. La simulation affiche « Gemmes jusqu'au maximum 65 → 67 (+3,1 %) » et la comparaison affiche la nouvelle liste. Essayer `-1` ou `2000` puis « Enregistrer dans le brouillon » : refus avec la borne. Essayer `0` gemme sur le niveau 3 (0 pièce) : refus « niveau gratuit ».
+3. **Fermer → « Quitter sans enregistrer »**, ou enregistrer puis « Abandonner le brouillon ». Rien n'est publié.
+4. Dans le jeu, l'Auto-Dig coûte toujours 4 / 8 / 18 / 35 💎. Pour un joueur qui l'achète, rien ne change (une confirmation serveur invisible a lieu avant le débit).
+5. Reste aussi le test #69-C (boîte de suspension d'urgence, **Annuler** sans rien appliquer), décrit au § 6 de la session du 04/11.
+
+### 7. Choix techniques faits seul
+
+- **Pas de nouvelle table** : les prix en gemmes vivent dans les versions existantes du barème des améliorations, déjà immuables et en ajout seul. Le registre les lit au lieu de sa table codée en dur. Il n'y a donc qu'une seule source.
+- **Contrôle avant achat plutôt que débit serveur direct** : la progression reste enregistrée par le client (sauvegarde cloud), et le registre débite à la sauvegarde. Un débit dans la route de contrôle, suivi d'une sauvegarde arrivée dans le désordre, aurait pu débiter deux fois. La route ne débite rien. Le débit unique reste celui du registre, au prix de la version publiée, avec rejeu sans double débit.
+- **Refus hors ligne limité aux niveaux en gemmes** : aucun changement pour les achats en pièces hors ligne.
+- Le nombre de niveaux de l'Auto-Dig reste verrouillé (#25). Les règles économiques (#49) restent un outil de simulation, inchangé.
+- Fenêtre résiduelle connue : si une publication tombe entre le contrôle (accepté) et la sauvegarde suivante (quelques secondes), le registre débite le nouveau prix. En mode « fait foi », le solde de référence l'emporte : aucun achat ne peut être sous-payé ; seul un écart d'affichage côté client est possible, et il est noté. Un client modifié peut sauter le contrôle. Le registre débite quand même le prix publié et note une anomalie si le solde ne suffit pas (périmètre #25/#49).
+
+### 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire. Changer un prix reste votre décision : brouillon → « Publier… » avec note. Rien n'est publié.
+
+### 9. Reste à réaliser
+
+- Recette #69-A (gemmes) et #69-C (suspension d'urgence, sans rien suspendre).
+- Après lancement (#49) : activer le registre en `observe` puis `enforce` (décision séparée), pour que le débit serveur fasse foi.
+
 ## Session du 04/11/2026 (soir)
 
 ### 1. État réel
