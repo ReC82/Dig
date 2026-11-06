@@ -1569,3 +1569,10 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .mq-insp-details { margin-top: 6px; }
 .mq-insp-details summary { cursor: pointer; color: var(--muted); }
 .mq-insp-details ul { margin: 4px 0 0 18px; color: var(--muted); }
+
+/* Simulation des améliorations (#69-D) : résumé « ce qui change » avant le détail */
+.up-sim-summary { background: var(--bg); border-left: 3px solid var(--gold); border-radius: 4px; padding: 6px 10px; margin: 0 0 8px; font-size: 0.8rem; }
+.up-sim-summary.up-sim-same { border-left-color: var(--border); }
+.up-sim-summary-title { margin: 0 0 2px; }
+.up-sim-summary ul { margin: 0; padding-left: 18px; }
+#up-dialog .bk-field .bk-hint:not([hidden]), #up-dialog details.bk-acc > .bk-hint:not([hidden]) { display: block; margin: 4px 0; }
