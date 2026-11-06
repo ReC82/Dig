@@ -692,3 +692,164 @@ défaut ; éligibilité aux récompenses via #19 ; adresse de contestation ; lot
 - Proposition (non implémentée, hors demande) : un bouton « Exporter la fiche (JSON) » dans la fiche, si
   un export est souhaité — la donnée complète est déjà disponible via la route admin.
 - **#74 (P0, Bloquant MVP)** et **#75** : inchangés (voir session 4).
+
+---
+
+# Session du 06/11/2026 (soir) — Lot C : défis serveur et suspensions progressives du minage manuel
+
+## 1. Ticket
+
+#25 — [P0] Protection anti-bot globale — détection, validation serveur et réponses effectives —
+https://github.com/ReC82/Dig/issues/25. Demandes du propriétaire du 06/11 (commentaires 6690606604 :
+recette avec de vrais autoclickers Windows/Android ; 6690668718 : autoclickers à cadence aléatoire,
+CAPTCHA, suspensions progressives, Observation par défaut).
+
+## 2. État réel
+
+**Déployé en production (SHA `3a87ffd`) — en attente de recette.** Mode global **Observation** :
+aucun joueur ne voit de défi, rien n'est retiré. Appliqué uniquement sur décision du propriétaire
+(ou sur un compte d'essai choisi dans la fiche).
+
+## 3. Résultat et changements
+
+**Ce qui bloque réellement la triche (côté serveur, en Appliqué)** : dès qu'un défi est imposé, les
+clics manuels de chaque sauvegarde sont consommés sans crédit — ni profondeur manuelle, ni blocs
+manuels validés (le classement #73), ni tirages serveur qui en dépendent. Peu importe que le défi
+soit ensuite résolu par un script : seuls les clics postérieurs à la résolution comptent, et les
+mesures repartent de zéro (un automate qui tourne la nuit doit être « débloqué » par un humain
+environ chaque heure).
+
+- `server/antibotResponses.js` (nouveau) : mesures d'activité manuelle (série sans pause, temps actif
+  6 h / 24 h), décision de défi, énigme maison (usage unique, 5 min, réponse < 1,2 s refusée,
+  15 énigmes / 10 min), violation confirmée, paliers de suspension, décroissance, vues admin.
+- `server/seasons.js` : avant la validation de chaque sauvegarde, gel du crédit manuel si défi /
+  suspension (Appliqué) ; après, décision éventuelle d'un défi. `nowMs` injectable (tests accélérés).
+- `server/antibot.js` : catégories `activity` (+10, plafond 20) et `pattern` (+5, plafond 10) ;
+  allègement du score (hors preuves) quand un défi est résolu ; famille de journal « Réponses ».
+- `server/index.js` : `GET /api/me/antibot`, `POST /api/me/antibot/{seen,puzzle,answer}` ; admin
+  `GET /api/admin/security/responses`, essai par compte, défi d'essai, annuler, lever, palier ; état
+  joint à la réponse de sauvegarde (null en Observation).
+- `server/db.js` : tables ajoutées seules `antibot_activity`, `antibot_challenges`,
+  `antibot_suspensions` ; réglages par défaut (`antibot_response_mode = observe`, seuils, paliers).
+- Jeu : `public/js/antibotGate.js` (nouveau) — fenêtre « Petite vérification » non destructive
+  (fermable, rouverte en touchant le bloc, version accessible texte, messages sans sanction), fenêtre
+  « Minage manuel en pause » avec la fin à l'heure de Bruxelles ; `main.js` bloque les coups manuels
+  pendant l'état (l'Auto-Dig continue) ; textes FR/EN/NL/ES + pilote italien.
+- Admin → 🛡 Anti-bot : carte **Réponses** (Désactivé / Observation / Appliqué, compteurs 7 j,
+  défis récents, suspensions, Annuler / Lever), **Protocole de recette** repliable, section
+  « Défi et suspension » dans la fiche joueur (état distinct : normal / défi imposé — minage refusé
+  au classement / sanction ; mesures vs seuils ; « Essai Appliqué sur ce compte », « Émettre un défi
+  d'essai », « Remettre le palier à 0 »). Config → Protections : tous les seuils et paliers.
+- Doc : `docs/ANTI-BOT.md` § 12.
+
+**Matrice des scénarios** (simulations `test/antibot-lot-c.test.js`, sauvegarde toutes les 12 s,
+blocs aux PV réalistes, horloge accélérée ; valeurs par défaut) :
+
+| Scénario | Observation (défaut) | Appliqué |
+|---|---|---|
+| Humain 2, 5, 8 clics/s avec pauses, mobile + rafales 15/s (2 h) | aucun défi | aucun défi, ≥ 90 % classé |
+| Auto-Dig seul 10 h | aucun défi | aucun défi |
+| Autoclicker 8/s régulier, 8 h | 7 à 9 défis simulés, rien retiré | défi à ≈ 1 h, plus rien de classé ensuite |
+| 12/s bruité ±40 %, 20/s, 5/s avec pauses 2 min | défis simulés | défi à ≈ 1 h, classement figé |
+| 8/s avec pauses de 4 min (série coupée) | défi simulé ≈ 4 h | défi par « temps actif 6 h » entre 3,5 et 5 h |
+| Défi résolu par un humain à chaque fois (10/s, 6 h) | — | 5 à 7 défis, aucune suspension |
+| Client modifié qui continue à cliquer pendant le défi | — | suspensions 5 → 15 → 30 → 60 min…, aucun crédit |
+| Mauvaise réponse, trop rapide, expirée, rejouée, force brute | — | nouvelle énigme, aucune sanction, plafond 15/10 min |
+
+**Ce qu'un clicker obtient aujourd'hui** : jeu officiel plafonné à 12 coups/s (#74), profondeur
+classée bornée par les dégâts possibles (#25-B), blocs classés réduits au-delà de 8 clics/s (#10).
+En **Observation**, un autoclicker à ≤ 8 clics/s toute la nuit reste donc crédité (signalé et
+journalisé seulement) ; en **Appliqué**, il cesse d'être crédité après ≈ 1 h (≈ 4 h s'il fait des
+pauses de 3–4 min), jusqu'à ce qu'un humain résolve le défi.
+
+## 4. SHA et procédure de test
+
+Branche `feature/25-anti-bot-lots-ab` (`24f9672`), `develop` = `3a87ffd`.
+- `npm test` : 857/857 (branche, `develop` et release `3a87ffd`).
+- `node --test test/antibot-lot-c.test.js` : 16 tests (simulations ci-dessus, énigme, modes, admin).
+- Essai navigateur (serveur de test port 3101, base neuve) :
+  `PW=… CHROME=… BASE=http://127.0.0.1:3101 ADMIN=… node test/e2e/antibot-challenge.e2e.js` —
+  1280×900 et 390×844 : défi au chargement (F5), coup non compté, fermeture / réouverture, mauvaise
+  réponse sans sanction, version accessible, grille, minage repris, aucune erreur JS. `admin-antibot-sheet.e2e.js`
+  (#76) repassé : vue essentielle toujours lisible sans défiler.
+
+## 5. Vérifications, limites, impact données
+
+- Données joueurs : aucune modifiée. Migration = 3 tables + 9 réglages ajoutés ; testée sur copie de
+  la production (empreintes des 6 tables identiques avant / après démarrage). En Observation, la seule
+  différence pour les joueurs est la réponse de sauvegarde (`antibot: null`) et deux indices de risque
+  supplémentaires (journal seulement).
+- **Limites (risques résiduels)** : l'énigme maison arrête les autoclickers (clics à un endroit fixe)
+  mais un script écrit pour le jeu peut la lire ; un CAPTCHA tiers (Turnstile) se brancherait sur la
+  même interface (clés à fournir). Pièces et achats restent déclarés par le navigateur (#74). Jusqu'à
+  ≈ 12 s de clics entre la dernière sauvegarde gelée et la résolution peuvent être crédités. Activité
+  hors focus non mesurée (le propriétaire a exclu d'en faire un motif seul). Charge : 4 à 6 requêtes
+  SQLite de plus par sauvegarde.
+- Non vérifié : vrais autoclickers Windows/Android (recette du propriétaire).
+
+## 6. Déploiement
+
+- Contrôle préalable : aucune génération IA depuis 11:52 UTC, aucune action admin depuis 13:53 UTC.
+- `main` avancé `0325c3a` → `3a87ffd` ; `scripts/deploy.sh` de la release : sauvegarde vérifiée
+  `~/backups/dig/dig-20261106-195610-pre-deploy-3a87ffd.sqlite`, « OK : 3a87ffd en service ».
+- Après : dig.lodygames.com et dig.lodylands.com → 200 et `1.0.0+3a87ffd`, journal sans erreur,
+  `quick_check` ok, empreintes des 6 tables identiques à la sauvegarde, mode `observe`,
+  routes admin → 401 sans session, `antibotGate.js` servi.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 0325c3a` + redémarrage (tables ajoutées
+  ignorées par l'ancien code) ; ou, sans redéploiement, mode **Désactivé** dans Admin → Anti-bot.
+
+**Test fonctionnel à faire par le propriétaire** (≈ 20 min, détail dans Admin → Anti-bot →
+« Protocole de recette ») :
+1. Admin (F5) → Anti-bot → Fiche de votre compte de test → « Essai Appliqué sur ce compte » puis
+   « Émettre un défi d'essai ».
+2. Dans le jeu (PC puis Android, F5) : « Petite vérification » s'affiche ; toucher le bloc ne fait
+   rien ; « Fermer » puis toucher le bloc la rouvre ; une mauvaise réponse donne une nouvelle énigme ;
+   « Version accessible » ; résoudre → le minage reprend. Admin : défi « résolu ».
+3. Autoclicker 8–12 clics/s : pour un essai court, Config → Protections → « Défi : minage manuel
+   continu sans pause » = 10, lancer 12 min. Attendu : défi ; fiche « Défi imposé — minage refusé au
+   classement » ; blocs manuels validés figés ; autoclicker sur la fenêtre → aucun clic compté.
+4. Humain rapide 5–8 clics/s avec pauses, 10–15 min : aucun défi.
+5. Remise en état : seuil à 60, « Arrêter l'essai Appliqué », palier à 0.
+
+Classement : **Bloquant MVP public** pour la décision Appliqué/Observation (sans Appliqué, un
+autoclicker modéré reste crédité au classement, mais signalé) ; aucune incidence sur les invitations
+bêta du 09/11 en Observation.
+
+**Verdict pour lundi 09/11 : GO pour les invitations**, Observation maintenue (aucun risque de faux
+positif pour les collègues) ; passage en Appliqué après votre recette autoclicker, ou dès lundi si
+vous voulez que le classement de la bêta soit protégé (les seuils n'affectent pas une partie humaine
+normale dans les simulations).
+
+## 7. Choix techniques faits seul
+
+- **Défi maison** plutôt que CAPTCHA tiers : aucune clé ni dépense, aucune donnée envoyée à un tiers,
+  fonctionne hors fournisseur ; il cible les autoclickers (clics à position fixe). Interface prête
+  pour Turnstile.
+- **Temps actif = min(durée, clics ÷ 2)** : estimation serveur sans horodatage par clic (pas de
+  profilage biométrique) ; un humain qui clique 5 s sur 12 compte 5 s.
+- **Violation = clics après le relevé d'affichage** (le jeu bloque les coups pendant le défi) : un
+  ancien onglet sans le nouveau code ne peut jamais être suspendu, seulement retenu.
+- Le défi n'expire pas (seules les énigmes expirent) : attendre ne débloque pas un automate ; une
+  expiration n'est jamais une sanction.
+- Défis simulés résolus d'office en Observation : la fréquence mesurée = celle que vivrait un joueur.
+- Section de la fiche placée sous les 4 cartes pour garder la vue essentielle lisible sans défiler (#76).
+
+## 8. Décisions demandées au propriétaire
+
+1. **Passage en Appliqué** (global) : (a) après votre recette autoclicker, (b) dès la bêta du 09/11,
+   (c) après une semaine d'Observation (relevé des défis simulés = faux positifs potentiels).
+   Recommandation : (a), au plus tard (c).
+2. **Seuils** : 60 min de minage continu, 180 min actives sur 6 h, 360 min sur 24 h, score 60 ;
+   violation = 30 clics pendant un défi affiché ; paliers 5 min → 24 h. Recommandation : garder.
+3. **CAPTCHA tiers** (Cloudflare Turnstile, gratuit) en plus du défi maison si des scripts dédiés
+   apparaissent : nécessite que vous créiez les clés. Recommandation : pas avant le lancement.
+4. (Toujours ouvertes, optionnelles) éligibilité aux récompenses via #19 ; adresse de contestation
+   (aujourd'hui : « via Aide ») ; lot D après le lancement.
+
+## 9. Éléments restant à réaliser
+
+- Recette du propriétaire (autoclickers réels Windows / Android) puis décision Appliqué.
+- **#74 (P0, Bloquant MVP)** : gains / achats (pièces) toujours déclarés par le navigateur.
+- **#77** : `exact_hp_mode` reste en shadow (décision séparée, non modifiée).
+- Proposé, non réalisé : branchement Turnstile ; indicateur discret « vérification en attente » dans
+  l'en-tête quand la fenêtre est fermée.
