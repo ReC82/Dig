@@ -12350,19 +12350,30 @@ async function loadMissionAudit() {
 
 // ── Fiche ──
 
-function mqSetLang(l) {
-  for (const b of document.querySelectorAll('#mq-langs .co-lang-btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === l));
-  for (const f of document.querySelectorAll('#mq-dialog .nw-lang-fields')) f.classList.toggle('hidden', f.dataset.lang !== l);
-}
+/** Résumé des traductions dans l'en-tête replié : ● nom + texte, ◐ nom seul, ○ vide. */
 function mqLangStates() {
-  for (const b of document.querySelectorAll('#mq-langs .co-lang-btn')) {
-    const l = b.dataset.lang;
-    const n = document.getElementById(`mq-${l}-name`).value.trim(), d = document.getElementById(`mq-${l}-desc`).value.trim();
-    const st = n && d ? 'full' : n ? 'name' : 'none';
-    b.className = `co-lang-btn co-lang--${st}`;
-    b.textContent = `${{ full: '●', name: '◐', none: '○' }[st]} ${l.toUpperCase()}`;
+  const parts = [];
+  for (const l of MQ_LANGS.filter(x => x !== 'fr')) {
+    const n = document.getElementById(`mq-${l}-name`)?.value.trim(), d = document.getElementById(`mq-${l}-desc`)?.value.trim();
+    parts.push(`${n && d ? '●' : n ? '◐' : '○'} ${l.toUpperCase()}`);
   }
+  document.getElementById('mq-acc-langs-sum').textContent = `${parts.join(' · ')} — ● complet, ◐ nom seul, ○ vide`;
 }
+/** Raison d'écart en français courant (la raison technique reste visible dans le détail). */
+function mqReasonText(reason) {
+  const r = String(reason ?? '');
+  let m;
+  if (/aucun bloc « gemme »/.test(r)) return 'gemmes inaccessibles (aucun bloc gemme à cette profondeur)';
+  if (/aucun bloc « coffre »/.test(r)) return 'aucun coffre à miner à cette profondeur';
+  if ((m = r.match(/aucun bloc « (.+?) »/))) return `aucun bloc « ${m[1]} » à cette profondeur`;
+  if ((m = r.match(/profondeur < (\d+) m/))) return `trop peu profond (à partir de ${m[1]} m)`;
+  if (/améliorations sont au maximum/.test(r)) return 'toutes les améliorations sont déjà achetées';
+  if (/atteignable en une journée/.test(r)) return 'objectif trop élevé pour une journée de jeu';
+  if (r === 'archivée') return 'mission archivée';
+  return r || 'non tirable';
+}
+const mqNum = n => Number(n ?? 0).toLocaleString('fr-BE', { maximumFractionDigits: 1 });
+const mqGain = (coins, gems) => `${mqNum(coins)} 💰${gems ? ` + ${gems} 💎` : ''}`;
 
 function mqBandRow(b = { fromDepth: '', targets: [] }) {
   const tr = document.getElementById('mq-bands-body').insertRow();
@@ -12432,6 +12443,15 @@ function mqRefresh() {
     }
   }
   document.getElementById('mq-compare').classList.toggle('hidden', !ul.children.length);
+  // Essentiel et résumés des sections repliées (lecture seule, recalculés à chaque saisie)
+  const goal = m.bands.length ? mqBandsText(m.bands) : 'aucune tranche';
+  document.getElementById('mq-ov-goal').textContent = goal;
+  document.getElementById('mq-acc-goals-sum').textContent = goal;
+  document.getElementById('mq-ov-reward').textContent = mqRewardText(m.reward);
+  document.getElementById('mq-acc-reward-sum').textContent = mqRewardText(m.reward);
+  document.getElementById('mq-acc-visual-sum').textContent = m.image ? 'image de l\'atelier' : `emoji ${m.icon || '🎯'} (pas d'image)`;
+  document.getElementById('mq-acc-adv-sum').textContent = [m.id || 'identifiant à choisir', t?.label ?? m.type, _mq?.categories?.[m.category] ?? m.category,
+    `poids ${m.weight}`, m.minAccountDays || m.maxAccountDays != null ? `compte de ${m.minAccountDays} à ${m.maxAccountDays ?? '∞'} j` : 'tous les comptes'].join(' · ');
   mqLangStates();
   mqArt();
   clearTimeout(_mqPrevTimer);
@@ -12446,18 +12466,33 @@ async function mqPreview() {
   const { ok, data } = await api('POST', '/api/admin/missions/preview', { mission: { ...m, id: m.id || 'apercu', names: { ...m.names, fr: m.names.fr || 'Aperçu' } } });
   if (seq !== _mqPrevSeq) return;   // une saisie plus récente a relancé l'aperçu
   body.textContent = '';
-  if (!ok) { note.textContent = `Aperçu indisponible : ${data.error ?? 'erreur'}`; return; }
+  const sum = document.getElementById('mq-acc-preview-sum');
+  if (!ok) { note.textContent = `Aperçu indisponible : ${data.error ?? 'erreur'}`; sum.textContent = ''; return; }
   note.textContent = data.rotationIsProposal
     ? 'La rotation en vigueur est celle d\'origine (sans adaptation) : l\'aperçu applique les règles de la proposition adaptative (journée de référence de '
       + `${data.rotationUsed.dayBlocks} blocs) pour montrer ce que verrait chaque joueur après activation.`
     : `Rotation adaptative du brouillon (journée de référence de ${data.rotationUsed.dayBlocks} blocs).`;
+  // Une ligne lisible par profil (« 20 m : indisponible — … », « 100 m : disponible — objectifs 1 / 2 / 3 »), détail replié.
   for (const r of data.rows) {
-    const tr = body.insertRow();
-    addCell(tr, `${r.profile.label} — ${r.profile.depth} m, compte de ${r.profile.accountDays} j`);
-    addCell(tr, r.ok ? `oui (tranche dès ${r.bandFrom} m${r.cap != null ? `, plafond ${r.cap}` : ''})` : `non — ${r.reason}`);
-    const cell = addCell(tr, r.rewards.length ? '' : '—');
-    for (const x of r.rewards) cell.appendChild(aiEl('div', {}, `« ${x.text} » → ${x.coins} 💰${x.gems ? ` + ${x.gems} 💎` : ''}`));
+    const row = aiEl('details', { class: `mq-pv ${r.ok ? 'mq-pv--ok' : 'mq-pv--no'}` });
+    const s = aiEl('summary');
+    s.appendChild(aiEl('span', { class: 'mq-pv-who' }, `${r.profile.depth} m`));
+    s.appendChild(aiEl('span', { class: `mq-badge ${r.ok ? 'mq-badge--ok' : 'mq-badge--no'}` }, r.ok ? 'disponible' : 'indisponible'));
+    s.appendChild(aiEl('span', { class: 'mq-pv-what' }, r.ok ? `objectifs ${r.targets.join(' / ')}` : mqReasonText(r.reason)));
+    row.appendChild(s);
+    const d = aiEl('div', { class: 'mq-pv-detail' });
+    d.appendChild(aiEl('p', {}, `Profil ${r.profile.label} : ${r.profile.depth} m, compte de ${r.profile.accountDays} jour(s).`));
+    if (r.ok) {
+      const ul = aiEl('ul');
+      for (const x of r.rewards) ul.appendChild(aiEl('li', {}, `« ${x.text} » → ${mqGain(x.coins, x.gems)}`));
+      d.appendChild(ul);
+      d.appendChild(aiEl('p', { class: 'muted' }, `Tranche utilisée : dès ${r.bandFrom} m${r.cap != null ? ` · objectifs plafonnés à ${r.cap} (ce qu'une journée de référence permet)` : ''}.`));
+    } else d.appendChild(aiEl('p', { class: 'muted' }, `Raison technique : ${r.reason}.`));
+    row.appendChild(d);
+    body.appendChild(row);
   }
+  const n = data.rows.filter(r => r.ok).length;
+  sum.textContent = `disponible pour ${n} profil${n > 1 ? 's' : ''} sur ${data.rows.length}`;
 }
 
 function mqOpen(mission, opener, isNew = false) {
@@ -12484,6 +12519,9 @@ function mqOpen(mission, opener, isNew = false) {
   document.getElementById('mq-gems-from').value = m.reward?.gemsFromTarget ?? 1;
   document.getElementById('mq-bands-body').textContent = '';
   document.getElementById('mq-preview-body').textContent = '';   // pas d'aperçu d'une fiche précédente
+  document.getElementById('mq-acc-preview-sum').textContent = '';
+  // Sections : aperçu ouvert, le reste replié ; une nouvelle mission ouvre ce qu'il faut remplir (identifiant, type, objectifs)
+  for (const d of document.querySelectorAll('#mq-dialog details.bk-acc')) d.open = d.id === 'mq-acc-preview' || (isNew && ['mq-acc-adv', 'mq-acc-goals'].includes(d.id));
   for (const b of m.bands ?? []) mqBandRow(b);
   const pub = mqPublished(m.id);
   const changed = !!pub && !isNew && (_mq.draft?.changes ?? []).some(c => c.id === m.id);
@@ -12499,7 +12537,6 @@ function mqOpen(mission, opener, isNew = false) {
   document.getElementById('btn-mq-remove').classList.toggle('hidden', !draftOnly);
   document.getElementById('btn-mq-duplicate').classList.toggle('hidden', isNew);
   for (const h of document.querySelectorAll('#mq-dialog .bk-hint')) h.hidden = true;
-  mqSetLang('fr');
   mqRefresh();
   _mqSnap = JSON.stringify(mqRead());
   admDialogOpen('mq-dialog', opener, isNew ? 'mq-fr-name' : null);
@@ -12512,6 +12549,8 @@ function mqIssues(data, id = 'mq-issues') {
   ul.textContent = '';
   for (const e of [data.error, ...(data.details ?? [])].filter(Boolean)) ul.appendChild(aiEl('li', {}, e));
   ul.classList.toggle('hidden', !ul.children.length);
+  // Erreur sur la fiche : ouvrir les sections repliées pour que le champ en cause soit visible (saisies conservées)
+  if (id === 'mq-issues' && ul.children.length) for (const d of document.querySelectorAll('#mq-dialog details.bk-acc')) d.open = true;
   ul.scrollIntoView?.({ block: 'nearest' });
 }
 
@@ -12542,7 +12581,6 @@ document.getElementById('btn-mq-duplicate').addEventListener('click', async () =
   dlg.close();
   mqOpen({ ...src, id, image: null, names: { ...src.names, fr: `${src.names.fr} (copie)`.slice(0, 40) } }, document.getElementById('btn-mq-add'), true);
 });
-document.getElementById('mq-langs').addEventListener('click', e => { const b = e.target.closest('.co-lang-btn'); if (b) mqSetLang(b.dataset.lang); });
 document.getElementById('mq-dialog').addEventListener('input', mqRefresh);
 document.getElementById('mq-type').addEventListener('change', () => {
   const t = mqType(document.getElementById('mq-type').value);
@@ -12669,6 +12707,87 @@ async function mqRollback(version) {
 
 // ── Simulateur ──
 
+// Recette #68-B (06/11) : synthèse par profil d'abord, journées repliables, bonus hypothétique séparé, détails techniques repliés.
+// Présentation seule : la réponse du serveur (calculs de rotation, objectifs, barèmes) n'est pas modifiée.
+const mqDay = iso => new Date(`${iso}T12:00:00Z`).toLocaleDateString('fr-BE', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+function mqSimCard(value, label, warn = false) {
+  const c = aiEl('div', { class: `mq-sim-card${warn ? ' mq-sim-card--warn' : ''}` });
+  c.appendChild(aiEl('strong', {}, value));
+  c.appendChild(aiEl('span', {}, label));
+  return c;
+}
+function mqSimProfile(p, data, nameOf) {
+  const s = p.stats, sb = s.setBonus, days = p.plan.length;
+  const box = aiEl('section', { class: 'mq-sim-profile', 'aria-label': `Profil ${p.profile.label}` });
+  box.appendChild(aiEl('h4', {}, `${p.profile.label} — ${p.profile.depth} m · ${mqNum(p.profile.blocksPerDay)} blocs/jour`));
+  const cards = aiEl('div', { class: 'mq-sim-cards' });
+  cards.appendChild(mqSimCard(`${s.distinctDays}/${days}`, 'journées différentes'));
+  cards.appendChild(mqSimCard(`${s.completed}/${s.assigned}`, 'missions atteignables', s.completed < s.assigned));
+  cards.appendChild(mqSimCard(String(s.repeatsFromYesterday), `répétition${s.repeatsFromYesterday > 1 ? 's' : ''} de la veille`));
+  cards.appendChild(mqSimCard(mqGain(s.coinsIfCompleted, s.gemsIfCompleted),
+    `récompenses des missions sur ${days} jour${days > 1 ? 's' : ''} (≈ ${mqGain(Math.round(s.coinsIfCompleted / days), Math.round(s.gemsIfCompleted / days * 10) / 10)} par jour)`));
+  box.appendChild(cards);
+
+  // Bonus trois missions : toujours à part, jamais additionné aux récompenses normales sans le dire
+  if (sb?.band) {
+    const bx = aiEl('div', { class: 'mq-sim-bonus' });
+    bx.appendChild(aiEl('span', { class: `mq-badge ${sb.enabled ? 'mq-badge--ok' : 'mq-badge--sim'}` }, sb.enabled ? 'Bonus activé dans cette source (le jeu ne l\'applique pas encore)' : 'Simulation uniquement — bonus désactivé'));
+    bx.appendChild(aiEl('p', {}, `🎁 Bonus trois missions${sb.enabled ? '' : ' (hypothèse : s\'il était activé)'} : ${sb.daysAllDone}/${days} journée${days > 1 ? 's' : ''} complète${sb.daysAllDone > 1 ? 's' : ''} → ${mqGain(sb.coins, sb.gems)} en plus.`));
+    bx.appendChild(aiEl('p', { class: 'muted' }, `Sans bonus : ${mqGain(s.coinsIfCompleted, s.gemsIfCompleted)} · avec bonus : ${mqGain(s.coinsIfCompleted + sb.coins, s.gemsIfCompleted + sb.gems)} (sur ${days} jour${days > 1 ? 's' : ''}).`));
+    box.appendChild(bx);
+  }
+
+  for (const [i, d] of p.plan.entries()) {
+    const ok = d.missions.filter(m => m.done).length;
+    const coins = d.missions.filter(m => m.done).reduce((t, m) => t + m.reward.coins, 0), gems = d.missions.filter(m => m.done).reduce((t, m) => t + m.reward.gems, 0);
+    const day = aiEl('details', { class: 'mq-sim-day' });
+    day.open = days <= 3 || i === 0;
+    const sum = aiEl('summary');
+    sum.appendChild(aiEl('span', { class: 'mq-sim-day-date' }, mqDay(d.date)));
+    sum.appendChild(aiEl('span', { class: `mq-badge ${ok === d.missions.length ? 'mq-badge--ok' : 'mq-badge--no'}` }, `${ok}/${d.missions.length} atteignables`));
+    sum.appendChild(aiEl('span', { class: 'mq-sim-day-gain' }, mqGain(coins, gems)));
+    day.appendChild(sum);
+    const ul = aiEl('ul', { class: 'mq-sim-missions' });
+    for (const m of d.missions) {
+      const li = aiEl('li', { class: m.done ? '' : 'mq-sim-miss' });
+      li.appendChild(aiEl('span', { class: 'mq-sim-ico', 'aria-hidden': 'true' }, m.icon || '🎯'));
+      const t = aiEl('div', { class: 'mq-sim-txt' });
+      t.appendChild(aiEl('strong', {}, m.name || nameOf(m.id)));
+      t.appendChild(aiEl('span', {}, m.text));
+      const tags = aiEl('span', { class: 'mq-sim-tags' });
+      tags.appendChild(aiEl('span', { class: `mq-badge ${m.done ? 'mq-badge--ok' : 'mq-badge--no'}` }, m.done ? '✓ atteignable' : '✗ non atteignable'));
+      if (m.repeated) tags.appendChild(aiEl('span', { class: 'mq-badge' }, 'reprise de la veille'));
+      t.appendChild(tags);
+      if (!m.done) t.appendChild(aiEl('small', { class: 'mq-sim-why' }, m.expected == null ? 'Activité estimée inconnue pour ce type : comptée non atteignable.'
+        : `Activité estimée : ${mqNum(m.expected)} sur un objectif de ${mqNum(m.target)}.`));
+      li.appendChild(t);
+      li.appendChild(aiEl('span', { class: 'mq-sim-rew' }, mqGain(m.reward.coins, m.reward.gems)));
+      ul.appendChild(li);
+    }
+    day.appendChild(ul);
+    if (d.setBonus) day.appendChild(aiEl('p', { class: 'mq-sim-day-bonus' }, `🎁 Journée complète — bonus ${sb?.enabled ? '' : 'hypothétique (désactivé) '}: ${mqGain(d.setBonus.coins, d.setBonus.gems)}, non compté ci-dessus.`));
+    box.appendChild(day);
+  }
+
+  const det = aiEl('details', { class: 'mq-sim-more' });
+  det.appendChild(aiEl('summary', {}, 'Détails / Pourquoi ?'));
+  const dl = aiEl('ul');
+  dl.appendChild(aiEl('li', {}, `Activité estimée par jour : ${mqNum(p.activity.meters)} m, ${mqNum(p.activity.chests)} coffres minés, ${mqNum(p.activity.gems)} gemmes, ${mqNum(p.activity.coins)} pièces (hors reliques et boosts ; hypothèse 1 bloc = 1 m).`));
+  dl.appendChild(aiEl('li', {}, `Profil : compte de ${p.profile.accountDays} jour(s).`));
+  for (const d of p.plan) {
+    if (!d.excluded.length) continue;
+    dl.appendChild(aiEl('li', {}, `Écartées le ${mqDay(d.date)} : ${d.excluded.map(x => `${nameOf(x.id)} — ${mqReasonText(x.reason)} (${x.reason})`).join(' · ')}.`));
+  }
+  dl.appendChild(aiEl('li', {}, `Nombre de tirages par mission : ${Object.entries(s.frequency).map(([k, n]) => `${nameOf(k)} ${n}`).join(', ') || '—'}.`));
+  if (sb?.band) {
+    const pct = x => (x == null ? '—' : `${(x * 100).toLocaleString('fr-BE', { maximumFractionDigits: 1 })} %`);
+    dl.appendChild(aiEl('li', {}, `Bonus : palier ${mqBandText(sb.band)} ; il représenterait ${pct(sb.coinsVsMining)} des pièces et ${pct(sb.gemsVsMining)} des gemmes gagnées en minant sur la période.`));
+  }
+  det.appendChild(dl);
+  box.appendChild(det);
+  return box;
+}
+
 document.getElementById('btn-mq-simulate').addEventListener('click', async () => {
   const out = document.getElementById('mq-sim-out');
   const ids = [...document.querySelectorAll('#mq-sim-profiles input:checked')].map(c => c.value);
@@ -12679,41 +12798,28 @@ document.getElementById('btn-mq-simulate').addEventListener('click', async () =>
   const { ok, data } = await api('POST', '/api/admin/missions/simulate', body);
   out.textContent = '';
   if (!ok) { out.appendChild(aiEl('p', { class: 'error' }, [data.error, ...(data.details ?? [])].filter(Boolean).join(' '))); return; }
-  out.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.75rem' },
-    `Source : ${data.version} · rotation ${mqRotValue('mode', data.rotation.mode)}, ${data.rotation.perDay}/jour${data.rotation.mode === 'adaptive' ? `, au plus ${data.rotation.maxPerCategory} par catégorie, anti-répétition ${data.rotation.repeatDays} j × ${data.rotation.repeatFactor}, journée de référence ${data.rotation.dayBlocks} blocs, ${data.rotation.perPlayer ? 'par joueur' : 'commune'}` : ''}.`));
-  for (const p of data.profiles) {
-    const box = aiEl('div', { class: 'mq-sim-profile' });
-    box.appendChild(aiEl('h4', {}, `${p.profile.label} — ${p.profile.depth} m, compte de ${p.profile.accountDays} j, ${p.profile.blocksPerDay} blocs/jour`));
-    box.appendChild(aiEl('p', { class: 'muted', style: 'font-size:0.72rem;margin:0 0 4px' },
-      `Activité estimée par jour : ${p.activity.meters} m, ${p.activity.chests.toLocaleString('fr-BE', { maximumFractionDigits: 1 })} coffres minés, ${p.activity.gems.toLocaleString('fr-BE', { maximumFractionDigits: 1 })} gemmes, ${p.activity.coins.toLocaleString('fr-BE')} pièces (hors reliques et boosts).`));
-    const wrap = aiEl('div', { class: 'bk-table-wrap' });
-    const table = aiEl('table', { class: 'bk-table mq-table' });
-    const head = table.createTHead().insertRow();
-    for (const h of ['Jour', 'Missions (✓ = atteignable avec cette activité)', 'Écartées']) head.appendChild(aiEl('th', {}, h));
-    const tb = table.createTBody();
-    for (const d of p.plan) {
-      const tr = tb.insertRow();
-      addCell(tr, d.date);
-      const cell = addCell(tr, '');
-      for (const m of d.missions) cell.appendChild(aiEl('div', {}, `${m.done ? '✓' : '✗'} ${m.icon} ${m.text} → ${m.reward.coins} 💰${m.reward.gems ? ` + ${m.reward.gems} 💎` : ''}${m.repeated ? ' (déjà hier)' : ''}`));
-      if (d.setBonus) cell.appendChild(aiEl('div', { class: 'muted' }, `🎁 bonus trois missions${p.stats.setBonus.enabled ? '' : ' (si activé)'} : ${d.setBonus.coins.toLocaleString('fr-BE')} 💰${d.setBonus.gems ? ` + ${d.setBonus.gems} 💎` : ''}`));
-      addCell(tr, d.excluded.map(x => `${x.id} : ${x.reason}`).join(' · ') || '—');
-    }
-    wrap.appendChild(table);
-    box.appendChild(wrap);
-    const s = p.stats;
-    box.appendChild(aiEl('p', { style: 'font-size:0.78rem;margin:4px 0 10px' },
-      `${s.assigned} missions, ${Math.round(s.completionRate * 100)} % atteignables · ${s.distinctDays}/${p.plan.length} journées différentes · ${s.repeatsFromYesterday} reprise(s) de la veille · `
-      + `récompenses si tout est fait : ${s.coinsIfCompleted.toLocaleString('fr-BE')} 💰, ${s.gemsIfCompleted} 💎 · fréquence : ${Object.entries(s.frequency).map(([k, n]) => `${k} ${n}`).join(', ')}.`));
-    const sb = s.setBonus;
-    if (sb?.band) {
-      const pct = x => (x == null ? '—' : `${(x * 100).toLocaleString('fr-BE', { maximumFractionDigits: 1 })} %`);
-      box.appendChild(aiEl('p', { style: 'font-size:0.78rem;margin:-6px 0 10px' },
-        `🎁 Bonus trois missions${sb.enabled ? '' : ' (désactivé — chiffres si activé)'} : palier ${mqBandText(sb.band)} · ${sb.daysAllDone}/${p.plan.length} journées complètes → `
-        + `${sb.coins.toLocaleString('fr-BE')} 💰 (${pct(sb.coinsVsMining)} des pièces du minage) et ${sb.gems} 💎 (${pct(sb.gemsVsMining)} des gemmes trouvées en minant).`));
-    }
-    out.appendChild(box);
-  }
+  // Noms lisibles à la place des identifiants techniques (find_gems, buy_upgrades…)
+  const names = new Map();
+  for (const m of [...(_mq?.published?.missions ?? []), ...mqWorking()]) names.set(m.id, m.names?.fr ?? m.id);
+  for (const p of data.profiles) for (const d of p.plan) for (const m of d.missions) if (m.name) names.set(m.id, m.name);
+  const nameOf = id => names.get(id) ?? id;
+  const bonusOn = data.profiles.some(p => p.stats.setBonus?.enabled);
+  out.appendChild(aiEl('p', { class: 'mq-sim-note' }, `🧪 Simulation uniquement — rien ne change en jeu.${bonusOn ? '' : ' Bonus trois missions désactivé : chiffré à part, à titre d\'hypothèse.'}`));
+  const help = aiEl('details', { class: 'mq-sim-help' });
+  help.appendChild(aiEl('summary', {}, 'Comment lire ces résultats ?'));
+  const hl = aiEl('ul');
+  for (const t of [
+    '✓ atteignable : avec l\'activité estimée du profil, l\'objectif est rempli dans la journée (ex. 60 blocs cassés pour « Casser 40 blocs »).',
+    '✗ non atteignable : l\'activité estimée ne suffit pas ; la mission est quand même proposée au joueur.',
+    'Activité estimée : ce que le profil fait en une journée (blocs cassés, mètres, coffres, gemmes, pièces), avec l\'hypothèse 1 bloc = 1 m.',
+    'Reprise de la veille : la mission était déjà proposée la veille. Journées différentes : nombre de jours dont les 3 missions ne sont pas exactement les mêmes.',
+    'Écartée : la mission n\'est pas tirée pour ce profil (ex. trop peu profond, gemmes inaccessibles, améliorations déjà toutes achetées).',
+    '100 % atteignable : toutes les missions proposées sur la période sont faisables par ce profil.',
+  ]) hl.appendChild(aiEl('li', {}, t));
+  help.appendChild(hl);
+  help.appendChild(aiEl('p', { class: 'muted' }, `Source : ${data.version} · rotation ${mqRotValue('mode', data.rotation.mode)}, ${data.rotation.perDay}/jour${data.rotation.mode === 'adaptive' ? `, au plus ${data.rotation.maxPerCategory} par catégorie, anti-répétition ${data.rotation.repeatDays} j × ${data.rotation.repeatFactor}, journée de référence ${data.rotation.dayBlocks} blocs, ${data.rotation.perPlayer ? 'par joueur' : 'commune'}` : ''}.`));
+  out.appendChild(help);
+  for (const p of data.profiles) out.appendChild(mqSimProfile(p, data, nameOf));
 });
 
 // ── Atelier d'icônes ──
@@ -12738,7 +12844,9 @@ async function mqBackTo(id) {
   document.querySelector('.tab-btn[data-tab="missions"]').click();
   for (let k = 0; k < 50 && !_mq; k++) await new Promise(r => setTimeout(r, 100));
   const m = mqWorking().find(x => x.id === id);
-  if (m) mqOpen(m, document.querySelector(`[data-adm-key="${CSS.escape(`mq:${id}`)}"]`));
+  if (!m) return;
+  mqOpen(m, document.querySelector(`[data-adm-key="${CSS.escape(`mq:${id}`)}"]`));
+  document.getElementById('mq-acc-visual').open = true;   // retour de l'atelier : on montre l'image choisie
 }
 
 admRefreshButton('btn-refresh-missions', loadMissions, 'Missions');

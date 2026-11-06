@@ -49,7 +49,7 @@ async function steps(page, tag) {
   await page.fill('#mq-sim-start', '2026-11-09');
   for (const c of await page.locator('#mq-sim-profiles input').all()) await c.setChecked(['debutant', 'tres_avance'].includes(await c.getAttribute('value')));
   await page.click('#btn-mq-simulate');
-  await page.waitForFunction(() => /Bonus trois missions \(désactivé/.test(document.getElementById('mq-sim-out').textContent));
+  await page.waitForFunction(() => /Simulation uniquement — bonus désactivé/.test(document.getElementById('mq-sim-out').textContent));
   const txt = await page.textContent('#mq-sim-out');
   assert.match(txt, /à partir de 1 m : 300 💰 \+ 1 💎/);
   assert.match(txt, /à partir de 300 m : 40\s000 💰 \+ 2 💎/);

@@ -2361,97 +2361,86 @@
       <div class="nw-scroll">
         <p id="mq-state" class="ic-notice hidden" role="status"></p>
         <ul id="mq-issues" class="error hidden"></ul>
-        <div class="nw-text-fields">
-          <div role="group" class="nw-sec" aria-labelledby="mq-sec-id">
-            <h4 id="mq-sec-id">1. Identité et textes</h4>
-            <div class="co-lang-switch" id="mq-langs" role="group" aria-label="Langue éditée">
-              <button type="button" class="co-lang-btn" data-lang="fr" aria-pressed="true">FR</button>
-              <button type="button" class="co-lang-btn" data-lang="en" aria-pressed="false">EN</button>
-              <button type="button" class="co-lang-btn" data-lang="nl" aria-pressed="false">NL</button>
-              <button type="button" class="co-lang-btn" data-lang="es" aria-pressed="false">ES</button>
-            </div>
-            <div class="nw-lang-fields" data-lang="fr">
-              <label>Nom (FR) — obligatoire<input id="mq-fr-name" type="text" maxlength="40"></label>
-              <label><span>Texte (FR) — obligatoire, avec {t} <button type="button" class="bk-info" aria-expanded="false" aria-controls="mq-h-desc" aria-label="Aide : texte de la mission">ⓘ</button></span><input id="mq-fr-desc" type="text" maxlength="120"></label>
-              <small id="mq-h-desc" class="bk-hint" hidden>{t} est remplacé par l'objectif, {s} par « s » quand l'objectif dépasse 1. Exemple : « Ouvrir {t} coffre{s} » → « Ouvrir 3 coffres ».</small>
-            </div>
-            <div class="nw-lang-fields hidden" data-lang="en">
+        <!-- Recette #68-A (06/11) : l'essentiel d'abord (nom, état, visuel, objectif, récompense, aperçu), le reste replié. -->
+        <section class="mq-ov" aria-label="Essentiel de la mission">
+          <div id="mq-art" class="rl-art mq-ov-art" aria-hidden="true"></div>
+          <div class="mq-ov-main">
+            <label>Nom (FR) — obligatoire<input id="mq-fr-name" type="text" maxlength="40"></label>
+            <label><span>Texte (FR) — obligatoire, avec {t} <button type="button" class="bk-info" aria-expanded="false" aria-controls="mq-h-desc" aria-label="Aide : texte de la mission">ⓘ</button></span><input id="mq-fr-desc" type="text" maxlength="120"></label>
+            <small id="mq-h-desc" class="bk-hint" hidden>{t} est remplacé par l'objectif, {s} par « s » quand l'objectif dépasse 1. Exemple : « Ouvrir {t} coffre{s} » → « Ouvrir 3 coffres ».</small>
+            <label class="adm-check"><input id="mq-active" type="checkbox" checked> Active (peut être tirée)</label>
+          </div>
+        </section>
+        <dl class="bk-ov-facts mq-ov-facts">
+          <div><dt>Objectifs</dt><dd id="mq-ov-goal">—</dd></div>
+          <div><dt>Récompense</dt><dd id="mq-ov-reward">—</dd></div>
+        </dl>
+        <div id="mq-compare" class="mq-compare hidden">
+          <p class="muted" style="font-size:0.75rem;margin:6px 0 2px"><strong>Modifié par rapport à la version en vigueur</strong> :</p>
+          <ul id="mq-compare-list" style="font-size:0.78rem;margin:0"></ul>
+        </div>
+        <details class="nw-sec bk-acc" id="mq-acc-preview" open><summary><span class="bk-acc-title" id="mq-sec-preview">Aperçu par profil (20, 100, 250, 500 m)</span> <span class="bk-acc-sum" id="mq-acc-preview-sum"></span></summary>
+          <div id="mq-preview-body" class="mq-pv-list"></div>
+          <p id="mq-preview-note" class="muted" style="font-size:0.72rem;margin:6px 0 0"></p>
+        </details>
+        <details class="nw-sec bk-acc" id="mq-acc-goals"><summary><span class="bk-acc-title" id="mq-sec-bands">Objectifs par tranche de profondeur</span> <span class="bk-acc-sum" id="mq-acc-goals-sum"></span></summary>
+          <div class="bk-table-wrap">
+            <table class="bk-table mq-bands-table">
+              <thead><tr><th>À partir de (m)</th><th>Objectifs possibles (séparés par des virgules)</th><th><span class="visually-hidden">Retirer</span></th></tr></thead>
+              <tbody id="mq-bands-body"></tbody>
+            </table>
+          </div>
+          <div class="form-actions"><button class="btn btn-outline" id="btn-mq-band-add" type="button">＋ Ajouter une tranche</button></div>
+          <p class="muted" style="font-size:0.72rem;margin:4px 0 0">La tranche utilisée est la dernière dont la profondeur de départ est atteinte. En dessous de la première tranche, la mission n'est jamais tirée. La rotation d'origine n'utilise que la première tranche.</p>
+        </details>
+        <details class="nw-sec bk-acc" id="mq-acc-reward"><summary><span class="bk-acc-title" id="mq-sec-reward">Détail de la récompense</span> <span class="bk-acc-sum" id="mq-acc-reward-sum"></span></summary>
+          <div class="nw-opts-grid">
+            <label>Pièces par unité d'objectif<input id="mq-coins" type="number" min="0" max="1000" step="any"></label>
+            <label>Gemmes<input id="mq-gems" type="number" min="0" max="5" step="1"></label>
+            <label>Gemmes à partir d'un objectif de<input id="mq-gems-from" type="number" min="1" step="1"></label>
+          </div>
+          <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Pièces = arrondi(objectif × pièces par unité). Toute modification de récompense demande l'accord du propriétaire après simulation (#49).</p>
+        </details>
+        <details class="nw-sec bk-acc" id="mq-acc-visual"><summary><span class="bk-acc-title" id="mq-sec-art">Visuel</span> <span class="bk-acc-sum" id="mq-acc-visual-sum"></span></summary>
+          <div class="nw-opts-grid">
+            <label>Icône (emoji, repli de l'image)<input id="mq-icon" type="text" maxlength="8" placeholder="🎯"></label>
+            <label class="nw-span">Image (atelier d'icônes)<input id="mq-image" type="text" maxlength="200" readonly placeholder="aucune — l'emoji est affiché"></label>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-outline" id="btn-mq-studio" type="button">🎨 Créer / refaire l'image dans Icônes</button>
+            <button class="btn btn-outline" id="btn-mq-noimage" type="button">Revenir à l'emoji</button>
+          </div>
+          <p class="muted" style="font-size:0.75rem;margin:4px 0 0">Cible stable <code id="mq-studio-key">mission:…</code> (famille « Mission quotidienne », distincte des pictogrammes d'interface). L'atelier génère <strong>une image par clic</strong> ou accepte un téléversement ; « Conserver » place l'image dans ce brouillon.</p>
+        </details>
+        <details class="nw-sec bk-acc" id="mq-acc-langs"><summary><span class="bk-acc-title" id="mq-sec-id">Traductions</span> <span class="bk-acc-sum" id="mq-acc-langs-sum"></span></summary>
+          <div class="mq-lang-grid">
+            <fieldset class="mq-lang" data-lang="en"><legend>EN</legend>
               <label>Nom (EN)<input id="mq-en-name" type="text" maxlength="40"></label>
               <label>Texte (EN), avec {t}<input id="mq-en-desc" type="text" maxlength="120"></label>
-            </div>
-            <div class="nw-lang-fields hidden" data-lang="nl">
+            </fieldset>
+            <fieldset class="mq-lang" data-lang="nl"><legend>NL</legend>
               <label>Nom (NL)<input id="mq-nl-name" type="text" maxlength="40"></label>
               <label>Texte (NL), avec {t}<input id="mq-nl-desc" type="text" maxlength="120"></label>
-            </div>
-            <div class="nw-lang-fields hidden" data-lang="es">
+            </fieldset>
+            <fieldset class="mq-lang" data-lang="es"><legend>ES</legend>
               <label>Nom (ES)<input id="mq-es-name" type="text" maxlength="40"></label>
               <label>Texte (ES), avec {t}<input id="mq-es-desc" type="text" maxlength="120"></label>
-            </div>
-            <div class="nw-opts-grid">
-              <label>Identifiant stable<input id="mq-id" type="text" maxlength="40" placeholder="ma_mission" title="Ne change jamais après l'enregistrement"></label>
-              <label class="adm-check"><input id="mq-active" type="checkbox" checked> Active (peut être tirée)</label>
-            </div>
+            </fieldset>
           </div>
-          <div role="group" class="nw-sec" aria-labelledby="mq-sec-art">
-            <h4 id="mq-sec-art">2. Visuel</h4>
-            <div class="nw-opts-grid">
-              <div id="mq-art" class="rl-art" aria-hidden="true"></div>
-              <label>Icône (emoji, repli de l'image)<input id="mq-icon" type="text" maxlength="8" placeholder="🎯"></label>
-              <label class="nw-span">Image (atelier d'icônes)<input id="mq-image" type="text" maxlength="200" readonly placeholder="aucune — l'emoji est affiché"></label>
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-outline" id="btn-mq-studio" type="button">🎨 Créer / refaire l'image dans Icônes</button>
-              <button class="btn btn-outline" id="btn-mq-noimage" type="button">Revenir à l'emoji</button>
-            </div>
-            <p class="muted" style="font-size:0.75rem;margin:4px 0 0">Cible stable <code id="mq-studio-key">mission:…</code> (famille « Mission quotidienne », distincte des pictogrammes d'interface). L'atelier génère <strong>une image par clic</strong> ou accepte un téléversement ; « Conserver » place l'image dans ce brouillon.</p>
+          <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Langue vide = le jeu affiche le texte français.</p>
+        </details>
+        <details class="nw-sec bk-acc" id="mq-acc-adv"><summary><span class="bk-acc-title" id="mq-sec-rule">Paramètres avancés</span> <span class="bk-acc-sum" id="mq-acc-adv-sum"></span></summary>
+          <div class="nw-opts-grid">
+            <label>Identifiant stable<input id="mq-id" type="text" maxlength="40" placeholder="ma_mission" title="Ne change jamais après l'enregistrement"></label>
+            <label>Type (compteur du moteur)<select id="mq-type"></select></label>
+            <label>Catégorie<select id="mq-category"></select></label>
+            <label><span>Poids de tirage <button type="button" class="bk-info" aria-expanded="false" aria-controls="mq-h-weight" aria-label="Aide : poids de tirage">ⓘ</button></span><input id="mq-weight" type="number" min="1" max="100" step="1"></label>
+            <label>Ancienneté min. (jours)<input id="mq-min-days" type="number" min="0" max="3650" step="1"></label>
+            <label>Ancienneté max. (jours, vide = aucune)<input id="mq-max-days" type="number" min="0" max="3650" step="1"></label>
           </div>
-          <div role="group" class="nw-sec" aria-labelledby="mq-sec-rule">
-            <h4 id="mq-sec-rule">3. Type, tirage et restrictions</h4>
-            <div class="nw-opts-grid">
-              <label>Type (compteur du moteur)<select id="mq-type"></select></label>
-              <label>Catégorie<select id="mq-category"></select></label>
-              <label><span>Poids de tirage <button type="button" class="bk-info" aria-expanded="false" aria-controls="mq-h-weight" aria-label="Aide : poids de tirage">ⓘ</button></span><input id="mq-weight" type="number" min="1" max="100" step="1"></label>
-              <label>Ancienneté min. (jours)<input id="mq-min-days" type="number" min="0" max="3650" step="1"></label>
-              <label>Ancienneté max. (jours, vide = aucune)<input id="mq-max-days" type="number" min="0" max="3650" step="1"></label>
-            </div>
-            <small id="mq-h-weight" class="bk-hint" hidden>Rotation adaptative : chance d'être tirée proportionnelle au poids (10 = normal, 20 = deux fois plus souvent). La rotation d'origine tire uniformément et ignore le poids.</small>
-            <p id="mq-type-help" class="muted" style="font-size:0.75rem;margin:4px 0"></p>
-          </div>
-          <div role="group" class="nw-sec" aria-labelledby="mq-sec-bands">
-            <h4 id="mq-sec-bands">4. Objectifs par tranche de profondeur</h4>
-            <div class="bk-table-wrap">
-              <table class="bk-table">
-                <thead><tr><th>À partir de (m)</th><th>Objectifs possibles (séparés par des virgules)</th><th><span class="visually-hidden">Retirer</span></th></tr></thead>
-                <tbody id="mq-bands-body"></tbody>
-              </table>
-            </div>
-            <div class="form-actions"><button class="btn btn-outline" id="btn-mq-band-add" type="button">＋ Ajouter une tranche</button></div>
-            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">La tranche utilisée est la dernière dont la profondeur de départ est atteinte. En dessous de la première tranche, la mission n'est jamais tirée. La rotation d'origine n'utilise que la première tranche.</p>
-          </div>
-          <div role="group" class="nw-sec" aria-labelledby="mq-sec-reward">
-            <h4 id="mq-sec-reward">5. Récompense</h4>
-            <div class="nw-opts-grid">
-              <label>Pièces par unité d'objectif<input id="mq-coins" type="number" min="0" max="1000" step="any"></label>
-              <label>Gemmes<input id="mq-gems" type="number" min="0" max="5" step="1"></label>
-              <label>Gemmes à partir d'un objectif de<input id="mq-gems-from" type="number" min="1" step="1"></label>
-            </div>
-            <p class="muted" style="font-size:0.72rem;margin:4px 0 0">Pièces = arrondi(objectif × pièces par unité). Toute modification de récompense demande l'accord du propriétaire après simulation (#49).</p>
-          </div>
-          <div role="group" class="nw-sec" aria-labelledby="mq-sec-preview">
-            <h4 id="mq-sec-preview">6. Aperçu pour un joueur à 20, 100, 250 et 500 m</h4>
-            <p id="mq-preview-note" class="muted" style="font-size:0.72rem;margin:0 0 4px"></p>
-            <div class="bk-table-wrap">
-              <table class="bk-table mq-table">
-                <thead><tr><th>Profil</th><th>Tirable ?</th><th>Objectifs → récompense</th></tr></thead>
-                <tbody id="mq-preview-body"></tbody>
-              </table>
-            </div>
-            <div id="mq-compare" class="hidden">
-              <p class="muted" style="font-size:0.75rem;margin:6px 0 2px"><strong>Comparaison avec la version en vigueur</strong> :</p>
-              <ul id="mq-compare-list" style="font-size:0.78rem;margin:0"></ul>
-            </div>
-          </div>
-        </div>
+          <small id="mq-h-weight" class="bk-hint" hidden>Rotation adaptative : chance d'être tirée proportionnelle au poids (10 = normal, 20 = deux fois plus souvent). La rotation d'origine tire uniformément et ignore le poids.</small>
+          <p id="mq-type-help" class="muted" style="font-size:0.75rem;margin:4px 0"></p>
+        </details>
       </div>
       <div class="form-actions bk-dialog-foot">
         <button class="btn btn-primary" id="btn-mq-save" type="button">Enregistrer dans le brouillon</button>
