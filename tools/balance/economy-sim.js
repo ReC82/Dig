@@ -114,7 +114,21 @@ function currentRules(config = PROD_CONFIG) {
     coinCurve: null,
     /** Limites par saison des coffres de la boutique (null = illimité), lues dans server/chestShop.js. */
     shopLimits: Object.fromEntries(Object.entries(SHOP_CHESTS).map(([id, d]) => [id, d.maxPerSeason])),
+    /** Tables des coffres (#37) : minés (public/js/chests.js) et boutique (server/chestShop.js) ; v1 publiée = ces tables. */
+    mineTables: structuredClone(G.Chests.TABLES),
+    shopTables: Object.fromEntries(Object.entries(SHOP_CHESTS).map(([id, d]) => [id, structuredClone(d.table)])),
+    /** Bonus de l'Aimant à éclats par niveau (catalogue de reliques #64) ; null = valeurs du jeu. */
+    magnet: null,
+    /** Boutique de fragments en pièces (10 achats/saison) ; suspendue et masquée en production depuis le 05/11 (#69). */
+    fragmentShop: true,
   };
+}
+
+/** Bonus de l'Aimant à éclats du joueur selon les règles (fragments en plus par ligne « fragments »). */
+function magnetBonus(p, rules) {
+  const lvl = p.relics.shard_magnet || 0;
+  if (!lvl) return 0;
+  return rules.magnet ? rules.magnet[lvl - 1] ?? 0 : RELIC.shard_magnet.bonus.values[lvl - 1];
 }
 
 /**
@@ -322,7 +336,7 @@ function buyUpgrades(p, s, rules, o, playedS) {
       s.pick < 15 ? scale(B.PICKAXE[s.pick - 1]) : Infinity,
       s.bag < (o.bagTarget ?? 12) ? scale(B.BAG[s.bag]) : Infinity,
       s.luck < (o.luckTarget ?? 12) ? scale(B.LUCK[s.luck]) : Infinity,
-      s.shop < 10 ? scale(B.FRAGMENT_SHOP[s.shop]) : Infinity,
+      rules.fragmentShop !== false && s.shop < 10 ? scale(B.FRAGMENT_SHOP[s.shop]) : Infinity,
       a0 && a0.gems === 0 ? scale(a0.coins) : Infinity);
     if (cheapest > s.coins && !(a0 && a0.gems > 0 && a0.gems <= p.gems && !o.noGemAutodig)) return;
     const offers = [];
@@ -333,7 +347,7 @@ function buyUpgrades(p, s, rules, o, playedS) {
       const a = rules.autodigCosts[s.auto];
       if (!(a.gems > 0 && o.noGemAutodig)) offers.push({ k: 'auto', c: scale(a.coins), g: a.gems });
     }
-    if (s.shop < 10) offers.push({ k: 'shop', c: scale(B.FRAGMENT_SHOP[s.shop]), g: 0 });
+    if (rules.fragmentShop !== false && s.shop < 10) offers.push({ k: 'shop', c: scale(B.FRAGMENT_SHOP[s.shop]), g: 0 });
     let best = null;
     for (const x of offers) {
       if (x.c > s.coins || x.g > p.gems) continue;
@@ -349,7 +363,7 @@ function buyUpgrades(p, s, rules, o, playedS) {
     else if (best.k === 'luck') s.luck++;
     else if (best.k === 'auto') { s.m.autodigAt[s.auto] = playedS / 3600; s.auto++; }
     else { s.shop++; p.frags++; s.m.frags.fragmentShop++; spendFragments(p, s); }
-    if (s.m.maxedAt === null && s.pick >= 15 && s.bag >= (o.bagTarget ?? 12) && s.luck >= 12 && s.shop >= 10 && s.auto >= 2) { s.m.maxedAt = playedS / 3600; s.m.maxedDepth = s.depth; }
+    if (s.m.maxedAt === null && s.pick >= 15 && s.bag >= (o.bagTarget ?? 12) && s.luck >= 12 && (s.shop >= 10 || rules.fragmentShop === false) && s.auto >= 2) { s.m.maxedAt = playedS / 3600; s.m.maxedDepth = s.depth; }
   }
 }
 
@@ -427,12 +441,12 @@ function mine(p, s, rules, o, random, { seconds, cps, now, chestWait, ad, played
     const id = G.Blocks.idOf(type);
     if (type.isChest) {
       s.stats.chests++;
-      const row = pickRow(G.Chests.TABLES[type.rarityKey] ?? G.Chests.TABLES.commun, random);
+      const row = pickRow(rules.mineTables[type.rarityKey] ?? rules.mineTables.commun, random);
       if (row.type === 'coins') {
         const c = randInt(row.min, row.max, random);
         s.coins += c; s.stats.coinsEarned += c; s.m.coins.mineChests += c;
       } else if (row.type === 'relics') {
-        const f = row.amount + relicValue(p, 'shard_magnet');
+        const f = row.amount + magnetBonus(p, rules);
         p.frags += f; s.m.frags.mineChests += f; spendFragments(p, s);
       } else if (row.type === 'boost') setBoost(s, row.mult, row.minutes * 60, t);
       const extra = rules.mineChestGems[type.rarityKey];
@@ -477,13 +491,13 @@ function convertCoins(p, s, rules, random, maxChests) {
   const order = ['antique', 'simple'];
   let left = maxChests;
   for (const id of order) {
-    const def = SHOP_CHESTS[id];
+    const def = { table: rules.shopTables[id], maxPerSeason: rules.shopLimits[id] ?? null };
     const cost = rules.economy.chestCosts[id];
     let bought = 0;
     while (def.maxPerSeason === null && Math.min(left, Math.floor(s.coins / cost)) > BULK_CHESTS) {
       const k = Math.min(left, Math.floor(s.coins / cost));
       left -= k;
-      const e = chestExpectation(def.table, relicValue(p, 'shard_magnet'), rules.economy.fragmentDropMultiplier, true);
+      const e = chestExpectation(def.table, magnetBonus(p, rules), rules.economy.fragmentDropMultiplier, true);
       const f = Math.round(k * (e.frags + e.collection * 5));
       s.coins += Math.round(k * e.coins) - k * cost;
       s.m.coins.shopChests += Math.round(k * e.coins);
@@ -498,7 +512,7 @@ function convertCoins(p, s, rules, random, maxChests) {
         // Objet de collection : toutes les trouvailles d'origine sont supposées déjà possédées
         // (cas d'un joueur qui convertit en masse) → fragments de consolation (5, sans bonus)
         const f = row.type === 'relics'
-          ? Math.max(1, Math.round((row.amount + relicValue(p, 'shard_magnet')) * rules.economy.fragmentDropMultiplier))
+          ? Math.max(1, Math.round((row.amount + magnetBonus(p, rules)) * rules.economy.fragmentDropMultiplier))
           : 5;
         p.frags += f; s.m.frags.shopChests += f; spendFragments(p, s);
       }
@@ -509,7 +523,7 @@ function convertCoins(p, s, rules, random, maxChests) {
 
 /** Espérance d'un coffre de la boutique pour ce joueur : pièces rendues et fragments par ouverture. */
 function shopExpect(p, rules, id) {
-  const e = chestExpectation(SHOP_CHESTS[id].table, relicValue(p, 'shard_magnet'), rules.economy.fragmentDropMultiplier, true);
+  const e = chestExpectation(rules.shopTables[id], magnetBonus(p, rules), rules.economy.fragmentDropMultiplier, true);
   return { coins: e.coins, frags: e.frags + e.collection * 5 };
 }
 
@@ -533,13 +547,13 @@ function buyShopChests(p, s, rules, random, final) {
   const reserve = n => (final ? Math.max(0, Math.min(n, limitLeft('simple'))) * net('simple') : 0);
   const order = final ? ['antique', 'rare', 'simple'] : ['antique', 'rare'];
   const open1 = (id) => {
-    const def = SHOP_CHESTS[id];
+    const def = { table: rules.shopTables[id] };
     s.coins -= cost(id); sh[id]++; sh.openingsLeft--; s.m.shopChestsBought++;
     const row = pickRow(def.table, random);
     if (row.type === 'coins') { const c = randInt(row.min, row.max, random); s.coins += c; s.m.coins.shopChests += c; }
     else if (row.type === 'relics' || row.type === 'collection') {
       const f = row.type === 'relics'
-        ? Math.max(1, Math.round((row.amount + relicValue(p, 'shard_magnet')) * rules.economy.fragmentDropMultiplier))
+        ? Math.max(1, Math.round((row.amount + magnetBonus(p, rules)) * rules.economy.fragmentDropMultiplier))
         : 5;
       p.frags += f; s.m.frags.shopChests += f; spendFragments(p, s);
     }
@@ -1154,5 +1168,5 @@ if (require.main === module) {
 module.exports = {
   SHOP_LIMITS, COIN_CURVES, COMBOS, SHOP_OPENINGS, coinScale, withLimits, withCurve, report0411,
   PROD_CONFIG, PROFILES, VARIANTS, FIXED, currentRules, hourAt, loadGame, simulatePlayers, summarize, exactOdds,
-  chestExpectation, oddsAt, offlineCoins, rng, report, G,
+  chestExpectation, oddsAt, offlineCoins, rng, report, G, magnetBonus, describe, quantile, newPlayer, playSeason, spendFragments,
 };

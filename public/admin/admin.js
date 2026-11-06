@@ -8617,7 +8617,7 @@ const RW_NAMES = {
 };
 const RW_TYPES = { coins: '💰 Pièces', relics: '🔮 Fragments', boost: '⚡ Boost de gains', collection: '📿 Objet de collection' };
 const RW_ACTIONS = { migrate: 'création v1', draft_save: 'brouillon enregistré', draft_clean: 'brouillon identique retiré',
-  draft_discard: 'brouillon abandonné', publish: 'publication', rollback: 'retour arrière' };
+  draft_discard: 'brouillon abandonné', draft_preset: 'préréglage chargé dans le brouillon', publish: 'publication', rollback: 'retour arrière' };
 let _rw = null;          // vue GET /api/admin/rewards
 let _rwEdit = null;      // { family, id } du coffre ouvert dans la fiche
 
@@ -8719,6 +8719,8 @@ function rwRender() {
   document.getElementById('btn-rw-sim-draft').disabled = !d;
   document.getElementById('btn-rw-publish').disabled = !d || d.errors.length > 0;
   document.getElementById('btn-rw-discard').disabled = !d;
+  const ps = document.getElementById('rw-preset');
+  if (!ps.options.length) for (const p of _rw.presets ?? []) ps.append(new Option(p.label, p.id));
 
   const vb = document.getElementById('rw-versions');
   vb.textContent = '';
@@ -8748,7 +8750,7 @@ async function loadRewards() {
   ab.textContent = '';
   for (const a of (audit.ok ? audit.data.audit : [])) {
     const tr = document.createElement('tr');
-    const det = a.details?.changes ? a.details.changes.map(c => RW_NAMES[c.family]?.[c.id] ?? c.id).join(', ') : (a.details?.to ? `contenu de v${a.details.to}` : '');
+    const det = a.details?.changes ? a.details.changes.map(c => RW_NAMES[c.family]?.[c.id] ?? c.id).join(', ') : (a.details?.to ? `contenu de v${a.details.to}` : (a.details?.preset ?? ''));
     [a.created_at, RW_ACTIONS[a.action] ?? a.action, a.version ? `v${a.version}` : '', det].forEach(x => addCell(tr, x));
     ab.appendChild(tr);
   }
@@ -8981,6 +8983,18 @@ document.getElementById('btn-rw-publish').addEventListener('click', async () => 
   if (note === null) return;
   const { ok, data } = await api('POST', '/api/admin/rewards/publish', { note, basedOn: _rw.published.version });
   ptMessage('rw-msg', ok ? `Version v${data.version} publiée.` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  if (ok) loadRewards();
+});
+
+document.getElementById('btn-rw-preset').addEventListener('click', async () => {
+  const sel = document.getElementById('rw-preset');
+  if (!_rw || !sel.value) return;
+  const label = sel.options[sel.selectedIndex].text;
+  if (!await admConfirm({ title: `Charger « ${label} »`, text: 'Remplace le brouillon des six coffres par ce préréglage.',
+    impact: [_rw.draft ? 'Le brouillon en cours est remplacé.' : 'Un brouillon est créé.', 'Rien ne change en jeu : la version en vigueur reste appliquée tant que le brouillon n\'est pas publié.'],
+    ok: 'Charger dans le brouillon' })) return;
+  const { ok, data } = await api('POST', '/api/admin/rewards/draft/preset', { preset: sel.value });
+  ptMessage('rw-msg', ok ? (data.draft ? `« ${label} » chargé dans le brouillon (non publié).` : 'Identique à la version en vigueur : aucun brouillon.') : [data.error, ...(data.details ?? [])].join(' '), ok);
   if (ok) loadRewards();
 });
 
