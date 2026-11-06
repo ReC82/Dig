@@ -317,6 +317,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "account.registered_play": {
+   "text": "Account creato! Tocca il blocco per scavare.",
+   "src": "08edbe857310",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-06T17:24:12.233Z"
+  },
   "account.reset_intro": {
    "text": "Scegli una nuova password. Gli altri dispositivi connessi verranno disconnessi.",
    "src": "3122d3d649a1",
@@ -4000,10 +4007,10 @@
   },
   "relic.bonus_types.hp_reduction": {
    "text": "-{n}% HP blocchi",
-   "src": "503d31fd753f",
+   "src": "ffc3b95fead8",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-06T17:24:12.233Z"
   },
   "relic.bonus_types.luck_pct": {
    "text": "+{n}% blocchi rari",
@@ -4095,10 +4102,10 @@
   },
   "relic.obsidian_claw.bonus": {
    "text": "-15% HP dei blocchi",
-   "src": "801b12a9631a",
+   "src": "e58a7f367d83",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-06T17:24:12.233Z"
   },
   "relic.obsidian_claw.desc": {
    "text": "Nato nelle profondità. I blocchi si sbriciolano sotto la sua pressione.",
@@ -5011,10 +5018,10 @@
   },
   "stats.coins": {
    "text": "Monete",
-   "src": "e1a27e027cc8",
+   "src": "9573520bd14d",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-06T17:24:12.233Z"
   },
   "stats.damage": {
    "text": "Danni",
@@ -5206,11 +5213,18 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "ui.ad_mock_sub": {
-   "text": "Raddoppia tutti i guadagni!",
-   "src": "708b6e540999",
+   "text": "Beta: pubblicità simulata, nessuna vera pubblicità. Aspetta la fine del conto alla rovescia per raddoppiare le tue monete.",
+   "src": "ddafad45a59b",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-06T17:24:12.233Z"
+  },
+  "ui.ad_mock_title": {
+   "text": "Bonus ×2 per 2 min",
+   "src": "3c6ba8fb82f0",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-06T17:24:12.233Z"
   },
   "ui.ad_soon": {
    "text": "Ricompensa presto disponibile",
@@ -5517,10 +5531,10 @@
   },
   "ui.hp_text": {
    "text": "{hp} / {maxHp} HP",
-   "src": "36f72224e7fe",
+   "src": "ca25be43feec",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-06T17:24:12.233Z"
   },
   "ui.mission_claimed": {
    "text": "✓ Riscossa",

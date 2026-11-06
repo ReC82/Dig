@@ -2,7 +2,7 @@
  * Parcours Chromium réels du ticket #81 (PC 1280×900 et smartphone 390×844), serveur de TEST seulement :
  *  A. Défaut : dégâts et PV affichés entiers ; des dégâts de 1,25 (injectés dans la page de test, comme le ferait
  *     un futur bonus) s'affichent « 1 » mais détruisent un bloc de 5 PV en 4 coups exactement.
- *  B. Paramètres → « Afficher les valeurs précises » : 1,25 et « 3,75 / 5 HP » ; option conservée après F5,
+ *  B. Paramètres → « Afficher les valeurs précises » : 1,25 et « 3,75 / 5 PV » ; option conservée après F5,
  *     PV restants fractionnaires repris à l'identique.
  *  C. Exemple de micro-bonus +0,25 ACTIF dans cette page de test uniquement : 4 coups sur 5 PV avec 1 dégât de base.
  *  D. Admin (PC) : rubrique « Micro-bonus (brouillons) », exemple +0,25 sur la pierre, aperçu (texte, états,
@@ -58,7 +58,7 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     await setBlock(5);
     await page.evaluate(() => { const r = document.getElementById('block').getBoundingClientRect(); onBlockHit(r.left + r.width / 2, r.top + r.height / 2, null); });
     const afterOne = await page.evaluate(() => ({ hp: Blocks.current.hp, txt: document.getElementById('hp-text')?.textContent ?? '' }));
-    check(tag, 'A PV réels 3,75, affichés arrondis à l\'entier supérieur', afterOne.hp === 3.75 && /^4 \/ 5 HP$/.test(afterOne.txt.trim()), afterOne.txt);
+    check(tag, 'A PV réels 3,75, affichés arrondis à l\'entier supérieur', afterOne.hp === 3.75 && /^4 \/ 5 PV$/.test(afterOne.txt.trim()), afterOne.txt);
     await page.evaluate(() => { Blocks.current.hp = 5; renderBlock(); });
     const hits = await strikes();
     check(tag, 'A bloc de 5 PV détruit en 4 coups de 1,25', hits === 4, `${hits} coups`);
@@ -73,13 +73,13 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     await page.evaluate(() => { GameState.damage = 1.25; renderStats(); Blocks.current.hp = 5; Blocks.current.maxHp = 5; renderBlock(); });
     await page.evaluate(() => { const r = document.getElementById('block').getBoundingClientRect(); onBlockHit(r.left + r.width / 2, r.top + r.height / 2, null); });
     const precise = await page.evaluate(() => ({ dmg: document.getElementById('stat-damage').textContent.trim(), hp: document.getElementById('hp-text')?.textContent.trim() }));
-    check(tag, 'B 1,25 et 3,75 / 5 HP', precise.dmg === '1,25' && precise.hp === '3,75 / 5 HP', JSON.stringify(precise));
+    check(tag, 'B 1,25 et 3,75 / 5 PV', precise.dmg === '1,25' && precise.hp === '3,75 / 5 PV', JSON.stringify(precise));
     await page.screenshot({ path: `${SHOTS}/81-${tag}-precis.png` });
     await page.evaluate(() => Save.save());
     await page.reload();
     await page.waitForSelector('#block-name:not(:empty)');
     const reloaded = await page.evaluate(() => ({ pref: NumFmt.isPrecise(), hp: Blocks.current.hp, txt: document.getElementById('hp-text')?.textContent.trim(), dmg: GameState.damage }));
-    check(tag, 'B F5 : option conservée, PV 3,75 repris, dégâts recalculés (1)', reloaded.pref && reloaded.hp === 3.75 && reloaded.txt === '3,75 / 5 HP' && reloaded.dmg === 1, JSON.stringify(reloaded));
+    check(tag, 'B F5 : option conservée, PV 3,75 repris, dégâts recalculés (1)', reloaded.pref && reloaded.hp === 3.75 && reloaded.txt === '3,75 / 5 PV' && reloaded.dmg === 1, JSON.stringify(reloaded));
 
     // C. Exemple de micro-bonus actif dans cette page de test
     await page.evaluate(() => GameState.eventBonuses.push(MicroBonus.normalize({ value: 0.25 })));

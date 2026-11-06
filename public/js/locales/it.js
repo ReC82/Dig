@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 846/846 textes. Absents → français. */
+/* Italian (preview) : 848/848 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -47,6 +47,7 @@ I18n.registerLocale("it", {
   "no_mail_forgot": "Password dimenticata? Il recupero via e-mail non è ancora attivo: contatta l’organizzatore della beta, che può darti una password temporanea (da cambiare poi nelle Impostazioni).",
   "no_mail_register": "⚠️ Beta: il recupero della password via e-mail non è ancora attivo. Annota bene la tua password. Per ora il tuo indirizzo non viene verificato.",
   "password_changed": "Password modificata.",
+  "registered_play": "Account creato! Tocca il blocco per scavare.",
   "reset_intro": "Scegli una nuova password. Gli altri dispositivi connessi verranno disconnessi.",
   "reset_ok": "Password modificata, sei connesso.",
   "social_confirm": "Collegare l’account Google {email} a questo account DIG!? Poi potrai accedere con Google. I tuoi progressi non cambiano.",
@@ -971,7 +972,8 @@ I18n.registerLocale("it", {
  },
  "ui": {
   "ad_cooldown": "Disponibile tra {min}:{sec}",
-  "ad_mock_sub": "Raddoppia tutti i guadagni!",
+  "ad_mock_sub": "Beta: pubblicità simulata, nessuna vera pubblicità. Aspetta la fine del conto alla rovescia per raddoppiare le tue monete.",
+  "ad_mock_title": "Bonus ×2 per 2 min",
   "ad_soon": "Ricompensa presto disponibile",
   "ad_used": "Bonus già usato",
   "admin_reset_text": "Un amministratore ha azzerato questo account per una nuova prova. Questa pagina non può più salvare nulla: tocca «Gioca qui» per ricaricare e ripartire dal nuovo stato.",

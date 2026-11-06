@@ -1228,7 +1228,10 @@ h1 {
   font-size: 1rem;
   font-weight: 900;
   text-shadow: 0 2px 12px rgba(0,0,0,0.9);
-  white-space: nowrap;
+  /* Message long sur smartphone (#84) : passe à la ligne au lieu de sortir de l'écran */
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  text-align: center;
   transform: translateX(-50%);
   animation: float-up-slow 2.4s ease-out forwards;
 }
