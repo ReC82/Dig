@@ -3758,3 +3758,6 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
 .settings-toggle { display: flex; align-items: center; gap: 10px; margin: 0 16px 6px; min-height: 44px; cursor: pointer; }
 .settings-toggle input { width: 20px; height: 20px; accent-color: var(--gold); flex: none; }
 .settings-hint { font-size: 0.8rem; color: var(--muted); margin: 0 16px 14px; }
+
+/* Repère discret des comptes pilotes (#68-E) */
+.mission-live-test { margin: 6px 0 0; text-align: center; font-size: 0.7rem; opacity: 0.6; }

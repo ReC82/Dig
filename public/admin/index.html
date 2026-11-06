@@ -2319,14 +2319,16 @@
       </ul>
       <div class="nw-opts-grid">
         <label>Mode<select id="mq-act-mode"><option value="off">Désactivé</option><option value="pilot">Pilote (comptes listés)</option><option value="on">Tous les joueurs</option></select></label>
-        <label>Comptes pilotes (noms, séparés par des virgules)<input id="mq-act-pilots" type="text" autocomplete="off" placeholder="ex. testeur1, testeur2"></label>
       </div>
+      <div class="mq-act-field"><span>Comptes pilotes (tapez 2 lettres du pseudo, puis choisissez dans la liste)</span><div id="mq-act-pilots"></div></div>
       <div class="form-actions">
         <button class="btn btn-primary" id="btn-mq-act-save" type="button">Enregistrer…</button>
       </div>
       <p id="mq-act-msg" class="hidden" role="status"></p>
-      <div class="nw-opts-grid">
-        <label>Voir les missions d'un joueur (lecture seule)<input id="mq-act-user" type="text" autocomplete="off" placeholder="nom du joueur"></label>
+      <div class="mq-act-field">
+        <label for="mq-act-user">Voir les missions d'un joueur (lecture seule) — indépendant de la liste des pilotes</label>
+        <div class="player-ac"><input id="mq-act-user" type="text" autocomplete="off" placeholder="Rechercher un pseudo (2 lettres ou plus)…"
+          role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="mq-act-user-list"><ul id="mq-act-user-list" class="player-ac-list hidden" role="listbox" aria-label="Comptes trouvés"></ul></div>
       </div>
       <div class="form-actions"><button class="btn btn-outline" id="btn-mq-act-inspect" type="button">Afficher</button></div>
       <div id="mq-act-out" role="status" style="font-size:0.78rem"></div>

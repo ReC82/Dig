@@ -5529,6 +5529,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "ui.mission_live_test": {
+   "text": "🧪 Modalità test: missioni del server",
+   "src": "259ec3f17568",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #68-E)",
+   "at": "2026-11-06T10:40:49.327Z"
+  },
   "ui.mission_progress": {
    "text": "{done} / {target}",
    "src": "3c5794bbc245",

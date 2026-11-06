@@ -148,10 +148,18 @@ function setSettings({ mode, pilots, note = '' } = {}) {
     const ids = [];
     names = [];
     for (const raw of pilots) {
-      const name = String(raw ?? '').trim().toLowerCase();
-      if (!name) continue;
-      const u = db.getUserByUsername(name);
-      if (!u) throw new MissionError(400, `Compte pilote inconnu : « ${name.slice(0, 40)} ».`, 'unknown_user');
+      // Pseudo exact (ancien format) ou { id } choisi dans la liste de suggestions (#68-E)
+      let u;
+      if (raw && typeof raw === 'object') {
+        const id = Number(raw.id);
+        u = Number.isSafeInteger(id) && id > 0 ? db.getUserById(id) : null;
+        if (!u) throw new MissionError(400, `Compte pilote introuvable (ID ${String(raw.id ?? '?').slice(0, 12)}).`, 'unknown_user');
+      } else {
+        const name = String(raw ?? '').trim().toLowerCase();
+        if (!name) continue;
+        u = db.getUserByUsername(name);
+        if (!u) throw new MissionError(400, `Compte pilote inconnu : « ${name.slice(0, 40)} ».`, 'unknown_user');
+      }
       if (!ids.includes(u.id)) { ids.push(u.id); names.push(u.username); }
     }
     next.pilots = ids;
@@ -169,8 +177,8 @@ function setSettings({ mode, pilots, note = '' } = {}) {
 
 function adminSettings() {
   const s = getSettings();
-  const names = s.pilots.map(id => db.getUserById(id)?.username).filter(Boolean);
-  return { mode: s.mode, pilots: names, modes: MODES, timezone: TZ, today: today() };
+  const accounts = s.pilots.map(id => ({ id, username: db.getUserById(id)?.username })).filter(a => a.username);
+  return { mode: s.mode, pilots: accounts.map(a => a.username), pilotAccounts: accounts, modes: MODES, timezone: TZ, today: today() };
 }
 
 function listAudit(limit = 50) {
@@ -296,12 +304,14 @@ function _claims(userId, day) {
 function playerView(userId, { nowMs = Date.now() } = {}) {
   if (!isLiveFor(userId)) return { live: false };
   const row = db.runTransaction(() => ensureDay(userId, { nowMs }));
-  if (!row) return { live: true, day: today(nowMs), missions: [] };
+  if (!row) return { live: true, pilot: getMode() === 'pilot', day: today(nowMs), missions: [] };
   const claims = _claims(userId, row.day);
   const version = missionCatalog.getVersion(row.catalog_version) ?? missionCatalog.getPublished();
   const defs = new Map((version.missions ?? []).map(m => [m.id, m]));
   return {
     live: true,
+    // Mode pilote : le jeu peut afficher un repère discret « mode test » (seuls les comptes listés reçoivent live:true)
+    pilot: getMode() === 'pilot',
     day: row.day,
     catalogVersion: row.catalog_version,
     missions: row.missions.map(m => {
@@ -362,22 +372,57 @@ function claim(userId, { slot, day = null, mayWrite = () => true, nowMs = Date.n
   });
 }
 
-/** Vue admin d'un joueur (lecture seule) : attribution du jour, progression, réclamations. */
-function inspectPlayer(username, { nowMs = Date.now() } = {}) {
-  const u = db.getUserByUsername(String(username ?? '').trim().toLowerCase());
-  if (!u) throw new MissionError(404, 'Joueur inconnu.', 'unknown_user');
+/**
+ * Source des missions d'un compte (#68-E) : serveur ou navigateur, et pourquoi.
+ * `reason` : on (tous les joueurs), pilot (compte listé), off (drapeau désactivé), not_pilot (pilote, compte non listé).
+ */
+function sourceFor(userId) {
+  const s = getSettings();
+  const live = isLiveFor(userId);
+  const reason = s.mode === 'on' ? 'on' : s.mode === 'pilot' ? (live ? 'pilot' : 'not_pilot') : 'off';
+  return { source: live ? 'server' : 'browser', reason, mode: s.mode };
+}
+
+/**
+ * Vue admin d'un joueur (lecture seule) : source des missions, attribution du jour, progression,
+ * réclamations. Par ID stable (choisi dans les suggestions) ou par pseudo exact. Ne crée aucune attribution.
+ */
+function inspectPlayer(query, { nowMs = Date.now() } = {}) {
+  const q = query && typeof query === 'object' ? query : { username: query };
+  let u = null;
+  if (q.userId != null && String(q.userId).trim() !== '') {
+    const id = Number(q.userId);
+    u = Number.isSafeInteger(id) && id > 0 ? db.getUserById(id) : null;
+  } else {
+    const name = String(q.username ?? '').trim().toLowerCase();
+    if (!name) throw new MissionError(400, 'Choisissez un joueur.', 'no_user');
+    u = db.getUserByUsername(name);
+  }
+  if (!u) throw new MissionError(404, 'Compte inexistant : aucun joueur ne porte ce pseudo. Tapez 2 lettres et choisissez-le dans la liste.', 'unknown_user');
   const day = today(nowMs);
   const row = _dayRow(u.id, day);
   const claims = row ? _claims(u.id, day) : new Map();
+  const meta = conn().prepare('SELECT created_at AS createdAt, updated_at AS updatedAt FROM daily_mission_days WHERE user_id = ? AND day = ?').get(u.id, day) ?? null;
+  const version = row ? (missionCatalog.getVersion(row.catalog_version) ?? null) : null;
+  const defs = new Map((version?.missions ?? []).map(m => [m.id, m]));
   const days = conn().prepare('SELECT day, catalog_version AS catalogVersion, missions FROM daily_mission_days WHERE user_id = ? ORDER BY day DESC LIMIT 7')
     .all(u.id).map(r => ({ ...r, missions: JSON.parse(r.missions).map(m => `${m.id}:${m.target}`) }));
+  const src = sourceFor(u.id);
   return {
-    username: u.username, live: isLiveFor(u.id), day,
-    today: row ? { catalogVersion: row.catalog_version, profile: row.profile, missions: row.missions.map(m => ({ ...m, progress: _progress(row, m), claimed: claims.has(m.slot),
-      claimDetails: claims.get(m.slot)?.details ? JSON.parse(claims.get(m.slot).details) : null })) } : null,
+    id: u.id, username: u.username, live: src.source === 'server', ...src, day, timezone: TZ,
+    today: row ? {
+      catalogVersion: row.catalog_version, profile: row.profile,
+      assignedAt: meta?.createdAt ?? null, updatedAt: meta?.updatedAt ?? null,
+      missions: row.missions.map(m => {
+        const c = claims.get(m.slot);
+        return { ...m, name: defs.get(m.id)?.names?.fr ?? null, progress: c ? m.target : _progress(row, m), claimed: !!c,
+          claimedAt: c?.claimed_at ?? null, claimReward: c ? { coins: c.coins, gems: c.gems } : null,
+          claimDetails: c?.details ? JSON.parse(c.details) : null };
+      }),
+    } : null,
     history: days,
   };
 }
 
 module.exports = { MissionError, MODES, TZ, init, getSettings, getMode, isLiveFor, setSettings, adminSettings, listAudit,
-  today, ensureDay, observeSave, playerView, claim, inspectPlayer };
+  today, ensureDay, observeSave, playerView, claim, sourceFor, inspectPlayer };

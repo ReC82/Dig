@@ -10309,7 +10309,7 @@ function evWhenField(box, { onChange } = {}) {
  * retirables, multisélection. Valeur = [{ id, username }] : le serveur contrôle par ID stable.
  */
 let _evPickerSeq = 0;
-function evTesterPicker(box, { onChange } = {}) {
+function evTesterPicker(box, { onChange, emptyText = 'Aucun testeur choisi : personne ne verrait cet événement.', suggestions = () => _ev?.testerSuggestions ?? [], label = 'Ajouter un testeur' } = {}) {
   const uid = `ev-pick-${++_evPickerSeq}`;
   box.textContent = '';
   box.classList.add('ev-picker');
@@ -10317,7 +10317,7 @@ function evTesterPicker(box, { onChange } = {}) {
   const chips = aiEl('div', { class: 'ev-chips', 'aria-live': 'polite' });
   const ac = aiEl('div', { class: 'player-ac' });
   const input = aiEl('input', { type: 'text', id: `${uid}-input`, autocomplete: 'off', placeholder: 'Rechercher un pseudo (2 lettres ou plus)…',
-    role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': `${uid}-list`, 'aria-label': 'Ajouter un testeur' });
+    role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': `${uid}-list`, 'aria-label': label });
   const ul = aiEl('ul', { id: `${uid}-list`, class: 'player-ac-list hidden', role: 'listbox', 'aria-label': 'Comptes trouvés' });
   ac.append(input, ul);
   const sugg = aiEl('div', { class: 'ev-sugg' });
@@ -10331,7 +10331,7 @@ function evTesterPicker(box, { onChange } = {}) {
   };
   function render() {
     chips.textContent = '';
-    if (!list.length) chips.appendChild(aiEl('span', { class: 'muted ev-help' }, 'Aucun testeur choisi : personne ne verrait cet événement.'));
+    if (!list.length) chips.appendChild(aiEl('span', { class: 'muted ev-help' }, emptyText));
     for (const t of list) {
       const c = aiEl('span', { class: `ev-chip${t.missing ? ' ev-chip--bad' : ''}`, title: t.missing ? 'Compte introuvable : retirez-le' : `ID ${t.id}` },
         `${t.missing ? '⚠ ' : ''}${t.username}${t.id ? ` · ID ${t.id}` : ' (introuvable)'}`);
@@ -10342,7 +10342,7 @@ function evTesterPicker(box, { onChange } = {}) {
       chips.appendChild(c);
     }
     sugg.textContent = '';
-    const free = (_ev?.testerSuggestions ?? []).filter(u => !list.some(t => t.id === u.id));
+    const free = (suggestions() ?? []).filter(u => !list.some(t => t.id === u.id));
     if (free.length && !disabled) {
       sugg.appendChild(aiEl('span', { class: 'muted ev-help' }, 'Proposés :'));
       for (const u of free.slice(0, 12)) {
@@ -10360,6 +10360,7 @@ function evTesterPicker(box, { onChange } = {}) {
   render();
   return {
     get: () => list.map(t => (t.id ? { id: t.id } : t.username)),
+    names: () => list.map(t => t.username),
     set: l => { list = (l ?? []).map(t => (typeof t === 'string' ? { id: null, username: t, missing: true } : { ...t })); msg.textContent = ''; render(); },
     disable: on => { disabled = on; render(); },
   };
@@ -12106,11 +12107,26 @@ async function loadMissions() {
 // ── Activation en jeu (#68, étape B) : drapeau off / pilot / on ───────────────
 const MQ_ACT_LABELS = { off: 'désactivé — jeu inchangé', pilot: 'pilote — comptes listés seulement', on: 'actif pour tous les joueurs' };
 
+const MQ_SRC_REASON = {
+  on: 'actif pour tous les joueurs',
+  pilot: 'compte listé dans le pilote',
+  off: 'activation désactivée : tout le monde garde les missions du navigateur',
+  not_pilot: 'joueur non autorisé au pilote (compte absent de la liste)',
+};
+let _mqPilots = null;    // sélecteur des comptes pilotes (pastilles)
+let _mqInspect = null;   // { id, username } du joueur choisi pour l'inspection
+
 function mqRenderActivation(data) {
   const st = data.settings;
   document.getElementById('mq-act-state').textContent = `— ${MQ_ACT_LABELS[st.mode] ?? st.mode}${st.mode === 'pilot' ? ` (${st.pilots.length} compte(s))` : ''}`;
   document.getElementById('mq-act-mode').value = st.mode;
-  document.getElementById('mq-act-pilots').value = st.pilots.join(', ');
+  if (!_mqPilots) {
+    _mqPilots = evTesterPicker(document.getElementById('mq-act-pilots'), {
+      emptyText: 'Aucun compte pilote : en mode Pilote, personne ne recevrait les missions du serveur.',
+      suggestions: () => [], label: 'Ajouter un compte pilote',
+    });
+  }
+  _mqPilots.set(st.pilotAccounts ?? st.pilots);
   const ul = document.getElementById('mq-act-audit');
   ul.textContent = '';
   for (const e of data.audit) {
@@ -12133,12 +12149,13 @@ async function loadMissionActivation() {
 
 document.getElementById('btn-mq-act-save').addEventListener('click', async () => {
   const mode = document.getElementById('mq-act-mode').value;
-  const pilots = document.getElementById('mq-act-pilots').value.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+  const pilots = _mqPilots?.get() ?? [];
+  const names = _mqPilots?.names() ?? [];
   const impact = mode === 'on'
     ? ['Tous les joueurs connectés recevront les missions de la version publiée, attribuées et réclamées par le serveur.',
       'Réservé à la décision du propriétaire sur le barème (#68, #49). Réversible : repasser en « Désactivé ».']
     : mode === 'pilot'
-      ? [`Seuls ces comptes reçoivent les missions du serveur : ${pilots.join(', ') || 'aucun'}.`, 'Les autres joueurs ne voient aucun changement. Réversible.']
+      ? [`Seuls ces comptes reçoivent les missions du serveur : ${names.join(', ') || 'aucun'}.`, 'Les autres joueurs ne voient aucun changement. Réversible.']
       : ['Tous les joueurs reviennent aux missions calculées par leur navigateur. Les réclamations déjà faites restent acquises.'];
   let note = '';
   if (mode === 'on') {
@@ -12152,26 +12169,56 @@ document.getElementById('btn-mq-act-save').addEventListener('click', async () =>
   ptMessage('mq-act-msg', `Enregistré : ${MQ_ACT_LABELS[data.settings.mode]}.`, true);
 });
 
-document.getElementById('btn-mq-act-inspect').addEventListener('click', async () => {
+attachPlayerAutocomplete(document.getElementById('mq-act-user'), document.getElementById('mq-act-user-list'), {
+  onSelect: u => { _mqInspect = { id: u.id, username: u.username }; mqInspectPlayer(); },
+  onEnter: () => mqInspectPlayer(),
+});
+document.getElementById('mq-act-user').addEventListener('input', e => {
+  if (_mqInspect && e.target.value.trim().toLowerCase() !== _mqInspect.username.toLowerCase()) _mqInspect = null;
+});
+
+/** Inspection en lecture seule (#68-E) : source des missions, attribution du jour, progression, réclamations. */
+async function mqInspectPlayer() {
   const out = document.getElementById('mq-act-out');
   const name = document.getElementById('mq-act-user').value.trim();
   out.textContent = '';
-  if (!name) { out.textContent = 'Saisissez un nom de joueur.'; return; }
-  const { ok, data } = await api('GET', `/api/admin/missions/live/player?username=${encodeURIComponent(name)}`);
-  if (!ok) { out.appendChild(aiEl('p', { class: 'error' }, data.error || 'Erreur.')); return; }
-  out.appendChild(aiEl('p', {}, `${data.username} — ${data.live ? 'reçoit les missions du serveur' : 'missions du navigateur (non concerné par l\'activation)'} · journée ${data.day} (Bruxelles)`));
-  if (!data.today) { out.appendChild(aiEl('p', { class: 'muted' }, 'Aucune mission attribuée par le serveur aujourd\'hui.')); }
-  else {
+  if (!_mqInspect && !name) { out.appendChild(aiEl('p', { class: 'muted' }, 'Tapez au moins 2 lettres du pseudo puis choisissez le joueur dans la liste.')); return; }
+  const qs = _mqInspect ? `userId=${encodeURIComponent(_mqInspect.id)}` : `username=${encodeURIComponent(name)}`;
+  const { ok, status, data } = await api('GET', `/api/admin/missions/live/player?${qs}`);
+  if (!ok) {
+    out.appendChild(aiEl('p', { class: 'error' }, status === 404
+      ? `Compte inexistant : aucun joueur ne s'appelle exactement « ${name} ». Tapez 2 lettres et choisissez-le dans la liste.`
+      : `Erreur de l'API (${status || 'réseau'}) : ${data?.error || 'réessayez.'}`));
+    return;
+  }
+  const server = data.source === 'server';
+  const head = aiEl('div', { class: `mq-src ${server ? 'mq-src--server' : 'mq-src--browser'}` });
+  const label = !server ? 'Navigateur (standard)' : data.reason === 'on' ? 'Serveur (tous les joueurs)' : 'Serveur (Pilote)';
+  head.appendChild(aiEl('strong', {}, `Source des missions : ${label}`));
+  head.appendChild(aiEl('div', {}, `${data.username} · ID ${data.id} — ${MQ_SRC_REASON[data.reason] ?? data.reason}`));
+  head.appendChild(aiEl('div', { class: 'muted' }, `Journée de référence : ${data.day} (minuit Europe/Bruxelles)`));
+  out.appendChild(head);
+  if (!data.today) {
+    out.appendChild(aiEl('p', { class: 'muted' }, server
+      ? 'Aucune attribution encore aujourd\'hui : le serveur attribuera les missions à la prochaine ouverture de l\'écran Missions par ce joueur.'
+      : 'Aucune attribution serveur aujourd\'hui : ses missions sont calculées par son navigateur (non visibles ici).'));
+  } else {
     const p = data.today.profile;
-    out.appendChild(aiEl('p', { class: 'muted' }, `Version ${data.today.catalogVersion} · profil à l'attribution : ${p.depth} m, compte de ${p.accountDays} jour(s)`));
+    out.appendChild(aiEl('p', { class: 'muted' }, `Catalogue version ${data.today.catalogVersion} · attribuées le ${data.today.assignedAt ? admBrussels(data.today.assignedAt) : '—'}`
+      + `${data.today.updatedAt ? ` · progression lue le ${admBrussels(data.today.updatedAt)}` : ''} · profil à l'attribution : ${p.depth} m, compte de ${p.accountDays} jour(s)`));
+    if (!server) out.appendChild(aiEl('p', { class: 'muted' }, 'Attribution conservée d\'une période où le compte recevait les missions du serveur ; son jeu affiche actuellement celles du navigateur.'));
     const ul = aiEl('ul');
     for (const m of data.today.missions) {
-      ul.appendChild(aiEl('li', {}, `${m.id} : ${m.progress}/${m.target} — 💰 ${m.reward.coins}${m.reward.gems ? ` + 💎 ${m.reward.gems}` : ''} — ${m.claimed ? 'réclamée' : m.progress >= m.target ? 'terminée, à réclamer' : 'en cours'}${m.claimDetails?.overValidated ? ' ⚠ gain déclaré supérieur aux blocs validés (observation)' : ''}`));
+      const r = m.claimReward ?? m.reward;
+      const state = m.claimed ? `réclamée${m.claimedAt ? ` le ${admBrussels(m.claimedAt)}` : ''}` : m.progress >= m.target ? 'terminée, à réclamer' : 'en cours';
+      ul.appendChild(aiEl('li', {}, `${m.name ?? m.id} : ${m.progress}/${m.target} — 💰 ${r.coins}${r.gems ? ` + 💎 ${r.gems}` : ''} — ${state}${m.claimDetails?.overValidated ? ' ⚠ gain déclaré supérieur aux blocs validés (observation)' : ''}`));
     }
     out.appendChild(ul);
   }
   if (data.history.length) out.appendChild(aiEl('p', { class: 'muted' }, `7 derniers jours : ${data.history.map(h => `${h.day} [${h.missions.join(', ')}]`).join(' · ')}`));
-});
+}
+
+document.getElementById('btn-mq-act-inspect').addEventListener('click', () => mqInspectPlayer());
 
 function mqRenderDraft() {
   const box = document.getElementById('mq-draft');

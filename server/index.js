@@ -1486,7 +1486,7 @@ app.get('/api/admin/missions/live', requireAdmin, liveRoute('GET /api/admin/miss
 app.put('/api/admin/missions/live', requireAdmin, liveRoute('PUT /api/admin/missions/live',
   req => ({ settings: missionsLive.setSettings({ mode: req.body?.mode, pilots: req.body?.pilots, note: req.body?.note }), audit: missionsLive.listAudit(50) })));
 app.get('/api/admin/missions/live/player', requireAdmin, liveRoute('GET /api/admin/missions/live/player',
-  req => missionsLive.inspectPlayer(req.query.username)));
+  req => missionsLive.inspectPlayer({ userId: req.query.userId, username: req.query.username })));
 
 app.get('/api/admin/missions/audit', requireAdmin, catalogRoute('GET /api/admin/missions/audit',
   req => ({ audit: missionCatalog.listAudit(intParam(req.query.limit, { def: 100, min: 1, max: 500 })) })));

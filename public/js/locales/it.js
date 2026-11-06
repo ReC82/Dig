@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 845/845 textes. Absents → français. */
+/* Italian (preview) : 846/846 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -1031,6 +1031,7 @@ I18n.registerLocale("it", {
   "guest_warning": "Accedi per salvare i tuoi progressi!",
   "hp_text": "{hp} / {maxHp} HP",
   "mission_claimed": "✓ Riscossa",
+  "mission_live_test": "🧪 Modalità test: missioni del server",
   "mission_progress": "{done} / {target}",
   "mission_reward": "Ricompensa:",
   "offline_duration": "Assente {dur}",

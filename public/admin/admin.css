@@ -1535,3 +1535,9 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
   .mq-sim-rew { grid-column: 2; text-align: left; }
   .mq-sim-day-gain { margin-left: 0; }
 }
+
+/* Activation des missions (#68-E) : champs pleine largeur, source des missions d'un joueur */
+.mq-act-field { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; font-size: 0.8rem; max-width: 520px; }
+.mq-src { border: 1px solid var(--border, #444); border-left-width: 4px; border-radius: 6px; padding: 6px 10px; margin: 6px 0; overflow-wrap: anywhere; }
+.mq-src--server { border-left-color: var(--green, #3a3); }
+.mq-src--browser { border-left-color: var(--muted, #888); }

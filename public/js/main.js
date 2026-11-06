@@ -1614,6 +1614,14 @@ function renderDailyMissions() {
 
     list.appendChild(card);
   });
+
+  // Repère de recette (#68-E) : seuls les comptes pilotes reçoivent `pilot: true`, jamais en mode « tous »
+  if (DailyMissions._live?.pilot) {
+    const note = document.createElement('p');
+    note.className = 'mission-live-test';
+    note.textContent = t('ui.mission_live_test');
+    list.appendChild(note);
+  }
 }
 
 function _afterMissionClaim(reward) {
