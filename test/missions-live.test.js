@@ -202,6 +202,42 @@ test('#68-E : source des missions, pilotes par ID, inspection sans attribution, 
   live.setSettings({ mode: 'off', pilots: [] });
 });
 
+test('#68-F : inspection lisible — noms et objectifs du jeu (catalogue FR), icône, historique nommé ; lecture seule', () => {
+  const a = newUser();
+  save(a, baseSave());
+  live.setSettings({ mode: 'pilot', pilots: [{ id: a }] });
+  const view = live.playerView(a, { nowMs: T0 });
+  const before = rows('daily_mission_days');
+  const ia = live.inspectPlayer({ userId: a }, { nowMs: T0 });
+  assert.strictEqual(rows('daily_mission_days'), before, 'l\'inspection n\'attribue rien');
+  const fill = (s, n) => s.replace(/\{t\}/g, n).replace(/\{s\}/g, n > 1 ? 's' : '');
+  ia.today.missions.forEach((m, i) => {
+    const v = view.missions[i];
+    assert.strictEqual(m.id, v.id);
+    assert.strictEqual(m.name, v.names.fr, 'même nom que le jeu (FR)');
+    assert.strictEqual(m.text, fill(v.descs.fr, v.target), 'même objectif que le jeu (FR)');
+    assert.strictEqual(m.icon, v.icon);
+    assert.ok(!/\{t\}/.test(m.text));
+  });
+  const h = ia.history.find(x => x.day === ia.day);
+  assert.deepStrictEqual(h.missions, view.missions.map(m => `${m.id}:${m.target}`), 'identifiants techniques conservés');
+  assert.deepStrictEqual(h.items.map(x => x.name), view.missions.map(m => m.names.fr));
+  live.setSettings({ mode: 'off', pilots: [] });
+});
+
+test('#68-G : bouton Réclamer sans HTML de pictogramme dans un attribut ; une seule coche « Récompense réclamée »', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8');
+  // L'image des pièces (<img … alt="">) dans aria-label coupait l'attribut : « 500"> Réclamer »
+  const aria = /aria-label="\$\{([^\n]*?btn_mission_claim_aria[^\n]*?)\}">/.exec(main);
+  assert.ok(aria, 'libellé accessible du bouton de mission');
+  assert.match(aria[1], /^escapeHtml\(/);
+  assert.doesNotMatch(aria[1], /rewardParts/);
+  const block = main.slice(main.indexOf('const rewardLabel'), main.indexOf('\n', main.indexOf('const rewardLabel')));
+  assert.doesNotMatch(block, /UiIcons/, 'libellé en texte seul');
+  // Pastille ✓ + message traduit qui commence déjà par ✓ → une seule coche affichée
+  assert.match(main, /<span class="claimed-check">✓<\/span>\$\{t\('ui\.daily_claimed_msg'\)\.replace\(\/\^\\s\*✓\\s\*\/, ''\)\}/);
+});
+
 test('rotation adaptative : par joueur, adaptée à la profondeur, anti-répétition sur l\'historique du joueur', () => {
   catalog.loadProposalIntoDraft();
   catalog.publishDraft({ note: 'proposition (test)' });

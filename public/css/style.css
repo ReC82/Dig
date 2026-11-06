@@ -2236,6 +2236,8 @@ h1 {
   cursor: default;
   font-size: 0.72rem;
 }
+/* « ✓ Réclamé » reste lisible sur la carte atténuée (#68-G) */
+.mission-claim-btn.mission-claimed-btn:disabled { opacity: 1; filter: none; }
 
 /* ── Boutique ────────────────────────────────── */
 .shop-header {
