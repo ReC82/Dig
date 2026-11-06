@@ -194,7 +194,7 @@ Branche `feature/49-audit-economie`, commits `d591e5f` (code) et `bdb5577` (rapp
    d'avance) : conversion des pièces bornée à ≈ 52 🔮 par saison, fragments des coffres minés
    divisés par deux, frustration limitée aux débutants (1 semaine sur 4–5 sans nouveau niveau).
    R si vous voulez des reliques « de long terme » (régulier 7/30 après un mois). Publication par
-   vous dans l'admin, ou écrivez « publier P » / « publier R » dans le ticket.
+   vous dans l'admin (Charger puis Publier) : Claude n'a pas accès à l'admin de production.
 2. Aimant à éclats réduit (1/1/2/2/3) ? **Recommandation : non pour l'instant** (effet faible, retouche un objet acheté).
 3. #85 : scénario (2) « pas de fragments contre de l'argent » tant que le classement donne des lots ? **Recommandation : oui.**
 4. Décisions du 04/11 toujours en attente (inchangées) : plafond 150, ramassage auto, limites/courbe, ordre d'activation.
