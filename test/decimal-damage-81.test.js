@@ -243,9 +243,9 @@ test('aperçu : textes, dates repères et simulation exacte (aucun bonus = aucun
   assert.ok(p.warnings.some(w => /permanent/.test(w)));
   assert.strictEqual(p.samples.length, 5);
   const row1 = p.simulation.rows.find(r => r.base === 1);
-  assert.ok(row1.hitsAfter < row1.hitsBefore && row1.gainPct > 0 && row1.targetShare > 0);
+  assert.ok(row1.hitsAfter < row1.hitsBefore && row1.fewerHitsPct > 0 && row1.targetShare > 0);
   const none = drafts.simulate({ value: 0.25, target: { type: 'block', id: 'inexistant' }, schedule: {} }, { depth: 50 });
-  assert.ok(none.rows.every(r => r.gainPct === 0 && r.hitsAfter === r.hitsBefore));
+  assert.ok(none.rows.every(r => r.zero && r.fewerHitsPct === 0 && r.hitsAfter === r.hitsBefore));
 });
 
 test('aucune route joueur ne transmet de micro-bonus (admin seulement)', () => {

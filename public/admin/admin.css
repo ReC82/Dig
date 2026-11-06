@@ -1467,6 +1467,26 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .mb-checks { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.82rem; }
 .mb-checks label { display: inline-flex; align-items: center; gap: 4px; }
 #mb-list tr { cursor: pointer; }
+/* Recette #81-B (06/11) : simulation expliquée, statut réel séparé du calendrier. */
+.mb-cal-help { font-size: 0.8rem; line-height: 1.4; margin: 0; }
+#mb-dialog .ev-label .bk-info { margin-left: 4px; }
+#mb-dialog .ev-label + .bk-hint:not([hidden]) { display: block; margin: 2px 0 4px; }
+.mb-status { display: grid; gap: 4px; margin: 6px 0; }
+.mb-status p { margin: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.85rem; }
+.mb-status .mb-real { border-color: var(--gold); }
+.mb-sim-title { font-size: 0.9rem; margin: 12px 0 4px; }
+.mb-sim-table th { white-space: normal; vertical-align: bottom; font-size: 0.8rem; }
+.mb-sim-table th small { font-weight: normal; color: var(--muted); }
+.mb-sim-table td { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mb-sim-table td.mb-zero { color: var(--muted); }
+.mb-sim-help { margin: 8px 0; font-size: 0.82rem; line-height: 1.45; }
+.mb-sim-help summary { cursor: pointer; font-weight: 600; }
+.mb-sim-help ul { margin: 4px 0; padding-left: 18px; }
+@media (max-width: 480px) {
+  #mb-preview table th, #mb-preview table td { padding: 5px 4px; font-size: 0.74rem; }
+  #mb-preview table td { white-space: normal; }
+  #mb-preview .mb-sim-table td { white-space: nowrap; }
+}
 
 /* Recette #68-A/B (06/11) : fiche Mission compacte et simulateur de rotation lisible (présentation seule). */
 .mq-ov { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 8px; min-width: 0; }

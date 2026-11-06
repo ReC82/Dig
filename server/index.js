@@ -1840,7 +1840,7 @@ function microBonusRoute(label, fn) {
 const _mbId = req => { const n = parseInt(req.params.id, 10); if (!Number.isSafeInteger(n) || n <= 0) throw new microBonusDrafts.DraftError(400, 'Brouillon invalide.'); return n; };
 app.get('/api/admin/micro-bonuses', requireAdmin, microBonusRoute('GET /api/admin/micro-bonuses', () => microBonusDrafts.adminSummary()));
 app.post('/api/admin/micro-bonuses/preview', requireAdmin, microBonusRoute('POST /api/admin/micro-bonuses/preview',
-  req => microBonusDrafts.preview(req.body?.effect, { depth: req.body?.depth })));
+  req => microBonusDrafts.preview(req.body?.effect, { depth: req.body?.depth, luck: req.body?.luck })));
 app.post('/api/admin/micro-bonuses', requireAdmin, microBonusRoute('POST /api/admin/micro-bonuses', req => {
   const draft = microBonusDrafts.create(req.body || {});
   return { draft, ...microBonusDrafts.adminSummary() };

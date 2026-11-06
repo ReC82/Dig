@@ -13140,6 +13140,11 @@ function mbFillTargets() {
   const blocks = document.createElement('optgroup'); blocks.label = 'Bloc'; sel.appendChild(blocks);
   for (const b of _mb?.blocks ?? []) add(`block:${b.id}`, `${b.name} (${b.id})`, blocks);
   if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  // Souvenir lié : liste lisible des objets d'événements (plus d'identifiants internes à saisir)
+  const src = document.getElementById('mb-source');
+  src.textContent = '';
+  add('', 'Aucun', src);
+  for (const x of _mb?.souvenirs ?? []) add(`${x.eventId}|${x.itemId}`, x.label, src);
 }
 
 function mbRead() {
@@ -13152,7 +13157,8 @@ function mbRead() {
   if (months.length) schedule.months = months;
   if (weekdays.length) schedule.weekdays = weekdays;
   const effect = { kind: 'damage_flat', value: Number(v('mb-value').replace(',', '.')), target: id ? { type, id } : { type: 'all' }, schedule };
-  if (v('mb-src-event') || v('mb-src-item')) effect.source = { eventId: v('mb-src-event'), itemId: v('mb-src-item') };
+  const [eventId, itemId] = v('mb-source').split('|');
+  if (eventId && itemId) effect.source = { eventId, itemId };
   return { label: v('mb-label'), note: v('mb-note'), effect };
 }
 
@@ -13162,7 +13168,12 @@ function mbWrite(d) {
   set('mb-label', d?.label); set('mb-note', d?.note); set('mb-value', e.value);
   set('mb-target', e.target?.type && e.target.type !== 'all' ? `${e.target.type}:${e.target.id}` : 'all');
   set('mb-from', e.schedule?.from); set('mb-to', e.schedule?.to);
-  set('mb-src-event', e.source?.eventId); set('mb-src-item', e.source?.itemId);
+  const src = document.getElementById('mb-source');
+  const sv = e.source ? `${e.source.eventId}|${e.source.itemId}` : '';
+  if (sv && ![...src.options].some(o => o.value === sv)) {   // lien vers un souvenir supprimé : conservé, signalé
+    const o = document.createElement('option'); o.value = sv; o.textContent = `Introuvable (${e.source.eventId} / ${e.source.itemId})`; src.appendChild(o);
+  }
+  src.value = sv;
   for (const [box, list] of [['mb-months', e.schedule?.months], ['mb-weekdays', e.schedule?.weekdays]]) {
     document.querySelectorAll(`#${box} input`).forEach(cb => { cb.checked = (list ?? []).includes(Number(cb.value)); });
   }
@@ -13183,14 +13194,15 @@ function renderMicroBonus(data) {
     tr.dataset.admKey = `mb-${d.id}`;
     mbCell(tr, `${d.label}${d.archived ? ' (archivé)' : ''}`);
     mbCell(tr, d.text);
-    mbCell(tr, d.state ? `${d.state.text} — brouillon, inactif en jeu` : '—');
+    mbCell(tr, d.state ? d.state.would : '—');
+    mbCell(tr, '🔒 Brouillon — jamais appliqué');
     mbCell(tr, d.updatedAt);
     const open = () => mbOpen(d, tr);
     tr.addEventListener('click', open);
     tr.addEventListener('keydown', e => { if (e.key === 'Enter') open(); });
     body.appendChild(tr);
   }
-  if (!data.drafts.length) { const tr = document.createElement('tr'); mbCell(tr, 'Aucun brouillon.').colSpan = 4; body.appendChild(tr); }
+  if (!data.drafts.length) { const tr = document.createElement('tr'); mbCell(tr, 'Aucun brouillon.').colSpan = 5; body.appendChild(tr); }
   const log = document.getElementById('mb-log');
   log.textContent = '';
   for (const l of data.log) {
@@ -13228,30 +13240,68 @@ function mbOpen(d, opener) {
   document.getElementById('mb-dlg-msg').className = 'hidden';
   admDialogOpen('mb-dialog', opener, 'mb-label');
 }
+
+// Aides ⓘ de la fiche Micro-bonus (recette #81-B) : une seule aide ouverte à la fois
+document.getElementById('mb-dialog').addEventListener('click', e => {
+  const b = e.target.closest('.bk-info');
+  if (!b) return;
+  e.preventDefault();
+  const h = document.getElementById(b.getAttribute('aria-controls'));
+  if (!h) return;
+  const show = h.hidden;
+  for (const o of document.querySelectorAll('#mb-dialog .bk-hint')) o.hidden = true;
+  for (const o of document.querySelectorAll('#mb-dialog .bk-info')) o.setAttribute('aria-expanded', 'false');
+  h.hidden = !show;
+  b.setAttribute('aria-expanded', String(show));
+});
+
+/** « Coups en moins » : vrai zéro, gain minuscule et gain normal se distinguent. */
+function mbPct(r) {
+  if (r.zero) return '0 % (aucun)';
+  if (r.fewerHitsPct < 0.01) return '< 0,01 %';
+  return `−${mbFr(r.fewerHitsPct)} %`;
+}
 document.getElementById('btn-mb-add').addEventListener('click', e => mbOpen(null, e.currentTarget));
 
 async function mbPreview() {
-  const { ok, data } = await api('POST', '/api/admin/micro-bonuses/preview', { effect: mbRead().effect, depth: Number(document.getElementById('mb-depth').value) });
+  const { ok, data } = await api('POST', '/api/admin/micro-bonuses/preview', { effect: mbRead().effect, depth: Number(document.getElementById('mb-depth').value), luck: Number(document.getElementById('mb-luck').value) });
   const box = document.getElementById('mb-preview');
   if (!ok) { box.classList.add('hidden'); return adMessage('mb-dlg-msg', data.error || 'Erreur.', false); }
   document.getElementById('mb-dlg-msg').className = 'hidden';
   document.getElementById('mb-prev-fr').textContent = data.text.fr;
   document.getElementById('mb-prev-en').textContent = `EN : ${data.text.en}`;
-  document.getElementById('mb-prev-state').textContent = `État aujourd'hui s'il était activé : ${data.state.text}. Statut réel : brouillon, aucun effet en jeu.`;
+  document.getElementById('mb-prev-state').textContent = `📅 Calendrier : aujourd'hui, ce bonus ${data.state.code === 'active' ? 'serait actif s\'il était publié.' : `serait inactif s'il était publié (${data.state.text}).`}`;
   const warn = document.getElementById('mb-prev-warn');
   warn.textContent = '';
   for (const w of data.warnings) { const li = document.createElement('li'); li.textContent = `⚠️ ${w}`; warn.appendChild(li); }
   const samples = document.getElementById('mb-prev-samples');
   samples.textContent = '';
   for (const s of data.samples) { const tr = document.createElement('tr'); mbCell(tr, s.label); mbCell(tr, s.text); samples.appendChild(tr); }
-  document.getElementById('mb-prev-sim-title').textContent = `Simulation à ${data.simulation.depth} m, bonus supposé actif : coups moyens par bloc (PV sans relique, tirage neutre), calcul exact au centième.`;
+  const sm = data.simulation;
+  document.getElementById('mb-prev-sim-title').textContent = `Simulation à ${sm.depth} m${sm.luck ? `, Chance niveau ${sm.luck}` : ', sans Chance'} — bonus supposé actif (moyennes exactes)`;
   const sim = document.getElementById('mb-prev-sim');
   sim.textContent = '';
-  for (const r of data.simulation.rows) {
+  for (const r of sm.rows) {
     const tr = document.createElement('tr');
     mbCell(tr, mbFr(r.base)); mbCell(tr, mbFr(r.hitsBefore)); mbCell(tr, mbFr(r.hitsAfter));
-    mbCell(tr, `+${mbFr(r.gainPct)} %`); mbCell(tr, `${mbFr(r.targetShare)} %`);
+    mbCell(tr, mbPct(r)).classList.toggle('mb-zero', r.zero);
+    mbCell(tr, r.zero ? '0' : `≈ ${r.savedPer100.toLocaleString('fr-BE', { maximumFractionDigits: 1 })}`).classList.toggle('mb-zero', r.zero);
+    mbCell(tr, `${mbFr(r.targetShare)} %`);
     sim.appendChild(tr);
+  }
+  const fill = (id, list) => { const ul = document.getElementById(id); ul.textContent = ''; for (const t of list) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); } };
+  fill('mb-prev-explain', data.explain);
+  fill('mb-prev-hyp', data.hypotheses);
+  document.getElementById('mb-prev-pool-title').textContent = `Blocs possibles à ${sm.depth} m (${sm.blocks.length})`;
+  const pool = document.getElementById('mb-prev-pool');
+  pool.textContent = '';
+  for (const b of sm.blocks) {
+    const tr = document.createElement('tr');
+    mbCell(tr, b.name);
+    mbCell(tr, sm.luck ? `${mbFr(b.chanceLuck)} % (sans Chance : ${mbFr(b.chance)} %)` : `${mbFr(b.chance)} %`);
+    mbCell(tr, b.hp.toLocaleString('fr-BE'));
+    mbCell(tr, b.targeted ? '✓ oui' : '—');
+    pool.appendChild(tr);
   }
   box.classList.remove('hidden');
 }
