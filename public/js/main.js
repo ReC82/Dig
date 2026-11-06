@@ -497,7 +497,7 @@ function renderBlock() {
   // HP
   const ratio = Blocks.hpRatio();
   elHpBar.style.width  = `${(ratio * 100).toFixed(1)}%`;
-  elHpText.textContent = `${NumFmt.hp(b.hp)} / ${NumFmt.hp(b.maxHp)} HP`;   // PV exacts au centième, affichage arrondi (#81)
+  elHpText.textContent = t('ui.hp_text', { hp: NumFmt.hp(b.hp), maxHp: NumFmt.hp(b.maxHp) });   // PV exacts au centième, affichage arrondi (#81) ; unité traduite (#84)
 
   elHpBar.classList.remove('low', 'critical');
   if (ratio <= 0.25)      elHpBar.classList.add('critical');
@@ -3569,7 +3569,8 @@ function _bindAccountSection(container) {
       : (document.getElementById('acc-invite')?.value ?? '').trim();
     document.getElementById('acc-error').textContent = '';
 
-    const error = _accountTab === 'register'
+    const registering = _accountTab === 'register';
+    const error = registering
       ? await _doRegister(username, email, password, invite || undefined)
       : await _doLogin(username, password);
     if (error) return { ok: false, text: error };
@@ -3578,6 +3579,12 @@ function _bindAccountSection(container) {
     await _pollSeason();
     try { await _loadAccount(); } catch (_) { /* l'adresse s'affichera au prochain chargement */ }
     renderSettings();
+    // Compte créé (#84) : retour direct au bloc, où le tutoriel est proposé, au lieu de rester
+    // sur Paramètres sans indication de la suite.
+    if (registering) {
+      switchView('dig');
+      showAchievement('✅', t('account.registered_play'));
+    }
   });
 }
 
