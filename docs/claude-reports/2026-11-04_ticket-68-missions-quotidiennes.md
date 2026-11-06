@@ -2,6 +2,61 @@
 
 Lien : https://github.com/ReC82/Dig/issues/68
 
+## Session du 06/11/2026, début d'après-midi (DIGORCH) — recette #68-F/#68-G : inspection en cartes, bouton « Réclamer », coche unique
+
+**État réel : Déployé en production (SHA `3684330`) — en attente de recette.** Présentation seule : aucun calcul, barème, bonus, tirage, mission déjà attribuée ni état du drapeau modifié (il est toujours sur **Désactivé**). Aucune migration.
+
+### Origine
+- [#68-F](https://github.com/ReC82/Dig/issues/68#issuecomment-6682677762) : attribution serveur **validée** ; l'inspection « Voir les missions d'un joueur » est une liste technique brute. Demande : en-tête lisible, trois cartes avec le **nom vu dans le jeu** (« Bricoleur », « Accumulateur », « Explorateur du jour »), objectif, barre de progression, récompense et statut ; identifiants en petit ; métadonnées dans « Détails » repliable. Recherche de joueur par saisie partielle.
+- [#68-G](https://github.com/ReC82/Dig/issues/68#issuecomment-6682782170) : réclamation et « ✓ Réclamé » après F5 **validés** ; deux défauts d'affichage : bouton « 500"> Réclamer » et « ✓ ✓ Récompense réclamée ! ».
+- [#68-H](https://github.com/ReC82/Dig/issues/68#issuecomment-6682886049) (réclamation reproposée après Pilote → Désactivé) : traité dans le ticket dédié **#83**, déployé `b8cf434`. Non retouché ici.
+
+### Diagnostic #68-G (reproduit sur base de test avec les pictogrammes réellement appliqués en production)
+- **« 500"> Réclamer »** : le libellé accessible du bouton (`aria-label`) recevait le HTML du pictogramme des pièces. Depuis que l'image « pièces » est appliquée en production (`<img … alt="">`), ses guillemets fermaient l'attribut et la fin (`500">`) s'affichait dans le bouton. Invisible tant que le pictogramme était l'emoji 💰, donc absent des essais précédents.
+- **Double coche** : la pastille verte `✓` était suivie du texte traduit qui commence déjà par « ✓ » (FR/EN/NL/ES/IT).
+
+### Changements
+- **Jeu → Quotidien** (`public/js/main.js`, `public/css/style.css`)
+  - Bouton de mission : « **Réclamer** » seul, la récompense restant affichée à gauche (« Récompense : 💰 500 »), sans doublon. Libellé accessible en texte simple et échappé (« Réclamer 💰 500 »).
+  - « ✓ Récompense réclamée ! » : une seule coche (la coche de début du texte traduit est retirée à l'affichage ; traductions inchangées).
+  - « ✓ Réclamé » reste lisible sur une carte atténuée (il était presque transparent).
+- **Admin → 🎯 Missions → 🚦 Activation en jeu → Voir les missions d'un joueur** (`public/admin/admin.js`, `admin.css`, `server/missionsLive.js`)
+  - En-tête : **pseudo** en grand, pastille « **Missions serveur · Pilote** » (ou « Tous les joueurs », ou « Missions du navigateur · standard »), « Journée du … (Bruxelles) · catalogue vN · X m à l'attribution », puis la source et sa raison en petit.
+  - **Trois cartes** : icône ou image du catalogue, **nom et objectif exactement comme dans le jeu** (textes FR du catalogue de la version attribuée, ceux que lit le joueur en français ; rien n'est codé en dur), barre de progression, « 0/4 », récompense « 💰 320 », statut coloré (« En cours », « Terminée — à réclamer », « ✓ Réclamée le … »), puis « ID buy_upgrades » en petite police.
+  - **Détails** (replié) : pseudo et ID, heures d'attribution et de lecture de la progression, profil (profondeur, ancienneté), missions au format `id:objectif`, historique 7 jours avec les noms et les identifiants.
+  - La recherche par saisie partielle avec suggestions (livrée en #68-E, `9d44664`) est conservée : 2 lettres, liste filtrée, ↑ ↓ Entrée, « Aucun pseudo ne contient … », pseudo et ID seulement (jamais d'e-mail), inspection par ID. Les comptes pilotes se choisissent dans les mêmes suggestions.
+  - Serveur : `inspectPlayer` ajoute `text` (objectif rempli), `icon`, `image` et `history[].items` (noms). Toujours en lecture seule : aucune attribution créée (testé).
+
+### SHA, tests
+- Branche `feature/68-missions-quotidiennes` : `c129c78`. `develop` : `3684330` (arbre identique à la branche testée), **déployé**.
+- `npm test` **831/831** sur la branche et sur la release `3684330`. Nouveaux tests : #68-F (noms, objectifs et icônes de l'inspection identiques à la vue du jeu, historique nommé avec identifiants conservés, aucune attribution créée) ; #68-G (libellé accessible échappé sans HTML de pictogramme, une seule coche).
+- Navigateur (Chromium, base de test, port 3101), avec les pictogrammes de production servis à l'identique : avant correctif, texte des boutons « 500"> Réclamer » et « ✓✓ Récompense réclamée ! » reproduits ; après, « Réclamer » et « ✓ Récompense réclamée ! » en FR et NL, PC 1280, mobile 390 et 320, sans défilement horizontal. Admin PC 1280 et 320 : en-tête, 3 cartes, Détails, « aucun résultat ». `test/e2e/missions-live.e2e.js` passe sur PC et mobile (pilote choisi dans les suggestions, réclamation unique, F5, inspection « Réclamée », retour à Désactivé, cas #83).
+
+### Déploiement
+- Copie de la base de production démarrée en `NODE_ENV=production` (port 3122) : `/health` ok, version `1.0.0+3684330`, empreintes des six tables joueurs identiques avant et après.
+- Aucune génération IA en cours au moment du déploiement (dernière terminée et appliquée à 11:54 UTC).
+- `main` avancé `b8cf434 → 3684330`, `scripts/deploy.sh` : sauvegarde vérifiée `~/backups/dig/dig-20261106-130108-pre-deploy-3684330.sqlite`, santé et version OK.
+- Après déploiement : les 2 domaines en 200 avec `1.0.0+3684330`, journal sans erreur, `quick_check` ok, empreintes joueurs identiques à la sauvegarde, `admin.js?v=1.0.0+3684330` servi, drapeau des missions toujours sur **Désactivé**.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep b8cf434` + redémarrage (présentation seule, aucune donnée touchée).
+
+### Test fonctionnel à faire par le propriétaire (3 min)
+1. Jeu (**Ctrl+F5**) → Quotidien, avec n'importe quel compte. Attendu : boutons « **Réclamer** » propres (plus de « 500"> »), et après la récompense de connexion « **✓ Récompense réclamée !** » avec une seule coche. Une mission réclamée affiche « ✓ Réclamé » lisible.
+2. /admin/ (**Ctrl+F5**) → 🎯 Missions → 🚦 Activation en jeu → « Voir les missions d'un joueur » : tapez « tes » et choisissez **testeur** dans la liste. Attendu : en-tête « testeur » + pastille, journée de Bruxelles, et **trois cartes** « Bricoleur / Accumulateur / Explorateur du jour » (ou les missions du jour) avec barre, récompense et statut. Les identifiants techniques sont en petit et dans « Détails ».
+3. Tapez « zzqx » : attendu « Aucun pseudo ne contient « zzqx » ».
+
+**Classement : Après lancement** pour l'inspection admin. Le bouton « Réclamer » et la coche unique touchent tous les joueurs (le pictogramme des pièces est appliqué) : correctif visible, déjà en ligne.
+
+### Choix techniques
+- Libellé accessible construit en texte (emoji) plutôt qu'en retirant les balises du HTML : plus simple et sûr, et échappé.
+- Coche retirée à l'affichage plutôt que dans les traductions : les textes FR/EN/NL/ES et l'italien suivi par empreinte (#59) ne changent pas.
+- Les noms des cartes admin viennent de la **version du catalogue attribuée ce jour-là** (comme le jeu), pas du brouillon ni d'un dictionnaire séparé. L'admin est en français, donc textes FR.
+
+### Décisions demandées
+Aucune nouvelle décision pour cette correction. Les questions déjà posées restent ouvertes : barème du bonus trois missions, remplacement du bonus fixe #49, branchement du bonus dans le moteur, barème des objectifs, ordre d'activation Pilote puis Tous.
+
+### Reste à faire
+Recette ci-dessus ; validation économique et arbitrages (questions ouvertes) ; activation Pilote → Tous à la décision du propriétaire. Réserves antérieures « fiche Mission » et « simulateur » corrigées en `7af04f9` (à confirmer par le propriétaire).
+
 ## Session du 06/11/2026, midi (DIGORCH) — recette #68-E : recherche de joueur, source des missions, repère pilote
 
 **État réel : Déployé en production (SHA `9d44664`) — en attente de recette.** Aucun calcul, barème, bonus, catalogue ni état du drapeau modifié. Aucune migration.
