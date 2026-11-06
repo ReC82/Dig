@@ -2058,7 +2058,7 @@ function _erRenderForm(r) {
     ...g.dailyStreak.map((n, i) => [`gems.dailyStreak.${i}`, `Jour ${i + 1}`, n]),
     ['gems.missionSetBonus', 'Bonus trois missions', g.missionSetBonus],
     ['gems.seasonCap', 'Plafond de fin de saison', g.seasonCap]]);
-  group('Auto-Dig (coût en 💎)', Object.entries(g.autodig).map(([l, n]) => [`gems.autodig.${l}`, `Niveau ${l}`, n]));
+  group('Auto-Dig (coût en 💎) — simulation ; prix appliqués au jeu : ⬆ Améliorations', Object.entries(g.autodig).map(([l, n]) => [`gems.autodig.${l}`, `Niveau ${l}`, n]));
   group('Pièces et coffres de la boutique', [
     ['coins.curve', 'Courbe (fin:pente, … ; vide = +5 %/m sans limite ; ex. 200:0.05, ∞:0.02)', _erCurveText(r.coins.curve), 'text'],
     ...Object.entries(r.shopChests).map(([id, c]) => [`shopChests.${id}.maxPerSeason`, `${id} : limite / saison`, c.maxPerSeason])]);
@@ -11700,21 +11700,21 @@ function upRead() {
     return u;
   }
   u.costs = [...document.querySelectorAll('#up-levels-body [data-up="cost"]')].map(el => (el.value.trim() === '' ? null : Number(el.value)));
-  if (ty.gems) u.gems = [...(upPublished(id)?.gems ?? [])];
+  if (ty.gems) u.gems = [...document.querySelectorAll('#up-levels-body [data-up="gem"]')].map(el => (el.value.trim() === '' ? null : Number(el.value)));
   if (ty.perLevel) u.perLevel = Number(document.getElementById('up-per').value);
   return u;
 }
 
 /** Lignes de niveaux : conserve les prix saisis quand le nombre de niveaux change. */
-function upRenderLevels(costs) {
+function upRenderLevels(costs, gems) {
   const id = _upCur, ty = upType(id);
   const body = document.getElementById('up-levels-body');
-  const prev = ty.reroll ? [] : upRead().costs ?? [];
-  costs = costs ?? prev;
+  const prev = ty.reroll ? {} : upRead();
+  costs = costs ?? prev.costs ?? [];
+  gems = gems ?? prev.gems ?? [];
   body.textContent = '';
   if (ty.reroll) { upRefresh(); return; }
   const max = Math.min(ty.levels[1], Math.max(ty.levels[0], Number(document.getElementById('up-max').value) || ty.levels[0]));
-  const gems = upPublished(id)?.gems ?? [];
   const holders = upHolders(id);
   for (let lvl = ty.firstLevel + 1; lvl <= max; lvl++) {
     const i = lvl - ty.firstLevel - 1;
@@ -11723,7 +11723,12 @@ function upRenderLevels(costs) {
     const c = aiEl('input', { type: 'number', min: '0', step: '1', 'data-up': 'cost', 'aria-label': `Prix du niveau ${lvl} en pièces` });
     c.value = costs[i] ?? '';
     addCell(tr, '').appendChild(c);
-    addCell(tr, ty.gems ? String(gems[i] ?? 0) : '—').className = 'num';
+    if (ty.gems) {
+      // Prix en gemmes éditables (#69) : lus par le jeu ET débités par le registre serveur (#49)
+      const g = aiEl('input', { type: 'number', min: '0', max: String(_up.limits?.gemMax ?? 1000), step: '1', 'data-up': 'gem', 'aria-label': `Prix du niveau ${lvl} en gemmes` });
+      g.value = gems[i] ?? 0;
+      addCell(tr, '').appendChild(g);
+    } else addCell(tr, '—').className = 'num';
     addCell(tr, '').className = 'num up-real';
     addCell(tr, '').className = 'num up-cum';
     addCell(tr, '').className = 'up-fx';
@@ -11807,8 +11812,9 @@ function upOpen(upgrade, opener) {
   document.getElementById('up-studio-key').textContent = `ui:upgrade_${u.id}`;
   document.getElementById('up-formula').textContent = `Calcul : ${ty.formula}`;
   const locked = document.getElementById('up-locked');
-  locked.textContent = ty.locked ? `🔒 ${ty.locked}` : '';
-  locked.classList.toggle('hidden', !ty.locked);
+  locked.textContent = [ty.locked ? `🔒 ${ty.locked}` : '', ty.gemNote ? `💎 ${ty.gemNote}` : ''].filter(Boolean).join('\n');
+  locked.style.whiteSpace = 'pre-line';
+  locked.classList.toggle('hidden', !ty.locked && !ty.gemNote);
   const max = document.getElementById('up-max');
   max.min = String(Math.max(ty.levels[0], _up.publishedMaxLevels?.[u.id] ?? 0));
   max.max = String(ty.levels[1]);
@@ -11826,7 +11832,7 @@ function upOpen(upgrade, opener) {
     document.getElementById('up-rr-base').value = u.reroll.base;
     document.getElementById('up-rr-every').value = u.reroll.every;
   }
-  upRenderLevels(u.costs ?? []);
+  upRenderLevels(u.costs ?? [], u.gems ?? []);
   const changed = (_up.draft?.changes ?? []).some(c => c.id === u.id);
   const state = document.getElementById('up-state');
   state.textContent = changed ? 'Cette amélioration a des modifications dans le brouillon (pas encore en jeu) : la comparaison montre l\'écart avec la version en vigueur.'

@@ -62,12 +62,22 @@ function currentValues() {
       missionSetBonus: 0,
       dailyStreak: Daily.REWARDS.map(r => r.gems),
       seasonCap: Number.isSafeInteger(cap) && cap >= 0 ? cap : 100,
-      autodig: Object.fromEntries(AUTODIG_LEVELS.map(l => [l, Balance.AUTODIG[Number(l) - 1].gems])),
+      autodig: _appliedAutodigGems(Balance),
     },
     coins: { curve: [] },
     shopChests: Object.fromEntries(SHOP_CHESTS.map(id => [id, { maxPerSeason: shop[id]?.maxPerSeason ?? null }])),
     gemShop: { items: Object.fromEntries(Object.entries(GEM_SHOP_ITEMS).map(([id, d]) => [id, { price: d.price, enabled: true }])) },
   };
+}
+
+/**
+ * Prix en gemmes de l'Auto-Dig APPLIQUÉS : barème publié des améliorations (#69), lu par le jeu et
+ * débité par le registre. Repli sur le code du jeu si ce barème n'est pas encore initialisé.
+ */
+function _appliedAutodigGems(Balance) {
+  let costs = null;
+  try { costs = require('./upgradeCatalog').autodigGemCosts().costs; } catch (_) { /* tables absentes */ }
+  return Object.fromEntries(AUTODIG_LEVELS.map(l => [l, costs?.[l] ?? Balance.AUTODIG[Number(l) - 1].gems]));
 }
 
 let _scripts = null;

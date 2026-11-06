@@ -39,6 +39,7 @@ const db = require('./db');
 
 const LANGS = [...require('./languages').CONTENT_LANGS];   // registre des langues (#59)
 const COST_MAX = 10_000_000;
+const GEM_MAX = 1_000;   // mêmes bornes que les règles économiques (#49, LIMITS.autodig)
 const IDS = ['pickaxe', 'luck', 'bag', 'autodig', 'fragment_shop', 'block_reroll'];
 
 /**
@@ -69,7 +70,8 @@ const TYPES = {
     label: 'Auto-Dig', kind: 'seasonal', firstLevel: 0, levels: [6, 6], gems: true,
     effect: 'Dégâts automatiques', unit: 'dégâts/s',
     formula: 'Dégâts automatiques par seconde = niveau d\'Auto-Dig + bonus « auto-dig » des reliques (gains hors ligne compris).',
-    locked: 'Nombre de niveaux et prix en gemmes verrouillés : anti-bot (#25, 6 + 14 = 20 dégâts/s) et registre de gemmes serveur (#49).',
+    locked: 'Nombre de niveaux verrouillé : l\'anti-bot (#25) suppose au plus 6 + 14 = 20 dégâts automatiques/s.',
+    gemNote: 'Prix en gemmes éditables : le jeu ET le registre de gemmes serveur (#49) lisent la même version publiée ; chaque achat en gemmes est confirmé par le serveur au prix en vigueur (prix périmé refusé).',
     suspend: 'Auto-Dig calculé comme au niveau 0 (reliques conservées), gains hors ligne compris.',
   },
   fragment_shop: {
@@ -291,7 +293,6 @@ function normalizeUpgrade(input) {
   const ty = TYPES[id];
   if (!ty) throw new CatalogError(400, `« ${id} » : amélioration inconnue (un nouveau type d'amélioration exige du code moteur).`);
   const where = `« ${ty.label} »`;
-  const origin = originUpgrades().find(u => u.id === id);
   const maxLevel = Number(input.maxLevel);
   const [lo, hi] = ty.levels;
   if (!Number.isInteger(maxLevel) || maxLevel < lo || maxLevel > hi) {
@@ -313,18 +314,21 @@ function normalizeUpgrade(input) {
   const n = maxLevel - ty.firstLevel;
   const costs = Array.isArray(input.costs) ? input.costs.map(Number) : [];
   if (costs.length !== n) throw new CatalogError(400, `${where} : un prix par niveau à acheter (${n}).`);
-  const gems = ty.gems ? origin.gems : null;
+  let gems = null;
+  if (ty.gems) {
+    gems = Array.isArray(input.gems) ? input.gems.map(Number) : [];
+    if (gems.length !== n) throw new CatalogError(400, `${where} : un prix en gemmes par niveau à acheter (${n}).`);
+    gems.forEach((g, i) => {
+      if (!Number.isInteger(g) || g < 0 || g > GEM_MAX) throw new CatalogError(400, `${where} : prix en gemmes du niveau ${ty.firstLevel + i + 1} entier de 0 à ${GEM_MAX.toLocaleString('fr-FR')}.`);
+    });
+  }
   costs.forEach((c, i) => {
     const lvl = ty.firstLevel + i + 1;
-    const min = gems && gems[i] > 0 ? 0 : 1;   // niveau payé en gemmes : 0 pièce admis
-    if (!Number.isInteger(c) || c < min || c > COST_MAX) throw new CatalogError(400, `${where} : prix du niveau ${lvl} entier de ${min} à ${COST_MAX.toLocaleString('fr-FR')} pièces.`);
+    const min = gems && gems[i] > 0 ? 0 : 1;   // niveau payé en gemmes : 0 pièce admis ; jamais gratuit
+    if (!Number.isInteger(c) || c < min || c > COST_MAX) throw new CatalogError(400, `${where} : prix du niveau ${lvl} entier de ${min} à ${COST_MAX.toLocaleString('fr-FR')} pièces${min ? ' (un niveau sans gemmes doit coûter des pièces)' : ''}.`);
   });
   out.costs = costs;
-  if (ty.gems) {
-    const g = Array.isArray(input.gems) ? input.gems.map(Number) : [];
-    if (JSON.stringify(g) !== JSON.stringify(gems)) throw new CatalogError(400, `${where} : prix en gemmes verrouillés (${gems.join(' / ')}). ${ty.locked}`);
-    out.gems = [...gems];
-  }
+  if (gems) out.gems = gems;
   if (ty.perLevel) {
     const p = Number(input.perLevel);
     if (!Number.isFinite(p) || p < ty.perLevel.min || p > ty.perLevel.max) throw new CatalogError(400, `${where} : effet par niveau de ${ty.perLevel.min} à ${ty.perLevel.max}.`);
@@ -358,6 +362,10 @@ function validateCatalog(raw, { maxLevels = _publishedMaxLevels() } = {}) {
     const prev = maxLevels.get(x.id);
     if (prev && x.maxLevel < prev) errors.push(`« ${TYPES[x.id].label} » : ${prev} niveaux déjà publiés, le nombre de niveaux ne peut pas baisser (niveaux possédés).`);
     for (const l of LANGS) if (!x.names[l]) warnings.push(`« ${TYPES[x.id].label} » : nom ${l.toUpperCase()} manquant (repli sur la traduction intégrée).`);
+    if (x.gems) {
+      const gdrop = x.gems.findIndex((g, i) => i > 0 && g > 0 && x.gems[i - 1] > g);
+      if (gdrop > 0) warnings.push(`« ${TYPES[x.id].label} » : le prix en gemmes du niveau ${TYPES[x.id].firstLevel + gdrop + 1} est inférieur au précédent.`);
+    }
     if (x.costs) {
       const drop = x.costs.findIndex((c, i) => i > 0 && c > 0 && x.costs[i - 1] > c);
       if (drop > 0) warnings.push(`« ${TYPES[x.id].label} » : le prix du niveau ${TYPES[x.id].firstLevel + drop + 1} est inférieur au précédent.`);
@@ -610,15 +618,52 @@ function buildAdminView() {
     controlLabels: CONTROL_LABELS,
     costMultiplier: Number.isFinite(mult) && mult > 0 ? mult : 1,
     langs: LANGS,
-    limits: { costMax: COST_MAX, reroll: REROLL_LIMITS, controlRate: CONTROL_RATE },
+    limits: { costMax: COST_MAX, gemMax: GEM_MAX, reroll: REROLL_LIMITS, controlRate: CONTROL_RATE },
   };
+}
+
+// ── Prix en gemmes : source unique du jeu et du registre serveur ─────────────
+
+/**
+ * Prix en gemmes de l'Auto-Dig par niveau atteint, lus dans la version PUBLIÉE (immuable) : la même
+ * que celle servie au jeu par GET /api/upgrades/catalog. Le registre de gemmes (#49) débite ces prix.
+ * @returns {{ version: number, costs: Object<number, number> }}
+ */
+function autodigGemCosts() {
+  const p = getPublished();
+  const u = p.upgrades.find(x => x.id === 'autodig');
+  const costs = {};
+  (u?.gems ?? []).forEach((g, i) => { costs[TYPES.autodig.firstLevel + i + 1] = g; });
+  return { version: p.version, costs };
+}
+
+/**
+ * Confirmation serveur d'un achat payé en gemmes, AVANT que le jeu ne débite quoi que ce soit :
+ * le prix annoncé par le client doit être celui de la version publiée. Prix périmé (barème publié
+ * ou retour arrière entre-temps) → 409 `stale_price` avec le barème à jour ; achats suspendus → 409.
+ * Ne modifie rien (le débit reste celui du registre, au même prix, à la sauvegarde suivante).
+ * @param {{ id: string, level: number, gems: number, version?: number }} input  level = niveau visé
+ */
+function checkPurchase(input = {}) {
+  const id = String(input.id ?? '');
+  const ty = TYPES[id];
+  if (!ty || !ty.gems) throw new CatalogError(400, 'Seuls les achats payés en gemmes sont confirmés par le serveur.');
+  const p = getPublished();
+  const u = p.upgrades.find(x => x.id === id);
+  const level = Number(input.level);
+  if (!Number.isInteger(level) || level <= ty.firstLevel || level > u.maxLevel) throw new CatalogError(400, 'Niveau invalide.');
+  const gems = u.gems[level - ty.firstLevel - 1];
+  const c = getControls()[id];
+  if (c?.purchases || c?.hidden) return { ok: false, code: 'suspended', version: p.version, catalog: publicCatalog() };
+  if (Number(input.gems) !== gems) return { ok: false, code: 'stale_price', version: p.version, level, gems, catalog: publicCatalog() };
+  return { ok: true, version: p.version, level, gems };
 }
 
 function _resetRateForTests() { _controlHits.length = 0; }
 
 module.exports = {
   CatalogError, TYPES, IDS, LANGS, CONTROL_KEYS,
-  init, originUpgrades, getPublished, getVersion, getDraft, listVersions, publicCatalog, getControls,
+  init, originUpgrades, getPublished, autodigGemCosts, checkPurchase, getVersion, getDraft, listVersions, publicCatalog, getControls,
   normalizeUpgrade, validateCatalog, diff, holders,
   upsertDraftUpgrade, revertDraftUpgrade, discardDraft, publishDraft, rollbackTo, listAudit,
   previewControl, setControl, listControlAudit, buildAdminView, _resetRateForTests,
