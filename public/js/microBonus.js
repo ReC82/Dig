@@ -5,7 +5,8 @@
  * Modèle déclaratif (un bonus = une ligne de configuration, jamais du code par objet) :
  *   { kind: 'damage_flat', value: 0,01–1 (au centième),
  *     target:   { type: 'all' } | { type: 'category', id: 'pierre' } | { type: 'block', id: 'pierre' },
- *     schedule: { from?: 'AAAA-MM-JJ', to?: 'AAAA-MM-JJ', months?: [1–12], weekdays?: [1–7 (lundi = 1)] },
+ *     schedule: { from?: 'AAAA-MM-JJ', to?: 'AAAA-MM-JJ', months?: [1–12], weekdays?: [1–7 (lundi = 1)],
+ *                 monthDays?: [1–31] (jours du mois, ex. 1–7 = première semaine de chaque mois, #86) },
  *     source?:  { eventId, itemId } }   // souvenir d'événement qui porterait l'effet (lien seul)
  * Toutes les conditions du calendrier se combinent (ET), évaluées sur la date civile de
  * Europe/Brussels ; calendrier vide = toujours. L'effet s'ajoute aux dégâts d'un COUP MANUEL
@@ -47,7 +48,14 @@
 
   function _ints(list, min, max, label) {
     if (list == null || list === '') return null;
-    const arr = (Array.isArray(list) ? list : String(list).split(/[;,\s]+/).filter(Boolean)).map(Number);
+    // Saisie texte : « 1-7 » ou « 1, 15 » (plages inclusives, #86)
+    const words = Array.isArray(list) ? list : String(list).split(/[;,\s]+/).filter(Boolean);
+    const arr = [];
+    for (const w of words) {
+      const m = typeof w === 'string' && /^(\d+)\s*[-–]\s*(\d+)$/.exec(w);
+      if (m && Number(m[2]) >= Number(m[1]) && Number(m[2]) - Number(m[1]) < 31) for (let n = Number(m[1]); n <= Number(m[2]); n++) arr.push(n);
+      else arr.push(Number(w));
+    }
     if (!arr.length) return null;
     if (arr.some(n => !Number.isInteger(n) || n < min || n > max)) throw new MicroBonusError(`${label} : entiers de ${min} à ${max}.`);
     return [...new Set(arr)].sort((a, b) => a - b);
@@ -88,6 +96,8 @@
     const weekdays = _ints(s.weekdays, 1, 7, 'Jours de la semaine');
     if (months) schedule.months = months;
     if (weekdays) schedule.weekdays = weekdays;
+    const monthDays = _ints(s.monthDays, 1, 31, 'Jours du mois');
+    if (monthDays) schedule.monthDays = monthDays;
 
     const out = { kind, value: c / 100, target, schedule };
     if (b.source && typeof b.source === 'object' && (b.source.eventId || b.source.itemId)) {
@@ -106,7 +116,7 @@
     for (const p of new Intl.DateTimeFormat('en-GB', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })
       .formatToParts(new Date(nowMs))) parts[p.type] = p.value;
     const weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(parts.weekday) + 1;
-    return { ymd: `${parts.year}-${parts.month}-${parts.day}`, month: Number(parts.month), weekday };
+    return { ymd: `${parts.year}-${parts.month}-${parts.day}`, month: Number(parts.month), day: Number(parts.day), weekday };
   }
 
   /** Le calendrier du bonus est-il ouvert à cet instant (heure de Bruxelles) ? */
@@ -117,6 +127,7 @@
     if (s.to && d.ymd > s.to) return false;
     if (s.months && !s.months.includes(d.month)) return false;
     if (s.weekdays && !s.weekdays.includes(d.weekday)) return false;
+    if (s.monthDays && !s.monthDays.includes(d.day)) return false;
     return true;
   }
 
@@ -154,6 +165,8 @@
       all: 'sur tous les blocs', cat: n => `sur les blocs de la catégorie « ${n} »`, block: n => `sur le bloc « ${n} »`,
       always: 'toujours', from: d => `à partir du ${d}`, to: d => `jusqu'au ${d}`, range: (a, b) => `du ${a} au ${b}`,
       months: m => `en ${m}`, weekdays: w => `les ${w}`,
+      dayRange: (a, b) => `du ${a === 1 ? '1er' : a} au ${b} de chaque mois`, days: l => `le${l.includes(',') || l.includes(' et ') ? 's' : ''} ${l} de chaque mois`,
+      next: d => `prochain créneau le ${d}`, until: d => `jusqu'au ${d} inclus`,
       and: ' et ', active: 'Actif actuellement', inactive: w => `Inactif — actif ${w}`, ended: d => `Terminé le ${d}`, soon: d => `Commence le ${d}`,
       monthNames: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'],
       dayNames: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'],
@@ -163,6 +176,8 @@
       all: 'on every block', cat: n => `on “${n}” blocks`, block: n => `on “${n}”`,
       always: 'always', from: d => `from ${d}`, to: d => `until ${d}`, range: (a, b) => `from ${a} to ${b}`,
       months: m => `in ${m}`, weekdays: w => `on ${w}`,
+      dayRange: (a, b) => `on days ${a}–${b} of each month`, days: l => `on day${l.includes(',') || l.includes(' and ') ? 's' : ''} ${l} of each month`,
+      next: d => `next window on ${d}`, until: d => `until ${d} included`,
       and: ' and ', active: 'Active now', inactive: w => `Inactive — active ${w}`, ended: d => `Ended on ${d}`, soon: d => `Starts on ${d}`,
       monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
       dayNames: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
@@ -190,6 +205,11 @@
     const bits = [];
     if (schedule.weekdays) {
       bits.push(x.weekdays(_list(schedule.weekdays.map(n => `${x.dayNames[n - 1]}s`), x)));
+    }
+    if (schedule.monthDays) {
+      const m = schedule.monthDays;
+      const contiguous = m.length > 2 && m[m.length - 1] - m[0] === m.length - 1;
+      bits.push(contiguous ? x.dayRange(m[0], m[m.length - 1]) : x.days(_list(m.map(String), x)));
     }
     if (schedule.months) bits.push(x.months(_list(schedule.months.map(n => x.monthNames[n - 1]), x)));
     if (schedule.from && schedule.to) bits.push(x.range(_day(schedule.from, lang), _day(schedule.to, lang)));
@@ -222,9 +242,35 @@
     return { code: 'inactive', text: x.inactive(describeSchedule(s, lang)) };
   }
 
+  /**
+   * Prochaine bascule du calendrier (#86, « actif actuellement / prochain créneau ») : jour civil de
+   * Bruxelles où l'état change. Actif → dernier jour actif (`until`) ; inactif → premier jour actif
+   * (`next`). null si l'état ne change plus (toujours actif, ou plus jamais actif). Le calcul avance
+   * de jour civil en jour civil (midi UTC) : indépendant des changements d'heure.
+   */
+  function nextChange(bonus, nowMs = Date.now(), { maxDays = 800 } = {}) {
+    const today = brusselsDay(nowMs).ymd;
+    const noon = ymd => Date.parse(`${ymd}T12:00:00Z`);
+    const was = isActiveAt(bonus, noon(today));
+    let prev = today;
+    for (let k = 1; k <= maxDays; k++) {
+      const ymd = new Date(noon(today) + k * 86_400_000).toISOString().slice(0, 10);
+      if (isActiveAt(bonus, noon(ymd)) !== was) return was ? { code: 'until', ymd: prev } : { code: 'next', ymd };
+      prev = ymd;
+    }
+    return null;
+  }
+
+  /** Texte « prochain créneau le 03/12/2026 » / « jusqu'au 07/12/2026 inclus » ('' si aucun changement). */
+  function describeNext(bonus, nowMs = Date.now(), lang = 'fr') {
+    const x = TXT[lang] || TXT.en;
+    const n = nextChange(bonus, nowMs);
+    return n ? x[n.code](_day(n.ymd, lang)) : '';
+  }
+
   const MicroBonus = {
     TZ, KINDS, CATEGORIES, VALUE_MIN, VALUE_MAX, STACK_CAP, MicroBonusError,
-    normalize, brusselsDay, isActiveAt, appliesTo, total, clickDamage, describe, describeSchedule, stateAt,
+    normalize, brusselsDay, isActiveAt, appliesTo, total, clickDamage, describe, describeSchedule, stateAt, nextChange, describeNext,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = MicroBonus;

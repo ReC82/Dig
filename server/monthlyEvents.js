@@ -12,7 +12,8 @@
  *     révision (`monthly_event_revisions`) restaurable et une ligne au journal.
  *   - Objets (`monthly_event_items`) : icône, image facultative, consigne d'illustration, noms et
  *     descriptions humoristiques FR/EN/NL/ES, rareté, chance en % PAR BLOC ÉLIGIBLE, profondeur
- *     minimale, catégories de blocs (vide = toutes), activé.
+ *     minimale, catégories de blocs (vide = toutes), activé ; pour l'admin seulement (#86) : date de
+ *     référence « MM-JJ » et inspiration historique (jamais une condition de drop, jamais envoyées au joueur).
  *   - Drop côté serveur uniquement, à la sauvegarde : seuls les blocs VALIDÉS par le serveur
  *     (compteurs `blocks:<type>` de #38, bornés par la profondeur retenue #9/#25) minés depuis le
  *     dernier passage comptent ; tirage par `crypto` (le client ne peut ni choisir ni rejouer).
@@ -51,7 +52,7 @@ const TZ = 'Europe/Brussels';
 const RARITIES = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
 const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];
 const ID_RE = /^[a-z][a-z0-9_]{2,39}$/;
-const MAX = { name: 60, tagline: 240, desc: 320, brief: 600, items: 12, testers: 20, durationDays: 62, concept: 600 };
+const MAX = { name: 60, tagline: 240, desc: 320, brief: 600, inspiration: 400, items: 40, testers: 20, durationDays: 62, concept: 600 };
 const MAX_BLOCKS_PER_SAVE = 2000;   // au-delà, le curseur avance sans tirage (aucune rafale d'objets)
 const PREP_DAYS = 21;               // préparation conseillée avant le début
 const ANNOUNCE_DAYS = 7;            // annonce « à venir » dans le centre d'actualités (#50)
@@ -151,6 +152,10 @@ function init(c = conn()) {
       PRIMARY KEY (event_id, item_id)
     );
   `);
+  // #86 : date de référence (« MM-JJ », calendrier d'inspiration) et inspiration historique — admin seulement
+  const cols = new Set(c.prepare('PRAGMA table_info(monthly_event_items)').all().map(x => x.name));
+  if (!cols.has('ref_date')) c.exec("ALTER TABLE monthly_event_items ADD COLUMN ref_date TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('inspiration')) c.exec("ALTER TABLE monthly_event_items ADD COLUMN inspiration TEXT NOT NULL DEFAULT ''");
   // #65 : avant, l'image de la fiche était montrée telle quelle aux joueurs. Une seule fois, elle devient
   // l'image publiée (aucun visuel déjà affiché ne disparaît) ; ensuite, publication explicite seulement.
   if (!c.prepare("SELECT 1 FROM monthly_event_meta WHERE key = 'published_images_v1'").get()) {
@@ -216,6 +221,8 @@ function _emoji(v, d) {
   return s && !/[A-Za-z0-9]/.test(s) ? s : d;
 }
 
+// Date de référence d'un objet (#86) : mois-jour d'inspiration, jamais une condition de drop
+const REF_DATE_RE = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const IMAGE_RE = /^\/(api\/collections\/images\/[0-9a-f]{64}\.(png|jpg|webp)|media\/icons\/[a-f0-9]{16}\.webp)$/;
 
 function normalizeItem(input, where) {
@@ -231,11 +238,14 @@ function normalizeItem(input, where) {
   if (!Number.isInteger(minDepth) || minDepth < 0 || minDepth > 100000) throw new EventError(400, `${where} : profondeur minimale entière de 0 à 100000.`);
   const dropFrom = Array.isArray(input.dropFrom) ? [...new Set(input.dropFrom.map(String))] : [];
   if (dropFrom.some(c => !CATEGORIES.includes(c))) throw new EventError(400, `${where} : catégories de blocs : ${CATEGORIES.join(', ')}.`);
+  const refDate = String(input.refDate ?? '').trim();
+  if (refDate && !REF_DATE_RE.test(refDate)) throw new EventError(400, `${where} : date de référence attendue au format MM-JJ (ex. 11-09).`);
   const image = input.image ? String(input.image) : null;
   if (image && !IMAGE_RE.test(image)) throw new EventError(400, `${where} : image attendue depuis l'atelier ou le téléversement admin.`);
   return {
     id, icon: _emoji(input.icon, '🎁'), image, brief: _str(input.brief, MAX.brief), names, descs: _texts(input.descs, MAX.desc),
     rarity, chancePct: Math.round(chance * 1000) / 1000, minDepth, dropFrom: CATEGORIES.filter(c => dropFrom.includes(c)), enabled: input.enabled !== false,
+    refDate, inspiration: _str(input.inspiration, MAX.inspiration),
   };
 }
 
@@ -339,6 +349,7 @@ function readiness(ev) {
 function _itemRow(r) {
   return { id: r.id, icon: r.icon, image: r.image, brief: r.brief, names: J(r.names, {}), descs: J(r.descs, {}), rarity: r.rarity,
     chancePct: r.chance_pct, minDepth: r.min_depth, dropFrom: J(r.drop_from, []), enabled: !!r.enabled,
+    refDate: r.ref_date ?? '', inspiration: r.inspiration ?? '',
     publishedImage: r.published_image ?? null };
 }
 
@@ -388,10 +399,10 @@ function _write(ev, { status, source, action }) {
     .run(ev.id, status, ev.audience, ev.icon, JSON.stringify(ev.names), JSON.stringify(ev.taglines), ev.startsAt, ev.endsAt,
       JSON.stringify(_content(ev).testers), source, revision);
   c.prepare('DELETE FROM monthly_event_items WHERE event_id = ?').run(ev.id);   // objets de la fiche (définition admin, jamais les trouvailles)
-  const ins = c.prepare(`INSERT INTO monthly_event_items (event_id, id, sort, icon, image, brief, names, descs, rarity, chance_pct, min_depth, drop_from, enabled)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const ins = c.prepare(`INSERT INTO monthly_event_items (event_id, id, sort, icon, image, brief, names, descs, rarity, chance_pct, min_depth, drop_from, enabled, ref_date, inspiration)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   ev.items.forEach((it, i) => ins.run(ev.id, it.id, i, it.icon, it.image, it.brief, JSON.stringify(it.names), JSON.stringify(it.descs),
-    it.rarity, it.chancePct, it.minDepth, JSON.stringify(it.dropFrom), it.enabled ? 1 : 0));
+    it.rarity, it.chancePct, it.minDepth, JSON.stringify(it.dropFrom), it.enabled ? 1 : 0, it.refDate ?? '', it.inspiration ?? ''));
   c.prepare('INSERT INTO monthly_event_revisions (event_id, revision, content, action) VALUES (?,?,?,?)')
     .run(ev.id, revision, JSON.stringify({ ..._content(ev), status }), action);
   _log(ev.id, action, { revision });

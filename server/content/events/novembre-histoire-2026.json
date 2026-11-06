@@ -1,0 +1,742 @@
+{
+  "id": "novembre_histoire_2026",
+  "icon": "🏛️",
+  "audience": "public",
+  "testers": [],
+  "startsAt": "2026-11-01T00:00",
+  "endsAt": "2026-12-01T00:00",
+  "names": {
+    "fr": "Novembre déterre l'Histoire",
+    "en": "November Digs Up History",
+    "nl": "November graaft de geschiedenis op",
+    "es": "Noviembre desentierra la Historia"
+  },
+  "taglines": {
+    "fr": "Tout le mois de novembre, la mine recrache des souvenirs de l'Histoire : une échelle de la Renaissance, un boulon spatial, une craie très relative… 30 objets à retrouver, à votre rythme.",
+    "en": "All through November, the mine coughs up souvenirs from History: a Renaissance ladder, a space bolt, some very relative chalk… 30 items to find, at your own pace.",
+    "nl": "De hele maand november spuwt de mijn souvenirs uit de geschiedenis uit: een renaissanceladder, een ruimtebout, een heel relatief krijtje… 30 voorwerpen om te vinden, op je eigen tempo.",
+    "es": "Durante todo noviembre, la mina escupe recuerdos de la Historia: una escalera renacentista, un tornillo espacial, una tiza muy relativa… 30 objetos por encontrar, a tu ritmo."
+  },
+  "items": [
+    {
+      "id": "nov26_01_echelle_michel_ange",
+      "icon": "🪜",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-01",
+      "inspiration": "1512 : ouverture au public du plafond de la chapelle Sixtine (1er novembre).",
+      "names": {
+        "fr": "L'échelle de Michel-Ange",
+        "en": "Michelangelo's Ladder",
+        "nl": "De ladder van Michelangelo",
+        "es": "La escalera de Miguel Ángel"
+      },
+      "descs": {
+        "fr": "Pour atteindre le plafond, Michel-Ange avait une échelle. Pour atteindre le fond de la mine, il vous faudra surtout une meilleure pioche.",
+        "en": "To reach the ceiling, Michelangelo had a ladder. To reach the bottom of the mine, you mostly need a better pickaxe.",
+        "nl": "Om bij het plafond te komen had Michelangelo een ladder. Om de bodem van de mijn te bereiken heb je vooral een betere houweel nodig.",
+        "es": "Para llegar al techo, Miguel Ángel tenía una escalera. Para llegar al fondo de la mina, lo que necesitas sobre todo es un pico mejor."
+      },
+      "brief": "A wooden Renaissance ladder splattered with colourful fresco paint, a small brush hooked on one rung."
+    },
+    {
+      "id": "nov26_02_boulon_orbital",
+      "icon": "🔩",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-02",
+      "inspiration": "2000 : arrivée de l'équipage Expedition 1 à la Station spatiale internationale (2 novembre).",
+      "names": {
+        "fr": "Le boulon orbital",
+        "en": "The Orbital Bolt",
+        "nl": "De orbitale bout",
+        "es": "El tornillo orbital"
+      },
+      "descs": {
+        "fr": "Il manque un boulon à la station spatiale. La NASA prétend que tout va bien ; votre inventaire suggère le contraire.",
+        "en": "The space station is missing a bolt. NASA insists everything is fine; your inventory suggests otherwise.",
+        "nl": "Het ruimtestation mist een bout. NASA beweert dat alles in orde is; jouw inventaris doet anders vermoeden.",
+        "es": "A la estación espacial le falta un tornillo. La NASA asegura que todo va bien; tu inventario sugiere lo contrario."
+      },
+      "brief": "A shiny space-station bolt floating with a few tiny twinkling stars around it."
+    },
+    {
+      "id": "nov26_03_bicorne_cabosse",
+      "icon": "🎩",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-03",
+      "inspiration": "1812 : bataille de Viazma pendant la retraite de Russie (3 novembre).",
+      "names": {
+        "fr": "Le bicorne cabossé",
+        "en": "The Dented Bicorne",
+        "nl": "De gedeukte steek",
+        "es": "El bicornio abollado"
+      },
+      "descs": {
+        "fr": "On raconte que ce bicorne a perdu une bataille contre un courant d'air. Napoléon exige une revanche.",
+        "en": "Legend says this bicorne lost a battle against a draught. Napoleon demands a rematch.",
+        "nl": "Men zegt dat deze steek een veldslag verloor tegen een tochtvlaag. Napoleon eist een revanche.",
+        "es": "Dicen que este bicornio perdió una batalla contra una corriente de aire. Napoleón exige la revancha."
+      },
+      "brief": "A dented, dusty black bicorne hat of the early 1800s, slightly crumpled, no insignia."
+    },
+    {
+      "id": "nov26_04_bulletin_changement",
+      "icon": "🗳️",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-04",
+      "inspiration": "2008 : élection de Barack Obama à la présidence des États-Unis (4 novembre).",
+      "names": {
+        "fr": "Le bulletin du changement",
+        "en": "The Ballot of Change",
+        "nl": "Het stembiljet van de verandering",
+        "es": "La papeleta del cambio"
+      },
+      "descs": {
+        "fr": "Une page d'histoire dans un bout de papier. Dans la mine, on vote surtout pour creuser plus profond.",
+        "en": "A page of history on a scrap of paper. Down the mine, everyone votes to dig deeper.",
+        "nl": "Een bladzijde geschiedenis op een papiertje. In de mijn stemt iedereen vooral om dieper te graven.",
+        "es": "Una página de la historia en un trozo de papel. En la mina, sobre todo se vota por cavar más hondo."
+      },
+      "brief": "A stylised blank paper ballot with a single tick box, no names, no slogans, no flags."
+    },
+    {
+      "id": "nov26_05_meche_fawkes",
+      "icon": "🧨",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-05",
+      "inspiration": "5 novembre : commémoration britannique de la Conspiration des poudres (1605).",
+      "names": {
+        "fr": "La mèche de Fawkes",
+        "en": "Fawkes's Fuse",
+        "nl": "Het lontje van Fawkes",
+        "es": "La mecha de Fawkes"
+      },
+      "descs": {
+        "fr": "Elle crépite à peine : interdiction formelle de faire sauter le serveur pour gagner trois mètres.",
+        "en": "It barely crackles: blowing up the server to gain three metres is strictly forbidden.",
+        "nl": "Het knettert nauwelijks: de server opblazen om drie meter te winnen is ten strengste verboden.",
+        "es": "Apenas chisporrotea: queda terminantemente prohibido volar el servidor para ganar tres metros."
+      },
+      "brief": "A short extinguished firework fuse with a few harmless sparks fading out."
+    },
+    {
+      "id": "nov26_06_baguette_tchaikovski",
+      "icon": "🎼",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-06",
+      "inspiration": "1893 : décès du compositeur Piotr Ilitch Tchaïkovski (6 novembre).",
+      "names": {
+        "fr": "La baguette de Tchaïkovski",
+        "en": "Tchaikovsky's Baton",
+        "nl": "Het dirigeerstokje van Tsjaikovski",
+        "es": "La batuta de Chaikovski"
+      },
+      "descs": {
+        "fr": "Orchestre silencieux, pioche bruyante. Même les cailloux réclament un entracte.",
+        "en": "Silent orchestra, noisy pickaxe. Even the pebbles are begging for an interval.",
+        "nl": "Stil orkest, lawaaierige houweel. Zelfs de kiezels vragen om een pauze.",
+        "es": "Orquesta en silencio, pico ruidoso. Hasta las piedras piden un entreacto."
+      },
+      "brief": "A slim conductor's baton resting on an open sheet of music."
+    },
+    {
+      "id": "nov26_07_tube_marie_curie",
+      "icon": "🧪",
+      "rarity": "legendaire",
+      "chancePct": 0.03,
+      "minDepth": 20,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-07",
+      "inspiration": "1867 : naissance de Marie Curie (7 novembre).",
+      "names": {
+        "fr": "Le tube de Marie Curie",
+        "en": "Marie Curie's Tube",
+        "nl": "Het buisje van Marie Curie",
+        "es": "El tubo de Marie Curie"
+      },
+      "descs": {
+        "fr": "Cette petite fiole brille dans le noir. Aucun mineur raisonnable ne demande pourquoi.",
+        "en": "This little vial glows in the dark. No sensible miner asks why.",
+        "nl": "Dit flesje gloeit in het donker. Geen verstandige mijnwerker vraagt waarom.",
+        "es": "Este pequeño frasco brilla en la oscuridad. Ningún minero sensato pregunta por qué."
+      },
+      "brief": "A small fantasy glass laboratory vial glowing with a soft teal light, no hazard symbols."
+    },
+    {
+      "id": "nov26_08_cadre_louvre_lointain",
+      "icon": "🖼️",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-08",
+      "inspiration": "2017 : début, le 8 novembre, des célébrations d'ouverture du Louvre Abu Dhabi (ouvert au public le 11 novembre).",
+      "names": {
+        "fr": "Le cadre du Louvre lointain",
+        "en": "The Faraway Louvre Frame",
+        "nl": "De lijst van het verre Louvre",
+        "es": "El marco del Louvre lejano"
+      },
+      "descs": {
+        "fr": "L'œuvre est invisible, mais le cadre est authentiquement très lourd. L'art contemporain a ses mystères.",
+        "en": "The artwork is invisible, but the frame is genuinely very heavy. Contemporary art has its mysteries.",
+        "nl": "Het kunstwerk is onzichtbaar, maar de lijst is echt loodzwaar. Hedendaagse kunst heeft zo haar geheimen.",
+        "es": "La obra es invisible, pero el marco pesa de verdad. El arte contemporáneo tiene sus misterios."
+      },
+      "brief": "A miniature empty gilded picture frame standing in front of a tiny desert gallery dome."
+    },
+    {
+      "id": "nov26_09_brique_liberte",
+      "icon": "🧱",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-09",
+      "inspiration": "1989 : chute du mur de Berlin (9 novembre).",
+      "names": {
+        "fr": "La brique de la liberté",
+        "en": "The Brick of Freedom",
+        "nl": "De baksteen van de vrijheid",
+        "es": "El ladrillo de la libertad"
+      },
+      "descs": {
+        "fr": "Un mur est tombé, la mine en construit d'autres. Celle-ci préfère l'ouverture aux frontières.",
+        "en": "A wall came down; the mine keeps building new ones. This brick prefers open doors to borders.",
+        "nl": "Er viel een muur, de mijn bouwt er steeds nieuwe. Deze baksteen houdt meer van open deuren dan van grenzen.",
+        "es": "Un muro cayó; la mina sigue levantando otros. Este ladrillo prefiere las puertas abiertas a las fronteras."
+      },
+      "brief": "An old weathered brick engraved with a small open-door motif."
+    },
+    {
+      "id": "nov26_10_microscope_louche",
+      "icon": "🔬",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-10",
+      "inspiration": "10 novembre : Journée mondiale de la science au service de la paix et du développement.",
+      "names": {
+        "fr": "Le microscope qui louche",
+        "en": "The Cross-Eyed Microscope",
+        "nl": "De scheelkijkende microscoop",
+        "es": "El microscopio bizco"
+      },
+      "descs": {
+        "fr": "Il grossit les gemmes, les factures et les mauvaises décisions. Utile, mais vexant.",
+        "en": "It magnifies gems, bills and bad decisions. Useful, but hurtful.",
+        "nl": "Hij vergroot edelstenen, rekeningen en slechte beslissingen. Handig, maar pijnlijk.",
+        "es": "Aumenta las gemas, las facturas y las malas decisiones. Útil, pero hiriente."
+      },
+      "brief": "An antique brass microscope whose lenses comically point in slightly different directions."
+    },
+    {
+      "id": "nov26_11_coquelicot_memoire",
+      "icon": "🌺",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-11",
+      "inspiration": "11 novembre 1918 : armistice mettant fin aux combats de la Première Guerre mondiale sur le front occidental.",
+      "names": {
+        "fr": "Le coquelicot de mémoire",
+        "en": "The Remembrance Poppy",
+        "nl": "De klaproos van herinnering",
+        "es": "La amapola del recuerdo"
+      },
+      "descs": {
+        "fr": "Une fleur pour se souvenir. Même sous terre, certaines histoires méritent le silence.",
+        "en": "A flower to remember. Even underground, some stories deserve silence.",
+        "nl": "Een bloem om te herdenken. Zelfs onder de grond verdienen sommige verhalen stilte.",
+        "es": "Una flor para recordar. Incluso bajo tierra, algunas historias merecen silencio."
+      },
+      "brief": "A simple red poppy flower brooch, sober and respectful."
+    },
+    {
+      "id": "nov26_12_anneau_saturne",
+      "icon": "🪐",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-12",
+      "inspiration": "1980 : Voyager 1 passe au plus près de Saturne (12 novembre).",
+      "names": {
+        "fr": "L'anneau de Saturne",
+        "en": "Saturn's Ring",
+        "nl": "De ring van Saturnus",
+        "es": "El anillo de Saturno"
+      },
+      "descs": {
+        "fr": "Une bague trop grande pour un doigt, trop petite pour une planète. Mauvaise taille cosmique.",
+        "en": "Too big for a finger, too small for a planet. A cosmic sizing error.",
+        "nl": "Te groot voor een vinger, te klein voor een planeet. Kosmisch de verkeerde maat.",
+        "es": "Demasiado grande para un dedo, demasiado pequeño para un planeta. Talla cósmica equivocada."
+      },
+      "brief": "A miniature planetary ring like a finger ring, with a tiny stylised space probe beside it."
+    },
+    {
+      "id": "nov26_13_sourire_secours",
+      "icon": "🙂",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-13",
+      "inspiration": "13 novembre : Journée mondiale de la gentillesse.",
+      "names": {
+        "fr": "Le sourire de secours",
+        "en": "The Spare Smile",
+        "nl": "De reserveglimlach",
+        "es": "La sonrisa de repuesto"
+      },
+      "descs": {
+        "fr": "On vous l'a offert gratuitement. Le service après-vente refuse pourtant les remboursements.",
+        "en": "It was given to you for free. Customer service still refuses refunds.",
+        "nl": "Je kreeg hem gratis. Toch weigert de klantendienst elke terugbetaling.",
+        "es": "Te la regalaron. Aun así, el servicio posventa no acepta devoluciones."
+      },
+      "brief": "A small round smiling medal radiating soft golden rays."
+    },
+    {
+      "id": "nov26_14_dent_cachalot_lettre",
+      "icon": "🦷",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-14",
+      "inspiration": "1851 : publication américaine de Moby-Dick (14 novembre).",
+      "names": {
+        "fr": "La dent du cachalot lettré",
+        "en": "The Well-Read Whale's Tooth",
+        "nl": "De tand van de belezen potvis",
+        "es": "El diente del cachalote lector"
+      },
+      "descs": {
+        "fr": "Ce cachalot aurait lu le roman. Il aurait demandé des excuses à la page 1.",
+        "en": "This sperm whale supposedly read the novel. It demanded an apology on page 1.",
+        "nl": "Deze potvis zou het boek gelezen hebben. Op bladzijde 1 eiste hij al excuses.",
+        "es": "Dicen que este cachalote leyó la novela. En la página 1 ya exigía disculpas."
+      },
+      "brief": "A stylised sperm whale tooth leaning against a tiny old book."
+    },
+    {
+      "id": "nov26_15_compas_kepler",
+      "icon": "🧭",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-15",
+      "inspiration": "1630 : décès de l'astronome Johannes Kepler (15 novembre).",
+      "names": {
+        "fr": "Le compas de Kepler",
+        "en": "Kepler's Compass",
+        "nl": "Het passer van Kepler",
+        "es": "El compás de Kepler"
+      },
+      "descs": {
+        "fr": "Il mesure l'orbite des planètes, mais n'arrive toujours pas à retrouver vos clés.",
+        "en": "It measures planetary orbits, yet it still can't find your keys.",
+        "nl": "Hij meet de banen van planeten, maar vindt nog steeds je sleutels niet.",
+        "es": "Mide las órbitas de los planetas, pero sigue sin encontrar tus llaves."
+      },
+      "brief": "An antique brass astronomical compass (dividers) engraved with stars."
+    },
+    {
+      "id": "nov26_16_drapeau_compromis",
+      "icon": "🏳️",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-16",
+      "inspiration": "16 novembre : Journée internationale de la tolérance.",
+      "names": {
+        "fr": "Le drapeau du compromis",
+        "en": "The Flag of Compromise",
+        "nl": "De vlag van het compromis",
+        "es": "La bandera del acuerdo"
+      },
+      "descs": {
+        "fr": "Même les blocs de granit et les blocs de grès acceptent de partager un tunnel. Presque.",
+        "en": "Even granite blocks and sandstone blocks agree to share a tunnel. Almost.",
+        "nl": "Zelfs granietblokken en zandsteenblokken willen een tunnel delen. Bijna.",
+        "es": "Hasta los bloques de granito y los de arenisca aceptan compartir un túnel. Casi."
+      },
+      "brief": "A small white truce flag with a thin multicoloured border on a little wooden stick."
+    },
+    {
+      "id": "nov26_17_couronne_elisabeth",
+      "icon": "👑",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-17",
+      "inspiration": "1558 : accession d'Élisabeth Ire au trône d'Angleterre (17 novembre).",
+      "names": {
+        "fr": "La couronne d'Élisabeth",
+        "en": "Elizabeth's Crown",
+        "nl": "De kroon van Elizabeth",
+        "es": "La corona de Isabel"
+      },
+      "descs": {
+        "fr": "Sa Majesté autorise le minage, à condition de ne pas creuser sous le palais.",
+        "en": "Her Majesty allows mining, provided nobody digs under the palace.",
+        "nl": "Hare Majesteit staat mijnbouw toe, zolang niemand onder het paleis graaft.",
+        "es": "Su Majestad autoriza la minería, siempre que nadie cave bajo el palacio."
+      },
+      "brief": "A miniature Tudor-style crown resting on a small velvet cushion, fantasy design, no real regalia."
+    },
+    {
+      "id": "nov26_18_madeleine_proust",
+      "icon": "🧁",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-18",
+      "inspiration": "1922 : décès de Marcel Proust (18 novembre).",
+      "names": {
+        "fr": "La madeleine de Proust",
+        "en": "Proust's Madeleine",
+        "nl": "De madeleine van Proust",
+        "es": "La magdalena de Proust"
+      },
+      "descs": {
+        "fr": "Un seul parfum, et voici huit volumes de souvenirs sur votre première pioche.",
+        "en": "One whiff, and here come eight volumes of memories about your first pickaxe.",
+        "nl": "Eén geur, en daar komen acht delen herinneringen aan je eerste houweel.",
+        "es": "Un solo aroma y ahí van ocho tomos de recuerdos sobre tu primer pico."
+      },
+      "brief": "A golden shell-shaped madeleine cake resting on a small closed book."
+    },
+    {
+      "id": "nov26_19_combine_geneve",
+      "icon": "☎️",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-19",
+      "inspiration": "1985 : première rencontre entre Ronald Reagan et Mikhaïl Gorbatchev à Genève (19 novembre).",
+      "names": {
+        "fr": "Le combiné de Genève",
+        "en": "The Geneva Handset",
+        "nl": "De hoorn van Genève",
+        "es": "El auricular de Ginebra"
+      },
+      "descs": {
+        "fr": "Deux superpuissances se sont parlé. Votre téléphone, lui, affiche toujours « réseau indisponible » au fond de la mine.",
+        "en": "Two superpowers talked to each other. Your phone, meanwhile, still shows \"no signal\" at the bottom of the mine.",
+        "nl": "Twee supermachten spraken met elkaar. Jouw telefoon toont onderin de mijn nog altijd \"geen bereik\".",
+        "es": "Dos superpotencias hablaron entre sí. Tu teléfono, en cambio, sigue sin cobertura en el fondo de la mina."
+      },
+      "brief": "A retro telephone handset with a curly cord, no flags or emblems."
+    },
+    {
+      "id": "nov26_20_toupie_enfants",
+      "icon": "🪀",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-20",
+      "inspiration": "20 novembre : Journée mondiale de l'enfance, anniversaire de la Convention relative aux droits de l'enfant (1989).",
+      "names": {
+        "fr": "La toupie des enfants",
+        "en": "The Children's Spinning Top",
+        "nl": "De tol van de kinderen",
+        "es": "La peonza de los niños"
+      },
+      "descs": {
+        "fr": "Elle tourne sans fin, comme un mineur qui promet d'arrêter après un dernier bloc.",
+        "en": "It spins forever, like a miner who promises to stop after one last block.",
+        "nl": "Hij draait eindeloos, net als een mijnwerker die belooft te stoppen na nog één blok.",
+        "es": "Gira sin parar, como un minero que promete dejarlo después de un último bloque."
+      },
+      "brief": "A handmade wooden spinning top painted in bright colours."
+    },
+    {
+      "id": "nov26_21_plume_voltaire",
+      "icon": "🪶",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-21",
+      "inspiration": "1694 : naissance de Voltaire (21 novembre).",
+      "names": {
+        "fr": "La plume de Voltaire",
+        "en": "Voltaire's Quill",
+        "nl": "De ganzenveer van Voltaire",
+        "es": "La pluma de Voltaire"
+      },
+      "descs": {
+        "fr": "Elle écrit vite, critique tout, et refuse de valider les mauvaises traductions.",
+        "en": "It writes fast, criticises everything and refuses to approve bad translations.",
+        "nl": "Ze schrijft snel, bekritiseert alles en weigert slechte vertalingen goed te keuren.",
+        "es": "Escribe rápido, lo critica todo y se niega a aprobar las malas traducciones."
+      },
+      "brief": "An antique writing quill beside a small inkwell."
+    },
+    {
+      "id": "nov26_22_kepi_gigantesque",
+      "icon": "🪖",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-22",
+      "inspiration": "1890 : naissance de Charles de Gaulle (22 novembre).",
+      "names": {
+        "fr": "Le képi gigantesque",
+        "en": "The Giant Kepi",
+        "nl": "De reusachtige kepie",
+        "es": "El quepis gigante"
+      },
+      "descs": {
+        "fr": "Une taille historique. Il faut lever la tête pour trouver la visière.",
+        "en": "A historic size. You have to look up to find the peak.",
+        "nl": "Een historische maat. Je moet omhoog kijken om de klep te vinden.",
+        "es": "Una talla histórica. Hay que levantar la cabeza para encontrar la visera."
+      },
+      "brief": "An oversized old-fashioned kepi cap, whimsical, with no real insignia or rank."
+    },
+    {
+      "id": "nov26_23_galaxie_poche",
+      "icon": "🌌",
+      "rarity": "legendaire",
+      "chancePct": 0.03,
+      "minDepth": 20,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-23",
+      "inspiration": "1924 : le 23 novembre, le New York Times rapporte la découverte d'Edwin Hubble montrant qu'Andromède est hors de la Voie lactée (présentation scientifique formelle début 1925).",
+      "names": {
+        "fr": "La galaxie de poche",
+        "en": "The Pocket Galaxy",
+        "nl": "Het zakstelsel",
+        "es": "La galaxia de bolsillo"
+      },
+      "descs": {
+        "fr": "Une galaxie entière dans la poche. Les douaniers de l'univers demandent des explications.",
+        "en": "An entire galaxy in your pocket. The customs officers of the universe would like a word.",
+        "nl": "Een heel sterrenstelsel in je zak. De douane van het heelal wil uitleg.",
+        "es": "Una galaxia entera en el bolsillo. Los aduaneros del universo piden explicaciones."
+      },
+      "brief": "A tiny spiral galaxy swirling inside a small glass sphere."
+    },
+    {
+      "id": "nov26_24_lentille_spinoza",
+      "icon": "🔍",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-24",
+      "inspiration": "1632 : naissance du philosophe Baruch Spinoza, polisseur de lentilles (24 novembre).",
+      "names": {
+        "fr": "La lentille de Spinoza",
+        "en": "Spinoza's Lens",
+        "nl": "De lens van Spinoza",
+        "es": "La lente de Spinoza"
+      },
+      "descs": {
+        "fr": "Polie avec soin : on y voit le monde plus clairement, mais jamais la sortie de la mine.",
+        "en": "Carefully polished: it shows the world more clearly, but never the way out of the mine.",
+        "nl": "Zorgvuldig geslepen: je ziet de wereld er scherper door, maar nooit de uitgang van de mijn.",
+        "es": "Pulida con esmero: deja ver el mundo con más claridad, pero nunca la salida de la mina."
+      },
+      "brief": "A hand-polished glass lens next to an antique leather case."
+    },
+    {
+      "id": "nov26_25_craie_relativite",
+      "icon": "🖍️",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-25",
+      "inspiration": "1915 : Albert Einstein présente les équations finales de la relativité générale (25 novembre).",
+      "names": {
+        "fr": "La craie de la relativité",
+        "en": "The Chalk of Relativity",
+        "nl": "Het krijtje van de relativiteit",
+        "es": "La tiza de la relatividad"
+      },
+      "descs": {
+        "fr": "Plus vous creusez, plus le temps file. Enfin, c'est l'excuse que vous donnez à vos collègues.",
+        "en": "The deeper you dig, the faster time flies. At least, that's what you tell your colleagues.",
+        "nl": "Hoe dieper je graaft, hoe sneller de tijd gaat. Dat is tenminste wat je je collega's wijsmaakt.",
+        "es": "Cuanto más cavas, más rápido pasa el tiempo. O eso les cuentas a tus compañeros."
+      },
+      "brief": "A stick of chalk on a small slate covered with fictional curved gravity lines."
+    },
+    {
+      "id": "nov26_26_cle_pharaon_enrhume",
+      "icon": "🗝️",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-26",
+      "inspiration": "1922 : Howard Carter ouvre une brèche et aperçoit l'antichambre de la tombe de Toutânkhamon (26 novembre).",
+      "names": {
+        "fr": "La clé du pharaon enrhumé",
+        "en": "The Sniffly Pharaoh's Key",
+        "nl": "De sleutel van de verkouden farao",
+        "es": "La llave del faraón resfriado"
+      },
+      "descs": {
+        "fr": "Trois mille ans sous terre et toujours aucun rangement. Les archéologues compatissent.",
+        "en": "Three thousand years underground and still no tidying up. Archaeologists sympathise.",
+        "nl": "Drieduizend jaar onder de grond en nog steeds niet opgeruimd. Archeologen leven mee.",
+        "es": "Tres mil años bajo tierra y todavía sin ordenar. Los arqueólogos lo comprenden."
+      },
+      "brief": "A small golden Egyptian-style key covered in fine dust."
+    },
+    {
+      "id": "nov26_27_testament_alfred",
+      "icon": "📜",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-27",
+      "inspiration": "1895 : Alfred Nobel signe son testament (27 novembre).",
+      "names": {
+        "fr": "Le testament d'Alfred",
+        "en": "Alfred's Will",
+        "nl": "Het testament van Alfred",
+        "es": "El testamento de Alfred"
+      },
+      "descs": {
+        "fr": "Il récompense le génie. Pour les mineurs, une bonne idée compte déjà comme une découverte.",
+        "en": "It rewards genius. For miners, a good idea already counts as a discovery.",
+        "nl": "Het beloont genialiteit. Voor mijnwerkers telt een goed idee al als een ontdekking.",
+        "es": "Premia el genio. Para los mineros, una buena idea ya cuenta como un descubrimiento."
+      },
+      "brief": "A sealed parchment scroll with an imaginary laurel medal, no real logo."
+    },
+    {
+      "id": "nov26_28_aigle_roche",
+      "icon": "🦅",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-28",
+      "inspiration": "1912 : proclamation de l'indépendance de l'Albanie (28 novembre).",
+      "names": {
+        "fr": "L'aigle sur la roche",
+        "en": "The Eagle on the Rock",
+        "nl": "De adelaar op de rots",
+        "es": "El águila sobre la roca"
+      },
+      "descs": {
+        "fr": "Il a deux têtes pour surveiller deux tunnels, mais oublie toujours son casque.",
+        "en": "It has two heads to watch two tunnels, yet it always forgets its helmet.",
+        "nl": "Hij heeft twee koppen om twee tunnels in de gaten te houden, maar vergeet altijd zijn helm.",
+        "es": "Tiene dos cabezas para vigilar dos túneles, pero siempre olvida el casco."
+      },
+      "brief": "A small two-headed eagle carved in grey stone, simple and non-heraldic."
+    },
+    {
+      "id": "nov26_29_ballon_1899",
+      "icon": "⚽",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-29",
+      "inspiration": "1899 : fondation du FC Barcelone (29 novembre).",
+      "names": {
+        "fr": "Le ballon de 1899",
+        "en": "The 1899 Football",
+        "nl": "De bal van 1899",
+        "es": "El balón de 1899"
+      },
+      "descs": {
+        "fr": "Un ballon ancien descendu au fond de la mine. Le hors-jeu ne s'applique pas aux taupes.",
+        "en": "An old ball that rolled down to the bottom of the mine. The offside rule does not apply to moles.",
+        "nl": "Een oude bal die tot onderin de mijn is gerold. Buitenspel geldt niet voor mollen.",
+        "es": "Un balón antiguo que rodó hasta el fondo de la mina. El fuera de juego no se aplica a los topos."
+      },
+      "brief": "An old stitched brown leather football in late-1800s style, no club crest."
+    },
+    {
+      "id": "nov26_30_noeud_churchill",
+      "icon": "🎀",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "11-30",
+      "inspiration": "1874 : naissance de Winston Churchill (30 novembre).",
+      "names": {
+        "fr": "Le nœud papillon de Churchill",
+        "en": "Churchill's Bow Tie",
+        "nl": "Het strikje van Churchill",
+        "es": "La pajarita de Churchill"
+      },
+      "descs": {
+        "fr": "Résiste aux discours interminables, mais pas à la poussière de charbon.",
+        "en": "It survives endless speeches, but not coal dust.",
+        "nl": "Het overleeft eindeloze toespraken, maar geen kolenstof.",
+        "es": "Resiste a los discursos interminables, pero no al polvo de carbón."
+      },
+      "brief": "A retro polka-dot bow tie pinned on a tiny waistcoat."
+    }
+  ]
+}
