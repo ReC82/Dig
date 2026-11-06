@@ -616,6 +616,35 @@
       <p id="gs-err" class="error hidden"></p>
     </div>
 
+    <!-- Lot de 10 fragments en euros (#85) : désactivé, aucun prestataire de paiement -->
+    <div class="overview-card" id="fragment-pack-card" data-sub="fragpack">
+      <div class="section-header" style="margin-bottom:8px">
+        <h3 class="overview-card-title" style="margin:0">🔮 Lot de 10 fragments (€)</h3>
+        <button class="btn btn-outline btn-sm" id="btn-refresh-fragment-pack">↻ Rafraîchir</button>
+      </div>
+      <p class="muted" style="margin-bottom:10px">Offre à l'étude, <strong>désactivée et non achetable</strong> : rien n'est visible en jeu, aucun paiement ni crédit de fragments. Prix et plafonds ci-dessous = <strong>hypothèses de simulation, non approuvées</strong>. L'activation est refusée par le serveur tant qu'aucun prestataire de paiement n'est intégré (conformité, webhooks signés, livraison serveur). L'achat de fragments en pièces reste interdit (#49).</p>
+      <p>État : <strong id="fp-state">—</strong> · prestataire de paiement : <span id="fp-provider">—</span> · commandes : <span id="fp-orders">—</span></p>
+      <div class="form-row" style="display:flex;flex-wrap:wrap;gap:12px;margin:10px 0">
+        <label>Prix TTC (€) <input type="number" id="fp-price" min="0.49" max="9.99" step="0.01" style="width:90px"></label>
+        <label>Lots max. par compte <input type="number" id="fp-limit-account" min="1" max="10" step="1" style="width:70px"></label>
+        <label>Lots max. par saison <input type="number" id="fp-limit-season" min="1" max="10" step="1" style="width:70px"></label>
+      </div>
+      <div class="form-actions" style="flex-wrap:wrap;gap:8px">
+        <input type="text" id="fp-note" placeholder="Note (raison du changement)" maxlength="300" style="min-width:220px">
+        <button class="btn btn-sm" id="btn-fp-save">Enregistrer prix et plafonds</button>
+        <button class="btn btn-outline btn-sm" id="btn-fp-toggle">Activer l'offre…</button>
+      </div>
+      <h4 style="margin:14px 0 6px">Aperçu de la carte joueur (non affichée en jeu)</h4>
+      <div id="fp-preview" class="muted" style="border:1px dashed currentColor;border-radius:8px;padding:10px;max-width:420px"></div>
+      <h4 style="margin:14px 0 6px">Journal</h4>
+      <table id="fp-audit-table" style="margin-bottom:10px">
+        <thead><tr><th>Date (UTC)</th><th>Réglage</th><th>Avant → après</th><th>Note</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p id="fp-msg" class="success hidden"></p>
+      <p id="fp-err" class="error hidden"></p>
+    </div>
+
   </section>
 
   <!-- Tab Anti-bot (#25) -->

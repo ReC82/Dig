@@ -103,6 +103,7 @@ const rewardPoints = require('./rewardPoints');
 const gemLedger = require('./gemLedger');
 const economyRules = require('./economyRules');
 const gemShop = require('./gemShop');
+const fragmentPack = require('./fragmentPack');
 const pickaxeCharges = require('./pickaxeCharges');
 const microBonusDrafts = require('./microBonusDrafts');
 
@@ -2666,7 +2667,7 @@ function economyRoute(label, fn) {
     try { res.json(await fn(req)); }
     catch (err) {
       if (err instanceof economyRules.EconomyRulesError) return res.status(err.status).json({ error: err.message, details: err.details });
-      if (err instanceof gemShop.GemShopError || err instanceof gemLedger.GemError) return res.status(err.status).json({ error: err.message, code: err.code });
+      if (err instanceof gemShop.GemShopError || err instanceof gemLedger.GemError || err instanceof fragmentPack.FragmentPackError) return res.status(err.status).json({ error: err.message, code: err.code });
       console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
     }
   };
@@ -2714,6 +2715,30 @@ app.get('/api/gem-shop', requireUser, economyRoute('GET /api/gem-shop',
   req => gemShop.playerView(req.session.userId)));
 app.post('/api/gem-shop/buy', limit.shop, requireUser, economyRoute('POST /api/gem-shop/buy',
   req => gemShop.buy(req.session.userId, String(req.body?.itemId ?? ''), req.body?.requestId)));
+
+// ── Lot de 10 fragments en euros (#85) : désactivé, aucun prestataire de paiement ─────────
+// L'activation est refusée par le serveur tant qu'aucun paiement réel n'est intégré.
+
+app.get('/api/admin/economy/fragment-pack', requireAdmin, economyRoute('GET /api/admin/economy/fragment-pack',
+  () => fragmentPack.adminSummary()));
+/** PUT /api/admin/economy/fragment-pack/settings — { priceCents?, limitPerAccount?, limitPerSeason?, note } */
+app.put('/api/admin/economy/fragment-pack/settings', requireAdmin, economyRoute('PUT /api/admin/economy/fragment-pack/settings', req => {
+  const { priceCents, limitPerAccount, limitPerSeason, note } = req.body ?? {};
+  return { ok: true, ...fragmentPack.updateSettings({ priceCents, limitPerAccount, limitPerSeason }, { note }) };
+}));
+/** POST /api/admin/economy/fragment-pack/flag — { enabled, confirm: true, confirmText: "ACTIVER" pour activer, note } */
+app.post('/api/admin/economy/fragment-pack/flag', requireAdmin, economyRoute('POST /api/admin/economy/fragment-pack/flag', req => {
+  const { enabled, confirm, confirmText, note } = req.body ?? {};
+  if (confirm !== true) throw new fragmentPack.FragmentPackError(400, 'Confirmation requise (confirm: true).');
+  if (enabled === true && confirmText !== 'ACTIVER') throw new fragmentPack.FragmentPackError(400, 'Activation : saisir ACTIVER pour confirmer.');
+  return { ok: true, ...fragmentPack.setEnabled(enabled === true, { note }) };
+}));
+
+// Joueur : fermé → { open: false } ; tout paiement est refusé (aucun crédit de fragments possible).
+app.get('/api/fragment-pack', requireUser, economyRoute('GET /api/fragment-pack',
+  req => fragmentPack.playerView(req.session.userId, getActiveSeason()?.id ?? null)));
+app.post('/api/fragment-pack/checkout', limit.shop, requireUser, economyRoute('POST /api/fragment-pack/checkout',
+  () => fragmentPack.checkout()));
 
 // Toute autre route /api/* (dont l'ancienne API /api/players/:token/*) : 404 JSON (#14)
 app.use('/api', (_req, res) => {
@@ -2769,6 +2794,7 @@ xLink.init();                    // compte X lié, historique, demandes de réco
 gemLedger.init();                // registre de gemmes de référence, désactivé par défaut (#49)
 economyRules.init();             // règles économiques v1 = valeurs en vigueur, barème A en brouillon (#49)
 gemShop.init();                  // boutique en gemmes, fermée par défaut (#49)
+fragmentPack.init();             // lot de 10 fragments en euros : désactivé, sans paiement (#85)
 microBonusDrafts.init();         // micro-bonus fractionnaires : brouillons seulement, tables en ajout seul (#81)
 pickaxeCharges.init();           // pioche à charges : réglages, drapeau OFF par défaut, écarts observés (#71)
 badges.init();                   // badges honorifiques : tables en ajout seul, première série (#38)

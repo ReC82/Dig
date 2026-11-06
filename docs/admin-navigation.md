@@ -60,6 +60,7 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
     - Registre de gemmes (`#economy/ledger`)
     - Règles économiques (`#economy/rules`)
     - Boutique en gemmes (`#economy/gemshop`)
+    - Lot de fragments (€) (`#economy/fragpack`) — offre #85 désactivée : prix, plafonds, journal, activation refusée sans prestataire de paiement
 - **🏆 Saisons & compétition**
   - 📊 Saison en cours (`#season-overview`)
   - 🗓 Historique des saisons (`#seasons`, rubrique par défaut)

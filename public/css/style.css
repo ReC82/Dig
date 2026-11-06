@@ -3837,3 +3837,6 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
   touch-action: manipulation;
 }
 .antibot-btn-ghost[hidden] { display: none; }
+
+/* Lot de 10 fragments en euros (#85) : carte pleine largeur (texte de transparence) */
+.fragpack-card { grid-column: 1 / -1; }

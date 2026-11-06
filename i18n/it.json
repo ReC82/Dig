@@ -2092,6 +2092,83 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "fragpack.btn_buy": {
+   "text": "Acquista — {price}",
+   "src": "91fd1429c4f4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.btn_limit": {
+   "text": "Limite raggiunto",
+   "src": "5d0fffc97ee5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.btn_unavailable": {
+   "text": "Non disponibile",
+   "src": "81440a696f7f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.desc": {
+   "text": "Servono a sbloccare e migliorare le reliquie: bonus permanenti, conservati da una stagione all’altra.",
+   "src": "816d2e27d0c3",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.error": {
+   "text": "Acquisto non possibile per ora. Nessun pagamento è stato effettuato.",
+   "src": "b0c1c908aba2",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.free": {
+   "text": "Anche gratis: forzieri trovati scavando.",
+   "src": "997dfaddc5aa",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.left": {
+   "text": "Ancora acquistabili: {n}",
+   "src": "98b85741bfaf",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.limit": {
+   "text": "Limite: {account} per account · {season} per stagione",
+   "src": "6ce91a70b566",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.name": {
+   "text": "{n} frammenti",
+   "src": "d8052022e24a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.section": {
+   "text": "🔮 Frammenti di reliquia",
+   "src": "b7230bea2484",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
+  "fragpack.transparency": {
+   "text": "Acquisto facoltativo e una tantum. Prezzo totale IVA inclusa: {price}.",
+   "src": "b65f7b672697",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #85)",
+   "at": "2026-11-06T19:54:01.476Z"
+  },
   "giftshop.b_closed": {
    "text": "Scambi chiusi",
    "src": "984389ec9f87",

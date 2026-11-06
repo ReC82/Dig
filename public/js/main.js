@@ -3613,6 +3613,7 @@ function renderShop() {
     <div class="section-divider" id="shop-gems-anchor"><span>${t('shop.section_gems')}</span></div>
     <div class="shop-grid" id="shop-grid-gems"></div>
     ${_pickaxeShopHtml()}
+    ${_fragmentPackShopHtml()}
     <div class="section-divider"><span>${t('shop.section_boosts')}</span></div>
     <div class="shop-grid shop-grid-2" id="shop-grid-boosts"></div>
     <div class="shop-disclaimer">${t(Monetization.PAYMENTS_ENABLED ? 'shop.disclaimer_live' : 'shop.disclaimer')}</div>
@@ -3626,6 +3627,57 @@ function renderShop() {
   container.querySelectorAll('[data-pick-tree]').forEach(b => b.addEventListener('click', () => _buyPickaxeTree(b.dataset.pickTree)));
   container.querySelectorAll('[data-pick-refill]').forEach(b => b.addEventListener('click', () => _buyPickaxeRefill(Number(b.dataset.pickRefill))));
   _fillShopGrid('shop-grid-boosts', boosts);
+  container.querySelector('[data-fragpack-buy]')?.addEventListener('click', _buyFragmentPack);
+  _refreshFragmentPack();
+}
+
+// ── Lot de 10 fragments en euros (#85) ──────────────────────────────────────────
+// Désactivé : le serveur répond { open: false } et rien n'est affiché. La carte n'apparaît que si le
+// serveur ouvre l'offre (prestataire de paiement intégré + feu vert du propriétaire) ; aucun crédit
+// de fragments n'a lieu dans le navigateur.
+let _fragPack = { open: false }, _fragPackAt = 0;
+async function _refreshFragmentPack() {
+  if (Date.now() - _fragPackAt < 60_000) return;
+  _fragPackAt = Date.now();
+  try {
+    const { ok, data } = await _apiFetch('GET', '/api/fragment-pack');
+    const next = ok && data && data.open === true && data.offer ? data : { open: false };
+    const changed = JSON.stringify(next) !== JSON.stringify(_fragPack);
+    _fragPack = next;
+    if (changed && isViewActive('shop')) renderShop();
+  } catch (_) { /* hors ligne ou non connecté : rien ne change */ }
+}
+
+function _fragmentPackPrice(o) {
+  return (o.priceCents / 100).toLocaleString(I18n.getCurrent(), { style: 'currency', currency: o.currency });
+}
+
+function _fragmentPackShopHtml() {
+  if (!_fragPack.open) return '';
+  const o = _fragPack.offer;
+  const price = escapeHtml(_fragmentPackPrice(o));
+  const left = Math.max(0, Number(_fragPack.remaining) || 0);
+  const label = !Monetization.PAYMENTS_ENABLED ? t('fragpack.btn_unavailable') : left <= 0 ? t('fragpack.btn_limit') : t('fragpack.btn_buy', { price });
+  const canBuy = Monetization.PAYMENTS_ENABLED && left > 0;
+  return `<div class="section-divider" id="shop-fragpack"><span>${t('fragpack.section')}</span></div>
+    <div class="shop-grid">
+      <div class="shop-card fragpack-card">
+        <div class="shop-item-icon" aria-hidden="true">🔮</div>
+        <div class="shop-item-name">${t('fragpack.name', { n: o.fragments })}</div>
+        <div class="shop-item-label">${t('fragpack.desc')}</div>
+        <div class="shop-item-label">${t('fragpack.free')}</div>
+        <div class="shop-item-label">${t('fragpack.limit', { account: o.limitPerAccount, season: o.limitPerSeason })} · ${t('fragpack.left', { n: left })}</div>
+        <div class="shop-item-label">${t('fragpack.transparency', { price })}</div>
+        <button type="button" class="shop-btn" data-fragpack-buy ${canBuy ? '' : 'disabled'}>${label}</button>
+      </div>
+    </div>`;
+}
+
+async function _buyFragmentPack() {
+  try {
+    const { ok } = await _apiFetch('POST', '/api/fragment-pack/checkout', {});
+    if (!ok) showAchievement('⚠️', t('fragpack.error'), 'warning');
+  } catch (_) { showAchievement('⚠️', t('fragpack.error'), 'warning'); }
 }
 
 function _fillShopGrid(gridId, items) {

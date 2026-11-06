@@ -564,12 +564,13 @@ const ADM_NAV = [
   { id: 'pickaxe',         group: 'game',        order: 35, icon: '🔋', label: 'Pioche à charges',         keywords: 'réserve coups charges recharge usure durabilité drapeau testeurs', load: () => loadPickaxe() },
   { id: 'relics',          group: 'game',        order: 40, icon: '🔮', label: 'Reliques',                 keywords: 'effets coûts',                                  load: () => loadRelics() },
   { id: 'missions',        group: 'game',        order: 50, icon: '🎯', label: 'Missions quotidiennes',    keywords: 'quêtes journalières',                           load: () => loadMissions() },
-  { id: 'economy',         group: 'game',        order: 60, icon: '💰', label: 'Économie',                 keywords: 'gemmes barèmes',                                load: () => { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); },
+  { id: 'economy',         group: 'game',        order: 60, icon: '💰', label: 'Économie',                 keywords: 'gemmes barèmes',                                load: () => { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); loadFragmentPack(); },
     subs: [
       { id: 'gains',   label: 'Gains & coûts des coffres', keywords: 'multiplicateurs pièces fragments prix coffres' },
       { id: 'ledger',  label: 'Registre de gemmes',        keywords: 'soldes référence anomalies mode' },
       { id: 'rules',   label: 'Règles économiques',        keywords: 'barème plafond auto-dig courbe simulation publication versions' },
       { id: 'gemshop', label: 'Boutique en gemmes',        keywords: 'articles prix ouverture' },
+      { id: 'fragpack', label: 'Lot de fragments (€)',     keywords: 'euros paiement achat fragments pay-to-win désactivé' },
     ] },
   { id: 'season-overview', group: 'competition', order: 10, icon: '📊', label: 'Saison en cours',          keywords: 'ligues & saisons pilotage thèmes date de fin zone critique anti-autoclicker journal', load: () => { loadSeasonOverview(); loadAntiCheatLogs(); } },
   { id: 'seasons',         group: 'competition', order: 20, icon: '🗓', label: 'Historique des saisons',   keywords: 'saisons liste' },
@@ -2248,6 +2249,86 @@ document.getElementById('btn-gs-toggle').addEventListener('click', async () => {
   msgEl.textContent = data.changed ? (data.enabled ? 'Boutique ouverte.' : 'Boutique fermée.') : 'Inchangé.';
   msgEl.classList.remove('hidden');
   loadGemShop();
+});
+
+// ── Lot de 10 fragments en euros (#85) : désactivé, aucun prestataire de paiement ──
+
+const FP_SETTINGS = { enabled: 'Activation', price_cents: 'Prix TTC', limit_per_account: 'Plafond par compte', limit_per_season: 'Plafond par saison' };
+const _fpEuros = c => `${(c / 100).toFixed(2).replace('.', ',')} €`;
+const _fpFmt = (key, v) => (v == null ? '—' : key === 'price_cents' ? _fpEuros(Number(v)) : key === 'enabled' ? (v === '1' ? 'activé' : 'désactivé') : v);
+let _fpView = null;
+const _fpZone = admZone(document.getElementById('fragment-pack-card'));
+async function loadFragmentPack() {
+  const { ok, data } = await api('GET', '/api/admin/economy/fragment-pack');
+  if (!ok) return;
+  _fpView = data;
+  const o = data.offer;
+  document.getElementById('fp-state').textContent = data.open ? 'ouverte aux joueurs' : (data.flag ? 'drapeau activé, mais fermée (aucun prestataire)' : 'désactivée — non achetable');
+  document.getElementById('fp-provider').textContent = data.provider ?? 'aucun';
+  document.getElementById('fp-orders').textContent = data.orders.reduce((a, r) => a + r.n, 0);
+  if (!admZoneDirty(_fpZone)) {
+    document.getElementById('fp-price').value = (o.priceCents / 100).toFixed(2);
+    document.getElementById('fp-limit-account').value = o.limitPerAccount;
+    document.getElementById('fp-limit-season').value = o.limitPerSeason;
+  }
+  const pv = document.getElementById('fp-preview');
+  pv.replaceChildren();
+  for (const line of [`🔮 ${o.fragments} fragments — ${_fpEuros(o.priceCents)} TTC`,
+    'Les fragments servent à débloquer et améliorer les reliques (bonus permanents).',
+    `Limite : ${o.limitPerAccount} lot(s) par compte, ${o.limitPerSeason} par saison.`,
+    'Les fragments restent aussi gratuits : coffres trouvés en minant.',
+    'Bouton : « Indisponible » tant que l’offre est désactivée.']) {
+    const p = document.createElement('p'); p.style.margin = '2px 0'; p.textContent = line; pv.append(p);
+  }
+  _glRows('#fp-audit-table tbody', data.audit, a => [a.created_at, FP_SETTINGS[a.action] ?? a.action, `${_fpFmt(a.action, a.old_value)} → ${_fpFmt(a.action, a.new_value)}`, a.note || '—']);
+  document.getElementById('btn-fp-toggle').textContent = data.flag ? 'Désactiver l’offre…' : 'Activer l’offre…';
+}
+admRefreshButton('btn-refresh-fragment-pack', loadFragmentPack, 'Lot de fragments');
+
+function _fpShow(text, isErr) {
+  const msgEl = document.getElementById('fp-msg'), errEl = document.getElementById('fp-err');
+  msgEl.classList.add('hidden'); errEl.classList.add('hidden');
+  if (!text) return;
+  const el = isErr ? errEl : msgEl;
+  el.textContent = text; el.classList.remove('hidden');
+}
+
+document.getElementById('btn-fp-save').addEventListener('click', async () => {
+  _fpShow('');
+  const price = Number(String(document.getElementById('fp-price').value).replace(',', '.'));
+  const body = {
+    priceCents: Math.round(price * 100),
+    limitPerAccount: Number(document.getElementById('fp-limit-account').value),
+    limitPerSeason: Number(document.getElementById('fp-limit-season').value),
+    note: document.getElementById('fp-note').value.trim(),
+  };
+  if (!await admConfirm({ title: 'Lot de fragments : prix et plafonds',
+    impact: [`Prix ${_fpEuros(body.priceCents)} TTC · ${body.limitPerAccount} par compte · ${body.limitPerSeason} par saison.`,
+      'Aucun effet en jeu : l’offre reste désactivée et non achetable. Changement journalisé.'] })) return;
+  const { ok, data } = await api('PUT', '/api/admin/economy/fragment-pack/settings', body);
+  if (!ok) return _fpShow(data.error ?? 'Erreur.', true);
+  admZoneClean(_fpZone);
+  document.getElementById('fp-note').value = '';
+  _fpShow(data.changed ? 'Enregistré (offre toujours désactivée).' : 'Inchangé.');
+  loadFragmentPack();
+});
+
+document.getElementById('btn-fp-toggle').addEventListener('click', async () => {
+  _fpShow('');
+  const enabled = !_fpView?.flag;
+  const body = { enabled, confirm: true, note: document.getElementById('fp-note').value.trim() };
+  if (enabled) {
+    const typed = await admPrompt({ title: 'Activer le lot de fragments en euros',
+      text: 'Réservé au feu vert écrit du propriétaire, après analyse de conformité et intégration d’un vrai paiement. Tant qu’aucun prestataire n’est branché, le serveur refuse.',
+      label: 'Saisir ACTIVER pour confirmer', ok: 'Activer' });
+    if (typed === null) return;
+    body.confirmText = typed.trim();
+  } else if (!await admConfirm({ title: 'Désactiver le lot de fragments', impact: ['L’offre disparaît du jeu ; les commandes passées sont conservées.'] })) return;
+  const { ok, data } = await api('POST', '/api/admin/economy/fragment-pack/flag', body);
+  if (!ok) return _fpShow(data.error ?? 'Erreur.', true);
+  document.getElementById('fp-note').value = '';
+  _fpShow(data.changed ? (data.enabled ? 'Offre activée.' : 'Offre désactivée.') : 'Inchangé.');
+  loadFragmentPack();
 });
 
 // ── Recherche de joueurs ──────────────────────────────────────────────────────
