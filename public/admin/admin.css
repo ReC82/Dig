@@ -1541,3 +1541,31 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .mq-src { border: 1px solid var(--border, #444); border-left-width: 4px; border-radius: 6px; padding: 6px 10px; margin: 6px 0; overflow-wrap: anywhere; }
 .mq-src--server { border-left-color: var(--green, #3a3); }
 .mq-src--browser { border-left-color: var(--muted, #888); }
+.mq-insp-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.mq-insp-name { font-size: 1.05rem; }
+.mq-insp-badge { font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.mq-insp-badge--server { color: var(--green); border-color: rgba(34,197,94,0.45); background: rgba(34,197,94,0.08); }
+.mq-insp-sub { margin: 2px 0; }
+.mq-insp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin: 8px 0; }
+.mq-insp-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.mq-insp-card--claimed { border-color: rgba(34,197,94,0.45); }
+.mq-insp-card--done { border-color: rgba(251,191,36,0.55); }
+.mq-insp-card-top { display: flex; gap: 8px; align-items: flex-start; }
+.mq-insp-card-txt { min-width: 0; }
+.mq-insp-card-txt strong { font-size: 0.9rem; }
+.mq-insp-ico { font-size: 1.3rem; line-height: 1; flex-shrink: 0; width: 28px; text-align: center; }
+.mq-insp-ico img { width: 28px; height: 28px; object-fit: contain; }
+.mq-insp-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.mq-insp-bar span { display: block; height: 100%; background: var(--gold); }
+.mq-insp-card--claimed .mq-insp-bar span { background: var(--green); }
+.mq-insp-card-foot { display: flex; justify-content: space-between; gap: 6px; }
+.mq-insp-reward { color: var(--gold); font-weight: 700; }
+.mq-insp-state { font-weight: 700; }
+.mq-insp-state--claimed { color: var(--green); }
+.mq-insp-state--done { color: var(--gold); }
+.mq-insp-state--progress { color: var(--muted); }
+.mq-insp-warn { color: var(--gold); }
+.mq-insp-id { font-size: 0.68rem; color: var(--muted); font-family: ui-monospace, monospace; }
+.mq-insp-details { margin-top: 6px; }
+.mq-insp-details summary { cursor: pointer; color: var(--muted); }
+.mq-insp-details ul { margin: 4px 0 0 18px; color: var(--muted); }

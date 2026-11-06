@@ -1401,7 +1401,7 @@ function renderDaily() {
       <button class="claim-btn" id="btn-claim">${t('ui.daily_btn_claim')}</button>`;
   } else {
     html += `
-      <div class="daily-claimed-msg"><span class="claimed-check">✓</span>${t('ui.daily_claimed_msg')}</div>
+      <div class="daily-claimed-msg"><span class="claimed-check">✓</span>${t('ui.daily_claimed_msg').replace(/^\s*✓\s*/, '')}</div>
       <div class="daily-next-msg">${t('ui.daily_next_msg')}</div>`;
   }
 
@@ -1574,6 +1574,8 @@ function renderDailyMissions() {
     const rewardParts = [];
     if (m.reward.coins > 0) rewardParts.push(`${UiIcons.html('pieces', '💰')}\u202f${m.reward.coins}`);
     if (m.reward.gems  > 0) rewardParts.push(`${UiIcons.html('gemmes', '💎')}\u202f${m.reward.gems}`);
+    // Libellé accessible en texte seul : le HTML des pictogrammes (<img … alt="">) dans un attribut le coupait (« 500"> Réclamer », #68-G)
+    const rewardLabel = [m.reward.coins > 0 ? `💰 ${m.reward.coins}` : '', m.reward.gems > 0 ? `💎 ${m.reward.gems}` : ''].filter(Boolean).join(' + ');
     // Image du catalogue (#68, chemin validé par le serveur) sinon pictogramme appliqué ou emoji
     const icon = m.image
       ? `<img class="ui-ico" src="${escapeHtml(m.image)}" alt="" aria-hidden="true" draggable="false">`
@@ -1597,7 +1599,7 @@ function renderDailyMissions() {
         <div class="mission-reward-text">${t('ui.mission_reward')} <span>${rewardParts.join(' + ')}</span></div>
         <button class="mission-claim-btn${claimed ? ' mission-claimed-btn' : ''}"
           ${(!done || claimed) ? 'disabled' : ''}
-          aria-label="${claimed ? t('ui.mission_claimed') : t('ui.btn_mission_claim_aria', { reward: rewardParts.join(' + ') })}">
+          aria-label="${escapeHtml(claimed ? t('ui.mission_claimed') : t('ui.btn_mission_claim_aria', { reward: rewardLabel }))}">
           ${claimed ? t('ui.mission_claimed') : t('ui.btn_mission_claim')}
         </button>
       </div>`;

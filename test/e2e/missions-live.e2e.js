@@ -137,7 +137,7 @@ async function steps(browser, tag, viewport) {
 
   // ── Admin : inspection, puis retour à « Désactivé » ──
   await pickPlayer(adm, '#mq-act-user', '#mq-act-user-list', name);
-  await adm.waitForFunction(() => /réclamée/.test(document.querySelector('#mq-act-out').textContent));
+  await adm.waitForFunction(() => /Réclamée/.test(document.querySelector('#mq-act-out').textContent));
   assert.match(await adm.textContent('#mq-act-out'), /Source des missions : Serveur \(Pilote\)/);
   await adm.locator('#mq-act').scrollIntoViewIfNeeded();
   await adm.screenshot({ path: `${SHOTS}/${tag}-4-inspection.png` });

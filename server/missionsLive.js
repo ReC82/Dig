@@ -485,8 +485,13 @@ function inspectPlayer(query, { nowMs = Date.now() } = {}) {
   const meta = conn().prepare('SELECT created_at AS createdAt, updated_at AS updatedAt FROM daily_mission_days WHERE user_id = ? AND day = ?').get(u.id, day) ?? null;
   const version = row ? (missionCatalog.getVersion(row.catalog_version) ?? null) : null;
   const defs = new Map((version?.missions ?? []).map(m => [m.id, m]));
+  // Historique : identifiants techniques conservés (« id:objectif »), plus les noms du catalogue de la version du jour (#68-F)
+  const nameIn = (v, id) => missionCatalog.getVersion(v)?.missions?.find(m => m.id === id)?.names?.fr ?? null;
   const days = conn().prepare('SELECT day, catalog_version AS catalogVersion, missions FROM daily_mission_days WHERE user_id = ? ORDER BY day DESC LIMIT 7')
-    .all(u.id).map(r => ({ ...r, missions: JSON.parse(r.missions).map(m => `${m.id}:${m.target}`) }));
+    .all(u.id).map(r => {
+      const list = JSON.parse(r.missions);
+      return { ...r, missions: list.map(m => `${m.id}:${m.target}`), items: list.map(m => ({ id: m.id, target: m.target, name: nameIn(r.catalogVersion, m.id) })) };
+    });
   const src = sourceFor(u.id);
   return {
     id: u.id, username: u.username, live: src.source === 'server', ...src, day, timezone: TZ,
@@ -495,7 +500,10 @@ function inspectPlayer(query, { nowMs = Date.now() } = {}) {
       assignedAt: meta?.createdAt ?? null, updatedAt: meta?.updatedAt ?? null,
       missions: row.missions.map(m => {
         const c = claims.get(m.slot);
-        return { ...m, name: defs.get(m.id)?.names?.fr ?? null, progress: c ? m.target : _progress(row, m), claimed: !!c,
+        const def = defs.get(m.id);
+        // Nom et objectif tels que le joueur les lit (textes FR du catalogue de la version attribuée), icône du catalogue (#68-F)
+        return { ...m, name: def?.names?.fr ?? null, text: def?.descs?.fr ? def.descs.fr.replace(/\{t\}/g, m.target).replace(/\{s\}/g, m.target > 1 ? 's' : '') : null,
+          icon: def?.icon ?? '🎯', image: def?.image ?? null, progress: c ? m.target : _progress(row, m), claimed: !!c,
           claimedAt: c?.claimed_at ?? null, claimReward: c ? { coins: c.coins, gems: c.gems } : null,
           claimDetails: c?.details ? JSON.parse(c.details) : null };
       }),

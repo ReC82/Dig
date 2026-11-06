@@ -12192,30 +12192,71 @@ async function mqInspectPlayer() {
     return;
   }
   const server = data.source === 'server';
+  // En-tête lisible (#68-F) : joueur, source des missions, journée de Bruxelles, version et profondeur
+  const label = !server ? 'Missions du navigateur · standard' : data.reason === 'on' ? 'Missions serveur · Tous les joueurs' : 'Missions serveur · Pilote';
   const head = aiEl('div', { class: `mq-src ${server ? 'mq-src--server' : 'mq-src--browser'}` });
-  const label = !server ? 'Navigateur (standard)' : data.reason === 'on' ? 'Serveur (tous les joueurs)' : 'Serveur (Pilote)';
-  head.appendChild(aiEl('strong', {}, `Source des missions : ${label}`));
-  head.appendChild(aiEl('div', {}, `${data.username} · ID ${data.id} — ${MQ_SRC_REASON[data.reason] ?? data.reason}`));
-  head.appendChild(aiEl('div', { class: 'muted' }, `Journée de référence : ${data.day} (minuit Europe/Bruxelles)`));
+  const title = aiEl('div', { class: 'mq-insp-title' });
+  title.append(aiEl('strong', { class: 'mq-insp-name' }, data.username), aiEl('span', { class: `mq-insp-badge${server ? ' mq-insp-badge--server' : ''}` }, label));
+  head.appendChild(title);
+  const t = data.today;
+  head.appendChild(aiEl('div', { class: 'mq-insp-sub' }, [`Journée du ${data.day} (Bruxelles)`, t && `catalogue v${t.catalogVersion}`, t && `${t.profile.depth} m à l'attribution`].filter(Boolean).join(' · ')));
+  head.appendChild(aiEl('div', { class: 'muted' }, `Source des missions : ${!server ? 'Navigateur (standard)' : data.reason === 'on' ? 'Serveur (tous les joueurs)' : 'Serveur (Pilote)'} — ${MQ_SRC_REASON[data.reason] ?? data.reason}`));
   out.appendChild(head);
-  if (!data.today) {
+  if (!t) {
     out.appendChild(aiEl('p', { class: 'muted' }, server
       ? 'Aucune attribution encore aujourd\'hui : le serveur attribuera les missions à la prochaine ouverture de l\'écran Missions par ce joueur.'
       : 'Aucune attribution serveur aujourd\'hui : ses missions sont calculées par son navigateur (non visibles ici).'));
   } else {
-    const p = data.today.profile;
-    out.appendChild(aiEl('p', { class: 'muted' }, `Catalogue version ${data.today.catalogVersion} · attribuées le ${data.today.assignedAt ? admBrussels(data.today.assignedAt) : '—'}`
-      + `${data.today.updatedAt ? ` · progression lue le ${admBrussels(data.today.updatedAt)}` : ''} · profil à l'attribution : ${p.depth} m, compte de ${p.accountDays} jour(s)`));
     if (!server) out.appendChild(aiEl('p', { class: 'muted' }, 'Attribution conservée d\'une période où le compte recevait les missions du serveur ; son jeu affiche actuellement celles du navigateur.'));
-    const ul = aiEl('ul');
-    for (const m of data.today.missions) {
-      const r = m.claimReward ?? m.reward;
-      const state = m.claimed ? `réclamée${m.claimedAt ? ` le ${admBrussels(m.claimedAt)}` : ''}` : m.progress >= m.target ? 'terminée, à réclamer' : 'en cours';
-      ul.appendChild(aiEl('li', {}, `${m.name ?? m.id} : ${m.progress}/${m.target} — 💰 ${r.coins}${r.gems ? ` + 💎 ${r.gems}` : ''} — ${state}${m.claimDetails?.overValidated ? ' ⚠ gain déclaré supérieur aux blocs validés (observation)' : ''}`));
-    }
-    out.appendChild(ul);
+    const grid = aiEl('div', { class: 'mq-insp-cards' });
+    for (const m of t.missions) grid.appendChild(mqInspectCard(m));
+    out.appendChild(grid);
   }
-  if (data.history.length) out.appendChild(aiEl('p', { class: 'muted' }, `7 derniers jours : ${data.history.map(h => `${h.day} [${h.missions.join(', ')}]`).join(' · ')}`));
+  // Métadonnées techniques repliées : identifiants, heures, compte, historique brut
+  const det = aiEl('details', { class: 'mq-insp-details' });
+  det.appendChild(aiEl('summary', {}, 'Détails'));
+  const dl = aiEl('ul');
+  dl.appendChild(aiEl('li', {}, `Joueur : ${data.username} · ID ${data.id}`));
+  if (t) {
+    dl.appendChild(aiEl('li', {}, `Attribuées le ${t.assignedAt ? admBrussels(t.assignedAt) : '—'}${t.updatedAt ? ` · progression lue le ${admBrussels(t.updatedAt)}` : ''}`));
+    dl.appendChild(aiEl('li', {}, `Profil à l'attribution : ${t.profile.depth} m, compte de ${t.profile.accountDays} jour(s)`));
+    dl.appendChild(aiEl('li', {}, `Missions (identifiant:objectif) : ${t.missions.map(m => `${m.id}:${m.target}`).join(', ')}`));
+  }
+  for (const h of data.history) {
+    dl.appendChild(aiEl('li', {}, `${h.day} (v${h.catalogVersion}) : ${(h.items ?? []).map(x => `${x.name ?? x.id} ${x.target}`).join(' · ') || h.missions.join(', ')} — ${h.missions.join(', ')}`));
+  }
+  if (!data.history.length) dl.appendChild(aiEl('li', { class: 'muted' }, 'Aucune attribution serveur sur les 7 derniers jours.'));
+  det.appendChild(dl);
+  out.appendChild(det);
+}
+
+const MQ_INSP_STATE = { claimed: 'Réclamée', done: 'Terminée — à réclamer', progress: 'En cours' };
+
+/** Carte compacte d'une mission inspectée : nom et objectif tels que dans le jeu, progression, récompense, statut (#68-F). */
+function mqInspectCard(m) {
+  const r = m.claimReward ?? m.reward;
+  const st = m.claimed ? 'claimed' : m.progress >= m.target ? 'done' : 'progress';
+  const card = aiEl('div', { class: `mq-insp-card mq-insp-card--${st}` });
+  const top = aiEl('div', { class: 'mq-insp-card-top' });
+  const ico = aiEl('span', { class: 'mq-insp-ico', 'aria-hidden': 'true' });
+  if (m.image) ico.appendChild(aiEl('img', { src: m.image, alt: '' })); else ico.textContent = m.icon ?? '🎯';
+  const txt = aiEl('div', { class: 'mq-insp-card-txt' });
+  txt.append(aiEl('strong', {}, m.name ?? m.id), aiEl('div', { class: 'muted' }, m.text ?? `Objectif : ${m.target}`));
+  top.append(ico, txt);
+  card.appendChild(top);
+  const pct = m.target > 0 ? Math.min(100, Math.round((m.progress / m.target) * 100)) : 100;
+  const bar = aiEl('div', { class: 'mq-insp-bar', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(m.target), 'aria-valuenow': String(Math.min(m.progress, m.target)), 'aria-label': `Progression ${m.progress}/${m.target}` });
+  const fill = aiEl('span');
+  fill.style.width = `${pct}%`;
+  bar.appendChild(fill);
+  card.appendChild(bar);
+  const foot = aiEl('div', { class: 'mq-insp-card-foot' });
+  foot.append(aiEl('span', {}, `${m.progress}/${m.target}`), aiEl('span', { class: 'mq-insp-reward' }, `💰 ${r.coins}${r.gems ? ` + 💎 ${r.gems}` : ''}`));
+  card.appendChild(foot);
+  card.appendChild(aiEl('div', { class: `mq-insp-state mq-insp-state--${st}` }, `${st === 'claimed' ? '✓ ' : ''}${MQ_INSP_STATE[st]}${m.claimed && m.claimedAt ? ` le ${admBrussels(m.claimedAt)}` : ''}`));
+  if (m.claimDetails?.overValidated) card.appendChild(aiEl('div', { class: 'mq-insp-warn' }, '⚠ Gain déclaré supérieur aux blocs validés (observation)'));
+  card.appendChild(aiEl('div', { class: 'mq-insp-id' }, `ID ${m.id}`));
+  return card;
 }
 
 document.getElementById('btn-mq-act-inspect').addEventListener('click', () => mqInspectPlayer());
