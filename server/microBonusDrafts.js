@@ -322,7 +322,7 @@ function preview(effectInput, { depth, luck, nowMs = Date.now() } = {}) {
   if (effect.source && !_souvenirs().some(x => x.eventId === effect.source.eventId && x.itemId === effect.source.itemId)) {
     warnings.push('Souvenir lié introuvable (événement/objet) : le lien est conservé tel quel, sans effet.');
   }
-  if (!effect.schedule.from && !effect.schedule.to && !effect.schedule.months && !effect.schedule.weekdays) {
+  if (!effect.schedule.from && !effect.schedule.to && !effect.schedule.months && !effect.schedule.weekdays && !effect.schedule.monthDays) {
     warnings.push('Effet permanent : avantage durable au classement pour les détenteurs (voir les alternatives du rapport #81).');
   }
   const simulation = simulate(effect, { depth, luck, types });
@@ -330,7 +330,7 @@ function preview(effectInput, { depth, luck, nowMs = Date.now() } = {}) {
   return {
     effect,
     text: { fr: MicroBonus.describe(effect, 'fr', names), en: MicroBonus.describe(effect, 'en', names) },
-    state: { ...state, would: _would(state) },
+    state: { ...state, would: _would(state), next: MicroBonus.describeNext(effect, nowMs, 'fr') },
     samples: stateSamples(effect, nowMs),
     simulation,
     explain: explain(simulation),

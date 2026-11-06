@@ -10771,7 +10771,9 @@ function evRenderItems() {
     else art.textContent = it.icon;
     const nm = addCell(tr, '');
     nm.appendChild(aiEl('strong', {}, it.names.fr || '(sans nom)'));
-    nm.appendChild(aiEl('div', { class: 'muted ev-sub' }, it.id || '—'));
+    // #86 : date de référence (calendrier d'inspiration) avant l'identifiant, « 09/11 · nov26_09_… »
+    const ref = /^\d{2}-\d{2}$/.test(it.refDate ?? '') ? `${it.refDate.slice(3)}/${it.refDate.slice(0, 2)} · ` : '';
+    nm.appendChild(aiEl('div', { class: 'muted ev-sub' }, `${ref}${it.id || '—'}`));
     // État de l'image enregistrée côté serveur (objet pas encore enregistré : aucun)
     const saved = _evCur.ev?.items.find(x => x.id === it.id);
     if (saved) nm.appendChild(aiEl('div', { class: 'ev-sub' })).appendChild(evImgChip(saved));
@@ -11030,6 +11032,7 @@ function eviRead() {
     rarity: document.getElementById('evi-rarity').value, enabled: document.getElementById('evi-enabled').checked,
     chancePct: Number(document.getElementById('evi-chance').value), minDepth: Number(document.getElementById('evi-depth').value) || 0,
     image: document.getElementById('evi-image').value.trim() || null, brief: document.getElementById('evi-brief').value.trim(),
+    refDate: document.getElementById('evi-refdate').value.trim(), inspiration: document.getElementById('evi-inspiration').value.trim(),
     dropFrom: [...document.querySelectorAll('#evi-cats input:checked')].map(c => c.value),
     names: { ...it.names }, descs: { ...it.descs } };
 }
@@ -11063,7 +11066,7 @@ function eviPreview() {
 }
 
 function eviOpen(idx, opener) {
-  const src = idx >= 0 ? _evCur.draft.items[idx] : { id: '', icon: '🎁', rarity: 'commun', chancePct: 0.5, minDepth: 0, dropFrom: [], enabled: true, names: {}, descs: {}, image: null, brief: '' };
+  const src = idx >= 0 ? _evCur.draft.items[idx] : { id: '', icon: '🎁', rarity: 'commun', chancePct: 0.5, minDepth: 0, dropFrom: [], enabled: true, names: {}, descs: {}, image: null, brief: '', refDate: '', inspiration: '' };
   _evi = { idx, item: { ...src, names: { ...src.names }, descs: { ...src.descs }, dropFrom: [...src.dropFrom] } };
   _eviLang = 'fr';
   const ro = _evCur.readOnly;
@@ -11078,6 +11081,8 @@ function eviOpen(idx, opener) {
   document.getElementById('evi-depth').value = it.minDepth ?? 0;
   document.getElementById('evi-image').value = it.image ?? '';
   document.getElementById('evi-brief').value = it.brief ?? '';
+  document.getElementById('evi-refdate').value = it.refDate ?? '';
+  document.getElementById('evi-inspiration').value = it.inspiration ?? '';
   document.getElementById('evi-upload').value = '';
   const cats = document.getElementById('evi-cats');
   cats.textContent = '';
@@ -11175,6 +11180,7 @@ function eviApply() {
   if (_evCur.draft.items.some((o, k) => o.id === it.id && k !== _evi.idx)) return nwMessage('evi-msg', `Un autre objet utilise déjà « ${it.id} ».`, true);
   if (!it.names.fr) return nwMessage('evi-msg', 'Nom FR obligatoire.', true);
   if (!(it.chancePct >= 0.001 && it.chancePct <= 100)) return nwMessage('evi-msg', 'Chance entre 0,001 et 100 %.', true);
+  if (it.refDate && !/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(it.refDate)) return nwMessage('evi-msg', 'Date de référence : format MM-JJ (ex. 11-09), ou vide.', true);
   if (_evi.idx >= 0) _evCur.draft.items[_evi.idx] = it; else _evCur.draft.items.push(it);
   _eviSnap = null;
   document.getElementById('ev-item-dialog').close();
@@ -11221,6 +11227,28 @@ document.getElementById('btn-ev-add-ai')?.addEventListener('click', () => {
   _evAiWhen = evWhenField(document.getElementById('ev-ai-when'));
   nwMessage('ev-ai-msg', '');
   admDialogOpen('ev-ai-dialog', opener, 'ev-ai-concept');
+});
+// #86 : importation groupée d'un événement préparé (fichier JSON) → brouillon, jamais d'écrasement
+document.getElementById('btn-ev-add-import')?.addEventListener('click', () => document.getElementById('ev-import-file').click());
+document.getElementById('ev-import-file')?.addEventListener('change', async e => {
+  const input = e.currentTarget;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  let raw;
+  try { raw = JSON.parse(await file.text()); } catch (_) { return admToast('Fichier illisible : JSON attendu.', { error: true }); }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return admToast('Fichier invalide : un objet événement est attendu.', { error: true });
+  const n = Array.isArray(raw.items) ? raw.items.length : 0;
+  if (!await admConfirm({ title: `Importer « ${raw.names?.fr || raw.id || '?'} » ?`, text: `${n} objet${n > 1 ? 's' : ''}, identifiant « ${raw.id ?? '?'} ».`,
+    impact: ['Enregistré en brouillon : rien n\'est visible des joueurs avant « Planifier ».', 'Refusé si cet identifiant existe déjà : aucun événement n\'est écrasé.'], ok: '📥 Importer' })) return;
+  const { status: _s, ...body } = raw;   // le statut n'est jamais importé : toujours brouillon
+  const { ok, data } = await api('POST', '/api/admin/events', body);
+  if (!ok) return admToast(data.error ?? 'Importation impossible.', { error: true });
+  document.getElementById('ev-add-dialog').close();
+  admToast(`Brouillon « ${data.event.id} » importé (${data.event.items.length} objets).`);
+  await loadEvents();
+  const ev = _ev.events.find(x => x.id === data.event.id);
+  if (ev) evOpen(ev, document.getElementById('btn-ev-add'));
 });
 document.getElementById('btn-ev-test')?.addEventListener('click', async () => {
   const testers = _evTestPicker.get();
@@ -13420,6 +13448,7 @@ function mbRead() {
   const months = mbChecked('mb-months'), weekdays = mbChecked('mb-weekdays');
   if (months.length) schedule.months = months;
   if (weekdays.length) schedule.weekdays = weekdays;
+  if (v('mb-monthdays')) schedule.monthDays = v('mb-monthdays');   // « 1-7 », « 1, 15 » : normalisé par le serveur
   const effect = { kind: 'damage_flat', value: Number(v('mb-value').replace(',', '.')), target: id ? { type, id } : { type: 'all' }, schedule };
   const [eventId, itemId] = v('mb-source').split('|');
   if (eventId && itemId) effect.source = { eventId, itemId };
@@ -13432,6 +13461,7 @@ function mbWrite(d) {
   set('mb-label', d?.label); set('mb-note', d?.note); set('mb-value', e.value);
   set('mb-target', e.target?.type && e.target.type !== 'all' ? `${e.target.type}:${e.target.id}` : 'all');
   set('mb-from', e.schedule?.from); set('mb-to', e.schedule?.to);
+  set('mb-monthdays', (e.schedule?.monthDays ?? []).join(', '));
   const src = document.getElementById('mb-source');
   const sv = e.source ? `${e.source.eventId}|${e.source.itemId}` : '';
   if (sv && ![...src.options].some(o => o.value === sv)) {   // lien vers un souvenir supprimé : conservé, signalé
@@ -13534,7 +13564,7 @@ async function mbPreview() {
   document.getElementById('mb-dlg-msg').className = 'hidden';
   document.getElementById('mb-prev-fr').textContent = data.text.fr;
   document.getElementById('mb-prev-en').textContent = `EN : ${data.text.en}`;
-  document.getElementById('mb-prev-state').textContent = `📅 Calendrier : aujourd'hui, ce bonus ${data.state.code === 'active' ? 'serait actif s\'il était publié.' : `serait inactif s'il était publié (${data.state.text}).`}`;
+  document.getElementById('mb-prev-state').textContent = `📅 Calendrier : aujourd'hui, ce bonus ${data.state.code === 'active' ? 'serait actif s\'il était publié.' : `serait inactif s'il était publié (${data.state.text}).`}${data.state.next ? ` — ${data.state.next}.` : ''}`;
   const warn = document.getElementById('mb-prev-warn');
   warn.textContent = '';
   for (const w of data.warnings) { const li = document.createElement('li'); li.textContent = `⚠️ ${w}`; warn.appendChild(li); }

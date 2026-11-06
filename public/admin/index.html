@@ -3341,6 +3341,7 @@
         <p class="muted mb-cal-help">📅 <strong>Calendrier</strong> : aucun mois coché = tous les mois ; aucun jour coché = tous les jours. Plusieurs conditions (dates, mois, jours) doivent <strong>toutes</strong> être vraies en même temps (ET). Exemple : novembre + mardi → seulement les mardis de novembre.</p>
         <div><span class="ev-label">Mois (aucun = tous) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-months" aria-label="Aide : mois">ⓘ</button></span><small id="mb-h-months" class="bk-hint" hidden>Cochez un ou plusieurs mois : le bonus serait actif pendant ces mois seulement (combiné avec les jours et les dates).</small><div id="mb-months" class="mb-checks"></div></div>
         <div><span class="ev-label">Jours (aucun = tous) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-days" aria-label="Aide : jours">ⓘ</button></span><small id="mb-h-days" class="bk-hint" hidden>Cochez un ou plusieurs jours de la semaine (heure de Bruxelles, de 00:00 à 23:59).</small><div id="mb-weekdays" class="mb-checks"></div></div>
+        <label>Jours du mois (vide = tous) <input type="text" id="mb-monthdays" maxlength="40" placeholder="1-7 = première semaine de chaque mois"></label>
         <div class="bk-field"><label><span>Souvenir lié (facultatif) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-src" aria-label="Aide : souvenir lié">ⓘ</button></span><select id="mb-source"></select></label><small id="mb-h-src" class="bk-hint" hidden>Objet souvenir d'un événement mensuel (rubrique 🎉 Événements) qui porterait ce bonus le jour où il serait activé. Simple lien de préparation : ne change ni l'objet, ni ses chances, ni ses détenteurs.</small></div>
         <label>Note <textarea id="mb-note" rows="2" maxlength="600" placeholder="Pourquoi ce bonus, alternative d'équité envisagée…"></textarea></label>
       </div>
@@ -3444,6 +3445,11 @@
           <strong>✨ Avec l'IA</strong>
           <span>Thème, objets et traductions proposés par l'IA (budget de ⚙ Config), enregistrés en brouillon TEST. Aucune image.</span>
         </button>
+        <button type="button" class="adm-choice-btn" id="btn-ev-add-import">
+          <strong>📥 Importer un fichier JSON</strong>
+          <span>Événement complet préparé hors ligne (même format que server/content/events/*.json, jusqu'à 40 objets). Enregistré en brouillon ; refusé si l'identifiant existe déjà (rien n'est écrasé).</span>
+        </button>
+        <input type="file" id="ev-import-file" accept="application/json,.json" class="hidden">
       </div>
       <p class="muted" style="font-size:0.75rem">Dans tous les cas, rien n'est visible des joueurs avant « Planifier ».</p>
       <div class="form-actions"><button class="btn btn-outline" type="button" data-close>Annuler</button></div>
@@ -3554,7 +3560,10 @@
               <label>Icône (emoji) <input type="text" id="evi-icon" maxlength="8"></label>
               <label>Rareté <select id="evi-rarity"></select></label>
               <label class="co-inline-check"><input type="checkbox" id="evi-enabled"> Objet activé</label>
+              <label>Date de référence (MM-JJ, facultatif) <input type="text" id="evi-refdate" maxlength="5" placeholder="11-09" pattern="(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])"></label>
+              <label class="co-span">Inspiration (admin seulement, jamais montrée au joueur) <textarea id="evi-inspiration" rows="2" maxlength="400"></textarea></label>
             </div>
+            <p class="muted ev-help">La date de référence sert de calendrier d'inspiration : l'objet reste trouvable pendant toute la durée de l'événement, quel que soit le jour.</p>
           </fieldset>
           <fieldset class="co-fs"><legend>Nom et description</legend>
             <div class="co-lang-switch" id="evi-langs" role="group" aria-label="Langue éditée"></div>
