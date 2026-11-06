@@ -2,6 +2,201 @@
 
 Lien : https://github.com/ReC82/Dig/issues/49
 
+## Session du 06/11/2026 (DIGORCH) — rareté des fragments, coffres et conversion des pièces (demande du propriétaire du 06/11)
+
+Réponse à la nouvelle priorité du propriétaire (commentaire 6690234297 : « rééquilibrer les coffres
+et rendre les fragments sensiblement plus rares avant les invitations du 09/11 »). **Aucun taux,
+quantité, limite, coût ni réglage économique n'a été changé en production ; rien n'est publié.**
+Ce qui est livré : l'analyse sur les valeurs **réellement publiées**, deux barèmes chargeables en
+un clic dans le brouillon de l'admin #37, le simulateur et les tests.
+
+### 1. État réel
+
+**Déployé en production (SHA indiqué au § 6) — en attente de décision du propriétaire.** Le jeu
+n'a pas changé : les préréglages ne remplissent que le brouillon de 🎲 Coffres & drops. Classement :
+**Bloquant MVP public** pour la décision (conversion pièces → fragments illimitée encore ouverte,
+voir § 2) ; le reste (tirage serveur des coffres minés, #85) **Après lancement**.
+
+### 2. Ce qui est réellement en production (relevé le 06/11 sur une copie en lecture seule)
+
+| Élément | Valeur publiée | Réglable où | Remarque |
+|---|---|---|---|
+| Tables des 6 coffres (#37) | **v1 = tables d'origine**, aucun brouillon | 🎲 Coffres & drops | jamais republiées depuis le 04/11 |
+| Vieille caisse (bloc commun) | 20 % → 1 🔮 (0,2 🔮 / coffre) | idem | + Aimant par tirage « fragments » |
+| Coffre en bois (bloc rare) | 30 % → 1, 10 % → 2 (0,5 🔮) | idem | |
+| Coffre en fer (bloc épique) | 25 % → 2, 20 % → 3 (1,1 🔮) | idem | |
+| Coffre simple de boutique | **800 🪙, illimité**, 30 % → 1 (0,3 🔮), rend 613 🪙 en moyenne | prix : ⚙ Config ; limite : 🎲 | **conversion pièces → fragments illimitée** |
+| Coffre rare de boutique | **15 000 🪙, illimité**, 30 % → 4, 12 % → 7 (2,0 🔮), 8 % objet de collection (→ 5 🔮 si collection complète) | idem | **illimité** |
+| Coffre antique de boutique | 80 000 🪙, 5 / saison, 20 / 30 / 50 🔮 (12,4 🔮) | idem | |
+| Boutique de fragments en pièces | **suspendue et masquée depuis le 05/11** (« Les fragments doivent être récoltables par clic et coffre uniquement ») | 🛠 Améliorations (#69) | aucune nouvelle conversion par ce chemin |
+| Aimant à éclats (#64) | +1 / +2 / +3 / +4 / +5 🔮 **par tirage « fragments »** | 🏺 Reliques | s'applique aux coffres minés ET de boutique |
+| `fragment_drop_multiplier` | 1 | ⚙ Config | **coffres de la boutique seulement** (les coffres minés l'ignorent) |
+| Fragments de consolation (collection complète) | 5 | **codé en dur** (`server/chestShop.js`) | |
+| Fréquence des blocs coffres | catalogue de blocs v3 | 🧱 Blocs | non modifiée par les barèmes (elle porte aussi les pièces) |
+| Reliques | 6 × 5 niveaux = **1 617 🔮** au total | 🏺 Reliques | effets permanents |
+
+**Conclusion : la conversion illimitée pièces → fragments interdite par la décision du 04/11 est
+toujours ouverte en production par les coffres simple et rare de la boutique.** Le 05/11, seule la
+boutique de fragments a été suspendue. Le journal de production le montre (agrégé, sans identité) :
+**≈ 950 coffres rares ouverts les 04 et 05/11 par 1 à 2 comptes, dont 486 tirages « fragments »**
+(≈ 2 400 🔮, soit plus que toutes les reliques). C'est exactement « maxer les reliques trop vite ».
+Les chemins de conversion de pièces existants sont donc : coffres simple et rare (illimités),
+antique (5 / saison) ; la boutique de fragments (10 / saison) est fermée ; aucune autre conversion
+(les points saisonniers #33 et les gemmes ne s'échangent pas contre des fragments).
+
+Autres points vérifiés : les coffres **trouvés en minant sont tirés par le navigateur** et les
+fragments sont enregistrés tels quels par la sauvegarde (aucun contrôle serveur du solde de
+fragments, seulement les échantillons anti-bot #25) ; seuls les coffres de boutique sont tirés par
+le serveur. À traiter après lancement (lot « tirage serveur des coffres minés », avec #25/#77).
+Soldes actuels en production : 3 sauvegardes, **au plus 12 🔮 et 3 niveaux de reliques** — aucun
+joueur n'a encore d'avance acquise : c'est le meilleur moment pour changer le barème.
+
+### 3. Barèmes proposés (préréglages, AUCUN n'est publié)
+
+Gemmes inchangées (barème A d'Admin → Économie non concerné). Le poids retiré aux fragments passe
+aux pièces et aux boosts ; aucune table de boutique ne rend ≥ 80 % de son prix (pas de boucle de profit).
+
+| Coffre | Actuel | **P — prudente (recommandée pour le 09/11)** | R — nettement plus rare |
+|---|---|---|---|
+| Vieille caisse | 20 % × 1 = 0,2 🔮 | 10 % × 1 = **0,1** | 5 % × 1 = **0,05** |
+| Coffre en bois | 0,5 🔮 | 15 % × 1, 5 % × 2 = **0,25** | 12 % × 1, 3 % × 2 = **0,18** |
+| Coffre en fer | 1,1 🔮 | 20 % × 1, 15 % × 2 = **0,5** | 15 % × 1, 10 % × 2 = **0,35** |
+| Simple (800 🪙) | illimité, 0,3 🔮 | **20 / saison**, 15 % × 1 = 0,15 | **20 / saison, aucun fragment** (boost à la place) |
+| Rare (15 000 🪙) | illimité, 2,0 🔮 | **10 / saison**, 2 et 4 🔮 = 1,08 | **10 / saison**, 1 et 2 🔮 = 0,35 |
+| Antique (80 000 🪙) | 5 / saison, 12,4 🔮 | 5 / saison, 10 / 15 / 25 = 6,2 | 5 / saison, 4 / 6 = 1,9 |
+| **Plafond pièces → 🔮 par saison** | **illimité** | **≈ 52 🔮 (3 % des reliques)** | **≈ 19 🔮 (1 %)** |
+
+Variante étudiée en plus : **R + Aimant réduit** (1/1/2/2/3 au lieu de 1…5, demanderait une version
+du catalogue de reliques #64) : effet visible seulement chez l'assidu en saison 3–4 (−20 à −35 % de
+fragments) ; non recommandée maintenant (elle retouche un objet déjà acheté).
+
+### 4. Chiffres (outil `tools/balance/fragment-rarity-sim.js`, vrai code du jeu, hasard à graine)
+
+2 500 joueurs × 4 saisons = **10 000 saisons par profil et par variante**, 10 000 heures par ligne
+pour les profondeurs, 2 000 joueurs pour anciens/nouveaux et #85. Production = tables v1, boutique
+de fragments suspendue. Tables complètes en annexe C. Médianes.
+
+**Fragments par heure selon la profondeur (coffres minés seulement, médiane · p90)**
+
+| Équipement | Actuel | P | R |
+|---|---|---|---|
+| 30 m (début) | 5 · 9 | 2 · 5 | 1 · 4 |
+| 122 m (capture du 02/11) | 8 · 14 | 4 · 7 | 3 · 6 |
+| 300 m | 12 · 21 | 6 · 12 | 4 · 9 |
+| 800 m (tout au max, reliques 3) | 26 · 41 | 13 · 25 | 9 · 19 |
+
+**Niveaux de reliques cumulés (sur 30) en saisons 1 → 4 — sans achat de coffres · avec achats**
+
+| Profil | Actuel | P | R |
+|---|---|---|---|
+| Débutant (20 min/j) | 2→7 · 4→23 | 1→3 · 2→11 | 0→2 · 1→5 |
+| Régulier (1 h/j) | 5→18 · **26→30 (100 % au max en S2)** | 2→10 · 7→20 | 2→7 · 3→12 |
+| Assidu (3 h/j + onglet) | 9→30 (93 % au max en S4) · **30 dès S1 (7 245 🔮)** | 5→18 · 8→26 | 3→13 · 5→17 |
+| Automatique (onglet ouvert) | 3→14 · 27→30 | 2→7 · 6→18 | 1→5 · 3→10 |
+
+**Frustration** (part des joueurs sans aucun nouveau niveau de relique dans la semaine) : actuel
+≈ 0–4 % ; **P : débutant 21–35 %, autres ≈ 0 %** ; R : débutant 33–55 %, régulier ≤ 4 %. Un
+débutant de 20 min/j obtient sa première relique (5 🔮) en ≈ 1 h de jeu avec P, ≈ 1,5 h avec R (chiffres sans achat de coffres ; avec achats, la frustration P tombe à 0–2 %).
+
+**Profondeur** (avec achats de coffres, écart à l'actuel) : P −26 % (régulier S1) à −17 %
+(assidu S4) ; R −27 % à −41 %. **Ce n'est pas une perte de contenu** : l'actuel est gonflé par la
+conversion illimitée. Sans achat de coffres, l'écart est de −3 à −13 % (P) et −4 à −32 % (R) en S4.
+Le classement (#73) compte les blocs détruits manuellement, qui suivent la même tendance.
+
+**Anciens / nouveaux joueurs** (4 saisons au régime actuel puis bascule) : avec P, un ancien
+régulier reste à 30/30 et 1 780 m contre 995 m pour un nouveau (+79 %, contre +33 % sans
+changement) ; assidu +67 %. Aucun fragment ni niveau n'est retiré, donc **l'avance des anciens
+devient durable** si l'on change tard. En production aujourd'hui, personne n'a d'avance
+(≤ 12 🔮, ≤ 3 niveaux) : changer **avant** le 09/11 évite ce problème.
+
+### 5. #85 (lot de 10 fragments en euros) — coordination, rien n'est développé ici
+
+10 🔮 gratuits = ≈ 1 h (débutant), 2,5 h (régulier) avec l'actuel ; 2 h et 4 h avec P ; 3 h et 9 h
+avec R. **Effet d'un lot unique acheté en début de saison 1** (sans achat de coffres) : débutant
++6 à +8 % de profondeur en S1, encore +4 à +6 % en S4 ; régulier +2 % ; assidu +2 %. 10 lots :
++15 à +28 %. **Plus les fragments sont rares, plus un lot pèse** (R : 1 lot = 2,5 saisons de
+fragments d'un débutant). Deux scénarios pour #85 : (1) **un seul lot par compte, à vie**, et une
+mission gratuite équivalente (10 🔮) pour les non-payeurs → avantage ≤ 1 semaine de jeu, pas de
+cumul ; (2) **pas de fragments contre de l'argent**, uniquement cosmétique / confort. Recommandation :
+(2) tant que le classement saisonnier donne des lots ; (1) au plus tôt après la bêta. La décision
+reste dans #85 et ne retarde pas #84.
+
+### 6. Changements réalisés (fichiers)
+
+- `server/rewardTables.js` : `PRESETS` (P `fragments_prudente`, R `fragments_rare`),
+  `presetTables`, `applyPreset` (remplace le brouillon dans une transaction, journal
+  `draft_preset`, **jamais de publication**) ; la vue admin liste les préréglages.
+- `server/index.js` : `POST /api/admin/rewards/draft/preset` (admin seulement).
+- `public/admin/index.html`, `public/admin/admin.js` : 🎲 Coffres & drops → « Brouillon et
+  publication » : liste « Préréglage » + « Charger dans le brouillon » (confirmation : « Rien ne
+  change en jeu… »), note listant ce qui n'est pas réglable ici (Aimant → 🏺 Reliques,
+  multiplicateur → ⚙ Config, coffres de boutique seulement, consolation 5 codée, fréquence des
+  coffres → 🧱 Blocs, coffres minés tirés par le navigateur). Journal : « préréglage chargé ».
+- `tools/balance/economy-sim.js` : tables des coffres, limites, Aimant et boutique de fragments
+  injectables par les règles (valeurs par défaut identiques : rapports précédents reproductibles).
+- `tools/balance/fragment-rarity-sim.js` (nouveau) ; `test/fragment-presets.test.js` (nouveau, 4 tests).
+
+### 7. SHA, branche, procédure de test
+
+Branche `feature/49-audit-economie`, commit `d591e5f` ; SHA d'intégration et de déploiement au § 8.
+
+- `node --test test/fragment-presets.test.js` ; `npm test` complet.
+- `node tools/balance/fragment-rarity-sim.js --runs 2500 --hour-runs 10000 --pack-runs 2000`
+  (≈ 17 min) ; `--runs 100 --hour-runs 100 --pack-runs 50` pour un aperçu en 20 s.
+
+### 8. Vérifications, déploiement
+
+- Tests : `npm test` **861/861** sur la branche ; nouveaux tests : préréglages valides aux prix de
+  production sans boucle de profit ; chargement = brouillon seul (version, tirage serveur, tables
+  publiques inchangés) ; rechargement idempotent ; préréglage inconnu refusé sans effet ; sur base
+  de test seulement : publication de R → limite 20 / 10 appliquée par le serveur, coffre simple sans
+  fragment, **aucun fragment acquis retiré**, retour à v1 (nouvelle version) et achats de nouveau
+  illimités ; simulateur reproductible sans effet sur les tables du jeu.
+- Serveur de test (port 3101, base `test-49.sqlite`, supprimée) + Chromium headless 1280×900 et
+  390×844 : préréglage R chargé, bandeau « brouillon en cours (6 coffres modifiés, non visible en
+  jeu) », écarts listés, aucun débordement, aucune erreur JavaScript ; simulation du brouillon par
+  l'API conforme (0 / 0,35 / 1,9 / 0,05 / 0,18 / 0,35 🔮) ; `GET /api/shop/chests` inchangé.
+- Déploiement : voir la section « Déploiement du 06/11 » ci-dessous.
+
+### 9. Test à faire par le propriétaire (aucun effet en jeu tant que vous ne publiez pas)
+
+1. Admin → 🎲 Coffres & drops → « Brouillon et publication » → Préréglage « Fragments — variante
+   prudente (P) » → « Charger dans le brouillon » → confirmer. Attendu : bandeau « brouillon en
+   cours (6 coffre(s) modifié(s), non visible en jeu) », liste des écarts, version en vigueur v1.
+2. « Simuler le brouillon » (10 000) : fragments moyens 0,15 / 1,08 / 6,2 (boutique) et
+   0,1 / 0,25 / 0,5 (minés).
+3. **Seulement si vous validez les chiffres** : « Publier le brouillon » avec une note. Effet aux
+   prochaines ouvertures ; retour arrière = « Revenir à v1 » (nouvelle version, rien n'est retiré
+   aux joueurs). Sinon « Abandonner le brouillon ».
+
+### 10. Choix techniques faits seul
+
+- Préréglages dans le **module #37 existant** (brouillon unique, publication, retour arrière, journal)
+  plutôt qu'un nouvel écran : un seul endroit règle probabilités, quantités et limites.
+- Le retrait d'une ligne « fragments » d'un coffre de boutique est le seul moyen, sans code nouveau,
+  de mettre la conversion à zéro : la limite par saison va de 1 à 1 000 (pas de 0) et il n'existe pas
+  d'interrupteur « coffre fermé ». Je ne l'ai pas ajouté (pas demandé, et R couvre le besoin).
+- Fréquence des blocs coffres et Aimant laissés tels quels dans P et R : ils touchent aussi les
+  pièces ou des reliques déjà achetées.
+
+### 11. Décisions demandées au propriétaire
+
+1. **Publier un barème avant le 09/11 ?** (a) **P — prudente** ; (b) R — nettement plus rare ;
+   (c) rien. **Recommandation : (a) P**, publié avant les invitations (aucun joueur n'a encore
+   d'avance) : conversion des pièces bornée à ≈ 52 🔮 par saison, fragments des coffres minés
+   divisés par deux, frustration limitée aux débutants (1 semaine sur 4–5 sans nouveau niveau).
+   R si vous voulez des reliques « de long terme » (régulier 7/30 après un mois). Publication par
+   vous dans l'admin, ou écrivez « publier P » / « publier R » dans le ticket.
+2. Aimant à éclats réduit (1/1/2/2/3) ? **Recommandation : non pour l'instant** (effet faible, retouche un objet acheté).
+3. #85 : scénario (2) « pas de fragments contre de l'argent » tant que le classement donne des lots ? **Recommandation : oui.**
+4. Décisions du 04/11 toujours en attente (inchangées) : plafond 150, ramassage auto, limites/courbe, ordre d'activation.
+
+### 12. Reste à réaliser
+
+- Après décision : publication du barème choisi (un clic), contrôle en production.
+- Après lancement : tirage serveur des coffres minés et contrôle serveur du solde de fragments
+  (aujourd'hui calculés par le navigateur) — avec #25/#77 ; interrupteur « coffre de boutique fermé ».
+
 ## Session du 04/11/2026, soir (DIGORCH) — lot 1.2 (Admin → Économie) et lot 2.6 (boutique en gemmes fermée)
 
 Suite de la décision du propriétaire du 04/11 (commentaire 6632720020, déjà prise en compte par la
@@ -1344,3 +1539,251 @@ Médiane (p10–p90) · moyenne ± écart-type.
 | Régulier — sans coffres de la boutique | 75 | 6 | 993 m | 1 127 m | +0,0 % | 1 327 m | +0,0 % |
 | Régulier — simple à 800, 300 ouvertures / saison | 407 | 16 | 993 m | 1 314 m | +16,5 % | 1 779 m | +34,1 % |
 
+### Annexe C (06/11) — sortie de `node tools/balance/fragment-rarity-sim.js --runs 2500 --hour-runs 10000 --pack-runs 2000`
+
+#### Espérance par ouverture (sans Aimant) — fragments · pièces
+
+| Coffre | Actuel (production) | P — prudente | R — nettement plus rare | R + Aimant réduit (1/1/2/2/3) |
+|---|---|---|---|---|
+| Miné — commun | 0,2 🔮 · 155 💰 | 0,1 🔮 · 177 💰 | 0,1 🔮 · 183 💰 | 0,1 🔮 · 183 💰 |
+| Miné — rare | 0,5 🔮 · 180 💰 | 0,3 🔮 · 225 💰 | 0,2 🔮 · 248 💰 | 0,2 🔮 · 248 💰 |
+| Miné — epique | 1,1 🔮 · 270 💰 | 0,5 🔮 · 315 💰 | 0,4 🔮 · 360 💰 | 0,4 🔮 · 360 💰 |
+| Boutique — simple | 0,3 🔮 · 613 💰 · ∞/saison | 0,2 🔮 · 613 💰 · 20/saison | 0 🔮 · 613 💰 · 20/saison | 0 🔮 · 613 💰 · 20/saison |
+| Boutique — rare | 2 🔮 · 3 200 💰 · ∞/saison | 1,1 🔮 · 3 200 💰 · 10/saison | 0,4 🔮 · 3 550 💰 · 10/saison | 0,4 🔮 · 3 550 💰 · 10/saison |
+| Boutique — antique | 12,4 🔮 · 11 000 💰 · 5/saison | 6,2 🔮 · 11 000 💰 · 5/saison | 1,9 🔮 · 12 625 💰 · 5/saison | 1,9 🔮 · 12 625 💰 · 5/saison |
+
+Reliques : 30 niveaux, 1 617 🔮 au total. Plafond de conversion pièces → fragments par saison (espérance, boutique au maximum des limites, sans Aimant) : Actuel (production) = illimité ; P — prudente = 52 🔮 (3,2 % des reliques) ; R — nettement plus rare = 19 🔮 (1,1 % des reliques) ; R + Aimant réduit (1/1/2/2/3) = 19 🔮 (1,1 % des reliques).
+
+#### Fragments par heure selon la profondeur — équipement figé, coffres minés seulement, 10 000 heures par ligne (médiane · p90)
+
+| Équipement | Actuel (production) | P — prudente | R — nettement plus rare | R + Aimant réduit (1/1/2/2/3) |
+|---|---|---|---|---|
+| Début — 30 m, pioche 3, 4 clics/s | 5 · 9 | 2 · 5 | 1 · 4 | 1 · 4 |
+| Capture 02/11 — 122 m, pioche 8 (+4 Œil), Chance 5, Sac 6, Auto-Dig 4, 4 clics/s | 8 · 14 | 4 · 7 | 3 · 6 | 3 · 6 |
+| Milieu — 300 m, pioche 12, Chance 8, Sac 9, Auto-Dig 6, 5 clics/s | 12 · 21 | 6 · 12 | 4 · 9 | 4 · 9 |
+| Avancé — 800 m, tout au max, reliques 3, 6 clics/s | 26 · 41 | 13 · 25 | 9 · 19 | 7 · 15 |
+| Onglet ouvert seul — 300 m, Auto-Dig 6, passage /10 min | 0 · 2 | 0 · 1 | 0 · 1 | 0 · 1 |
+
+#### Saisons 1 → 4 SANS achat de coffres de la boutique — 2 500 joueurs par profil et par variante
+
+##### Débutant (20 min/j, 4 j/7)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 15 · 23 | 11,3 · 17,3 | 2 | 2 % | 0 % | 310 m | — |
+|  | S2 | 17 · 29 | 12,8 · 21,8 | 3 | 4 % | 0 % | 344 m | — |
+|  | S3 | 27 · 41 | 20,3 · 30,8 | 5 | 2 % | 0 % | 362 m | — |
+|  | S4 | 33 · 47 | 24,8 · 35,3 | 7 | 1 % | 0 % | 375 m | — |
+| P — prudente | S1 | 7 · 12 | 5,3 · 9 | 1 | 22 % | 0 % | 301 m | −2,9 % |
+|  | S2 | 8 · 12 | 6 · 9,1 | 2 | 21 % | 0 % | 328 m | −4,7 % |
+|  | S3 | 8 · 13 | 6 · 9,8 | 2 | 35 % | 0 % | 339 m | −6,4 % |
+|  | S4 | 9 · 16 | 6,8 · 12 | 3 | 31 % | 0 % | 355 m | −5,3 % |
+| R — nettement plus rare | S1 | 4 · 9 | 3 · 6,8 | 0 | 50 % | 0 % | 296 m | −4,5 % |
+|  | S2 | 5 · 9 | 3,8 · 6,8 | 1 | 33 % | 0 % | 322 m | −6,4 % |
+|  | S3 | 5 · 9 | 3,8 · 6,8 | 2 | 44 % | 0 % | 332 m | −8,3 % |
+|  | S4 | 5 · 10 | 3,8 · 7,5 | 2 | 55 % | 0 % | 338 m | −9,9 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 4 · 9 | 3 · 6,8 | 0 | 50 % | 0 % | 296 m | −4,5 % |
+|  | S2 | 5 · 9 | 3,8 · 6,8 | 1 | 33 % | 0 % | 322 m | −6,4 % |
+|  | S3 | 5 · 9 | 3,8 · 6,8 | 2 | 44 % | 0 % | 332 m | −8,3 % |
+|  | S4 | 5 · 10 | 3,8 · 7,5 | 2 | 55 % | 0 % | 338 m | −9,9 % |
+
+##### Régulier (1 h/j, 7 j/7, bonus pub)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 58 · 80 | 4,1 · 5,7 | 5 | 0 % | 0 % | 990 m | — |
+|  | S2 | 104 · 137 | 7,4 · 9,8 | 10 | 0 % | 0 % | 1 105 m | — |
+|  | S3 | 153 · 201 | 10,9 · 14,4 | 14 | 0 % | 0 % | 1 189 m | — |
+|  | S4 | 215 · 266 | 15,4 · 19 | 18 | 0 % | 0 % | 1 294 m | — |
+| P — prudente | S1 | 23 · 31 | 1,6 · 2,2 | 2 | 0 % | 0 % | 956 m | −3,4 % |
+|  | S2 | 33 · 50 | 2,4 · 3,6 | 5 | 0 % | 0 % | 1 017 m | −8 % |
+|  | S3 | 48 · 64 | 3,4 · 4,6 | 7 | 0 % | 0 % | 1 056 m | −11,2 % |
+|  | S4 | 60 · 84 | 4,3 · 6 | 10 | 0 % | 0 % | 1 131 m | −12,6 % |
+| R — nettement plus rare | S1 | 16 · 22 | 1,1 · 1,6 | 2 | 0 % | 0 % | 947 m | −4,3 % |
+|  | S2 | 17 · 27 | 1,2 · 1,9 | 3 | 4 % | 0 % | 1 001 m | −9,4 % |
+|  | S3 | 27 · 40 | 1,9 · 2,9 | 5 | 2 % | 0 % | 1 023 m | −14 % |
+|  | S4 | 33 · 46 | 2,4 · 3,3 | 7 | 1 % | 0 % | 1 044 m | −19,3 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 16 · 22 | 1,1 · 1,6 | 2 | 0 % | 0 % | 947 m | −4,3 % |
+|  | S2 | 17 · 27 | 1,2 · 1,9 | 3 | 4 % | 0 % | 1 001 m | −9,4 % |
+|  | S3 | 27 · 40 | 1,9 · 2,9 | 5 | 2 % | 0 % | 1 023 m | −14 % |
+|  | S4 | 33 · 46 | 2,4 · 3,3 | 7 | 1 % | 0 % | 1 044 m | −19,3 % |
+
+##### Assidu (3 h/j + 4 h onglet ouvert)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 150 · 194 | 3,1 · 4 | 9 | 0 % | 0 % | 2 018 m | — |
+|  | S2 | 337 · 408 | 6,9 · 8,3 | 17 | 0 % | 0 % | 2 361 m | — |
+|  | S3 | 555 · 681 | 11,3 · 13,9 | 25 | 0 % | 0 % | 2 706 m | — |
+|  | S4 | 874 · 990 | 17,8 · 20,2 | 30 | 0 % | 93 % | 3 277 m | — |
+| P — prudente | S1 | 52 · 73 | 1,1 · 1,5 | 5 | 0 % | 0 % | 1 907 m | −5,5 % |
+|  | S2 | 98 · 130 | 2 · 2,7 | 9 | 0 % | 0 % | 2 096 m | −11,2 % |
+|  | S3 | 153 · 196 | 3,1 · 4 | 14 | 0 % | 0 % | 2 254 m | −16,7 % |
+|  | S4 | 222 · 271 | 4,5 · 5,5 | 18 | 0 % | 0 % | 2 451 m | −25,2 % |
+| R — nettement plus rare | S1 | 31 · 44 | 0,6 · 0,9 | 3 | 0 % | 0 % | 1 873 m | −7,2 % |
+|  | S2 | 55 · 73 | 1,1 · 1,5 | 6 | 0 % | 0 % | 1 965 m | −16,8 % |
+|  | S3 | 76 · 104 | 1,6 · 2,1 | 10 | 0 % | 0 % | 2 140 m | −20,9 % |
+|  | S4 | 105 · 135 | 2,1 · 2,8 | 13 | 0 % | 0 % | 2 240 m | −31,6 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 31 · 44 | 0,6 · 0,9 | 3 | 0 % | 0 % | 1 873 m | −7,2 % |
+|  | S2 | 55 · 73 | 1,1 · 1,5 | 6 | 0 % | 0 % | 1 965 m | −16,8 % |
+|  | S3 | 67 · 84 | 1,4 · 1,7 | 9 | 0 % | 0 % | 2 137 m | −21 % |
+|  | S4 | 72 · 90 | 1,5 · 1,8 | 12 | 0 % | 0 % | 2 203 m | −32,8 % |
+
+##### Automatique (15 min/j + 8 h onglet)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 35 · 51 | 0,6 · 0,9 | 3 | 0 % | 0 % | 691 m | — |
+|  | S2 | 63 · 84 | 1,1 · 1,5 | 7 | 0 % | 0 % | 767 m | — |
+|  | S3 | 88 · 121 | 1,5 · 2,1 | 10 | 0 % | 0 % | 841 m | — |
+|  | S4 | 120 · 159 | 2,1 · 2,8 | 14 | 0 % | 0 % | 918 m | — |
+| P — prudente | S1 | 16 · 23 | 0,3 · 0,4 | 2 | 0 % | 0 % | 684 m | −1 % |
+|  | S2 | 19 · 29 | 0,3 · 0,5 | 3 | 1 % | 0 % | 746 m | −2,7 % |
+|  | S3 | 30 · 43 | 0,5 · 0,7 | 5 | 0 % | 0 % | 751 m | −10,7 % |
+|  | S4 | 35 · 48 | 0,6 · 0,8 | 7 | 1 % | 0 % | 778 m | −15,3 % |
+| R — nettement plus rare | S1 | 11 · 17 | 0,2 · 0,3 | 1 | 3 % | 0 % | 683 m | −1,2 % |
+|  | S2 | 12 · 18 | 0,2 · 0,3 | 2 | 10 % | 0 % | 738 m | −3,8 % |
+|  | S3 | 14 · 24 | 0,2 · 0,4 | 4 | 10 % | 0 % | 747 m | −11,2 % |
+|  | S4 | 21 · 32 | 0,4 · 0,6 | 5 | 6 % | 0 % | 755 m | −17,8 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 11 · 17 | 0,2 · 0,3 | 1 | 3 % | 0 % | 683 m | −1,2 % |
+|  | S2 | 12 · 18 | 0,2 · 0,3 | 2 | 10 % | 0 % | 738 m | −3,8 % |
+|  | S3 | 14 · 24 | 0,2 · 0,4 | 4 | 10 % | 0 % | 747 m | −11,2 % |
+|  | S4 | 21 · 32 | 0,4 · 0,6 | 5 | 6 % | 0 % | 755 m | −17,8 % |
+
+#### Saisons 1 → 4 AVEC achats de coffres de la boutique (hypothèses du 04/11 : 50 / 300 / 1 800 / 300 ouvertures max. par saison) — 2 500 joueurs par profil et par variante
+
+##### Débutant (20 min/j, 4 j/7)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 47 · 94 | 35,3 · 70,5 | 4 | 0 % | 0 % | 310 m | — |
+|  | S2 | 134 · 271 | 100,5 · 203,3 | 10 | 0 % | 0 % | 369 m | — |
+|  | S3 | 288 · 371 | 216 · 278,3 | 17 | 0 % | 0 % | 445 m | — |
+|  | S4 | 356 · 442 | 267 · 331,5 | 23 | 0 % | 0 % | 520 m | — |
+| P — prudente | S1 | 19 · 36 | 13,9 · 27 | 2 | 1 % | 0 % | 301 m | −2,9 % |
+|  | S2 | 34 · 74 | 25,5 · 55,5 | 5 | 2 % | 0 % | 345 m | −6,5 % |
+|  | S3 | 64 · 104 | 48 · 78 | 8 | 0 % | 0 % | 373 m | −16,2 % |
+|  | S4 | 90 · 125 | 67,5 · 93,8 | 11 | 0 % | 0 % | 416 m | −20 % |
+| R — nettement plus rare | S1 | 9 · 17 | 6,8 · 12,8 | 1 | 17 % | 0 % | 296 m | −4,5 % |
+|  | S2 | 11 · 23 | 8,3 · 17,3 | 2 | 14 % | 0 % | 330 m | −10,6 % |
+|  | S3 | 16 · 33 | 12 · 24,8 | 4 | 13 % | 0 % | 350 m | −21,3 % |
+|  | S4 | 23 · 40 | 17,3 · 30 | 5 | 8 % | 0 % | 364 m | −30 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 9 · 17 | 6,8 · 12,8 | 1 | 17 % | 0 % | 296 m | −4,5 % |
+|  | S2 | 11 · 23 | 8,3 · 17,3 | 2 | 14 % | 0 % | 330 m | −10,6 % |
+|  | S3 | 16 · 33 | 12 · 24,8 | 4 | 13 % | 0 % | 350 m | −21,3 % |
+|  | S4 | 23 · 40 | 17,3 · 30 | 5 | 8 % | 0 % | 364 m | −30 % |
+
+##### Régulier (1 h/j, 7 j/7, bonus pub)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 1 183 · 1 519 | 84,5 · 108,5 | 26 | 0 % | 3 % | 1 348 m | — |
+|  | S2 | 1 844 · 1 918 | 131,7 · 137 | 30 | 3 % | 100 % | 1 757 m | — |
+|  | S3 | 1 856 · 1 930 | 132,6 · 137,9 | 30 | 100 % | 100 % | 1 779 m | — |
+|  | S4 | 1 857 · 1 928 | 132,6 · 137,7 | 30 | 100 % | 100 % | 1 779 m | — |
+| P — prudente | S1 | 93 · 122 | 6,6 · 8,7 | 7 | 0 % | 0 % | 997 m | −26 % |
+|  | S2 | 138 · 173 | 9,9 · 12,4 | 12 | 0 % | 0 % | 1 145 m | −34,8 % |
+|  | S3 | 177 · 223 | 12,6 · 15,9 | 16 | 0 % | 0 % | 1 244 m | −30,1 % |
+|  | S4 | 211 · 262 | 15,1 · 18,7 | 20 | 0 % | 0 % | 1 328 m | −25,4 % |
+| R — nettement plus rare | S1 | 34 · 53 | 2,4 · 3,8 | 3 | 0 % | 0 % | 978 m | −27,4 % |
+|  | S2 | 52 · 71 | 3,7 · 5,1 | 6 | 0 % | 0 % | 1 034 m | −41,1 % |
+|  | S3 | 64 · 88 | 4,6 · 6,3 | 9 | 0 % | 0 % | 1 122 m | −36,9 % |
+|  | S4 | 82 · 105 | 5,9 · 7,5 | 12 | 0 % | 0 % | 1 167 m | −34,4 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 34 · 53 | 2,4 · 3,8 | 3 | 0 % | 0 % | 978 m | −27,4 % |
+|  | S2 | 52 · 70 | 3,7 · 5 | 6 | 0 % | 0 % | 1 034 m | −41,1 % |
+|  | S3 | 59 · 76 | 4,2 · 5,4 | 9 | 0 % | 0 % | 1 121 m | −37 % |
+|  | S4 | 61 · 78 | 4,4 · 5,6 | 11 | 0 % | 0 % | 1 153 m | −35,2 % |
+
+##### Assidu (3 h/j + 4 h onglet ouvert)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 7 245 · 7 765 | 147,9 · 158,5 | 30 | 0 % | 100 % | 3 207 m | — |
+|  | S2 | 9 092 · 9 193 | 185,6 · 187,6 | 30 | 100 % | 100 % | 3 383 m | — |
+|  | S3 | 9 095 · 9 197 | 185,6 · 187,7 | 30 | 100 % | 100 % | 3 384 m | — |
+|  | S4 | 9 095 · 9 199 | 185,6 · 187,7 | 30 | 100 % | 100 % | 3 385 m | — |
+| P — prudente | S1 | 136 · 183 | 2,8 · 3,7 | 8 | 0 % | 0 % | 2 025 m | −36,9 % |
+|  | S2 | 235 · 301 | 4,8 · 6,1 | 15 | 0 % | 0 % | 2 292 m | −32,3 % |
+|  | S3 | 337 · 413 | 6,9 · 8,4 | 21 | 0 % | 0 % | 2 553 m | −24,6 % |
+|  | S4 | 457 · 556 | 9,3 · 11,3 | 26 | 0 % | 0 % | 2 807 m | −17,1 % |
+| R — nettement plus rare | S1 | 62 · 84 | 1,3 · 1,7 | 5 | 0 % | 0 % | 1 920 m | −40,1 % |
+|  | S2 | 97 · 129 | 2 · 2,6 | 9 | 0 % | 0 % | 2 125 m | −37,2 % |
+|  | S3 | 137 · 175 | 2,8 · 3,6 | 13 | 0 % | 0 % | 2 258 m | −33,3 % |
+|  | S4 | 186 · 228 | 3,8 · 4,7 | 17 | 0 % | 0 % | 2 425 m | −28,4 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 62 · 84 | 1,3 · 1,7 | 5 | 0 % | 0 % | 1 920 m | −40,1 % |
+|  | S2 | 90 · 111 | 1,8 · 2,3 | 9 | 0 % | 0 % | 2 122 m | −37,3 % |
+|  | S3 | 97 · 118 | 2 · 2,4 | 12 | 0 % | 0 % | 2 230 m | −34,1 % |
+|  | S4 | 122 · 156 | 2,5 · 3,2 | 15 | 0 % | 0 % | 2 338 m | −30,9 % |
+
+##### Automatique (15 min/j + 8 h onglet)
+
+| Variante | Saison | 🔮 / saison (médiane · p90) | 🔮 / h (médiane · p90) | Niveaux de reliques cumulés (médiane, /30) | Semaine sans nouveau niveau | 30/30 atteints | Profondeur (médiane) | Écart à l'actuel |
+|---|---|---|---|---|---|---|---|---|
+| Actuel (production) | S1 | 1 271 · 1 440 | 22 · 24,9 | 27 | 0 % | 0 % | 944 m | — |
+|  | S2 | 1 813 · 1 891 | 31,4 · 32,7 | 30 | 0 % | 100 % | 1 606 m | — |
+|  | S3 | 1 815 · 1 885 | 31,4 · 32,6 | 30 | 100 % | 100 % | 1 634 m | — |
+|  | S4 | 1 816 · 1 886 | 31,4 · 32,7 | 30 | 100 % | 100 % | 1 633 m | — |
+| P — prudente | S1 | 79 · 106 | 1,4 · 1,8 | 6 | 0 % | 0 % | 694 m | −26,4 % |
+|  | S2 | 114 · 147 | 2 · 2,5 | 11 | 0 % | 0 % | 846 m | −47,4 % |
+|  | S3 | 140 · 182 | 2,4 · 3,2 | 14 | 0 % | 0 % | 917 m | −43,9 % |
+|  | S4 | 172 · 214 | 3 · 3,7 | 18 | 0 % | 0 % | 1 020 m | −37,5 % |
+| R — nettement plus rare | S1 | 30 · 43 | 0,5 · 0,7 | 3 | 0 % | 0 % | 688 m | −27,1 % |
+|  | S2 | 42 · 57 | 0,7 · 1 | 6 | 0 % | 0 % | 756 m | −52,9 % |
+|  | S3 | 49 · 66 | 0,8 · 1,1 | 8 | 0 % | 0 % | 786 m | −51,9 % |
+|  | S4 | 63 · 85 | 1,1 · 1,5 | 10 | 0 % | 0 % | 865 m | −47 % |
+| R + Aimant réduit (1/1/2/2/3) | S1 | 30 · 43 | 0,5 · 0,7 | 3 | 0 % | 0 % | 688 m | −27,1 % |
+|  | S2 | 42 · 57 | 0,7 · 1 | 6 | 0 % | 0 % | 756 m | −52,9 % |
+|  | S3 | 48 · 63 | 0,8 · 1,1 | 8 | 0 % | 0 % | 786 m | −51,9 % |
+|  | S4 | 51 · 67 | 0,9 · 1,2 | 10 | 0 % | 0 % | 854 m | −47,7 % |
+
+#### Anciens et nouveaux joueurs — 2 000 joueurs (avec achats de coffres) : 4 saisons au régime actuel puis 1 au nouveau, contre un nouveau joueur
+
+| Profil | Variante | Ancien : profondeur S5 · reliques | Nouveau : profondeur S1 · reliques | Écart de profondeur ancien / nouveau |
+|---|---|---|---|---|
+| Débutant (20 min/j, 4 j/7) | Actuel (production) | 575 m · 27/30 | 310 m · 4/30 | +85,5 % |
+|  | P — prudente | 552 m · 24/30 | 301 m · 2/30 | +83,4 % |
+|  | R — nettement plus rare | 549 m · 24/30 | 296 m · 1/30 | +85,5 % |
+|  | R + Aimant réduit (1/1/2/2/3) | 547 m · 23/30 | 296 m · 1/30 | +84,8 % |
+| Régulier (1 h/j, 7 j/7, bonus pub) | Actuel (production) | 1 780 m · 30/30 | 1 342 m · 26/30 | +32,6 % |
+|  | P — prudente | 1 780 m · 30/30 | 995 m · 7/30 | +78,9 % |
+|  | R — nettement plus rare | 1 781 m · 30/30 | 976 m · 3/30 | +82,5 % |
+|  | R + Aimant réduit (1/1/2/2/3) | 1 781 m · 30/30 | 976 m · 3/30 | +82,5 % |
+| Assidu (3 h/j + 4 h onglet ouvert) | Actuel (production) | 3 383 m · 30/30 | 3 205 m · 30/30 | +5,6 % |
+|  | P — prudente | 3 383 m · 30/30 | 2 025 m · 8/30 | +67,1 % |
+|  | R — nettement plus rare | 3 384 m · 30/30 | 1 919 m · 5/30 | +76,3 % |
+|  | R + Aimant réduit (1/1/2/2/3) | 3 384 m · 30/30 | 1 919 m · 5/30 | +76,3 % |
+
+#### #85 — lots de 10 fragments achetés une fois au début de la saison 1 (sans achat de coffres) — 2 000 joueurs
+
+| Profil | Variante | Lots | Reliques S1 · S4 (médiane, /30) | Profondeur S1 · S4 (médiane) | Gain de profondeur S1 · S2 · S4 vs 0 lot |
+|---|---|---|---|---|---|
+| Débutant (20 min/j, 4 j/7) | Actuel (production) | 0 | 2 · 7 | 310 · 375 m | — |
+|  |  | 1 | 3 · 8 | 329 · 394 m | +6,1 % · +4,1 % · +5,1 % |
+|  |  | 2 | 4 · 9 | 344 · 410 m | +11 % · +5,2 % · +9,3 % |
+|  |  | 5 | 6 · 11 | 354 · 428 m | +14,2 % · +13,8 % · +14,1 % |
+|  |  | 10 | 8 · 14 | 397 · 451 m | +28,1 % · +22,6 % · +20,3 % |
+|  | R — nettement plus rare | 0 | 1 · 2 | 296 · 338 m | — |
+|  |  | 1 | 2 · 3 | 319 · 360 m | +7,8 % · +4,3 % · +6,5 % |
+|  |  | 2 | 3 · 4 | 327 · 365 m | +10,5 % · +11,8 % · +8 % |
+|  |  | 5 | 5 · 7 | 346 · 387 m | +16,9 % · +14,6 % · +14,5 % |
+|  |  | 10 | 7 · 9 | 375 · 424 m | +26,7 % · +29,5 % · +25,4 % |
+| Régulier (1 h/j, 7 j/7, bonus pub) | Actuel (production) | 0 | 5 · 18 | 990 · 1 295 m | — |
+|  |  | 1 | 6 · 19 | 1 007 · 1 314 m | +1,7 % · +1,7 % · +1,5 % |
+|  |  | 2 | 7 · 20 | 1 021 · 1 328 m | +3,1 % · +3,2 % · +2,5 % |
+|  |  | 5 | 9 · 22 | 1 085 · 1 384 m | +9,6 % · +6,7 % · +6,9 % |
+|  |  | 10 | 11 · 24 | 1 136 · 1 431 m | +14,7 % · +11,3 % · +10,5 % |
+|  | R — nettement plus rare | 0 | 2 · 7 | 946 · 1 044 m | — |
+|  |  | 1 | 3 · 8 | 969 · 1 088 m | +2,4 % · +1,8 % · +4,2 % |
+|  |  | 2 | 4 · 9 | 1 003 · 1 123 m | +6 % · +2,1 % · +7,6 % |
+|  |  | 5 | 6 · 11 | 1 014 · 1 155 m | +7,2 % · +8,5 % · +10,6 % |
+|  |  | 10 | 8 · 14 | 1 108 · 1 201 m | +17,1 % · +14,1 % · +15 % |
+| Assidu (3 h/j + 4 h onglet ouvert) | Actuel (production) | 0 | 9 · 30 | 2 018 · 3 276 m | — |
+|  |  | 1 | 10 · 30 | 2 060 · 3 317 m | +2,1 % · +1,7 % · +1,3 % |
+|  |  | 2 | 11 · 30 | 2 096 · 3 343 m | +3,9 % · +3,3 % · +2 % |
+|  |  | 5 | 13 · 30 | 2 180 · 3 374 m | +8 % · +6,8 % · +3 % |
+|  |  | 10 | 15 · 30 | 2 267 · 3 384 m | +12,3 % · +11,3 % · +3,3 % |
+|  | R — nettement plus rare | 0 | 3 · 13 | 1 873 · 2 241 m | — |
+|  |  | 1 | 4 · 14 | 1 919 · 2 271 m | +2,5 % · +2,1 % · +1,3 % |
+|  |  | 2 | 5 · 15 | 1 939 · 2 306 m | +3,5 % · +6,1 % · +2,9 % |
+|  |  | 5 | 8 · 17 | 2 011 · 2 420 m | +7,4 % · +10,7 % · +8 % |
+|  |  | 10 | 10 · 19 | 2 151 · 2 522 m | +14,8 % · +14,9 % · +12,5 % |
