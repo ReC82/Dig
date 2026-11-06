@@ -2,6 +2,69 @@
 
 Lien : https://github.com/ReC82/Dig/issues/68
 
+## Session du 06/11/2026, matin (DIGORCH) — réserves UX de la recette : fiche Mission compacte et simulateur lisible
+
+**État réel : Déployé en production (SHA `7af04f9`) — en attente de recette.** Présentation seule : aucun calcul, objectif, barème, coût, nombre de gemmes, état de publication ni d'activation modifié.
+
+### Origine
+Recette du propriétaire du 06/11 : #68-A conforme et #68-B réussi, avec deux réserves UX ([commentaire 1](https://github.com/ReC82/Dig/issues/68#issuecomment-6681717834), [commentaire 2](https://github.com/ReC82/Dig/issues/68#issuecomment-6681792405)) : « beaucoup d'info sur une seule fenêtre » pour la fiche, « il faut simplifier l'affichage » pour le simulateur.
+
+### Changements (fichiers `public/admin/index.html`, `admin.js`, `admin.css`, essais `test/e2e/missions-catalog.e2e.js`, `missions-bonus.e2e.js`)
+**Fiche Mission (Admin → 🎯 Missions → clic sur une mission)**
+- En haut, toujours visible : visuel, nom FR, texte FR, case « Active », puis deux résumés en lecture seule, **Objectifs** (tranches) et **Récompense**.
+- **Aperçu par profil** (ouvert) : une ligne par profondeur, par exemple « 20 m · indisponible · gemmes inaccessibles (aucun bloc gemme à cette profondeur) » ou « 100 m · disponible · objectifs 1 / 2 / 3 ». Un clic sur la ligne déplie les récompenses par objectif, la tranche utilisée, le plafond et la raison technique.
+- **Repliées**, chacune avec un résumé dans son en-tête : Objectifs par tranche de profondeur, Détail de la récompense, Visuel (bouton atelier d'icônes), Traductions (EN/NL/ES côte à côte, ● complet / ◐ nom seul / ○ vide), **Paramètres avancés** (identifiant, type, catégorie, poids, ancienneté, aide du compteur).
+- Une nouvelle mission ou une copie ouvre d'office « Paramètres avancés » et « Objectifs », qu'il faut remplir. Après une erreur d'enregistrement, toutes les sections s'ouvrent pour montrer le champ en cause. Au retour de l'atelier d'icônes, « Visuel » est ouvert. Replier une section ne perd aucune saisie, et la garde « modifications non enregistrées » (#61) reste active.
+- Enregistrer / Dupliquer / Fermer restent dans le pied fixe de la fenêtre. Aucune fiche ne s'ouvre au chargement.
+
+**Simulateur de rotation**
+- Bandeau « 🧪 Simulation uniquement — rien ne change en jeu ».
+- Le bloc replié « Comment lire ces résultats ? » explique en français courant : ✓ atteignable, ✗ non atteignable, activité estimée (1 bloc = 1 m), reprise de la veille, journées différentes, écartée, 100 % atteignable. Il donne aussi les paramètres de la source.
+- Par profil, d'abord **4 cartes** : journées différentes (2/2), missions atteignables (6/6), répétitions de la veille, récompenses des missions (total sur la période et ≈ par jour).
+- **Bonus trois missions à part**, encadré en pointillés avec le badge « Simulation uniquement — bonus désactivé ». Il affiche les journées complètes, le montant hypothétique, puis « sans bonus : … · avec bonus : … ». Les totaux normaux ne l'incluent jamais.
+- **Une carte repliable par journée** (ouvertes d'office jusqu'à 3 jours). Chaque mission y figure avec son icône, son nom, son objectif, sa récompense, un badge ✓/✗ et le badge « reprise de la veille ». Quand une mission n'est pas atteignable, l'activité estimée est comparée à l'objectif. Une ligne « bonus hypothétique, non compté ci-dessus » s'ajoute sur les journées complètes.
+- **« Détails / Pourquoi ? »** est replié et regroupe l'activité estimée, les missions écartées (raison en clair et raison technique), le nombre de tirages par mission et la part du bonus dans le minage. Partout, les **noms** des missions remplacent les identifiants techniques (`find_gems`, `buy_upgrades`).
+- Milliers au format fr-BE, aucun défilement horizontal à 320, 390 et 1280 px, zones cliquables d'au moins 40 px, gris des textes secondaires éclairci pour le contraste.
+
+### SHA et branche
+Branche `feature/68-missions-quotidiennes` (commit `2695267`), `develop` = **`7af04f9`** (fusion), déployé `7af04f9`.
+
+### Procédure de test (technique)
+`npm test` (822/822). Essais navigateur sur base de test, serveur `PORT=3101 DB_FILE=test-68.sqlite NODE_ENV=test ADMIN_SECRET=…` :
+- `CHROME=…/chrome-headless-shell PW=…/playwright-core BASE=http://127.0.0.1:3101 ADMIN=… node test/e2e/missions-catalog.e2e.js` passe en PC 1280×900, mobile 390×844 et **320×640**. Il vérifie les sections repliées par défaut, la saisie conservée après repli, l'absence de défilement horizontal, le simulateur sans identifiant technique, les détails repliés et l'absence d'écriture.
+- `missions-bonus.e2e.js` passe en PC et en mobile.
+- `missions-live.e2e.js` passe en PC et en mobile sur base neuve. Un premier passage sur une base déjà utilisée par les autres essais avait échoué sur mobile à l'ouverture du menu, avant toute étape liée à ce changement.
+
+### Vérifications et déploiement
+- Release au SHA exact : `npm ci` puis `npm test`, 822/822.
+- Copie de la base de production démarrée en `NODE_ENV=production` : `/health` ok, version `1.0.0+7af04f9`. Empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking`, et liste des tables : identiques avant et après (aucune migration). Copie supprimée.
+- Aucune génération IA en cours avant le déploiement. `main` avancé en avance rapide, puis `scripts/deploy.sh` de la release : sauvegarde vérifiée `~/backups/dig/dig-20261106-112306-pre-deploy-7af04f9.sqlite`, santé et version OK.
+- Après déploiement : les 2 domaines répondent 200 avec `1.0.0+7af04f9`, et `admin.js?v=1.0.0+7af04f9` est servi. Journal sans erreur, `quick_check` ok. Mêmes nombres de lignes que la sauvegarde. Les seuls écarts viennent d'une partie en cours (sauvegarde d'un joueur 4872 → 4873), donc une progression, pas une perte.
+- **Brouillon de missions de production (image « Briseur ») intact** : même empreinte avant et après. **Mode d'activation inchangé** : « Pilote », réglé par le propriétaire à 11:07 le 06/11, compte pilote inchangé.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep ba083e0` puis `sudo systemctl restart dig` (aucune migration, base inchangée).
+
+### Test fonctionnel à faire par le propriétaire (5 min, ne rien publier)
+1. /admin/ (**Ctrl+F5**, l'onglet admin ouvert avant 11:23 garde l'ancienne version) → 🎯 Missions → **Gemmologue** :
+   - en haut : visuel, nom, texte, Active, « Objectifs : dès 1 m : 1, 2, 3 », « Récompense : 200 💰 par unité +1 💎 » ;
+   - l'aperçu montre « 20 m · indisponible · gemmes inaccessibles… » et « 100 m · disponible · objectifs 1 / 2 / 3 » ; un clic sur une ligne déplie le détail ;
+   - les autres sections sont repliées ; ouvrir « Traductions », modifier un mot, replier puis rouvrir : la saisie est toujours là ; « Fermer » demande confirmation, choisir de ne pas enregistrer.
+2. Simulateur : Proposition adaptative, 06/11/2026, 2 jours, Débutant et Avancé → **Simuler**. Résultat attendu : **mêmes missions qu'au test du matin**. Débutant J1 : coffres, 30 m, 1 amélioration ; J2 : 40 blocs, 30 m, 1 000 pièces. Avancé J1 : 3 coffres, 75 m, 1 gemme ; J2 : 75 blocs, 75 m, 60 000 pièces. Chaque profil commence par ses cartes « 2/2 journées différentes », « 6/6 missions atteignables », « 1 répétition de la veille ». Le bonus est à part, avec le badge « Simulation uniquement — bonus désactivé ». « Détails / Pourquoi ? » est replié et indique « Gemmologue — trop peu profond (à partir de 35 m) » pour le débutant.
+3. Même chose sur téléphone : aucun défilement horizontal.
+
+**Classement : Après lancement** (outil d'administration, rien ne change pour les joueurs).
+
+### Choix techniques faits seul
+- Mise en page reprise des fiches de blocs (#76, `bk-acc`) : sections dépliables avec un résumé dans l'en-tête, pour la cohérence de l'admin.
+- Traductions affichées côte à côte dans leur section, sans bouton de langue : le FR, obligatoire, est en haut.
+- Raisons d'écart traduites en clair dans le navigateur, la raison technique du serveur restant visible dans le détail : la réponse du serveur n'est pas touchée.
+- Pied de fenêtre mobile inchangé (boutons pleine largeur, identique aux autres fiches).
+
+### Décisions demandées au propriétaire
+Aucune nouvelle décision pour cette correction. Les questions déjà posées restent ouvertes (barème du bonus, remplacement du bonus fixe #49, branchement dans le moteur, barème des objectifs, ordre d'activation).
+
+### Restant à réaliser
+Recette de cette présentation ; suite selon vos décisions sur le barème et l'activation (rien n'est publié ni étendu à tous les joueurs).
+
 ## Session du 05/11/2026, soir (DIGORCH) — bonus « trois missions » : barème chiffré, brouillon et simulateur, désactivé
 
 Suite à l'arbitrage du propriétaire du 05/11 (17:31 Bruxelles) : accord de principe sur un **bonus pour les
