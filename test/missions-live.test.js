@@ -166,6 +166,42 @@ test('progression cumulée et réclamation unique : pas terminée, crédit, reje
   live.setSettings({ mode: 'off', pilots: [] });
 });
 
+test('#68-E : source des missions, pilotes par ID, inspection sans attribution, repère pilote', () => {
+  const a = newUser(), b = newUser();
+  save(a, baseSave()); save(b, baseSave());
+  const daysBefore = rows('daily_mission_days');
+  // Drapeau OFF : navigateur pour tous, raison « off »
+  live.setSettings({ mode: 'off', pilots: [] });
+  let ia = live.inspectPlayer({ userId: a }, { nowMs: T0 });
+  assert.deepStrictEqual([ia.source, ia.reason, ia.today, ia.id], ['browser', 'off', null, a]);
+  // Pilote choisi par ID stable (liste de suggestions) ; ID inconnu refusé
+  assert.strictEqual(errCode(() => live.setSettings({ mode: 'pilot', pilots: [{ id: 999999 }] })), 'unknown_user');
+  const st = live.setSettings({ mode: 'pilot', pilots: [{ id: a }, nameOf(a)] });
+  assert.deepStrictEqual(st.pilotAccounts, [{ id: a, username: nameOf(a) }], 'pas de doublon pseudo/ID');
+  ia = live.inspectPlayer({ userId: a }, { nowMs: T0 });
+  assert.deepStrictEqual([ia.source, ia.reason, ia.today], ['server', 'pilot', null], 'aucune attribution encore');
+  const ib = live.inspectPlayer({ username: ` ${nameOf(b).toUpperCase()} ` }, { nowMs: T0 });
+  assert.deepStrictEqual([ib.source, ib.reason], ['browser', 'not_pilot'], 'joueur non autorisé au pilote');
+  assert.strictEqual(rows('daily_mission_days'), daysBefore, 'l\'inspection ne crée aucune attribution');
+  assert.strictEqual(errCode(() => live.inspectPlayer({ username: 'inexistant_zz' })), 'unknown_user');
+  assert.strictEqual(errCode(() => live.inspectPlayer({ userId: 'abc' })), 'unknown_user');
+  assert.strictEqual(errCode(() => live.inspectPlayer({ username: '  ' })), 'no_user');
+  // Vue joueur : repère « pilote » pour le compte listé seulement ; F5 = mêmes missions, une seule attribution
+  const v1 = live.playerView(a, { nowMs: T0 });
+  assert.strictEqual(v1.pilot, true);
+  assert.deepStrictEqual(live.playerView(b, { nowMs: T0 }), { live: false });
+  assert.deepStrictEqual(live.playerView(a, { nowMs: T0 + 60e3 }).missions.map(m => m.id), v1.missions.map(m => m.id));
+  assert.strictEqual(conn().prepare('SELECT COUNT(*) AS c FROM daily_mission_days WHERE user_id = ?').get(a).c, 1);
+  ia = live.inspectPlayer({ userId: a }, { nowMs: T0 });
+  assert.ok(ia.today.assignedAt && ia.today.catalogVersion >= 1);
+  assert.ok(ia.today.missions.every(m => typeof m.name === 'string' && m.claimedAt === null));
+  // Tous les joueurs : source serveur, raison « on », pas de repère de test dans le jeu
+  live.setSettings({ mode: 'on', note: 'test #68-E' });
+  assert.strictEqual(live.inspectPlayer({ userId: b }, { nowMs: T0 }).reason, 'on');
+  assert.strictEqual(live.playerView(a, { nowMs: T0 }).pilot, false);
+  live.setSettings({ mode: 'off', pilots: [] });
+});
+
 test('rotation adaptative : par joueur, adaptée à la profondeur, anti-répétition sur l\'historique du joueur', () => {
   catalog.loadProposalIntoDraft();
   catalog.publishDraft({ note: 'proposition (test)' });
@@ -267,6 +303,18 @@ test('routes HTTP : OFF par défaut, pilote, réclamation concurrente créditée
   const insp = await adm('GET', '/api/admin/missions/live/player?username=pilote1', undefined, { admin: true });
   assert.strictEqual(insp.status, 200);
   assert.strictEqual(insp.body.today.missions[0].claimed, true);
+  // #68-E : recherche par ID (suggestions), source affichée, compte inexistant distinct, réclamation datée
+  assert.strictEqual(v.body.pilot, true);
+  const byId = await adm('GET', `/api/admin/missions/live/player?userId=${insp.body.id}`, undefined, { admin: true });
+  assert.strictEqual(byId.status, 200);
+  assert.deepStrictEqual([byId.body.username, byId.body.source, byId.body.reason], ['pilote1', 'server', 'pilot']);
+  assert.ok(byId.body.today.missions[0].claimedAt);
+  assert.strictEqual((await adm('GET', '/api/admin/missions/live/player?username=nexistepas', undefined, { admin: true })).status, 404);
+  assert.strictEqual((await adm('GET', '/api/admin/missions/live/player?userId=1', undefined)).status, 401);
+  const sug = await adm('GET', '/api/admin/players/suggest?q=lote', undefined, { admin: true });
+  assert.deepStrictEqual(sug.body.users.map(u => Object.keys(u).sort()), [['id', 'username']], 'suggestion partielle sans e-mail');
+  const byIdSet = await adm('PUT', '/api/admin/missions/live', { mode: 'pilot', pilots: [{ id: insp.body.id }] }, { admin: true });
+  assert.deepStrictEqual(byIdSet.body.settings.pilotAccounts, [{ id: insp.body.id, username: 'pilote1' }]);
   const audit = await adm('GET', '/api/admin/missions/live', undefined, { admin: true });
   assert.strictEqual(audit.body.settings.mode, 'pilot');
   assert.ok(audit.body.audit.length >= 1);
