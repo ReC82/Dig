@@ -14,6 +14,7 @@
  *   utilisable au toucher sans survol, sans voile ni blocage du défilement ou des boutons du jeu.
  * - API pour le tutoriel (#79) : DigHelp.open(id) ouvre la fiche sur une rubrique ; « Comment jouer ? »
  *   propose de lancer, reprendre ou recommencer le tutoriel (DigTutorial, js/tutorial.js).
+ * - « Communauté » : lien Discord sous « Comment jouer ? », seulement s'il est configuré (DigNews.discordUrl).
  */
 const DigHelp = (() => {
   /** Rubriques, dans l'ordre de la fiche. Les textes sont dans i18n.js (help.topics.<id>). */
@@ -172,6 +173,15 @@ const DigHelp = (() => {
       + `</div></details>`;
   }
 
+  /** Rejoindre le Discord (#50) : seulement si le lien est configuré dans le panel ; nouvel onglet. */
+  function _communityHtml() {
+    const url = typeof DigNews !== 'undefined' ? DigNews.discordUrl() : null;
+    if (!url) return '';
+    return `<section class="help-community" aria-labelledby="help-community-title"><h3 class="help-group-title" id="help-community-title">${_esc(t('help.community'))}</h3>`
+      + `<a class="news-discord" href="${_esc(url)}" target="_blank" rel="noopener noreferrer" aria-label="${_esc(`${t('news.discord')} — ${t('news.discord_aria')}`)}">${_esc(t('news.discord'))}</a>`
+      + `<p class="news-discord-hint">${_esc(t('news.discord_hint'))}</p></section>`;
+  }
+
   function _renderPanel() {
     const body = $('help-body');
     if (!body) return;
@@ -182,6 +192,7 @@ const DigHelp = (() => {
       + `<section class="help-intro" aria-labelledby="help-intro-title"><h3 id="help-intro-title">${_esc(t('help.intro.title'))}</h3>`
       + `<ol class="help-steps">${steps}</ol>`
       + (typeof DigTutorial !== 'undefined' ? DigTutorial.helpEntryHtml() : '') + '</section>'
+      + _communityHtml()
       + GROUPS.map(g => `<section class="help-group" aria-labelledby="help-group-${g.id}">`
         + `<h3 class="help-group-title" id="help-group-${g.id}">${_esc(t(`help.groups.${g.id}`))}</h3>`
         + g.topics.map(([id]) => _topicHtml(id)).join('') + '</section>').join('')

@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 890/890 textes. Absents → français. */
+/* Italian (preview) : 893/893 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -405,6 +405,7 @@ I18n.registerLocale("it", {
  "help": {
   "btn_aria": "Aiuto — come si gioca",
   "close": "Chiudi l'aiuto",
+  "community": "Community",
   "fallback": "Questo aiuto non è ancora tradotto nella tua lingua, quindi è mostrato in francese.",
   "faq": {
    "autodig_rank": {
@@ -605,6 +606,8 @@ I18n.registerLocale("it", {
  "news": {
   "close": "Chiudi le notizie",
   "discord": "💬 Unisciti al Discord",
+  "discord_aria": "Si apre in una nuova scheda",
+  "discord_hint": "Facoltativo: chatta con gli altri giocatori e con il team. Il gioco resta aperto e la tua partita continua; Discord non è necessario per giocare.",
   "empty_latest": "Nessuna notizia al momento.",
   "empty_upcoming": "Niente in programma per ora.",
   "latest": "Ultime notizie",

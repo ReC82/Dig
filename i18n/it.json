@@ -2491,6 +2491,13 @@
    "by": "claude-opus-5-5 (session #78, relu)",
    "at": "2026-11-05T17:00:00.000Z"
   },
+  "help.community": {
+   "text": "Community",
+   "src": "8ea81b4afa64",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #50, relu)",
+   "at": "2026-11-07T09:39:38.934Z"
+  },
   "help.fallback": {
    "text": "Questo aiuto non è ancora tradotto nella tua lingua, quindi è mostrato in francese.",
    "src": "8f0f506a5ef9",
@@ -3286,6 +3293,20 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "news.discord_aria": {
+   "text": "Si apre in una nuova scheda",
+   "src": "3e8540535d21",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #50, relu)",
+   "at": "2026-11-07T09:39:38.933Z"
+  },
+  "news.discord_hint": {
+   "text": "Facoltativo: chatta con gli altri giocatori e con il team. Il gioco resta aperto e la tua partita continua; Discord non è necessario per giocare.",
+   "src": "8ec136da4306",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #50, relu)",
+   "at": "2026-11-07T09:39:38.934Z"
   },
   "news.empty_latest": {
    "text": "Nessuna notizia al momento.",

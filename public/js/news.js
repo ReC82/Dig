@@ -10,7 +10,8 @@
  *   fermeture : ✕, Échap ou clic à côté.
  * - Textes affichés dans la langue du joueur (français à défaut), dates dans son fuseau horaire.
  *   Tout passe par textContent : aucun HTML venant du serveur n'est interprété.
- * - Lien Discord seulement s'il est configuré dans le panel (jamais d'adresse inventée).
+ * - Lien Discord seulement s'il est configuré dans le panel (jamais d'adresse inventée), en tête du
+ *   panneau, ouvert dans un nouvel onglet : le jeu (et le minage) reste dans le sien. Jamais obligatoire.
  * - Mentions publiques : case visible seulement si l'admin a activé les faits joueurs ; décochée
  *   par défaut (accord explicite), retirable à tout moment.
  */
@@ -27,6 +28,14 @@ const DigNews = (() => {
     get() { try { return localStorage.getItem(SEEN_KEY); } catch { return null; } },
     set(v) { try { localStorage.setItem(SEEN_KEY, v); } catch { /* stockage indisponible */ } },
   };
+
+  // Même règle que le serveur (server/beta.js) : une adresse non conforme n'est jamais affichée.
+  const DISCORD_RE = /^https:\/\/(?:discord\.gg|(?:www\.)?discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,64}$/;
+  /** Invitation Discord configurée dans le panel (Actualités, sinon configuration bêta), ou null. */
+  function discordUrl(v) {
+    if (v === undefined) v = _data?.discordUrl ?? (typeof DigBeta !== 'undefined' ? DigBeta.discordUrl() : null);
+    return typeof v === 'string' && DISCORD_RE.test(v) ? v : null;
+  }
 
   const _txt = obj => (obj && (obj[I18n.getCurrent()] || obj.fr)) || '';
   const _logged = () => !!_data && typeof _data.unread === 'number';
@@ -131,16 +140,21 @@ const DigNews = (() => {
       body.appendChild(_el('p', 'news-empty', t('news.offline')));
       return;
     }
+    // Discord en tête (#50, 07/11) : trouvable sans faire défiler, facultatif, nouvel onglet.
+    const discord = discordUrl(_data.discordUrl);
+    if (discord) {
+      const box = _el('div', 'news-community');
+      const a = _el('a', 'news-discord', t('news.discord'));
+      a.href = discord;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.setAttribute('aria-label', `${t('news.discord')} — ${t('news.discord_aria')}`);
+      box.append(a, _el('p', 'news-discord-hint', t('news.discord_hint')));
+      body.appendChild(box);
+    }
     body.appendChild(_section('news.upcoming', _data.upcoming, true));
     body.appendChild(_section('news.latest', _data.latest, false));
     const foot = _el('div', 'news-foot');
-    if (_data.discordUrl) {
-      const a = _el('a', 'news-discord', t('news.discord'));
-      a.href = _data.discordUrl;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      foot.appendChild(a);
-    }
     if (_data.mentions && _logged() && _data.prefs) {
       const label = _el('label', 'news-mentions');
       const box = document.createElement('input');
@@ -209,5 +223,5 @@ const DigNews = (() => {
     setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, POLL_MS);
   }
 
-  return { init, refresh, open, close };
+  return { init, refresh, open, close, discordUrl };
 })();
