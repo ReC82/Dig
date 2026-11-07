@@ -2,6 +2,54 @@
 
 Lien : https://github.com/ReC82/Dig/issues/49
 
+## Session du 07/11/2026 soir (DIGORCH) — commentaire du propriétaire du 07/11 : déjà traité par #88
+
+### 1. État réel
+
+**Déjà livré** (par le ticket #88, déployé en production `444ee81`, en attente de votre recette). Aucun nouveau code dans #49
+cette session, aucun déploiement. **Rien n'est publié** : aucun prix, taux, limite ni récompense n'a changé en jeu.
+
+### 2. Les trois demandes du commentaire 6709448376 et où elles sont traitées
+
+| Demande du 07/11 | Où c'est fait | Preuve |
+|---|---|---|
+| Reproduire le conflit « 863 pièces pour un prix de 800 » (prix réel / défaut 2 000) avant toute proposition | #88, rapport § 2 | Reproduit sur copie de la base : votre brouillon vient de 8 enregistrements manuels du 07/11 (15:51–15:53 UTC) qui baissent les poids des fragments ; le tirage étant au poids, la part des pièces passe de 55 % à 77,5 % → (45 × 750 + 10 × 2 750) / 71 = 863. Le contrôle utilisait déjà le **vrai prix 800** (pas le défaut 2 000 du code) : le refus était juste, c'est l'affichage qui était illisible. Test de non-régression `test/chest-sheet.test.js`. |
+| Variante **sans fragments dans les 3 coffres de la boutique**, simulée uniquement | #88, rapport § 4 | Préréglage **S — « Boutique sans fragments (conforme) »** dans 🎲 Coffres & drops → ⚙ Détails avancés → Préréglages ; jamais chargé ni publié. Simulé avec `tools/balance/fragment-rarity-sim.js` (tableau S1 → S4 par profil). P et R sont désormais marqués « ⚠ non conforme ». |
+| Ne pas toucher ni écraser votre brouillon | #88 § 6 et contrôle de ce soir | Lecture seule de la base de production le 07/11 au soir : brouillon toujours celui de votre dernier enregistrement (15:53:16 UTC), seule la v1 est publiée, prix 800 / 15 000 / 80 000. |
+
+Seule limite connue de S : la **consolation « collection complète = 5 fragments »**, codée en dur dans `server/chestShop.js`, peut
+encore donner des fragments via les objets de collection des coffres rare et antique (≈ 14 🔮 par saison au maximum, 0,9 % des reliques).
+La supprimer pour les coffres achetés est un changement de règle : c'est la question 3 ci-dessous.
+
+### 3. Vérifications
+
+- `git log origin/develop` : #88 intégré (`444ee81`, rapport `abfc585`) ; `/api/version` en production = `1.0.0+444ee81`.
+- Base de production en **lecture seule** (`sqlite3 -readonly`) : `reward_table_versions` = 1 version (v1), `reward_table_draft` présent,
+  dernier événement du journal = `draft_save` du 07/11 15:53:16 UTC (le vôtre) ; `admin_config.chest_cost_*` = 800 / 15 000 / 80 000.
+- Aucun test relancé : aucun code modifié.
+
+### 4. Test fonctionnel à faire par le propriétaire
+
+Celui du rapport #88 § 7 (Admin → 🎲 Coffres & drops → « Modifier ce coffre » sur le Coffre simple : 863/800 expliqué et deux corrections
+chiffrées ; prix 1 100 sans enregistrer → cadre vert ; Annuler). Puis, si vous choisissez S : ⚙ Détails avancés → Préréglages → **S** →
+🎲 Tester → Publier (c'est vous qui publiez ; votre brouillon actuel reste lisible dans le journal).
+
+Classement : **Bloquant MVP public** (bêta du 09/11 : la conversion pièces → fragments reste ouverte tant que rien n'est publié).
+
+### 5. Décisions demandées au propriétaire
+
+1. **Barème à publier avant le 09/11** : (a) **S — boutique sans fragments** ; (b) votre brouillon corrigé (prix ≥ 864, ou plus de tirages
+   sans pièces) ; (c) P ou R (non conformes à votre décision) ; (d) rien. **Recommandation : (a) S**, publié par vous dans l'admin.
+2. **Coffres minés avec S** : garder P (fragments ÷ 2 environ) ou revenir aux taux actuels ? Recommandation : garder P pour la bêta.
+3. **Consolation « collection complète = 5 fragments »** dans les coffres achetés : la remplacer par des pièces pour une conformité totale ?
+   Recommandation : oui (petit changement de code, à faire sur votre accord).
+4. Questions du 06/11 toujours ouvertes : Aimant à éclats (recommandation : ne pas toucher) ; #85 pas de fragments contre de l'argent
+   tant que le classement donne des lots (recommandation : oui) ; décisions du 04/11 (plafond 150, ramassage automatique, limites et courbe).
+
+### 6. Reste à réaliser
+
+Après votre choix : publication (par vous), contrôle en production ; consolation de collection selon la décision 3.
+
 ## Session du 06/11/2026 (DIGORCH) — rareté des fragments, coffres et conversion des pièces (demande du propriétaire du 06/11)
 
 Réponse à la nouvelle priorité du propriétaire (commentaire 6690234297 : « rééquilibrer les coffres
