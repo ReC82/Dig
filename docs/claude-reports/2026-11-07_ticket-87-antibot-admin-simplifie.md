@@ -136,3 +136,109 @@ Aucune décision utilisateur nécessaire. (Le passage global en Appliqué reste 
 - Recette du propriétaire ci-dessus.
 - Proposé, non réalisé : la fiche « Joueurs » (onglet Joueurs → 🛡) pourrait proposer aussi « Tester la
   protection sur ce compte ».
+
+---
+
+# Mise à jour du 07/11/2026 (soir) — recette #87-B : recherche partielle du compte
+
+## 1. Ticket
+
+#87 — https://github.com/ReC82/Dig/issues/87. Recette du propriétaire du 07/11 : #87-A **validé**
+(cartes et parcours visibles), parcours guidé complet **validé** (choix, essai, défi, résolution, « Autre
+énigme », version texte, « Fermer », retour d'état, fin du test). **Une correction demandée (#87-B)** : « la
+recherche ne fonctionne pas » — `teste` ne trouvait pas `testeur`. Le carré vide de l'icône « pièce » relève
+de #25 (non traité ici, comme demandé).
+
+## 2. État réel
+
+**Déployé en production (SHA `5206c69`) — en attente de recette du point #87-B.** Classement : **Bloquant MVP
+public** (outil de recette anti-bot avant la bêta du 09/11).
+
+## 3. Diagnostic et correction
+
+**Diagnostic confirmé par lecture du code** : l'étape 1 appelait `GET /api/admin/security/player?q=…`, dont la
+fonction serveur `findPlayer` ne fait qu'une correspondance **exacte** (pseudo en minuscules, ou identifiant).
+Aucune suggestion n'était branchée sur ce champ. Une autocomplétion admin existait déjà ailleurs (#37,
+`/api/admin/players/suggest`, utilisée dans Joueurs, Événements, Missions) : elle a été **réutilisée**, aucun
+doublon créé, aucune route serveur ajoutée ni modifiée.
+
+Changements (`public/admin/admin.js`, `index.html`, `admin.css`) :
+
+- **Étape 1 « Choisir le compte de test »** et **« Ouvrir la fiche d'un joueur »** (même onglet) : suggestions
+  dès 2 lettres, **pseudo partiel, insensible à la casse**, sous la forme « pseudo · ID n » (les pseudos
+  proches se distinguent par l'ID ; jamais d'e-mail), choix **en un clic** ou **au clavier** (↑/↓, Entrée,
+  Échap).
+- **Entrée ou « Choisir ce compte » sans suggestion surlignée** : `#12` / `12` = identifiant exact ; pseudo
+  identique ou **un seul résultat** → compte choisi ; **plusieurs** → « 2 comptes contiennent « bobtest » :
+  choisissez le bon dans la liste » et la liste se rouvre ; **aucun** → « ⚠ Aucun compte ne correspond à
+  « … » », le compte déjà choisi est conservé. Le message s'affiche **sous le champ** (visible sur mobile).
+- **Réseau lent** : « Recherche… » dans la liste au-delà de 0,4 s ; **réseau coupé** : « Recherche impossible
+  pour le moment — réessayez » (auparavant la liste se fermait sans rien dire). Les réponses périmées sont
+  ignorées.
+- Défaut corrigé au passage dans le composant partagé : la liste rouverte après un clic sur le bouton était
+  refermée 150 ms plus tard par la perte de focus du champ.
+- Sécurité : uniquement des routes admin authentifiées (`requireAdmin`), réponse limitée à id + pseudo,
+  10 résultats au plus (« Au moins 10 comptes… » au-delà). Aucun essai lancé, mode global jamais touché.
+
+## 4. SHA et procédure de test
+
+- Branche `feature/87-antibot-parcours-guide`, commit `f1b4499` ; **`develop` = `5206c69`**.
+- `npm test` (dont `test/antibot-admin-ux-87.test.js` : partiel, casse, exact, #ID, inconnu, plusieurs,
+  réseau coupé, pluriel, routes admin uniquement).
+- Navigateur : `test/e2e/admin-antibot-87-search.e2e.js` (serveur de test, mode d'emploi en tête du fichier).
+
+## 5. Vérifications
+
+- `npm test` 910/910 sur la branche ; release `5206c69` : voir § 6.
+- Chromium, **1280×900, 390×844, 320×640** : `admin-antibot-87-search` **TOUT OK** (teste → « testeur · ID 1 »
+  en un clic, « TESTE » + Entrée, pseudo exact + bouton, #ID, inconnu, 2 résultats + ↓↓ Entrée, « Recherche… »
+  avec réponse retardée de 1,5 s, réseau coupé, fiche joueur ouverte depuis « teste », aucune adresse e-mail,
+  liste dans l'écran, aucun essai lancé, mode global inchangé, aucune erreur JS) ; `admin-antibot-87`
+  (parcours complet dans le vrai jeu) **TOUT OK**.
+- `admin-antibot-sheet` (#76) : 1 écart **préexistant** — « cartes visibles sans défiler » à 390×844
+  (884 px pour 844) ; reproduit à l'identique sur `develop` 4e7dd54 **avant** ce changement (ajout « Ce que le
+  serveur a vu » de #25 dans la fiche). Non corrigé ici (hors périmètre, cosmétique, « Après lancement »).
+- Aucune donnée joueur modifiée, aucune migration.
+
+## 6. Déploiement
+
+- Release `5206c69` : `npm ci`, `npm test` **910/910**. Copie de la base de production : démarrage
+  `NODE_ENV=production` (port 3122), `/health` ok, `/api/version` = `1.0.0+5206c69`, empreintes (lignes + hachage)
+  de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` **identiques**,
+  `quick_check` ok, copie supprimée. Aucune génération IA en cours avant déploiement.
+- `main` avancé `4c65838` → `5206c69` (avance rapide) ; `scripts/deploy.sh` de la release : sauvegarde vérifiée
+  `~/backups/dig/dig-20261107-182236-pre-deploy-5206c69.sqlite`, « OK : 5206c69 en service ».
+- Après : dig.lodygames.com et dig.lodylands.com → 200 et `1.0.0+5206c69` ; journal sans erreur ;
+  `quick_check` ok ; empreintes joueurs identiques ; `antibot_response_mode` = `observe` (inchangé) ;
+  `/api/admin/players/suggest` → 401 sans session ; nouvel `admin.js` servi.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 4c65838` + `sudo systemctl restart dig` (aucune
+  migration, aucune dépendance modifiée).
+
+**Test fonctionnel à faire par le propriétaire (≈ 1 min, PC ou téléphone)** :
+1. /admin/ (**Ctrl+F5** ou fermer/rouvrir l'onglet) → 🛡 Anti-bot → « ▶ Tester la protection ».
+2. Taper `teste` dans le champ de l'étape 1. Attendu : une liste « testeur · ID … » apparaît sous le champ ;
+   un clic dessus → « ✓ Compte choisi : testeur (#…) ». Rien n'est lancé.
+3. Taper `TESTE` puis Entrée → testeur choisi. Taper un pseudo inexistant puis Entrée → « ⚠ Aucun compte ne
+   correspond… » sous le champ, le compte choisi reste testeur.
+4. (Facultatif) même chose dans « Ouvrir la fiche d'un joueur » (bloc « Joueurs à surveiller »).
+Attendu partout : mode global toujours « Observation ».
+
+## 7. Choix techniques faits seul
+
+- Réutiliser l'autocomplétion admin existante (#37) plutôt qu'élargir `findPlayer` côté serveur : aucune
+  nouvelle route, réponse déjà limitée à id + pseudo, comportement identique aux autres écrans.
+- Appliquer la même recherche au champ « Ouvrir la fiche d'un joueur » du même onglet (même défaut, même
+  composant) ; les autres champs de recherche du panel ne sont pas touchés.
+- Les pseudos sont uniques en base (minuscules) : les « homonymes » sont des pseudos proches, distingués par
+  l'ID affiché ; choix toujours transmis par identifiant stable.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire.
+
+## 9. Éléments restant à réaliser
+
+- Recette du point #87-B ci-dessus (le reste du parcours #87 est validé par le propriétaire).
+- Signalé, non traité (« Après lancement ») : sur la fiche anti-bot à 390×844, les cartes d'en-tête dépassent
+  l'écran de 40 px depuis l'ajout « Ce que le serveur a vu » (#25) — essai `admin-antibot-sheet`.
+- Icône « pièce » en carré vide dans le défi : suivi dans #25.
