@@ -72,6 +72,39 @@ const AntibotGate = (() => {
     m.className = kind;
   }
 
+  /**
+   * Pictogrammes de l'énigme : SVG locaux dessinés à la main (recette du 07/11 : l'emoji 🪙 « pièce »
+   * s'affichait en carré vide sur certains systèmes). Aucun emoji, aucune police, aucun réseau :
+   * le rendu est identique sur Windows, Android, iOS et en PWA. Symbole inconnu → son nom en clair.
+   */
+  const _SVG = {
+    pickaxe: '<path d="M14 40 34 14" stroke="#8b5a2b" stroke-width="5" stroke-linecap="round"/><path d="M6 20C14 8 30 3 43 8l-4 6C30 10 18 13 11 23z" fill="#9ca3af" stroke="#4b5563" stroke-width="2" stroke-linejoin="round"/>',
+    gem: '<path d="M14 8h20l9 11-19 23L5 19z" fill="#38bdf8" stroke="#0369a1" stroke-width="2" stroke-linejoin="round"/><path d="M5 19h38M14 8l5 11 5-11 5 11 5-11M19 19l5 23 5-23" fill="none" stroke="#0369a1" stroke-width="1.6" stroke-linejoin="round"/>',
+    key: '<circle cx="15" cy="24" r="9" fill="none" stroke="#d97706" stroke-width="5"/><path d="M24 24h19M36 24v8M42 24v6" stroke="#d97706" stroke-width="5" stroke-linecap="round"/>',
+    star: '<path d="m24 4 5.9 12.6 13.6 1.6-10 9.4 2.6 13.5L24 34.4 11.9 41.1l2.6-13.5-10-9.4 13.6-1.6z" fill="#facc15" stroke="#a16207" stroke-width="2" stroke-linejoin="round"/>',
+    heart: '<path d="M24 42S5 30 5 17c0-6 4.5-10 9.5-10 4 0 7.5 2.5 9.5 6 2-3.5 5.5-6 9.5-6 5 0 9.5 4 9.5 10 0 13-19 25-19 25z" fill="#ef4444" stroke="#991b1b" stroke-width="2" stroke-linejoin="round"/>',
+    fire: '<path d="M24 44c-9 0-15-6-15-14 0-8 6-12 8-20 4 3 5 7 5 10 2-4 5-9 4-16 8 5 14 14 14 24 0 9-7 16-16 16z" fill="#f97316" stroke="#9a3412" stroke-width="2" stroke-linejoin="round"/><path d="M24 44c-4 0-7-3-7-7 0-4 4-7 5-11 4 3 9 7 9 12 0 3-3 6-7 6z" fill="#fde047"/>',
+    drop: '<path d="M24 4C24 4 10 21 10 30a14 14 0 0 0 28 0C38 21 24 4 24 4z" fill="#3b82f6" stroke="#1e3a8a" stroke-width="2" stroke-linejoin="round"/><path d="M17 30a7 7 0 0 0 5 7" fill="none" stroke="#bfdbfe" stroke-width="3" stroke-linecap="round"/>',
+    moon: '<path d="M30 5A19 19 0 1 0 43 34 15 15 0 0 1 30 5z" fill="#fde68a" stroke="#a16207" stroke-width="2" stroke-linejoin="round"/>',
+    clover: '<g fill="#16a34a" stroke="#14532d" stroke-width="1.6"><circle cx="17" cy="15" r="7"/><circle cx="31" cy="15" r="7"/><circle cx="17" cy="29" r="7"/><circle cx="31" cy="29" r="7"/></g><circle cx="24" cy="22" r="4" fill="#15803d"/><path d="M26 30c2 6 6 10 10 13" fill="none" stroke="#14532d" stroke-width="3" stroke-linecap="round"/>',
+    coin: '<circle cx="24" cy="24" r="19" fill="#fbbf24" stroke="#92400e" stroke-width="2.5"/><circle cx="24" cy="24" r="14" fill="none" stroke="#b45309" stroke-width="2"/><path d="M29 18.5c-1.2-1.6-3-2.5-5-2.5-3 0-5 1.6-5 4s2.2 3.3 5 4 5 1.7 5 4.2-2.2 4-5 4c-2.2 0-4.1-1-5.2-2.6M24 13v22" fill="none" stroke="#92400e" stroke-width="2.6" stroke-linecap="round"/>',
+    bell: '<path d="M24 6c-8 0-12 6-12 14v9l-5 6h34l-5-6v-9c0-8-4-14-12-14z" fill="#eab308" stroke="#854d0e" stroke-width="2" stroke-linejoin="round"/><circle cx="24" cy="39" r="4" fill="#854d0e"/><circle cx="24" cy="5" r="2.5" fill="#854d0e"/>',
+    leaf: '<path d="M8 40C8 20 20 8 42 6c0 22-12 34-32 34z" fill="#84cc16" stroke="#3f6212" stroke-width="2" stroke-linejoin="round"/><path d="M8 40 34 14M18 30h8M24 24v-8" fill="none" stroke="#3f6212" stroke-width="2" stroke-linecap="round"/>',
+  };
+
+  function _tileIcon(sym) {
+    const body = Object.hasOwn(_SVG, sym) ? _SVG[sym] : null;
+    if (!body) {
+      const span = document.createElement('span');
+      span.className = 'antibot-tile-name';
+      span.textContent = T(`sym_${sym}`);
+      return span;
+    }
+    const tpl = document.createElement('template');
+    tpl.innerHTML = `<svg class="antibot-svg" viewBox="0 0 48 48" width="44" height="44" aria-hidden="true" focusable="false">${body}</svg>`;
+    return tpl.content.firstChild;
+  }
+
   function _renderPuzzle() {
     const box = _el.querySelector('#antibot-puzzle');
     box.textContent = '';
@@ -108,8 +141,9 @@ const AntibotGate = (() => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'antibot-tile';
-      b.textContent = tile.icon;
+      b.appendChild(_tileIcon(tile.sym));
       b.setAttribute('aria-label', T(`sym_${tile.sym}`));
+      b.title = T(`sym_${tile.sym}`);
       b.addEventListener('click', () => {
         if (_busy || _picks.includes(i)) return;
         _picks.push(i);
@@ -227,5 +261,5 @@ const AntibotGate = (() => {
 
   function init(deps) { _deps = deps; }
 
-  return { init, update, refresh, show, hide, blocksManual, _fmtBrussels };
+  return { init, update, refresh, show, hide, blocksManual, _fmtBrussels, _SVG };
 })();
