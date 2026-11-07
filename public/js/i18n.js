@@ -148,6 +148,7 @@ const I18n = (() => {
         tip_aria: 'Aide : {topic}',
         fallback: 'Cette aide n\'est pas encore traduite dans ta langue : elle s\'affiche en français.',
         footer: 'Cette aide décrit le jeu tel qu\'il fonctionne aujourd\'hui. Pendant la bêta, certains réglages peuvent évoluer.',
+        community: 'Communauté',
         intro: {
           title: 'Comment jouer ?',
           step1: 'Tape sur le bloc pour le casser et gagner des pièces.',
@@ -380,6 +381,8 @@ const I18n = (() => {
         read_more:      'Lire la suite',
         open_link:      'En savoir plus',
         discord:        '💬 Rejoindre le Discord',
+        discord_aria:   'S\u2019ouvre dans un nouvel onglet',
+        discord_hint:   'Facultatif : discute avec les autres joueurs et l\u2019équipe. Le jeu reste ouvert et ta partie continue ; Discord n\u2019est pas nécessaire pour jouer.',
         mentions:       'J\u2019accepte que mon pseudo apparaisse dans les actualités quand je réussis un exploit (profondeur, classement final). Rien d\u2019autre n\u2019est publié ; je peux décocher à tout moment.',
       },
       beta: {
@@ -1084,6 +1087,7 @@ const I18n = (() => {
         tip_aria: 'Help: {topic}',
         fallback: 'This help is not translated into your language yet, so it is shown in French.',
         footer: 'This help describes the game as it works today. During the beta, some settings may change.',
+        community: 'Community',
         intro: {
           title: 'How to play?',
           step1: 'Tap the block to break it and earn coins.',
@@ -1316,6 +1320,8 @@ const I18n = (() => {
         read_more:      'Read more',
         open_link:      'Learn more',
         discord:        '💬 Join the Discord',
+        discord_aria:   'Opens in a new tab',
+        discord_hint:   'Optional: chat with other players and the team. The game stays open and your progress continues; Discord is not needed to play.',
         mentions:       'I agree that my username may appear in the news when I achieve something (depth, final ranking). Nothing else is published; I can untick this at any time.',
       },
       beta: {
@@ -2019,6 +2025,7 @@ const I18n = (() => {
         tip_aria: 'Hulp: {topic}',
         fallback: 'Deze hulp is nog niet in jouw taal vertaald en wordt daarom in het Frans getoond.',
         footer: 'Deze hulp beschrijft het spel zoals het vandaag werkt. Tijdens de bèta kunnen sommige instellingen nog veranderen.',
+        community: 'Community',
         intro: {
           title: 'Hoe speel je?',
           step1: 'Tik op het blok om het te breken en munten te verdienen.',
@@ -2251,6 +2258,8 @@ const I18n = (() => {
         read_more:      'Lees meer',
         open_link:      'Meer info',
         discord:        '💬 Word lid van de Discord',
+        discord_aria:   'Opent in een nieuw tabblad',
+        discord_hint:   'Optioneel: praat met andere spelers en het team. Het spel blijft open en je voortgang gaat door; Discord is niet nodig om te spelen.',
         mentions:       'Ik ga ermee akkoord dat mijn gebruikersnaam in het nieuws verschijnt als ik iets bereik (diepte, eindklassement). Er wordt niets anders gepubliceerd; ik kan dit altijd uitvinken.',
       },
       beta: {
@@ -2954,6 +2963,7 @@ const I18n = (() => {
         tip_aria: 'Ayuda: {topic}',
         fallback: 'Esta ayuda aún no está traducida a tu idioma, así que se muestra en francés.',
         footer: 'Esta ayuda describe el juego tal como funciona hoy. Durante la beta, algunos ajustes pueden cambiar.',
+        community: 'Comunidad',
         intro: {
           title: '¿Cómo se juega?',
           step1: 'Toca el bloque para romperlo y ganar monedas.',
@@ -3186,6 +3196,8 @@ const I18n = (() => {
         read_more:      'Leer más',
         open_link:      'Más información',
         discord:        '💬 Únete al Discord',
+        discord_aria:   'Se abre en una pestaña nueva',
+        discord_hint:   'Opcional: habla con otros jugadores y con el equipo. El juego sigue abierto y tu partida continúa; Discord no es necesario para jugar.',
         mentions:       'Acepto que mi nombre de usuario aparezca en las noticias cuando logre algo (profundidad, clasificación final). No se publica nada más; puedo desmarcarlo en cualquier momento.',
       },
       beta: {

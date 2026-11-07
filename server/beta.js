@@ -27,7 +27,10 @@ const TEXT_MAX     = 1000;
 const POLICY_MAX   = 2000;
 const DEVICE_MAX   = 200;
 const MAX_USES_MAX = 500;
+// Invitation Discord uniquement (#50) : https, domaine officiel exact, code seul — ni identifiants,
+// ni port, ni chemin supplémentaire, ni paramètre, ni fragment. La barre finale est retirée à l'enregistrement.
 const DISCORD_RE   = /^https:\/\/(?:discord\.gg|(?:www\.)?discord(?:app)?\.com\/invite)\/[A-Za-z0-9-]{2,64}\/?$/;
+const discordInvite = v => (typeof v === 'string' && DISCORD_RE.test(v) ? v.replace(/\/$/, '') : null);
 const GITHUB_RE    = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|pull)\/\d{1,7}$/;
 // Sans 0/O, 1/I/L : codes dictés ou recopiés depuis un téléphone sans ambiguïté.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -78,10 +81,10 @@ function updateSettings(body = {}) {
   }
   if (body.discordUrl !== undefined) {
     const url = _text(body.discordUrl, 200, 'Lien Discord');
-    if (url && !DISCORD_RE.test(url)) {
+    if (url && !discordInvite(url)) {
       throw new BetaError(400, 'Lien Discord invalide : attendu https://discord.gg/… ou https://discord.com/invite/…');
     }
-    next.discordUrl = url;
+    next.discordUrl = url ? discordInvite(url) : '';
   }
   if (body.resetPolicy !== undefined) next.resetPolicy = _text(body.resetPolicy, POLICY_MAX, 'Politique de progression');
   if (body.knownIssues !== undefined) next.knownIssues = _text(body.knownIssues, POLICY_MAX, 'Bugs connus');
@@ -99,7 +102,7 @@ function publicConfig() {
   return {
     banner:       s.bannerEnabled,
     registration: s.registrationMode,
-    discordUrl:   s.discordUrl || null,
+    discordUrl:   discordInvite(s.discordUrl),  // valeur ancienne non conforme : jamais exposée
     resetPolicy:  s.resetPolicy,
     knownIssues:  s.knownIssues,
     reports:      s.reportsEnabled,
