@@ -481,24 +481,12 @@
       </div>
     </div>
 
-    <!-- Coûts des coffres -->
-    <div class="overview-card" data-sub="gains">
-      <h3 class="overview-card-title">Coûts des coffres</h3>
-      <p class="muted" style="margin-bottom:12px">Override les coûts par défaut (vide = valeur par défaut du code).</p>
-      <div class="params-grid" id="eco-chest-costs-grid">
-        <label class="param-row">
-          <span class="param-label">📦 Coffre simple <small class="muted">def: 2 000</small></span>
-          <input type="number" id="eco-cost-simple" min="1" step="1" placeholder="2000">
-        </label>
-        <label class="param-row">
-          <span class="param-label">💎 Coffre rare <small class="muted">def: 15 000</small></span>
-          <input type="number" id="eco-cost-rare" min="1" step="1" placeholder="15000">
-        </label>
-        <label class="param-row">
-          <span class="param-label">🏺 Coffre antique <small class="muted">def: 80 000</small></span>
-          <input type="number" id="eco-cost-antique" min="1" step="1" placeholder="80000">
-        </label>
-      </div>
+    <!-- Prix des coffres (#88) : lecture seule ici, modifiés uniquement dans 🎲 Coffres & drops (brouillon + publication) -->
+    <div class="overview-card" data-sub="gains" id="eco-chest-costs-card">
+      <h3 class="overview-card-title">Prix des coffres de la boutique</h3>
+      <p class="muted" style="margin-bottom:12px">Prix appliqués en jeu aujourd'hui. Ils se modifient avec les récompenses de chaque coffre, dans un brouillon publié ensemble :</p>
+      <ul id="eco-chest-costs" class="eco-chest-costs"></ul>
+      <button class="btn" type="button" id="btn-eco-chest-costs">🎲 Modifier dans Coffres &amp; drops</button>
     </div>
 
     <div class="form-actions" style="margin-bottom:24px" data-sub="gains">
@@ -1618,69 +1606,82 @@
       <h2>🎲 Coffres &amp; drops</h2>
       <button class="btn" id="btn-refresh-rewards">↻ Rafraîchir</button>
     </div>
-    <p id="rw-banner" class="contest-banner"></p>
-    <p class="muted" style="font-size:0.8rem">Contenu des coffres : récompenses possibles, poids de tirage (convertis en %), quantités, gros lots et limite par saison.
-      Les modifications vont dans un <strong>brouillon</strong> sans effet en jeu ; elles s'appliquent après « Publier » (nouvelle version, retour arrière possible).
-      Les prix des coffres se règlent dans ⚙ Config. Les fragments affichés sont de base (hors Aimant à éclats et multiplicateur de fragments).</p>
-
-    <div class="overview-card">
-      <h3 class="overview-card-title">🛍 Coffres de la boutique <span class="muted" style="font-weight:normal;font-size:0.8rem">— tirés par le serveur, chances affichées aux joueurs</span></h3>
-      <div id="rw-shop"></div>
-    </div>
-    <div class="overview-card">
-      <h3 class="overview-card-title">⛏ Coffres trouvés en minant <span class="muted" style="font-weight:normal;font-size:0.8rem">— selon la rareté du bloc coffre</span></h3>
-      <div id="rw-mined"></div>
-    </div>
-
-    <!-- #66 : visuels des six coffres, gérés dans l'atelier d'icônes (aucun effet sur les tables ci-dessus) -->
-    <div class="overview-card" id="rw-visuals-card">
-      <h3 class="overview-card-title">🖼 Visuels des coffres <span class="muted" style="font-weight:normal;font-size:0.8rem">— images gérées dans 🎨 Atelier d'icônes, sans effet sur les récompenses, prix ou chances</span></h3>
-      <p class="muted" style="font-size:0.8rem">Proposition = image générée ou téléversée, jamais visible des joueurs. Coffre trouvé en minant : « Conserver » la met dans le brouillon du catalogue,
-        visible après publication dans 🧱 Blocs. Coffre de la boutique : « Appliquer dans le jeu » (confirmation obligatoire) la rend visible tout de suite. Sans image appliquée, le jeu garde le visuel actuel.</p>
-      <div id="rw-visuals" class="rw-visuals"></div>
-    </div>
-
-    <div class="overview-card" id="rw-draft-card">
-      <h3 class="overview-card-title">Brouillon et publication</h3>
-      <div class="form-actions">
-        <label>Préréglage <select id="rw-preset" data-adm-noguard></select></label>
-        <button class="btn" id="btn-rw-preset" type="button">Charger dans le brouillon</button>
-      </div>
-      <p class="muted" style="font-size:0.8rem">Préréglages de rareté des fragments (#49, chiffres dans le rapport du 06/11) : ils remplacent le brouillon, sans effet en jeu tant que rien n'est publié.
-        Non réglable ici : bonus de l'Aimant à éclats (🏺 Reliques), multiplicateur de fragments (⚙ Config, <strong>coffres de la boutique seulement</strong>),
-        5 fragments de consolation quand la collection est complète (codé), fréquence des blocs coffres (🧱 Blocs). Les coffres trouvés en minant sont tirés par le navigateur du joueur.</p>
-      <div id="rw-draft"></div>
-      <div class="form-actions">
-        <label>Tirages <select id="rw-sim-n" data-adm-noguard><option value="10000">10 000</option><option value="100000">100 000</option></select></label>
-        <button class="btn" id="btn-rw-sim-pub" type="button">Simuler la version en vigueur</button>
-        <button class="btn" id="btn-rw-sim-draft" type="button">Simuler le brouillon</button>
-        <button class="btn btn-primary" id="btn-rw-publish" type="button">Publier le brouillon</button>
-        <button class="btn btn-danger" id="btn-rw-discard" type="button">Abandonner le brouillon</button>
+    <!-- #88 : un seul endroit pour les six coffres (prix, limite, récompenses, chances) ; tout passe par un brouillon -->
+    <div class="overview-card rw-state" id="rw-state">
+      <p id="rw-banner" class="rw-banner"></p>
+      <ul id="rw-problems" class="rw-problems"></ul>
+      <div class="form-actions rw-actions">
+        <button class="btn" id="btn-rw-simulate" type="button" title="Tire 10 000 ouvertures de chaque coffre, sans rien changer en jeu">🎲 Tester (simuler)</button>
+        <button class="btn btn-primary" id="btn-rw-publish" type="button">Publier le brouillon…</button>
+        <button class="btn btn-danger" id="btn-rw-discard" type="button">Abandonner le brouillon…</button>
+        <button class="btn btn-outline" id="btn-rw-restore" type="button">Restaurer la version précédente…</button>
       </div>
       <p id="rw-msg" class="hidden"></p>
       <div id="rw-sim"></div>
     </div>
 
-    <div class="overview-card">
-      <h3 class="overview-card-title">Versions</h3>
+    <div id="rw-cards" class="rw-cards" aria-label="Les six coffres"></div>
+    <p class="muted rw-legend">Chances affichées = chance de chaque récompense <strong>quand on ouvre</strong> le coffre.
+      La chance de <strong>trouver</strong> un coffre en minant se règle dans <a href="#blocks" data-rw-tab="blocks">🧱 Blocs</a> (blocs Vieille caisse, Coffre en bois, Coffre en fer).
+      Les fragments affichés sont ceux de la table : l'Aimant à éclats (<a href="#relics" data-rw-tab="relics">🏺 Reliques</a>, +1 à +5 par tirage « fragments ») et le multiplicateur de fragments
+      (<a href="#config" data-rw-tab="config">⚙ Config</a>, coffres de la boutique seulement) s'ajoutent à l'ouverture.</p>
+
+    <details class="overview-card" id="rw-visuals-card">
+      <summary class="overview-card-title">🖼 Images des coffres <span class="muted" style="font-weight:normal;font-size:0.8rem">— gérées dans 🎨 Atelier d'icônes, sans effet sur les récompenses, prix ou chances</span></summary>
+      <p class="muted" style="font-size:0.8rem">Proposition = image générée ou téléversée, jamais visible des joueurs. Coffre trouvé en minant : « Conserver » la met dans le brouillon du catalogue,
+        visible après publication dans 🧱 Blocs. Coffre de la boutique : « Appliquer dans le jeu » (confirmation obligatoire) la rend visible tout de suite. Sans image appliquée, le jeu garde le visuel actuel.</p>
+      <div id="rw-visuals" class="rw-visuals"></div>
+    </details>
+
+    <details class="overview-card" id="rw-advanced">
+      <summary class="overview-card-title">⚙ Détails avancés <span class="muted" style="font-weight:normal;font-size:0.8rem">— préréglages, simulation détaillée, écarts techniques, versions, journal</span></summary>
+      <h4>Préréglages (#49)</h4>
+      <div class="form-actions">
+        <label>Préréglage <select id="rw-preset" data-adm-noguard></select></label>
+        <button class="btn" id="btn-rw-preset" type="button">Charger dans le brouillon…</button>
+      </div>
+      <p id="rw-preset-note" class="muted" style="font-size:0.8rem"></p>
+      <p class="muted" style="font-size:0.8rem">Un préréglage remplace tout le brouillon des six coffres (le brouillon remplacé reste lisible dans le journal). Rien ne change en jeu tant que rien n'est publié.
+        Non réglable ici : 5 fragments de consolation quand un objet de collection est tiré alors que la collection est complète (codé). Les coffres trouvés en minant sont tirés par le navigateur du joueur.</p>
+      <h4>Simulation détaillée</h4>
+      <div class="form-actions">
+        <label>Tirages <select id="rw-sim-n" data-adm-noguard><option value="10000">10 000</option><option value="100000">100 000</option></select></label>
+        <button class="btn" id="btn-rw-sim-pub" type="button">Simuler la version en jeu</button>
+        <button class="btn" id="btn-rw-sim-draft" type="button">Simuler le brouillon</button>
+      </div>
+      <h4>Écarts techniques du brouillon (ligne par ligne, poids)</h4>
+      <div id="rw-draft"></div>
+      <h4>Versions</h4>
       <div style="overflow-x:auto"><table><thead><tr><th>Version</th><th>Origine</th><th>Note</th><th>Date (UTC)</th><th></th></tr></thead><tbody id="rw-versions"></tbody></table></div>
-    </div>
-    <details class="overview-card">
-      <summary class="overview-card-title">Journal</summary>
+      <h4>Journal</h4>
       <div style="overflow-x:auto"><table><thead><tr><th>Date (UTC)</th><th>Action</th><th>Version</th><th>Détail</th></tr></thead><tbody id="rw-audit"></tbody></table></div>
     </details>
 
-    <dialog id="rw-dialog" class="bk-dialog adm-dialog" aria-labelledby="rw-dialog-title">
+    <dialog id="rw-dialog" class="bk-dialog adm-dialog rw-dialog" aria-labelledby="rw-dialog-title">
       <div class="section-header bk-dialog-head">
         <h3 class="overview-card-title" id="rw-dialog-title">Coffre</h3>
         <button type="button" class="btn btn-outline" data-close aria-label="Fermer la fiche">✕ Fermer</button>
       </div>
-      <p id="rw-dlg-summary" class="muted" style="font-size:0.85rem"></p>
-      <label id="rw-dlg-max-wrap">Limite par joueur et par saison (vide = illimité) <input id="rw-dlg-max" type="number" min="1" max="1000" step="1"></label>
-      <div style="overflow-x:auto"><table class="rw-rows"><thead><tr><th>Chance</th><th>Poids</th><th>Récompense</th><th>Valeurs</th><th></th></tr></thead><tbody id="rw-dlg-rows"></tbody></table></div>
+      <p id="rw-dlg-kind" class="muted rw-dlg-kind"></p>
+      <div id="rw-dlg-shop" class="rw-dlg-shop">
+        <label class="rw-field">Prix (pièces 🪙) <input id="rw-dlg-cost" type="number" min="1" step="1" inputmode="numeric"></label>
+        <label class="rw-field">Limite par joueur et par saison <input id="rw-dlg-max" type="number" min="1" max="1000" step="1" placeholder="illimité" inputmode="numeric"></label>
+        <details class="rw-info"><summary>ⓘ Quand le prix change-t-il ?</summary>
+          <p class="muted">Le prix et la limite saisis ici vont dans le brouillon, comme les récompenses : <strong>rien ne change en jeu</strong> avant « Publier le brouillon ».
+            La publication applique ensemble prix, limites et récompenses des six coffres (une seule version, retour arrière possible).</p></details>
+      </div>
+      <h4 class="rw-dlg-h">Ce que le coffre peut donner <span class="muted" id="rw-dlg-total"></span></h4>
+      <div id="rw-dlg-rows" class="rw-lines"></div>
       <div class="form-actions">
         <button class="btn" id="btn-rw-add-row" type="button">＋ Ajouter une récompense</button>
+        <button class="btn btn-outline" id="btn-rw-normalize" type="button" title="Ajuste toutes les chances dans les mêmes proportions pour que le total fasse 100 %">Ramener le total à 100 %</button>
       </div>
+      <div id="rw-dlg-balance" class="rw-balance" aria-live="polite"></div>
+      <div id="rw-dlg-notices"></div>
+      <details class="rw-compare" id="rw-dlg-compare-wrap" open>
+        <summary>Aujourd'hui en jeu / Mon brouillon</summary>
+        <div id="rw-dlg-compare"></div>
+      </details>
       <p id="rw-dlg-error" class="error hidden"></p>
       <div class="form-actions">
         <button class="btn btn-primary" id="btn-rw-save" type="button">Enregistrer dans le brouillon</button>

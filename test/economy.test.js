@@ -208,6 +208,19 @@ function client() {
 }
 
 const admin = (key, value) => client()('PUT', '/api/admin/config', { key, value }, { Authorization: `Bearer ${ADMIN}` });
+const adminApi = (method, url, body) => client()(method, url, body, { Authorization: `Bearer ${ADMIN}` });
+
+/** #88 : un prix de coffre ne change que par le brouillon des coffres puis la publication. */
+async function publishChestCost(id, cost) {
+  const view = await adminApi('GET', '/api/admin/rewards');
+  const tables = view.body.draft?.tables ?? view.body.published.tables;
+  tables.shop[id].cost = cost;
+  const d = await adminApi('PUT', '/api/admin/rewards/draft', { tables });
+  assert.strictEqual(d.status, 200, JSON.stringify(d.body));
+  const p = await adminApi('POST', '/api/admin/rewards/publish', { note: 'test prix' });
+  assert.strictEqual(p.status, 200, JSON.stringify(p.body));
+  return p.body;
+}
 
 test.before(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dig-economy-test-'));
@@ -229,31 +242,38 @@ test('HTTP : /api/seasons/current expose config.economy et suit l\'admin sans re
   assert.deepStrictEqual(r.body.config.economy, economy.getEconomy({}));
 
   assert.strictEqual((await admin('coin_gain_multiplier', '2')).status, 200);
-  assert.strictEqual((await admin('chest_cost_simple', '500')).status, 200);
+  const pub = await publishChestCost('simple', 900);
+  assert.deepStrictEqual(pub.priceChanges, [{ id: 'simple', before: 2000, after: 900 }]);
   r = await anon('GET', '/api/seasons/current');
   assert.strictEqual(r.body.config.economy.coinGainMultiplier, 2);
-  assert.strictEqual(r.body.config.economy.chestCosts.simple, 500);
+  assert.strictEqual(r.body.config.economy.chestCosts.simple, 900);
 });
 
 test('HTTP : saisie admin invalide refusée (400) et valeur précédente conservée', async () => {
   const r = await admin('upgrade_cost_multiplier', '0');
   assert.strictEqual(r.status, 400);
   assert.match(r.body.error, /upgrade_cost_multiplier/);
-  assert.strictEqual((await admin('chest_cost_rare', '-1')).status, 400);
   const row = db.prepare(`SELECT value FROM admin_config WHERE key='upgrade_cost_multiplier'`).get();
   assert.strictEqual(row.value, '1.0');
+  // #88 : plus de saisie directe du prix des coffres (un seul endroit : Coffres & drops)
+  for (const v of ['-1', '15000', '1']) {
+    const c = await admin('chest_cost_rare', v);
+    assert.strictEqual(c.status, 409);
+    assert.match(c.body.error, /Coffres & drops/);
+  }
+  assert.strictEqual(db.prepare(`SELECT value FROM admin_config WHERE key='chest_cost_rare'`).get().value, '15000');
 });
 
 test('HTTP : l\'achat d\'un coffre applique le coût réglé dans l\'admin', async () => {
   const call = client();
   const reg = await call('POST', '/api/register', { username: 'eco_buyer', email: 'eco_buyer@example.invalid', password: 'secret123' });
   assert.strictEqual(reg.status, 200, JSON.stringify(reg.body));
-  const s = await call('POST', '/api/me/save', { data: { coins: 600, relicFragments: 0, collection: [], shopChestsBought: {} } });
+  const s = await call('POST', '/api/me/save', { data: { coins: 1000, relicFragments: 0, collection: [], shopChestsBought: {} } });
   assert.strictEqual(s.status, 200, JSON.stringify(s.body));
 
   const r = await call('POST', '/api/me/shop/chest/open', { chestId: 'simple' });
   assert.strictEqual(r.status, 200, JSON.stringify(r.body));
-  assert.strictEqual(r.body.cost, 500);
+  assert.strictEqual(r.body.cost, 900);
   const gained = r.body.reward.type === 'coins' ? r.body.reward.amount : 0;
   assert.strictEqual(r.body.newCoins, 100 + gained);
 });

@@ -248,8 +248,8 @@ function admAlert(message, title = 'Information') {
   return admConfirm({ title, text: String(message), ok: 'OK', cancel: null });
 }
 /** Remplace prompt() (#61) : petite fiche de saisie Dig ; rend la valeur saisie, ou null si Annuler / Échap / fond. */
-async function admPrompt({ title, text = '', label = '', value = '', type = 'text', ok = 'Valider', placeholder = '' }) {
-  if (!await admConfirm({ title, text, ok, field: { label, value, type, placeholder } })) return null;
+async function admPrompt({ title, text = '', impact = [], label = '', value = '', type = 'text', ok = 'Valider', placeholder = '' }) {
+  if (!await admConfirm({ title, text, impact, ok, field: { label, value, type, placeholder } })) return null;
   return document.getElementById(type === 'textarea' ? 'adm-confirm-area' : 'adm-confirm-input').value;
 }
 
@@ -566,7 +566,7 @@ const ADM_NAV = [
   { id: 'missions',        group: 'game',        order: 50, icon: '🎯', label: 'Missions quotidiennes',    keywords: 'quêtes journalières',                           load: () => loadMissions() },
   { id: 'economy',         group: 'game',        order: 60, icon: '💰', label: 'Économie',                 keywords: 'gemmes barèmes',                                load: () => { loadEconomy(); loadGemLedger(); loadEconomyRules(); loadGemShop(); loadFragmentPack(); },
     subs: [
-      { id: 'gains',   label: 'Gains & coûts des coffres', keywords: 'multiplicateurs pièces fragments prix coffres' },
+      { id: 'gains',   label: 'Gains (prix des coffres en lecture)', keywords: 'multiplicateurs pièces fragments prix coffres' },
       { id: 'ledger',  label: 'Registre de gemmes',        keywords: 'soldes référence anomalies mode' },
       { id: 'rules',   label: 'Règles économiques',        keywords: 'barème plafond auto-dig courbe simulation publication versions' },
       { id: 'gemshop', label: 'Boutique en gemmes',        keywords: 'articles prix ouverture' },
@@ -607,8 +607,8 @@ const ADM_NAV_ACTIONS = [
   { id: 'beta-feedback',  tab: 'beta',     target: 'beta-feedback-card',   label: 'Lire les retours des testeurs',                  keywords: 'feedback signalements bugs', help: 'Retours envoyés depuis le jeu par les testeurs.' },
   { id: 'beta-manage',    tab: 'beta',     target: 'btn-beta-manage',      label: 'Révoquer ou archiver un lien, retirer un testeur', keywords: 'gérer invitations testeurs révoquer archiver masquer supprimer retirer lien code bêta', help: 'Bouton « 🗂️ Gérer les invitations et testeurs » : listes filtrables ; chaque retrait demande une confirmation et reste réversible (archives, « Réintégrer »).' },
   { id: 'beta-archive',   tab: 'beta',     target: 'beta-reports-view',    label: 'Archiver un retour de test traité',              keywords: 'archives retours signalements masquer ranger bêta', help: 'Retours des testeurs → bouton « 🗄️ Archiver » d\'un retour ; « Afficher : Archives » pour les retrouver et les réafficher. Rien n\'est supprimé.' },
-  { id: 'gains',          tab: 'economy',  sub: 'gains', target: 'eco-coin-gain', label: 'Modifier les gains (multiplicateurs)',     keywords: 'gain pièces fragments multiplicateur économie', help: 'Économie → Gains & coûts : saisir puis « Enregistrer les paramètres économiques ».' },
-  { id: 'chest-costs',    tab: 'economy',  sub: 'gains', target: 'eco-cost-simple', label: 'Changer le prix des coffres',           keywords: 'coût coffre simple rare antique', help: 'Économie → Gains & coûts → Coûts des coffres (vide = valeur par défaut).' },
+  { id: 'gains',          tab: 'economy',  sub: 'gains', target: 'eco-coin-gain', label: 'Modifier les gains (multiplicateurs)',     keywords: 'gain pièces fragments multiplicateur économie', help: 'Économie → Gains : saisir puis « Enregistrer les paramètres économiques ».' },
+  { id: 'chest-costs',    tab: 'rewards',  target: 'rw-cards', label: 'Changer le prix des coffres',           keywords: 'coût prix coffre simple rare antique limite', help: '🎲 Coffres & drops → « Modifier ce coffre » : prix, limite et récompenses vont dans le brouillon, appliqués ensemble à la publication (#88).' },
   { id: 'gem-ledger',     tab: 'economy',  sub: 'ledger', target: 'gem-ledger-card', label: 'Vérifier le registre de gemmes',       keywords: 'gemmes soldes écart', help: 'Économie → Registre de gemmes (lecture ; changer le mode demande une note).' },
   { id: 'season-end',     tab: 'season-overview', target: 'season-end-card', label: 'Changer la date de fin de la saison',        keywords: 'prolonger avancer fin saison date', help: 'Saison en cours → « Date de fin de la saison active » (journalisé).' },
   { id: 'season-close',   tab: 'season-overview', target: 'season-critical-card', label: 'Clore la saison (zone critique)',      keywords: 'terminer fermer saison', help: 'Saison en cours → Zone critique. Confirmation obligatoire.' },
@@ -1296,9 +1296,9 @@ const CONFIG_GROUPS = [
     upgrade_cost_multiplier:  { label: 'Coût des améliorations', hint: 'Multiplie le coût en pièces des améliorations (0,1 à 10 ; 1 = normal).', type: 'number', min: 0.1, max: 10, step: 0.1 },
     coin_gain_multiplier:     { label: 'Pièces gagnées', hint: 'Multiplie les pièces gagnées par bloc et hors ligne (0,1 à 10).', type: 'number', min: 0.1, max: 10, step: 0.1 },
     fragment_drop_multiplier: { label: 'Fragments des coffres', hint: 'Multiplie les fragments des coffres de la boutique (0,1 à 10).', type: 'number', min: 0.1, max: 10, step: 0.1 },
-    chest_cost_simple:        { label: 'Prix du coffre simple', hint: 'En pièces (entier ≥ 1).', type: 'number', min: 1, step: 1 },
-    chest_cost_rare:          { label: 'Prix du coffre rare', hint: 'En pièces (entier ≥ 1).', type: 'number', min: 1, step: 1 },
-    chest_cost_antique:       { label: 'Prix du coffre antique', hint: 'En pièces (entier ≥ 1).', type: 'number', min: 1, step: 1 },
+    chest_cost_simple:        { label: 'Prix du coffre simple', hint: 'Lecture seule : se modifie dans 🎲 Coffres & drops (fiche du coffre, brouillon puis publication) (#88).', type: 'number', min: 1, step: 1, readOnly: true },
+    chest_cost_rare:          { label: 'Prix du coffre rare', hint: 'Lecture seule : se modifie dans 🎲 Coffres & drops (fiche du coffre, brouillon puis publication) (#88).', type: 'number', min: 1, step: 1, readOnly: true },
+    chest_cost_antique:       { label: 'Prix du coffre antique', hint: 'Lecture seule : se modifie dans 🎲 Coffres & drops (fiche du coffre, brouillon puis publication) (#88).', type: 'number', min: 1, step: 1, readOnly: true },
   } },
   { id: 'protection', title: '🛡 Protections (anti-triche)', fields: {
     anti_autoclick_enabled:   { label: 'Anti-autoclicker', hint: 'Contrôle la cadence de clics des sauvegardes.', type: 'bool' },
@@ -1399,7 +1399,7 @@ async function loadConfig() {
   const cfg = data.config, known = new Set(Object.keys(CONFIG_LEGACY));
   const groups = CONFIG_GROUPS.map(g => {
     Object.keys(g.fields).forEach(k => known.add(k));
-    return { id: g.id, title: g.title, rows: Object.entries(g.fields).filter(([k]) => cfg[k] !== undefined).map(([k, def]) => cfgField(k, cfg[k], def)) };
+    return { id: g.id, title: g.title, rows: Object.entries(g.fields).filter(([k]) => cfg[k] !== undefined).map(([k, def]) => cfgField(k, cfg[k], def, def.readOnly)) };
   });
   // Clé absente de la liste (ajoutée par un futur ticket) : modifiable comme avant, en texte libre.
   groups.push({ id: 'other', title: '🔧 Autres réglages', rows: Object.keys(cfg).filter(k => !known.has(k)).map(k => cfgField(k, cfg[k], null)) });
@@ -1896,10 +1896,10 @@ const ECO_KEYS = [
   { key: 'upgrade_cost_multiplier',  inputId: 'eco-upgrade-cost' },
   { key: 'coin_gain_multiplier',     inputId: 'eco-coin-gain'    },
   { key: 'fragment_drop_multiplier', inputId: 'eco-frag-drop'    },
-  { key: 'chest_cost_simple',        inputId: 'eco-cost-simple'  },
-  { key: 'chest_cost_rare',          inputId: 'eco-cost-rare'    },
-  { key: 'chest_cost_antique',       inputId: 'eco-cost-antique' },
 ];
+// #88 : prix des coffres en lecture seule ici (une seule saisie : 🎲 Coffres & drops)
+const ECO_CHEST_NAMES = { simple: '📦 Coffre simple', rare: '💎 Coffre rare', antique: '🏺 Coffre antique' };
+document.getElementById('btn-eco-chest-costs').addEventListener('click', () => admNavOpen('rewards'));
 
 const _ecoZone = admZone(document.getElementById('eco-upgrade-cost').closest('.overview-card'));
 async function loadEconomy() {
@@ -1909,6 +1909,8 @@ async function loadEconomy() {
     const input = document.getElementById(inputId);
     if (input && data.config[key] !== undefined) input.value = data.config[key];
   });
+  document.getElementById('eco-chest-costs').replaceChildren(...Object.entries(ECO_CHEST_NAMES).map(([id, name]) =>
+    aiEl('li', {}, `${name} : ${data.config[`chest_cost_${id}`] != null ? `${Number(data.config[`chest_cost_${id}`]).toLocaleString('fr-BE')} pièces` : 'prix par défaut'}`)));
 }
 
 document.getElementById('btn-save-economy').addEventListener('click', async () => {
@@ -9197,132 +9199,257 @@ document.getElementById('btn-ad-toggle').addEventListener('click', async () => {
   renderAds(data);
 });
 
-// ── Coffres & drops (#37, objectif 4) ─────────────────────────────────────────
-// Tables de récompenses versionnées (server/rewardTables.js) : la page montre la version en vigueur
-// (ou le brouillon s'il existe) ; clic sur un coffre → fiche d'édition de ses lignes → « Enregistrer
-// dans le brouillon » ; publication et retour arrière comme pour les blocs.
+// ── Coffres & drops (#37, objectif 4 ; refonte #88) ───────────────────────────
+// Un seul endroit pour les six coffres : six cartes (prix, limite, chances, équilibre, statut), une fiche
+// par coffre (prix et limite pour la boutique, récompenses en lignes avec chance en %, équilibre expliqué
+// pendant la saisie, comparaison « Aujourd'hui en jeu / Mon brouillon »). Tout va dans un brouillon unique
+// (server/rewardTables.js) ; « Publier » applique ensemble prix, limites et récompenses des six coffres
+// (une version, retour arrière possible). Les détails techniques (poids, versions, journal) sont repliés.
 
 const RW_NAMES = {
   shop:  { simple: '📦 Coffre simple', rare: '💎 Coffre rare', antique: '🏺 Coffre antique' },
-  mined: { commun: '🧰 Vieille caisse (bloc commun)', rare: '🪵 Coffre en bois (bloc rare)', epique: '🔩 Coffre en fer (bloc épique)' },
+  mined: { commun: '🧰 Vieille caisse', rare: '🪵 Coffre en bois', epique: '🔩 Coffre en fer' },
 };
+const RW_MINED_BLOCK = { commun: 'bloc commun « Vieille caisse »', rare: 'bloc rare « Coffre en bois »', epique: 'bloc épique « Coffre en fer »' };
 const RW_TYPES = { coins: '💰 Pièces', relics: '🔮 Fragments', boost: '⚡ Boost de gains', collection: '📿 Objet de collection' };
 const RW_ACTIONS = { migrate: 'création v1', draft_save: 'brouillon enregistré', draft_clean: 'brouillon identique retiré',
-  draft_discard: 'brouillon abandonné', draft_preset: 'préréglage chargé dans le brouillon', publish: 'publication', rollback: 'retour arrière' };
+  draft_discard: 'brouillon abandonné (copie gardée ici)', draft_preset: 'préréglage chargé dans le brouillon', publish: 'publication', rollback: 'retour arrière' };
 let _rw = null;          // vue GET /api/admin/rewards
-let _rwEdit = null;      // { family, id } du coffre ouvert dans la fiche
+let _rwEdit = null;      // { family, id, weights, pcts } du coffre ouvert dans la fiche
+let _rwVisuals = {};     // `${family}:${id}` → cible de l'atelier (#66), pour l'image des cartes
 
 const rwFmt = n => Number(n).toLocaleString('fr-BE');
+const rwPct = (n, d = 2) => `${Number(n).toLocaleString('fr-BE', { maximumFractionDigits: d })} %`;
 
 function rwRowLabel(r) {
-  if (r.type === 'coins')  return `${RW_TYPES.coins} ${rwFmt(r.min)}–${rwFmt(r.max)}${r.jackpot ? ' · gros lot' : ''}`;
+  if (r.type === 'coins')  return `${RW_TYPES.coins} ${rwFmt(r.min)} à ${rwFmt(r.max)}${r.jackpot ? ' (gros lot)' : ''}`;
   if (r.type === 'relics') return `${RW_TYPES.relics} × ${rwFmt(r.amount)}`;
-  if (r.type === 'boost')  return `${RW_TYPES.boost} ×${r.mult}, ${r.minutes} min`;
-  return RW_TYPES.collection;
+  if (r.type === 'boost')  return `${RW_TYPES.boost} ×${String(r.mult).replace('.', ',')} pendant ${r.minutes} min`;
+  return `${RW_TYPES.collection} (1 objet manquant)`;
 }
+const rwRowKey = r => JSON.stringify([r.type, r.min, r.max, r.amount, r.mult, r.minutes, !!r.jackpot]);
 
-/** Tables affichées : brouillon s'il existe (et lisible), sinon version en vigueur. */
+/** Tables du brouillon s'il existe, sinon celles en jeu (prix proposés seulement s'ils diffèrent). */
 function rwCurrentTables() {
   return structuredClone(_rw.draft?.tables ?? _rw.published.tables);
 }
 
+/** Coffre normalisé { cost, maxPerSeason, table } : en jeu (`pub`) ou dans le brouillon (sinon en jeu). */
+function rwDef(which, family, id) {
+  const pub = _rw.published.tables;
+  const src = which === 'pub' || !_rw.draft ? pub : _rw.draft.tables;
+  if (family === 'mined') return { cost: null, maxPerSeason: null, table: src.mined[id] };
+  const d = src.shop[id];
+  return { cost: d.cost ?? _rw.costs[id], maxPerSeason: d.maxPerSeason ?? null, table: d.table };
+}
+
+/** Chances (%), pièces et fragments moyens, part des tirages en pièces et en fragments. */
 function rwStats(table) {
-  const total = table.reduce((s, r) => s + (Number(r.weight) > 0 ? Number(r.weight) : 0), 0) || 1;
-  let coins = 0, fragments = 0;
+  const w = r => (Number(r.weight) > 0 ? Number(r.weight) : 0);
+  const total = table.reduce((s, r) => s + w(r), 0) || 1;
+  let coins = 0, fragments = 0, coinShare = 0, fragChance = 0, coinW = 0, coinSum = 0;
   const chances = table.map(r => {
-    const p = (Number(r.weight) > 0 ? Number(r.weight) : 0) / total;
-    if (r.type === 'coins') coins += p * (Number(r.min) + Number(r.max)) / 2;
-    if (r.type === 'relics') fragments += p * Number(r.amount);
+    const p = w(r) / total;
+    if (r.type === 'coins') { coins += p * (Number(r.min) + Number(r.max)) / 2; coinShare += p; coinW += w(r); coinSum += w(r) * (Number(r.min) + Number(r.max)) / 2; }
+    if (r.type === 'relics') { fragments += p * Number(r.amount); fragChance += p; }
     return p * 100;
   });
-  return { chances, coins: Math.round(coins), fragments: Math.round(fragments * 100) / 100 };
+  return { chances, coins: Math.round(coins), fragments: Math.round(fragments * 100) / 100,
+    coinShare: coinShare * 100, fragChance: fragChance * 100, perCoinDraw: coinW ? coinSum / coinW : 0 };
+}
+
+/** Équilibre d'un coffre de boutique (même calcul que balanceAdvice côté serveur). */
+function rwBalance(table, cost) {
+  const st = rwStats(table);
+  const out = { cost, coins: st.coins, ratio: cost ? st.coins / cost * 100 : null, nonCoin: 100 - st.coinShare, level: 'ok' };
+  if (!cost) return out;
+  if (st.coins >= cost) out.level = 'profit';
+  else if (st.coins >= cost * 0.8) out.level = 'high';
+  if (out.level !== 'ok') {
+    out.minPrice = st.coins + 1;
+    out.priceUnder80 = Math.floor(st.coins / 0.8 / 50) * 50 + 50;
+    if (st.perCoinDraw > 0) {
+      out.minNonCoin = Math.round((Math.max(0, 1 - cost / st.perCoinDraw) * 100 + 0.1) * 10) / 10;
+      out.nonCoinUnder80 = Math.round((Math.max(0, 1 - cost * 0.8 / st.perCoinDraw) * 100 + 0.1) * 10) / 10;
+    }
+  }
+  return out;
 }
 
 function rwChanged(family, id) {
   return (_rw.draft?.changes ?? []).some(c => c.family === family && c.id === id);
 }
 
-function rwRenderFamily(family, el) {
-  const tables = rwCurrentTables();
-  el.textContent = '';
-  for (const id of (family === 'shop' ? _rw.shopIds : _rw.minedIds)) {
-    const def = family === 'shop' ? tables.shop[id] : { table: tables.mined[id] };
-    const st = rwStats(def.table);
-    const wrap = document.createElement('div');
-    wrap.className = 'rw-chest';
-    const h = document.createElement('h4');
-    const cost = family === 'shop' ? _rw.costs[id] : null;
-    h.textContent = `${RW_NAMES[family][id]}${rwChanged(family, id) ? ' — modifié dans le brouillon' : ''}`;
-    const meta = document.createElement('p');
-    meta.className = 'muted';
-    meta.style.fontSize = '0.8rem';
-    meta.textContent = [
-      cost ? `Prix ${rwFmt(cost)} pièces` : null,
-      family === 'shop' ? (def.maxPerSeason ? `max ${def.maxPerSeason} par saison` : 'illimité') : null,
-      `en moyenne ${rwFmt(st.coins)} pièces${cost ? ` (${Math.round(st.coins / cost * 100)} % du prix)` : ''} et ${st.fragments} fragments par ouverture`,
-    ].filter(Boolean).join(' · ');
-    const table = document.createElement('table');
-    table.innerHTML = '<thead><tr><th>Chance</th><th>Récompense</th></tr></thead>';
-    const tb = document.createElement('tbody');
-    def.table.forEach((r, i) => {
-      const tr = document.createElement('tr');
-      addCell(tr, `${st.chances[i].toFixed(2)} %`);
-      addCell(tr, rwRowLabel(r));
-      tb.appendChild(tr);
-    });
-    table.appendChild(tb);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn';
-    btn.textContent = '✎ Modifier ce coffre';
-    btn.dataset.admKey = `rw-${family}-${id}`;
-    btn.addEventListener('click', () => rwOpen(family, id, btn));
-    wrap.append(h, meta, table, btn);
-    el.appendChild(wrap);
+/** Lignes « Élément · Aujourd'hui en jeu · Mon brouillon » qui changent (aucune chaîne « ligne 2 → ligne 3 »). */
+function rwCompareRows(family, a, b) {
+  const out = [];
+  if (family === 'shop') {
+    if (a.cost !== b.cost) out.push(['Prix', `${rwFmt(a.cost)} pièces`, `${rwFmt(b.cost)} pièces`]);
+    if ((a.maxPerSeason ?? null) !== (b.maxPerSeason ?? null)) out.push(['Limite par saison', a.maxPerSeason ?? 'illimité', b.maxPerSeason ?? 'illimité']);
   }
+  const sa = rwStats(a.table), sb = rwStats(b.table);
+  const by = (t, st) => { const m = new Map(); t.forEach((r, i) => { const k = rwRowKey(r); m.set(k, { r, p: (m.get(k)?.p ?? 0) + st.chances[i] }); }); return m; };
+  const ma = by(a.table, sa), mb = by(b.table, sb);
+  for (const k of new Set([...ma.keys(), ...mb.keys()])) {
+    const pa = ma.get(k)?.p ?? 0, pb = mb.get(k)?.p ?? 0;
+    if (Math.abs(pa - pb) < 0.005) continue;
+    out.push([rwRowLabel((ma.get(k) ?? mb.get(k)).r), pa ? rwPct(pa) : '— (absente)', pb ? rwPct(pb) : '— (retirée)']);
+  }
+  if (out.length) {
+    if (sa.coins !== sb.coins) out.push(['Pièces rendues en moyenne', `${rwFmt(sa.coins)}${a.cost ? ` (${rwPct(sa.coins / a.cost * 100, 0)} du prix)` : ''}`, `${rwFmt(sb.coins)}${b.cost ? ` (${rwPct(sb.coins / b.cost * 100, 0)} du prix)` : ''}`]);
+    if (sa.fragments !== sb.fragments || Math.abs(sa.fragChance - sb.fragChance) >= 0.005) {
+      out.push(['Fragments', `${rwPct(sa.fragChance)} de chance · ${rwFmt(sa.fragments)} en moyenne`, `${rwPct(sb.fragChance)} de chance · ${rwFmt(sb.fragments)} en moyenne`]);
+    }
+  }
+  return out;
 }
 
+function rwCompareTable(rows) {
+  if (!rows.length) return aiEl('p', { class: 'muted' }, 'Identique à ce qui est en jeu.');
+  const table = aiEl('table', { class: 'rw-cmp' });
+  const head = aiEl('thead'); const hr = aiEl('tr');
+  for (const h of ['', 'Aujourd\'hui en jeu', 'Mon brouillon']) hr.appendChild(aiEl('th', {}, h));
+  head.appendChild(hr);
+  const tb = aiEl('tbody');
+  for (const [label, before, after] of rows) {
+    const tr = aiEl('tr');
+    tr.append(aiEl('th', { scope: 'row' }, label), aiEl('td', { 'data-label': 'En jeu' }, String(before)), aiEl('td', { 'data-label': 'Brouillon' }, `→ ${after}`));
+    tb.appendChild(tr);
+  }
+  table.append(head, tb);
+  const wrap = aiEl('div', { class: 'rw-cmp-wrap' });
+  wrap.appendChild(table);
+  return wrap;
+}
+
+/** Texte d'équilibre (carte et fiche). */
+function rwBalanceText(b) {
+  if (b.level === 'profit') return `⛔ Rend plus que son prix (${rwFmt(b.coins)} pour ${rwFmt(b.cost)})`;
+  if (b.level === 'high') return `⚠ ${rwPct(b.ratio, 1)} du prix rendu en pièces (proche de la limite)`;
+  return `✓ ${rwPct(b.ratio, 0)} du prix rendu en pièces`;
+}
+
+function rwCard(family, id) {
+  const d = rwDef('draft', family, id), p = rwDef('pub', family, id);
+  const st = rwStats(d.table), stp = rwStats(p.table);
+  const changed = rwChanged(family, id);
+  const bal = family === 'shop' ? rwBalance(d.table, d.cost) : null;
+  const card = aiEl('article', { class: `rw-card${changed ? ' is-draft' : ''}${bal?.level === 'profit' ? ' is-problem' : ''}`, id: `rw-card-${family}-${id}` });
+  const head = aiEl('div', { class: 'rw-card-head' });
+  const t = _rwVisuals[`${family}:${id}`];
+  head.appendChild(t ? icThumb(t, 44) : aiEl('span', { class: 'bk-thumb ic-thumb bk-thumb--emoji', style: 'width:44px;height:44px;font-size:24px' }, RW_NAMES[family][id].split(' ')[0]));
+  const ttl = aiEl('div', { class: 'rw-card-title' });
+  ttl.appendChild(aiEl('h3', {}, RW_NAMES[family][id].replace(/^\S+\s/, '')));
+  const badges = aiEl('div', { class: 'rw-badges' });
+  badges.appendChild(aiEl('span', { class: 'rw-badge' }, family === 'shop' ? '🛍 Boutique' : '⛏ Trouvé en minant'));
+  badges.appendChild(aiEl('span', { class: `rw-badge ${changed ? 'rw-badge--draft' : 'rw-badge--live'}` }, changed ? '✎ Brouillon (pas encore en jeu)' : '● En jeu'));
+  ttl.appendChild(badges);
+  head.appendChild(ttl);
+  const dl = aiEl('dl', { class: 'rw-facts' });
+  const fact = (k, v, was) => { dl.append(aiEl('dt', {}, k)); const dd = aiEl('dd', {}, v); if (was && was !== v) dd.appendChild(aiEl('span', { class: 'muted rw-was' }, ` (en jeu : ${was})`)); dl.append(dd); };
+  if (family === 'shop') {
+    fact('Prix', `${rwFmt(d.cost)} 🪙`, `${rwFmt(p.cost)} 🪙`);
+    fact('Limite', d.maxPerSeason ? `${d.maxPerSeason} par saison` : 'illimité', p.maxPerSeason ? `${p.maxPerSeason} par saison` : 'illimité');
+  } else {
+    fact('Trouvé', `en cassant le ${RW_MINED_BLOCK[id]}`);
+  }
+  fact('Fragments', st.fragChance ? `${rwPct(st.fragChance)} de chance · ${rwFmt(st.fragments)} en moyenne` : 'aucun',
+    stp.fragChance ? `${rwPct(stp.fragChance)} · ${rwFmt(stp.fragments)}` : 'aucun');
+  fact('Pièces', `${rwFmt(st.coins)} en moyenne`, `${rwFmt(stp.coins)}`);
+  if (bal) fact('Équilibre', rwBalanceText(bal));
+  card.append(head, dl);
+  if (family === 'shop' && st.fragChance > 0) card.appendChild(aiEl('p', { class: 'rw-card-warn' }, '⚠ Donne des fragments contre des pièces : non conforme à la décision du 04/11 (#49).'));
+  const btn = aiEl('button', { type: 'button', class: 'btn', 'data-adm-key': `rw-${family}-${id}` }, '✎ Modifier ce coffre');
+  btn.addEventListener('click', () => rwOpen(family, id, btn));
+  card.appendChild(btn);
+  return card;
+}
+
+/** Bandeau d'état, problèmes avant publication (avec lien vers le coffre), cartes, détails avancés. */
 function rwRender() {
   const d = _rw.draft;
-  document.getElementById('rw-banner').textContent = `Version en vigueur : v${_rw.published.version}` +
-    (d ? ` — brouillon en cours (${d.changes.length} coffre(s) modifié(s), non visible en jeu)` : ' — aucun brouillon');
-  rwRenderFamily('shop', document.getElementById('rw-shop'));
-  rwRenderFamily('mined', document.getElementById('rw-mined'));
+  const pubV = _rw.versions.find(v => v.version === _rw.published.version);
+  const banner = document.getElementById('rw-banner');
+  banner.textContent = '';
+  banner.append(aiEl('strong', {}, `En jeu : version v${_rw.published.version}`), pubV ? ` (depuis le ${pubV.createdAt} UTC). ` : '. ');
+  banner.append(d ? aiEl('strong', { class: 'rw-draft-word' }, `Brouillon : ${d.changes.length} coffre(s) modifié(s), pas encore visible en jeu`) : 'Aucun brouillon : les cartes montrent ce qui est en jeu.');
+  if (d) banner.append(` (enregistré le ${d.updatedAt} UTC).`);
 
-  const box = document.getElementById('rw-draft');
-  box.textContent = '';
-  if (!d) {
-    box.innerHTML = '<p class="muted">Aucun brouillon : modifiez un coffre pour en créer un.</p>';
-  } else {
-    const ul = document.createElement('ul');
-    for (const c of d.changes) {
-      const li = document.createElement('li');
-      const parts = c.rows.map(r => `ligne ${r.row} : ${r.before ? rwRowLabel(r.before) + ` (poids ${r.before.weight})` : '—'} → ${r.after ? rwRowLabel(r.after) + ` (poids ${r.after.weight})` : 'supprimée'}`);
-      if (c.maxPerSeason) parts.push(`limite par saison : ${c.maxPerSeason[0] ?? 'illimité'} → ${c.maxPerSeason[1] ?? 'illimité'}`);
-      li.textContent = `${RW_NAMES[c.family][c.id]} — ${parts.join(' ; ')}`;
-      ul.appendChild(li);
+  const probs = document.getElementById('rw-problems');
+  probs.textContent = '';
+  const link = (family, id) => { const b = aiEl('button', { type: 'button', class: 'btn-ghost rw-link', title: 'Ouvrir la fiche de ce coffre' }, RW_NAMES[family][id]); b.addEventListener('click', () => rwOpen(family, id, b)); return b; };
+  if (d) {
+    const issues = d.issues ?? [];
+    const blocking = d.errors.length;
+    const li0 = aiEl('li', { class: blocking ? 'rw-prob rw-prob--error' : 'rw-prob rw-prob--ok' },
+      blocking ? `⛔ Publication impossible : ${blocking} problème${blocking > 1 ? 's' : ''} à corriger` : '✓ Le brouillon peut être publié (après votre validation).');
+    probs.appendChild(li0);
+    for (const e of d.errors) {
+      const iss = issues.find(x => x.kind === 'profit' && e.startsWith(`Boutique ${x.id} :`));
+      const li = aiEl('li', { class: 'rw-prob rw-prob--error' }, iss ? '' : e);
+      if (iss) li.append(link('shop', iss.id), ` : coûte ${rwFmt(iss.cost)} pièces mais rend en moyenne ${rwFmt(iss.expectedCoins)} pièces — on pourrait gagner des pièces en l'achetant en boucle. Ouvrez la fiche pour voir comment corriger.`);
+      probs.appendChild(li);
     }
-    box.appendChild(ul);
-    for (const [list, cls] of [[d.errors, 'error'], [d.warnings, 'muted']]) {
-      for (const e of list) { const p = document.createElement('p'); p.className = cls; p.textContent = (cls === 'error' ? '⛔ ' : '⚠ ') + e; box.appendChild(p); }
+    for (const x of issues.filter(i => i.kind === 'high')) {
+      const li = aiEl('li', { class: 'rw-prob rw-prob--warn' });
+      li.append(link('shop', x.id), ` : rend ${rwPct(x.ratio, 1)} de son prix en pièces (avertissement, non bloquant).`);
+      probs.appendChild(li);
     }
   }
+  // Conformité #49 regroupée en une ligne (non bloquante : la décision de publier reste au propriétaire)
+  const notices = (d ? d.notices : _rw.published.notices) ?? [];
+  if (notices.length) {
+    const li = aiEl('li', { class: 'rw-prob rw-prob--warn' }, `⚠ ${d ? 'Brouillon' : 'En jeu aujourd\'hui'} : des coffres achetés avec des pièces donnent des fragments, non conforme à la décision du 04/11 (#49 ; non bloquant) — `);
+    notices.forEach((n, i) => { li.append(i ? ', ' : '', link('shop', n.id), ` ${rwPct(n.chance)}`); });
+    li.append('. Préréglage S (sans fragments en boutique) dans Détails avancés.');
+    probs.appendChild(li);
+  }
+
+  const cards = document.getElementById('rw-cards');
+  cards.textContent = '';
+  for (const [family, ids] of [['shop', _rw.shopIds], ['mined', _rw.minedIds]]) {
+    const grp = aiEl('section', { class: 'rw-group', 'aria-label': family === 'shop' ? 'Coffres de la boutique' : 'Coffres trouvés en minant' });
+    grp.appendChild(aiEl('h3', { class: 'rw-group-title' }, family === 'shop' ? '🛍 Boutique — achetés avec des pièces, tirés par le serveur' : '⛏ Trouvés en minant — selon le bloc coffre cassé'));
+    const grid = aiEl('div', { class: 'rw-grid' });
+    for (const id of ids) grid.appendChild(rwCard(family, id));
+    grp.appendChild(grid);
+    cards.appendChild(grp);
+  }
+
   document.getElementById('btn-rw-sim-draft').disabled = !d;
   document.getElementById('btn-rw-publish').disabled = !d || d.errors.length > 0;
+  document.getElementById('btn-rw-publish').title = !d ? 'Aucun brouillon à publier' : d.errors.length ? 'Corrigez d\'abord les problèmes indiqués' : '';
   document.getElementById('btn-rw-discard').disabled = !d;
+  document.getElementById('btn-rw-restore').disabled = _rw.published.version <= 1;
+
   const ps = document.getElementById('rw-preset');
-  if (!ps.options.length) for (const p of _rw.presets ?? []) ps.append(new Option(p.label, p.id));
+  if (!ps.options.length) for (const p of _rw.presets ?? []) ps.append(new Option(`${p.label}${p.conform === false ? ' — ⚠ non conforme' : ''}`, p.id));
+  rwPresetNote();
+
+  // Écarts techniques (repliés) : poids bruts, pour le suivi fin
+  const box = document.getElementById('rw-draft');
+  box.textContent = '';
+  if (!d) box.appendChild(aiEl('p', { class: 'muted' }, 'Aucun brouillon.'));
+  else {
+    const ul = aiEl('ul', { class: 'rw-raw' });
+    for (const c of d.changes) {
+      const parts = c.rows.map(r => `ligne ${r.row} : ${r.before ? rwRowLabel(r.before) + ` (poids ${r.before.weight})` : '—'} → ${r.after ? rwRowLabel(r.after) + ` (poids ${r.after.weight})` : 'supprimée'}`);
+      if (c.maxPerSeason) parts.push(`limite par saison : ${c.maxPerSeason[0] ?? 'illimité'} → ${c.maxPerSeason[1] ?? 'illimité'}`);
+      if (c.cost) parts.push(`prix : ${rwFmt(c.cost[0])} → ${rwFmt(c.cost[1])}`);
+      ul.appendChild(aiEl('li', {}, `${RW_NAMES[c.family][c.id]} — ${parts.join(' ; ')}`));
+    }
+    box.appendChild(ul);
+  }
 
   const vb = document.getElementById('rw-versions');
   vb.textContent = '';
   for (const v of _rw.versions) {
     const tr = document.createElement('tr');
     const src = { origin: 'origine', publish: 'publication', rollback: `retour à v${v.fromVersion}` }[v.source] ?? v.source;
-    [`v${v.version}${v.version === _rw.published.version ? ' (en vigueur)' : ''}`, src, v.note ?? '', v.createdAt].forEach(x => addCell(tr, x));
+    [`v${v.version}${v.version === _rw.published.version ? ' (en jeu)' : ''}`, src, v.note ?? '', v.createdAt].forEach(x => addCell(tr, x));
     const td = document.createElement('td');
     if (v.version !== _rw.published.version) {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn btn-outline'; b.textContent = `Revenir à v${v.version}`;
+      const b = aiEl('button', { type: 'button', class: 'btn btn-outline' }, `Revenir à v${v.version}…`);
       b.addEventListener('click', () => rwRollback(v.version));
       td.appendChild(b);
     }
@@ -9330,6 +9457,13 @@ function rwRender() {
     vb.appendChild(tr);
   }
 }
+
+function rwPresetNote() {
+  const sel = document.getElementById('rw-preset');
+  const p = (_rw?.presets ?? []).find(x => x.id === sel.value);
+  document.getElementById('rw-preset-note').textContent = p ? `${p.conform === false ? '⚠ ' : '✓ '}${p.note ?? ''}` : '';
+}
+document.getElementById('rw-preset').addEventListener('change', rwPresetNote);
 
 async function loadRewards() {
   const [view, audit] = await Promise.all([api('GET', '/api/admin/rewards'), api('GET', '/api/admin/rewards/audit')]);
@@ -9341,15 +9475,25 @@ async function loadRewards() {
   ab.textContent = '';
   for (const a of (audit.ok ? audit.data.audit : [])) {
     const tr = document.createElement('tr');
-    const det = a.details?.changes ? a.details.changes.map(c => RW_NAMES[c.family]?.[c.id] ?? c.id).join(', ') : (a.details?.to ? `contenu de v${a.details.to}` : (a.details?.preset ?? ''));
+    const det = [
+      a.details?.changes ? a.details.changes.map(c => RW_NAMES[c.family]?.[c.id] ?? c.id).join(', ') : (a.details?.to ? `contenu de v${a.details.to}` : (a.details?.preset ?? '')),
+      ...(a.details?.priceChanges ?? []).map(c => `prix ${c.id} ${rwFmt(c.before)} → ${rwFmt(c.after)}`),
+      a.details?.replacedDraft ? 'brouillon précédent conservé ici' : '', a.details?.discardedDraft ? 'contenu abandonné conservé ici' : '',
+    ].filter(Boolean).join(' · ');
     [a.created_at, RW_ACTIONS[a.action] ?? a.action, a.version ? `v${a.version}` : '', det].forEach(x => addCell(tr, x));
     ab.appendChild(tr);
   }
 }
 
 admRefreshButton('btn-refresh-rewards', loadRewards, 'Coffres & drops');
+document.getElementById('tab-rewards').addEventListener('click', e => {
+  const a = e.target.closest('a[data-rw-tab]');
+  if (!a) return;
+  e.preventDefault();
+  admNavOpen(a.dataset.rwTab);
+});
 
-// ── Visuels des six coffres (#66) : lien direct vers la cible de l'atelier d'icônes ──
+// ── Images des six coffres (#66) : lien direct vers la cible de l'atelier d'icônes ──
 // Aucune écriture ici : l'état vient de GET /api/admin/icons/chests, les actions se font dans l'atelier.
 
 /** Où en est le visuel : proposition (jamais vue des joueurs), conservée (brouillon des blocs), en jeu. */
@@ -9366,6 +9510,11 @@ async function loadRewardVisuals() {
   const { ok, data } = await api('GET', '/api/admin/icons/chests');
   box.textContent = '';
   if (!ok) { box.appendChild(aiEl('p', { class: 'error' }, data.error || 'Visuels indisponibles.')); return; }
+  _rwVisuals = Object.fromEntries(data.chests.filter(c => c.target).map(c => [`${c.family}:${c.id}`, c.target]));
+  if (_rw) for (const c of data.chests) {   // image des cartes (sans re-rendre la page)
+    const head = document.querySelector(`#rw-card-${c.family}-${c.id} .rw-card-head`);
+    if (head && c.target) head.firstElementChild.replaceWith(icThumb(c.target, 44));
+  }
   for (const c of data.chests) {
     const tile = aiEl('div', { class: 'rw-visual', 'data-adm-key': `rw-visual:${c.key}` });
     const t = c.target;
@@ -9400,74 +9549,68 @@ async function rwOpenStudio(key) {
 async function rwBackFromStudio() {
   _icFrom = null;
   document.querySelector('.tab-btn[data-tab="rewards"]').click();
-  document.getElementById('rw-visuals-card')?.scrollIntoView({ block: 'start' });
+  const card = document.getElementById('rw-visuals-card');
+  if (card) { card.open = true; card.scrollIntoView({ block: 'start' }); }
 }
 
 // ── Fiche d'un coffre ─────────────────────────────────────────────────────────
+// Lignes éditables : type, quantité, chance en % (le moteur tire au poids : poids enregistré = % saisi ;
+// un brouillon ancien en poids quelconques s'affiche converti en %, et reste tel quel si aucune chance ne change).
 
 const RW_FIELDS = {
-  coins:      [['min', 'Pièces min'], ['max', 'Pièces max']],
-  relics:     [['amount', 'Fragments']],
-  boost:      [['mult', 'Multiplicateur'], ['minutes', 'Minutes']],
+  coins:      [['min', 'de', '1'], ['max', 'à', '1']],
+  relics:     [['amount', 'quantité', '1']],
+  boost:      [['mult', '×', '0.1'], ['minutes', 'minutes', '1']],
   collection: [],
 };
 
-function rwRowEditor(row) {
-  const tr = document.createElement('tr');
-  const chance = document.createElement('td');
-  chance.className = 'rw-chance';
-  const tdW = document.createElement('td');
-  const w = document.createElement('input');
-  w.type = 'number'; w.min = '0'; w.step = 'any'; w.value = row.weight; w.dataset.f = 'weight'; w.style.width = '6em';
-  w.setAttribute('aria-label', 'Poids de tirage');
-  tdW.appendChild(w);
-  const tdT = document.createElement('td');
-  const sel = document.createElement('select');
-  sel.dataset.f = 'type';
-  sel.setAttribute('aria-label', 'Type de récompense');
+function rwRowEditor(row, pct) {
+  const line = aiEl('div', { class: 'rw-line' });
+  const sel = aiEl('select', { 'data-f': 'type', 'aria-label': 'Type de récompense' });
   for (const t of (_rwEdit.family === 'shop' ? _rw.shopTypes : _rw.minedTypes)) sel.add(new Option(RW_TYPES[t], t, false, t === row.type));
-  tdT.appendChild(sel);
-  const tdV = document.createElement('td');
+  const vals = aiEl('div', { class: 'rw-line-vals' });
   const fill = () => {
-    tdV.textContent = '';
-    for (const [k, label] of RW_FIELDS[sel.value]) {
-      const l = document.createElement('label');
-      l.className = 'rw-inline';
-      const i = document.createElement('input');
-      i.type = 'number'; i.step = k === 'mult' ? '0.1' : '1'; i.min = '0'; i.dataset.f = k; i.style.width = '7em';
+    vals.textContent = '';
+    for (const [k, label, step] of RW_FIELDS[sel.value]) {
+      const l = aiEl('label', { class: 'rw-inline' }, `${label} `);
+      const i = aiEl('input', { type: 'number', step, min: '0', 'data-f': k, inputmode: 'decimal' });
       i.value = row[k] ?? '';
-      l.append(`${label} `, i);
-      tdV.appendChild(l);
+      l.appendChild(i);
+      vals.appendChild(l);
     }
     if (sel.value === 'coins' && _rwEdit.family === 'shop') {
-      const l = document.createElement('label');
-      l.className = 'rw-inline';
-      const c = document.createElement('input');
-      c.type = 'checkbox'; c.dataset.f = 'jackpot'; c.checked = !!row.jackpot;
+      const l = aiEl('label', { class: 'rw-inline' });
+      const c = aiEl('input', { type: 'checkbox', 'data-f': 'jackpot' });
+      c.checked = !!row.jackpot;
       l.append(c, ' gros lot');
-      tdV.appendChild(l);
+      vals.appendChild(l);
     }
-    if (sel.value === 'collection') tdV.append('1 objet manquant au hasard (sinon 5 fragments)');
+    if (sel.value === 'collection') vals.appendChild(aiEl('span', { class: 'muted rw-inline-note' }, '1 objet manquant au hasard (collection complète : 5 fragments à la place, codé)'));
   };
   sel.addEventListener('change', () => { fill(); rwDlgRefresh(); });
   fill();
-  const tdX = document.createElement('td');
-  const x = document.createElement('button');
-  x.type = 'button'; x.className = 'btn btn-outline'; x.textContent = '✕'; x.title = 'Retirer cette ligne';
-  x.setAttribute('aria-label', 'Retirer cette ligne');
-  x.addEventListener('click', () => { tr.remove(); rwDlgRefresh(); tr._rwRemoved = true; });
-  tdX.appendChild(x);
-  tr.append(chance, tdW, tdT, tdV, tdX);
-  return tr;
+  const ch = aiEl('label', { class: 'rw-inline rw-line-chance' }, 'Chance ');
+  const pi = aiEl('input', { type: 'number', min: '0', max: '100', step: '0.01', 'data-f': 'pct', inputmode: 'decimal', 'aria-label': 'Chance en pour cent' });
+  pi.value = pct ?? '';
+  ch.append(pi, ' %');
+  const x = aiEl('button', { type: 'button', class: 'btn btn-outline rw-line-x', title: 'Retirer cette récompense', 'aria-label': 'Retirer cette récompense' }, '✕');
+  x.addEventListener('click', () => { _rwStructural = true; line.remove(); rwDlgRefresh(); });
+  line.append(sel, vals, ch, x);
+  return line;
 }
 
+/** Lignes saisies ; `weight` = chance saisie, sauf si rien n'a bougé (poids d'origine gardés). */
 function rwDlgRows() {
-  return [...document.querySelectorAll('#rw-dlg-rows tr')].map(tr => {
+  const lines = [...document.querySelectorAll('#rw-dlg-rows .rw-line')];
+  const pcts = lines.map(l => l.querySelector('[data-f="pct"]').value);
+  const same = !_rwStructural && pcts.length === _rwEdit.pcts.length && pcts.every((v, i) => v === _rwEdit.pcts[i]);
+  return lines.map((l, i) => {
     const row = {};
-    for (const el of tr.querySelectorAll('[data-f]')) {
+    for (const el of l.querySelectorAll('[data-f]')) {
       const f = el.dataset.f;
       if (f === 'type') row.type = el.value;
       else if (f === 'jackpot') { if (el.checked) row.jackpot = true; }
+      else if (f === 'pct') row.weight = same ? _rwEdit.weights[i] : (el.value === '' ? null : Number(el.value));
       else row[f] = el.value === '' ? null : Number(el.value);
     }
     if (row.type === 'collection') row.amount = 1;
@@ -9475,26 +9618,83 @@ function rwDlgRows() {
   });
 }
 
+const rwDlgTotal = () => [...document.querySelectorAll('#rw-dlg-rows [data-f="pct"]')].reduce((s, i) => s + (Number(i.value) > 0 ? Number(i.value) : 0), 0);
+
+/** Pourcentages à 2 décimales dont la somme fait exactement 100 (écart d'arrondi sur la plus grande ligne). */
+function rwToPcts(weights) {
+  const total = weights.reduce((s, w) => s + (w > 0 ? w : 0), 0) || 1;
+  const p = weights.map(w => Math.round((w > 0 ? w : 0) / total * 10000) / 100);
+  const gap = Math.round((100 - p.reduce((s, x) => s + x, 0)) * 100) / 100;
+  if (gap && p.length) { const i = p.indexOf(Math.max(...p)); p[i] = Math.round((p[i] + gap) * 100) / 100; }
+  return p.map(String);
+}
+
+function rwDlgDef() {
+  const shop = _rwEdit.family === 'shop';
+  const cost = shop ? Number(document.getElementById('rw-dlg-cost').value) || null : null;
+  const max = document.getElementById('rw-dlg-max').value;
+  return { cost, maxPerSeason: shop && max !== '' ? Number(max) : null, table: rwDlgRows().filter(r => Number(r.weight) > 0) };
+}
+
 function rwDlgRefresh() {
-  const rows = rwDlgRows();
-  const st = rwStats(rows);
-  [...document.querySelectorAll('#rw-dlg-rows tr')].forEach((tr, i) => { tr.querySelector('.rw-chance').textContent = `${st.chances[i].toFixed(2)} %`; });
-  const cost = _rwEdit.family === 'shop' ? _rw.costs[_rwEdit.id] : null;
-  const sum = rows.reduce((s, r) => s + (Number(r.weight) > 0 ? Number(r.weight) : 0), 0);
-  document.getElementById('rw-dlg-summary').textContent = `Somme des poids : ${rwFmt(Math.round(sum * 10000) / 10000)} (convertie en 100 %) · en moyenne ${rwFmt(st.coins)} pièces` +
-    `${cost ? ` pour un prix de ${rwFmt(cost)} (${Math.round(st.coins / cost * 100)} %)` : ''} et ${st.fragments} fragments par ouverture.`;
+  const total = Math.round(rwDlgTotal() * 100) / 100;
+  const ok = Math.abs(total - 100) < 0.01;
+  const tEl = document.getElementById('rw-dlg-total');
+  tEl.textContent = ok ? '— total des chances : 100 % ✓' : `— total des chances : ${rwPct(total)} (doit faire 100 %)`;
+  tEl.classList.toggle('error', !ok);
+  document.getElementById('btn-rw-normalize').disabled = ok || total <= 0;
+  const def = rwDlgDef();
+  const st = rwStats(def.table);
+  const bal = document.getElementById('rw-dlg-balance');
+  bal.textContent = '';
+  bal.className = 'rw-balance';
+  const frag = st.fragChance ? `Fragments : ${rwPct(st.fragChance)} de chance par ouverture, ${rwFmt(st.fragments)} en moyenne (avant Aimant à éclats).` : 'Aucun fragment.';
+  if (_rwEdit.family === 'shop' && def.cost) {
+    const b = rwBalance(def.table, def.cost);
+    const pub = rwDef('pub', 'shop', _rwEdit.id);
+    const pubNon = 100 - rwStats(pub.table).coinShare;
+    bal.classList.add(`rw-balance--${b.level}`);
+    if (b.level === 'profit') {
+      bal.append(aiEl('p', { class: 'rw-balance-title' }, `⛔ Ce coffre coûte ${rwFmt(def.cost)} pièces mais rend en moyenne ${rwFmt(b.coins)} pièces — on pourrait gagner des pièces en l'achetant en boucle. Publication impossible tant que ce n'est pas corrigé.`));
+      const why = aiEl('p', {}, `Pourquoi : ${rwPct(b.nonCoin, 1)} des tirages ne donnent pas de pièces (fragments, boost, objet)` +
+        (Math.abs(pubNon - b.nonCoin) >= 0.05 ? `, contre ${rwPct(pubNon, 1)} en jeu : baisser la chance d'une ligne sans pièces augmente d'autant la part des pièces.` : '.'));
+      const ul = aiEl('ul');
+      if (b.minNonCoin != null) ul.appendChild(aiEl('li', {}, `Rééquilibrer les récompenses : porter les tirages sans pièces à au moins ${rwPct(b.minNonCoin, 1)} (${rwPct(b.nonCoinUnder80, 1)} pour rester sous 80 % du prix), par exemple en augmentant le boost ou en baissant la chance du gros lot.`));
+      ul.appendChild(aiEl('li', {}, `Ou augmenter le prix : au moins ${rwFmt(b.minPrice)} pièces (${rwFmt(b.priceUnder80)} pour rester sous 80 %).`));
+      bal.append(why, aiEl('p', {}, 'Deux façons de corriger, au choix (rien n\'est modifié automatiquement) :'), ul);
+    } else if (b.level === 'high') {
+      bal.append(aiEl('p', { class: 'rw-balance-title' }, `⚠ Rend en moyenne ${rwFmt(b.coins)} pièces pour un prix de ${rwFmt(def.cost)} (${rwPct(b.ratio, 1)}) : proche de la limite. Publiable ; au-delà de 100 %, refusé.`),
+        aiEl('p', { class: 'muted' }, `Pour rester sous 80 % : prix ≥ ${rwFmt(b.priceUnder80)}, ou au moins ${rwPct(b.nonCoinUnder80, 1)} de tirages sans pièces.`));
+    } else {
+      bal.append(aiEl('p', { class: 'rw-balance-title' }, `✓ Équilibré : coûte ${rwFmt(def.cost)} pièces, rend en moyenne ${rwFmt(b.coins)} pièces (${rwPct(b.ratio, 0)} du prix).`));
+    }
+    bal.append(aiEl('p', { class: 'muted' }, frag));
+  } else {
+    bal.append(aiEl('p', { class: 'rw-balance-title' }, `Rend en moyenne ${rwFmt(st.coins)} pièces par ouverture.`), aiEl('p', { class: 'muted' }, frag));
+  }
+  const notes = document.getElementById('rw-dlg-notices');
+  notes.textContent = '';
+  if (_rwEdit.family === 'shop' && st.fragChance > 0) {
+    notes.appendChild(aiEl('p', { class: 'rw-card-warn' }, `⚠ Non conforme à la décision du 04/11 (#49) : ce coffre s'achète avec des pièces et donne des fragments (${rwPct(st.fragChance)} de chance). Recommandé : remplacer les lignes « Fragments » par un boost ou un objet de collection (voir le préréglage S dans Détails avancés). Non bloquant : vous décidez.`));
+  }
+  document.getElementById('rw-dlg-compare').replaceChildren(rwCompareTable(rwCompareRows(_rwEdit.family, rwDef('pub', _rwEdit.family, _rwEdit.id), def)));
 }
 
 function rwOpen(family, id, opener) {
-  _rwEdit = { family, id };
-  const tables = rwCurrentTables();
-  const def = family === 'shop' ? tables.shop[id] : { table: tables.mined[id] };
+  const def = rwDef('draft', family, id);
+  const weights = def.table.map(r => r.weight);
+  _rwEdit = { family, id, weights, pcts: rwToPcts(weights) };
+  _rwStructural = false;
   document.getElementById('rw-dialog-title').textContent = RW_NAMES[family][id];
-  document.getElementById('rw-dlg-max-wrap').classList.toggle('hidden', family !== 'shop');
+  document.getElementById('rw-dlg-kind').textContent = family === 'shop'
+    ? `Coffre de la boutique : acheté avec des pièces, tiré par le serveur ; les chances sont montrées aux joueurs. ${rwChanged(family, id) ? 'Modifié dans le brouillon (pas encore en jeu).' : 'Identique à ce qui est en jeu.'}`
+    : `Coffre trouvé en minant (${RW_MINED_BLOCK[id]}). Les chances ci-dessous sont celles des récompenses à l'ouverture ; la chance de trouver ce coffre se règle dans 🧱 Blocs.`;
+  document.getElementById('rw-dlg-shop').classList.toggle('hidden', family !== 'shop');
+  document.getElementById('rw-dlg-cost').value = family === 'shop' ? def.cost : '';
   document.getElementById('rw-dlg-max').value = def.maxPerSeason ?? '';
-  const tb = document.getElementById('rw-dlg-rows');
-  tb.textContent = '';
-  def.table.forEach(r => tb.appendChild(rwRowEditor(r)));
+  const box = document.getElementById('rw-dlg-rows');
+  box.textContent = '';
+  def.table.forEach((r, i) => box.appendChild(rwRowEditor(r, _rwEdit.pcts[i])));
   document.getElementById('rw-dlg-error').classList.add('hidden');
   rwDlgRefresh();
   admDialogOpen('rw-dialog', opener);
@@ -9504,103 +9704,144 @@ const _rwDlg = admDialogSetup('rw-dialog', { keep: 'Enregistrer dans le brouillo
 let _rwStructural = false;   // ligne ajoutée ou retirée (le suivi générique ne voit que les champs)
 _rwDlg.addEventListener('close', () => { _rwStructural = false; });
 _rwDlg._admDirty = (orig => () => _rwDlg.open && (_rwStructural || orig()))(_rwDlg._admDirty);
-document.getElementById('rw-dlg-rows').addEventListener('input', rwDlgRefresh);
-document.getElementById('rw-dlg-rows').addEventListener('click', e => { if (e.target.closest('button')) _rwStructural = true; });
+for (const id of ['rw-dlg-rows', 'rw-dlg-cost', 'rw-dlg-max']) document.getElementById(id).addEventListener('input', rwDlgRefresh);
 document.getElementById('btn-rw-add-row').addEventListener('click', () => {
   _rwStructural = true;
-  document.getElementById('rw-dlg-rows').appendChild(rwRowEditor({ weight: 1, type: 'relics', amount: 1 }));
+  const line = rwRowEditor({ type: 'boost', mult: 2, minutes: 5 }, '0');
+  document.getElementById('rw-dlg-rows').appendChild(line);
+  rwDlgRefresh();
+  line.querySelector('[data-f="pct"]').focus();
+});
+document.getElementById('btn-rw-normalize').addEventListener('click', () => {
+  const inputs = [...document.querySelectorAll('#rw-dlg-rows [data-f="pct"]')];
+  rwToPcts(inputs.map(i => Number(i.value))).forEach((v, i) => { inputs[i].value = v; });
   rwDlgRefresh();
 });
 
 document.getElementById('btn-rw-save').addEventListener('click', async () => {
+  const err = document.getElementById('rw-dlg-error');
+  const total = rwDlgTotal();
+  if (Math.abs(total - 100) >= 0.01) {
+    err.textContent = `Le total des chances doit faire 100 % (actuellement ${rwPct(total)}). « Ramener le total à 100 % » ajuste toutes les lignes dans les mêmes proportions.`;
+    err.classList.remove('hidden');
+    return;
+  }
   const tables = rwCurrentTables();
-  const rows = rwDlgRows();
+  const rows = rwDlgRows().filter(r => Number(r.weight) > 0);
   if (_rwEdit.family === 'shop') {
     const max = document.getElementById('rw-dlg-max').value;
-    tables.shop[_rwEdit.id] = { maxPerSeason: max === '' ? null : Number(max), table: rows };
+    const cost = document.getElementById('rw-dlg-cost').value;
+    tables.shop[_rwEdit.id] = { cost: cost === '' ? null : Number(cost), maxPerSeason: max === '' ? null : Number(max), table: rows };
   } else {
     tables.mined[_rwEdit.id] = rows;
   }
-  const err = document.getElementById('rw-dlg-error');
   const { ok, data } = await api('PUT', '/api/admin/rewards/draft', { tables });
   if (!ok) { err.textContent = [data.error, ...(data.details ?? [])].join(' '); err.classList.remove('hidden'); return; }
-  const mine = data.errors.filter(e => e.includes(_rwEdit.id));
+  const mine = data.errors.filter(e => e.includes(`${_rwEdit.id} :`));
   _rwStructural = false;
   _rwDlg.close();
   await loadRewards();
   admToast(data.draft ? (mine.length ? `Enregistré dans le brouillon, à corriger avant publication : ${mine.join(' ')}` : 'Enregistré dans le brouillon (rien ne change en jeu avant publication).')
-    : 'Identique à la version en vigueur : aucun brouillon.', { error: mine.length > 0 });
+    : 'Identique à ce qui est en jeu : aucun brouillon.', { error: mine.length > 0 });
 });
 
-// ── Simulation, publication, retour arrière ───────────────────────────────────
+// ── Tester, publier, abandonner, restaurer ────────────────────────────────────
 
-async function rwSimulate(source) {
-  const n = Number(document.getElementById('rw-sim-n').value);
+async function rwSimulate(source, n = Number(document.getElementById('rw-sim-n').value)) {
   const { ok, data } = await api('POST', '/api/admin/rewards/simulate', { source, n });
   const box = document.getElementById('rw-sim');
   box.textContent = '';
   if (!ok) { ptMessage('rw-msg', [data.error, ...(data.details ?? [])].join(' '), false); return; }
-  const h = document.createElement('h4');
-  h.textContent = `Simulation ${source === 'draft' ? 'du brouillon' : 'de la version en vigueur'} — ${rwFmt(n)} ouvertures par coffre`;
-  const table = document.createElement('table');
-  table.innerHTML = '<thead><tr><th>Coffre</th><th>Récompense</th><th>Probabilité</th><th>Observé</th></tr></thead>';
-  const tb = document.createElement('tbody');
+  box.appendChild(aiEl('h4', {}, `Test ${source === 'draft' ? 'du brouillon' : 'de ce qui est en jeu'} — ${rwFmt(n)} ouvertures simulées par coffre (rien ne change en jeu)`));
+  const sum = aiEl('table', { class: 'rw-cmp' });
+  sum.innerHTML = '<thead><tr><th>Coffre</th><th>Pièces rendues (moyenne)</th><th>Fragments (moyenne)</th><th>Équilibre</th></tr></thead>';
+  const sb = aiEl('tbody');
   for (const r of data.results) {
-    r.rows.forEach((row, i) => {
-      const tr = document.createElement('tr');
-      [i === 0 ? RW_NAMES[r.family][r.id] : '', rwRowLabel(row), `${row.chance.toFixed(2)} %`, `${row.observed.toFixed(2)} %`].forEach(x => addCell(tr, x));
-      tb.appendChild(tr);
-    });
-    const tr = document.createElement('tr');
-    tr.className = 'muted';
-    ['', 'Moyenne par ouverture', `${rwFmt(r.expectedCoins)} pièces · ${r.expectedFragments} fragments`, `${rwFmt(r.observedCoins)} pièces · ${r.observedFragments} fragments`].forEach(x => addCell(tr, x));
-    tb.appendChild(tr);
+    const tr = aiEl('tr');
+    tr.append(aiEl('th', { scope: 'row' }, RW_NAMES[r.family][r.id]),
+      aiEl('td', { 'data-label': 'Pièces' }, `${rwFmt(r.observedCoins)} (calcul : ${rwFmt(r.expectedCoins)})`),
+      aiEl('td', { 'data-label': 'Fragments' }, `${rwFmt(r.observedFragments)} (calcul : ${rwFmt(r.expectedFragments)})`),
+      aiEl('td', { 'data-label': 'Équilibre' }, r.cost ? rwBalanceText({ ...rwBalance([], r.cost), coins: r.expectedCoins, cost: r.cost, ratio: r.expectedCoins / r.cost * 100,
+        level: r.expectedCoins >= r.cost ? 'profit' : r.expectedCoins >= r.cost * 0.8 ? 'high' : 'ok' }) : '—'));
+    sb.appendChild(tr);
   }
+  sum.appendChild(sb);
+  const w1 = aiEl('div', { class: 'rw-cmp-wrap' }); w1.appendChild(sum);
+  const det = aiEl('details');
+  det.appendChild(aiEl('summary', {}, 'Détail par récompense (chance prévue / observée)'));
+  const table = aiEl('table');
+  table.innerHTML = '<thead><tr><th>Coffre</th><th>Récompense</th><th>Prévue</th><th>Observée</th></tr></thead>';
+  const tb = aiEl('tbody');
+  for (const r of data.results) r.rows.forEach((row, i) => {
+    const tr = aiEl('tr');
+    [i === 0 ? RW_NAMES[r.family][r.id] : '', rwRowLabel(row), rwPct(row.chance), rwPct(row.observed)].forEach(x => addCell(tr, x));
+    tb.appendChild(tr);
+  });
   table.appendChild(tb);
-  const wrap = document.createElement('div');
-  wrap.style.overflowX = 'auto';
-  wrap.appendChild(table);
-  box.append(h, wrap);
+  const w2 = aiEl('div', { style: 'overflow-x:auto' }); w2.appendChild(table);
+  det.appendChild(w2);
+  box.append(w1, det);
+  box.scrollIntoView({ block: 'nearest' });
 }
+document.getElementById('btn-rw-simulate').addEventListener('click', () => rwSimulate(_rw?.draft ? 'draft' : 'published', 10000));
 document.getElementById('btn-rw-sim-pub').addEventListener('click', () => rwSimulate('published'));
 document.getElementById('btn-rw-sim-draft').addEventListener('click', () => rwSimulate('draft'));
 
+/** Changements du brouillon en phrases (confirmation de publication). */
+function rwChangeLines(d) {
+  return d.changes.map(c => {
+    const parts = [];
+    if (c.cost) parts.push(`prix ${rwFmt(c.cost[0])} → ${rwFmt(c.cost[1])} pièces`);
+    if (c.maxPerSeason) parts.push(`limite ${c.maxPerSeason[0] ?? 'illimité'} → ${c.maxPerSeason[1] ?? 'illimité'}`);
+    if (c.rows.length) parts.push('récompenses ou chances modifiées');
+    return `${RW_NAMES[c.family][c.id]} : ${parts.join(', ')}.`;
+  });
+}
+
 document.getElementById('btn-rw-publish').addEventListener('click', async () => {
   const d = _rw?.draft;
-  if (!d) return;
-  const note = await admPrompt({ title: 'Publier les tables de coffres',
-    text: `Version v${_rw.published.version + 1} : ${d.changes.map(c => RW_NAMES[c.family][c.id]).join(', ')}. Visible des joueurs dès la publication (prochaines ouvertures) ; retour arrière possible.`,
+  if (!d || d.errors.length) return;
+  const nonConform = (d.notices ?? []).map(n => RW_NAMES.shop[n.id]);
+  const note = await admPrompt({ title: `Publier le brouillon (version v${_rw.published.version + 1})`,
+    text: 'Les six coffres sont publiés ensemble : visible des joueurs dès maintenant (prochains achats et ouvertures). Retour arrière possible (« Restaurer la version précédente »).',
+    impact: [...rwChangeLines(d), ...(nonConform.length ? [`⚠ Donnent encore des fragments contre des pièces (non conforme #49) : ${nonConform.join(', ')}.`] : [])],
     label: 'Note (facultative)', ok: 'Publier' });
   if (note === null) return;
   const { ok, data } = await api('POST', '/api/admin/rewards/publish', { note, basedOn: _rw.published.version });
-  ptMessage('rw-msg', ok ? `Version v${data.version} publiée.` : [data.error, ...(data.details ?? [])].join(' '), ok);
+  ptMessage('rw-msg', ok ? `Version v${data.version} publiée${data.priceChanges?.length ? ` (prix appliqués : ${data.priceChanges.map(c => `${c.id} ${rwFmt(c.after)}`).join(', ')})` : ''}.` : [data.error, ...(data.details ?? [])].join(' '), ok);
   if (ok) loadRewards();
 });
 
 document.getElementById('btn-rw-preset').addEventListener('click', async () => {
   const sel = document.getElementById('rw-preset');
   if (!_rw || !sel.value) return;
-  const label = sel.options[sel.selectedIndex].text;
-  if (!await admConfirm({ title: `Charger « ${label} »`, text: 'Remplace le brouillon des six coffres par ce préréglage.',
-    impact: [_rw.draft ? 'Le brouillon en cours est remplacé.' : 'Un brouillon est créé.', 'Rien ne change en jeu : la version en vigueur reste appliquée tant que le brouillon n\'est pas publié.'],
+  const p = _rw.presets.find(x => x.id === sel.value);
+  if (!await admConfirm({ title: `Charger « ${p.label} »`, text: 'Remplace le brouillon des six coffres par ce préréglage.',
+    impact: [_rw.draft ? `Votre brouillon en cours (${_rw.draft.changes.length} coffre(s) modifié(s)) est remplacé ; son contenu reste lisible dans le journal.` : 'Un brouillon est créé.',
+      ...(p.conform === false ? ['⚠ Préréglage non conforme à la décision du 04/11 : des coffres achetés avec des pièces y donnent des fragments.'] : []),
+      'Rien ne change en jeu : la version en jeu reste appliquée tant que le brouillon n\'est pas publié.'],
     ok: 'Charger dans le brouillon' })) return;
   const { ok, data } = await api('POST', '/api/admin/rewards/draft/preset', { preset: sel.value });
-  ptMessage('rw-msg', ok ? (data.draft ? `« ${label} » chargé dans le brouillon (non publié).` : 'Identique à la version en vigueur : aucun brouillon.') : [data.error, ...(data.details ?? [])].join(' '), ok);
+  ptMessage('rw-msg', ok ? (data.draft ? `« ${p.label} » chargé dans le brouillon (non publié).` : 'Identique à ce qui est en jeu : aucun brouillon.') : [data.error, ...(data.details ?? [])].join(' '), ok);
   if (ok) loadRewards();
 });
 
 document.getElementById('btn-rw-discard').addEventListener('click', async () => {
   if (!_rw?.draft) return;
-  if (!await admConfirm({ title: 'Abandonner le brouillon', text: 'Toutes les modifications non publiées des coffres sont perdues.',
-    impact: ['La version en vigueur ne change pas.'], ok: 'Abandonner le brouillon', danger: true })) return;
+  if (!await admConfirm({ title: 'Abandonner le brouillon', text: `Les modifications non publiées des six coffres (${_rw.draft.changes.length} coffre(s) modifié(s), prix compris) sont retirées.`,
+    impact: ['Ce qui est en jeu ne change pas.', 'Le contenu abandonné reste lisible dans le journal (Détails avancés).'], ok: 'Abandonner le brouillon', danger: true })) return;
   const { ok, data } = await api('DELETE', '/api/admin/rewards/draft');
   ptMessage('rw-msg', ok ? 'Brouillon abandonné.' : data.error, ok);
   if (ok) loadRewards();
 });
 
+document.getElementById('btn-rw-restore').addEventListener('click', () => { if (_rw?.published.version > 1) rwRollback(_rw.published.version - 1); });
+
 async function rwRollback(version) {
-  if (!await admConfirm({ title: `Revenir à v${version}`, text: `Publie une nouvelle version reprenant le contenu de v${version}.`,
-    impact: ['Visible des joueurs dès la publication (prochaines ouvertures).', 'Les versions existantes ne sont pas modifiées : on peut revenir de nouveau.'],
+  if (!await admConfirm({ title: `Revenir à v${version}`, text: `Publie une nouvelle version reprenant le contenu de v${version} (récompenses, limites${version > 1 ? ' et prix mémorisés' : ''}).`,
+    impact: ['Visible des joueurs dès maintenant (prochains achats et ouvertures).', 'Les versions existantes ne sont pas modifiées : on peut revenir de nouveau.',
+      ...(version === 1 ? ['La v1 ne mémorise pas de prix : les prix actuels sont gardés.'] : []),
+      ...(_rw.draft ? ['Le brouillon en cours part de la version actuelle : il faudra l\'abandonner ou le refaire.'] : [])],
     ok: `Revenir à v${version}`, danger: true })) return;
   const { ok, data } = await api('POST', '/api/admin/rewards/rollback', { version });
   ptMessage('rw-msg', ok ? `Version v${data.version} publiée (contenu de v${data.restored}).` : [data.error, ...(data.details ?? [])].join(' '), ok);

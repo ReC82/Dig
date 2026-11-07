@@ -32,8 +32,8 @@ test.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 const COSTS = { simple: 800, rare: 15000, antique: 80000 };
 const IDS = Object.keys(rewards.PRESETS);
 
-test('préréglages P et R : valides aux prix de production, fragments en baisse dans chaque coffre', () => {
-  assert.deepStrictEqual(IDS, ['fragments_prudente', 'fragments_rare']);
+test('préréglages P, R et S : valides aux prix de production, fragments en baisse dans chaque coffre', () => {
+  assert.deepStrictEqual(IDS, ['fragments_prudente', 'fragments_rare', 'boutique_sans_fragments']);
   const origin = rewards.originTables();
   const frag = (t) => rewards.tableStats(t).expectedFragments;
   for (const id of IDS) {
@@ -105,7 +105,10 @@ test('après publication (base de test) : limite saisonnière serveur, fragments
   // Retour arrière : nouvelle version au contenu de v1, version 2 conservée
   const rb = rewards.rollbackTo(1, { costs: COSTS });
   assert.strictEqual(rb.version, 3);
-  assert.deepStrictEqual(rewards.getPublished().tables, rewards.getVersion(1).tables);
+  // #88 : la nouvelle version mémorise les prix en vigueur (la v1 n'en a pas : prix gardés)
+  assert.deepStrictEqual(rewards.getPublished().tables, rewards.withCosts(rewards.getVersion(1).tables, COSTS));
+  assert.deepStrictEqual(rb.priceChanges, []);
+  assert.strictEqual(rb.pricesKept, true);
   assert.strictEqual(rewards.listVersions().length, 3);
   const fresh = { coins: 10_000_000, relicFragments: 0, shopChestsBought: {} };
   for (let i = 0; i < 25; i++) chestShop.rollChest('simple', fresh, {});   // v1 : illimité
