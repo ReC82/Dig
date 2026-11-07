@@ -10,6 +10,8 @@
 - **Session 4 (05/11/2026, nuit) : premier test de résistance réel (`gabpok8`) — fiche diagnostique
   par joueur dans Admin → Anti-bot, mesures par sauvegarde, explication score 40 / shadow / enforce ;
   déployé `3f726c2`** (section « Session 4 » en fin de document)
+- **Session du 07/11/2026 (après-midi) : recette du défi manuel — pictogramme « pièce » en carré
+  vide corrigé (SVG locaux) ; déployé `510a1df`** (dernière section du document)
 
 ---
 
@@ -853,3 +855,120 @@ normale dans les simulations).
 - **#77** : `exact_hp_mode` reste en shadow (décision séparée, non modifiée).
 - Proposé, non réalisé : branchement Turnstile ; indicateur discret « vérification en attente » dans
   l'en-tête quand la fenêtre est fermée.
+
+---
+
+# Session du 07/11/2026 (après-midi) — Défi manuel : pictogramme « pièce » illisible
+
+## 1. Ticket et état réel
+
+#25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
+
+**Déployé en production (SHA `510a1df`, 07/11/2026 17:06 Bruxelles), en attente de recette.**
+Source : commentaire du propriétaire du 07/11 à 15:38 UTC (issuecomment-6709151530). Le défi
+« Touche le trèfle, puis la pièce » montrait un **carré vide à la place de la pièce**. Le
+propriétaire a deviné la réponse et a réussi le défi : la recette #25-F reste donc partielle.
+
+## 2. Cause
+
+Les tuiles affichaient des emoji Unicode envoyés par le serveur. La pièce `🪙` date
+d'Unicode 13 (2020) et la police emoji de Windows 10 et de plusieurs Android ne la contient pas,
+d'où le carré vide (« tofu »). La feuille `🍃` et les autres emoji dépendaient eux aussi de la
+police installée.
+
+## 3. Changements (comportement visible)
+
+- `public/js/antibotGate.js` : les 12 symboles de la grille (pioche, diamant, clé, étoile, cœur,
+  flamme, goutte, lune, trèfle, pièce, cloche, feuille) sont maintenant **dessinés en SVG intégré
+  au client**. Ils ne dépendent d'aucune police, d'aucun emoji ni d'aucun téléchargement : le
+  rendu est le même sur Windows, Android, iOS et en PWA. Chaque symbole a sa forme et sa couleur
+  (pièce dorée marquée « $ », feuille vert clair avec nervure, trèfle vert foncé à quatre
+  feuilles, etc.). Si le serveur envoyait un jour un symbole inconnu, la tuile affiche son
+  **nom en clair** au lieu d'un carré. Chaque tuile garde son nom accessible (`aria-label`),
+  avec en plus une infobulle (`title`). La version texte (calcul) ne change pas.
+- `public/css/style.css` : tuiles centrées, icône de 44 px.
+- `test/antibot-symbols.test.js` (nouveau, 4 tests) : chaque symbole tiré par le serveur a un
+  SVG ; le SVG ne contient ni `<text>`, ni image distante, ni emoji ; le client n'affiche plus
+  `tile.icon` ; chaque symbole a un nom en fr, en, nl, es et it.
+- **Inchangés** : serveur (tirage, validation, nonce, expiration 5 min, délai minimal 1,2 s,
+  usage unique, plafond de 15 énigmes / 10 min), paramètres, mode global **Observation**,
+  données du compte testeur. Le champ `icon` reste dans la réponse du serveur pour les onglets
+  encore ouverts sur l'ancienne version, mais le nouveau client l'ignore.
+
+## 4. SHA et procédure de test
+
+- Branche `feature/25-anti-bot-lots-ab`, commit `af1119a` ; `develop` = `510a1df` (fusion).
+- `npm test` : 900/900 sur `af1119a`, sur `develop` et dans la release `510a1df`.
+- Essai navigateur `test/e2e/antibot-challenge.e2e.js` (base neuve, port 3101), sur ordinateur
+  1280×900 et smartphone 390×844 : défi au chargement, fermeture et réouverture, mauvaise réponse
+  sans sanction, version texte résolue, grille résolue par les noms accessibles, aucune erreur
+  JavaScript. Les captures montrent les 6 pictogrammes nets.
+
+## 5. Vérifications, limites, impact données
+
+- Les 12 pictogrammes ont été rendus et contrôlés visuellement dans Chromium, seuls puis dans la
+  vraie fenêtre du défi.
+- **Non vérifié sur de vrais appareils Windows, Android ou iOS.** Les SVG n'utilisent aucun
+  texte ni aucune police, donc le rendu ne dépend pas du système ; le test automatique garantit
+  cette propriété.
+- **Résistance aux scripts : pas améliorée par ce correctif.** Le nom de chaque tuile reste
+  lisible dans la réponse de l'API et dans `aria-label`, comme avant. Le défi maison freine un
+  autoclicker simple mais pas un script écrit pour Dig. La vraie résistance passe par un
+  fournisseur spécialisé (question 1 ci-dessous).
+- Données joueurs : aucune migration, aucune écriture. Les empreintes de la copie de production
+  sont identiques avant et après démarrage. Après déploiement, seule une sauvegarde de partie en
+  cours a progressé (version 6269 → 6270, compteurs identiques).
+
+## 6. Déploiement
+
+- SHA déployé : `510a1df` (`main` avancé en avance rapide depuis `4feed13`).
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261107-170607-pre-deploy-510a1df.sqlite`.
+- Avant le déploiement : aucune génération IA en cours (dernier appel à 13:43 UTC).
+- Après : dig.lodygames.com et dig.lodylands.com renvoient 200, `/api/version` = `1.0.0+510a1df`,
+  le nouveau `antibotGate.js` est servi, `journalctl` est sans erreur, `quick_check` = ok.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 4feed13` + `sudo systemctl restart dig`
+  (`npm ci` inutile, le lock n'a pas changé).
+
+**Test fonctionnel à faire par le propriétaire (#25-F, suite) :**
+1. Recharger le jeu (F5 ; sur la PWA, fermer puis rouvrir l'app) sur le compte d'essai.
+2. Admin → Anti-bot → « Tester la protection » : passer le compte en essai Appliqué, puis
+   envoyer un défi.
+3. En jeu, dans la fenêtre « Petite vérification », les 6 tuiles doivent montrer des dessins
+   nets, sans carré vide. Cliquer sur « Autre énigme » plusieurs fois pour voir les 12 symboles,
+   dont la pièce dorée « $ ».
+4. Résoudre le défi. Dans l'admin, le défi doit apparaître « Résolu ».
+5. Cliquer sur « Terminer le test / remettre l'état normal ».
+
+Classement : **Bloquant MVP** (lisibilité du défi avant la bêta).
+
+## 7. Choix techniques faits seul
+
+- **SVG intégrés au script** plutôt que des fichiers séparés : aucune requête, aucun cache du
+  service worker à gérer, aucun risque d'image manquante ; il y a 12 petits dessins (environ 3 Ko).
+- **Pas de nom visible sous chaque tuile** : le défi resterait une simple lecture et irait contre
+  la demande d'images moins triviales. Le nom reste disponible pour l'accessibilité
+  (`aria-label`, infobulle) et dans la version texte.
+- **Aucun nouveau caractère Unicode**, conformément à la consigne.
+
+## 8. Décisions demandées au propriétaire
+
+1. **Images plus élaborées, pré-générées par API** (votre demande, analysée sans aucun appel
+   payant). Faisable avec l'atelier d'icônes existant (#22/#40) : une banque fixe d'environ
+   3 variantes par symbole, générées une seule fois, avec dimensions et coût estimés à l'avance
+   dans le plafond de l'atelier, stockées en local et choisies au hasard par le serveur. Limites :
+   une IA de vision reconnaît ces images aussi bien qu'un humain, les fichiers sont plus lourds
+   et un dessin chargé est plus ambigu, donc plus de faux échecs. Le gain contre les scripts est
+   faible tant que le nom de la tuile reste dans la réponse de l'API.
+   **Recommandation : ne pas le faire avant la bêta.** Garder les SVG nets. Pour la résistance,
+   il vaut mieux (a) un CAPTCHA spécialisé comme Cloudflare Turnstile (gratuit, clés à créer par
+   vous, question déjà posée), ou (b) ne plus envoyer le nom des tuiles et servir des images
+   opaques propres à chaque énigme (lot à part, environ une demi-journée).
+2. Les questions précédentes restent ouvertes : passage en Appliqué pour tous, seuils, Turnstile,
+   éligibilité, adresse de contestation, lot D.
+
+## 9. Éléments restant à réaliser
+
+- Recette #25-F complète par le propriétaire (étapes 1 à 5 ci-dessus). — Bloquant MVP
+- Réponses aux questions ouvertes (mode Appliqué, Turnstile). — Bloquant MVP pour le mode ;
+  Turnstile après lancement
+- Option : images opaques par énigme ou banque d'images pré-générées. — Après lancement
