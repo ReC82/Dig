@@ -136,3 +136,43 @@ Classement : **Bloquant MVP (bêta collègues)** pour l'étape 1 (première minu
   - ligne « Compte X — Non disponible pour le moment » superflue dans Paramètres ;
   - texte des ligues à ajuster tant qu'une seule ligue existe (#19).
 - Avant 10 à 20 testeurs ou le public : #43, #36, #25/#77 (décision enforce), #27, ainsi que #34/question 1.
+
+---
+
+## Mise à jour du 07/11/2026 : accès Discord demandé par le propriétaire
+
+**État réel : en attente de #50.** Aucun code modifié dans #84 et aucun déploiement pour cette mise à jour.
+
+**Demande.** Le propriétaire a commenté le 07/11 ([commentaire](https://github.com/ReC82/Dig/issues/84#issuecomment-6705096166)). Il demande pour la bêta du lundi 09/11 une entrée « Rejoindre le Discord » dans le jeu, avec le lien officiel `https://discord.gg/eGzJrzbaq`. La spécification complète est sur **#50**. Le contrôle d'ouverture sur PC et sur mobile doit être ajouté à la recette #84. Il ne faut ni refaire les parcours d'inscription ni envoyer d'invitations automatiquement.
+
+**Ce qui existe déjà (vérifié en lecture le 07/11, production `1.0.0+8a26e0b`).**
+- **Un seul champ** « Lien d'invitation Discord » dans Admin → 🧪 Bêta → Configurer la bêta (`server/beta.js`). Il est relu par les Actualités (`server/news.js`).
+- **Côté joueur**, le lien n'apparaît que s'il est renseigné :
+  - bannière bêta et fenêtre de signalement (`public/js/beta.js`) ;
+  - panneau Actualités (`public/js/news.js`) ;
+  - aide « mot de passe oublié » du compte (`public/js/main.js`).
+- **En production, le lien n'est pas configuré** : `GET /api/beta/config` renvoie `"discordUrl": null`. Aucun lien Discord n'est donc visible dans le jeu aujourd'hui.
+
+**Choix.** Ce développement appartient à #50. Il faut y ajouter :
+- un accès bien visible à 320 et 390 px ;
+- une validation stricte des adresses d'invitation Discord ;
+- le texte en italien ;
+- des tests avec et sans lien.
+
+Le faire aussi dans #84 doublerait le travail et risquerait des conflits. #84 est donc rendu **« prêt, dépend de #50 »**. Une fois #50 déployé, la session #84 ajoutera le contrôle d'ouverture ci-dessous à la recette, sans rien refaire d'autre.
+
+**Action simple pour le propriétaire (possible dès maintenant).**
+1. Ouvre `/admin/` → 🧪 Bêta → Configurer la bêta.
+2. Colle `https://discord.gg/eGzJrzbaq` dans « Lien d'invitation Discord ».
+3. Enregistre.
+
+Le lien apparaît alors tout de suite dans la bannière bêta et dans Actualités, avec la version actuelle. Aucune session ne modifie ce réglage de production à ta place.
+
+**Contrôle d'ouverture à ajouter à la recette #84 (après #50).**
+1. Sur PC (1280 px), ouvre le jeu puis Actualités. « Rejoindre le Discord » s'ouvre dans un nouvel onglet sur `discord.gg/eGzJrzbaq`. En revenant sur l'onglet du jeu, tu retrouves le même bloc et la même progression.
+2. Sur Android (navigateur, puis PWA installée), fais le même parcours. L'application Discord ou le navigateur s'ouvre, et le retour au jeu ne perd pas l'état de minage.
+3. Vide le lien dans l'admin. Aucun bouton Discord ne reste visible et le jeu reste jouable.
+
+**Classement.** Après lancement pour le MVP public. Il est utile pour la bêta collègues, mais pas bloquant : le chemin de signalement des bugs dans le jeu existe déjà.
+
+**Décision demandée.** Aucune nouvelle. La question sur les points de récompense et la boutique de cadeaux reste ouverte (options A, B ou C ; A recommandée).
