@@ -681,9 +681,14 @@
         <li class="sec-step" id="sec-step-1" data-step="1">
           <h4 class="sec-step-title">Choisir le compte de test</h4>
           <form id="sec-test-form" class="sec-player-form">
-            <input type="text" id="sec-test-q" maxlength="40" placeholder="Pseudo ou #ID" aria-label="Compte de test : pseudo ou identifiant" autocomplete="off">
+            <div class="player-ac">
+              <input type="text" id="sec-test-q" maxlength="40" placeholder="Pseudo (2 lettres : suggestions) ou #ID" aria-label="Compte de test : pseudo ou identifiant" autocomplete="off"
+                     role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sec-test-suggest">
+              <ul id="sec-test-suggest" class="player-ac-list hidden" role="listbox" aria-label="Comptes trouvés"></ul>
+            </div>
             <button type="submit" class="btn btn-sm">Choisir ce compte</button>
           </form>
+          <p class="sec-step-state sec-step-pick" id="sec-step-1-pick" role="status" aria-live="polite"></p>
           <p class="sec-step-state" id="sec-step-1-state"></p>
         </li>
         <li class="sec-step" id="sec-step-2" data-step="2">
@@ -748,7 +753,11 @@
         </table>
       </div>
       <form id="sec-player-form" class="sec-player-form" style="margin-top:10px">
-        <input type="text" id="sec-player-q" maxlength="40" placeholder="Pseudo ou #ID" aria-label="Pseudo ou identifiant du joueur" autocomplete="off">
+        <div class="player-ac">
+          <input type="text" id="sec-player-q" maxlength="40" placeholder="Pseudo (2 lettres : suggestions) ou #ID" aria-label="Pseudo ou identifiant du joueur" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sec-player-suggest">
+          <ul id="sec-player-suggest" class="player-ac-list hidden" role="listbox" aria-label="Joueurs trouvés"></ul>
+        </div>
         <button type="submit" class="btn btn-sm btn-outline">Ouvrir la fiche d'un joueur</button>
       </form>
       <p id="sec-player-err" class="error hidden" role="alert"></p>

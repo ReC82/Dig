@@ -136,3 +136,43 @@ test('fiche : statut et action principale en tête, détails techniques (PV, mes
   assert.doesNotMatch(ess, /applied:false|anti-bot \$\{m\.antibotMode\}/, 'plus de jargon dans la vue essentielle');
   assert.match(ess, /sec-origin-whybox/, 'explication longue repliée');
 });
+
+test('recette #87-B : recherche partielle du compte (pseudo partiel, casse, #ID, inconnu, plusieurs, réseau)', async () => {
+  const users = [{ id: 1, username: 'testeur' }, { id: 2, username: 'bobtest1' }, { id: 3, username: 'bobtest2' }];
+  const calls = [];
+  const ctx = { console, URLSearchParams, encodeURIComponent, down: false,
+    api: async (m, p) => {
+      calls.push(p);
+      if (ctx.down) return { ok: false, status: 0, data: {} };
+      if (p.startsWith('/api/admin/security/player?')) {
+        const q = new URLSearchParams(p.split('?')[1]).get('q').replace(/^#/, '');
+        const u = users.find(x => String(x.id) === q);
+        return u ? { ok: true, data: { player: { userId: u.id, username: u.username } } } : { ok: false, data: { error: 'introuvable' } };
+      }
+      const q = decodeURIComponent(p.split('q=')[1]).toLowerCase();
+      return { ok: true, data: { users: users.filter(u => u.username.includes(q)) } };
+    } };
+  vm.createContext(ctx);
+  vm.runInContext(fn('secResolveTyped') + '\nthis.r = secResolveTyped;', ctx);
+  const r = q => ctx.r(q).then(x => JSON.parse(JSON.stringify(x)));
+  assert.deepStrictEqual((await r('teste')).user, { id: 1, username: 'testeur' }, 'partiel → seul résultat');
+  assert.deepStrictEqual((await r('TESTE')).user?.id, 1, 'insensible à la casse');
+  assert.deepStrictEqual((await r('bobtest1')).user?.id, 2, 'pseudo exact parmi plusieurs');
+  assert.strictEqual((await r('bobtest')).many.length, 2, 'plusieurs → liste à choisir');
+  assert.strictEqual((await r('#3')).user?.id, 3, '#ID');
+  assert.strictEqual((await r('#99')).none, true, '#ID inconnu');
+  assert.strictEqual((await r('inconnu')).none, true);
+  assert.ok(calls.every(p => /^\/api\/admin\//.test(p)), 'routes admin authentifiées uniquement');
+  ctx.down = true;
+  assert.match((await r('teste')).error, /Recherche impossible/);
+  assert.match(fn('secTestPickTyped'), /comptes? contiennent|secAccounts/, 'pluriel');
+  const { secAccounts } = (() => { const c = {}; vm.createContext(c); vm.runInContext(JS.match(/const secAccounts = .*/)[0] + '\nthis.secAccounts = secAccounts;', c); return c; })();
+  assert.deepStrictEqual([2, 10].map(secAccounts), ['2 comptes', 'Au moins 10 comptes'], 'pluriel, plafond des suggestions');
+  // Les deux champs de l'onglet ont l'autocomplétion partagée (#37), sans e-mail
+  for (const id of ['sec-test', 'sec-player']) {
+    assert.match(TAB, new RegExp(`id="${id}-q"[^>]*\\n?[^>]*role="combobox"`), `${id}-q combobox`);
+    assert.match(TAB, new RegExp(`id="${id}-suggest" class="player-ac-list hidden" role="listbox"`));
+  }
+  assert.match(fn('attachPlayerAutocomplete'), /note\('Recherche…'\)/, 'réseau lent : état visible');
+  assert.match(fn('attachPlayerAutocomplete'), /clearTimeout\(blurTimer\)/, 'liste rouverte après clic sur le bouton (blur annulé)');
+});
