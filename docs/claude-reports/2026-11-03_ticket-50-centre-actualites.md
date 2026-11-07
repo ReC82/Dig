@@ -287,3 +287,86 @@ Aucune nouvelle décision. Les questions précédentes restent ouvertes et ne bl
 ### 8. Reste à réaliser
 - Observer les annonces automatiques J-1 à leur échéance du 08/11 (Après lancement).
 - Le cas « Continuer à modifier garde la saisie » n'a pas été rapporté explicitement par le propriétaire. Il est couvert par l'essai Chromium local du 03/11 (midi).
+
+---
+
+## Mise à jour du 07/11/2026 — accès « Rejoindre le Discord » avant la bêta du 09/11
+
+**Ticket :** #50 — [P1] Centre d'actualités Dig — cloche, annonces IA, événements joueurs et Discord — https://github.com/ReC82/Dig/issues/50
+
+**État réel : déployé en production (SHA `b500256`) — en attente de recette.** Le lien Discord **n'est pas encore saisi en production** (`GET /api/beta/config` renvoie `"discordUrl": null` après le déploiement). Aucune session ne modifie ce réglage à ta place : l'action d'admin est décrite au §5.
+
+### 1. Demande
+Commentaire du propriétaire du 07/11 ([lien](https://github.com/ReC82/Dig/issues/50#issuecomment-6705095948)). Il demande une entrée « Rejoindre le Discord » côté joueur, sur PC et mobile, avec le lien officiel `https://discord.gg/eGzJrzbaq`. Elle doit réutiliser le champ existant d'Admin → 🧪 Bêta → Configurer la bêta, sans second champ ni refonte du header. Coordonné avec #84.
+
+### 2. Changements réalisés
+- **Actualités** (`public/js/news.js`, `public/css/style.css`) : le bouton « 💬 Rejoindre le Discord » est maintenant **en tête du panneau**, avant « À venir », dans un encadré. Il est visible sans défiler à 1280, 390 et 320 px et mesure 44 px de haut. Une phrase l'accompagne : « Facultatif : discute avec les autres joueurs et l'équipe. Le jeu reste ouvert et ta partie continue ; Discord n'est pas nécessaire pour jouer. »
+- **Aide** (`public/js/help.js`) : nouvelle section « Communauté » juste sous « Comment jouer ? », avec le même bouton et la même phrase.
+- **Ouverture sûre** : nouvel onglet (`target="_blank"`, `rel="noopener noreferrer"`). Le jeu reste dans son onglet, et Discord n'a aucun accès à la page du jeu. Dans la PWA installée, le système ouvre le navigateur ou l'application Discord ; le jeu reste ouvert derrière. La sauvegarde existante à la sortie (`visibilitychange`/`pagehide`) n'est pas modifiée. Le bouton a un intitulé accessible « … — S'ouvre dans un nouvel onglet ». Il est atteint au clavier par Tab depuis ✕, et un contour est visible au focus.
+- **Validation stricte** (`server/beta.js`) : seules les invitations `https://discord.gg/<code>`, `https://discord.com/invite/<code>` (avec ou sans `www.`) et `https://discordapp.com/invite/<code>` sont acceptées. Sont refusés : `http`, autre domaine ou sous-domaine piège, identifiants, port, chemin supplémentaire, paramètre, fragment, espace et retour à la ligne. La barre finale est retirée à l'enregistrement. Une valeur ancienne non conforme en base n'est jamais exposée au jeu. Le navigateur refait le même contrôle avant d'afficher le lien.
+- **Désactivation** : vider le champ dans l'admin retire le bouton partout (Actualités, Aide, bandeau bêta, aide « mot de passe oublié »).
+- **Textes** FR/EN/NL/ES (`public/js/i18n.js`) et IT (`i18n/it.json` → `public/js/locales/it.js`, 893/893, 0 erreur) : `news.discord_aria`, `news.discord_hint`, `help.community`.
+- Aucun changement d'économie, aucune migration, aucune image générée, aucune route ajoutée.
+
+### 3. SHA, branche, tests
+- Branche `feature/50-centre-actualites`, commit `84141fa` ; **`develop` = `b500256`** (= `main`, déployé).
+- `npm test` : **888/888** sur la branche et sur la release `b500256`.
+- Nouveau `test/discord-access-50.test.js` (8 tests) :
+  - URL officielle acceptée telle quelle, barre finale retirée, lien vidé = désactivé ;
+  - 18 adresses piégées refusées sans effet sur l'ancienne valeur ;
+  - valeur ancienne non conforme jamais exposée ;
+  - Actualités : bouton en tête, URL exacte, nouvel onglet ;
+  - aucun bouton sans lien ou avec un lien non conforme ;
+  - section Aide présente seulement avec lien ;
+  - 5 langues ; un seul champ Discord dans l'admin.
+- Nouveau parcours Chromium `test/e2e/discord-access-50.e2e.js`, joué sur un serveur de test (port 3101, base `test-50.sqlite`, supprimée), en 1280×900, 390×844 et 320×640 :
+  - avec lien : bouton visible sans défiler, 44 px, aucun débordement, Tab → bouton ;
+  - Entrée (PC) ou toucher (mobile) → nouvel onglet exactement sur `https://discord.gg/eGzJrzbaq`, `window.opener` nul ;
+  - au retour, même bloc et mêmes PV ; Aide → Communauté visible ;
+  - **sans lien** : aucun bouton dans Actualités ni dans l'Aide. **Tout OK.**
+
+### 4. Déploiement
+- Avant le déploiement :
+  - aucune génération IA en cours (dernier appel le 06/11 à 11:54 UTC) ;
+  - copie de la base de production démarrée avec la release en `NODE_ENV=production` : empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` **identiques** avant et après ; copie supprimée.
+- `deploy.sh` (script de la release) : `8a26e0b` → `b500256`. Sauvegarde vérifiée `dig-20261107-105642-pre-deploy-b500256.sqlite`.
+- Après le déploiement :
+  - les 2 domaines répondent 200 avec la version `1.0.0+b500256` ;
+  - journal sans erreur ; `quick_check` ok ; empreintes joueurs identiques à la sauvegarde ;
+  - Chromium sur la production en 1280 et 390 : panneau Actualités normal, aucun bouton Discord (lien non saisi), 0 erreur JavaScript.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 8a26e0b` puis `sudo systemctl restart dig`. Il n'y a aucune donnée à restaurer.
+
+### 5. Action d'admin puis test à faire (≈ 3 min) — #50-J
+**Action (toi seul) :**
+1. `/admin/` → 🧪 Bêta → « ⚙️ Configurer la bêta ».
+2. Colle `https://discord.gg/eGzJrzbaq` dans « Lien d'invitation Discord ».
+3. Enregistre.
+
+**Test :**
+1. **PC**, jeu ouvert, cloche 🔔 → « 💬 Rejoindre le Discord » apparaît **tout en haut** avec la phrase « Facultatif… ». Clique dessus.
+   *Attendu :* un nouvel onglet s'ouvre sur l'invitation Dig. Reviens sur l'onglet du jeu : même bloc, mêmes PV, minage intact.
+2. **Téléphone** (navigateur, puis PWA si installée) : même essai depuis la cloche, puis depuis **?** (Aide) → « Communauté ».
+   *Attendu :* Discord (application ou navigateur) s'ouvre. Le retour au jeu ne perd rien, et aucun bouton ne recouvre le bloc ni les commandes.
+3. Facultatif : essaie d'enregistrer `http://discord.gg/eGzJrzbaq`. *Attendu :* refus « Lien Discord invalide ». Le lien précédent reste en place.
+
+Pour désactiver : vide le champ et enregistre. Le bouton disparaît partout. Le contrôle d'ouverture sur PC et mobile est aussi à ajouter à la recette #84 (session #84).
+
+**Classement :** Après lancement pour le MVP public (utile pour la bêta du 09/11, non bloquant : le signalement de bug dans le jeu existe déjà).
+
+### 6. Choix techniques faits seul
+- **Bouton en tête d'Actualités plutôt qu'un nouveau bouton dans le header.** C'est la consigne « pas de refonte du header ». À 320 px, l'en-tête est déjà plein (Aide, cloche, logo, profil, paramètres).
+- **Section dans l'Aide** : c'est le second endroit où un joueur cherche « où poser une question ». Elle n'apparaît que si le lien existe.
+- **Normalisation sans changement de domaine** : l'URL saisie est conservée telle quelle (seule la barre finale est retirée), ce qui garde l'URL exacte demandée.
+- **Contrôle répété côté navigateur** : défense en profondeur, même si le serveur valide déjà.
+- **Italien relu par la session** (`origin: ai`), comme les autres textes italiens #59.
+
+### 7. Décisions demandées au propriétaire
+Aucune nouvelle décision. Questions précédentes toujours ouvertes, non bloquantes :
+1. Faits joueurs : activer après la bêta ouverte (recommandé).
+2. Remplacer les ~58 confirm/alert/prompt des autres onglets par admConfirm dans #61 : oui, en commençant par Collections, Blocs et Badges (recommandé).
+
+(L'ancienne question « lien Discord à saisir » est remplacée par l'action d'admin du §5.)
+
+### 8. Reste à réaliser
+- Saisie du lien par le propriétaire (§5), puis recette #50-J.
+- Observer les annonces automatiques J-1 à l'échéance du 08/11 (Après lancement).
