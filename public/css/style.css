@@ -3818,6 +3818,9 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
   cursor: pointer;
   touch-action: manipulation;
 }
+.antibot-tile { display: flex; align-items: center; justify-content: center; }
+.antibot-svg { width: 44px; height: 44px; display: block; pointer-events: none; }
+.antibot-tile-name { font-size: 0.85rem; font-weight: 700; color: var(--text); }
 .antibot-tile.picked { border-color: #fbbf24; background: rgba(251, 191, 36, 0.15); }
 .antibot-text-form { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
 .antibot-text-form input { font-size: 1.1rem; padding: 10px; border-radius: 10px; text-align: center; }
