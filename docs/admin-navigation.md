@@ -20,8 +20,9 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
 | Recommencer un test à zéro (joueur) | Joueurs › fiche du joueur › 🧪 Essais de test › « Recommencer un test à zéro » | `#a/reset-test` |
 | Exporter l'historique des essais d'un joueur | Joueurs › fiche du joueur › 🧪 Essais de test › Exporter CSV / JSON | `#a/export-tests` |
 | Réinitialisation saisonnière partielle (joueur) | Joueurs › fiche du joueur › ⚠ Réinitialisation saisonnière partielle (repliée) | `#a/partial-reset` |
-| Voir l'anti-bot d'un joueur | Joueurs & testeurs › Anti-bot › Fiche d'un joueur (ou bouton 🛡 de la fiche Joueurs) | `#a/player-antibot` |
-| Consulter le journal de sécurité | Joueurs & testeurs › Anti-bot › Journal de sécurité | `#a/sec-journal` |
+| Tester la protection anti-bot sur un compte | Joueurs & testeurs › Anti-bot › Tester la protection (parcours en 5 étapes) | `#a/sec-test` |
+| Voir l'anti-bot d'un joueur | Joueurs & testeurs › Anti-bot › Joueurs à surveiller › Ouvrir la fiche d'un joueur (ou bouton 🛡 de la fiche Joueurs) | `#a/player-antibot` |
+| Consulter le journal de sécurité | Joueurs & testeurs › Anti-bot › Diagnostic et historique › Journal des anomalies joueurs | `#a/sec-journal` |
 | Préparer une invitation bêta | Joueurs & testeurs › Bêta fermée › « ➕ Inviter un testeur » | `#a/invite` |
 | Lire les retours des testeurs | Joueurs & testeurs › Bêta fermée › Retours | `#a/beta-feedback` |
 | Révoquer ou archiver un lien, retirer un testeur | Joueurs & testeurs › Bêta fermée › 🗂️ Gérer les invitations et testeurs | `#a/beta-manage` |

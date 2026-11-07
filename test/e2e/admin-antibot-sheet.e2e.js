@@ -89,7 +89,7 @@ const check = (tag, label, ok, extra = '') => { console.log(`${ok ? 'OK  ' : 'É
         sections: document.querySelectorAll('#sec-pane-advanced details.sec-acc').length,
         allClosed: [...document.querySelectorAll('#sec-pane-advanced details.sec-acc')].every(d => !d.open),
       }));
-      check(tag, 'diagnostic avancé : 11 sections repliées, vue essentielle masquée', adv.sel === 'true' && adv.essHidden && adv.sections === 11 && adv.allClosed, JSON.stringify(adv));
+      check(tag, 'diagnostic avancé : 12 sections repliées, vue essentielle masquée', adv.sel === 'true' && adv.essHidden && adv.sections === 12 && adv.allClosed, JSON.stringify(adv));
       await page.click('#btn-sec-player-refresh');
       await page.waitForTimeout(600);
       check(tag, 'onglet conservé au rafraîchissement', await page.evaluate(() => document.getElementById('sec-tab-advanced').getAttribute('aria-selected') === 'true'));

@@ -208,7 +208,7 @@ test('admin : fiche lisible — résumé par défaut, sections techniques replia
   const fn = js.slice(js.indexOf('function secRenderPlayer'), js.indexOf("admDialogSetup('sec-player-dialog'"));
   assert.match(fn, /ess\.appendChild\(cards\)/, 'résumé toujours visible (vue essentielle, #76)');
   const keys = [...fn.matchAll(/section\('([a-z]+)'/g)].map(x => x[1]);
-  assert.deepStrictEqual(keys, ['modes', 'account', 'progress', 'save', 'risk', 'responses', 'alerts', 'telemetry', 'samples', 'anticheat', 'timeline'],
+  assert.deepStrictEqual(keys, ['modes', 'account', 'progress', 'save', 'risk', 'responses', 'lotc', 'alerts', 'telemetry', 'samples', 'anticheat', 'timeline'],
     'toutes les sections conservées, chacune repliable');
   assert.match(fn, /det\.open = _secOpenSections\.has\(key\)/, 'repliées par défaut, état conservé au rafraîchissement');
   assert.match(fn, /Tout déplier/);

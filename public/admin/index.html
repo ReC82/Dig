@@ -647,142 +647,237 @@
 
   </section>
 
-  <!-- Tab Anti-bot (#25) -->
+  <!-- Tab Anti-bot (#25) — refonte #87 (07/11) : actions et pédagogie d'abord, diagnostics repliés -->
   <section id="tab-security" class="tab-content hidden">
     <div class="section-header">
       <h2>Anti-bot</h2>
       <button class="btn" id="btn-refresh-sec">↻ Rafraîchir</button>
     </div>
-    <div class="overview-card">
-      <h3 class="overview-card-title">Synthèse</h3>
-      <p class="muted" style="font-size:0.8rem">Observation (shadow) : les scores et niveaux sont calculés et journalisés, <strong>aucune sanction n'est appliquée</strong>. Le budget de dégâts borne la profondeur classée (preuve physique). Modifier les modes dans l'onglet Config (<code>antibot_mode</code>, <code>damage_budget_mode</code>, <code>exact_hp_mode</code>). Les PV réels des blocs (#77) sont recalculés en observation (shadow) : écart visible dans la fiche joueur, aucun joueur freiné tant que le mode n'est pas <code>enforce</code>.</p>
-      <p class="muted" style="font-size:0.8rem">Chaque sauvegarde cloud d'un joueur est contrôlée (profondeur, budget de dégâts, anti-autoclic, télémétrie). <strong>Une sauvegarde normale ne crée aucune entrée de journal</strong> : seules les anomalies sont consignées. Le dernier contrôle de chaque joueur est affiché ci-dessous sans rien journaliser. Zéro anomalie signifie qu'aucun seuil n'a été franchi, pas que chaque détecteur a été éprouvé.</p>
-      <div id="sec-status"></div>
-    </div>
-    <!-- Lot C (#25, décision du 06/11) : défis et suspensions du minage manuel -->
-    <div class="overview-card" id="sec-resp-card">
-      <h3 class="overview-card-title">Réponses : défis et suspensions du minage manuel</h3>
-      <p class="muted" style="font-size:0.78rem">Le serveur mesure le minage manuel (série sans pause, temps actif sur 6 h / 24 h) et le score de risque. Au seuil : un <strong>défi</strong> (jamais une sanction). Tant qu'il est en attente, les clics manuels ne comptent plus au classement ; Auto-Dig, boutique et compte restent libres. <strong>Suspension</strong> (5 min → 24 h) uniquement si des clics continuent pendant un défi affiché. Désactivé = rien ; Observation = défis simulés, journalisés, rien n'est montré ni retiré ; Appliqué = réel.</p>
-      <div id="sec-resp-mode" class="sec-resp-mode"></div>
-      <div id="sec-resp-stats"></div>
-      <h4 class="sec-resp-sub">Défis récents</h4>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Date (UTC)</th><th>Joueur</th><th>État</th><th>Motifs</th><th>Échecs / expirés</th><th>Clics retenus</th><th>Action</th></tr></thead>
-          <tbody id="sec-resp-ch-body"><tr><td colspan="7" class="muted">Aucun défi.</td></tr></tbody>
-        </table>
+
+    <!-- 1. Trois cartes courtes : état, joueurs à vérifier, bouton de test -->
+    <div class="sec-top" id="sec-top">
+      <div class="sec-top-card" id="sec-top-mode">
+        <h3 class="sec-top-title">Protection des joueurs</h3>
+        <p class="sec-top-value" id="sec-top-mode-value">…</p>
+        <p class="sec-top-help" id="sec-top-mode-help"></p>
       </div>
-      <h4 class="sec-resp-sub">Suspensions du minage manuel</h4>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Début (UTC)</th><th>Joueur</th><th>Palier</th><th>Fin (UTC)</th><th>État</th><th>Clics pendant</th><th>Action</th></tr></thead>
-          <tbody id="sec-resp-su-body"><tr><td colspan="7" class="muted">Aucune suspension.</td></tr></tbody>
-        </table>
+      <div class="sec-top-card" id="sec-top-watch">
+        <h3 class="sec-top-title">Joueurs à vérifier</h3>
+        <p class="sec-top-value" id="sec-top-watch-value">…</p>
+        <p class="sec-top-help"><button type="button" class="btn btn-sm btn-outline" id="btn-sec-goto-watch">Voir la liste</button></p>
+      </div>
+      <div class="sec-top-card sec-top-card--action" id="sec-top-test">
+        <h3 class="sec-top-title">Vérifier que ça marche</h3>
+        <p class="sec-top-help">Sur un seul compte, sans toucher aux autres joueurs.</p>
+        <p><button type="button" class="btn btn-primary sec-big-btn" id="btn-sec-start-test">▶ Tester la protection</button></p>
       </div>
     </div>
-    <div class="overview-card">
-      <details id="sec-protocol">
-        <summary><strong>Protocole de recette — autoclickers Windows / Android (≈ 20 min)</strong></summary>
-        <ol class="sec-protocol">
-          <li><strong>Préparer</strong> un compte de test consentant (snapshot #75 si besoin). Ici : Fiche → « Essai Appliqué sur ce compte ». Le mode global reste <em>Observation</em> : aucun autre joueur n'est concerné.</li>
-          <li><strong>Défi à la main</strong> : Fiche → « Émettre un défi d'essai ». En jeu (≤ 15 s ou F5) : fenêtre « Petite vérification ». Attendu : coups sans effet, Auto-Dig continue, fenêtre fermable puis rouverte par un clic sur le bloc, version accessible (texte), une mauvaise réponse donne une nouvelle énigme sans sanction. Résoudre → minage normal.</li>
-          <li><strong>Autoclicker 8–12 clics/s</strong> (régulier puis bruité) pendant ≈ 65 min, ou réduire temporairement « Minage manuel continu sans pause » à 10 min (Config → Protections) pour un essai de 12 min. Attendu : défi après le seuil ; la fiche passe à « Défi imposé — minage refusé au classement » ; les blocs manuels validés cessent d'augmenter.</li>
-          <li><strong>Laisser l'autoclicker tourner</strong> sur la fenêtre de défi : avec le jeu officiel, aucun clic n'est compté → pas de suspension, classement figé. (Une suspension n'apparaît qu'avec un client modifié qui continue d'envoyer des clics.)</li>
-          <li><strong>Humain rapide 5–8 clics/s</strong> avec pauses (téléphone, double tap) 10–15 min : attendu aucun défi.</li>
-          <li><strong>Remise en état</strong> : Fiche → « Remettre le palier à 0 », lever/annuler si besoin, désactiver l'essai. Remettre le seuil de série à 60 min si modifié.</li>
-        </ol>
-        <p class="muted" style="font-size:0.78rem">À relever pour chaque essai : heure, cadence, blocs manuels déclarés / validés (fiche), état (normal / défi / suspendu), journal « Réponses ». Distinguer : <em>détecté</em> (défi simulé en Observation) · <em>défi imposé</em> · <em>minage refusé au classement</em> · <em>sanction</em> (suspension).</p>
-      </details>
+
+    <!-- 2. Parcours guidé « Tester la protection » -->
+    <div class="overview-card sec-test" id="sec-test-card">
+      <h3 class="overview-card-title">Tester la protection</h3>
+      <p class="sec-help">Un <strong>essai</strong> ne concerne qu'<strong>un seul compte</strong> (le vôtre ou un compte de test) : lui seul peut voir la vérification. Le <span class="sec-tip" tabindex="0" title="Le mode global vaut pour tous les joueurs. Il se change uniquement dans « Réglages », plus bas.">mode global</span> reste <strong id="sec-test-global">…</strong> pour tous les autres joueurs.</p>
+      <ol class="sec-steps" id="sec-test-steps">
+        <li class="sec-step" id="sec-step-1" data-step="1">
+          <h4 class="sec-step-title">Choisir le compte de test</h4>
+          <form id="sec-test-form" class="sec-player-form">
+            <input type="text" id="sec-test-q" maxlength="40" placeholder="Pseudo ou #ID" aria-label="Compte de test : pseudo ou identifiant" autocomplete="off">
+            <button type="submit" class="btn btn-sm">Choisir ce compte</button>
+          </form>
+          <p class="sec-step-state" id="sec-step-1-state"></p>
+        </li>
+        <li class="sec-step" id="sec-step-2" data-step="2">
+          <h4 class="sec-step-title">Lancer l'essai sur ce compte</h4>
+          <button type="button" class="btn" id="btn-sec-test-start" disabled>Lancer un essai uniquement pour ce compte</button>
+          <p class="sec-step-state" id="sec-step-2-state"></p>
+        </li>
+        <li class="sec-step" id="sec-step-3" data-step="3">
+          <h4 class="sec-step-title">Afficher le défi de vérification</h4>
+          <button type="button" class="btn" id="btn-sec-test-challenge" disabled>Afficher le défi de vérification</button>
+          <p class="sec-step-state" id="sec-step-3-state"></p>
+        </li>
+        <li class="sec-step" id="sec-step-4" data-step="4">
+          <h4 class="sec-step-title">Dans le jeu : résoudre la vérification</h4>
+          <p class="sec-step-help">Revenez dans le jeu avec ce compte (touche F5 si la page était déjà ouverte). La fenêtre « Petite vérification » s'affiche : touchez le bloc (rien ne se passe), puis résolvez-la. Le minage normal reprend.</p>
+          <button type="button" class="btn btn-sm btn-outline" id="btn-sec-test-check" disabled>↻ Voir où en est le compte</button>
+          <p class="sec-step-state" id="sec-step-4-state"></p>
+        </li>
+        <li class="sec-step" id="sec-step-5" data-step="5">
+          <h4 class="sec-step-title">Terminer le test</h4>
+          <button type="button" class="btn" id="btn-sec-test-end" disabled>Terminer le test / remettre l'état normal</button>
+          <p class="sec-step-state" id="sec-step-5-state"></p>
+        </li>
+      </ol>
+      <p id="sec-test-msg" class="sec-test-msg" role="status" aria-live="polite"></p>
     </div>
-    <div class="overview-card">
-      <h3 class="overview-card-title">Fiche d'un joueur</h3>
-      <p class="muted" style="font-size:0.78rem;margin-bottom:8px">Pseudo exact ou identifiant ; ou bouton « Fiche » dans les tableaux ci-dessous. Lecture seule : rien n'est modifié ni appliqué au joueur.</p>
-      <form id="sec-player-form" class="sec-player-form">
+
+    <!-- 3. Joueurs à surveiller -->
+    <div class="overview-card" id="sec-watch-card">
+      <h3 class="overview-card-title">Joueurs à surveiller</h3>
+      <p class="sec-help">Joueurs avec une vérification en attente, un minage suspendu ou des indices de triche. « Fiche » montre le détail ; rien n'est appliqué en l'ouvrant.</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Joueur</th><th>Situation</th><th>Depuis (UTC)</th></tr></thead>
+          <tbody id="sec-watch-body"><tr><td colspan="3" class="muted">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <form id="sec-player-form" class="sec-player-form" style="margin-top:10px">
         <input type="text" id="sec-player-q" maxlength="40" placeholder="Pseudo ou #ID" aria-label="Pseudo ou identifiant du joueur" autocomplete="off">
-        <button type="submit" class="btn btn-sm">Ouvrir la fiche</button>
+        <button type="submit" class="btn btn-sm btn-outline">Ouvrir la fiche d'un joueur</button>
       </form>
       <p id="sec-player-err" class="error hidden" role="alert"></p>
     </div>
-    <div class="overview-card">
-      <h3 class="overview-card-title">Derniers contrôles des joueurs (saison active)</h3>
-      <p class="muted" style="font-size:0.78rem;margin-bottom:8px">État lu dans les données de validation, mis à jour à chaque sauvegarde. Écart de profondeur = déclarée − retenue (un petit écart temporaire est normal le temps que le crédit couvre la progression).</p>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Joueur</th><th>Dernier contrôle (UTC)</th><th>Profondeur retenue</th><th>Écart profondeur</th><th>Écart budget</th><th>Clics / blocs validés</th><th>Score</th><th>Résultat</th></tr></thead>
-          <tbody id="sec-checks-body"><tr><td colspan="8" class="muted">Aucun joueur contrôlé dans la saison active.</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="overview-card">
-      <h3 class="overview-card-title">Comptes de la saison par score de risque</h3>
-      <table>
-        <thead><tr><th>Joueur</th><th>Score</th><th>Niveau (non appliqué)</th><th>Détail</th></tr></thead>
-        <tbody id="sec-accounts-body"><tr><td colspan="4" class="muted">Aucun compte à risque.</td></tr></tbody>
-      </table>
-    </div>
-    <div class="overview-card" id="sec-journal-card">
-      <div class="section-header" style="margin-bottom:12px">
-        <h3 class="overview-card-title" style="margin:0">Journal de sécurité</h3>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="sec-filter-type" class="league-select">
-            <option value="">Tous les événements</option>
-            <optgroup label="Anomalies joueur">
-              <option value="group:player">Toutes les anomalies joueur</option>
-              <option value="damage_budget">Budget de dégâts dépassé</option>
-              <option value="depth_rejected">Profondeur rejetée</option>
-              <option value="forged_counters">Compteurs falsifiés</option>
-              <option value="blocks_gt_clicks">Blocs &gt; clics</option>
-              <option value="cps_flagged">CPS très élevé</option>
-              <option value="cps_reduced">CPS au-dessus du seuil</option>
-              <option value="untrusted_clicks">Clics par script</option>
-              <option value="burst_clicks">Rafales</option>
-              <option value="throttled_hits">Coups au-delà de la cadence</option>
-              <option value="exact_hp_budget">PV réels des blocs dépassés (0 point)</option>
-              <option value="block_hp_mismatch">PV du bloc courant falsifiés (0 point)</option>
-              <option value="block_seed_changed">Graine des blocs changée (0 point)</option>
-              <option value="block_seq_skips">Blocs sautés / bloc absent (0 point)</option>
-              <option value="regular_clicks">Rythme régulier</option>
-              <option value="risk_level">Changement de niveau</option>
-            </optgroup>
-            <optgroup label="Réponses (défis, suspensions)">
-              <option value="group:responses">Toutes les réponses</option>
-              <option value="challenge_shadow">Défi simulé (Observation)</option>
-              <option value="challenge_issued">Défi imposé</option>
-              <option value="challenge_solved">Défi résolu</option>
-              <option value="suspension_started">Suspension du minage manuel</option>
-              <option value="antibot_admin">Action admin (essai, levée…)</option>
-              <option value="sustained_activity">Minage continu prolongé (indice)</option>
-              <option value="narrow_jitter">Gigue synthétique (indice)</option>
-            </optgroup>
-            <optgroup label="Audit admin">
-              <option value="group:admin">Tout l'audit admin</option>
-              <option value="admin_config">Config admin</option>
-              <option value="admin_action">Actions admin</option>
-              <option value="admin_login">Connexions admin</option>
-              <option value="admin_login_failed">Connexions admin refusées</option>
-            </optgroup>
-            <optgroup label="Système">
-              <option value="group:system">Tous les événements système</option>
-              <option value="standings_frozen">Classement figé</option>
-              <option value="standings_freeze_failed">Échec du gel du classement</option>
-            </optgroup>
-          </select>
-          <select id="sec-filter-days" class="league-select">
-            <option value="">Tout l'historique (90 j)</option>
-            <option value="1">24 dernières heures</option>
-            <option value="7">7 derniers jours</option>
-            <option value="30">30 derniers jours</option>
-          </select>
+
+    <!-- 4. Réglages (repliés) -->
+    <details class="overview-card sec-fold" id="sec-settings">
+      <summary><span class="sec-fold-title">Réglages — mode global pour tous les joueurs</span> <span class="sec-fold-sum" id="sec-settings-sum"></span></summary>
+      <ul class="sec-modes-help">
+        <li><strong>Désactivé</strong> : aucune mesure, aucune vérification.</li>
+        <li><strong>Observation</strong> : le serveur mesure et note ce qu'il aurait fait ; <strong>aucune vérification n'est imposée</strong>, rien n'est retiré.</li>
+        <li><strong>Appliqué</strong> : vérifications réelles pour tous ; tant qu'une vérification attend, les clics manuels ne comptent plus au classement. Une suspension (5 min → 24 h) n'arrive que si les clics continuent pendant la vérification.</li>
+      </ul>
+      <div id="sec-resp-mode" class="sec-resp-mode"></div>
+      <p class="sec-resp-line" id="sec-resp-params"></p>
+      <p class="muted" style="font-size:0.78rem">Les seuils se règlent dans Config → Protections. Pour un simple essai, préférez « Tester la protection » : il ne concerne qu'un compte.</p>
+    </details>
+
+    <!-- 5. Diagnostic et historique (replié) -->
+    <details class="overview-card sec-fold" id="sec-diag">
+      <summary><span class="sec-fold-title">Diagnostic et historique</span> <span class="sec-fold-sum">détails techniques, journaux et audit admin</span></summary>
+      <details class="bk-acc sec-sub" id="sec-sub-synth">
+        <summary><span class="bk-acc-title">Synthèse technique</span><span class="bk-acc-sum">modes, comptes suivis, temps de calcul</span></summary>
+        <p class="muted" style="font-size:0.8rem">Observation (shadow) : les scores et niveaux sont calculés et journalisés, <strong>aucune sanction n'est appliquée</strong>. Le budget de dégâts borne la profondeur classée (preuve physique). Modifier les modes dans l'onglet Config (<code>antibot_mode</code>, <code>damage_budget_mode</code>, <code>exact_hp_mode</code>). Les PV réels des blocs (#77) sont recalculés en observation (shadow) : écart visible dans la fiche joueur, aucun joueur freiné tant que le mode n'est pas <code>enforce</code>.</p>
+        <p class="muted" style="font-size:0.8rem">Chaque sauvegarde cloud d'un joueur est contrôlée (profondeur, budget de dégâts, anti-autoclic, télémétrie). <strong>Une sauvegarde normale ne crée aucune entrée de journal</strong> : seules les anomalies sont consignées. Le dernier contrôle de chaque joueur est affiché ci-dessous sans rien journaliser. Zéro anomalie signifie qu'aucun seuil n'a été franchi, pas que chaque détecteur a été éprouvé.</p>
+        <div id="sec-status"></div>
+      </details>
+      <details class="bk-acc sec-sub" id="sec-resp-card">
+        <summary><span class="bk-acc-title">Vérifications et suspensions — historique</span><span class="bk-acc-sum" id="sec-resp-sum"></span></summary>
+        <p class="muted" style="font-size:0.78rem">Le serveur mesure le minage manuel (série sans pause, temps actif sur 6 h / 24 h) et le score de risque. Au seuil : un <strong>défi</strong> (jamais une sanction). Tant qu'il est en attente, les clics manuels ne comptent plus au classement ; Auto-Dig, boutique et compte restent libres. <strong>Suspension</strong> (5 min → 24 h) uniquement si des clics continuent pendant un défi affiché. Désactivé = rien ; Observation = défis simulés, journalisés, rien n'est montré ni retiré ; Appliqué = réel.</p>
+        <div id="sec-resp-stats"></div>
+        <h4 class="sec-resp-sub">Défis récents</h4>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Date (UTC)</th><th>Joueur</th><th>État</th><th>Motifs</th><th>Échecs / expirés</th><th>Clics retenus</th><th>Action</th></tr></thead>
+            <tbody id="sec-resp-ch-body"><tr><td colspan="7" class="muted">Aucun défi.</td></tr></tbody>
+          </table>
         </div>
+        <h4 class="sec-resp-sub">Suspensions du minage manuel</h4>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Début (UTC)</th><th>Joueur</th><th>Palier</th><th>Fin (UTC)</th><th>État</th><th>Clics pendant</th><th>Action</th></tr></thead>
+            <tbody id="sec-resp-su-body"><tr><td colspan="7" class="muted">Aucune suspension.</td></tr></tbody>
+          </table>
+        </div>
+      </details>
+      <details class="bk-acc sec-sub" id="sec-sub-checks">
+        <summary><span class="bk-acc-title">Derniers contrôles des joueurs (saison active)</span><span class="bk-acc-sum" id="sec-checks-sum"></span></summary>
+        <p class="muted" style="font-size:0.78rem;margin-bottom:8px">État lu dans les données de validation, mis à jour à chaque sauvegarde. Écart de profondeur = déclarée − retenue (un petit écart temporaire est normal le temps que le crédit couvre la progression).</p>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Joueur</th><th>Dernier contrôle (UTC)</th><th>Profondeur retenue</th><th>Écart profondeur</th><th>Écart budget</th><th>Clics / blocs validés</th><th>Score</th><th>Résultat</th></tr></thead>
+            <tbody id="sec-checks-body"><tr><td colspan="8" class="muted">Aucun joueur contrôlé dans la saison active.</td></tr></tbody>
+          </table>
+        </div>
+      </details>
+      <details class="bk-acc sec-sub" id="sec-sub-accounts">
+        <summary><span class="bk-acc-title">Comptes de la saison par score de risque</span><span class="bk-acc-sum" id="sec-accounts-sum"></span></summary>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Joueur</th><th>Score</th><th>Niveau (non appliqué)</th><th>Détail</th></tr></thead>
+            <tbody id="sec-accounts-body"><tr><td colspan="4" class="muted">Aucun compte à risque.</td></tr></tbody>
+          </table>
+        </div>
+      </details>
+      <details class="bk-acc sec-sub" id="sec-journal-card">
+        <summary><span class="bk-acc-title">Journal des anomalies joueurs</span><span class="bk-acc-sum">indices de triche et réponses ; l'audit admin est à part</span></summary>
+        <div class="sec-journal-filters">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="sec-filter-type" class="league-select">
+              <option value="">Tous les événements (anomalies, réponses, audit admin, système)</option>
+              <optgroup label="Anomalies joueur">
+                <option value="group:player" selected>Toutes les anomalies joueur</option>
+                <option value="damage_budget">Budget de dégâts dépassé</option>
+                <option value="depth_rejected">Profondeur rejetée</option>
+                <option value="forged_counters">Compteurs falsifiés</option>
+                <option value="blocks_gt_clicks">Blocs &gt; clics</option>
+                <option value="cps_flagged">CPS très élevé</option>
+                <option value="cps_reduced">CPS au-dessus du seuil</option>
+                <option value="untrusted_clicks">Clics par script</option>
+                <option value="burst_clicks">Rafales</option>
+                <option value="throttled_hits">Coups au-delà de la cadence</option>
+                <option value="exact_hp_budget">PV réels des blocs dépassés (0 point)</option>
+                <option value="block_hp_mismatch">PV du bloc courant falsifiés (0 point)</option>
+                <option value="block_seed_changed">Graine des blocs changée (0 point)</option>
+                <option value="block_seq_skips">Blocs sautés / bloc absent (0 point)</option>
+                <option value="regular_clicks">Rythme régulier</option>
+                <option value="risk_level">Changement de niveau</option>
+              </optgroup>
+              <optgroup label="Réponses (défis, suspensions)">
+                <option value="group:responses">Toutes les réponses</option>
+                <option value="challenge_shadow">Défi simulé (Observation)</option>
+                <option value="challenge_issued">Défi imposé</option>
+                <option value="challenge_solved">Défi résolu</option>
+                <option value="suspension_started">Suspension du minage manuel</option>
+                <option value="antibot_admin">Action admin (essai, levée…)</option>
+                <option value="sustained_activity">Minage continu prolongé (indice)</option>
+                <option value="narrow_jitter">Gigue synthétique (indice)</option>
+              </optgroup>
+              <optgroup label="Audit admin">
+                <option value="group:admin">Tout l'audit admin</option>
+                <option value="admin_config">Config admin</option>
+                <option value="admin_action">Actions admin</option>
+                <option value="admin_login">Connexions admin</option>
+                <option value="admin_login_failed">Connexions admin refusées</option>
+              </optgroup>
+              <optgroup label="Système">
+                <option value="group:system">Tous les événements système</option>
+                <option value="standings_frozen">Classement figé</option>
+                <option value="standings_freeze_failed">Échec du gel du classement</option>
+              </optgroup>
+            </select>
+            <select id="sec-filter-days" class="league-select">
+              <option value="">Tout l'historique (90 j)</option>
+              <option value="1">24 dernières heures</option>
+              <option value="7">7 derniers jours</option>
+              <option value="30">30 derniers jours</option>
+            </select>
+          </div>
+        </div>
+        <p id="sec-events-total" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Date (UTC)</th><th>Type</th><th>Joueur</th><th>Score</th><th>Détails</th></tr></thead>
+            <tbody id="sec-events-body"><tr><td colspan="5" class="muted">Aucun événement.</td></tr></tbody>
+          </table>
+        </div>
+        <p><button type="button" class="btn btn-sm btn-outline hidden" id="btn-sec-events-more">Afficher plus d'entrées</button></p>
+      </details>
+      <details class="bk-acc sec-sub" id="sec-audit-card">
+        <summary><span class="bk-acc-title">Audit admin</span><span class="bk-acc-sum">actions, réglages et connexions au panel</span></summary>
+        <p id="sec-audit-total" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr><th>Date (UTC)</th><th>Type</th><th>Détails</th></tr></thead>
+            <tbody id="sec-audit-body"><tr><td colspan="3" class="muted">Ouvrez cette section pour charger l'audit.</td></tr></tbody>
+          </table>
+        </div>
+        <p><button type="button" class="btn btn-sm btn-outline hidden" id="btn-sec-audit-more">Afficher plus d'entrées</button></p>
+      </details>
+      <div class="sec-sub-proto">
+        <details id="sec-protocol" class="bk-acc sec-sub">
+          <summary><span class="bk-acc-title">Protocole de recette complet — autoclickers Windows / Android (≈ 20 min)</span></summary>
+          <ol class="sec-protocol">
+            <li><strong>Préparer</strong> un compte de test consentant (snapshot #75 si besoin). Ici : « Tester la protection » (en haut) → étape 2. Le mode global reste <em>Observation</em> : aucun autre joueur n'est concerné.</li>
+            <li><strong>Défi à la main</strong> : « Tester la protection » → étape 3. En jeu (≤ 15 s ou F5) : fenêtre « Petite vérification ». Attendu : coups sans effet, Auto-Dig continue, fenêtre fermable puis rouverte par un clic sur le bloc, version accessible (texte), une mauvaise réponse donne une nouvelle énigme sans sanction. Résoudre → minage normal.</li>
+            <li><strong>Autoclicker 8–12 clics/s</strong> (régulier puis bruité) pendant ≈ 65 min, ou réduire temporairement « Minage manuel continu sans pause » à 10 min (Config → Protections) pour un essai de 12 min. Attendu : défi après le seuil ; la fiche passe à « Défi imposé — minage refusé au classement » ; les blocs manuels validés cessent d'augmenter.</li>
+            <li><strong>Laisser l'autoclicker tourner</strong> sur la fenêtre de défi : avec le jeu officiel, aucun clic n'est compté → pas de suspension, classement figé. (Une suspension n'apparaît qu'avec un client modifié qui continue d'envoyer des clics.)</li>
+            <li><strong>Humain rapide 5–8 clics/s</strong> avec pauses (téléphone, double tap) 10–15 min : attendu aucun défi.</li>
+            <li><strong>Remise en état</strong> : « Tester la protection » → « Terminer le test » (annule la vérification, lève la suspension, palier à 0, arrête l'essai). Remettre le seuil de série à 60 min si modifié.</li>
+          </ol>
+          <p class="muted" style="font-size:0.78rem">À relever pour chaque essai : heure, cadence, blocs manuels déclarés / validés (fiche), état (normal / défi / suspendu), journal « Réponses ». Distinguer : <em>détecté</em> (défi simulé en Observation) · <em>défi imposé</em> · <em>minage refusé au classement</em> · <em>sanction</em> (suspension).</p>
+        </details>
       </div>
-      <p id="sec-events-total" class="muted" style="font-size:0.78rem;margin-bottom:8px"></p>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr><th>Date (UTC)</th><th>Type</th><th>Joueur</th><th>Score</th><th>Détails</th></tr></thead>
-          <tbody id="sec-events-body"><tr><td colspan="5" class="muted">Aucun événement.</td></tr></tbody>
-        </table>
-      </div>
-    </div>
+    </details>
   </section>
 
   <!-- Fiche joueur anti-bot (#25, 04/11) : lecture seule -->
