@@ -2348,7 +2348,7 @@ document.getElementById('btn-player-search').addEventListener('click', searchPla
  * onEnter() est appelé sur Entrée quand aucune suggestion n'est surlignée.
  */
 function attachPlayerAutocomplete(input, list, { onSelect, onEnter, minChars = 2 } = {}) {
-  let items = [], active = -1, timer = null, seqNo = 0;
+  let items = [], active = -1, timer = null, seqNo = 0, blurTimer = null;
   const close = () => {
     list.classList.add('hidden'); list.innerHTML = ''; items = []; active = -1;
     input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
@@ -2360,14 +2360,18 @@ function attachPlayerAutocomplete(input, list, { onSelect, onEnter, minChars = 2
     else input.removeAttribute('aria-activedescendant');
   };
   const choose = u => { close(); input.value = u.username; onSelect(u); };
+  const note = text => {   // ligne d'état non sélectionnable (recherche en cours, aucun résultat, erreur)
+    list.innerHTML = ''; items = []; active = -1;
+    const li = document.createElement('li');
+    li.className = 'player-ac-empty muted';
+    li.textContent = text;
+    list.appendChild(li);
+    list.classList.remove('hidden');
+    input.setAttribute('aria-expanded', 'true');
+  };
   const render = (users, q) => {
+    if (!users.length) return note(`Aucun pseudo ne contient « ${q} ».`);
     list.innerHTML = ''; items = users; active = -1;
-    if (!users.length) {
-      const li = document.createElement('li');
-      li.className = 'player-ac-empty muted';
-      li.textContent = `Aucun pseudo ne contient « ${q} ».`;
-      list.appendChild(li);
-    }
     users.forEach((u, i) => {
       const li = document.createElement('li');
       li.id = `${list.id}-opt-${i}`;
@@ -2389,9 +2393,11 @@ function attachPlayerAutocomplete(input, list, { onSelect, onEnter, minChars = 2
     if (q.length < minChars) { close(); return; }
     timer = setTimeout(async () => {
       const mine = ++seqNo;
+      const slow = setTimeout(() => { if (mine === seqNo) note('Recherche…'); }, 400);   // réseau lent (#87)
       const { ok, data } = await api('GET', `/api/admin/players/suggest?q=${encodeURIComponent(q)}`);
+      clearTimeout(slow);
       if (mine !== seqNo || input.value.trim() !== q) return; // réponse périmée
-      if (ok) render(data.users ?? [], q); else close();
+      if (ok) render(data.users ?? [], q); else note('Recherche impossible pour le moment — réessayez.');
     }, 200);
   });
   input.addEventListener('keydown', e => {
@@ -2405,8 +2411,15 @@ function attachPlayerAutocomplete(input, list, { onSelect, onEnter, minChars = 2
       else { close(); onEnter?.(); }
     }
   });
-  input.addEventListener('blur', () => setTimeout(close, 150));
-  return { close };
+  input.addEventListener('blur', () => { blurTimer = setTimeout(close, 150); });
+  /** Affiche une liste déjà obtenue (ex. plusieurs comptes trouvés après un clic sur le bouton) : le champ
+   *  reprend le focus (↑/↓ utilisables) et la fermeture différée du blur est annulée. */
+  const show = (users, q) => {
+    clearTimeout(timer); clearTimeout(blurTimer); seqNo++;
+    render(users, q);
+    if (document.activeElement !== input) input.focus({ preventScroll: true });
+  };
+  return { close, show };
 }
 
 attachPlayerAutocomplete(
@@ -3048,7 +3061,7 @@ document.getElementById('btn-sec-start-test').addEventListener('click', () => {
 // Enchaîne les routes d'essai existantes (#25 lot C) sur UN compte : essai Appliqué, défi d'essai,
 // suivi de la résolution, remise en état. Le mode global n'est jamais modifié ici.
 
-let _secTest = { userId: null, data: null, busy: false, ended: false, msg: '' };
+let _secTest = { userId: null, data: null, busy: false, ended: false, msg: '', pick: '' };
 
 /** Statut compréhensible d'un compte (fiche et parcours). */
 function secPlayerStatus(L) {
@@ -3139,8 +3152,8 @@ async function secTestLoad(q) {
 /** Choisit le compte de test (formulaire, fiche joueur, ou reprise après F5). */
 async function secTestSelect(q, { point = false } = {}) {
   const r = await secTestLoad(q);
-  if (r.error) { _secTest.msg = r.error; secTestRender(); return false; }
-  _secTest = { userId: String(r.data.player.userId), data: r.data, busy: false, ended: false, msg: '' };
+  if (r.error) { _secTest.pick = `⚠ ${r.error}`; secTestRender(); return false; }
+  _secTest = { userId: String(r.data.player.userId), data: r.data, busy: false, ended: false, msg: '', pick: '' };
   document.getElementById('sec-test-q').value = r.data.player.username;
   secTestRender();
   if (point) admNavPoint(document.getElementById('sec-test-card'));
@@ -3215,6 +3228,9 @@ function secTestRender() {
   seen.innerHTML = '';
   if (L) seen.appendChild(secObservedEl(L));
   secTestAcRender(L);
+  const pick = document.getElementById('sec-step-1-pick');
+  pick.textContent = _secTest.pick ?? '';
+  pick.classList.toggle('error', /^⚠/.test(_secTest.pick ?? ''));
   const msg = document.getElementById('sec-test-msg');
   msg.textContent = _secTest.msg;
   msg.classList.toggle('error', /^⚠/.test(_secTest.msg));
@@ -3233,10 +3249,54 @@ async function secTestRun(fn) {
   }
 }
 
+/**
+ * Résout une saisie libre (recette #87-B du 07/11) : « #12 » / « 12 » = identifiant exact ; sinon
+ * recherche partielle insensible à la casse (/api/admin/players/suggest : pseudo + ID, jamais
+ * l'e-mail). Pseudo identique ou un seul résultat → ce compte ; plusieurs → liste à choisir.
+ * @returns {Promise<{user?:{id,username}, many?:Array, none?:boolean, error?:string}>}
+ */
+async function secResolveTyped(q) {
+  if (/^#?\d{1,10}$/.test(q)) {
+    const { ok, data } = await api('GET', '/api/admin/security/player?' + new URLSearchParams({ q }));
+    if (ok) return { user: { id: data.player.userId, username: data.player.username } };
+    if (q.startsWith('#')) return { none: true };
+  }
+  const { ok, data } = await api('GET', `/api/admin/players/suggest?q=${encodeURIComponent(q.replace(/^#/, ''))}`);
+  if (!ok) return { error: 'Recherche impossible pour le moment — réessayez.' };
+  const users = data.users ?? [];
+  const same = users.find(u => u.username === q.toLowerCase());
+  if (same || users.length === 1) return { user: same ?? users[0] };
+  return users.length ? { many: users } : { none: true };
+}
+
+const secAccounts = n => n >= 10 ? 'Au moins 10 comptes' : `${n} compte${n > 1 ? 's' : ''}`;   // suggestions limitées à 10
+let _secTestPickSeq = 0;
+
+/** Entrée ou « Choisir ce compte » sans suggestion surlignée. */
+async function secTestPickTyped() {
+  const input = document.getElementById('sec-test-q');
+  const q = input.value.trim();
+  if (!q) return;
+  const mine = ++_secTestPickSeq;
+  _secTest.pick = 'Recherche…'; secTestRender();
+  const r = await secResolveTyped(q);
+  if (mine !== _secTestPickSeq || input.value.trim() !== q) return;   // saisie modifiée entre-temps
+  if (r.user) { _secTest.pick = ''; return secTestSelect(String(r.user.id)); }
+  _secTest.pick = r.error ? `⚠ ${r.error}`
+    : r.none ? `⚠ Aucun compte ne correspond à « ${q} » (pseudo ou #ID).`
+    : `${secAccounts(r.many.length)} contiennent « ${q} » : choisissez le bon dans la liste (pseudo · ID).`;
+  if (r.many) _secTestAc.show(r.many, q);
+  secTestRender();
+}
+
+const _secTestAc = attachPlayerAutocomplete(document.getElementById('sec-test-q'), document.getElementById('sec-test-suggest'), {
+  onSelect: u => { ++_secTestPickSeq; _secTest.pick = ''; secTestSelect(String(u.id)); },
+  onEnter: secTestPickTyped,
+});
 document.getElementById('sec-test-form').addEventListener('submit', e => {
   e.preventDefault();
-  const q = document.getElementById('sec-test-q').value.trim();
-  if (q) secTestSelect(q);
+  _secTestAc.close();
+  secTestPickTyped();
 });
 document.getElementById('btn-sec-test-start').addEventListener('click', () => secTestRun(async () => {
   const d = _secTest.data;
@@ -3872,10 +3932,28 @@ function secRenderPlayer(d) {
 }
 
 admDialogSetup('sec-player-dialog', { dirty: () => false });   // lecture seule : rien à perdre (cf. #72)
+/** « Ouvrir la fiche d'un joueur » : même recherche partielle que le parcours de test (#87-B). */
+async function secPlayerPickTyped(opener) {
+  const input = document.getElementById('sec-player-q');
+  const q = input.value.trim();
+  if (!q) return;
+  const err = document.getElementById('sec-player-err');
+  const r = await secResolveTyped(q);
+  if (input.value.trim() !== q) return;
+  if (r.user) return secOpenPlayer(String(r.user.id), opener);
+  err.textContent = r.error ?? (r.none ? `Aucun compte ne correspond à « ${q} » (pseudo ou #ID).`
+    : `${secAccounts(r.many.length)} contiennent « ${q} » : choisissez le bon dans la liste.`);
+  err.classList.remove('hidden');
+  if (r.many) _secPlayerAc.show(r.many, q);
+}
+const _secPlayerAc = attachPlayerAutocomplete(document.getElementById('sec-player-q'), document.getElementById('sec-player-suggest'), {
+  onSelect: u => secOpenPlayer(String(u.id), document.getElementById('sec-player-q')),
+  onEnter: () => secPlayerPickTyped(document.getElementById('sec-player-q')),
+});
 document.getElementById('sec-player-form').addEventListener('submit', e => {
   e.preventDefault();
-  const q = document.getElementById('sec-player-q').value.trim();
-  if (q) secOpenPlayer(q, e.submitter);
+  _secPlayerAc.close();
+  secPlayerPickTyped(e.submitter);
 });
 document.getElementById('sec-player-season').addEventListener('change', e => {
   if (_secPlayer.q) secOpenPlayer(_secPlayer.q, null, e.target.value);
