@@ -1671,3 +1671,16 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
   .sec-fold > :not(summary) { margin-left: 12px; margin-right: 12px; }
 }
 @media (max-width: 359px) { .sec-top { grid-template-columns: 1fr; } }
+
+/* Recette autoclicker (#25, 07/11) : « ce que le serveur a vu » et variante seuil court */
+.sec-seen { margin: 10px 0 0; padding: 8px 10px; border-left: 4px solid var(--muted); background: rgba(127,127,127,0.06); border-radius: 6px; }
+.sec-seen--below { border-left-color: #2e8b57; }
+.sec-seen--anomaly, .sec-seen--shadow { border-left-color: #d4a017; }
+.sec-seen--real { border-left-color: #c0392b; }
+.sec-seen-title { margin: 0; font-weight: 600; font-size: 0.85rem; }
+.sec-seen-list { margin: 4px 0 0; padding-left: 18px; font-size: 0.8rem; }
+.sec-test-ac { margin-top: 12px; }
+.sec-test-ac > summary { cursor: pointer; font-weight: 600; }
+.sec-test-ac-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.sec-test-ac-steps { font-size: 0.8rem; padding-left: 20px; }
+.sec-test-ac-table { font-size: 0.8rem; margin-top: 6px; }

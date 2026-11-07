@@ -842,6 +842,16 @@ function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_antibot_suspensions_user ON antibot_suspensions (user_id, status, id DESC);
   `);
+  // Recette autoclicker (#25, 07/11) : dernière fenêtre mesurée, seuil court d'essai limité au
+  // compte en essai, relevé de progression au début de l'essai. Colonnes ajoutées seules.
+  {
+    const cols = new Set(_db.prepare('PRAGMA table_info(antibot_activity)').all().map(r => r.name));
+    for (const [name, type] of [['last_window', 'TEXT'], ['test_streak_min', 'REAL'], ['test_started_ms', 'INTEGER'], ['test_snapshot', 'TEXT']]) {
+      if (cols.has(name)) continue;
+      _db.prepare(`ALTER TABLE antibot_activity ADD COLUMN ${name} ${type}`).run();
+      console.log(`[db] Migration : antibot_activity.${name} ajouté`);
+    }
+  }
 
   // Session de jeu unique par compte (#35) : un seul contrôleur (onglet, appareil, PWA) peut
   // miner et écrire la sauvegarde. Table ajoutée, aucune donnée existante modifiée.

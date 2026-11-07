@@ -53,7 +53,8 @@ test('parcours : seules les routes d\'essai par compte ; jamais le mode global ;
   const posts = [...block.matchAll(/api\('POST', `([^`]+)`/g)].map(m => m[1].replace(/\$\{[^}]+\}/g, ':id'));
   assert.deepStrictEqual([...new Set(posts)].sort(), [
     '/api/admin/security/challenge/:id/cancel', '/api/admin/security/player/:id/challenge',
-    '/api/admin/security/player/:id/test-mode', '/api/admin/security/player/:id/violation-level',
+    '/api/admin/security/player/:id/test-mode', '/api/admin/security/player/:id/test-threshold',
+    '/api/admin/security/player/:id/violation-level',
     '/api/admin/security/suspension/:id/lift'].sort());
   // Confirmation uniquement pour l'action pouvant mener à une suspension réelle (lancer l'essai)
   assert.strictEqual((block.match(/admConfirm\(/g) ?? []).length, 1);

@@ -60,6 +60,17 @@ const PUZZLE_MAX_PER_WINDOW = 15;
 const SYMBOLS = ['pickaxe', 'gem', 'key', 'star', 'heart', 'fire', 'drop', 'moon', 'clover', 'coin', 'bell', 'leaf'];
 const SYMBOL_ICONS = { pickaxe: '⛏️', gem: '💎', key: '🔑', star: '⭐', heart: '❤️', fire: '🔥', drop: '💧', moon: '🌙', clover: '🍀', coin: '🪙', bell: '🔔', leaf: '🍃' };
 const GRID_SIZE = 6;
+
+/**
+ * Recette autoclicker (#25, 07/11) : seuil « minage continu » raccourci pour le SEUL compte en
+ * essai Appliqué, pour vérifier défi et gel du classement sans attendre 60 min ni toucher au
+ * réglage global. Garde-fous : borné 1–10 min, ignoré hors essai, expire seul après 2 h,
+ * effacé par la fin de l'essai.
+ */
+const TEST_STREAK_RANGE = [1, 10];
+const TEST_STREAK_TTL_MS = 2 * 3600_000;
+/** Au-delà, la fiche dit « aucune mesure récente » (le jeu n'envoie rien : onglet fermé, hors ligne…). */
+const STALE_MEASURE_MS = 15 * 60_000;
 const GRID_TARGETS = 2;
 
 function _num(raw, { def, range: [min, max] }) {
@@ -121,37 +132,41 @@ function _buckets(row) {
 function _saveState(userId, s) {
   getDb().prepare(`
     INSERT INTO antibot_activity (user_id, season_id, last_ms, last_clicks, last_blocks, streak_active_s, pause_s, buckets,
-      force_mode, violation_level, last_violation_ms, last_challenge_ms, rebase_clicks, rebase_blocks, tel_h, updated_ms)
+      force_mode, violation_level, last_violation_ms, last_challenge_ms, rebase_clicks, rebase_blocks, tel_h, last_window, test_streak_min, test_started_ms, test_snapshot, updated_ms)
     VALUES (@user_id, @season_id, @last_ms, @last_clicks, @last_blocks, @streak_active_s, @pause_s, @buckets,
-      @force_mode, @violation_level, @last_violation_ms, @last_challenge_ms, @rebase_clicks, @rebase_blocks, @tel_h, @updated_ms)
+      @force_mode, @violation_level, @last_violation_ms, @last_challenge_ms, @rebase_clicks, @rebase_blocks, @tel_h, @last_window, @test_streak_min, @test_started_ms, @test_snapshot, @updated_ms)
     ON CONFLICT(user_id) DO UPDATE SET season_id = excluded.season_id, last_ms = excluded.last_ms,
       last_clicks = excluded.last_clicks, last_blocks = excluded.last_blocks, streak_active_s = excluded.streak_active_s,
       pause_s = excluded.pause_s, buckets = excluded.buckets, force_mode = excluded.force_mode,
       violation_level = excluded.violation_level, last_violation_ms = excluded.last_violation_ms,
       last_challenge_ms = excluded.last_challenge_ms, rebase_clicks = excluded.rebase_clicks,
-      rebase_blocks = excluded.rebase_blocks, tel_h = excluded.tel_h, updated_ms = excluded.updated_ms
+      rebase_blocks = excluded.rebase_blocks, tel_h = excluded.tel_h, last_window = excluded.last_window,
+      test_streak_min = excluded.test_streak_min, test_started_ms = excluded.test_started_ms,
+      test_snapshot = excluded.test_snapshot, updated_ms = excluded.updated_ms
   `).run({
     user_id: userId, season_id: s.season_id ?? null, last_ms: s.last_ms ?? null, last_clicks: s.last_clicks ?? null,
     last_blocks: s.last_blocks ?? null, streak_active_s: s.streak_active_s ?? 0, pause_s: s.pause_s ?? 0,
     buckets: JSON.stringify(s.buckets ?? []), force_mode: s.force_mode ?? null, violation_level: s.violation_level ?? 0,
     last_violation_ms: s.last_violation_ms ?? null, last_challenge_ms: s.last_challenge_ms ?? null,
     rebase_clicks: s.rebase_clicks ?? null, rebase_blocks: s.rebase_blocks ?? null,
-    tel_h: s.tel ? JSON.stringify(s.tel) : null, updated_ms: s.updated_ms ?? Date.now(),
+    tel_h: s.tel ? JSON.stringify(s.tel) : null,
+    last_window: s.last_window ? JSON.stringify(s.last_window) : null,
+    test_streak_min: s.test_streak_min ?? null, test_started_ms: s.test_started_ms ?? null,
+    test_snapshot: s.test_snapshot ? JSON.stringify(s.test_snapshot) : null, updated_ms: s.updated_ms ?? Date.now(),
   });
 }
 
 function _blank(userId) {
   return { user_id: userId, season_id: null, last_ms: null, last_clicks: null, last_blocks: null, streak_active_s: 0,
     pause_s: 0, buckets: [], force_mode: null, violation_level: 0, last_violation_ms: null, last_challenge_ms: null,
-    rebase_clicks: null, rebase_blocks: null, tel: null };
+    rebase_clicks: null, rebase_blocks: null, tel: null, last_window: null, test_streak_min: null, test_started_ms: null, test_snapshot: null };
 }
 
 function _load(userId) {
   const row = _state(userId);
   if (!row) return _blank(userId);
-  let tel = null;
-  try { tel = row.tel_h ? JSON.parse(row.tel_h) : null; } catch (_) { tel = null; }
-  return { ...row, buckets: _buckets(row), tel };
+  const json = raw => { try { return raw ? JSON.parse(raw) : null; } catch (_) { return null; } };
+  return { ...row, buckets: _buckets(row), tel: json(row.tel_h), last_window: json(row.last_window), test_snapshot: json(row.test_snapshot) };
 }
 
 /** Mode effectif pour un joueur : global, sauf essai « Appliqué » sur ce compte (jamais si global off). */
@@ -160,6 +175,12 @@ function getUserMode(userId, config = {}, env = process.env) {
   if (g === 'off') return 'off';
   const row = _state(userId);
   return row?.force_mode === 'enforce' ? 'enforce' : g;
+}
+
+/** Seuil court d'essai effectif (minutes) ou null : uniquement en essai Appliqué, avant expiration. */
+function testStreakMin(s, nowMs) {
+  if (s?.force_mode !== 'enforce' || s.test_streak_min == null || !s.test_started_ms) return null;
+  return nowMs - s.test_started_ms < TEST_STREAK_TTL_MS ? s.test_streak_min : null;
 }
 
 /** Palier de violation après décroissance (−1 par période sans violation confirmée). */
@@ -197,6 +218,8 @@ function _measure(s, seasonId, claimedClicks, claimedBlocks, nowMs) {
   }
   s.buckets = s.buckets.filter(([t]) => t + BUCKET_MS > nowMs - DAY_MS).map(([t, v]) => [t, Math.round(v * 10) / 10]);
   s.season_id = seasonId; s.last_ms = nowMs; s.last_clicks = claimedClicks; s.last_blocks = claimedBlocks;
+  // Dernière fenêtre mesurée (fiche admin : « ce que le serveur a vu »)
+  s.last_window = { atMs: nowMs, secs: Math.round(dt * 10) / 10, clicks: dClicks, activeSecs: Math.round(active * 10) / 10 };
   return { dClicks, dt, active };
 }
 
@@ -332,7 +355,9 @@ function _triggers(s, risk, params, nowMs) {
   const out = [];
   const cooling = s.last_challenge_ms && nowMs - s.last_challenge_ms < params.ab_cooldown_min * 60_000;
   if (risk && risk.score >= params.ab_challenge_score && !cooling) out.push({ code: 'risk_score', value: Math.round(risk.score * 10) / 10, threshold: params.ab_challenge_score });
-  if (m.streakMin >= params.ab_streak_min) out.push({ code: 'continuous_mining', value: m.streakMin, threshold: params.ab_streak_min });
+  const testMin = testStreakMin(s, nowMs);
+  const streakMin = testMin ?? params.ab_streak_min;
+  if (m.streakMin >= streakMin) out.push({ code: 'continuous_mining', value: m.streakMin, threshold: streakMin, ...(testMin != null ? { test: true } : {}) });
   if (m.active6hMin >= params.ab_active6h_min) out.push({ code: 'active_6h', value: m.active6hMin, threshold: params.ab_active6h_min });
   if (m.active24hMin >= params.ab_active24h_min) out.push({ code: 'active_24h', value: m.active24hMin, threshold: params.ab_active24h_min });
   return { reasons: out, metrics: m };
@@ -489,9 +514,91 @@ function answer(userId, challengeId, puzzleId, value, { manualClicks, manualBloc
 function setForceMode(userId, enforce, nowMs = Date.now()) {
   const s = _load(userId);
   s.force_mode = enforce ? 'enforce' : null;
+  // Fin d'essai : le seuil court et le relevé de départ disparaissent avec lui
+  if (!enforce) { s.test_streak_min = null; s.test_started_ms = null; s.test_snapshot = null; }
   s.updated_ms = nowMs;
   _saveState(userId, s);
   return s.force_mode;
+}
+
+/**
+ * Relevé de progression classée d'un compte pour une saison : blocs manuels validés (ceux du
+ * classement), clics manuels déclarés et rang par blocs manuels (#73). Lecture seule.
+ */
+function progressSnapshot(userId, seasonId, nowMs = Date.now()) {
+  if (seasonId == null) return null;
+  const db = getDb();
+  const r = db.prepare('SELECT manual_blocks, effective_manual_blocks, manual_clicks FROM season_rankings WHERE season_id = ? AND user_id = ?').get(seasonId, userId);
+  const validated = r ? Math.min(r.effective_manual_blocks ?? r.manual_blocks ?? 0, r.manual_blocks ?? 0) : 0;
+  const ahead = db.prepare(`
+    SELECT COUNT(*) AS n FROM season_rankings
+    WHERE season_id = ? AND user_id <> ? AND MIN(COALESCE(effective_manual_blocks, manual_blocks, 0), COALESCE(manual_blocks, 0)) > ?
+  `).get(seasonId, userId, validated).n;
+  return { atMs: nowMs, seasonId, manualBlocks: validated, manualClicks: r?.manual_clicks ?? 0, rank: r ? ahead + 1 : null };
+}
+
+/**
+ * Active (minutes) ou retire (null) le seuil court d'essai sur le compte en essai Appliqué.
+ * L'activation remet la série à zéro et relève la progression classée de départ.
+ */
+function setTestThreshold(userId, minutes, { seasonId = null, nowMs = Date.now() } = {}) {
+  const s = _load(userId);
+  if (minutes == null) {
+    s.test_streak_min = null; s.test_started_ms = null; s.test_snapshot = null;
+  } else {
+    if (s.force_mode !== 'enforce') return { error: 'Lancez d\'abord l\'essai sur ce compte (étape 2).' };
+    const [min, max] = TEST_STREAK_RANGE;
+    if (!(Number.isFinite(minutes) && minutes >= min && minutes <= max)) return { error: `Seuil d'essai de ${min} à ${max} minutes attendu.` };
+    s.test_streak_min = minutes; s.test_started_ms = nowMs;
+    s.test_snapshot = progressSnapshot(userId, seasonId, nowMs);
+    s.streak_active_s = 0; s.pause_s = 0;
+  }
+  s.updated_ms = nowMs;
+  _saveState(userId, s);
+  return { testStreakMin: s.test_streak_min, snapshot: s.test_snapshot };
+}
+
+/**
+ * « Ce que le serveur a vu » (fiche admin) : distingue aucune mesure reçue, activité mesurée sous
+ * le seuil, anomalie journalisée, défi simulé (Observation) et défi réel, sur 24 h.
+ */
+function observation(userId, s, params, mode, nowMs) {
+  const db = getDb();
+  const since = nowMs - DAY_MS;
+  const m = metrics(s, nowMs);
+  const testMin = testStreakMin(s, nowMs);
+  const streakThreshold = testMin ?? params.ab_streak_min;
+  const sinceSql = new Date(since).toISOString().replace('T', ' ').slice(0, 19);
+  const anomalyTypes = antibot.EVENT_GROUPS.player;
+  const an = db.prepare(`
+    SELECT COUNT(*) AS n, MAX(created_at) AS last FROM security_events
+    WHERE user_id = ? AND created_at >= ? AND type IN (${anomalyTypes.map(() => '?').join(',')})
+  `).get(userId, sinceSql, ...anomalyTypes);
+  const lastAn = an.n ? db.prepare(`
+    SELECT type FROM security_events WHERE user_id = ? AND created_at >= ? AND type IN (${anomalyTypes.map(() => '?').join(',')})
+    ORDER BY id DESC LIMIT 1
+  `).get(userId, sinceSql, ...anomalyTypes) : null;
+  const ch = db.prepare(`
+    SELECT SUM(status = 'shadow') AS shadow, SUM(status <> 'shadow' AND origin <> 'admin') AS real,
+           MAX(CASE WHEN status = 'shadow' THEN created_ms END) AS lastShadow
+    FROM antibot_challenges WHERE user_id = ? AND created_ms >= ?
+  `).get(userId, since);
+  const lastMs = s.last_ms ?? null;
+  const w = s.last_window;
+  return {
+    lastMeasureAt: _iso(lastMs),
+    stale: !lastMs || nowMs - lastMs > STALE_MEASURE_MS,
+    lastWindow: w ? { at: _iso(w.atMs), secs: w.secs, clicks: w.clicks, activeSecs: w.activeSecs,
+      cps: w.secs > 0 ? Math.round(w.clicks / w.secs * 10) / 10 : null } : null,
+    streak: { valueMin: m.streakMin, thresholdMin: streakThreshold, testThreshold: testMin != null,
+      pct: Math.min(100, Math.round(m.streakMin / streakThreshold * 100)) },
+    active6h: { valueMin: m.active6hMin, thresholdMin: params.ab_active6h_min },
+    active24h: { valueMin: m.active24hMin, thresholdMin: params.ab_active24h_min },
+    anomalies24h: an.n ?? 0, lastAnomaly: lastAn ? { type: lastAn.type, at: an.last ? an.last.replace(' ', 'T') + 'Z' : null } : null,
+    shadowChallenges24h: ch.shadow ?? 0, lastShadowAt: _iso(ch.lastShadow),
+    realChallenges24h: ch.real ?? 0,
+    mode,
+  };
 }
 
 /** Défi émis à la main par l'admin (essai) : selon le mode effectif du compte. */
@@ -588,8 +695,14 @@ function playerSection(userId, { config = {}, nowMs = Date.now() } = {}) {
   const ch = _pendingChallenge(userId);
   const susp = _activeSuspension(userId, nowMs);
   const mode = getUserMode(userId, config);
+  const testMin = testStreakMin(s, nowMs);
   return {
     mode, globalMode: getGlobalMode(config), testEnforce: s.force_mode === 'enforce',
+    // Recette autoclicker : seuil court d'essai, relevé de départ et relevé actuel (preuve de gel)
+    testThreshold: testMin != null ? { minutes: testMin, startedAt: _iso(s.test_started_ms),
+      expiresAt: _iso(s.test_started_ms + TEST_STREAK_TTL_MS),
+      before: s.test_snapshot ?? null, now: progressSnapshot(userId, s.test_snapshot?.seasonId ?? s.season_id, nowMs) } : null,
+    observation: observation(userId, s, params, mode, nowMs),
     metrics: metrics(s, nowMs), thresholds: { streakMin: params.ab_streak_min, active6hMin: params.ab_active6h_min,
       active24hMin: params.ab_active24h_min, challengeScore: params.ab_challenge_score },
     violationLevel: s.violation_level ?? 0, effectiveViolationLevel: effectiveViolationLevel(s, nowMs, params),
@@ -609,8 +722,8 @@ function playerSection(userId, { config = {}, nowMs = Date.now() } = {}) {
 
 module.exports = {
   RESPONSE_MODES, RESPONSE_MODE_DEFAULT, LADDER_DEFAULT, PARAMS, PAUSE_SECS, ACTIVE_CPS,
-  PUZZLE_TTL_MS, PUZZLE_MIN_ANSWER_MS, PUZZLE_MAX_PER_WINDOW, SYMBOLS,
+  PUZZLE_TTL_MS, PUZZLE_MIN_ANSWER_MS, PUZZLE_MAX_PER_WINDOW, SYMBOLS, TEST_STREAK_RANGE, TEST_STREAK_TTL_MS,
   getParams, getGlobalMode, getUserMode, validateConfigValue, effectiveViolationLevel, metrics,
   beforeSave, afterSave, playerStatus, issueChallenge, newPuzzle, markSeen, answer,
-  setForceMode, adminIssueChallenge, cancelChallenge, liftSuspension, setViolationLevel, adminSummary, playerSection,
+  setForceMode, setTestThreshold, progressSnapshot, testStreakMin, adminIssueChallenge, cancelChallenge, liftSuspension, setViolationLevel, adminSummary, playerSection,
 };
