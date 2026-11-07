@@ -2097,6 +2097,25 @@ app.post('/api/admin/security/player/:id/test-mode', requireAdmin, (req, res) =>
   } catch (err) { console.error('[POST test-mode]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
+/**
+ * POST /api/admin/security/player/:id/test-threshold { minutes: 1–10 | null } — recette
+ * autoclicker : seuil « minage continu » court pour ce seul compte en essai (expire en 2 h,
+ * effacé par la fin de l'essai). Le réglage global ab_streak_min n'est pas modifié.
+ */
+app.post('/api/admin/security/player/:id/test-threshold', requireAdmin, (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (!getUserById(userId)) return res.status(404).json({ error: 'Joueur introuvable.' });
+    const raw = req.body?.minutes;
+    if (raw !== null && typeof raw !== 'number') return res.status(400).json({ error: 'Champ "minutes" : nombre ou null attendu.' });
+    const season = getActiveSeason();
+    const r = antibotResponses.setTestThreshold(userId, raw, { seasonId: season?.id ?? null });
+    if (r.error) return res.status(409).json({ error: r.error });
+    _abAdminLog(req, { action: 'test_threshold', userId, minutes: raw });
+    res.json({ ok: true, ...r });
+  } catch (err) { console.error('[POST test-threshold]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
 /** POST /api/admin/security/player/:id/challenge — émet un défi d'essai (mode effectif du compte). */
 app.post('/api/admin/security/player/:id/challenge', requireAdmin, (req, res) => {
   try {

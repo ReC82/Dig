@@ -708,6 +708,32 @@
           <p class="sec-step-state" id="sec-step-5-state"></p>
         </li>
       </ol>
+      <div id="sec-test-seen"></div>
+      <details class="sec-test-ac" id="sec-test-ac">
+        <summary>Variante : tester un autoclicker sans attendre 60 min (ce compte seulement)</summary>
+        <p class="sec-help">Normalement, une vérification n'arrive qu'après <strong>60 min de minage continu</strong> (réglage global, inchangé ici). Pour la recette, <strong>ce compte seul</strong> passe à un seuil court. Il expire seul après 2 h et disparaît avec « Terminer le test ».</p>
+        <div class="sec-test-ac-row">
+          <label for="sec-test-ac-min">Seuil d'essai</label>
+          <select id="sec-test-ac-min">
+            <option value="1">1 min</option>
+            <option value="2" selected>2 min</option>
+            <option value="3">3 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+          </select>
+          <button type="button" class="btn btn-sm" id="btn-sec-test-ac-on" disabled>Activer le seuil court</button>
+          <button type="button" class="btn btn-sm btn-outline" id="btn-sec-test-ac-off" disabled>Revenir au seuil normal</button>
+        </div>
+        <p class="sec-step-state" id="sec-test-ac-state"></p>
+        <ol class="sec-test-ac-steps">
+          <li>Étapes 1 et 2 ci-dessus (compte de test, essai lancé), puis « Activer le seuil court ». Le relevé du début (blocs manuels validés, rang) est noté.</li>
+          <li>Dans le jeu, avec ce compte : autoclicker sur le bloc (par exemple 8 clics/s), sans pause de plus de 3 min. Si un coffre s'ouvre, il arrête les clics : fermez-le et relancez l'autoclicker (moins de 3 min de pause, la série continue).</li>
+          <li>Après le seuil choisi (plus 12 s environ, le temps d'une sauvegarde), la fenêtre « Petite vérification » s'affiche et les coups sur le bloc n'ont plus d'effet (le jeu ne les compte plus). Arrêtez alors l'autoclicker, qui cliquerait dans la fenêtre. Seul un client modifié qui déclarerait encore 30 clics serait suspendu (5 min, ce compte seulement).</li>
+          <li>Cliquez sur « ↻ Voir où en est le compte » : « Blocs manuels validés » ne bouge plus depuis la vérification.</li>
+          <li>Résolvez la vérification, puis « Terminer le test / remettre l'état normal » (seuil, essai, palier remis à l'état normal).</li>
+        </ol>
+        <div id="sec-test-ac-snap"></div>
+      </details>
       <p id="sec-test-msg" class="sec-test-msg" role="status" aria-live="polite"></p>
     </div>
 
