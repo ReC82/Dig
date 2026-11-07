@@ -600,6 +600,7 @@ const ADM_NAV_ACTIONS = [
   { id: 'reset-test',     tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Recommencer un test à zéro (joueur)', keywords: 'reset réinitialiser rejouer essai remise à zéro tentative snapshot instantané', help: 'Fiche du joueur → 🧪 Essais de test → « Recommencer un test à zéro ». Confirmation avec motif et pseudo ; instantané archivé avant.' },
   { id: 'export-tests',   tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Exporter l\'historique des essais d\'un joueur', keywords: 'csv json tentatives historique', help: 'Fiche du joueur → 🧪 Essais de test → « Exporter CSV » ou « Exporter JSON complet ».' },
   { id: 'partial-reset',  tab: 'players',  target: 'pd-sec-partial', player: true, label: 'Réinitialisation saisonnière partielle (joueur)', keywords: 'reset sauvegarde seule saisonnier', help: 'Fiche du joueur → ⚠ Réinitialisation saisonnière partielle (sauvegarde seule, classement et anti-bot inchangés). Confirmation obligatoire.' },
+  { id: 'sec-test',       tab: 'security', target: 'sec-test-card',        label: 'Tester la protection anti-bot sur un compte',    keywords: 'essai défi vérification captcha appliqué compte de test suspension', help: 'Parcours guidé en 5 étapes : choisir le compte, lancer l\'essai, afficher le défi, le résoudre dans le jeu, terminer le test. Le mode global ne change pas.' },
   { id: 'player-antibot', tab: 'security', target: 'sec-player-q',         label: 'Voir l\'anti-bot d\'un joueur',                  keywords: 'risque score triche contrôle sécurité fiche joueur', help: 'Pseudo ou #ID puis « Ouvrir la fiche » (lecture seule). Aussi : fiche Joueurs → 🛡 Anti-bot de ce joueur.' },
   { id: 'sec-journal',    tab: 'security', target: 'sec-journal-card',     label: 'Consulter le journal de sécurité',               keywords: 'anomalies audit connexions admin', help: 'Filtres par type d\'événement et par période.' },
   { id: 'invite',         tab: 'beta',     target: 'btn-beta-invite-open', label: 'Préparer une invitation bêta',                   keywords: 'inviter testeur code lien accès', help: 'Bouton « ➕ Inviter un testeur » : rien n\'est créé avant « Créer » dans la fiche.' },
@@ -759,6 +760,8 @@ function admNavRun(a) {
   }
   if (!el) return;
   if (el.tagName === 'DETAILS') el.open = true;
+  // Cible dans une section repliée (ex. Anti-bot → Diagnostic et historique, #87) : on l'ouvre
+  for (let p = el.parentElement?.closest('details'); p; p = p.parentElement?.closest('details')) p.open = true;
   admNavPoint(el);
 }
 
@@ -2802,10 +2805,40 @@ const SEC_LEVELS = ['0 — rien', '1 — journaliser', '2 — limiter', '3 — d
 
 const SEC_GROUP_LABELS = { player: 'Anomalies joueur', responses: 'Réponses', admin: 'Audit admin', system: 'Système', other: 'Autres' };
 
+/** #87 : lignes visibles par défaut dans les tableaux de l'onglet (le reste derrière « Afficher les N autres »). */
+const SEC_ROWS_DEFAULT = 10;
+/** #87 : entrées du journal et de l'audit chargées par défaut, puis par pas de 25. */
+const SEC_EVENTS_STEP = 25;
+let _secEventsLimit = SEC_EVENTS_STEP;
+let _secAuditLimit = SEC_EVENTS_STEP;
+let _secResp = null;
+
+/** Heure de Bruxelles lisible (jj/mm hh:mm), pour les états montrés à l'admin. */
+function secBxl(iso) {
+  if (!iso) return 'non disponible';
+  return new Date(iso).toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+/** Masque les lignes au-delà de `max` et ajoute « Afficher les N autres lignes ». */
+function secLimitRows(tbody, max = SEC_ROWS_DEFAULT) {
+  const rows = [...tbody.rows];
+  if (rows.length <= max) return;
+  rows.slice(max).forEach(r => { r.hidden = true; });
+  const tr = secEl('tr', 'sec-more-row');
+  const td = secEl('td', '');
+  td.colSpan = tbody.parentElement.tHead?.rows[0]?.cells.length ?? 1;
+  const b = secEl('button', 'btn btn-sm btn-outline', `Afficher les ${rows.length - max} autres lignes`);
+  b.type = 'button';
+  b.addEventListener('click', () => { rows.forEach(r => { r.hidden = false; }); tr.remove(); });
+  td.appendChild(b);
+  tr.appendChild(td);
+  tbody.appendChild(tr);
+}
+
 async function loadSecurity() {
   const filter = document.getElementById('sec-filter-type').value;
   const days   = document.getElementById('sec-filter-days').value;
-  const params = new URLSearchParams({ limit: '100' });
+  const params = new URLSearchParams({ limit: String(_secEventsLimit) });
   if (filter.startsWith('group:')) params.set('group', filter.slice(6));
   else if (filter) params.set('type', filter);
   if (days) params.set('days', days);
@@ -2814,7 +2847,9 @@ async function loadSecurity() {
     api('GET', '/api/admin/security/events?' + params),
     api('GET', '/api/admin/security/responses'),
   ]);
+  _secResp = resp.ok ? resp.data : null;
   secRenderResponses(resp);
+  secRenderTop(sum, resp);
 
   const status = document.getElementById('sec-status');
   status.innerHTML = '';
@@ -2839,6 +2874,7 @@ async function loadSecurity() {
 
     const checks = document.getElementById('sec-checks-body');
     checks.innerHTML = '';
+    document.getElementById('sec-checks-sum').textContent = `${s.checks.length} joueur(s)`;
     if (!s.checks.length) checks.innerHTML = '<tr><td colspan="8" class="muted">Aucun joueur contrôlé dans la saison active.</td></tr>';
     for (const c of s.checks) {
       const tr = document.createElement('tr');
@@ -2852,9 +2888,11 @@ async function loadSecurity() {
       addCell(tr, c.score > 0 ? `indices (N${c.level}, non appliqué)` : c.depthGap > 0 ? 'en attente de crédit' : 'normal');
       checks.appendChild(tr);
     }
+    secLimitRows(checks);
 
     const body = document.getElementById('sec-accounts-body');
     body.innerHTML = '';
+    document.getElementById('sec-accounts-sum').textContent = `${s.accounts.length} compte(s) avec un score`;
     if (!s.accounts.length) body.innerHTML = '<tr><td colspan="4" class="muted">Aucun compte à risque : aucun indice ni preuve sur la saison (score 0 pour tous).</td></tr>';
     for (const a of s.accounts) {
       const tr = document.createElement('tr');
@@ -2864,6 +2902,7 @@ async function loadSecurity() {
       addCell(tr, Object.entries(a.components).map(([k, v]) => `${k} ${v}`).join(', '));
       body.appendChild(tr);
     }
+    secLimitRows(body);
   } else {
     const p = document.createElement('p');
     p.className = 'error';
@@ -2873,7 +2912,9 @@ async function loadSecurity() {
 
   const groups = (sum.ok && sum.data.eventGroups) || {};
   const tbody = document.getElementById('sec-events-body');
+  const more = document.getElementById('btn-sec-events-more');
   tbody.innerHTML = '';
+  more.classList.add('hidden');
   if (!ev.ok) { tbody.innerHTML = '<tr><td colspan="5" class="error">Erreur lors du chargement.</td></tr>'; return; }
   const sel     = document.getElementById('sec-filter-type');
   const label   = filter ? sel.options[sel.selectedIndex].textContent : 'tous types';
@@ -2902,9 +2943,264 @@ async function loadSecurity() {
     addCell(tr, e.details ?? '').style.fontSize = '0.75rem';
     tbody.appendChild(tr);
   }
+  if (ev.data.total > ev.data.events.length && ev.data.events.length < 100) {
+    more.textContent = `Afficher plus d'entrées (${ev.data.events.length} sur ${ev.data.total})`;
+    more.classList.remove('hidden');
+  }
+  if (document.getElementById('sec-audit-card').open) secLoadAudit();
+  await secTestRefresh();
+}
+
+/** Audit admin (#87) : séparé des anomalies joueurs, chargé seulement quand la section est ouverte. */
+async function secLoadAudit() {
+  const tbody = document.getElementById('sec-audit-body');
+  const more = document.getElementById('btn-sec-audit-more');
+  const { ok, data } = await api('GET', '/api/admin/security/events?' + new URLSearchParams({ group: 'admin', limit: String(_secAuditLimit) }));
+  tbody.innerHTML = '';
+  more.classList.add('hidden');
+  if (!ok) { tbody.innerHTML = '<tr><td colspan="3" class="error">Erreur lors du chargement.</td></tr>'; return; }
+  document.getElementById('sec-audit-total').textContent = `${data.total} entrée(s) d'audit sur 90 jours — ${data.events.length} affichée(s)`;
+  if (!data.events.length) tbody.innerHTML = '<tr><td colspan="3" class="muted">Aucune action administrative enregistrée.</td></tr>';
+  for (const e of data.events) {
+    const tr = document.createElement('tr');
+    addCell(tr, (e.created_at ?? '').substring(0, 19)).className = 'muted';
+    addCell(tr, e.type);
+    addCell(tr, e.details ?? '').style.fontSize = '0.75rem';
+    tbody.appendChild(tr);
+  }
+  if (data.total > data.events.length && data.events.length < 100) {
+    more.textContent = `Afficher plus d'entrées (${data.events.length} sur ${data.total})`;
+    more.classList.remove('hidden');
+  }
+}
+
+const SEC_MODE_PLAIN = {
+  off: ['Désactivée', 'Aucune mesure ni vérification.'],
+  observe: ['Observation', 'Aucune vérification imposée aux joueurs : le serveur mesure et note seulement.'],
+  enforce: ['Appliquée', 'Vérifications réelles pour tous les joueurs qui atteignent un seuil.'],
+};
+
+/** Joueurs ayant besoin d'une action : suspension active, vérification en attente, essai en cours, indices de triche. */
+function secWatchList(sum, resp) {
+  const map = new Map();
+  const add = (userId, username, rank, text, since) => {
+    const e = map.get(userId) ?? { userId, username, rank, items: [], since: null };
+    e.rank = Math.min(e.rank, rank);
+    e.items.push(text);
+    if (since && (!e.since || since < e.since)) e.since = since;
+    map.set(userId, e);
+  };
+  const r = resp?.ok ? resp.data : null;
+  for (const su of r?.suspensions ?? []) if (su.status === 'active') add(su.userId, su.username, 0, `Minage suspendu jusqu'à ${secBxl(su.endsAt)}`, su.startsAt);
+  for (const ch of r?.challenges ?? []) if (ch.status === 'pending') add(ch.userId, ch.username, 1, `Vérification en attente${ch.seenAt ? ' (affichée dans le jeu)' : ''}`, ch.createdAt);
+  for (const a of r?.testAccounts ?? []) add(a.userId, a.username, 2, 'Essai en cours sur ce compte : pensez à « Terminer le test »', null);
+  for (const a of (sum?.ok ? sum.data.accounts : []) ?? []) if (a.level >= 1) add(a.userId, a.username, 3, `Indices de triche : niveau ${a.level} (score ${a.score}) — rien n'est appliqué`, null);
+  return [...map.values()].sort((a, b) => a.rank - b.rank);
+}
+
+/** Les trois cartes du haut et la liste « Joueurs à surveiller » (#87). */
+function secRenderTop(sum, resp) {
+  const r = resp?.ok ? resp.data : null;
+  const mv = document.getElementById('sec-top-mode-value');
+  const mh = document.getElementById('sec-top-mode-help');
+  const modeCard = document.getElementById('sec-top-mode');
+  if (r) {
+    const [label, help] = SEC_MODE_PLAIN[r.mode] ?? [r.mode, ''];
+    mv.textContent = label;
+    mh.textContent = help + (r.testAccounts.length ? ` Essai en cours sur : ${r.testAccounts.map(a => a.username).join(', ')}.` : '');
+    modeCard.classList.toggle('sec-top-card--ok', r.mode === 'enforce');
+    modeCard.classList.toggle('sec-top-card--info', r.mode !== 'enforce');
+    document.getElementById('sec-test-global').textContent = `« ${SEC_RESP_MODES[r.mode] ?? r.mode} »`;
+    document.getElementById('sec-settings-sum').textContent = `actuellement : ${SEC_RESP_MODES[r.mode] ?? r.mode}`;
+  } else {
+    mv.textContent = 'Non disponible';
+    mh.textContent = 'Erreur lors du chargement : cliquez sur « Rafraîchir ».';
+  }
+  const list = secWatchList(sum, resp);
+  const urgent = list.filter(e => e.rank <= 1).length;
+  document.getElementById('sec-top-watch-value').textContent = list.length ? `${list.length} joueur(s)` : 'Aucun';
+  document.getElementById('sec-top-watch').classList.toggle('sec-top-card--warn', urgent > 0);
+  const body = document.getElementById('sec-watch-body');
+  body.innerHTML = '';
+  if (!list.length) body.innerHTML = '<tr><td colspan="3" class="muted">Aucun joueur à surveiller : pas de vérification en attente, pas de suspension, pas d’indice de triche.</td></tr>';
+  for (const e of list) {
+    const tr = document.createElement('tr');
+    secPlayerCell(tr, e.username, e.userId);
+    addCell(tr, e.items.join(' · '));
+    addCell(tr, e.since ? secDate(e.since).replace(' UTC', '') : '—').className = 'muted';
+    body.appendChild(tr);
+  }
+  secLimitRows(body);
 }
 
 admRefreshButton('btn-refresh-sec', loadSecurity, 'Anti-bot');
+document.getElementById('btn-sec-events-more').addEventListener('click', () => { _secEventsLimit = Math.min(100, _secEventsLimit + SEC_EVENTS_STEP); loadSecurity(); });
+document.getElementById('btn-sec-audit-more').addEventListener('click', () => { _secAuditLimit = Math.min(100, _secAuditLimit + SEC_EVENTS_STEP); secLoadAudit(); });
+document.getElementById('sec-audit-card').addEventListener('toggle', e => { if (e.target.open) secLoadAudit(); });
+document.getElementById('btn-sec-goto-watch').addEventListener('click', () => admNavPoint(document.getElementById('sec-watch-card')));
+document.getElementById('btn-sec-start-test').addEventListener('click', () => {
+  const card = document.getElementById('sec-test-card');
+  const input = document.getElementById('sec-test-q');
+  admNavPoint(_secTest.userId ? card : input);
+});
+
+// ── Parcours guidé « Tester la protection » (#87) ────────────────────────────
+// Enchaîne les routes d'essai existantes (#25 lot C) sur UN compte : essai Appliqué, défi d'essai,
+// suivi de la résolution, remise en état. Le mode global n'est jamais modifié ici.
+
+let _secTest = { userId: null, data: null, busy: false, ended: false, msg: '' };
+
+/** Statut compréhensible d'un compte (fiche et parcours). */
+function secPlayerStatus(L) {
+  if (!L) return { key: 'unknown', label: 'État non disponible', help: '' };
+  if (L.state === 'suspended' && L.suspension) return { key: 'suspended', label: `Minage suspendu jusqu'à ${secBxl(L.suspension.endsAt)}`,
+    help: `Ses clics manuels sont refusés jusqu'à cette heure (palier ${L.suspension.level}). L'Auto-Dig, la boutique et le compte restent libres.` };
+  if (L.state === 'challenge' && L.mode === 'enforce') return { key: 'challenge', label: 'Vérification en attente',
+    help: `Tant qu'il ne l'a pas résolue dans le jeu, ses clics manuels ne comptent pas au classement${L.challenge?.seenAt ? ' (déjà affichée dans le jeu)' : ''}.` };
+  const why = L.mode === 'off' ? 'Protections désactivées.'
+    : L.testEnforce ? 'Essai en cours sur ce compte : une vérification peut lui être demandée.'
+    : L.mode === 'enforce' ? 'Mode Appliqué : une vérification lui sera demandée s\'il atteint un seuil.'
+    : 'Mode Observation : aucune vérification ne lui est imposée.';
+  return { key: 'normal', label: 'Peut miner normalement', help: why };
+}
+
+async function secTestLoad(q) {
+  const { ok, data } = await api('GET', '/api/admin/security/player?' + new URLSearchParams({ q }));
+  if (!ok) return { error: data?.error ?? 'Compte introuvable.' };
+  return { data };
+}
+
+/** Choisit le compte de test (formulaire, fiche joueur, ou reprise après F5). */
+async function secTestSelect(q, { point = false } = {}) {
+  const r = await secTestLoad(q);
+  if (r.error) { _secTest.msg = r.error; secTestRender(); return false; }
+  _secTest = { userId: String(r.data.player.userId), data: r.data, busy: false, ended: false, msg: '' };
+  document.getElementById('sec-test-q').value = r.data.player.username;
+  secTestRender();
+  if (point) admNavPoint(document.getElementById('sec-test-card'));
+  return true;
+}
+
+/** Relit l'état du compte de test (après chaque action, au rafraîchissement). Après F5, le compte en
+ *  essai est retrouvé côté serveur (aucun stockage dans le navigateur, cf. admin-session). */
+async function secTestRefresh() {
+  if (!_secTest.userId) {
+    const ta = _secResp?.testAccounts?.[0];
+    _secTest.userId = ta ? String(ta.userId) : null;
+  }
+  if (_secTest.userId) {
+    const r = await secTestLoad(_secTest.userId);
+    if (r.error) { _secTest.userId = null; _secTest.data = null; }
+    else {
+      _secTest.data = r.data;
+      const input = document.getElementById('sec-test-q');
+      if (!input.value || document.activeElement !== input) input.value = r.data.player.username;
+    }
+  }
+  secTestRender();
+}
+
+function secTestRender() {
+  const d = _secTest.data;
+  const L = d?.lotC ?? null;
+  const name = d ? `${d.player.username} (#${d.player.userId})` : '';
+  const pending = !!(L?.challenge);
+  const last = L?.history?.challenges?.[0] ?? null;
+  const solved = !!(L && !pending && L.mode === 'enforce' && last?.status === 'solved' && last.origin === 'admin');
+  const needsReset = !!(L && (L.testEnforce || L.challenge || L.suspension || L.violationLevel > 0));
+  const done = [!!d, L?.mode === 'enforce', pending || solved, solved, _secTest.ended && !needsReset];
+  const current = done.findIndex(x => !x);
+  const states = [];
+  const st = secPlayerStatus(L);
+  states[0] = d ? `✓ Compte choisi : ${name} — ${st.label}.` : 'Saisissez le pseudo du compte qui servira au test (le vôtre ou un compte de test consentant).';
+  states[1] = !L ? 'Choisissez d\'abord le compte.'
+    : L.globalMode === 'off' ? 'Impossible : les protections sont désactivées (voir « Réglages »).'
+    : L.testEnforce ? '✓ Essai actif : ce compte seul peut recevoir une vraie vérification.'
+    : L.mode === 'enforce' ? '✓ Le mode global est déjà « Appliqué » : ce compte reçoit déjà les vérifications.'
+    : 'Ce compte seul recevra de vraies vérifications. Les autres joueurs ne sont pas concernés.';
+  states[2] = !L || L.mode !== 'enforce' ? 'Disponible une fois l\'essai lancé.'
+    : pending ? `✓ Vérification envoyée (${secBxl(L.challenge.createdAt)}).`
+    : L.suspension ? 'Minage suspendu : terminez d\'abord le test.'
+    : solved ? '✓ Vérification envoyée puis résolue. Vous pouvez en envoyer une autre.'
+    : 'Le compte verra la fenêtre « Petite vérification » à son prochain passage dans le jeu.';
+  states[3] = !L ? ''
+    : L.suspension ? `⛔ ${st.label}.`
+    : pending ? (L.challenge.seenAt ? `⏳ Affichée dans le jeu depuis ${secBxl(L.challenge.seenAt)} : à résoudre.` : '⏳ Pas encore affichée : ouvrez le jeu avec ce compte (F5).')
+      + (L.challenge.fails ? ` ${L.challenge.fails} mauvaise(s) réponse(s), sans sanction.` : '')
+    : solved ? `✓ Résolue (${secBxl(last.resolvedAt)}) : le compte peut miner normalement.`
+    : '';
+  states[4] = needsReset ? 'Annule la vérification en cours, lève une suspension éventuelle, remet le palier à 0 et arrête l\'essai. Le mode global ne change pas.'
+    : _secTest.ended ? `✓ Test terminé : ${d?.player.username ?? 'le compte'} peut miner normalement. Mode global inchangé : ${SEC_RESP_MODES[L?.globalMode] ?? '—'}.`
+    : d ? 'Rien à remettre en état.' : '';
+  for (let i = 0; i < 5; i++) {
+    const li = document.getElementById(`sec-step-${i + 1}`);
+    li.classList.toggle('is-done', done[i] && !(i === 4 && !_secTest.ended));
+    li.classList.toggle('is-current', i === current);
+    if (i === current) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    document.getElementById(`sec-step-${i + 1}-state`).textContent = states[i];
+  }
+  const busy = _secTest.busy;
+  const startBtn = document.getElementById('btn-sec-test-start');
+  startBtn.disabled = busy || !L || L.globalMode === 'off' || L.mode === 'enforce';
+  document.getElementById('btn-sec-test-challenge').disabled = busy || !L || L.mode !== 'enforce' || pending || !!L.suspension;
+  document.getElementById('btn-sec-test-check').disabled = busy || !d;
+  document.getElementById('btn-sec-test-end').disabled = busy || !needsReset;
+  const msg = document.getElementById('sec-test-msg');
+  msg.textContent = _secTest.msg;
+  msg.classList.toggle('error', /^⚠/.test(_secTest.msg));
+}
+
+/** Exécute une étape : boutons verrouillés pendant l'appel (pas de double clic), puis relecture de l'état. */
+async function secTestRun(fn) {
+  if (_secTest.busy || !_secTest.userId) return;
+  _secTest.busy = true;
+  _secTest.msg = '';
+  secTestRender();
+  try { _secTest.msg = (await fn()) ?? ''; }
+  finally {
+    _secTest.busy = false;
+    await loadSecurity();   // cartes, liste et étapes relues ensemble (loadSecurity relit le compte de test)
+  }
+}
+
+document.getElementById('sec-test-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const q = document.getElementById('sec-test-q').value.trim();
+  if (q) secTestSelect(q);
+});
+document.getElementById('btn-sec-test-start').addEventListener('click', () => secTestRun(async () => {
+  const d = _secTest.data;
+  _secTest.ended = false;
+  // Seule étape pouvant mener à une suspension réelle : confirmation
+  if (!await admConfirm({ title: `Lancer un essai pour ${d.player.username} seulement ?`,
+    text: 'Le mode global ne change pas : les autres joueurs ne sont pas concernés.',
+    impact: ['Ce compte peut recevoir une vraie vérification ; pendant qu\'elle attend, ses clics manuels ne comptent pas au classement.',
+      'Une suspension du minage manuel devient possible si des clics continuent pendant la vérification.',
+      'Réversible : « Terminer le test / remettre l\'état normal ».'], ok: 'Lancer l\'essai' })) return '';
+  const { ok, data } = await api('POST', `/api/admin/security/player/${d.player.userId}/test-mode`, { enforce: true });
+  return ok ? '' : `⚠ Essai non lancé : ${data?.error ?? 'erreur'}.`;
+}));
+document.getElementById('btn-sec-test-challenge').addEventListener('click', () => secTestRun(async () => {
+  const { ok, data } = await api('POST', `/api/admin/security/player/${_secTest.data.player.userId}/challenge`, {});
+  if (!ok) return `⚠ Vérification non envoyée : ${data?.error ?? 'erreur'}.`;
+  return data.mode === 'enforce' ? '' : '⚠ Le compte n\'est pas en essai : la vérification a seulement été notée, rien n\'est montré au joueur.';
+}));
+document.getElementById('btn-sec-test-check').addEventListener('click', () => secTestRun(async () => ''));
+document.getElementById('btn-sec-test-end').addEventListener('click', () => secTestRun(async () => {
+  const L = _secTest.data.lotC;
+  const uid = _secTest.data.player.userId;
+  const before = L.globalMode;
+  const errs = [];
+  if (L.challenge && !(await api('POST', `/api/admin/security/challenge/${L.challenge.id}/cancel`, { note: 'fin du test (#87)' })).ok) errs.push('vérification');
+  if (L.suspension && !(await api('POST', `/api/admin/security/suspension/${L.suspension.id}/lift`, { note: 'fin du test (#87)' })).ok) errs.push('suspension');
+  if (L.violationLevel > 0 && !(await api('POST', `/api/admin/security/player/${uid}/violation-level`, { level: 0 })).ok) errs.push('palier');
+  if (L.testEnforce && !(await api('POST', `/api/admin/security/player/${uid}/test-mode`, { enforce: false })).ok) errs.push('essai');
+  if (errs.length) return `⚠ Remise en état incomplète (${errs.join(', ')}) : cliquez de nouveau sur « Terminer le test ».`;
+  _secTest.ended = true;
+  const resp = await api('GET', '/api/admin/security/responses');
+  if (resp.ok && resp.data.mode !== before) return `⚠ Le mode global a changé pendant le test (${SEC_RESP_MODES[resp.data.mode]}) : vérifiez « Réglages ».`;
+  return '';
+}));
 
 // ── Réponses anti-bot (#25 lot C) : mode, compteurs, défis et suspensions ────
 
@@ -2947,6 +3243,9 @@ function secRenderResponses(resp) {
   }
   const c = r.last7d;
   const ladder = r.params.ab_suspension_ladder.map(m => (m >= 60 ? `${m / 60} h` : `${m} min`)).join(' → ');
+  document.getElementById('sec-resp-params').textContent =
+    `Seuils actuels : vérification si minage manuel sans pause ≥ ${r.params.ab_streak_min} min, ou ≥ ${r.params.ab_active6h_min} min actives sur 6 h, ou ≥ ${r.params.ab_active24h_min} min sur 24 h, ou score de risque ≥ ${r.params.ab_challenge_score}.`;
+  document.getElementById('sec-resp-sum').textContent = `7 j : ${c.issued} imposée(s), ${c.shadow} simulée(s), ${c.suspensions} suspension(s)`;
   for (const line of [
     `7 derniers jours : ${c.shadow} défi(s) simulé(s) (Observation) · ${c.issued} imposé(s) · ${c.solved} résolu(s) · ${c.pending} en attente · ${c.fails} échec(s) · ${c.expirations} énigme(s) expirée(s) · ${c.heldClicks} clic(s) non crédités · ${c.players} joueur(s)`,
     `Suspensions (7 j) : ${c.suspensions} · actives : ${c.activeSuspensions} · levées : ${c.liftedSuspensions} — paliers : ${ladder} (−1 palier après ${r.params.ab_decay_days} j sans violation)`,
@@ -2979,6 +3278,7 @@ function secRenderResponses(resp) {
     }
     chBody.appendChild(tr);
   }
+  secLimitRows(chBody);
   const suBody = document.getElementById('sec-resp-su-body');
   suBody.innerHTML = '';
   if (!r.suspensions.length) suBody.innerHTML = '<tr><td colspan="7" class="muted">Aucune suspension.</td></tr>';
@@ -3004,6 +3304,7 @@ function secRenderResponses(resp) {
     }
     suBody.appendChild(tr);
   }
+  secLimitRows(suBody);
 }
 
 /** Section « Défi et suspension » de la fiche joueur (lot C) : état distinct, mesures, actions d'essai. */
@@ -3161,6 +3462,44 @@ async function secOpenPlayer(q, opener, seasonId = null) {
   return true;
 }
 
+/** En-tête de la fiche (#87) : statut compréhensible et action principale, avant toute donnée. */
+/** Événements du journal qui décrivent une réponse ou une action admin, pas une anomalie du joueur. */
+const SEC_NOT_ALERTS = new Set(['antibot_admin', 'challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started']);
+
+function secFicheHead(d) {
+  const L = d.lotC;
+  const st = secPlayerStatus(L);
+  const head = secEl('section', `sec-fiche-head sec-fiche-head--${st.key}`);
+  head.id = 'sec-fiche-head';
+  head.appendChild(secEl('p', 'sec-fiche-status', st.label));
+  if (st.help) head.appendChild(secEl('p', 'sec-fiche-help', st.help));
+  const actions = secEl('div', 'sec-fiche-actions');
+  const uid = String(d.player.userId);
+  const btn = (label, cls, key, fn) => {
+    const b = secEl('button', cls, label);
+    b.type = 'button';
+    b.dataset.admKey = key;
+    b.addEventListener('click', async () => {
+      if (b.disabled) return;
+      b.disabled = true;
+      try { await fn(b); } finally { b.disabled = false; }
+    });
+    actions.appendChild(b);
+  };
+  btn('🧪 Tester la protection sur ce compte', 'btn btn-primary', 'sec-fiche-test', async () => {
+    document.getElementById('sec-player-dialog').close();
+    await secTestSelect(uid, { point: true });
+  });
+  if (L?.challenge) btn('Annuler la vérification', 'btn btn-outline', 'sec-fiche-cancel', async b => {
+    if ((await api('POST', `/api/admin/security/challenge/${L.challenge.id}/cancel`, { note: 'fiche' })).ok) await secOpenPlayer(uid, b, d.season?.id ?? null);
+  });
+  if (L?.suspension) btn('Lever la suspension', 'btn btn-outline', 'sec-fiche-lift', async b => {
+    if ((await api('POST', `/api/admin/security/suspension/${L.suspension.id}/lift`, { note: 'fiche' })).ok) await secOpenPlayer(uid, b, d.season?.id ?? null);
+  });
+  head.appendChild(actions);
+  return head;
+}
+
 function secRenderPlayer(d) {
   document.getElementById('sec-player-title').textContent = `Fiche joueur — ${d.player.username} (#${d.player.userId})`;
   const sel = document.getElementById('sec-player-season');
@@ -3179,7 +3518,10 @@ function secRenderPlayer(d) {
   const m = d.modes;
   const r = d.ranking;
   const ss = d.save?.seasonStats;
-  const alertsTotal = d.events.byType.reduce((a, e) => a + (Number(e.n) || 0), 0);
+  // #87 : un essai admin (défi d'essai, essai Appliqué, résolution) n'est pas une alerte sur le joueur
+  const alertTypes = d.events.byType.filter(e => !SEC_NOT_ALERTS.has(e.type));
+  const testEvents = d.events.byType.filter(e => SEC_NOT_ALERTS.has(e.type)).reduce((a, e) => a + (Number(e.n) || 0), 0);
+  const alertsTotal = alertTypes.reduce((a, e) => a + (Number(e.n) || 0), 0);
   const cpsMax = d.samples.rows.reduce((a, x) => (typeof x.serverCps === 'number' && x.serverCps > a ? x.serverCps : a), 0);
 
   // Recette UX du 05/11 (#76) : deux onglets. « Vue essentielle » répond aux questions courantes
@@ -3213,15 +3555,16 @@ function secRenderPlayer(d) {
     panes[key].setAttribute('role', 'tabpanel');
     panes[key].setAttribute('aria-labelledby', btn.id);
   }
-  root.append(tabs, ess, adv);
+  root.append(secFicheHead(d), tabs, ess, adv);
 
   // ── Vue essentielle ──
   const exactMode = m.exactHpMode ?? 'shadow';
   const declaredDepth = r?.reportedDepth ?? ss?.maxDepth;
   const acceptedDepth = r?.acceptedDepth ?? d.depth?.acceptedDepth;
   const notRanked = r ? Math.max(0, (r.manualBlocks ?? 0) - (r.validatedManualBlocks ?? 0)) : null;
+  const suspended = d.lotC?.state === 'suspended';
   ess.appendChild(secEl('p', 'sec-summary-verdict',
-    `Risque N${d.risk.level} (score ${d.risk.score}) · ${alertsTotal ? `${alertsTotal} alerte(s) sur la saison` : 'aucune alerte sur la saison'} · aucune sanction appliquée au joueur.`));
+    `Risque N${d.risk.level} (score ${d.risk.score}) · ${alertsTotal ? `${alertsTotal} alerte(s) sur la saison` : 'aucune alerte sur la saison'} · ${suspended ? 'minage manuel suspendu' : 'aucune sanction appliquée au joueur'}.`));
   const cards = secEl('div', 'sec-cards');
   const card = (title, value, lines, warn) => {
     const c = secEl('section', `sec-card${warn ? ' sec-card--warn' : ''}`);
@@ -3240,15 +3583,16 @@ function secRenderPlayer(d) {
   ], (d.depth?.depthGap ?? 0) > 0);
   card('PV réels des blocs (#77)', d.depth?.exactDepth == null ? 'non disponible' : `${secFmt(d.depth.exactDepth, ' m')} couverts`, [
     [`Écart à la dernière sauvegarde : ${d.depth?.exactDepth == null ? 'non disponible' : secFmt(d.depth.exactGap ?? 0, ' m')}`, 'server'],
-    [`Mode ${exactMode} — ${exactMode === 'enforce' ? 'profondeur classée plafonnée' : exactMode === 'shadow' ? 'observation, aucun joueur freiné' : 'calcul arrêté'}`],
+    [exactMode === 'enforce' ? 'Contrôle actif : profondeur classée plafonnée' : exactMode === 'shadow' ? 'Contrôle en observation : aucun joueur freiné' : 'Calcul arrêté'],
   ], (d.depth?.exactGap ?? 0) > 0);
   card('Classement (👆 blocs manuels)', r ? `${secFmt(r.validatedManualBlocks)} validés` : 'pas encore classé', [
     [`Déclarés : ${secFmt(ss?.manualBlocks ?? r?.manualBlocks)} · non retenus : ${secFmt(notRanked)}`, 'client'],
     [`Coups de pioche manuels : ${secFmt(ss?.manualClicks ?? r?.manualClicks)}`, 'client'],
   ], notRanked > 0);
   card('Risque, alertes, sanctions', `N${d.risk.level} — score ${d.risk.score}`, [
-    [`Alertes : ${alertsTotal ? `${alertsTotal} (${d.events.byType.map(e => `${e.type} ×${e.n}`).join(', ')})` : 'aucune'}`, 'server'],
-    [`Sanctions : aucune (anti-bot ${m.antibotMode}, applied:false)`],
+    [`Alertes : ${alertsTotal ? `${alertsTotal} (${alertTypes.map(e => `${e.type} ×${e.n}`).join(', ')})` : 'aucune'}`, 'server'],
+    ...(testEvents ? [[`Vérifications et actions admin : ${testEvents} (détail : diagnostic avancé)`]] : []),
+    [suspended ? 'Sanctions : minage manuel suspendu' : 'Sanctions : aucune'],
     [`Coups/s max (horloge serveur) : ${d.samples.rows.length ? secFmt(cpsMax) : 'non disponible'}`, 'derived'],
   ], d.risk.level > 0 || alertsTotal > 0);
   ess.appendChild(cards);
@@ -3287,7 +3631,10 @@ function secRenderPlayer(d) {
     tot.appendChild(secSrc('client'));
     ul.appendChild(tot);
     orig.appendChild(ul);
-    orig.appendChild(secEl('p', 'sec-origin-why',
+    const why = secEl('details', 'sec-origin-whybox');
+    why.appendChild(secEl('summary', '', 'Pourquoi un reste « ni manuels ni Auto-Dig » ?'));
+    orig.appendChild(why);
+    why.appendChild(secEl('p', 'sec-origin-why',
       `Pourquoi « ni l’un ni l’autre » ? Le total (${secFmt(og.total)}) compte toute la partie depuis la création du compte et n’est jamais remis à zéro, alors que les compteurs manuels, Auto-Dig et coups suspects repartent à 0 à chaque saison. Les ${secFmt(og.outsideSeason)} blocs restants sont donc surtout ceux des saisons précédentes. Avant le correctif #74 (05/11), un bloc cassé par un coup jugé suspect n’était compté nulle part : ces blocs-là sont aussi dans ce reste.`));
     if (og.seasonDepthBlocks != null) {
       const diff = og.seasonDepthBlocks - og.season;
@@ -3300,7 +3647,7 @@ function secRenderPlayer(d) {
   } else orig.appendChild(secEl('p', 'muted', 'Non disponible : aucune sauvegarde de cette saison.'));
   ess.appendChild(orig);
   ess.appendChild(secEl('p', 'muted sec-summary-modes',
-    `Dernière sauvegarde : ${d.save ? `${secDate(d.save.savedAt)} (révision ${d.save.revision})` : 'aucune'} · anti-bot ${m.antibotMode} (journal seulement) · budget de dégâts ${m.damageBudgetMode}${m.damageBudgetMode === 'enforce' ? ' (plafonne la profondeur classée)' : ''} · PV réels ${exactMode}. Toutes les autres métriques : onglet « Diagnostic avancé ».`));
+    `Dernière sauvegarde : ${d.save ? `${secDate(d.save.savedAt)} (révision ${d.save.revision})` : 'aucune'}. Modes, PV, score, mesures et journaux : onglet « Diagnostic avancé ».`));
 
   const tools = secEl('div', 'sec-acc-tools');
   for (const [label, open] of [['Tout déplier', true], ['Tout replier', false]]) {
@@ -3333,6 +3680,7 @@ function secRenderPlayer(d) {
   const banner = secEl('div', 'sec-banner');
   banner.appendChild(secEl('p', '', `Anti-bot : ${m.antibotMode} — sanctions désactivées (applied:false) : les scores et niveaux sont seulement journalisés.`));
   banner.appendChild(secEl('p', '', `Budget de dégâts : ${m.damageBudgetMode}${m.damageBudgetMode === 'enforce' ? ' — plafonne la profondeur CLASSÉE ; ne réduit ni les coups, ni les gains, ni les achats.' : ' — calcul et journal seulement.'}`));
+  banner.appendChild(secEl('p', '', `PV réels des blocs (#77) : ${exactMode}${exactMode === 'enforce' ? ' — plafonne la profondeur classée.' : exactMode === 'shadow' ? ' — observation, aucun joueur freiné.' : ' — calcul arrêté.'}`));
   banner.appendChild(secEl('p', '', '👆 du classement = blocs détruits manuellement et validés par le serveur, pas des coups de pioche.'));
   add(banner);
 
@@ -3394,6 +3742,11 @@ function secRenderPlayer(d) {
   add(secTable(['Contrôle', 'Mode', 'Observation pour ce joueur', 'Action prévue', 'Action appliquée'],
     d.responses.map(x => [x.control, x.mode, x.observation, x.planned, x.applied])));
 
+  if (d.lotC) {
+    section('lotc', 'Vérification et suspension — mesures et actions', `${secPlayerStatus(d.lotC).label} · palier ${d.lotC.effectiveViolationLevel}`);
+    add(secLotCSection(d));
+  }
+
   section('alerts', 'Alertes du joueur par type', alertsTotal ? `${alertsTotal} alerte(s), ${d.events.byType.length} type(s)` : 'aucune');
   add(secTable(['Type', 'Nombre', 'Première (UTC)', 'Dernière (UTC)'],
     d.events.byType.map(e => [e.type, e.n, e.first, e.last]), 'Aucune alerte pour ce joueur sur cette saison.'));
@@ -3435,8 +3788,6 @@ function secRenderPlayer(d) {
     d.events.recent.map(e => [e.created_at, e.type, e.score_after == null ? '' : `${e.score_before ?? 0} → ${e.score_after}`, e.details ?? '']),
     'Aucune alerte.'));
 
-  // Lot C : état de défi / suspension et actions d'essai, sous les 4 cartes de la vue essentielle
-  if (d.lotC) cards.after(secLotCSection(d));
   body.appendChild(root);
 }
 
@@ -3452,8 +3803,9 @@ document.getElementById('sec-player-season').addEventListener('change', e => {
 /** Recharge la fiche ouverte (même joueur, même saison). */
 function loadSecPlayer() { return _secPlayer.q ? secOpenPlayer(_secPlayer.q, null, _secPlayer.seasonId) : null; }
 admRefreshButton('btn-sec-player-refresh', loadSecPlayer, 'Fiche joueur');
-document.getElementById('sec-filter-type').addEventListener('change', loadSecurity);
-document.getElementById('sec-filter-days').addEventListener('change', loadSecurity);
+for (const id of ['sec-filter-type', 'sec-filter-days']) {
+  document.getElementById(id).addEventListener('change', () => { _secEventsLimit = SEC_EVENTS_STEP; loadSecurity(); });
+}
 
 // ── Concours au mérite (#30) ──────────────────────────────────────────────────
 
