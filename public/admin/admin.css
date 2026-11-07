@@ -1238,11 +1238,79 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .adm-toast.is-err { background: #b91c1c; color: #fff; }
 
 /* Coffres & drops (#37) */
-.rw-chest { margin-bottom: 14px; }
-.rw-chest h4 { margin: 6px 0 2px; }
-.rw-chest table { margin-bottom: 6px; }
-.rw-inline { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; white-space: nowrap; }
-.rw-rows td { vertical-align: middle; }
+/* Coffres & drops (#88) : bandeau d'état, six cartes, fiche par coffre */
+.rw-banner { margin: 0 0 6px; line-height: 1.5; }
+.rw-draft-word { color: var(--gold); }
+.rw-problems { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.rw-prob { font-size: 0.85rem; padding: 6px 10px; border-radius: 8px; border-left: 4px solid var(--border); background: rgba(255,255,255,0.03); overflow-wrap: anywhere; }
+.rw-prob--error { border-left-color: var(--red); }
+.rw-prob--warn { border-left-color: var(--gold); }
+.rw-prob--ok { border-left-color: var(--green); }
+.rw-link { padding: 2px 6px; font-size: 0.8rem; text-decoration: underline; }
+.rw-actions { flex-wrap: wrap; gap: 8px; }
+.rw-group { margin: 14px 0 6px; }
+.rw-group-title { font-size: 0.95rem; margin: 0 0 8px; }
+.rw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.rw-card { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); min-width: 0; }
+.rw-card.is-draft { border-color: var(--gold); }
+.rw-card.is-problem { border-color: var(--red); box-shadow: 0 0 0 1px var(--red) inset; }
+.rw-card > .btn { align-self: flex-start; margin-top: auto; }
+.rw-card-head { display: flex; gap: 10px; align-items: center; }
+.rw-card-title { min-width: 0; }
+.rw-card-title h3 { margin: 0 0 4px; font-size: 1rem; }
+.rw-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.rw-badge { font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+.rw-badge--live { color: var(--green); border-color: rgba(34,197,94,0.5); }
+.rw-badge--draft { color: var(--gold); border-color: rgba(251,191,36,0.6); }
+.rw-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; margin: 0; font-size: 0.85rem; }
+.rw-facts dt { color: var(--muted); }
+.rw-facts dd { margin: 0; overflow-wrap: anywhere; }
+.rw-was { font-size: 0.78rem; }
+.rw-card-warn { margin: 0; font-size: 0.8rem; color: var(--gold); }
+.rw-legend { font-size: 0.8rem; margin: 6px 0 14px; }
+.rw-legend a { color: var(--gold); }
+#rw-advanced h4, #rw-visuals-card > p:first-of-type { margin-top: 12px; }
+.rw-raw { font-size: 0.8rem; overflow-wrap: anywhere; }
+.rw-dlg-kind { font-size: 0.85rem; margin: 0 0 8px; }
+.rw-dlg-shop { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; margin-bottom: 6px; }
+.rw-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+.rw-field input { width: 11em; max-width: 100%; }
+.rw-info { flex-basis: 100%; font-size: 0.82rem; }
+.rw-info summary { cursor: pointer; color: var(--gold); }
+.rw-dlg-h { margin: 12px 0 6px; font-size: 0.95rem; }
+.rw-dlg-h .error { font-weight: normal; }
+.rw-lines { display: grid; gap: 6px; }
+.rw-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.rw-line > select { width: auto; flex: 0 1 13em; min-width: 0; }
+.rw-line-vals { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 14em; min-width: 0; }
+.rw-line-chance { margin-left: auto; font-weight: 600; }
+.rw-line-chance input { width: 6.5em; }
+.rw-line-x { padding: 4px 10px; }
+.rw-inline, .bk-dialog label.rw-inline { display: inline-flex; flex-direction: row; align-items: center; gap: 4px; white-space: nowrap; }
+.rw-inline input[type=number] { width: 7em; }
+.rw-inline-note { font-size: 0.78rem; white-space: normal; }
+.rw-balance { margin: 10px 0; padding: 10px 12px; border-radius: 8px; border-left: 4px solid var(--border); background: rgba(255,255,255,0.03); font-size: 0.85rem; }
+.rw-balance p { margin: 2px 0; }
+.rw-balance ul { margin: 4px 0; padding-left: 20px; }
+.rw-balance-title { font-weight: 600; }
+.rw-balance--ok { border-left-color: var(--green); }
+.rw-balance--high { border-left-color: var(--gold); }
+.rw-balance--profit { border-left-color: var(--red); }
+.rw-compare summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
+.rw-cmp-wrap { overflow-x: auto; }
+.rw-cmp { width: 100%; font-size: 0.85rem; }
+.rw-cmp th[scope=row] { text-align: left; font-weight: normal; text-transform: none; letter-spacing: 0; font-size: inherit; color: var(--text); }
+@media (max-width: 520px) {
+  .rw-grid { grid-template-columns: minmax(0, 1fr); }
+  .rw-line-chance { margin-left: 0; }
+  .rw-actions .btn { flex: 1 1 100%; }
+  .rw-cmp, .rw-cmp tbody { display: block; width: 100%; min-width: 0; }
+  .rw-cmp thead { display: none; }
+  .rw-cmp tr { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .rw-cmp th[scope=row] { font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .rw-cmp th, .rw-cmp td { border: 0; padding: 0; white-space: normal; overflow-wrap: anywhere; }
+  .rw-cmp td::before { content: attr(data-label) " : "; color: var(--muted); }
+}
 
 /* Règles économiques (#49) : groupes de champs compacts */
 .er-form { display: flex; flex-direction: column; gap: 8px; }
@@ -1689,3 +1757,6 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .sec-test-ac-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 .sec-test-ac-steps { font-size: 0.8rem; padding-left: 20px; }
 .sec-test-ac-table { font-size: 0.8rem; margin-top: 6px; }
+
+/* Économie : prix des coffres en lecture (#88) */
+.eco-chest-costs { margin: 0 0 10px; padding-left: 20px; }

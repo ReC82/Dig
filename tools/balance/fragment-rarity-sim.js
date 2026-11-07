@@ -5,7 +5,8 @@
  * Compare la situation de production (tables v1 publiées #37, boutique de fragments en pièces
  * suspendue depuis le 05/11, coffres de boutique simple et rare illimités) aux préréglages de
  * server/rewardTables.js (PRESETS) : variante prudente (P), nettement plus rare (R), et R avec un
- * Aimant à éclats réduit (R+A, demanderait aussi une version du catalogue de reliques #64).
+ * Aimant à éclats réduit (R+A, demanderait aussi une version du catalogue de reliques #64), et S
+ * (#88 : aucun fragment dans les coffres de la boutique, coffres minés comme P).
  * Même moteur que economy-sim.js (vrai code du jeu, catalogue de blocs v3, hasard à graine) :
  * mêmes options → mêmes chiffres. Rien n'est appliqué au jeu ; aucun accès à une base.
  *
@@ -31,7 +32,7 @@ function variantRules(id) {
   // Production au 06/11 : boutique de fragments en pièces suspendue et masquée (#69, 05/11)
   const prod = { ...base, id: 'actuel', fragmentShop: false };
   if (id === 'actuel') return prod;
-  const presetId = { P: 'fragments_prudente', R: 'fragments_rare', 'R+A': 'fragments_rare' }[id];
+  const presetId = { P: 'fragments_prudente', R: 'fragments_rare', 'R+A': 'fragments_rare', S: 'boutique_sans_fragments' }[id];
   const t = PRESETS[presetId].tables;
   return {
     ...prod, id,
@@ -42,12 +43,13 @@ function variantRules(id) {
   };
 }
 
-const VARIANT_IDS = ['actuel', 'P', 'R', 'R+A'];
+const VARIANT_IDS = ['actuel', 'P', 'R', 'R+A', 'S'];
 const VARIANT_LABELS = {
   actuel: 'Actuel (production)',
   P: 'P — prudente',
   R: 'R — nettement plus rare',
   'R+A': 'R + Aimant réduit (1/1/2/2/3)',
+  S: 'S — boutique sans fragments (#88)',
 };
 
 /** Options de profil : sans achats de coffres de la boutique, ou avec (hypothèses du 04/11). */

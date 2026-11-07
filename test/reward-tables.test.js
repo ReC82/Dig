@@ -113,8 +113,9 @@ test('brouillon → publication → effet sur le tirage serveur → retour arri�
   assert.strictEqual(chestShop.describeChests({}).mined.epique[0].min, 700);
 
   const rb = rewards.rollbackTo(1);
-  assert.deepStrictEqual(rb, { version: 3, restored: 1 });
-  assert.deepStrictEqual(rewards.getPublished().tables, rewards.getVersion(1).tables);
+  assert.deepStrictEqual(rb, { version: 3, restored: 1, priceChanges: [], pricesKept: true });
+  // #88 : la nouvelle version mémorise les prix en vigueur (v1 n'en a pas : prix gardés)
+  assert.deepStrictEqual(rewards.getPublished().tables, rewards.withCosts(rewards.getVersion(1).tables, require('../server/economy').DEFAULT_CHEST_COSTS));
   assert.throws(() => rewards.rollbackTo(3), e => e.status === 409);
 
   assert.throws(() => db.getDb().prepare('UPDATE reward_table_versions SET note = 1').run(), /ajout seul/);

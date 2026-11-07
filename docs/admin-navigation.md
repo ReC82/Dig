@@ -27,8 +27,8 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
 | Lire les retours des testeurs | Joueurs & testeurs › Bêta fermée › Retours | `#a/beta-feedback` |
 | Révoquer ou archiver un lien, retirer un testeur | Joueurs & testeurs › Bêta fermée › 🗂️ Gérer les invitations et testeurs | `#a/beta-manage` |
 | Archiver un retour de test traité | Joueurs & testeurs › Bêta fermée › Retours › 🗄️ Archiver | `#a/beta-archive` |
-| Modifier les gains (multiplicateurs) | Jeu & progression › Économie › Gains & coûts des coffres | `#a/gains` |
-| Changer le prix des coffres | Jeu & progression › Économie › Gains & coûts des coffres | `#a/chest-costs` |
+| Modifier les gains (multiplicateurs) | Jeu & progression › Économie › Gains (prix des coffres en lecture) | `#a/gains` |
+| Changer le prix des coffres | Jeu & progression › Coffres & drops (fiche du coffre, brouillon puis publication, #88) | `#a/chest-costs` |
 | Vérifier le registre de gemmes | Jeu & progression › Économie › Registre de gemmes | `#a/gem-ledger` |
 | Changer la date de fin de la saison | Saisons & compétition › Saison en cours › Date de fin de la saison active | `#a/season-end` |
 | Clore la saison (zone critique) | Saisons & compétition › Saison en cours › Zone critique | `#a/season-close` |
@@ -57,7 +57,7 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
   - 🔮 Reliques (`#relics`)
   - 🎯 Missions quotidiennes (`#missions`)
   - 💰 Économie (`#economy`)
-    - Gains & coûts des coffres (`#economy/gains`)
+    - Gains (prix des coffres en lecture) (`#economy/gains`)
     - Registre de gemmes (`#economy/ledger`)
     - Règles économiques (`#economy/rules`)
     - Boutique en gemmes (`#economy/gemshop`)

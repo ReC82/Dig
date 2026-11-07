@@ -1574,8 +1574,17 @@ app.post('/api/admin/missions/simulate', requireAdmin, catalogRoute('POST /api/a
 }));
 
 // Tables de récompenses des coffres (#37, objectif 4) : même cycle brouillon → publication → retour arrière.
-// Les coûts effectifs (⚙ Config, #20) servent à refuser une table qui rendrait plus que son prix.
+// Prix (#88) : proposés dans le brouillon, écrits dans admin_config par la publication (même transaction) ;
+// les prix en vigueur servent à refuser une table qui rendrait plus que son prix.
 const chestCosts = () => getEconomy(getAdminConfig()).chestCosts;
+
+/** Journal de sécurité (#25) des prix changés par une publication ou un retour arrière (#88). */
+function logChestPriceChanges(out, ip) {
+  for (const c of out.priceChanges ?? []) {
+    antibot.logSecurityEvent('admin_config', { details: { key: `chest_cost_${c.id}`, old: String(c.before), new: String(c.after), via: `rewards v${out.version}` }, ip });
+  }
+  return out;
+}
 
 app.get('/api/admin/rewards', requireAdmin, catalogRoute('GET /api/admin/rewards',
   () => rewardTables.buildAdminView({ costs: chestCosts() })));
@@ -1594,15 +1603,18 @@ app.post('/api/admin/rewards/simulate', requireAdmin, catalogRoute('POST /api/ad
   const source = req.body?.source === 'draft' ? rewardTables.getDraft() : rewardTables.getPublished();
   if (!source) throw new rewardTables.RewardError(404, 'Aucun brouillon.');
   const v = rewardTables.validateTables(source.tables, { costs: chestCosts() });
-  if (v.errors.length) throw new rewardTables.RewardError(400, 'Tables invalides.', v.errors);
-  return { results: rewardTables.simulate(v.tables, { n: Number(req.body?.n ?? 10000) }) };
+  // #88 : une table qui rend plus que son prix se simule quand même (c'est ce qu'on veut comprendre) ;
+  // seules les tables illisibles (types, bornes) sont refusées.
+  const blocking = v.errors.filter(e => !/\(boucle de profit\)\.$/.test(e));
+  if (!v.tables || blocking.length) throw new rewardTables.RewardError(400, 'Tables invalides.', blocking.length ? blocking : v.errors);
+  return { results: rewardTables.simulate(rewardTables.withCosts(v.tables, chestCosts(), { override: req.body?.source !== 'draft' }), { n: Number(req.body?.n ?? 10000) }) };
 }));
 
 app.post('/api/admin/rewards/publish', requireAdmin, catalogRoute('POST /api/admin/rewards/publish',
-  req => rewardTables.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null, costs: chestCosts() })));
+  req => logChestPriceChanges(rewardTables.publishDraft({ note: req.body?.note, expectedBasedOn: req.body?.basedOn ?? null, costs: chestCosts() }), req.ip)));
 
 app.post('/api/admin/rewards/rollback', requireAdmin, catalogRoute('POST /api/admin/rewards/rollback',
-  req => rewardTables.rollbackTo(Number(req.body?.version), { note: req.body?.note, costs: chestCosts() })));
+  req => logChestPriceChanges(rewardTables.rollbackTo(Number(req.body?.version), { note: req.body?.note, costs: chestCosts() }), req.ip)));
 
 app.get('/api/admin/rewards/audit', requireAdmin, catalogRoute('GET /api/admin/rewards/audit',
   () => ({ audit: rewardTables.listAudit() })));
@@ -1967,6 +1979,10 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
   try {
     const { key, value } = req.body ?? {};
     if (!key || value == null) return res.status(400).json({ error: 'Champs key et value requis.' });
+    // #88 : un seul endroit pour les prix des coffres (brouillon + publication avec les récompenses)
+    if (/^chest_cost_/.test(String(key))) {
+      return res.status(409).json({ error: 'Le prix des coffres se modifie dans 🎲 Coffres & drops (fiche du coffre → brouillon → publication), avec ses récompenses.' });
+    }
     // Paramètres économiques bornés (#20), interrupteurs anti-bot (#25) et paramètres de ligue (#19) : appliqués sans redéploiement.
     const checked = antibot.validateConfigValue(key, value) ?? antibotResponses.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
       ?? validateEconomyValue(key, value);
