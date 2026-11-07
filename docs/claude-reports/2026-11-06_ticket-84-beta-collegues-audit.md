@@ -176,3 +176,51 @@ Le lien apparaît alors tout de suite dans la bannière bêta et dans Actualité
 **Classement.** Après lancement pour le MVP public. Il est utile pour la bêta collègues, mais pas bloquant : le chemin de signalement des bugs dans le jeu existe déjà.
 
 **Décision demandée.** Aucune nouvelle. La question sur les points de récompense et la boutique de cadeaux reste ouverte (options A, B ou C ; A recommandée).
+
+---
+
+## Mise à jour du 07/11/2026 (2) : #50 déployé, contrôle d'ouverture Discord ajouté à la recette
+
+### 1. État réel
+
+**Déployé en production via #50 (SHA `b500256`) — en attente de recette.** Cette session ne modifie aucun code : elle vérifie l'accès Discord livré par #50 et complète la recette #84. Il n'y a pas de nouveau déploiement. Le lien Discord **n'est toujours pas saisi en production** : à 11:00 UTC le 07/11, `GET /api/beta/config` renvoie `"discordUrl": null` avec la version `1.0.0+b500256`. Aucune session ne modifie ce réglage à ta place.
+
+### 2. Ce qui a été vérifié (SHA `3b782db` sur `develop` = code `b500256` en production + rapport)
+
+Le parcours Chromium `test/e2e/discord-access-50.e2e.js` a tourné sur un serveur de test (port 3101, base `test-84.sqlite`, supprimée ensuite), en 1280×900, 390×844 et 320×640.
+- **Avec `https://discord.gg/eGzJrzbaq`** : 39/39 OK.
+  - Le bouton est en tête d'Actualités, visible sans défiler, haut de 44 px, sans débordement.
+  - L'adresse ouverte est exactement celle-ci, dans un nouvel onglet (`noopener`), sans accès à la fenêtre du jeu.
+  - Le jeu reste dans son onglet avec **le même bloc et les mêmes PV**.
+  - Il est accessible au clavier (Tab, puis Entrée).
+  - Le lien apparaît aussi dans Aide → « Communauté ».
+- **Lien vidé** : 6/6 OK. Il n'y a plus aucun bouton Discord, ni dans Actualités ni dans l'Aide.
+
+**Non vérifié par la machine** : l'ouverture réelle de l'application Discord sur Android et en PWA installée. Seul un vrai téléphone peut le confirmer, d'où l'étape 6 ci-dessous.
+
+### 3. Recette #84 complétée : contrôle d'ouverture Discord (≈ 3 min, à ajouter aux étapes 1 à 5 du 06/11)
+
+Aucune inscription à refaire. Aucune invitation Dig n'est envoyée.
+
+0. **Préalable (toi, 30 s)** : `/admin/` → 🧪 Bêta → « ⚙️ Configurer la bêta » → colle `https://discord.gg/eGzJrzbaq` dans « Lien d'invitation Discord » → Enregistrer.
+6. **PC** : sur ton compte de test, mine un coup et note le bloc et ses PV. Ouvre la cloche 🔔 et clique sur « 💬 Rejoindre le Discord » (tout en haut). *Attendu :* un nouvel onglet s'ouvre sur l'invitation Discord. Reviens sur l'onglet du jeu : même bloc, mêmes PV, et le minage continue.
+7. **Téléphone, navigateur puis PWA installée** : fais le même essai depuis 🔔, puis depuis **?** → « Communauté ». *Attendu :* le navigateur ou l'application Discord s'ouvre. Au retour sur Dig, la partie est intacte : même bloc, pas de reconnexion et pas de « Partie ouverte sur un autre appareil ».
+8. *(Facultatif)* Vide le champ dans l'admin, puis rouvre 🔔 et **?**. *Attendu :* aucun bouton Discord, et le jeu reste jouable. Remets ensuite le lien avant lundi.
+
+Le message d'invitation du §6 peut ajouter une ligne : « 6. Envie d'échanger ? 🔔 → Rejoindre le Discord (facultatif). »
+
+### 4. Classement
+
+**Après lancement** pour le MVP public : c'est utile pour la bêta collègues, mais pas bloquant, puisque le signalement de bugs dans le jeu existe. Le verdict du 06/11 ne change pas : **GO pour 3 à 5 collègues, NO-GO pour 10 à 20 testeurs et le public**.
+
+### 5. Décisions demandées au propriétaire
+
+1. *(Toujours ouverte)* **Points de récompense et boutique de cadeaux pendant la bêta** :
+   - **A** : ne rien changer et le préciser dans le message. **Recommandé.**
+   - **B** : mode simulation, réversible.
+   - **C** : masquer la boutique de cadeaux (développement dans #34).
+2. Action d'admin, ce n'est pas une décision : saisir le lien Discord (étape 0).
+
+### 6. Reste à faire
+
+Rien côté code pour #84. Il reste la recette du propriétaire (étapes 1 à 8) et la réponse à la question 1.
