@@ -972,3 +972,166 @@ Classement : **Bloquant MVP** (lisibilité du défi avant la bêta).
 - Réponses aux questions ouvertes (mode Appliqué, Turnstile). — Bloquant MVP pour le mode ;
   Turnstile après lancement
 - Option : images opaques par énigme ou banque d'images pré-générées. — Après lancement
+
+---
+
+# Session du 07/11/2026 (soir) — Recette autoclicker : conditions de détection, fiche lisible, test court par compte
+
+## 1. Ticket et état réel
+
+#25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
+
+**Déployé en production (SHA `4c65838`, 07/11/2026 17:52 Bruxelles), en attente de recette.**
+Sources : commentaires du propriétaire du 07/11, 15:41 UTC (défi et boutons validés), 15:46 UTC
+(essai OP Auto Clicker à 8 clics/s, « pas de signalement », demandes 1 à 5) et 15:48 UTC (essai de
+quelques secondes seulement, interruption par les coffres, recette déterministe par compte demandée).
+Le pictogramme « pièce » signalé à 15:41 avait déjà été corrigé et déployé (`510a1df`, section
+précédente).
+
+## 2. Ce qui s'est passé lors de l'essai réel (mesures du serveur, lecture seule)
+
+L'essai a été fait sur le **compte n° 1, qui n'était pas en essai** (mode global Observation). Le compte
+d'essai n° 2 n'a reçu aucun clic entre 15:40 et 15:54 UTC.
+- 15:44:15 → 15:44:56 UTC : 42, 83 puis 24 clics manuels en trois sauvegardes, soit environ 150 clics en
+  40 s (jusqu'à 7 clics/s sur une fenêtre de 12 s). Plus aucun clic ensuite, ce qui correspond à
+  l'arrêt causé par le coffre.
+- Série de minage continu mesurée : environ 0,5 min, pour un seuil de 60 min. Après plus de 3 min de
+  pause, elle est remise à zéro. **Aucun défi n'était prévu, même simulé : le comportement est normal.**
+- **Trois anomalies ont tout de même été journalisées** : `untrusted_clicks` (42/42, 83/83, 24/24). Le
+  navigateur a marqué ces clics comme non produits par l'utilisateur (`isTrusted = false`). Chaque
+  anomalie compte +10 au score de risque, mais cette catégorie est plafonnée à 25, sous le seuil de
+  défi de 60. Résultat : une **anomalie journalisée sans défi**, dans la section diagnostic, ce que la
+  fiche ne montrait pas clairement.
+
+## 3. Conditions exactes de détection d'un autoclicker modéré à 8 clics/s (demande 1)
+
+| Mesure (temps serveur, à chaque sauvegarde, environ toutes les 12 s) | Seuil par défaut | Effet |
+|---|---|---|
+| Minage manuel continu sans pause de 3 min (temps actif = min(durée, clics ÷ 2)) | 60 min | défi (simulé en Observation) |
+| Temps actif sur 6 h / 24 h glissantes | 180 / 360 min | défi |
+| Score de risque (multi-signal, demi-vie 24 h) | 60 | défi |
+| Anti-autoclic #10 : fenêtre de 12 s au-delà de 8 clics/s | 8 clics/s | anomalie `cps_reduced`, blocs en trop non crédités |
+| Cadence de frappe #74 | 12 coups/s (rafale 36) | coups sans dégât au-delà |
+
+- À 8 clics/s réguliers, la série atteint le seuil en 60 min : environ **un défi par heure**, simulé en
+  Observation, réel en Appliqué. Une gigue aléatoire n'exonère de rien : seule la durée compte.
+- Il faut que le jeu soit ouvert et connecté (sauvegardes cloud). Le focus de la fenêtre ne change
+  rien côté serveur. Sans sauvegarde reçue, aucune mesure n'est possible.
+- **Mode Observation** : aucun défi ni retrait n'est montré au joueur, tout est noté. **Essai Appliqué**
+  (un seul compte) : vrai défi ; tant qu'il attend, les clics manuels ne comptent plus au classement.
+  Une suspension n'arrive qu'après 30 clics **déclarés** pendant un défi affiché. Le jeu officiel ne
+  compte plus aucun coup pendant le défi, donc seul un client modifié peut y arriver.
+- Les coffres interrompent un autoclicker à position fixe parce que leur fenêtre intercepte les clics.
+  Ce n'est pas une protection : c'est une interruption de jeu.
+
+## 4. Changements (comportement visible)
+
+- **Fiche joueur et parcours « Tester la protection » : nouvel encadré « Ce que le serveur a vu »**
+  (demande 2). Il donne une phrase-verdict, sans avoir à lire le journal, et distingue :
+  aucun contrôle reçu (rien depuis 15 min, ou jamais) / activité mesurée sous les seuils / anomalie
+  journalisée / défi simulé (Observation) / défi réel. Détails affichés : dernière mesure (heure,
+  clics, durée, environ X clics/s), série continue en minutes et en % du seuil, temps actif sur 6 h et
+  24 h, nombre et type de la dernière anomalie, défis simulés sur 24 h.
+- **Variante « tester un autoclicker sans attendre 60 min (ce compte seulement) »** (demande 3), repliée
+  sous les 5 étapes validées, qui ne changent pas. Elle propose un seuil court de 1, 2, 3, 5 ou 10 min
+  pour **le seul compte en essai**. Garde-fous : essai Appliqué requis ; expiration automatique après
+  2 h ; effacement par « Terminer le test » ; réglage global `ab_streak_min` jamais modifié ; aucun
+  autre joueur concerné. À l'activation, un **relevé du début** est noté (blocs manuels validés, clics
+  déclarés, rang par blocs manuels). Un tableau **Au début / Maintenant / Écart** montre ensuite le
+  gel pendant la vérification.
+- Serveur : `server/antibotResponses.js` (seuil d'essai, relevé, synthèse d'observation, dernière
+  fenêtre mesurée) ; nouvelle route `POST /api/admin/security/player/:id/test-threshold`
+  `{ minutes | null }`, tracée dans l'audit admin.
+- Migration **additive** : 4 colonnes `antibot_activity` (`last_window`, `test_streak_min`,
+  `test_started_ms`, `test_snapshot`). Rien n'est supprimé ni réécrit.
+
+## 5. SHA, tests et vérifications
+
+- Branche `feature/25-anti-bot-lots-ab`, commit `8840731` ; `develop` = `4c65838` (fusion).
+- `npm test` : **909/909** sur la branche, sur `develop` et dans la release.
+- Nouveau `test/antibot-autoclicker-recipe.test.js` (9 tests, demande 4), avec une sauvegarde
+  simulée toutes les 12 s :
+  - essai réel reproduit (8 clics/s pendant 40 s, avec ou sans gigue) : « sous les seuils », aucun
+    défi ; avec gigue, seule l'anomalie `cps_reduced` de #10 apparaît ;
+  - clics `isTrusted = false` : 3 anomalies, score sous 60, aucun défi ;
+  - 3 h à 8 clics/s, fixes ou bruités de ±30 % : 2 à 3 défis simulés (environ 1 par heure), classement
+    identique à celui obtenu avec les réponses désactivées ;
+  - faux positifs : humains pendant 3 h avec des pauses de 4 à 5 min, même à 8 à 12 clics/s et même en
+    Appliqué : aucun défi ;
+  - recette avec seuil de 2 min : défi réel en 1 min 40 à 2 min 30, blocs classés figés pendant
+    13 min d'autoclic, témoin au même rythme non concerné, paramètres globaux identiques, seuil et
+    relevé effacés à la fin ;
+  - client modifié : suspension de 5 min du seul compte d'essai ;
+  - garde-fous : essai requis, bornes, expiration après 2 h, mode Désactivé.
+- Nouvel essai navigateur `test/e2e/antibot-autoclicker-recipe.e2e.js` (serveur de test, port 3101,
+  base neuve), **TOUT OK** sur ordinateur 1280×900 et smartphone 390×844. Il simule un autoclicker
+  (vrais clics souris toutes les 125 ms à position fixe, coffres fermés au passage, 1 à 3 par essai)
+  avec un seuil d'essai d'une minute. La vérification s'affiche après environ 54 s ; les coups
+  suivants n'ont plus d'effet ; les blocs manuels validés restent figés (17 → 17) ; l'encadré indique
+  « défi réel » ; le témoin au même rythme n'a ni défi ni anomalie ; la fin du test efface essai et
+  seuil ; mode global et paramètres sont inchangés ; aucune erreur JavaScript.
+- Copie de la base de production : empreintes `users`, `user_saves`, `season_rankings`, `seasons`,
+  `leagues`, `player_click_tracking` et `antibot_activity` identiques avant et après démarrage
+  (migration : 4 colonnes ajoutées seulement).
+- Limites : pas d'essai avec le vrai OP Auto Clicker ni sur un vrai Android. Les clics de Playwright
+  sont marqués « fiables » (`isTrusted = true`), contrairement à ceux de l'essai réel : le signal
+  `untrusted_clicks` n'est donc couvert que par le test unitaire. `isTrusted` reste falsifiable par un
+  client modifié.
+
+## 6. Déploiement
+
+- SHA déployé : `4c65838` (avance rapide de `main` depuis `510a1df`).
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261107-175226-pre-deploy-4c65838.sqlite`.
+- Avant : aucune génération IA en cours (dernier appel à 13:43 UTC).
+- Après : les deux domaines renvoient 200 avec `1.0.0+4c65838` ; le nouvel `admin.js` est servi ;
+  `journalctl` ne montre que les 4 migrations ; `quick_check` = ok ; empreintes joueurs identiques à
+  la sauvegarde pré-déploiement.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 510a1df` + `sudo systemctl restart dig`
+  (lock inchangé). Les 4 colonnes ajoutées sont sans effet sur l'ancien code.
+
+**Test fonctionnel à faire par le propriétaire (#25-G, recette autoclicker, environ 10 min) :**
+1. Admin → Anti-bot → « Tester la protection » : choisir le compte d'essai, puis « Lancer un essai
+   uniquement pour ce compte ».
+2. Ouvrir « Variante : tester un autoclicker… », choisir **2 min**, puis « Activer le seuil court ».
+   Le tableau « Au début du test » apparaît.
+3. Dans le jeu, **avec ce même compte**, régler OP Auto Clicker sur 125 ms, curseur sur le bloc.
+   Si un coffre s'ouvre, le récupérer et relancer en moins de 3 min.
+4. Après environ 2 min, la fenêtre « Petite vérification » s'affiche. Arrêter l'autoclicker.
+5. Admin → « ↻ Voir où en est le compte » : l'encadré indique « Défi réel… » et la ligne « Blocs
+   manuels validés (classement) » ne change plus d'un rafraîchissement à l'autre.
+6. Résoudre la vérification, puis « Terminer le test / remettre l'état normal ». Le seuil revient à
+   60 min, le mode global reste Observation.
+7. Facultatif : ouvrir la fiche du compte n° 1. L'encadré résume l'essai réel du 07/11 : anomalies
+   `untrusted_clicks`, aucun défi.
+
+Classement : **Bloquant MVP** (preuve que la protection agit avant la bêta). Les sanctions sur client
+modifié ne se testent pas avec le jeu officiel : elles sont couvertes par les tests automatiques.
+
+## 7. Choix techniques faits seul
+
+- **Seuil d'essai par compte plutôt qu'un réglage global raccourci** : c'est la consigne (« ne pas
+  réduire en production les seuils de tous les joueurs »). Il ne porte que sur le minage continu,
+  le déclencheur visé par un autoclicker. Les seuils 6 h et 24 h et le score ne changent pas.
+- **Expiration automatique en 2 h** : un essai oublié ne laisse pas de seuil court actif.
+- **Coffres non modifiés** : la recette indique de fermer le coffre (moins de 3 min de pause ne
+  coupe pas la série). L'essai automatique fait de même.
+- Rang du relevé : 1 + nombre de joueurs ayant strictement plus de blocs manuels validés (critère de
+  #73). Les égalités ne sont pas départagées dans ce relevé indicatif.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Les questions précédentes restent ouvertes :
+1. Défis et suspensions en Appliqué pour tous : (a) après cette recette, (b) dès la bêta du 09/11, ou
+   (c) après une semaine d'Observation. Recommandation : (a), au plus tard (c).
+2. Seuils par défaut (60 min continu, 180 min sur 6 h, 360 min sur 24 h, score 60, violation à
+   30 clics, paliers de 5 min à 24 h) : les garder ? Recommandation : oui.
+3. Cloudflare Turnstile en plus du défi maison : recommandation, pas avant le lancement.
+4. Images de défi pré-générées : recommandation, non avant la bêta.
+5. Optionnels : éligibilité aux récompenses via #19, adresse de contestation, report du lot D.
+
+## 9. Éléments restant à réaliser
+
+- Recette #25-G par le propriétaire (ci-dessus). — Bloquant MVP
+- Décision sur le mode Appliqué pour tous. — Bloquant MVP
+- Option, signalée sans être réalisée : faire peser davantage `untrusted_clicks` répétés dans le score
+  (plafond de 25 aujourd'hui). Cela touche à l'algorithme, donc décision séparée. — Après lancement
