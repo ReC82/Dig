@@ -2895,6 +2895,7 @@ async function loadSecurity() {
   ]);
   _secResp = resp.ok ? resp.data : null;
   secRenderResponses(resp);
+  secLoadExtensions();
   secRenderTop(sum, resp);
 
   const status = document.getElementById('sec-status');
@@ -3089,6 +3090,22 @@ document.getElementById('btn-sec-events-more').addEventListener('click', () => {
 document.getElementById('btn-sec-audit-more').addEventListener('click', () => { _secAuditLimit = Math.min(100, _secAuditLimit + SEC_EVENTS_STEP); secLoadAudit(); });
 document.getElementById('sec-audit-card').addEventListener('toggle', e => { if (e.target.open) secLoadAudit(); });
 document.getElementById('btn-sec-goto-watch').addEventListener('click', () => admNavPoint(document.getElementById('sec-watch-card')));
+// Extensions d'autoclic (#92)
+document.getElementById('btn-sec-ext-check').addEventListener('click', secExtCheckBrowser);
+document.getElementById('sec-ext-browser').addEventListener('change', () => _secExt && secRenderExtTable());
+document.getElementById('sec-ext-q').addEventListener('input', () => _secExt && secRenderExtTable());
+document.getElementById('sec-ext-users-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const state = document.getElementById('sec-ext-users-state');
+  state.textContent = 'Enregistrement…';
+  const { ok, data } = await api('PUT', '/api/admin/antibot/extensions/test-users', { users: document.getElementById('sec-ext-users').value });
+  if (!ok) { state.textContent = data?.error ?? 'Erreur.'; return; }
+  _secExt = data;
+  document.getElementById('sec-ext-users').blur();
+  secRenderExtensions();
+  state.textContent = data.testUsers.length ? `✔ Comptes de test : ${data.testUsers.map(u => u.username ?? `#${u.id}`).join(', ')}` : '✔ Aucun compte de test.';
+});
+
 document.getElementById('btn-sec-start-test').addEventListener('click', () => {
   const card = document.getElementById('sec-test-card');
   const input = document.getElementById('sec-test-q');
@@ -3492,8 +3509,190 @@ document.getElementById('btn-sec-test-end').addEventListener('click', () => secT
 const SEC_RESP_MODES = { off: 'Désactivé', observe: 'Observation', enforce: 'Appliqué' };
 const SEC_CH_STATUS = { pending: 'défi imposé — minage refusé au classement', shadow: 'détecté (défi simulé)', solved: 'résolu', cancelled: 'annulé (admin)' };
 const SEC_REASONS = { risk_score: 'score de risque', continuous_mining: 'minage continu', active_6h: 'temps actif 6 h', active_24h: 'temps actif 24 h', admin_test: 'essai admin',
-  same_pixel: 'clics au même pixel', autoclick_corroborated: 'autoclicker (rythme machine + même pixel + 3ᵉ indice)' };
+  same_pixel: 'clics au même pixel', autoclick_corroborated: 'autoclicker (rythme machine + même pixel + 3ᵉ indice)',
+  extension_active: 'extension d\'autoclic active pendant les coups (#92)' };
 const SEC_SUSP_REASONS = { clicks_during_challenge: 'clics pendant une vérification affichée', autoclick_repeat: 'autoclicker revu juste après une vérification résolue' };
+
+// ── Anti-bot → Extensions d'autoclic (#92) ───────────────────────────────────
+
+let _secExt = null;
+const SEC_EXT_MODES = { off: 'OFF', self: 'Mon compte de test', global: 'Tous les joueurs' };
+const SEC_EXT_STATE = { active: 'DÉTECTÉE — indicateur d\'autoclic actif pendant les coups', installed: 'DÉTECTÉE — installée et active sur ce site', none: 'non détectée' };
+const SEC_EXT_SOURCE = { load: 'chargement du jeu', save: 'sauvegarde' };
+
+async function secLoadExtensions() {
+  const { ok, data } = await api('GET', '/api/admin/antibot/extensions');
+  if (!ok) {
+    document.getElementById('sec-ext-body').innerHTML = '';
+    document.getElementById('sec-ext-body').appendChild(secEl('tr')).appendChild(secEl('td', 'error', data?.error ?? 'Chargement impossible.')).colSpan = 6;
+    return;
+  }
+  _secExt = data;
+  secRenderExtensions();
+}
+
+/** Navigateur de l'admin (indicatif, pour le journal de l'essai). */
+function secExtBrowser() {
+  const ua = navigator.userAgent;
+  if (/OPR\//.test(ua)) return 'Opera';
+  if (/Edg\//.test(ua)) return 'Edge';
+  if (/Firefox\//.test(ua)) return 'Firefox';
+  if (navigator.brave) return 'Brave';
+  if (/Chrome\//.test(ua)) return 'Chrome';
+  return 'autre';
+}
+
+async function secExtSetConfig(key, value) {
+  const { ok, data } = await api('PUT', '/api/admin/config', { key, value });
+  if (!ok) { await admConfirm({ title: 'Réglage non modifié', text: data?.error ?? 'Erreur.', cancel: null, ok: 'OK' }); return false; }
+  await secLoadExtensions();
+  return true;
+}
+
+function secRenderExtensions() {
+  const d = _secExt;
+  if (!d) return;
+  const on = d.signatures.filter(s => s.mode !== 'off');
+  document.getElementById('sec-ext-sum').textContent = d.stop === 'on' ? 'ARRÊT D\'URGENCE : tout est coupé'
+    : on.length ? `${on.length} signature(s) active(s) : ${on.map(s => `${s.name} (${SEC_EXT_MODES[s.mode]})`).join(', ')}` : 'toutes les signatures sont OFF';
+
+  // Arrêt d'urgence dédié
+  const stopLine = document.getElementById('sec-ext-stop-line');
+  stopLine.replaceChildren(secEl('strong', '', 'Arrêt d\'urgence des signatures : '));
+  const stopped = d.stop === 'on';
+  const stopBtn = secEl('button', `btn btn-sm ${stopped ? 'btn-danger' : 'btn-outline'}`, stopped ? '🚨 ACTIVÉ — tout est coupé (cliquer pour relancer)' : 'Tout couper maintenant');
+  stopBtn.type = 'button';
+  stopBtn.id = 'btn-sec-ext-stop';
+  stopBtn.setAttribute('aria-pressed', String(stopped));
+  stopBtn.addEventListener('click', async () => {
+    if (!await admConfirm({ title: stopped ? 'Relancer les signatures ?' : 'Couper toutes les signatures d\'extensions ?',
+      text: stopped ? 'Chaque signature reprend son propre interrupteur (OFF, compte de test ou tous).' : 'Effet au prochain chargement / à la prochaine sauvegarde de chaque joueur. Les protections #25/#91 ne changent pas.',
+      ok: stopped ? 'Relancer' : 'Tout couper', danger: !stopped })) return;
+    secExtSetConfig('ab_ext_stop', stopped ? 'off' : 'on');
+  });
+  stopLine.appendChild(stopBtn);
+
+  // Réaction
+  const reLine = document.getElementById('sec-ext-reaction-line');
+  reLine.replaceChildren(secEl('strong', '', 'Réaction quand l\'indicateur d\'autoclic est actif pendant les coups : '));
+  for (const [v, label] of [['log', 'Journal seulement'], ['challenge', 'Vérification (énigme)']]) {
+    const b = secEl('button', `btn btn-sm ${d.reaction === v ? '' : 'btn-outline'}`, label);
+    b.type = 'button';
+    b.dataset.admKey = `sec-ext-reaction-${v}`;
+    b.setAttribute('aria-pressed', String(d.reaction === v));
+    b.addEventListener('click', async () => {
+      if (d.reaction === v) return;
+      if (v === 'challenge' && !await admConfirm({ title: 'Envoyer une vérification quand l\'extension clique ?',
+        text: `Seulement pour les signatures activées dont l'indicateur d'activité est vérifié, à partir de ${d.activeMinHits} coups avec l'indicateur dans une sauvegarde, au plus une par délai minimal entre deux défis. Suit le mode global (Observation : simulée). Jamais de suspension ici (les suspensions restent celles de #91).`,
+        ok: 'Activer la vérification' })) return;
+      secExtSetConfig('ab_ext_reaction', v);
+    });
+    reLine.appendChild(b);
+  }
+
+  // Comptes de test
+  const users = document.getElementById('sec-ext-users');
+  if (document.activeElement !== users) users.value = d.testUsers.map(u => u.username ?? `#${u.id}`).join(', ');
+
+  // Filtre navigateur
+  const sel = document.getElementById('sec-ext-browser');
+  if (sel.options.length <= 1) for (const [k, v] of Object.entries(d.browsers)) sel.appendChild(new Option(v, k));
+  secRenderExtTable();
+  secRenderExtJournal();
+}
+
+function secRenderExtTable() {
+  const d = _secExt;
+  const body = document.getElementById('sec-ext-body');
+  const br = document.getElementById('sec-ext-browser').value;
+  const q = document.getElementById('sec-ext-q').value.trim().toLowerCase();
+  const rows = d.signatures.filter(s => (!br || s.browsers.includes(br))
+    && (!q || [s.name, s.method, s.notes, ...s.stores.map(x => x.id)].join(' ').toLowerCase().includes(q)));
+  body.replaceChildren();
+  if (!rows.length) { const td = body.appendChild(secEl('tr')).appendChild(secEl('td', 'muted', 'Aucune extension pour ce filtre.')); td.colSpan = 6; return; }
+  for (const s of rows) {
+    const tr = body.appendChild(secEl('tr'));
+    tr.dataset.sig = s.id;
+    const name = tr.appendChild(secEl('td'));
+    name.appendChild(secEl('strong', '', s.name));
+    for (const st of s.stores) {
+      const p = name.appendChild(secEl('div', 'muted sec-ext-id'));
+      const a = secEl('a', '', `${d.browsers[st.browser] ?? st.browser} : ${st.id}`);
+      a.href = st.url; a.target = '_blank'; a.rel = 'noopener';
+      p.appendChild(a);
+    }
+    tr.appendChild(secEl('td', '', s.browsers.map(b => d.browsers[b] ?? b).join(', ')));
+    tr.appendChild(secEl('td', '', `${s.stores.map(x => x.version).join(', ') || '—'} · ${s.tested}`));
+    const stTd = tr.appendChild(secEl('td'));
+    stTd.appendChild(secEl('span', `sec-ext-status sec-ext-status--${s.status}`, d.statusLabels[s.status] ?? s.status));
+    if (s.players7d) stTd.appendChild(secEl('div', 'muted', `${s.players7d} joueur(s) avec trace (7 j)`));
+    const m = tr.appendChild(secEl('td'));
+    m.appendChild(secEl('div', '', s.method));
+    m.appendChild(secEl('div', 'muted', s.notes));
+    const sw = tr.appendChild(secEl('td'));
+    if (!s.canSelf) { sw.appendChild(secEl('span', 'muted', 'Indisponible (aucune trace fiable) — détection par le comportement #91')); continue; }
+    const select = sw.appendChild(secEl('select', 'league-select'));
+    select.setAttribute('aria-label', `Interrupteur ${s.name}`);
+    select.dataset.admKey = `sec-ext-mode-${s.id}`;
+    for (const [v, label] of Object.entries(SEC_EXT_MODES)) {
+      const o = new Option(v === 'global' && !s.canGlobal ? `${label} (indisponible : non vérifiée)` : label, v);
+      o.disabled = v === 'global' && !s.canGlobal;
+      select.appendChild(o);
+    }
+    select.value = s.mode;
+    if (s.mode !== 'off') sw.appendChild(secEl('div', 'sec-ext-on', s.mode === 'global' ? '● actif pour tous' : `● actif pour : ${d.testUsers.map(u => u.username ?? `#${u.id}`).join(', ') || 'aucun compte de test !'}`));
+    select.addEventListener('change', async () => {
+      const v = select.value;
+      if (v === 'self' && !d.testUsers.length) {
+        await admConfirm({ title: 'Choisissez d\'abord un compte de test', text: 'Renseignez votre pseudo dans « Comptes de test » ci-dessus, puis réessayez.', cancel: null, ok: 'OK' });
+        select.value = s.mode; return;
+      }
+      if (v === 'global' && !await admConfirm({ title: `Activer « ${s.name} » pour tous les joueurs ?`,
+        text: 'À faire seulement après votre propre essai réussi avec « Mon compte de test ».',
+        impact: ['Le jeu de chaque joueur cherche cette seule trace (rien d\'autre) au chargement et à chaque sauvegarde.',
+          'Trace trouvée : ligne dans le journal ci-dessous ; aucune sanction pour une extension installée.',
+          `Réaction actuelle : ${d.reaction === 'challenge' ? 'vérification (énigme) si l\'extension clique' : 'journal seulement'}.`],
+        ok: 'Activer pour tous', danger: true })) { select.value = s.mode; return; }
+      if (!await secExtSetConfig(`ab_ext_sig_${s.id}`, v)) select.value = s.mode;
+    });
+  }
+}
+
+function secRenderExtJournal() {
+  const body = document.getElementById('sec-ext-journal');
+  body.replaceChildren();
+  if (!_secExt.journal.length) { const td = body.appendChild(secEl('tr')).appendChild(secEl('td', 'muted', 'Rien pour l\'instant.')); td.colSpan = 6; return; }
+  for (const j of _secExt.journal) {
+    const tr = body.appendChild(secEl('tr'));
+    tr.appendChild(secEl('td', '', String(j.at ?? '').slice(0, 16)));
+    tr.appendChild(secEl('td', '', j.username ?? `#${j.userId}`));
+    tr.appendChild(secEl('td', '', j.name));
+    tr.appendChild(secEl('td', j.state === 'none' ? 'muted' : 'sec-ext-hit',
+      `${SEC_EXT_STATE[j.state] ?? j.state}${j.activeHits ? ` (${j.activeHits} coups)` : ''} · ${SEC_EXT_SOURCE[j.source] ?? j.source ?? ''}`));
+    tr.appendChild(secEl('td', '', SEC_EXT_MODES[j.mode] ?? j.mode ?? ''));
+    tr.appendChild(secEl('td', '', j.reaction === 'challenge' ? 'vérification demandée' : 'journal'));
+  }
+}
+
+/** « Tester ce navigateur » : toutes les signatures disponibles, dans le navigateur de l'admin. */
+async function secExtCheckBrowser() {
+  const out = document.getElementById('sec-ext-check-result');
+  if (!_secExt || !window.DigExtProbe) { out.textContent = 'Module de vérification indisponible.'; return; }
+  const list = _secExt.signatures.filter(s => s.probe);
+  const results = DigExtProbe.checkAll(list);
+  const browser = secExtBrowser();
+  out.replaceChildren(secEl('p', '', `Navigateur : ${browser} — ${new Date().toLocaleTimeString('fr-BE')}`));
+  const ul = out.appendChild(secEl('ul', 'sec-ext-check-list'));
+  for (const s of list) {
+    const r = results[s.id];
+    const li = ul.appendChild(secEl('li', r.i || r.a ? 'sec-ext-hit' : ''));
+    li.dataset.sig = s.id;
+    li.textContent = `${s.name} : ${r.a ? SEC_EXT_STATE.active : r.i ? SEC_EXT_STATE.installed : SEC_EXT_STATE.none}`
+      + (s.status === 'uncertain' ? ' (signature à confirmer : essai réel non fait)' : '');
+  }
+  out.appendChild(secEl('p', 'muted', '« Non détectée » ne prouve pas l\'absence : accès au site limité (« au clic » ou sites choisis), navigation privée, extension activée sans recharger la page, autre version.'));
+  api('POST', '/api/admin/antibot/extensions/check', { results, browser });
+}
 
 /** Détection rapide des autoclickers (#91) : interrupteurs et seuil, effet immédiat. */
 function secFastBox(f) {

@@ -474,7 +474,9 @@ function normalizeTelemetry(t) {
   const cv = typeof t.cv === 'number' && Number.isFinite(t.cv) && t.cv >= 0 ? Math.min(t.cv, 10) : null;
   // f : mesures de la détection rapide des autoclickers (#91), absentes des anciens clients
   const f = normalizeFast(t.f);
-  return { n, h, u: Math.min(int(t.u), n), x: Math.min(int(t.x), n), p, cv, ...(f ? { f } : {}) };
+  // e : signatures d'extensions (#92), seulement celles activées pour ce joueur (filtrées par extensionSignatures)
+  const e = t.e && typeof t.e === 'object' && !Array.isArray(t.e) && Object.keys(t.e).length <= 20 ? t.e : null;
+  return { n, h, u: Math.min(int(t.u), n), x: Math.min(int(t.x), n), p, cv, ...(f ? { f } : {}), ...(e ? { e } : {}) };
 }
 
 /** Indices tirés de la télémétrie (seuils prudents : tactile multi-doigts, accessibilité). */
@@ -520,7 +522,7 @@ function getTimings() {
  * contrôle de chaque joueur se lit dans les états de validation, voir `checks`).
  */
 const EVENT_GROUPS = {
-  player: [...Object.keys(SIGNALS), 'risk_level'],
+  player: [...Object.keys(SIGNALS), 'risk_level', 'extension_signature'],
   // Lot C : défis (simulés en Observation) et suspensions du minage manuel
   responses: ['challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started', 'suspension_shadow', 'freeze_clamped', 'antibot_admin'],
   admin:  ['admin_action', 'admin_config', 'admin_login', 'admin_login_failed'],

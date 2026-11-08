@@ -454,7 +454,7 @@ function recordHoldSave(userId, seasonId, held, { before, after, nowMs = Date.no
 }
 
 /** Déclencheurs d'un défi (au moins un) — jamais une sanction. */
-function _triggers(s, risk, params, nowMs, fast = null) {
+function _triggers(s, risk, params, nowMs, fast = null, ext = null) {
   const m = metrics(s, nowMs);
   const out = [];
   const cooling = s.last_challenge_ms && nowMs - s.last_challenge_ms < params.ab_cooldown_min * 60_000;
@@ -467,6 +467,8 @@ function _triggers(s, risk, params, nowMs, fast = null) {
   } else if (fast?.samePixel && fast.settings.ab_same_pixel_mode === 'on' && !cooling) {
     out.push({ code: 'same_pixel', value: fast.evidence.samePixelRun, threshold: fast.evidence.samePixelThreshold, evidence: fast.evidence });
   }
+  // #92 : indicateur d'une extension d'autoclic présent pendant les coups (réaction « vérification »)
+  if (ext && !cooling) out.push({ code: 'extension_active', signature: ext.signature, value: ext.activeHits });
   if (risk && risk.score >= params.ab_challenge_score && !cooling) out.push({ code: 'risk_score', value: Math.round(risk.score * 10) / 10, threshold: params.ab_challenge_score });
   const testMin = testStreakMin(s, nowMs);
   const streakMin = testMin ?? params.ab_streak_min;
@@ -506,7 +508,7 @@ function issueChallenge(userId, seasonId, { mode, reasons, metrics: m, origin = 
  * Après la validation : décide d'un défi selon les mesures et le score de risque à jour.
  * @returns {object|null} État joueur à renvoyer (null : rien à afficher)
  */
-function afterSave(userId, seasonId, { config = {}, nowMs = Date.now(), ip = null, fast = null } = {}) {
+function afterSave(userId, seasonId, { config = {}, nowMs = Date.now(), ip = null, fast = null, ext = null } = {}) {
   const mode = getUserMode(userId, config);
   if (mode === 'off') return null;
   const params = getParams(config);
@@ -521,7 +523,7 @@ function afterSave(userId, seasonId, { config = {}, nowMs = Date.now(), ip = nul
     const recent = fast?.automation && fast.settings.ab_fast_suspend === 'on'
       ? _lastFastChallenge(userId, mode, nowMs - fast.settings.ab_fast_repeat_min * 60_000) : null;
     const confirmed = !!recent && (s.fast?.autoSince ?? 0) >= detector.REPEAT_WINDOWS;
-    let { reasons, metrics: m } = _triggers(s, antibot.getRisk(userId, seasonId, nowMs), params, nowMs, fast);
+    let { reasons, metrics: m } = _triggers(s, antibot.getRisk(userId, seasonId, nowMs), params, nowMs, fast, ext);
     if (recent && !confirmed) reasons = reasons.filter(r => r.code !== 'autoclick_corroborated' && r.code !== 'same_pixel');
     if (!reasons.length) return;
     const repeat = confirmed ? recent : null;

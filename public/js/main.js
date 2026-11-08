@@ -148,6 +148,7 @@ function _teleRecord(ev) {
     : ev.type === 'click' ? 'm' : 'o';
   _tele.p[kind]++;
   _fastRecord(ev, kind, now);
+  _extRecordHit();
   if (_tele.last) {
     const gap = now - _tele.last;
     let i = 0;
@@ -239,13 +240,55 @@ function _fastConsume(f) {
   _fast.sp = _fast.run;
 }
 
+// ── Signatures d'extensions d'autoclic (#92) ──────────────────────────────────
+// Liste fournie par le serveur, vide par défaut (toutes les signatures sont OFF) : rien n'est vérifié.
+// Sinon : trace d'installation au chargement et à chaque envoi, indicateur d'activité à chaque coup.
+let _extSigs = [];
+let _extKey = '';
+const _extActive = {};
+
+function _extRecordHit() {
+  for (const s of _extSigs) if (s.probe?.active && window.DigExtProbe?.active(s.probe)) _extActive[s.id] = (_extActive[s.id] || 0) + 1;
+}
+
+/** { [id]: { i, a } } pour la sauvegarde (undefined si aucune signature activée). */
+function _extSnapshot() {
+  if (!_extSigs.length || !window.DigExtProbe) return undefined;
+  const out = {};
+  for (const s of _extSigs) out[s.id] = { i: DigExtProbe.installed(s.probe) ? 1 : 0, a: _extActive[s.id] || 0 };
+  return out;
+}
+
+function _extConsume(e) {
+  if (!e) return;
+  for (const [id, r] of Object.entries(e)) _extActive[id] = Math.max(0, (_extActive[id] || 0) - (r.a || 0));
+}
+
+/** Nouvelle liste du serveur : vérification immédiate ; un compte de test voit le résultat (message d'essai, comme le panel). */
+async function _applyExtSignatures(list) {
+  _extSigs = Array.isArray(list) ? list.filter(s => s && typeof s.id === 'string' && s.probe) : [];
+  const key = _extSigs.map(s => s.id).join(',');
+  if (key === _extKey) return;
+  _extKey = key;
+  if (!_extSigs.length || !window.DigExtProbe) return;   // liste non vide = compte connecté (serveur)
+  const results = {};
+  for (const s of _extSigs) results[s.id] = { i: DigExtProbe.installed(s.probe) ? 1 : 0, a: 0 };
+  try {
+    const { ok, data } = await _apiFetch('POST', '/api/me/antibot/ext', { results });
+    if (!ok || !Array.isArray(data?.test)) return;
+    data.test.forEach((r, i) => setTimeout(() => showAchievement('🧪',
+      `Essai anti-bot : ${r.name} — ${r.installed ? 'DÉTECTÉE (installée et active sur ce site)' : 'non détectée'}`, r.installed ? 'warning' : 'info'), i * 800));
+  } catch { /* hors ligne : l'envoi suivant portera la mesure */ }
+}
+
 /** Résumé à envoyer (null si aucun clic depuis le dernier envoi réussi). */
 function _teleSnapshot() {
   if (_tele.n === 0) return null;
   const mean = _tele.c ? _tele.s1 / _tele.c : 0;
   const cv   = _tele.c >= 5 && mean > 0 ? Math.sqrt(Math.max(0, _tele.s2 / _tele.c - mean * mean)) / mean : null;
+  const e = _extSnapshot();
   return {
-    v: 2, n: _tele.n, h: [..._tele.h], u: _tele.u, x: _tele.x, p: { ..._tele.p }, f: _fastStats(),
+    v: 2, n: _tele.n, h: [..._tele.h], u: _tele.u, x: _tele.x, p: { ..._tele.p }, f: _fastStats(), ...(e ? { e } : {}),
     ...(cv === null ? {} : { cv: Math.round(cv * 1000) / 1000 }),
     _s: { s1: _tele.s1, s2: _tele.s2, c: _tele.c },
   };
@@ -263,6 +306,7 @@ function _teleConsume(snap) {
   _tele.s2 = Math.max(0, _tele.s2 - snap._s.s2);
   _tele.c  = Math.max(0, _tele.c  - snap._s.c);
   if (snap.f) _fastConsume(snap.f);
+  _extConsume(snap.e);
 }
 
 /** Corps JSON de la télémétrie (sans les cumuls internes). */
@@ -279,6 +323,7 @@ function _applyHitLimits(config) {
   if (Number.isFinite(rate) && rate > 0)   _hitRate  = rate;
   if (Number.isFinite(burst) && burst >= 1) _hitBurst = burst;
   if (config && 'samePixelClicks' in config) _samePixelSync = Number(config.samePixelClicks) > 0 ? Number(config.samePixelClicks) : 0;
+  if (config && 'extSignatures' in config) _applyExtSignatures(config.extSignatures);
   _hitTokens = Math.min(_hitTokens, _hitBurst);
 }
 
