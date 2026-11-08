@@ -2015,6 +2015,13 @@
    "by": "claude-opus-5-5 (session #86)",
    "at": "2026-11-08T16:52:58.799Z"
   },
+  "events.owned": {
+   "text": "Posseduto ×{n} · doppioni ×{d}",
+   "src": "4cd0d8df4339",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #93, relu)",
+   "at": "2026-11-08T23:10:36.740Z"
+  },
   "events.section": {
    "text": "🎉 Eventi",
    "src": "981308f1fdee",

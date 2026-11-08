@@ -1193,7 +1193,8 @@ async function renderEvents() {
     const name = it.found ? _badgeText(it.names) : '???';
     return `<button type="button" class="find-card${it.found ? ' found' : ''} find-rarity-${it.found ? escapeHtml(it.rarity) : 'unknown'}"`
       + ` data-ev="${escapeHtml(ev.id)}" data-item="${escapeHtml(it.id)}" aria-label="${escapeHtml(it.found ? name : t('collection.unknown_title'))}">`
-      + `<div class="find-icon">${icon}</div><div class="find-name">${escapeHtml(name)}</div></button>`;
+      + `<div class="find-icon">${icon}</div><div class="find-name">${escapeHtml(name)}</div>`
+      + (it.found && it.qty > 1 ? `<span class="find-qty" aria-label="${escapeHtml(t('events.owned', { n: it.qty, d: it.qty - 1 }))}">×${Number(it.qty)}</span>` : '') + '</button>';
   };
   const section = (ev, title, sub) => `<section class="collection-series event-series" data-ev="${escapeHtml(ev.id)}">`
     + `<h3 class="collection-series-title">${escapeHtml(title)}</h3>${sub ? `<p class="badges-note">${sub}</p>` : ''}`
@@ -1232,7 +1233,8 @@ function showEventItemSheet(ev, it, active, opener) {
     title: it.found ? _badgeText(it.names) : t('collection.unknown_title'),
     rarity: it.found ? it.rarity : null,
     context: `${evName} · ${when}`,
-    foundText: it.found && it.foundAt ? t('events.found_on', { date: fmt(it.foundAt) }) : '',
+    foundText: it.found && it.foundAt ? t('events.found_on', { date: fmt(it.foundAt) })
+      + (it.qty > 1 ? ` · ${t('events.owned', { n: it.qty, d: it.qty - 1 })}` : '') : '',   // #93 : doubles (jamais affiché à ×1)
     story: it.found ? _badgeText(it.descs) : t('events.unknown'),
     lore: it.found ? it.lore : null,   // #86 : « Pourquoi cet objet ? » — reçu du serveur seulement après découverte
   }, opener);

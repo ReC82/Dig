@@ -59,6 +59,8 @@ const STATE_TABLES = [
   { name: 'collection_pity_cursor', scope: 'user' },
   { name: 'monthly_event_finds',    scope: 'user' },
   { name: 'monthly_event_cursors',  scope: 'user' },
+  { name: 'souvenir_copies',        scope: 'user' },   // #93 : exemplaires supplémentaires (doubles, reçus)
+  { name: 'souvenir_inventory_versions', scope: 'user' },
 ];
 /** Suivis à une ligne par joueur liés à une saison : restaurés seulement pour la saison active. */
 const SEASON_TRACKERS = new Set(['player_click_tracking', 'player_depth_tracking', 'badge_tracking']);

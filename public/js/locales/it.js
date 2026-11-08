@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 906/906 textes. Absents → français. */
+/* Italian (preview) : 907/907 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -313,6 +313,7 @@ I18n.registerLocale("it", {
   "lore_source": "Fonte: {title}",
   "lore_title": "Perché questo oggetto?",
   "lore_yearly": "Ogni anno il {date}",
+  "owned": "Posseduto ×{n} · doppioni ×{d}",
   "section": "🎉 Eventi",
   "souvenirs": "Ricordi degli eventi",
   "test": "TEST (visibile solo ai tester)",

@@ -2427,6 +2427,55 @@ const eventId = req => String(req.params.id || '');
 // Jeu : événements en cours (objets trouvés ou « ? »), à venir (publics, J-7) et souvenirs du joueur.
 app.get('/api/events', limit.news, eventRoute('GET /api/events', req => monthlyEvents.publicView(req.session.userId || null)));
 
+// ── Souvenirs : doubles et échanges (#93) — tout OFF par défaut, activation = décision du propriétaire ──
+const souvenirInventory = require('./souvenirInventory');
+function souvenirRoute(label, fn, { auth = true } = {}) {
+  return (req, res) => {
+    if (auth && !req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    try { res.setHeader('Cache-Control', 'no-store'); res.json(fn(req)); }
+    catch (err) {
+      if (err instanceof souvenirInventory.SouvenirError) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+      console.error(`[${label}]`, err); res.status(500).json({ error: 'Erreur serveur.' });
+    }
+  };
+}
+const tradeId = req => intParam(req.params.id, { def: 0, min: 1 });
+// Inventaire du joueur (lecture seule) et état des fonctionnalités : toujours disponible.
+app.get('/api/souvenirs/inventory', limit.news, souvenirRoute('GET /api/souvenirs/inventory', req => {
+  const s = souvenirInventory.settings();
+  return { ...souvenirInventory.inventory(req.session.userId), duplicates: s.duplicates_enabled === 1, trades: s.trades_enabled === 1 };
+}));
+// Échanges : 403 `trades_disabled` tant que le propriétaire ne les a pas ouverts.
+app.get('/api/souvenirs/trades', limit.news, souvenirRoute('GET /api/souvenirs/trades', req => {
+  if (!souvenirInventory.tradesEnabled()) throw new souvenirInventory.SouvenirError(403, 'Les échanges de souvenirs ne sont pas encore ouverts.', 'trades_disabled');
+  return { trades: souvenirInventory.listTrades(req.session.userId), eligibility: souvenirInventory.eligibility(req.session.userId) };
+}));
+app.post('/api/souvenirs/trades', limit.shop, souvenirRoute('POST /api/souvenirs/trades', req => ({ trade: souvenirInventory.propose(req.session.userId,
+  { to: req.body?.to, offer: req.body?.offer, want: req.body?.want, requestId: req.body?.requestId }) })));
+for (const action of ['accept', 'decline', 'cancel']) {
+  app.post(`/api/souvenirs/trades/:id/${action}`, limit.shop, souvenirRoute(`POST /api/souvenirs/trades/:id/${action}`, req => {
+    if (!souvenirInventory.tradesEnabled()) throw new souvenirInventory.SouvenirError(403, 'Les échanges de souvenirs ne sont pas encore ouverts.', 'trades_disabled');
+    return { trade: souvenirInventory[action](req.session.userId, tradeId(req), { version: req.body?.version ?? null }) };
+  }));
+}
+app.post('/api/souvenirs/trades/:id/counter', limit.shop, souvenirRoute('POST /api/souvenirs/trades/:id/counter', req => ({ trade: souvenirInventory.counter(req.session.userId,
+  tradeId(req), { want: req.body?.want, version: req.body?.version ?? null, requestId: req.body?.requestId }) })));
+// Admin : état, réglages (activation avec confirmation explicite), règles de doubles, simulation, retour arrière.
+app.get('/api/admin/souvenirs', requireAdmin, souvenirRoute('GET /api/admin/souvenirs', () => souvenirInventory.adminView(), { auth: false }));
+app.put('/api/admin/souvenirs/settings', requireAdmin, souvenirRoute('PUT /api/admin/souvenirs/settings',
+  req => ({ settings: souvenirInventory.updateSettings(req.body?.settings ?? {}, { confirm: req.body?.confirm === true }) }), { auth: false }));
+app.put('/api/admin/souvenirs/rules/:eventId/:itemId', requireAdmin, souvenirRoute('PUT /api/admin/souvenirs/rules',
+  req => ({ rules: souvenirInventory.setRule(String(req.params.eventId).slice(0, 40), String(req.params.itemId).slice(0, 40), req.body ?? {}, { confirm: req.body?.confirm === true }) }), { auth: false }));
+app.get('/api/admin/souvenirs/simulate/:eventId', requireAdmin, souvenirRoute('GET /api/admin/souvenirs/simulate', req => {
+  const ev = monthlyEvents.getEvent(String(req.params.eventId).slice(0, 40));
+  if (!ev) throw new souvenirInventory.SouvenirError(404, 'Événement introuvable.');
+  const num = (v, d, lo, hi) => { const n = Number(v ?? d); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  return souvenirInventory.simulateDuplicates(ev, { players: Math.round(num(req.query.players, 10000, 100, 10000)),
+    factor: num(req.query.factor, 0.1, 0, 1), maxCopies: Math.round(num(req.query.maxCopies, 3, 1, souvenirInventory.HARD_MAX_COPIES)) });
+}, { auth: false }));
+app.post('/api/admin/souvenirs/trades/:id/rollback', requireAdmin, souvenirRoute('POST /api/admin/souvenirs/trades/:id/rollback',
+  req => souvenirInventory.adminRollback(tradeId(req), { reason: req.body?.reason }), { auth: false }));
+
 // Panel : liste + calendrier + IA, création/édition en brouillon, planification, retour en brouillon, révisions.
 app.get('/api/admin/events', requireAdmin, eventRoute('GET /api/admin/events', () => monthlyEvents.adminView()));
 // Préparation du mois prochain et calendrier navigable (#56, 08/11) : lecture seule ; `at` simule une autre heure sans rien modifier

@@ -3870,3 +3870,8 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
 
 /* Lot de 10 fragments en euros (#85) : carte pleine largeur (texte de transparence) */
 .fragpack-card { grid-column: 1 / -1; }
+
+/* #93 : quantité d'un souvenir possédé en plusieurs exemplaires (jamais affichée à ×1) */
+.event-series .find-card { position: relative; }
+.find-qty { position: absolute; top: 4px; right: 6px; font-size: 0.72rem; font-weight: 700; line-height: 1; padding: 2px 5px;
+  border-radius: 8px; background: var(--gold); color: #1b1408; }

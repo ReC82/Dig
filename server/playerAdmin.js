@@ -73,6 +73,7 @@ const LABELS = {
   badge_tracking: 'suivi des badges', badge_event_baselines: 'repères des badges', gem_accounts: 'solde de gemmes de référence',
   gem_ledger: 'registre de gemmes', gem_shop_purchases: 'achats en gemmes', collection_pity: 'collection (chance croissante)',
   collection_pity_cursor: 'collection (curseur)', monthly_event_finds: 'souvenirs d\'événements', monthly_event_cursors: 'événements (curseur)',
+  souvenir_copies: 'souvenirs d\'événements (doubles et exemplaires reçus)', souvenir_inventory_versions: 'souvenirs (version d\'inventaire)',
   daily_mission_days: 'missions du jour', daily_mission_claims: 'missions réclamées', pickaxe_charge_state: 'pioche à charges',
   player_tutorial: 'tutoriel', news_reads: 'actualités lues', news_prefs: 'préférences d\'actualités', player_test_runs: 'essais de test archivés (#75)',
   player_reset_guards: 'garde de reset (#75)', beta_invite_uses: 'rattachement à l\'invitation bêta', contest_exclusions: 'exclusions de concours',

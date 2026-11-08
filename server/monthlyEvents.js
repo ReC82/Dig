@@ -72,6 +72,7 @@ const J = (v, d) => { try { return v == null ? d : JSON.parse(v); } catch (_) { 
 // ── Schéma (ajout seul, idempotent) ───────────────────────────────────────────
 
 function init(c = conn()) {
+  require('./souvenirInventory').init(c);   // #93 : doubles et échanges (ajout seul, tout OFF)
   c.exec(`
     CREATE TABLE IF NOT EXISTS monthly_events (
       id          TEXT PRIMARY KEY,
@@ -886,6 +887,7 @@ function processSave(userId, { nowMs = Date.now(), rand = _rand } = {}) {
   if (!events.length) return [];
   const blockCatalog = require('./blockCatalog');
   const badges = require('./badges');
+  const souvenirs = require('./souvenirInventory');
   const catOf = new Map(blockCatalog.getPublished().types.map(t => [t.id, t.category]));
   const t = db.getDepthTracking(userId);
   const season = db.getActiveSeason();
@@ -909,13 +911,25 @@ function processSave(userId, { nowMs = Date.now(), rand = _rand } = {}) {
         continue;
       }
       const owned = new Set(conn().prepare('SELECT item_id FROM monthly_event_finds WHERE user_id = ? AND event_id = ?').all(userId, ev.id).map(r => r.item_id));
+      // #93 : un type reçu par échange compte comme possédé (jamais une « première découverte » en plus).
+      for (const k of souvenirs.extraTypes(userId, ev.id)) owned.add(k.slice(ev.id.length + 1));
+      // #93 : doubles seulement si le drapeau global ET une règle de l'événement l'autorisent ; sinon null,
+      // et le tirage est exactement celui d'avant (aucun appel à rand() de plus).
+      const dup = souvenirs.dupPlanFor(ev.id);
       for (const it of ev.items) {
-        if (!it.enabled || it.proposal || owned.has(it.id) || depth < it.minDepth) continue;
+        if (!it.enabled || it.proposal || depth < it.minDepth) continue;
+        const rule = owned.has(it.id) ? (dup && dup.left > 0 ? dup.ruleFor(it.id) : null) : undefined;
+        if (rule === null) continue;
         let n = 0;
         for (const [id, d] of Object.entries(delta)) if (!it.dropFrom.length || it.dropFrom.includes(catOf.get(id))) n += d;
         if (!n) continue;
-        const pAny = 1 - Math.pow(1 - it.chancePct / 100, n);
+        const pAny = 1 - Math.pow(1 - (it.chancePct / 100) * (rule ? rule.factor : 1), n);
         if (rand() >= pAny) continue;
+        if (rule) {
+          const qty = souvenirs.mintDuplicate(userId, ev.id, it.id, rule, { nowMs, depth });
+          if (qty) { dup.left -= 1; out.push({ eventId: ev.id, itemId: it.id, icon: it.icon, image: it.publishedImage, names: it.names, rarity: it.rarity, eventNames: ev.names, duplicate: true, qty }); }
+          continue;
+        }
         const r = conn().prepare('INSERT OR IGNORE INTO monthly_event_finds (user_id, event_id, item_id, found_at, depth) VALUES (?,?,?,?,?)')
           .run(userId, ev.id, it.id, _iso(nowMs), depth);
         if (r.changes) out.push({ eventId: ev.id, itemId: it.id, icon: it.icon, image: it.publishedImage, names: it.names, rarity: it.rarity, eventNames: ev.names });
@@ -932,7 +946,9 @@ function processSave(userId, { nowMs = Date.now(), rand = _rand } = {}) {
  * de TOUS les événements (y compris terminés ou repassés en brouillon).
  */
 function publicView(userId = null, nowMs = Date.now()) {
-  const finds = userId ? conn().prepare('SELECT event_id, item_id, found_at FROM monthly_event_finds WHERE user_id = ? ORDER BY found_at').all(userId) : [];
+  // #93 : possession = première découverte OU exemplaire reçu ; quantité affichée seulement au-delà de 1.
+  const inv = userId ? require('./souvenirInventory').inventory(userId).items : {};
+  const finds = Object.values(inv).sort((a, b) => (a.firstAt < b.firstAt ? -1 : 1)).map(i => ({ event_id: i.eventId, item_id: i.itemId, found_at: i.firstAt }));
   const foundAt = new Map(finds.map(f => [`${f.event_id}/${f.item_id}`, f.found_at]));
   const loreOf = new Map();
   const itemView = (ev, it) => {
@@ -942,7 +958,9 @@ function publicView(userId = null, nowMs = Date.now()) {
     // « Pourquoi cet objet ? » (#86) : seulement après découverte, et seulement vérifiée.
     if (!loreOf.has(ev.id)) loreOf.set(ev.id, getLore(ev.id));
     const lore = _publicLore(loreOf.get(ev.id)[it.id]);
-    return { id: it.id, found: true, foundAt: at, icon: it.icon, image: it.publishedImage, names: it.names, descs: it.descs, rarity: it.rarity, ...(lore ? { lore } : {}) };
+    const q = inv[`${ev.id}/${it.id}`];
+    return { id: it.id, found: true, foundAt: at, icon: it.icon, image: it.publishedImage, names: it.names, descs: it.descs, rarity: it.rarity, ...(lore ? { lore } : {}),
+      ...(q && q.qty > 1 ? { qty: q.qty, tradeable: q.tradeable } : {}) };
   };
   const active = activeFor(userId, nowMs).map(ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt,
     endsAt: ev.endsAt, test: ev.audience === 'test', items: ev.items.filter(i => (i.enabled && !i.proposal) || foundAt.has(`${ev.id}/${i.id}`)).map(i => itemView(ev, i)) }));
