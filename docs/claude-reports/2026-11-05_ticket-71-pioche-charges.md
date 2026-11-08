@@ -192,3 +192,209 @@ Résultat attendu : minage jamais bloqué, panne lisible, achats affichés avant
 
 - Selon tes réponses : valeurs définitives, activation générale, éventuelle conséquence des écarts.
 - Après lancement : intégrer les prix de la pioche aux règles économiques versionnées de #49 si tu le souhaites.
+
+---
+
+# Session du 08/11/2026 — activation pour tous (décision du propriétaire)
+
+- Ticket : [#71 — Pioche à charges](https://github.com/ReC82/Dig/issues/71) — commentaires du propriétaire
+  [6722089054](https://github.com/ReC82/Dig/issues/71#issuecomment-6722089054) et
+  [6722135142](https://github.com/ReC82/Dig/issues/71#issuecomment-6722135142).
+- Classement : **Bloquant MVP public** (le propriétaire en fait une protection P0 pour la bêta collègues du 09/11).
+
+## 1. État réel
+
+**Déployé en production (SHA `edf25f2`) et ACTIF POUR TOUS — en attente de recette.**
+Configuration effective constatée en production : mode **Tous**, **5 000 coups**, **+1 toutes les 2 s**, reprise
+des bonus à 10 % ; arbres en gemmes et recharges en pièces **inchangés** (tels que développés le 05/11). La jauge
+« ⛏ Réserve pleine : 5 000 coups » s'affiche dans le jeu (constaté en production, PC 1280×900 et mobile 390×844).
+
+## 2. Ce qui a été fait
+
+### Simulation demandée avant activation
+
+Outil ajouté : `tools/balance/pickaxe-night-sim.js` (simulateur de saisons de #49, vrai code du jeu). Ajouts :
+profil **bot nocturne** (8 clics/s pendant 8 h, toutes les nuits), **recharges en pièces** (la formule +50 % est
+achetée dès la panne si elle est payable, au prix réel du jeu), **arbres en gemmes au maximum**. Mesure principale :
+**blocs détruits au clic** (critère du classement, #73). Médianes sur 100 saisons de 7 jours, nouveau joueur.
+Commande : `node tools/balance/pickaxe-night-sim.js --runs 100`.
+
+#### Occasionnel lent (20 min/j à 2 clics/s, 4 j/7)
+
+| Réglage | Profondeur (m) | Perte | Blocs au clic (#73) | Perte | Coups à pleine puissance | Recharges achetées | Pièces en recharges |
+|---|---|---|---|---|---|---|---|
+| jeu actuel (OFF) | 210 | — | 209 | — | — | — | — |
+| 1 500/3 s | 186 | 11 % | 185 | 11 % | 72 % | 0 | 0 |
+| 1 500/3 s + recharges +50 % | 194 | 8 % | 193 | 8 % | 79 % | 1 | 22 838 |
+| 5 000/2 s (activé) | 210 | 0 % | 209 | 0 % | 100 % | 0 | 0 |
+| 5 000/2 s + recharges +50 % | 210 | 0 % | 209 | 0 % | 100 % | 0 | 0 |
+| 5 000/2 s, arbres au max (75 000/0,6 s) | 210 | 0 % | 209 | 0 % | 100 % | 0 | 0 |
+| arbres au max + recharges +50 % | 210 | 0 % | 209 | 0 % | 100 % | 0 | 0 |
+
+#### Débutant (20 min/j, 4 j/7)
+
+| Réglage | Profondeur (m) | Perte | Blocs au clic (#73) | Perte | Coups à pleine puissance | Recharges achetées | Pièces en recharges |
+|---|---|---|---|---|---|---|---|
+| jeu actuel (OFF) | 309 | — | 308 | — | — | — | — |
+| 1 500/3 s | 203 | 34 % | 202 | 34 % | 37 % | 0 | 0 |
+| 1 500/3 s + recharges +50 % | 236 | 24 % | 235 | 24 % | 53 % | 5 | 109 915 |
+| 5 000/2 s (activé) | 309 | 0 % | 308 | 0 % | 100 % | 0 | 0 |
+| 5 000/2 s + recharges +50 % | 309 | 0 % | 308 | 0 % | 100 % | 0 | 0 |
+| 5 000/2 s, arbres au max (75 000/0,6 s) | 309 | 0 % | 308 | 0 % | 100 % | 0 | 0 |
+| arbres au max + recharges +50 % | 309 | 0 % | 308 | 0 % | 100 % | 0 | 0 |
+
+#### Régulier (1 h/j, 7 j/7, bonus pub)
+
+| Réglage | Profondeur (m) | Perte | Blocs au clic (#73) | Perte | Coups à pleine puissance | Recharges achetées | Pièces en recharges |
+|---|---|---|---|---|---|---|---|
+| jeu actuel (OFF) | 989 | — | 948 | — | — | — | — |
+| 1 500/3 s | 565 | 43 % | 499 | 47 % | 22 % | 0 | 0 |
+| 1 500/3 s + recharges +50 % | 924 | 7 % | 873 | 8 % | 84 % | 111 | 8 131 599 |
+| 5 000/2 s (activé) | 813 | 18 % | 762 | 20 % | 57 % | 0 | 0 |
+| 5 000/2 s + recharges +50 % | 957 | 3 % | 915 | 4 % | 91 % | 22 | 5 914 506 |
+| 5 000/2 s, arbres au max (75 000/0,6 s) | 989 | 0 % | 948 | 0 % | 100 % | 0 | 0 |
+| arbres au max + recharges +50 % | 989 | 0 % | 948 | 0 % | 100 % | 0 | 0 |
+
+#### Assidu (3 h/j + 4 h onglet ouvert)
+
+| Réglage | Profondeur (m) | Perte | Blocs au clic (#73) | Perte | Coups à pleine puissance | Recharges achetées | Pièces en recharges |
+|---|---|---|---|---|---|---|---|
+| jeu actuel (OFF) | 2 057 | — | 1 958 | — | — | — | — |
+| 1 500/3 s | 943 | 54 % | 775 | 60 % | 12 % | 0 | 0 |
+| 1 500/3 s + recharges +50 % | 1 967 | 4 % | 1 841 | 6 % | 92 % | 492 | 72 052 623 |
+| 5 000/2 s (activé) | 1 225 | 40 % | 1 085 | 45 % | 29 % | 0 | 0 |
+| 5 000/2 s + recharges +50 % | 1 984 | 4 % | 1 870 | 5 % | 93 % | 118 | 58 809 241 |
+| 5 000/2 s, arbres au max (75 000/0,6 s) | 2 057 | 0 % | 1 958 | 0 % | 100 % | 0 | 0 |
+| arbres au max + recharges +50 % | 2 057 | 0 % | 1 958 | 0 % | 100 % | 0 | 0 |
+
+#### Automatique (15 min/j + 8 h onglet)
+
+| Réglage | Profondeur (m) | Perte | Blocs au clic (#73) | Perte | Coups à pleine puissance | Recharges achetées | Pièces en recharges |
+|---|---|---|---|---|---|---|---|
+| jeu actuel (OFF) | 692 | — | 279 | — | — | — | — |
+| 1 500/3 s | 692 | 0 % | 279 | 0 % | 99 % | 0 | 0 |
+| 1 500/3 s + recharges +50 % | 692 | 0 % | 279 | 0 % | 100 % | 1 | 11 250 |
+| 5 000/2 s (activé) | 692 | 0 % | 279 | 0 % | 100 % | 0 | 0 |
+| 5 000/2 s + recharges +50 % | 692 | 0 % | 279 | 0 % | 100 % | 0 | 0 |
+| 5 000/2 s, arbres au max (75 000/0,6 s) | 692 | 0 % | 279 | 0 % | 100 % | 0 | 0 |
+| arbres au max + recharges +50 % | 692 | 0 % | 279 | 0 % | 100 % | 0 | 0 |
+
+#### Bot nocturne (8 clics/s pendant 8 h, 7 nuits/7)
+
+| Réglage | Profondeur (m) | Perte | Blocs au clic (#73) | Perte | Coups à pleine puissance | Recharges achetées | Pièces en recharges |
+|---|---|---|---|---|---|---|---|
+| jeu actuel (OFF) | 4 075 | — | 4 074 | — | — | — | — |
+| 1 500/3 s | 1 273 | 69 % | 1 272 | 69 % | 5 % | 0 | 0 |
+| 1 500/3 s + recharges +50 % | 3 900 | 4 % | 3 899 | 4 % | 92 % | 1 874 | 528 427 427 |
+| 5 000/2 s (activé) | 1 437 | 65 % | 1 436 | 65 % | 8 % | 0 | 0 |
+| 5 000/2 s + recharges +50 % | 3 851 | 5 % | 3 850 | 5 % | 91 % | 529 | 494 567 065 |
+| 5 000/2 s, arbres au max (75 000/0,6 s) | 2 935 | 28 % | 2 934 | 28 % | 53 % | 0 | 0 |
+| arbres au max + recharges +50 % | 4 075 | 0 % | 4 074 | 0 % | 100 % | 21 | 315 742 509 |
+
+
+### Ce que montrent les chiffres
+
+1. **Incompatibilité vérifiée de 1 500 coups / 3 s** : un débutant (20 min/jour à 4 clics/s) perdrait **34 %** de
+   ses blocs, avec une première panne après ~7 min de clics, donc dès la première partie des collègues. Ton commentaire
+   autorisait « un réglage plus doux avec rapport explicite » dans ce cas : **5 000 coups / 2 s** a été activé.
+   - Joueur occasionnel et débutant : **0 % de perte** (contre 11 % et 34 %).
+   - Bot nocturne sans recharge : **−65 %** de blocs (contre −69 %) : le frein reste presque intact.
+   - Joueur régulier 1 h/j : −20 % sans recharge, **−4 %** s'il achète des recharges en pièces. Assidu 3 h/j : −45 %
+     sans recharge, −5 % avec.
+   - Auto-Dig (onglet ouvert) : 0 % (non concerné, comme prévu).
+2. **Les pièces abondantes permettent des recharges quasi illimitées** : un bot qui achète la recharge dès la panne ne
+   perd plus que **~5 %** (il gagne plus de pièces à pleine puissance qu'il n'en dépense : 495 M dépensées en
+   recharges pour ~890 M gagnées par saison). Il n'y a pas de « profit » au sens strict (une recharge ne rapporte pas
+   de pièces), mais elle s'autofinance. **Le frein ne vaut donc que contre un autocliqueur simple** (clic toujours au
+   même endroit, qui n'ouvre pas la boutique), pas contre un script qui clique aussi sur « Recharger ». Rien n'a été
+   changé aux prix (tu n'as pas validé de nouveau coût) ; décision demandée ci-dessous.
+3. **Gemmes / pay-to-win** : les deux arbres coûtent 605 💎 chacun au total ; aucune gemme ne s'achète en euros
+   (achats réels désactivés, #11 ; lot de fragments #85 désactivé). Arbres au maximum = plus aucune perte pour un
+   humain. Un bot aux arbres maximaux perd encore 28 % sans recharge. Pas de pay-to-win en argent réel ; c'est un
+   avantage de progression en gemmes du jeu.
+4. **Deux appareils, hors ligne, état 0** : déjà couverts par les tests automatiques (recharge sur l'horodatage,
+   réserve dans la sauvegarde cloud, pioche émoussée à 1 dégât, jamais de blocage). Vérifié à nouveau : 13/13.
+5. **Joueur réel ou testeur** : le mode « Tous » s'applique à chaque compte et aux invités, sans distinction ; le mode
+   « Testeurs » reste disponible dans l'admin pour revenir à une recette ciblée.
+6. **Ce n'est pas une preuve de triche** : aucune sanction n'est liée à la pioche. Les écarts anti-fraude restent en
+   observation (admin 🔋, liste des écarts) ; l'anti-bot (#25 « Appliqué », #91) reste indépendant et inchangé.
+   Récompenses des coffres (#49/#88) non touchées.
+
+### Activation par un chemin autorisé
+
+Les sessions n'ont pas accès au panel. L'activation passe par une **décision écrite du propriétaire appliquée une
+seule fois au démarrage**, comme #19 et #25 : `server/pickaxeCharges.js` → `OWNER_DECISIONS`
+(`issue71-global-on-2026-11-08`). Elle passe le mode à « Tous » et règle 5 000 / 2 s **seulement si** les réglages
+étaient encore ceux d'origine (OFF, 1 500, 3 s). Elle est journalisée dans `admin_config_decisions` et dans le journal
+de la pioche (visible dans l'admin), et n'est **jamais rejouée** : si tu repasses en OFF, un redémarrage ne réactive
+rien. Aucune donnée joueur n'est touchée.
+
+### Fichiers
+
+`server/pickaxeCharges.js` (décision unique), `tools/balance/economy-sim.js` (option `refillPct`, résultats existants
+inchangés), `tools/balance/pickaxe-night-sim.js` (nouveau), `test/pickaxe-charges.test.js` (décision : appliquée une
+fois, arrêt d'urgence respecté, ignorée si le panel a changé ; simulation du bot).
+
+## 3. SHA et tests
+
+- Branche `feature/71-pioche-charges` (commit `29a6543`), **`develop` = `edf25f2`** (merge, arbre identique).
+- `npm test` : **957/957** sur la branche et sur la release `edf25f2`.
+- Serveur de test (port 3101, base de test neuve) : décision appliquée au démarrage ; Chromium PC et mobile :
+  jauge 5 000, réserve qui baisse d'1 par coup (« 4 984 / 5 000 · +1 toutes les 2 s »), section « Pioche et
+  entretien » (arbres en gemmes, recharges +10/25/50 % sans surfacturation près du maximum), plus de skins, 0 erreur JS.
+
+## 4. Déploiement
+
+- **SHA déployé : `edf25f2`** (`main` avancé de `fdf90ee` en avance rapide), 08/11/2026 16:36 (Bruxelles),
+  `scripts/deploy.sh` de la release, `npm ci` non nécessaire.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261108-163632-pre-deploy-edf25f2.sqlite`.
+- Avant : copie de la base de production démarrée en mode production (port 3122) : `/health`, `/api/version` OK,
+  décision appliquée, empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`,
+  `player_click_tracking` **identiques**, aucune table nouvelle, `quick_check` ok ; copie supprimée. Aucune génération
+  IA en cours.
+- Après : 2 domaines → 200, `/api/version` = `1.0.0+edf25f2`, `/api/pickaxe/config` = activé 5 000 / 2 s, journal :
+  décision appliquée, aucune erreur ; `quick_check` ok ; empreintes joueurs = sauvegarde pré-déploiement ; Chromium
+  en production (invité) PC et mobile : jauge affichée, 0 erreur JS.
+- **Arrêt d'urgence (sans redéploiement)** : Admin → Jeu & progression → 🔋 Pioche à charges → Mode **OFF** : la
+  jauge disparaît chez les joueurs en moins d'une minute (relecture de la config toutes les 60 s), rien n'est effacé.
+  Retour au code précédent si besoin : `git -C /home/ubuntu/Dig reset --keep fdf90ee` + redémarrage (le réglage
+  resterait « Tous » : utiliser plutôt le bouton OFF).
+
+### Test fonctionnel à faire par le propriétaire
+
+1. Ouvre le jeu (PC puis téléphone) : sous le bloc, « ⛏ Réserve pleine : 5 000 coups ».
+2. Mine : la réserve baisse d'1 par coup ; « +1 toutes les 2 s ».
+3. Admin → 🔋 Pioche à charges : Mode = Tous, 5 000 / 2 s, journal « Décision du propriétaire #71 ». Pour voir la
+   panne vite : Capacité = 50, Enregistrer → mine 50 coups → « 🪫 Pioche émoussée », 1 dégât par coup, jamais bloqué,
+   bonus de retour à 10 %. Remets 5 000 ensuite.
+4. Boutique → « Pioche et entretien » : achète une recharge +10 % en pièces (coût affiché avant achat).
+5. Ferme le jeu quelques minutes, rouvre sur l'autre appareil : la réserve a remonté et est la même.
+6. Arrêt d'urgence : Mode OFF → la jauge disparaît en moins d'une minute ; remets « Tous » après l'essai.
+
+Attendu : jeu jamais bloqué, débutants non gênés, frein visible seulement après ~20 min de clics continus.
+
+## 5. Choix techniques faits seul
+
+- **5 000 / 2 s au lieu de 1 500 / 3 s** : incompatibilité vérifiée pour les débutants (−34 %), frein anti-bot
+  presque identique (voir tableau). Une case dans l'admin pour revenir à 1 500 / 3 s.
+- Recharges en pièces **laissées actives** et prix **inchangés** : sans elles, un joueur régulier perd 20 % et un
+  assidu 45 % ; les couper ou changer le prix est une décision économique (question 1).
+- Décision appliquée une seule fois et ignorée si le panel a changé : ton arrêt d'urgence n'est jamais écrasé.
+
+## 6. Décisions demandées au propriétaire
+
+1. **Recharges en pièces vs bots scriptés** : elles s'autofinancent et lèvent le frein (bot −65 % → −5 %).
+   Options : (a) garder tel quel (frein efficace seulement contre les autocliqueurs simples) ; (b) **limite de
+   recharges par jour**, par exemple 3/jour (recommandé : ne gêne presque pas un humain, un régulier en achète ~3 par
+   jour d'après la simulation) ; (c) prix croissant à chaque recharge de la journée ; (d) couper les recharges (admin,
+   « Recharges proposées » : non) — pénalise les joueurs réguliers et assidus.
+2. **Valeurs** : garder 5 000 / 2 s (recommandé pour la bêta) ou revenir à 1 500 / 3 s malgré la perte des
+   débutants ? Ajustable dans l'admin à tout moment selon les retours des collègues.
+3. **Écarts anti-fraude de la pioche** : rester en observation pendant la bêta (recommandé) ou les remonter un jour
+   dans #91 comme signal faible ?
+
+## 7. Reste à réaliser
+
+- Selon la question 1 : limite journalière des recharges (Bloquant MVP si tu veux un frein contre les scripts,
+  sinon Après lancement).
+- Après lancement : prix de la pioche dans les règles économiques versionnées de #49.
