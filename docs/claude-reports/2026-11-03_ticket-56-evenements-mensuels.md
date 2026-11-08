@@ -1,5 +1,193 @@
 # Ticket #56 — Événements mensuels : objets exclusifs à miner et calendrier automatique
 
+# Mise à jour du 08/11/2026, ~21 h 05 (Bruxelles) : recette #56-K corrigée (test de bascule, souvenirs proposés, préparation éditoriale)
+
+Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Retour pris en compte : [recette #56-K BLOQUÉE du 08/11 19:13](https://github.com/ReC82/Dig/issues/56#issuecomment-6725198013), avec la capture PDF « DIG! Admin(20261108-180904) » d'Admin → Événements. Chantier lié : [#93](https://github.com/ReC82/Dig/issues/93) (doubles et échanges), ouvert à part par le propriétaire ([commentaire](https://github.com/ReC82/Dig/issues/56#issuecomment-6725207106)).
+
+## 1. État réel
+
+**Déployé en production (SHA `eab1fa9`), en attente de la recette #56-K.**
+
+- Aucun changement pour les joueurs. Novembre reste actif avec 30 objets. Noël reste planifié aux mêmes dates, avec les mêmes 5 objets publiés et les mêmes chances.
+- Les 26 nouveaux souvenirs de Noël existent en production, mais **en proposition seulement**. Ils ne tombent pas et sont invisibles des joueurs, ce que j'ai vérifié sur `/api/events`. Ils attendent ta validation, chances comprises.
+
+## 2. Résultat et changements
+
+**Audit de départ (schéma et 5 fiches de Noël).**
+- Avant ce changement, un objet était soit publié, soit absent. Il n'existait pas d'état « proposé ».
+- Un événement planifié était entièrement figé : pour ajouter un objet, il fallait le repasser en brouillon, ce qui arrête les drops.
+- Les 5 fiches de Noël sont complètes en FR, EN, NL et ES et ont une consigne d'image. En revanche :
+  - aucune n'a de date de référence ;
+  - 0 image est publiée (l'emoji est affiché, ce qui reste admissible) ;
+  - aucune n'a de « Pourquoi cet objet ? » vérifié, donc rien n'est montré aux joueurs pour ces 5 objets.
+- Je n'ai modifié aucune date, source, image ni chance de ces 5 fiches.
+
+**Panel admin (Événements).**
+1. **« 🧪 Tester le passage au mois suivant »** est maintenant un vrai bouton, placé à côté du titre « Préparation du mois prochain », avec une aide d'une ligne. Il ouvre une fenêtre marquée « 🔒 Simulation en lecture seule » (ce n'est pas « Planifier »). La fenêtre contient :
+   - une colonne **Attendu** qui compare le résultat à la règle (✅ conforme, ⚠ écart) ;
+   - le mois d'après, pour montrer qu'aucun événement n'est inventé ni prolongé ;
+   - le simulateur d'une heure libre, qui reste en lecture seule et s'affiche dans cette même fenêtre.
+
+   Résultat actuel :
+
+   | Heure (Bruxelles) | Événement public actif |
+   |---|---|
+   | 30/11 23:59:59 | Novembre |
+   | 01/12 00:00:00 | aucun |
+   | 01/12 00:01 | Noël |
+   | janvier 2027 | « aucun événement prévu » |
+2. **« ＋ Ajouter » devient « ＋ Nouvel événement »**, pour qu'on ne le confonde plus avec l'ajout d'un objet.
+3. **« ＋ Ajouter un souvenir »** se trouve dans la fiche de l'événement. Le formulaire ne s'ouvre qu'au clic. Ce bouton fonctionne sur un événement **en brouillon ET déjà planifié**. Le souvenir est enregistré tout de suite comme **proposition** (« 📝 Proposé — non publié »). Dans ce cas :
+   - le statut de l'événement ne change pas et l'événement ne repasse pas en brouillon ;
+   - les objets publiés et les drops en cours ne sont pas touchés ;
+   - la proposition reste modifiable et peut être retirée.
+4. **« 📤 Publier les propositions cochées »** se fait en deux étapes :
+   - étape 1 : résumé et tableau des objets ;
+   - étape 2 : « barème des nouveaux souvenirs validé ».
+
+   La publication est atomique et journalisée (révision avant et après dans le journal). Les chances des objets déjà publiés ne changent pas. **Retour arrière :** « ↩ Remettre en proposition », possible tant que personne n'a trouvé l'objet. Le simulateur de chances marque les propositions (« 📝 … (proposé) ») pour qu'on puisse les simuler avant publication.
+5. **Préparation éditoriale séparée de l'état technique.**
+   - Le mois prochain s'affiche « 🗓️ Planifié » (au lieu de « ✅ Prêt — planifié »), suivi de la pastille **« 📚 5 préparé(s) / objectif 31 · Contenu à compléter »**.
+   - L'**objectif éditorial** peut être modifié dans la fiche, dans tous les états, sans effet sur les drops. Ce n'est jamais une condition de planification : Noël a un objectif de 31, novembre n'en a aucun.
+6. **Alertes hiérarchisées**, sans texte coupé (retour à la ligne) :
+   - « ❌ » : bloquant ;
+   - « ⚠ » : réellement à compléter (couverture de l'objectif, propositions en attente, « Pourquoi cet objet ? » non vérifiés, traductions, images conservées mais non publiées) ;
+   - « ℹ » : admissible tel quel (emoji à la place d'une image, consigne d'image absente).
+
+   Les mois terminés et les événements terminés n'affichent plus de « à compléter ».
+7. **Calendrier annuel : actions directes.** Chaque mois propose « 📝 Préparer ce mois », « 👁 Voir ses objets » et « ＋ Ajouter un objet ». Le dernier ouvre la fiche de l'événement, puis le formulaire de proposition. Les cartes des mois (précédent, en cours, prochain) proposent aussi « ＋ Ajouter un souvenir » et « 👁 Voir ses objets ».
+8. **Responsive.** Entre 0 et 1 100 px de large, la liste des événements et le calendrier s'affichent en cartes. Les fiches ne débordent plus sur téléphone (`fieldset` en `min-width: 0`). Mesures dans Chromium : aucun débordement horizontal de la page à 1280×900, 1024×800 et 390×844.
+9. **Bonus des souvenirs (#81).** Une ligne dans la fiche de l'événement et un cadre dans chaque fiche d'objet indiquent « aucun bonus défini, inactif, ni permanent ni calendaire, cumul simulé : aucun effet ». Les micro-bonus restent à part, en brouillon. Rien n'a été activé.
+10. **Doubles et échanges.** Le modèle « un exemplaire par joueur » ne change pas. Le sujet est suivi dans #93, sans rien d'activé.
+
+**26 souvenirs de Noël proposés** (`server/content/event-proposals/noel-2026.json`).
+- Ils sont importés **une seule fois** au démarrage, en proposition, avec un objectif de 31. L'import passe après les décisions du propriétaire et n'écrase rien.
+- Chaque fiche contient :
+  - un nom et une description humoristique en FR, EN, NL et ES ;
+  - un emoji ;
+  - une date de référence du 02/12 au 31/12 (sauf 06, 21, 23 et 24, que je suggère pour les 5 fiches existantes) ;
+  - une rareté ;
+  - une consigne d'image ;
+  - une inspiration historique optionnelle, visible de l'admin seulement et marquée « à vérifier ». Exemples : Sainte-Barbe patronne des mineurs le 04/12, frères Wright le 17/12, Dickens le 19/12, frères Lumière le 28/12.
+- Aucune source n'est marquée vérifiée et aucune image n'a été générée.
+- Répartition : 5 communes, 8 peu communes, 7 rares, 4 épiques, 2 légendaires.
+- **Barème suggéré, aligné sur novembre (#86) :**
+
+  | Rareté | Chance par bloc | Profondeur minimale |
+  |---|---|---|
+  | Commune | 0,25 % | aucune |
+  | Peu commune | 0,15 % | aucune |
+  | Rare | 0,08 % | aucune |
+  | Épique | 0,05 % | 10 m |
+  | Légendaire | 0,03 % | 20 m |
+
+  Tous les blocs comptent.
+
+**Serveur** (`server/monthlyEvents.js`, `server/index.js`).
+- Colonnes **ajoutées**, de manière idempotente : `monthly_event_items.proposal` et `monthly_events.item_target`.
+- Fonctions : `addProposal`, `updateProposal`, `removeProposal`, `publishProposals` (exige `confirmRates`), `unpublishProposals`, `setItemTarget`, `contentChecks`, `importProposals`.
+- Comment les propositions sont exclues :
+  - le tirage, la vue joueur, l'annonce « Bientôt », la vérification avant planification, la publication des images et les compteurs ignorent les propositions ;
+  - l'enregistrement d'un brouillon conserve l'état « proposé » connu du serveur : une proposition ne peut pas être publiée en douce.
+- `monthStatus` renvoie `missing`, `acceptable` et `content` ; `warnings` reste présent pour la compatibilité.
+- `preparation` renvoie `following`, le mois d'après.
+- Routes admin :
+  - `POST /api/admin/events/:id/proposals`
+  - `PUT` et `DELETE /api/admin/events/:id/proposals/:itemId`
+  - `POST …/proposals-publish`
+  - `POST …/proposals-unpublish`
+  - `PUT …/target`
+
+## 3. SHA, branche, procédure de test
+
+- Branche `feature/56-evenements-mensuels`, commit `b1073d5`. Fusionné dans `develop` en **`eab1fa9`** (arbre identique), déployé en `eab1fa9`.
+- Tests : `npm test` → **995/995**. J'ai ajouté `test/monthly-events-proposals.test.js` (7 tests) :
+  - une proposition sur un événement actif n'est jamais tirée ni visible ;
+  - la publication exige le barème, est atomique et journalisée, avec retour arrière tant que l'objet n'est pas trouvé ;
+  - l'enregistrement d'un brouillon conserve l'état « proposé » ;
+  - objectif, alertes et état « Planifié » distinct ;
+  - Noël : 26 propositions importées une seule fois, 5 objets intacts, bascule 23:59:59 / 00:00:00 / 00:01, janvier absent, aucun drop des propositions ;
+  - présence des boutons et des routes dans le panel.
+
+  `test/monthly-events-transition.test.js` a été adapté aux nouveaux compteurs, et `docs/admin-navigation.md` complété (action `#a/event-transition`).
+
+## 4. Vérifications, limites, données joueurs
+
+- Navigateur (Chromium headless, copie de la base de production, port 3101) à 1280×900 et 390×844, sans erreur JavaScript :
+  - la fenêtre de bascule donne ✅ sur les 6 heures testées ;
+  - la fiche Noël affiche « 5 préparé(s) / objectif 31 · Contenu à compléter » et 26 lignes « 📝 Proposé » ;
+  - « ＋ Ajouter un souvenir » ouvre « Nouveau souvenir proposé » ;
+  - une proposition s'ouvre en modification, avec un identifiant verrouillé.
+- **Données joueurs :** aucune modification. Les empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` sont identiques avant et après, sur la copie comme en production. Les objets publiés (38 lignes) sont identiques à la production avant le déploiement.
+- **Limites :**
+  - « Cumul simulé » des bonus : il n'existe aucun modèle de bonus par souvenir, le cumul vaut donc 0. Le vrai modèle relève de #81.
+  - Les inspirations historiques ne sont pas vérifiées et restent côté admin.
+  - Je n'ai pas cliqué « Publier les propositions » en production : c'est une décision du propriétaire.
+
+## 5. Déploiement
+
+- Production : **`eab1fa9`** (précédent : `4f3c8fd`).
+- Sauvegarde vérifiée avant le déploiement : `~/backups/dig/dig-20261108-205547-pre-deploy-eab1fa9.sqlite`.
+- Contrôles faits avant le déploiement :
+  - aucune génération IA en cours (dernière à 17:00 UTC) ;
+  - release testée en 995/995 ;
+  - migration testée sur une copie de la base de production, avec empreintes identiques.
+- Contrôles faits après le déploiement :
+  - les deux domaines répondent 200 avec `1.0.0+eab1fa9` ;
+  - `quick_check` = ok ;
+  - journal sans erreur ;
+  - `/api/events` : novembre actif avec 30 objets, aucune proposition visible.
+- Retour arrière : `git reset --keep 4f3c8fd` puis redémarrage. Les colonnes ajoutées sont ignorées par l'ancien code et les propositions restent inertes.
+
+**Recette propriétaire #56-K (environ 2 minutes, PC ou téléphone)**
+1. Admin → Événements. Sous « 🗓️ Préparation du mois prochain », clique **« 🧪 Tester le passage au mois suivant »**. Attendu :
+   - 30/11 23:59:59 → Novembre ✅ ;
+   - 01/12 00:00:00 → aucun ✅ ;
+   - 01/12 00:01 → 🎄 Noël ✅ ;
+   - en bas : « janvier 2027 — aucun événement prévu ».
+
+   Ferme la fenêtre : rien n'a changé.
+2. Ouvre « 🎄 Noël sous la mine ». Attendu :
+   - « 🗓️ Planifié » ;
+   - « 📚 5 préparé(s) / objectif 31 · Contenu à compléter » ;
+   - 5 objets publiés et 26 lignes « 📝 Proposé — non publié ».
+3. Clique **« ＋ Ajouter un souvenir »**. Le formulaire « Nouveau souvenir proposé » s'ouvre. Ferme-le avec Annuler, ou enregistre un essai puis retire-le avec « 🗑 Retirer la proposition ». Noël reste planifié.
+4. Sur téléphone, la liste des événements et le calendrier s'affichent en cartes, sans défilement horizontal ni avertissement coupé.
+
+Classement : **Après lancement.** Le lancement du MVP n'en dépend pas : novembre est actif et Noël démarrera seul.
+
+## 6. Choix techniques faits seul
+
+- **Proposition = drapeau sur l'objet**, et non une table séparée : les révisions, l'atelier d'images (`event:<événement>/<objet>`) et « Pourquoi cet objet ? » fonctionnent tels quels sur une proposition.
+- **Tout ajout via « ＋ Ajouter un souvenir » sur un événement enregistré est une proposition**, même en brouillon, pour garder une seule règle. Seul un événement neuf, pas encore enregistré, reçoit directement ses objets.
+- **Publier une proposition ne publie pas son image.** « Publier les images » reste une action séparée, comme pour #65.
+- L'objectif éditorial **ne change pas le niveau technique** du bandeau (vert si planifié). Il apparaît en texte (« Contenu à compléter ») et en pastille séparée.
+- Les 5 dates de référence suggérées pour les fiches existantes (charbon 06/12, guirlande 01/12, boule à neige 21/12, clochette 23/12, carte du traîneau 24/12) **ne sont pas appliquées**, puisque ces fiches sont planifiées et figées.
+
+## 7. Décisions demandées au propriétaire
+
+1. **Les 26 propositions et leur barème.** Faut-il les publier telles quelles, avec le barème aligné sur novembre (0,25 / 0,15 / 0,08 / 0,05 % dès 10 m / 0,03 % dès 20 m) ? Les options sont :
+   - corriger ou retirer certaines fiches avant publication ;
+   - tout publier d'un coup (cocher puis « Publier les propositions cochées ») ;
+   - me demander de le faire sur décision écrite.
+
+   *Recommandé : relire les noms, puis publier avant le 24/11, date de l'annonce J-7.*
+2. **Barème des 5 objets déjà planifiés** (question déjà en attente). Faut-il garder 0,8 / 0,4 / 0,25 / 3 % coffres / 0,05 %, ou les aligner sur novembre ? Les aligner demande de repasser Noël en brouillon (aucun drop n'est en cours avant le 01/12), puis de le replanifier. *Recommandé : aligner, pour que le mois soit cohérent.*
+3. **Dates de référence des 5 fiches existantes** : faut-il appliquer celles que je suggère (01, 06, 21, 23 et 24/12) en même temps que le point 2 ? *Recommandé : oui.*
+4. Questions déjà en attente, inchangées :
+   - assistant IA du panel : *recommandé, après la bêta* ;
+   - thèmes 2027 : à choisir mois par mois, au plus tard à J-14.
+
+## 8. Restant à réaliser
+
+- Validation des 26 propositions, puis publication (par le propriétaire).
+- « Pourquoi cet objet ? » vérifié pour Noël, avec des sources réelles.
+- Images (atelier, sans génération automatique).
+- Modèle de bonus par souvenir : #81, inactif.
+- Doubles et échanges : #93.
+
+---
+
 # Mise à jour du 08/11/2026, ~16 h 15 (Bruxelles) — transition mensuelle automatique, préparation du mois prochain, novembre et Noël planifiés
 
 Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Demandes prises en compte : [priorité du 08/11 09:37](https://github.com/ReC82/Dig/issues/56#issuecomment-6719899927), [rectificatif du 08/11 09:57](https://github.com/ReC82/Dig/issues/56#issuecomment-6720078513) et [décision du 08/11 13:59](https://github.com/ReC82/Dig/issues/56#issuecomment-6722406304) (heures explicites, publication sans clic admin). Coordination [#86](https://github.com/ReC82/Dig/issues/86) : feu vert et barème de novembre ([commentaire du 08/11 09:49](https://github.com/ReC82/Dig/issues/86#issuecomment-6720004334), [décision du 08/11 13:59](https://github.com/ReC82/Dig/issues/86#issuecomment-6722405932)).
