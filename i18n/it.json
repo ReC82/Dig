@@ -5249,10 +5249,10 @@
   },
   "shop_chest.simple.desc": {
    "text": "Monete, frammenti o boost — piccole ricompense garantite.",
-   "src": "156abf54e272",
+   "src": "996c4674f25d",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-08T09:54:41.684Z"
   },
   "shop_chest.simple.name": {
    "text": "Forziere semplice",
@@ -5710,11 +5710,11 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "ui.chest_reward_boost": {
-   "text": "⚡ Boost monete ×{mult} — {minutes} min",
-   "src": "86e234141c14",
+   "text": "⚡ Boost ×{mult} delle monete dei blocchi — {minutes} min",
+   "src": "ae1e10b45c5f",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-08T09:54:41.684Z"
   },
   "ui.chest_reward_coins": {
    "text": "💰 {amount} monete",
@@ -5735,11 +5735,11 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "ui.chest_title": {
-   "text": "{name} aperto!",
-   "src": "d9723bed6e8c",
+   "text": "Forziere aperto: {name}",
+   "src": "94c976fa8ae2",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-08T09:54:41.684Z"
   },
   "ui.collection_header": {
    "text": {
@@ -5781,11 +5781,11 @@
    "at": "2026-11-03T05:30:00.000Z"
   },
   "ui.daily_reward_boost": {
-   "text": "⚡ Monete ×{mult} per {minutes} min",
-   "src": "0d9b20a68f98",
+   "text": "⚡ ×{mult} monete per {minutes} min",
+   "src": "a426fe7cc604",
    "origin": "ai",
-   "by": "claude-opus-5-5 (session #59, relu)",
-   "at": "2026-11-03T05:30:00.000Z"
+   "by": "claude-opus-5-5 (session #84, relu)",
+   "at": "2026-11-08T09:54:41.684Z"
   },
   "ui.daily_reward_coins": {
    "text": {

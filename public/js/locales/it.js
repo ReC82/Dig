@@ -1047,14 +1047,14 @@ I18n.registerLocale("it", {
   "btn_watch_ad": "Raddoppia la ricompensa",
   "chest_content_label": "Contenuto",
   "chest_loot": "Contenuto casuale",
-  "chest_reward_boost": "⚡ Boost monete ×{mult} — {minutes} min",
+  "chest_reward_boost": "⚡ Boost ×{mult} delle monete dei blocchi — {minutes} min",
   "chest_reward_coins": "💰 {amount} monete",
   "chest_reward_relics": {
    "$n": "amount",
    "one": "🔮 {amount} frammento di reliquia",
    "other": "🔮 {amount} frammenti di reliquia"
   },
-  "chest_title": "{name} aperto!",
+  "chest_title": "Forziere aperto: {name}",
   "collection_header": {
    "$n": "found",
    "one": "{found} / {total} trovato",
@@ -1064,7 +1064,7 @@ I18n.registerLocale("it", {
   "daily_btn_claim": "Riscuoti la ricompensa",
   "daily_claimed_msg": "✓ Ricompensa riscossa!",
   "daily_next_msg": "Torna domani per continuare la serie.",
-  "daily_reward_boost": "⚡ Monete ×{mult} per {minutes} min",
+  "daily_reward_boost": "⚡ ×{mult} monete per {minutes} min",
   "daily_reward_coins": {
    "$n": "amount",
    "one": "💰 {amount} moneta",
