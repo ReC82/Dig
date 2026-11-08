@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 904/904 textes. Absents → français. */
+/* Italian (preview) : 905/905 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -128,6 +128,7 @@ I18n.registerLocale("it", {
   "report_step_susp": "Scavo manuale sospeso dall’anti-bot fino a {time}, anche se giocavo normalmente (senza autoclicker).",
   "susp_help": "Il tuo account resta disponibile (Auto-Dig, negozio, inventario). Un errore? Scrivici tramite Aiuto: il team può revocare la sospensione.",
   "susp_text": "I clic sono continuati durante la verifica: lo scavo manuale è sospeso fino al {time} (ora di Bruxelles).",
+  "susp_text_auto": "Clic automatici (stesso ritmo, stesso punto) sono ripresi subito dopo una verifica: lo scavo manuale è sospeso fino al {time} (ora di Bruxelles).",
   "susp_title": "Scavo manuale in pausa",
   "sym_bell": "la campana",
   "sym_clover": "il quadrifoglio",

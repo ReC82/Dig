@@ -856,6 +856,13 @@
    "by": "claude-opus-5-5 (session #25, relu)",
    "at": "2026-11-06T18:13:49.877Z"
   },
+  "antibot.susp_text_auto": {
+   "text": "Clic automatici (stesso ritmo, stesso punto) sono ripresi subito dopo una verifica: lo scavo manuale è sospeso fino al {time} (ora di Bruxelles).",
+   "src": "62ea06f20450",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #91, relu)",
+   "at": "2026-11-08T18:30:02.339Z"
+  },
   "antibot.susp_title": {
    "text": "Scavo manuale in pausa",
    "src": "896e932c5378",

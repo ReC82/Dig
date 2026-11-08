@@ -1336,6 +1336,11 @@ const CONFIG_GROUPS = [
     ab_challenge_score:       { label: 'Défi : score de risque', hint: 'Multi-signal (#25). 20 à 100 (défaut 60).', type: 'number', min: 20, max: 100, step: 1 },
     ab_cooldown_min:          { label: 'Délai minimal entre deux défis par score ou cumul (min)', hint: '0 à 240 (défaut 30). Après un défi, seule la série continue repart de zéro ; les cumuls 6 h / 24 h sont conservés et redéclenchent au plus tôt après ce délai.', type: 'number', min: 0, max: 240, step: 1 },
     ab_violation_clicks:      { label: 'Violation : clics pendant un défi affiché', hint: 'Le jeu officiel bloque les coups pendant le défi. 5 à 1000 (défaut 30).', type: 'number', min: 5, max: 1000, step: 1 },
+    ab_fast_mode:             { label: 'Autoclickers : détection rapide (#91)', hint: 'on = chaque sauvegarde (≈ 12 s) est analysée : rythme, même pixel, souris immobile, clics non fiables. off = arrêt d\'urgence de toute la détection rapide.', type: 'enum', options: ['on', 'off'] },
+    ab_same_pixel_mode:       { label: 'Autoclickers : vérification après N clics au même pixel', hint: 'Vérification (énigme) seulement, jamais une suspension ; au plus une par « délai minimal entre deux défis ».', type: 'enum', options: ['on', 'off'] },
+    ab_same_pixel_clicks:     { label: 'Autoclickers : N clics consécutifs au même pixel', hint: '10 à 1000 (défaut 25 — décision du propriétaire du 08/11).', type: 'number', min: 10, max: 1000, step: 1 },
+    ab_fast_suspend:          { label: 'Autoclickers : suspension si revu après une vérification', hint: 'Autoclicker corroboré (rythme machine + même pixel + 3ᵉ indice) de nouveau peu après une vérification résolue → palier de suspension suivant.', type: 'enum', options: ['on', 'off'] },
+    ab_fast_repeat_min:       { label: 'Autoclickers : délai de récidive (min)', hint: '5 à 1440 (défaut 60).', type: 'number', min: 5, max: 1440, step: 1 },
     ab_suspension_ladder:     { label: 'Paliers de suspension (minutes)', hint: 'Séparés par des virgules ; le dernier s\'applique au-delà. Défaut 5,15,30,60,120,720,1440.', type: 'text' },
     ab_decay_days:            { label: 'Jours sans violation pour redescendre d\'un palier', hint: '1 à 365 (défaut 30).', type: 'number', min: 1, max: 365, step: 1 },
     ab_puzzle_seconds:        { label: 'Vérification : temps pour l\'énigme visuelle (s)', hint: 'Chrono affiché au joueur, compté depuis l\'affichage de l\'énigme (+5 s de marge réseau côté serveur). Temps écoulé = nouvelle énigme, jamais de sanction. 10 à 300 (défaut 30).', type: 'number', min: 10, max: 300, step: 1 },
@@ -3051,7 +3056,8 @@ function secRenderTop(sum, resp) {
     modeCard.classList.toggle('sec-top-card--ok', r.mode === 'enforce');
     modeCard.classList.toggle('sec-top-card--info', r.mode !== 'enforce');
     document.getElementById('sec-test-global').textContent = `« ${SEC_RESP_MODES[r.mode] ?? r.mode} »`;
-    document.getElementById('sec-settings-sum').textContent = `actuellement : ${SEC_RESP_MODES[r.mode] ?? r.mode}`;
+    document.getElementById('sec-settings-sum').textContent = `actuellement : ${SEC_RESP_MODES[r.mode] ?? r.mode}`
+      + (r.fast ? ` · autoclickers : détection ${r.fast.ab_fast_mode.toUpperCase()}, ${r.fast.ab_same_pixel_clicks} clics même pixel ${r.fast.ab_same_pixel_mode.toUpperCase()}, suspension ${r.fast.ab_fast_suspend.toUpperCase()}` : '');
     document.getElementById('sec-top-stop-wrap').hidden = r.mode !== 'enforce';
     document.getElementById('sec-top-stop-help').hidden = r.mode !== 'enforce';
   } else {
@@ -3484,7 +3490,35 @@ document.getElementById('btn-sec-test-end').addEventListener('click', () => secT
 
 const SEC_RESP_MODES = { off: 'Désactivé', observe: 'Observation', enforce: 'Appliqué' };
 const SEC_CH_STATUS = { pending: 'défi imposé — minage refusé au classement', shadow: 'détecté (défi simulé)', solved: 'résolu', cancelled: 'annulé (admin)' };
-const SEC_REASONS = { risk_score: 'score de risque', continuous_mining: 'minage continu', active_6h: 'temps actif 6 h', active_24h: 'temps actif 24 h', admin_test: 'essai admin' };
+const SEC_REASONS = { risk_score: 'score de risque', continuous_mining: 'minage continu', active_6h: 'temps actif 6 h', active_24h: 'temps actif 24 h', admin_test: 'essai admin',
+  same_pixel: 'clics au même pixel', autoclick_corroborated: 'autoclicker (rythme machine + même pixel + 3ᵉ indice)' };
+const SEC_SUSP_REASONS = { clicks_during_challenge: 'clics pendant une vérification affichée', autoclick_repeat: 'autoclicker revu juste après une vérification résolue' };
+
+/** Détection rapide des autoclickers (#91) : interrupteurs et seuil, effet immédiat. */
+function secFastBox(f) {
+  const box = secEl('div', 'sec-resp-line sec-fast');
+  if (!f) return box;
+  box.appendChild(secEl('strong', '', 'Autoclickers — détection rapide (#91) : '));
+  const sw = [['ab_fast_mode', 'Détection'], ['ab_same_pixel_mode', `Vérification après ${f.ab_same_pixel_clicks} clics au même pixel`],
+    ['ab_fast_suspend', `Suspension si autoclicker revu < ${f.ab_fast_repeat_min} min après une vérification`]];
+  for (const [key, label] of sw) {
+    const on = f[key] === 'on';
+    const b = secEl('button', `btn btn-sm ${on ? '' : 'btn-outline'}`, `${label} : ${on ? 'ON' : 'OFF'}`);
+    b.type = 'button';
+    b.dataset.admKey = `sec-fast-${key}`;
+    b.setAttribute('aria-pressed', String(on));
+    b.addEventListener('click', async () => {
+      if (!await admConfirm({ title: `${label} : passer à ${on ? 'OFF' : 'ON'} ?`, text: 'Effet immédiat pour tous les joueurs (Config → Protections pour les seuils).', ok: on ? 'Couper' : 'Activer', danger: !on })) return;
+      const { ok, data } = await api('PUT', '/api/admin/config', { key, value: on ? 'off' : 'on' });
+      if (!ok) { await admConfirm({ title: 'Réglage non modifié', text: data?.error ?? 'Erreur.', cancel: null, ok: 'OK' }); return; }
+      loadSecurity();
+    });
+    box.appendChild(b);
+  }
+  box.appendChild(secEl('p', 'muted', 'Vérification immédiate si rythme de machine + même pixel + un 3ᵉ indice (souris immobile, clics générés par script ou cadence stable mesurée par le serveur). '
+    + 'Jamais de suspension pour des clics au même pixel seuls, une cadence élevée seule ou une énigme ratée.'));
+  return box;
+}
 
 async function secSetResponseMode(mode, btn) {
   if (mode === 'enforce') {
@@ -3530,6 +3564,10 @@ function secRenderResponses(resp) {
     `Seuils : défi si série sans pause ≥ ${r.params.ab_streak_min} min, ou ≥ ${r.params.ab_active6h_min} min actives sur 6 h, ou ≥ ${r.params.ab_active24h_min} min sur 24 h (cumuls conservés après un défi résolu), ou score ≥ ${r.params.ab_challenge_score} ; violation = ${r.params.ab_violation_clicks} clics pendant un défi affiché (Config → Protections).`,
     `Comptes en essai « Appliqué » : ${r.testAccounts.length ? r.testAccounts.map(a => `${a.username} (#${a.userId})`).join(', ') : 'aucun'}`,
   ]) stats.appendChild(secEl('p', 'sec-resp-line', line));
+  const fastBox = secFastBox(r.fast);
+  fastBox.id = 'sec-fast-box';
+  document.getElementById('sec-fast-box')?.remove();
+  modeBox.after(fastBox);
 
   const chBody = document.getElementById('sec-resp-ch-body');
   chBody.innerHTML = '';
@@ -3564,7 +3602,7 @@ function secRenderResponses(resp) {
     const tr = document.createElement('tr');
     addCell(tr, secDate(su.startsAt)).className = 'muted';
     secPlayerCell(tr, su.username, su.userId);
-    addCell(tr, `${su.level}`);
+    addCell(tr, `${su.level}${su.reason ? ` — ${SEC_SUSP_REASONS[su.reason] ?? su.reason}` : ''}`);
     addCell(tr, secDate(su.endsAt));
     addCell(tr, su.status === 'active' ? `active — ${su.remainingMin} min restantes` : su.status === 'lifted' ? 'levée (admin)' : 'terminée');
     addCell(tr, su.heldClicks);
@@ -3880,6 +3918,22 @@ function secRenderPlayer(d) {
     [suspended ? 'Sanctions : minage manuel suspendu' : 'Sanctions : aucune'],
     [`Coups/s max (horloge serveur) : ${d.samples.rows.length ? secFmt(cpsMax) : 'non disponible'}`, 'derived'],
   ], d.risk.level > 0 || alertsTotal > 0);
+  const fx = d.lotC?.fast;
+  if (fx) {
+    const L = fx.last;
+    const e = L?.evidence ?? {};
+    const yes = (b, txt) => `${b ? '✔' : '✘'} ${txt}`;
+    card('Autoclicker — détection rapide (#91)', !L ? 'aucune mesure (jeu pas encore mis à jour ou pas de clic)'
+      : L.automation ? 'autoclicker corroboré' : L.fixed ? `${e.samePixelRun} clics au même pixel` : 'rien de suspect', L ? [
+      [`Dernière fenêtre : ${secBxl(L.at)} — ${e.clicks} clics (les clics ne sont pas des blocs)`, 'tele'],
+      [yes(L.regular, L.regularKnown ? `Rythme de machine : écart ${e.robustCv == null ? '—' : `${Math.round(e.robustCv * 1000) / 10} %`} (machine si ≤ 5 % ; humain 8–20 %) ou ${Math.round((e.top3Share ?? 0) * 100)} % dans 3 classes de 4 ms (≥ 80 %) — médiane ${e.medianMs} ms` : 'Rythme : non mesurable (horloge du navigateur grossière ou < 20 intervalles)'), 'tele'],
+      [yes(L.fixed, `Même pixel : ${e.samePixelRun} clics de suite (seuil ${e.samePixelThreshold})`), 'tele'],
+      [yes(L.still, `Souris immobile : ${e.stillHits}/${e.mouseHits} clics sans déplacement`), 'tele'],
+      [yes(L.untrusted, `Clics générés par script : ${e.untrusted}/${e.clicks}`), 'tele'],
+      [yes(L.steady, `Cadence stable mesurée par le serveur : ${e.serverCps ?? '—'} clics/s`), 'server'],
+      [`Autoclicker corroboré ${fx.detections} fois${fx.lastAutomationAt ? ` (dernier : ${secBxl(fx.lastAutomationAt)})` : ''} · détection ${fx.settings.ab_fast_mode.toUpperCase()}`, 'server'],
+    ] : [], !!L?.automation);
+  }
   ess.appendChild(cards);
 
   // Origine des blocs détruits : rien n'est caché, chaque part est chiffrée et expliquée

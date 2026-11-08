@@ -757,7 +757,7 @@
       <ul class="sec-modes-help">
         <li><strong>Désactivé</strong> : aucune mesure, aucune vérification.</li>
         <li><strong>Observation</strong> : le serveur mesure et note ce qu'il aurait fait ; <strong>aucune vérification n'est imposée</strong>, rien n'est retiré.</li>
-        <li><strong>Appliqué</strong> : vérifications réelles pour tous ; tant qu'une vérification attend, les clics manuels ne comptent plus au classement. Une suspension (5 min → 24 h) n'arrive que si les clics continuent pendant la vérification.</li>
+        <li><strong>Appliqué</strong> : vérifications réelles pour tous ; tant qu'une vérification attend, les clics manuels ne comptent plus au classement. Une suspension (5 min → 24 h) n'arrive que si les clics continuent pendant la vérification, ou si un autoclicker (rythme de machine + même pixel + un 3ᵉ indice) reprend dans l'heure qui suit une vérification résolue (#91).</li>
       </ul>
       <div id="sec-resp-mode" class="sec-resp-mode"></div>
       <p class="sec-resp-line" id="sec-resp-params"></p>
@@ -841,6 +841,7 @@
                 <option value="challenge_issued">Défi imposé</option>
                 <option value="challenge_solved">Défi résolu</option>
                 <option value="suspension_started">Suspension du minage manuel</option>
+                <option value="suspension_shadow">Suspension simulée (Observation, #91)</option>
                 <option value="freeze_clamped">Crédit refusé pendant un défi (garde-fou du gel)</option>
                 <option value="antibot_admin">Action admin (essai, levée…)</option>
                 <option value="sustained_activity">Minage continu prolongé (indice)</option>

@@ -469,3 +469,35 @@ tiers — Turnstile recommandé : gratuit, sans cookie publicitaire, mode invisi
 même interface si le propriétaire fournit les clés) ; un humain qui résout chaque heure garde son
 automate (≈ 1 défi / h, aucune nuit sans humain) ; les pièces/gains restent déclarés par le client
 (#74) ; ≤ 12 s de clics entre la dernière sauvegarde retenue et la résolution peuvent être crédités.
+
+## 13. Détection rapide des autoclickers basiques (#91 lot 1, 08/11/2026)
+
+Décisions du propriétaire du 08/11 (issue #91) : détecter en secondes les autoclickers grand public
+(OP Auto Clicker, extensions Chrome) ; 25 clics consécutifs au même pixel → vérification réelle ;
+suspensions 5/15/30/60/120/720/1440 min seulement si l'automatisation est corroborée ; activation
+pour tous avec arrêt d'urgence dans Admin → Anti-bot.
+
+**Mesures du navigateur** (`public/js/main.js`, télémétrie `f` jointe à chaque sauvegarde, ≈ 12 s ;
+falsifiable, jamais une preuve seule) : intervalles entre coups (médiane, MAD, part des 3 classes de
+4 ms les plus remplies), plus longue série de coups aux mêmes coordonnées exactes (souris, tactile ;
+clavier exclu), coups de souris sans déplacement réel du pointeur, horloge grossière détectée. La
+sauvegarde part immédiatement au 25ᵉ coup au même pixel.
+
+**Mesure du serveur** : cadence (clics/s, horloge serveur) identique à ±2 % sur 4 des 5 dernières
+fenêtres.
+
+**Règles** (`server/autoclickDetector.js`, branchées sur le lot C) :
+
+| Règle | Condition | Réponse |
+|---|---|---|
+| 1 | ≥ `ab_same_pixel_clicks` (25) coups au même pixel | vérification ; au plus une par `ab_cooldown_min` (30) |
+| 2 | rythme de machine (≥ 40 intervalles, écart robuste ≤ 5 % ou ≥ 80 % dans 3 classes de 4 ms) + même pixel + 3ᵉ indice (souris immobile ≥ 90 %, clics non fiables ≥ 50 % ou cadence stable serveur) | vérification immédiate |
+| 3 | règle 2 sur 2 fenêtres consécutives, < `ab_fast_repeat_min` (60) après une vérification #91 résolue | suspension au palier suivant + nouvelle vérification |
+
+Jamais de suspension pour : clics au même pixel seuls, cadence élevée seule, énigme ratée ou
+expirée. Interrupteurs : `ab_fast_mode`, `ab_same_pixel_mode`, `ab_fast_suspend` (on/off) ; le mode
+global (Désactivé / Observation / Appliqué) reste prioritaire (Observation : « suspension simulée »
+journalisée `suspension_shadow`). Limites connues : autoclicker à cadence aléatoire ±10–35 % et
+mouvements simulés (lot 2) ; client modifié qui ment sur sa télémétrie (seules la cadence stable
+serveur, les seaux #9/#10 et le budget de dégâts restent alors) ; humain exceptionnellement régulier
+(CV ≈ 5 %) à souris immobile.
