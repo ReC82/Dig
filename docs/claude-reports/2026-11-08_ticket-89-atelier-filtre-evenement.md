@@ -8,7 +8,7 @@
 
 ### État réel
 
-__ETAT__
+**Déployé en production (SHA `313f153`, 08/11 23:10 Bruxelles) — en attente de recette.** Code `0d4d01f` sur la branche, fusion `313f153` dans `develop`.
 
 ### Diagnostic du signalement (« Oeil » → 0 résultat)
 
@@ -49,7 +49,7 @@ Ce que couvre le nouveau test : événement porté par chaque objet d'événemen
 
 ### Vérifications effectuées
 
-- Tests : __TESTS__
+- Tests : `npm test` complet **1018/1018** sur le SHA exact `313f153` (release) ; nouveau test 5/5 ; tests liés (atelier #40, images d'événement #65, reliques #64, navigation admin #50-F/#70) 51/51. Pendant le développement, un échec `fragment-pack-85` venait d'un serveur de test orphelin de ma propre première suite (port 3186 occupé). Il a été arrêté, et la suite a été rejouée entièrement en vert.
 - **Copie de la base de production** (serveur de test port 3289, `DIG_AI_FAKE=1`, aucun appel IA) : 164 cibles (22 blocs, 26 objets, 8 badges, **6 reliques**, 6 missions, 64 objets d'événement, 3 coffres, 29 pictogrammes).
 - **Chromium réel, PC 1280×900, 390×844 et 320×640**, 0 erreur JS, aucun défilement horizontal :
   - Novembre : 30 → « brique » : 1, « La brique de la liberté » ;
@@ -67,7 +67,12 @@ Aucun : aucune migration, aucune écriture, aucun changement de drops, d'événe
 
 ### Déploiement
 
-__DEPLOI__
+- SHA déployé : **`313f153`** (avance rapide de `main` depuis `8002219`, `scripts/deploy.sh` de la release, sans `npm ci`).
+- Sauvegarde vérifiée avant déploiement : `~/backups/dig/dig-20261108-231057-pre-deploy-313f153.sqlite`.
+- Avant : la copie de la base de production a démarré avec ce code (`NODE_ENV=production`, port 3122), et les empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` sont restées identiques. Copie supprimée ensuite.
+- Après : https://dig.lodygames.com et https://dig.lodylands.com → 200, `/api/version` = `1.0.0+313f153` ; journal sans erreur ; `pragma quick_check` = ok ; empreintes identiques à la sauvegarde. Chromium PC et 390 px : panel (écran de connexion) et jeu chargés sans erreur JS.
+- Aucune génération IA en cours au moment du redémarrage (dernier appel à 17:00 UTC).
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 8002219` puis `sudo systemctl restart dig` (pas de `npm ci`, le lock est inchangé). Aucune migration, donc rien à défaire dans la base.
 
 ### Test fonctionnel à faire par le propriétaire (≈ 3 min, sur PC puis téléphone)
 
