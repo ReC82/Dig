@@ -3537,30 +3537,47 @@
     <div class="section-header">
       <h2>🎉 Événements mensuels</h2>
       <div class="adm-head-actions">
-        <button class="btn btn-primary" id="btn-ev-add" type="button">＋ Ajouter</button>
+        <button class="btn btn-primary" id="btn-ev-add" type="button" title="Créer un nouvel événement (pour ajouter un objet à un événement existant : ouvrez sa fiche, puis « ＋ Ajouter un souvenir »)">＋ Nouvel événement</button>
         <button class="btn btn-outline" id="btn-ev-refresh" type="button">↻ Rafraîchir</button>
       </div>
     </div>
     <div class="overview-card" id="ev-prep">
-      <h3 class="overview-card-title">🗓️ Préparation du mois prochain</h3>
+      <div class="ev-prep-head">
+        <h3 class="overview-card-title">🗓️ Préparation du mois prochain</h3>
+        <button class="btn btn-primary" type="button" id="btn-ev-transition">🧪 Tester le passage au mois suivant</button>
+      </div>
+      <p class="muted ev-help">« Tester le passage » montre, sans rien modifier, quel événement est actif à 23:59:59, 00:00:00 puis 00:01 au changement de mois. Ce n'est pas « Planifier ».</p>
       <p id="ev-prep-headline" class="ev-prep-headline" role="status"></p>
       <div id="ev-prep-months" class="ev-prep-months"></div>
-      <details class="ev-prep-sim">
-        <summary>⏱ Aperçu d'un changement de mois (simulation, ne modifie rien)</summary>
-        <p class="muted ev-help">Événements publics actifs autour du passage au mois suivant, selon ce qui est planifié. Une minute sans événement de 00:00:00 à 00:00:59, jamais de chevauchement.</p>
-        <div style="overflow-x:auto"><table><thead><tr><th>Heure de Bruxelles</th><th>Événement public actif</th></tr></thead><tbody id="ev-prep-transition"></tbody></table></div>
-        <div class="ev-prep-simform">
-          <label>Simuler l'heure (Bruxelles) <input type="text" id="ev-prep-at" placeholder="JJ/MM/AAAA HH:mm" maxlength="16" inputmode="numeric"></label>
-          <button class="btn-ghost" type="button" id="ev-prep-sim-btn">Voir l'état à cette heure</button>
-          <button class="btn-ghost" type="button" id="ev-prep-sim-reset">Revenir à maintenant</button>
-        </div>
-        <p id="ev-prep-sim-msg" class="muted ev-help" aria-live="polite"></p>
-      </details>
     </div>
+
+    <!-- Recette #56-K : la simulation de bascule est un vrai bouton, en lecture seule, dans sa propre fenêtre -->
+    <dialog id="ev-transition-dialog" class="bk-dialog adm-dialog" aria-labelledby="ev-transition-title">
+      <div class="section-header bk-dialog-head">
+        <h3 class="overview-card-title" id="ev-transition-title">🧪 Tester le passage au mois suivant</h3>
+        <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
+      </div>
+      <div class="ev-transition-body">
+        <p class="ev-sim-only">🔒 Simulation en lecture seule : rien n'est planifié, publié ni modifié, aucun joueur n'est concerné.</p>
+        <p id="ev-transition-intro" class="ev-help"></p>
+        <div class="ev-scroll"><table class="ev-table"><thead><tr><th>Heure de Bruxelles</th><th>Événement public actif</th><th>Attendu</th></tr></thead><tbody id="ev-prep-transition"></tbody></table></div>
+        <p id="ev-transition-following" class="ev-help"></p>
+        <details class="ev-prep-sim">
+          <summary>Simuler une autre heure (lecture seule)</summary>
+          <div class="ev-prep-simform">
+            <label>Heure (Bruxelles) <input type="text" id="ev-prep-at" placeholder="JJ/MM/AAAA HH:mm" maxlength="16" inputmode="numeric"></label>
+            <button class="btn-ghost" type="button" id="ev-prep-sim-btn">Voir l'état à cette heure</button>
+            <button class="btn-ghost" type="button" id="ev-prep-sim-reset">Revenir à maintenant</button>
+          </div>
+          <p id="ev-prep-sim-msg" class="muted ev-help" aria-live="polite"></p>
+        </details>
+      </div>
+      <div class="bk-sheet-actions"><div class="form-actions"><button class="btn btn-outline" type="button" data-close>Fermer</button></div></div>
+    </dialog>
 
     <div class="overview-card">
       <p class="muted" style="font-size:0.8rem">Objets exclusifs tirés <strong>par le serveur</strong> sur les blocs dont le minage est validé ; un exemplaire par joueur, souvenir permanent, aucun gain de pièces ni de gemmes. Brouillon → planifié → actif → terminé ; « Repasser en brouillon » arrête les drops (objets trouvés conservés). Cliquez sur une ligne pour ouvrir la fiche.</p>
-      <div style="overflow-x:auto"><table class="ev-table"><thead><tr><th>État</th><th>Événement</th><th>Public</th><th>Dates (Bruxelles)</th><th>Objets</th><th>Trouvailles</th></tr></thead><tbody id="ev-list"></tbody></table></div>
+      <div class="ev-scroll"><table class="ev-table ev-list-table"><thead><tr><th>État</th><th>Événement</th><th>Public</th><th>Dates (Bruxelles)</th><th>Objets</th><th>Trouvailles</th></tr></thead><tbody id="ev-list"></tbody></table></div>
       <p id="ev-msg" class="hidden"></p>
       <ul id="ev-ai-jobs" class="muted" style="font-size:0.8rem"></ul>
     </div>
@@ -3573,7 +3590,7 @@
         <label>Année <select id="ev-cal-year"></select></label>
         <button class="btn-ghost" type="button" id="ev-cal-next" aria-label="Année suivante">▶</button>
       </div>
-      <div style="overflow-x:auto"><table class="ev-table"><thead><tr><th>Mois</th><th>Thème / inspiration</th><th>Période (Bruxelles)</th><th>État</th><th>Contenu</th><th>À préparer avant</th><th></th></tr></thead><tbody id="ev-calendar"></tbody></table></div>
+      <div class="ev-scroll"><table class="ev-table ev-cal-table"><thead><tr><th>Mois</th><th>Thème / inspiration</th><th>Période (Bruxelles)</th><th>État</th><th>Contenu</th><th>À préparer avant</th><th></th></tr></thead><tbody id="ev-calendar"></tbody></table></div>
     </details>
 
     <details class="overview-card">
@@ -3672,9 +3689,20 @@
           </div>
           <div id="ev-testers-box"><span class="ev-label">Testeurs</span><div id="ev-testers"></div></div>
         </fieldset>
-        <fieldset class="co-fs"><legend>Objets exclusifs</legend>
-          <div style="overflow-x:auto"><table class="ev-table ev-items-table"><thead><tr><th></th><th>Objet</th><th>Rareté</th><th>Sources</th><th>Chance / bloc</th><th>Langues</th><th title="« Pourquoi cet objet ? » : explication et source montrées au joueur après découverte">Pourquoi ?</th><th>Actif</th></tr></thead><tbody id="ev-items"></tbody></table></div>
-          <div class="form-actions"><button class="btn btn-outline" id="btn-ev-item-add" type="button">＋ Objet</button></div>
+        <fieldset class="co-fs" id="ev-items-fs"><legend>Objets exclusifs (souvenirs)</legend>
+          <p id="ev-content-line" class="ev-content-line" role="status"></p>
+          <div class="co-grid ev-target-row">
+            <label>Objectif éditorial (nombre de souvenirs visé, 0 = aucun) <input type="number" id="ev-target" min="0" max="40" step="1" style="width:90px"></label>
+            <button class="btn btn-outline" id="btn-ev-target" type="button">Enregistrer l'objectif</button>
+          </div>
+          <p class="muted ev-help">Objectif = information de préparation, jamais une condition de planification. « ＋ Ajouter un souvenir » l'enregistre comme <strong>proposition</strong> : elle ne tombe pas et reste invisible des joueurs, même si l'événement est planifié, jusqu'à « Publier les propositions ».</p>
+          <div class="ev-scroll"><table class="ev-table ev-items-table"><thead><tr><th></th><th>Objet</th><th>Rareté</th><th>Sources</th><th>Chance / bloc</th><th>Langues</th><th title="« Pourquoi cet objet ? » : explication et source montrées au joueur après découverte">Pourquoi ?</th><th>Actif</th></tr></thead><tbody id="ev-items"></tbody></table></div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="btn-ev-item-add" type="button">＋ Ajouter un souvenir</button>
+            <button class="btn btn-outline hidden" id="btn-ev-proposals-publish" type="button">📤 Publier les propositions cochées…</button>
+            <button class="btn btn-outline hidden" id="btn-ev-proposals-unpublish" type="button">↩ Retirer une publication…</button>
+          </div>
+          <p class="muted ev-help" id="ev-bonus-line">✨ Bonus des souvenirs : aucun bonus défini ni actif. Les souvenirs sont des objets de collection, séparés des micro-bonus (#81, en brouillon et inactifs) ; cumul simulé : aucun effet sur le minage ou le classement.</p>
         </fieldset>
         <details class="co-fs" id="ev-sim-box"><summary>📊 Simulateur de chances</summary>
           <div class="form-actions" style="align-items:center;flex-wrap:wrap">
@@ -3682,7 +3710,7 @@
             <label><input id="ev-sim-bpd" type="number" min="1" value="300" style="width:90px"> blocs validés / jour</label>
             <button class="btn btn-outline" id="btn-ev-sim" type="button">Simuler</button>
           </div>
-          <div id="ev-sim" style="overflow-x:auto"></div>
+          <div id="ev-sim" class="ev-scroll"></div>
         </details>
         <ul id="ev-readiness" class="ev-readiness"></ul>
       </div>
@@ -3763,6 +3791,9 @@
               <label class="co-span">Consigne d'illustration (anglais) <textarea id="evi-brief" rows="2" maxlength="600"></textarea></label>
             </div>
           </fieldset>
+          <fieldset class="co-fs"><legend>✨ Bonus du souvenir (#81)</legend>
+            <p class="ev-help">Aucun bonus défini — inactif. Ni permanent, ni calendaire : trouver ce souvenir ne change ni les dégâts, ni les gains, ni le classement. Cumul simulé avec les autres souvenirs : aucun effet. Les micro-bonus se préparent à part (#81) et restent désactivés.</p>
+          </fieldset>
         </div>
         <aside class="co-prop-preview" aria-label="Aperçu joueur">
           <div class="co-prop-cap muted">Aperçu joueur (<span id="evi-pv-lang">FR</span>)</div>
@@ -3779,7 +3810,7 @@
           <button class="btn btn-danger" id="btn-evi-remove" type="button">🗑 Retirer l'objet</button>
           <button class="btn btn-outline" type="button" data-close>Annuler</button>
         </div>
-        <p class="muted" style="font-size:0.75rem;margin:6px 0 0">« Appliquer » met à jour la fiche de l'événement ; rien n'est enregistré avant « Enregistrer le brouillon ».</p>
+        <p class="muted" style="font-size:0.75rem;margin:6px 0 0" id="evi-apply-help">« Appliquer » met à jour la fiche de l'événement ; rien n'est enregistré avant « Enregistrer le brouillon ».</p>
         <p id="evi-msg" class="hidden"></p>
       </div>
     </dialog>

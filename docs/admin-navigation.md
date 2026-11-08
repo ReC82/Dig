@@ -37,7 +37,8 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
 | Traiter les commandes de cadeaux | Saisons & compétition › Boutique de cadeaux › Commandes | `#a/shop-orders` |
 | Suspendre une amélioration en urgence | Jeu & progression › Améliorations › 🚨 Suspension d'urgence | `#a/upgrade-suspend` |
 | Rédiger une actualité | Contenu & événements › Actualités › « ＋ Ajouter » | `#a/news-add` |
-| Préparer un événement | Contenu & événements › Événements › « ＋ Ajouter » | `#a/event-add` |
+| Préparer un événement | Contenu & événements › Événements › « ＋ Nouvel événement » | `#a/event-add` |
+| Tester le passage au mois suivant | Contenu & événements › Événements › Préparation du mois prochain › « 🧪 Tester le passage au mois suivant » | `#a/event-transition` |
 | Ajouter un bloc | Jeu & progression › Blocs › « ＋ Ajouter un bloc » | `#a/block-add` |
 | Ajouter une mission quotidienne | Jeu & progression › Missions quotidiennes › « ＋ Ajouter une mission » | `#a/mission-add` |
 | Voir les dépenses IA (budget) | Exploitation & paramètres › Configuration › 🤖 Budget IA | `#a/ai-budget` |

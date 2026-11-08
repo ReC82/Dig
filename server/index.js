@@ -2391,6 +2391,20 @@ app.post('/api/admin/events/:id/start-now', requireAdmin, eventRoute('POST /api/
 app.post('/api/admin/events/:id/publish-images', requireAdmin, eventRoute('POST /api/admin/events/:id/publish-images', req => monthlyEvents.publishImages(eventId(req))));
 app.put('/api/admin/events/:id/items/:itemId/lore', requireAdmin, eventRoute('PUT /api/admin/events/:id/items/:itemId/lore',
   req => ({ lore: monthlyEvents.setItemLore(eventId(req), String(req.params.itemId ?? '').slice(0, 40), req.body ?? {}) })));
+// Recette #56-K : souvenirs PROPOSÉS (brouillon ou planifié ; ni drop ni affichage joueur avant « Publier les propositions »)
+const itemParam = req => String(req.params.itemId ?? '').slice(0, 40);
+app.post('/api/admin/events/:id/proposals', requireAdmin, eventRoute('POST /api/admin/events/:id/proposals',
+  req => ({ event: monthlyEvents.addProposal(eventId(req), req.body ?? {}) })));
+app.put('/api/admin/events/:id/proposals/:itemId', requireAdmin, eventRoute('PUT /api/admin/events/:id/proposals/:itemId',
+  req => ({ event: monthlyEvents.updateProposal(eventId(req), itemParam(req), req.body ?? {}) })));
+app.delete('/api/admin/events/:id/proposals/:itemId', requireAdmin, eventRoute('DELETE /api/admin/events/:id/proposals/:itemId',
+  req => ({ event: monthlyEvents.removeProposal(eventId(req), itemParam(req)) })));
+app.post('/api/admin/events/:id/proposals-publish', requireAdmin, eventRoute('POST /api/admin/events/:id/proposals-publish',
+  req => monthlyEvents.publishProposals(eventId(req), { itemIds: req.body?.itemIds, confirmRates: req.body?.confirmRates === true })));
+app.post('/api/admin/events/:id/proposals-unpublish', requireAdmin, eventRoute('POST /api/admin/events/:id/proposals-unpublish',
+  req => monthlyEvents.unpublishProposals(eventId(req), { itemIds: req.body?.itemIds })));
+app.put('/api/admin/events/:id/target', requireAdmin, eventRoute('PUT /api/admin/events/:id/target',
+  req => ({ event: monthlyEvents.setItemTarget(eventId(req), req.body?.itemTarget) })));
 app.post('/api/admin/events/:id/unschedule', requireAdmin, eventRoute('POST /api/admin/events/:id/unschedule', req => ({ event: monthlyEvents.unscheduleEvent(eventId(req)) })));
 app.get('/api/admin/events/:id/revisions', requireAdmin, eventRoute('GET /api/admin/events/:id/revisions', req => ({ revisions: monthlyEvents.listRevisions(eventId(req)) })));
 app.post('/api/admin/events/:id/restore', requireAdmin, eventRoute('POST /api/admin/events/:id/restore',
@@ -2858,6 +2872,8 @@ if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') 
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importLore();
 // Décisions écrites du propriétaire (planification de novembre et Noël 2026), une seule fois, mêmes contrôles que « Planifier »
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_EVENT_DECISIONS !== '0') monthlyEvents.applyOwnerDecisions();
+// Souvenirs PROPOSÉS préparés (server/content/event-proposals) : jamais publiés ni tirés, après les décisions (#56-K)
+if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importProposals();
 testRuns.init();                 // essais de test : instantanés, reset complet, restauration, audit chaîné (#75)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)
