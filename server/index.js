@@ -106,6 +106,7 @@ const gemShop = require('./gemShop');
 const fragmentPack = require('./fragmentPack');
 const pickaxeCharges = require('./pickaxeCharges');
 const microBonusDrafts = require('./microBonusDrafts');
+const souvenirBonus = require('./souvenirBonus');
 
 const { SHOP_CHESTS, rollChest, describeChests } = require('./chestShop');
 const rewardTables = require('./rewardTables');
@@ -1945,6 +1946,10 @@ app.put('/api/admin/micro-bonuses/:id', requireAdmin, microBonusRoute('PUT /api/
   const draft = microBonusDrafts.update(_mbId(req), req.body || {});
   return { draft, ...microBonusDrafts.adminSummary() };
 }));
+// Fiche « ✨ Bonus du souvenir » (#81, demande du 08/11) : proposition chiffrée en LECTURE seule.
+const _sbId = v => { const s = String(v ?? ''); if (!/^[a-z][a-z0-9_]{1,39}$/.test(s)) throw new microBonusDrafts.DraftError(400, 'Souvenir invalide.'); return s; };
+app.get('/api/admin/souvenir-bonus/:eventId/:itemId', requireAdmin, microBonusRoute('GET /api/admin/souvenir-bonus',
+  req => souvenirBonus.itemSheet(_sbId(req.params.eventId), _sbId(req.params.itemId))));
 app.post('/api/admin/micro-bonuses/:id/archive', requireAdmin, microBonusRoute('POST /api/admin/micro-bonuses/:id/archive', req => {
   const draft = microBonusDrafts.setArchived(_mbId(req), req.body?.archived !== false);
   return { draft, ...microBonusDrafts.adminSummary() };

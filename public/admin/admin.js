@@ -12612,6 +12612,7 @@ function eviOpen(idx, opener) {
     ? '📝 Proposition : enregistrée tout de suite, mais ni tirée ni visible des joueurs tant qu\'elle n\'est pas publiée (« Publier les propositions cochées » dans la fiche). Le statut de l\'événement et ses objets publiés ne changent pas.'
     : '« Appliquer » met à jour la fiche de l\'événement ; rien n\'est enregistré avant « Enregistrer le brouillon ».';
   eviRenderImageState();
+  eviRenderBonus();
   document.getElementById('ev-item-title').textContent = idx >= 0 ? `${it.icon} ${it.names.fr || it.id}${proposalMode ? ' (proposition)' : ro ? ' (consultation)' : ''}${found ? ` — trouvé ${found} fois` : ''}`
     : (proposalMode ? `＋ Nouveau souvenir proposé — ${_evCur.ev.names.fr}` : 'Nouvel objet');
   nwMessage('evi-msg', '');
@@ -12632,6 +12633,115 @@ function eviRenderImageState() {
     draft: ' Pas encore vue des joueurs : « Publier les images » dans la fiche de l\'événement.', published: ' C\'est l\'image que voient les joueurs.' }[saved.imageState] ?? '';
   box.appendChild(document.createTextNode(why));
 }
+
+// ── #81 (demande du 08/11) : fiche « ✨ Bonus du souvenir » — proposition chiffrée, LECTURE seule ──
+let _eviBonusSeq = 0;
+const eviPct = c => c.zero ? '0 % (aucun)' : c.pct < 0.01 ? '< 0,01 %' : `+${mbFr(c.pct)} %`;
+/** Tableau profondeur × dégâts de base : % de blocs détruits en plus à nombre de coups égal. */
+function eviGainTable(gains, bases) {
+  const t = aiEl('table', { class: 'evi-bonus-table' });
+  const hr = aiEl('tr');
+  hr.appendChild(aiEl('th', {}, 'Profondeur'));
+  for (const b of bases) hr.appendChild(aiEl('th', {}, `Pioche ${mbFr(b)} dégât${b > 1 ? 's' : ''}`));
+  t.appendChild(aiEl('thead')).appendChild(hr);
+  const body = t.appendChild(aiEl('tbody'));
+  for (const g of gains) {
+    const tr = body.appendChild(aiEl('tr'));
+    tr.appendChild(aiEl('td', {}, `${g.depth} m`));
+    for (const c of g.cells) tr.appendChild(aiEl('td', c.zero ? { class: 'mb-zero' } : {}, eviPct(c)));
+  }
+  const wrap = aiEl('div', { class: 'evi-bonus-scroll' });
+  wrap.appendChild(t);
+  return wrap;
+}
+function eviList(items) { const ul = aiEl('ul', { class: 'evi-bonus-list' }); for (const x of items) ul.appendChild(aiEl('li', {}, x)); return ul; }
+
+async function eviRenderBonus() {
+  const status = document.getElementById('evi-bonus-status'), box = document.getElementById('evi-bonus');
+  const btn = document.getElementById('btn-evi-bonus-draft');
+  box.textContent = '';
+  const ev = _evCur.ev, saved = _evi && _evi.idx >= 0 ? ev?.items.find(x => x.id === _evi.item.id) : null;
+  btn.disabled = !saved;
+  if (!saved) { status.textContent = '🔒 Aucun bonus — enregistrez d\'abord l\'objet dans l\'événement pour voir la proposition chiffrée.'; return; }
+  status.textContent = 'Chargement de la proposition…';
+  const seq = ++_eviBonusSeq;
+  const { ok, data } = await api('GET', `/api/admin/souvenir-bonus/${encodeURIComponent(ev.id)}/${encodeURIComponent(saved.id)}`);
+  if (seq !== _eviBonusSeq) return;   // fiche refermée ou autre objet ouvert entre-temps
+  if (!ok) { status.textContent = data.error ?? 'Proposition indisponible.'; return; }
+  status.textContent = data.status;
+  const lead = 'Gain = blocs détruits en plus pour le même nombre de coups (le classement compte les blocs détruits à la main), bonus supposé actif, sans Chance. « 0 % (aucun) » : aucun bloc ne demande un coup de moins.';
+  if (data.drafts.length) {
+    box.appendChild(aiEl('h4', { class: 'evi-bonus-h' }, 'Brouillon(s) lié(s) à ce souvenir'));
+    if (data.multipleWarning) box.appendChild(aiEl('p', { class: 'ev-help' }, `⚠️ ${data.multipleWarning}`));
+    for (const d of data.drafts) {
+      const card = box.appendChild(aiEl('div', { class: 'evi-bonus-card' }));
+      card.appendChild(aiEl('strong', {}, `#${d.id} ${d.label}${d.counted ? '' : ' (ignoré : un seul bonus par type)'}`));
+      card.appendChild(eviList([`Effet : ${d.text}`, `Type : ${d.kind}`, `Calendrier : ${d.calendar}`,
+        `📅 ${d.wouldNow}${d.next ? ` — ${d.next}` : ''} (s'il était publié).`, '🔒 Statut réel : brouillon — jamais appliqué au jeu.']));
+      card.appendChild(eviGainTable(d.gains, data.bases));
+    }
+  } else {
+    box.appendChild(aiEl('p', { class: 'ev-help' }, 'Aucun brouillon lié : ce souvenir ne donne aucun bonus. Ci-dessous, deux variantes à arbitrer (non enregistrées, jamais appliquées).'));
+  }
+  const prop = box.appendChild(aiEl('details', { class: 'evi-bonus-details' }));
+  prop.open = !data.drafts.length;
+  prop.appendChild(aiEl('summary', {}, 'Proposition à arbitrer — gain de CE souvenir seul selon la profondeur'));
+  prop.appendChild(aiEl('p', { class: 'muted ev-help' }, lead));
+  for (const v of data.variants) {
+    prop.appendChild(aiEl('p', { class: 'evi-bonus-h' }, `Variante ${v.label} : ${v.text}`));
+    prop.appendChild(eviGainTable(v.gains, data.bases));
+  }
+  const c = data.cumulative;
+  const cum = box.appendChild(aiEl('details', { class: 'evi-bonus-details' }));
+  cum.appendChild(aiEl('summary', {}, `Effet cumulé de tous les souvenirs (${c.events.map(e => `${e.count} ${e.name}${e.proposals ? ` dont ${e.proposals} proposés` : ''}`).join(' + ')} = ${c.totalSouvenirs}) et plafonds anti-vétérans`));
+  cum.appendChild(aiEl('p', { class: 'ev-help' }, c.linked.drafts
+    ? `Brouillons liés aujourd'hui : ${c.linked.drafts} (${c.linked.types} type(s) de souvenir) — cumul brut +${mbFr(c.linked.rawNow)}, après plafond technique +${mbFr(c.linked.totalNow)} ; toujours inactifs en jeu.`
+    : 'Brouillons liés aujourd\'hui : aucun. Effet réel en jeu : aucun.'));
+  for (const v of c.variants) {
+    cum.appendChild(aiEl('p', { class: 'evi-bonus-h' }, `Variante ${v.label} — ${v.help}`));
+    const t = aiEl('table', { class: 'evi-bonus-table' });
+    const hr = aiEl('tr');
+    for (const h of ['Souvenirs possédés (types)', 'Bonus brut', 'Après plafond', '10 m', '50 m', '100 m', 'Moyenne semaine (50 m)', 'Sans plafond (50 m)']) hr.appendChild(aiEl('th', {}, h));
+    t.appendChild(aiEl('thead')).appendChild(hr);
+    const body = t.appendChild(aiEl('tbody'));
+    for (const r of v.rows) {
+      const tr = body.appendChild(aiEl('tr'));
+      tr.appendChild(aiEl('td', {}, String(r.count)));
+      tr.appendChild(aiEl('td', {}, `+${mbFr(r.raw)}`));
+      tr.appendChild(aiEl('td', {}, `+${mbFr(r.effective)}${r.capped ? ' (plafonné)' : ''}`));
+      for (const g of r.gains) tr.appendChild(aiEl('td', g.zero ? { class: 'mb-zero' } : {}, eviPct(g)));
+      tr.appendChild(aiEl('td', {}, `+${mbFr(r.week50)} %`));
+      tr.appendChild(aiEl('td', {}, `+${mbFr(r.uncapped50)} %${r.raw > 1 ? ' (borné à +1)' : ''}`));
+    }
+    const wrap = aiEl('div', { class: 'evi-bonus-scroll' }); wrap.appendChild(t); cum.appendChild(wrap);
+  }
+  cum.appendChild(aiEl('p', { class: 'evi-bonus-h' }, 'Plafonds anti-avantage des vétérans (proposés)'));
+  cum.appendChild(eviList(c.caps));
+  cum.appendChild(aiEl('p', { class: 'evi-bonus-h' }, 'Hypothèses'));
+  cum.appendChild(eviList(c.hypotheses));
+  const rules = box.appendChild(aiEl('details', { class: 'evi-bonus-details' }));
+  rules.appendChild(aiEl('summary', {}, 'Règles proposées : possession à vie, doubles et échanges'));
+  rules.appendChild(eviList(data.rules));
+}
+
+/** Ouvre la fiche Micro-bonus par-dessus, préremplie et liée à ce souvenir (brouillon, rien d'enregistré sans clic). */
+async function eviBonusDraft() {
+  const ev = _evCur.ev, saved = _evi && _evi.idx >= 0 ? ev?.items.find(x => x.id === _evi.item.id) : null;
+  if (!saved) return;
+  if (!_mb) {
+    const { ok, data } = await api('GET', '/api/admin/micro-bonuses');
+    if (!ok) return nwMessage('evi-msg', data.error ?? 'Micro-bonus indisponibles.', true);
+    renderMicroBonus(data);
+  }
+  // la fiche Micro-bonus vit dans sa rubrique (masquée ici) : un <dialog> sous un parent masqué ne s'affiche pas
+  const mbDlg = document.getElementById('mb-dialog');
+  if (mbDlg.parentElement !== document.body) document.body.appendChild(mbDlg);
+  mbOpen(null, document.getElementById('btn-evi-bonus-draft'));
+  mbWrite({ label: `Bonus — ${saved.names.fr || saved.id}`.slice(0, 80), note: 'Proposition liée au souvenir (#81) — brouillon, inactif en jeu.',
+    effect: { value: 0.01, target: { type: 'all' }, schedule: {}, source: { eventId: ev.id, itemId: saved.id } } });
+  document.getElementById('mb-dialog')._admTrack?.clean();
+}
+document.getElementById('btn-evi-bonus-draft').addEventListener('click', eviBonusDraft);
 
 /** #65 : ouvre la cible `event:<événement>/<objet>` de l'atelier (fiche préremplie), sans rien générer. */
 async function eviOpenStudio() {
@@ -15230,6 +15340,7 @@ document.getElementById('btn-mb-save').addEventListener('click', async () => {
   document.getElementById('mb-dialog').close();
   renderMicroBonus(data);
   adMessage('mb-msg', `Brouillon « ${data.draft.label} » enregistré (inactif en jeu).`, true);
+  if (document.getElementById('ev-item-dialog').open) eviRenderBonus();   // fiche souvenir ouverte dessous (#81)
 });
 
 document.getElementById('btn-mb-archive').addEventListener('click', async () => {
