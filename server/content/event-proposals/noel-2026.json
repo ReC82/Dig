@@ -1,0 +1,631 @@
+{
+  "_comment": "Recette #56-K (08/11/2026) : 26 souvenirs PROPOSÉS pour « Noël sous la mine » (objectif 31). Importés une seule fois en proposition : jamais publiés, jamais tirés sans « Publier les propositions » (barème validé par le propriétaire). Barème suggéré aligné sur novembre (#86) ; les 5 objets planifiés ne changent pas.",
+  "eventId": "noel_2026",
+  "itemTarget": 31,
+  "items": [
+    {
+      "id": "noel26_02_couronne_papier",
+      "icon": "👑",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-02",
+      "inspiration": "Sacre de Napoléon à Notre-Dame, 2 décembre 1804 (il se couronne lui-même). (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Couronne de papier du pétard",
+        "en": "Paper Cracker Crown",
+        "nl": "Papieren kroontje uit de knalbonbon",
+        "es": "Corona de papel del petardo"
+      },
+      "descs": {
+        "fr": "Sortie d'un pétard de Noël. Un lutin se l'est posée lui-même sur la tête en criant « Empereur du réveillon ! ». Personne n'a osé le contredire.",
+        "en": "Pulled out of a Christmas cracker. An elf put it on his own head shouting \"Emperor of Christmas Eve!\". Nobody dared to argue.",
+        "nl": "Uit een kerstknalbonbon getrokken. Een elf zette hem zelf op zijn hoofd en riep: \"Keizer van kerstavond!\". Niemand durfde te protesteren.",
+        "es": "Salió de un petardo navideño. Un elfo se la puso él mismo en la cabeza gritando «¡Emperador de Nochebuena!». Nadie se atrevió a llevarle la contraria."
+      },
+      "brief": "A slightly crumpled golden paper crown from a Christmas cracker, folded zigzag points, a torn cracker tube beside it."
+    },
+    {
+      "id": "noel26_03_coeur_pain_epice",
+      "icon": "🫀",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-03",
+      "inspiration": "Première transplantation cardiaque humaine, Le Cap, 3 décembre 1967. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Cœur en pain d'épice recollé",
+        "en": "Glued Gingerbread Heart",
+        "nl": "Gelijmd peperkoekhart",
+        "es": "Corazón de jengibre pegado"
+      },
+      "descs": {
+        "fr": "Cassé en deux pendant la livraison, puis recollé au glaçage par un lutin très concentré. L'opération est un succès. Le goût, beaucoup moins.",
+        "en": "Broken in two during delivery, then glued back with icing by a very focused elf. The operation was a success. The taste, much less so.",
+        "nl": "Tijdens de levering in tweeën gebroken en door een zeer geconcentreerde elf met glazuur weer aan elkaar geplakt. De operatie is geslaagd. De smaak veel minder.",
+        "es": "Se partió en dos durante el reparto y un elfo muy concentrado lo pegó con glaseado. La operación fue un éxito. El sabor, bastante menos."
+      },
+      "brief": "A heart-shaped gingerbread cookie cracked down the middle and stuck back together with thick white icing, a few crumbs around it."
+    },
+    {
+      "id": "noel26_04_lampe_sainte_barbe",
+      "icon": "🪔",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-04",
+      "inspiration": "Sainte Barbe (4 décembre), patronne des mineurs : fête traditionnelle des mines en Belgique et dans le Nord. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Lampe de mineur de la Sainte-Barbe",
+        "en": "Saint Barbara's Miner Lamp",
+        "nl": "Mijnwerkerslamp van Sint-Barbara",
+        "es": "Lámpara minera de Santa Bárbara"
+      },
+      "descs": {
+        "fr": "Chaque 4 décembre, les mineurs fêtent leur patronne. Cette lampe est restée allumée depuis, par pur esprit de fête. Personne ne sait ce qu'elle brûle.",
+        "en": "Every 4 December, miners celebrate their patron saint. This lamp has stayed lit ever since, out of pure festive spirit. Nobody knows what it burns.",
+        "nl": "Elke 4 december vieren mijnwerkers hun beschermheilige. Deze lamp brandt sindsdien, uit puur feestgevoel. Niemand weet wat ze verbrandt.",
+        "es": "Cada 4 de diciembre, los mineros celebran a su patrona. Esta lámpara sigue encendida desde entonces, por puro espíritu festivo. Nadie sabe qué quema."
+      },
+      "brief": "An old brass miner's safety lamp with a warm glowing flame, a small sprig of holly tied to its handle, coal dust on the glass."
+    },
+    {
+      "id": "noel26_05_boite_musique",
+      "icon": "🎶",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-05",
+      "inspiration": "Mort de Mozart, Vienne, 5 décembre 1791. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Boîte à musique enrayée",
+        "en": "Jammed Music Box",
+        "nl": "Vastgelopen muziekdoos",
+        "es": "Caja de música atascada"
+      },
+      "descs": {
+        "fr": "Elle devait jouer un air de Mozart. Elle joue les trois premières notes, s'arrête, puis recommence. Les taupes du coin ne dorment plus depuis 1791.",
+        "en": "It was meant to play a Mozart tune. It plays the first three notes, stops, then starts again. The local moles haven't slept since 1791.",
+        "nl": "Hij moest een melodie van Mozart spelen. Hij speelt de eerste drie noten, stopt en begint opnieuw. De mollen in de buurt slapen al niet meer sinds 1791.",
+        "es": "Debía tocar una melodía de Mozart. Toca las tres primeras notas, se para y vuelve a empezar. Los topos de la zona no duermen desde 1791."
+      },
+      "brief": "A small open wooden music box with a tiny brass cylinder and comb, one bent tooth, a little paper snowflake stuck inside the lid."
+    },
+    {
+      "id": "noel26_07_chaussette_depareillee",
+      "icon": "🧦",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-07",
+      "inspiration": "",
+      "names": {
+        "fr": "Chaussette dépareillée de cheminée",
+        "en": "Odd Chimney Stocking",
+        "nl": "Losse schoorsteensok",
+        "es": "Calcetín desparejado de chimenea"
+      },
+      "descs": {
+        "fr": "La deuxième est quelque part, accrochée à une autre cheminée. Le Père Noël l'a remplie quand même : elle contient un caillou et beaucoup d'espoir.",
+        "en": "Its pair is somewhere, hanging from another chimney. Santa filled it anyway: it holds one pebble and a lot of hope.",
+        "nl": "De andere hangt ergens aan een andere schoorsteen. De Kerstman heeft hem toch gevuld: er zit één kiezel in en heel veel hoop.",
+        "es": "Su pareja está en alguna parte, colgada de otra chimenea. Papá Noel la llenó igualmente: contiene una piedrecita y mucha esperanza."
+      },
+      "brief": "A single red and white knitted Christmas stocking with a hole in the toe, a small grey pebble peeking out, dusted with soil."
+    },
+    {
+      "id": "noel26_08_lumignon",
+      "icon": "🕯️",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-08",
+      "inspiration": "Fête des Lumières de Lyon (8 décembre) : lumignons posés aux fenêtres. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Lumignon tombé de la fenêtre",
+        "en": "Candle Fallen from the Window",
+        "nl": "Lichtje van de vensterbank",
+        "es": "Farolillo caído de la ventana"
+      },
+      "descs": {
+        "fr": "Posé sur un rebord de fenêtre pour faire joli, poussé par un chat pour faire moins joli, il a roulé jusqu'ici. Il brille encore, par fierté.",
+        "en": "Placed on a windowsill to look pretty, pushed by a cat to look less pretty, it rolled all the way down here. It still glows, out of pride.",
+        "nl": "Op een vensterbank gezet om mooi te staan, door een kat eraf geduwd om minder mooi te staan, en tot hier gerold. Het brandt nog, uit trots.",
+        "es": "Puesto en el alféizar para quedar bonito, empujado por un gato para quedar menos bonito, rodó hasta aquí. Aún brilla, por orgullo."
+      },
+      "brief": "A small candle in a ridged glass cup with a gentle flame, a little wax drip on the side, resting on a rock ledge."
+    },
+    {
+      "id": "noel26_09_souris_lutin",
+      "icon": "🖱️",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-09",
+      "inspiration": "Démonstration publique de la première souris d'ordinateur (Douglas Engelbart), 9 décembre 1968. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Souris du lutin informaticien",
+        "en": "The IT Elf's Mouse",
+        "nl": "Muis van de IT-elf",
+        "es": "Ratón del elfo informático"
+      },
+      "descs": {
+        "fr": "La liste des enfants sages est passée sur ordinateur. Le lutin chargé du système a perdu sa souris : depuis, il clique avec une carotte de renne.",
+        "en": "The nice list has gone digital. The elf in charge of the system lost his mouse: since then, he clicks with a reindeer carrot.",
+        "nl": "De lijst van brave kinderen staat nu op de computer. De elf die het systeem beheert, is zijn muis kwijt: sindsdien klikt hij met een rendierwortel.",
+        "es": "La lista de niños buenos ya está en el ordenador. El elfo encargado del sistema perdió su ratón: desde entonces hace clic con una zanahoria de reno."
+      },
+      "brief": "A chunky vintage wooden computer mouse with a single red button and a curly cable, a tiny elf hat stuck on top."
+    },
+    {
+      "id": "noel26_10_medaille_chocolat",
+      "icon": "🏅",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-10",
+      "inspiration": "Remise des prix Nobel, chaque 10 décembre (anniversaire de la mort d'Alfred Nobel, 1896). (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Médaille en chocolat du meilleur lutin",
+        "en": "Best Elf Chocolate Medal",
+        "nl": "Chocolademedaille voor de beste elf",
+        "es": "Medalla de chocolate al mejor elfo"
+      },
+      "descs": {
+        "fr": "Décernée chaque année au lutin le plus méritant. Cette année, le jury l'a mangée avant la cérémonie. Il reste la médaille. Enfin, l'emballage.",
+        "en": "Awarded every year to the most deserving elf. This year, the jury ate it before the ceremony. The medal remains. Well, the wrapper.",
+        "nl": "Elk jaar uitgereikt aan de verdienstelijkste elf. Dit jaar heeft de jury hem voor de ceremonie opgegeten. De medaille blijft. Nou ja, de wikkel.",
+        "es": "Se entrega cada año al elfo más meritorio. Este año el jurado se la comió antes de la ceremonia. Queda la medalla. Bueno, el envoltorio."
+      },
+      "brief": "A gold foil-wrapped chocolate coin medal on a red ribbon, foil partly peeled showing a bite mark in the chocolate."
+    },
+    {
+      "id": "noel26_11_lettre_pere_noel",
+      "icon": "✉️",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-11",
+      "inspiration": "",
+      "names": {
+        "fr": "Lettre au Père Noël tombée du sac",
+        "en": "Letter to Santa, Dropped",
+        "nl": "Brief aan de Kerstman, uit de zak gevallen",
+        "es": "Carta a Papá Noel caída del saco"
+      },
+      "descs": {
+        "fr": "« Cher Père Noël, cette année j'ai été très sage, sauf mardi. » La suite est illisible. Le Père Noël enquête toujours sur ce mardi.",
+        "en": "\"Dear Santa, this year I have been very good, except on Tuesday.\" The rest is unreadable. Santa is still investigating that Tuesday.",
+        "nl": "\"Lieve Kerstman, dit jaar ben ik heel braaf geweest, behalve op dinsdag.\" De rest is onleesbaar. De Kerstman onderzoekt die dinsdag nog steeds.",
+        "es": "«Querido Papá Noel, este año he sido muy bueno, menos el martes.» El resto es ilegible. Papá Noel sigue investigando ese martes."
+      },
+      "brief": "A folded child's letter in a slightly torn envelope with a drawn star and crayon handwriting, a smudge of soil on one corner."
+    },
+    {
+      "id": "noel26_12_talkie_rennes",
+      "icon": "📻",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-12",
+      "inspiration": "Première transmission radio transatlantique (Marconi), 12 décembre 1901. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Talkie-walkie des rennes",
+        "en": "Reindeer Walkie-Talkie",
+        "nl": "Portofoon van de rendieren",
+        "es": "Walkie-talkie de los renos"
+      },
+      "descs": {
+        "fr": "Pour communiquer pendant la tournée. Rudolph appelle Tornade : « Tu me reçois ? ». Réponse : grésillements, puis le bruit d'un renne qui mâche.",
+        "en": "For talking during the round. Rudolph calls Dasher: \"Do you copy?\". Answer: static, then the sound of a reindeer chewing.",
+        "nl": "Om te praten tijdens de ronde. Rudolf roept Dasher op: \"Ontvang je mij?\". Antwoord: geruis, en dan het geluid van een kauwend rendier.",
+        "es": "Para hablar durante el reparto. Rodolfo llama a Brioso: «¿Me recibes?». Respuesta: chisporroteo y luego el ruido de un reno masticando."
+      },
+      "brief": "A small rugged red walkie-talkie with a stubby antenna and a tiny antler sticker, a crackle symbol drawn on the speaker grille."
+    },
+    {
+      "id": "noel26_13_couronne_lucie",
+      "icon": "🕯️",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-13",
+      "inspiration": "Sainte-Lucie (13 décembre), fête des lumières en Suède et en Scandinavie. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Couronne de bougies de sainte Lucie",
+        "en": "Saint Lucy's Candle Crown",
+        "nl": "Kaarsenkroon van Sint-Lucia",
+        "es": "Corona de velas de Santa Lucía"
+      },
+      "descs": {
+        "fr": "Portée en Suède chaque 13 décembre pour apporter la lumière. Sous terre, elle sert surtout à retrouver ses clés. Et à roussir ses cheveux.",
+        "en": "Worn in Sweden every 13 December to bring light. Underground, it is mostly used to find your keys. And to singe your hair.",
+        "nl": "In Zweden elke 13 december gedragen om licht te brengen. Onder de grond dient hij vooral om je sleutels terug te vinden. En om je haar te schroeien.",
+        "es": "Se lleva en Suecia cada 13 de diciembre para traer la luz. Bajo tierra sirve sobre todo para encontrar las llaves. Y para chamuscarse el pelo."
+      },
+      "brief": "A wreath crown of green lingonberry leaves holding white candles, small flames lit, a little wax dripping onto a stone."
+    },
+    {
+      "id": "noel26_14_boussole_pole",
+      "icon": "🧭",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-14",
+      "inspiration": "Roald Amundsen atteint le pôle Sud, 14 décembre 1911. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Boussole qui cherche le pôle Nord",
+        "en": "Compass Looking for the North Pole",
+        "nl": "Kompas dat de Noordpool zoekt",
+        "es": "Brújula que busca el Polo Norte"
+      },
+      "descs": {
+        "fr": "Un lutin explorateur l'a emportée au pôle Sud « pour rentrer plus vite ». Depuis, l'aiguille tourne sur elle-même, vexée.",
+        "en": "An explorer elf took it to the South Pole \"to get home faster\". Since then, the needle spins round and round, offended.",
+        "nl": "Een ontdekkingselfje nam het mee naar de Zuidpool \"om sneller thuis te zijn\". Sindsdien draait de naald beledigd in het rond.",
+        "es": "Un elfo explorador se la llevó al Polo Sur «para volver antes a casa». Desde entonces la aguja da vueltas sin parar, ofendida."
+      },
+      "brief": "An old brass pocket compass with a cracked glass face, the needle blurred as if spinning, a tiny snowflake engraved on the lid."
+    },
+    {
+      "id": "noel26_15_dictionnaire_lutin",
+      "icon": "📕",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-15",
+      "inspiration": "Naissance de L. L. Zamenhof, créateur de l'espéranto, 15 décembre 1859. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Dictionnaire lutin–humain",
+        "en": "Elf–Human Dictionary",
+        "nl": "Woordenboek Elf–Mens",
+        "es": "Diccionario elfo–humano"
+      },
+      "descs": {
+        "fr": "Indispensable pour lire les lettres. « Joyeux Noël » se dit « Gâteau ! » en lutin. Ou peut-être l'inverse : la page est déchirée.",
+        "en": "Essential for reading the letters. \"Merry Christmas\" is \"Cake!\" in Elvish. Or maybe the other way round: the page is torn.",
+        "nl": "Onmisbaar om de brieven te lezen. \"Vrolijk kerstfeest\" is \"Taart!\" in het Elfs. Of misschien andersom: de bladzijde is gescheurd.",
+        "es": "Imprescindible para leer las cartas. «Feliz Navidad» se dice «¡Pastel!» en élfico. O quizá al revés: la página está rota."
+      },
+      "brief": "A small thick red leather-bound dictionary with gold lettering and a pointed elf ear embossed on the cover, one page torn and sticking out."
+    },
+    {
+      "id": "noel26_16_partition_grignotee",
+      "icon": "🎼",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-16",
+      "inspiration": "Beethoven, né à Bonn vers le 16 décembre 1770 (baptisé le 17). (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Partition de chant de Noël grignotée",
+        "en": "Nibbled Carol Sheet Music",
+        "nl": "Aangeknaagde bladmuziek van een kerstlied",
+        "es": "Partitura de villancico mordisqueada"
+      },
+      "descs": {
+        "fr": "Une souris a mangé le refrain. Les lutins chantent donc les couplets, puis fredonnent n'importe quoi d'un air très convaincu.",
+        "en": "A mouse ate the chorus. So the elves sing the verses, then hum any old thing with great conviction.",
+        "nl": "Een muis heeft het refrein opgegeten. Dus zingen de elfen de coupletten en neuriën daarna van alles, heel overtuigd.",
+        "es": "Un ratón se comió el estribillo. Así que los elfos cantan las estrofas y luego tararean cualquier cosa muy convencidos."
+      },
+      "brief": "A sheet of old yellowed music paper with handwritten notes, one corner nibbled away in little bite marks, a holly leaf on top."
+    },
+    {
+      "id": "noel26_17_helice_traineau",
+      "icon": "✈️",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-17",
+      "inspiration": "Premier vol motorisé des frères Wright, 17 décembre 1903. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Hélice de traîneau expérimental",
+        "en": "Experimental Sleigh Propeller",
+        "nl": "Propeller van een proefslee",
+        "es": "Hélice de trineo experimental"
+      },
+      "descs": {
+        "fr": "Prototype abandonné : un traîneau à moteur, plus rapide que les rennes. Les rennes ont fait grève. Le moteur a été « perdu » sous terre.",
+        "en": "Abandoned prototype: a motorised sleigh, faster than reindeer. The reindeer went on strike. The engine was \"lost\" underground.",
+        "nl": "Verlaten prototype: een gemotoriseerde slee, sneller dan rendieren. De rendieren gingen in staking. De motor is onder de grond \"verloren\".",
+        "es": "Prototipo abandonado: un trineo con motor, más rápido que los renos. Los renos se declararon en huelga. El motor se «perdió» bajo tierra."
+      },
+      "brief": "A small two-blade wooden propeller painted red with gold stripes, one tip chipped, a little bent bolt still in the hub."
+    },
+    {
+      "id": "noel26_18_pull_qui_gratte",
+      "icon": "🧶",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-18",
+      "inspiration": "",
+      "names": {
+        "fr": "Pull de Noël qui gratte",
+        "en": "Itchy Christmas Jumper",
+        "nl": "Kriebelende kersttrui",
+        "es": "Jersey navideño que pica"
+      },
+      "descs": {
+        "fr": "Tricoté par une tante, offert avec amour, enterré avec soulagement. Le renne brodé dessus a un regard qui juge.",
+        "en": "Knitted by an aunt, given with love, buried with relief. The reindeer stitched on it has a judging stare.",
+        "nl": "Gebreid door een tante, met liefde gegeven, met opluchting begraven. Het geborduurde rendier erop kijkt je veroordelend aan.",
+        "es": "Tejido por una tía, regalado con cariño, enterrado con alivio. El reno bordado tiene una mirada que juzga."
+      },
+      "brief": "A folded green knitted Christmas jumper with a slightly cross-eyed reindeer pattern and snowflakes, loose threads, a bit of dirt."
+    },
+    {
+      "id": "noel26_19_chaine_marley",
+      "icon": "⛓️",
+      "rarity": "legendaire",
+      "chancePct": 0.03,
+      "minDepth": 20,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-19",
+      "inspiration": "Publication d'« Un chant de Noël » de Charles Dickens, 19 décembre 1843. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Chaîne du fantôme de Marley",
+        "en": "Marley's Ghostly Chain",
+        "nl": "Spookketting van Marley",
+        "es": "Cadena del fantasma de Marley"
+      },
+      "descs": {
+        "fr": "Forgée maillon par maillon d'avarice, dit le livre. Un fantôme l'a laissée tomber en traversant la mine. Elle cliquette encore la nuit, par habitude.",
+        "en": "Forged link by link out of greed, says the book. A ghost dropped it while drifting through the mine. It still rattles at night, out of habit.",
+        "nl": "Schakel voor schakel uit gierigheid gesmeed, zegt het boek. Een spook liet hem vallen toen het door de mijn zweefde. Hij rammelt nog 's nachts, uit gewoonte.",
+        "es": "Forjada eslabón a eslabón con avaricia, dice el libro. Un fantasma la dejó caer al cruzar la mina. Todavía tintinea por la noche, por costumbre."
+      },
+      "brief": "A heavy rusty iron chain with a small padlock and a cash box attached, faintly glowing ghostly pale blue, coiled on a rock."
+    },
+    {
+      "id": "noel26_20_bonnet_troue",
+      "icon": "🎅",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-20",
+      "inspiration": "",
+      "names": {
+        "fr": "Bonnet du Père Noël troué",
+        "en": "Holey Santa Hat",
+        "nl": "Kerstmuts met gat",
+        "es": "Gorro de Papá Noel agujereado"
+      },
+      "descs": {
+        "fr": "Accroché à une antenne de télé en 1987, arraché par le vent, retrouvé ici. Le pompon a gardé un faible signal de la météo.",
+        "en": "Snagged on a TV aerial in 1987, torn away by the wind, found here. The pompom still picks up a faint weather forecast.",
+        "nl": "In 1987 aan een tv-antenne blijven haken, door de wind weggerukt en hier teruggevonden. De pompon vangt nog zwak het weerbericht op.",
+        "es": "Se enganchó en una antena de televisión en 1987, se lo llevó el viento y apareció aquí. El pompón aún capta débilmente el parte meteorológico."
+      },
+      "brief": "A worn red Santa hat with white fur trim, a visible hole near the tip and a slightly flattened white pompom, dusty."
+    },
+    {
+      "id": "noel26_22_buche_petrifiee",
+      "icon": "🪵",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-22",
+      "inspiration": "Solstice d'hiver (21 ou 22 décembre) et tradition de la bûche de Yule. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Bûche de Noël pétrifiée",
+        "en": "Petrified Yule Log",
+        "nl": "Versteende kerststronk",
+        "es": "Tronco de Navidad petrificado"
+      },
+      "descs": {
+        "fr": "Préparée pour le solstice, oubliée au frais pendant quelques millénaires. La crème au beurre a parfaitement tenu. Elle aussi est devenue roche.",
+        "en": "Made for the solstice, left in the cold for a few millennia. The buttercream held up perfectly. It turned to stone as well.",
+        "nl": "Gemaakt voor de zonnewende en een paar millennia koel bewaard. De botercrème heeft het perfect gehouden. Ook die is steen geworden.",
+        "es": "Preparado para el solsticio y olvidado al fresco unos cuantos milenios. La crema de mantequilla aguantó perfectamente. También se volvió piedra."
+      },
+      "brief": "A chocolate yule log cake turned to grey fossil stone, bark-like texture, a small stone mushroom decoration and a sprig of holly on top."
+    },
+    {
+      "id": "noel26_25_paquet_jamais_livre",
+      "icon": "🎁",
+      "rarity": "legendaire",
+      "chancePct": 0.03,
+      "minDepth": 20,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-25",
+      "inspiration": "Noël, 25 décembre. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Le paquet jamais livré",
+        "en": "The Never-Delivered Present",
+        "nl": "Het nooit bezorgde pakje",
+        "es": "El paquete nunca entregado"
+      },
+      "descs": {
+        "fr": "Étiquette : « Pour toi ». Rien d'autre. Le Père Noël n'a jamais su à qui il était destiné et n'ose pas l'ouvrir. Toi non plus, d'ailleurs.",
+        "en": "Tag: \"For you\". Nothing else. Santa never found out who it was for and doesn't dare open it. Neither do you, by the way.",
+        "nl": "Label: \"Voor jou\". Verder niets. De Kerstman heeft nooit geweten voor wie het was en durft het niet open te maken. Jij trouwens ook niet.",
+        "es": "Etiqueta: «Para ti». Nada más. Papá Noel nunca supo para quién era y no se atreve a abrirlo. Tú tampoco, por cierto."
+      },
+      "brief": "A perfectly wrapped gift box in deep red paper with a big gold bow and a small blank tag reading only a heart, softly glowing, slightly dusty."
+    },
+    {
+      "id": "noel26_26_carton_vide",
+      "icon": "📦",
+      "rarity": "commun",
+      "chancePct": 0.25,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-26",
+      "inspiration": "Boxing Day (26 décembre) et Saint-Étienne. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Carton d'emballage vide",
+        "en": "Empty Gift Box",
+        "nl": "Lege verpakkingsdoos",
+        "es": "Caja de regalo vacía"
+      },
+      "descs": {
+        "fr": "Le lendemain de Noël, il reste toujours un carton. L'enfant a préféré jouer avec lui qu'avec le cadeau. Le carton est très fier.",
+        "en": "The day after Christmas, there is always a box left. The child preferred playing with it rather than the present. The box is very proud.",
+        "nl": "De dag na Kerstmis blijft er altijd een doos over. Het kind speelde er liever mee dan met het cadeau. De doos is erg trots.",
+        "es": "El día después de Navidad siempre queda una caja. El niño prefirió jugar con ella antes que con el regalo. La caja está muy orgullosa."
+      },
+      "brief": "An empty open cardboard box with torn gift wrap and a loose curly ribbon, a crayon drawing of a rocket on its side."
+    },
+    {
+      "id": "noel26_27_carnet_darwin",
+      "icon": "📓",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-27",
+      "inspiration": "Départ de Charles Darwin à bord du Beagle, 27 décembre 1831. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Carnet sur l'évolution des rennes",
+        "en": "Notebook on Reindeer Evolution",
+        "nl": "Notitieboek over de evolutie van rendieren",
+        "es": "Cuaderno sobre la evolución de los renos"
+      },
+      "descs": {
+        "fr": "Observations d'un lutin naturaliste : « Les rennes qui volent survivent mieux aux cheminées. Rudolph : nez lumineux, avantage évident. »",
+        "en": "A naturalist elf's notes: \"Flying reindeer survive chimneys better. Rudolph: glowing nose, obvious advantage.\"",
+        "nl": "Aantekeningen van een natuuronderzoeker-elf: \"Vliegende rendieren overleven schoorstenen beter. Rudolf: lichtgevende neus, duidelijk voordeel.\"",
+        "es": "Notas de un elfo naturalista: «Los renos que vuelan sobreviven mejor a las chimeneas. Rodolfo: nariz luminosa, ventaja evidente»."
+      },
+      "brief": "An old leather field notebook open on sketches of reindeer with antler diagrams and a glowing red nose drawing, a pencil tucked in."
+    },
+    {
+      "id": "noel26_28_bobine_tournee",
+      "icon": "🎞️",
+      "rarity": "rare",
+      "chancePct": 0.08,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-28",
+      "inspiration": "Première projection publique payante du Cinématographe Lumière, Paris, 28 décembre 1895. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Bobine du film de la tournée",
+        "en": "Film Reel of the Round",
+        "nl": "Filmrol van de ronde",
+        "es": "Bobina de la película del reparto"
+      },
+      "descs": {
+        "fr": "Tout le réveillon filmé depuis le traîneau. Au visionnage : 3 heures de nuages, 2 secondes de cheminée et un doigt de lutin devant l'objectif.",
+        "en": "All of Christmas Eve filmed from the sleigh. On playback: 3 hours of clouds, 2 seconds of chimney and an elf's finger over the lens.",
+        "nl": "De hele kerstavond gefilmd vanuit de slee. Bij het afspelen: 3 uur wolken, 2 seconden schoorsteen en een elfenvinger voor de lens.",
+        "es": "Toda la Nochebuena filmada desde el trineo. Al verla: 3 horas de nubes, 2 segundos de chimenea y un dedo de elfo delante del objetivo."
+      },
+      "brief": "An old metal film reel with a strip of celluloid film unspooling, frames showing tiny clouds and a chimney, a little snow on it."
+    },
+    {
+      "id": "noel26_29_cle_cheminee",
+      "icon": "🗝️",
+      "rarity": "epique",
+      "chancePct": 0.05,
+      "minDepth": 10,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-29",
+      "inspiration": "",
+      "names": {
+        "fr": "Clé universelle des cheminées",
+        "en": "Universal Chimney Key",
+        "nl": "Universele schoorsteensleutel",
+        "es": "Llave universal de chimeneas"
+      },
+      "descs": {
+        "fr": "Pour les maisons sans cheminée, le Père Noël a une clé qui ouvre tout. Il l'a perdue. Cette année, il est passé par la boîte aux lettres. Péniblement.",
+        "en": "For houses without a chimney, Santa has a key that opens everything. He lost it. This year he went through the letterbox. Painfully.",
+        "nl": "Voor huizen zonder schoorsteen heeft de Kerstman een sleutel die alles opent. Hij is hem kwijt. Dit jaar ging hij door de brievenbus. Moeizaam.",
+        "es": "Para las casas sin chimenea, Papá Noel tiene una llave que lo abre todo. La perdió. Este año entró por el buzón. Con dificultad."
+      },
+      "brief": "An ornate old golden skeleton key with a small chimney-shaped bow and a red velvet ribbon, faint sparkles around it."
+    },
+    {
+      "id": "noel26_30_brechet_dinde",
+      "icon": "🦴",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-30",
+      "inspiration": "",
+      "names": {
+        "fr": "Bréchet porte-bonheur du repas",
+        "en": "Lucky Wishbone from the Feast",
+        "nl": "Wensbeen van het kerstmaal",
+        "es": "Hueso de la suerte del banquete"
+      },
+      "descs": {
+        "fr": "Tiré à deux après le repas, comme le veut la tradition. Personne n'a gagné : il s'est cassé en trois. Le vœu est donc en attente.",
+        "en": "Pulled by two people after dinner, as tradition demands. Nobody won: it snapped into three. The wish is therefore on hold.",
+        "nl": "Na het eten door twee mensen uit elkaar getrokken, zoals de traditie wil. Niemand won: het brak in drie stukken. De wens staat dus in de wacht.",
+        "es": "Dos personas tiraron de él tras la cena, como manda la tradición. Nadie ganó: se rompió en tres. El deseo queda en espera."
+      },
+      "brief": "A dry poultry wishbone broken into three pieces laid side by side on a rock, a tiny gold star sticker on the middle piece."
+    },
+    {
+      "id": "noel26_31_bouchon_reveillon",
+      "icon": "🍾",
+      "rarity": "peu-commun",
+      "chancePct": 0.15,
+      "minDepth": 0,
+      "dropFrom": [],
+      "enabled": true,
+      "refDate": "12-31",
+      "inspiration": "Saint-Sylvestre, 31 décembre. (à vérifier avant toute explication publiée)",
+      "names": {
+        "fr": "Bouchon du réveillon",
+        "en": "New Year's Eve Cork",
+        "nl": "Kurk van oudejaarsavond",
+        "es": "Corcho de Nochevieja"
+      },
+      "descs": {
+        "fr": "Parti à minuit pile avec une telle force qu'il a traversé trois étages et cinquante mètres de roche. Il cherche toujours la fête.",
+        "en": "Popped at the stroke of midnight with such force that it went through three floors and fifty metres of rock. It is still looking for the party.",
+        "nl": "Om middernacht met zoveel kracht gesprongen dat hij door drie verdiepingen en vijftig meter rots ging. Hij zoekt nog steeds het feest.",
+        "es": "Saltó a medianoche en punto con tanta fuerza que atravesó tres pisos y cincuenta metros de roca. Todavía busca la fiesta."
+      },
+      "brief": "A mushroom-shaped champagne cork with its twisted wire cage and a scrap of gold foil, small rock chips around it."
+    }
+  ]
+}

@@ -1831,3 +1831,43 @@ p.sec-step-hint { margin: 6px 0 0; }
 .ev-prep-sim summary { cursor: pointer; }
 .ev-prep-simform { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
 .ev-cal-nav { display: flex; gap: 6px; align-items: center; margin: 6px 0; }
+
+/* Recette #56-K (08/11) : événements lisibles sur PC et téléphone — rien de coupé, alertes hiérarchisées,
+   test de bascule en vrai bouton, propositions de souvenirs repérables */
+.ev-scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+.ev-prep-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.ev-prep-head .overview-card-title { margin: 0; }
+.ev-sim-only { margin: 0 0 8px; padding: 6px 10px; border-left: 4px solid var(--green); border-radius: 4px; background: var(--bg); font-size: 0.82rem; }
+.ev-transition-body { padding: 0 2px 8px; }
+.ev-notes { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 0.76rem;
+  white-space: normal; overflow-wrap: anywhere; }
+.ev-note--bad { color: #fca5a5; }
+.ev-note--warn { color: #fdba74; }
+.ev-note--ok { color: var(--muted); }
+.ev-prep-ok summary { cursor: pointer; font-size: 0.78rem; color: var(--muted); }
+.ev-content-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 0.8rem; }
+.ev-target-row { align-items: end; }
+.ev-row--proposal td { background: rgba(249, 115, 22, 0.06); }
+.ev-pick { margin: 0 6px 0 0; width: 18px; height: 18px; vertical-align: middle; }
+.ev-items-table td:first-child { white-space: nowrap; }
+.ev-items-table td:first-child > * { display: inline-block; vertical-align: middle; }
+.ev-cal-actions { display: flex; flex-wrap: wrap; gap: 4px; min-width: 150px; }
+.ev-table td { overflow-wrap: anywhere; }
+#tab-events .overview-card { min-width: 0; }
+/* Téléphone et petits écrans (≤ 1100 px avec le menu) : liste et calendrier en cartes, aucun débordement horizontal */
+@media (max-width: 1100px) {
+  .ev-list-table thead, .ev-cal-table thead { display: none; }
+  .ev-list-table, .ev-list-table tbody, .ev-list-table tr, .ev-list-table td,
+  .ev-cal-table, .ev-cal-table tbody, .ev-cal-table tr, .ev-cal-table td { display: block; width: 100%; box-sizing: border-box; }
+  .ev-list-table tr, .ev-cal-table tr { border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 8px; padding: 6px 8px; }
+  .ev-list-table td, .ev-cal-table td { border: 0; padding: 2px 0; min-width: 0 !important; }
+  .ev-list-table td:nth-child(5), .ev-cal-table td:nth-child(5) { display: block !important; }
+  .ev-table .ev-nowrap { white-space: normal; }
+}
+/* Pastilles et boutons longs des événements : retour à la ligne plutôt que débordement (#56-K) */
+#tab-events .st-chip, #ev-dialog .st-chip { white-space: normal; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+#tab-events .ev-prep-actions .btn-ghost, #tab-events .ev-cal-actions .btn-ghost, #tab-events .ev-prep-head .btn { white-space: normal; max-width: 100%; text-align: left; }
+#tab-events .ev-list-table td:first-child .st-chip, #tab-events .ev-list-table td:nth-child(3) .st-chip { white-space: nowrap; }
+#ev-dialog fieldset, #ev-item-dialog fieldset { min-width: 0; }
+#ev-dialog .ev-sheet, #ev-item-dialog .co-prop-fields { min-width: 0; max-width: 100%; }
+#tab-events .ev-list-table .ev-nowrap { white-space: normal; min-width: 110px; }

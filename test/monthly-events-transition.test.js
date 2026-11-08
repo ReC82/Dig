@@ -188,7 +188,7 @@ test('« Préparation du mois prochain » : états, tâches bloquantes, avertiss
   assert.strictEqual(p.previous.event.id, 'oct_t');
   assert.deepStrictEqual(p.previous.blocking, [], 'mois passé : information, plus une tâche');
   // décembre replanifié par le bouton « Planifier » (test précédent) : l'image de la fiche est partie avec
-  assert.deepStrictEqual(p.next.counts, { items: 1, enabled: 1, images: { published: 1, draft: 0, none: 0 }, translated: 1 });
+  assert.deepStrictEqual(p.next.counts, { items: 1, enabled: 1, images: { published: 1, draft: 0, none: 0 }, translated: 1, proposals: 0, target: 0 });
   // Mois suivant absent : J-14, J-7, J-1 de plus en plus visibles ; rien d'inventé
   p = ev.preparation(B('2027-02-15T12:00'));
   assert.strictEqual(p.next.state, 'absent');

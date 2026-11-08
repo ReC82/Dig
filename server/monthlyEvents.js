@@ -61,6 +61,7 @@ const MAX_BLOCKS_PER_SAVE = 2000;   // au-delà, le curseur avance sans tirage (
 const ANNOUNCE_DAYS = 7;            // annonce « à venir » dans le centre d'actualités (#50)
 const CONTENT_DIR = path.join(__dirname, 'content', 'events');
 const LORE_DIR = path.join(__dirname, 'content', 'event-lore');
+const PROPOSALS_DIR = path.join(__dirname, 'content', 'event-proposals');
 
 class EventError extends Error {
   constructor(status, message, code = null) { super(message); this.status = status; this.code = code; }
@@ -171,6 +172,11 @@ function init(c = conn()) {
   const cols = new Set(c.prepare('PRAGMA table_info(monthly_event_items)').all().map(x => x.name));
   if (!cols.has('ref_date')) c.exec("ALTER TABLE monthly_event_items ADD COLUMN ref_date TEXT NOT NULL DEFAULT ''");
   if (!cols.has('inspiration')) c.exec("ALTER TABLE monthly_event_items ADD COLUMN inspiration TEXT NOT NULL DEFAULT ''");
+  // Recette #56-K : souvenir PROPOSÉ (ajouté, pas encore publié) — jamais tiré, jamais montré au joueur, aussi sur un événement planifié
+  if (!cols.has('proposal')) c.exec('ALTER TABLE monthly_event_items ADD COLUMN proposal INTEGER NOT NULL DEFAULT 0');
+  // Recette #56-K : objectif éditorial (nombre de souvenirs visé, 0 = aucun) — information admin, jamais une condition technique
+  const evCols = new Set(c.prepare('PRAGMA table_info(monthly_events)').all().map(x => x.name));
+  if (!evCols.has('item_target')) c.exec('ALTER TABLE monthly_events ADD COLUMN item_target INTEGER NOT NULL DEFAULT 0');
   // #65 : avant, l'image de la fiche était montrée telle quelle aux joueurs. Une seule fois, elle devient
   // l'image publiée (aucun visuel déjà affiché ne disparaît) ; ensuite, publication explicite seulement.
   if (!c.prepare("SELECT 1 FROM monthly_event_meta WHERE key = 'published_images_v1'").get()) {
@@ -260,8 +266,15 @@ function normalizeItem(input, where) {
   return {
     id, icon: _emoji(input.icon, '🎁'), image, brief: _str(input.brief, MAX.brief), names, descs: _texts(input.descs, MAX.desc),
     rarity, chancePct: Math.round(chance * 1000) / 1000, minDepth, dropFrom: CATEGORIES.filter(c => dropFrom.includes(c)), enabled: input.enabled !== false,
-    refDate, inspiration: _str(input.inspiration, MAX.inspiration),
+    refDate, inspiration: _str(input.inspiration, MAX.inspiration), proposal: input.proposal === true,
   };
+}
+
+/** Objectif éditorial : entier de 0 (aucun) au nombre maximal d'objets. */
+function _itemTarget(v) {
+  const n = Number(v ?? 0);
+  if (!Number.isInteger(n) || n < 0 || n > MAX.items) throw new EventError(400, `Objectif éditorial : nombre entier de 0 (aucun) à ${MAX.items}.`);
+  return n;
 }
 
 function normalizeEvent(input = {}) {
@@ -284,7 +297,8 @@ function normalizeEvent(input = {}) {
     if (ids.has(it.id)) throw new EventError(400, `Objet « ${it.id} » en double.`);
     ids.add(it.id);
   }
-  return { id, icon: _emoji(input.icon, '🎉'), names, taglines: _texts(input.taglines, MAX.tagline), startsAt, endsAt, audience, testers, items: norm };
+  return { id, icon: _emoji(input.icon, '🎉'), names, taglines: _texts(input.taglines, MAX.tagline), startsAt, endsAt, audience, testers, items: norm,
+    itemTarget: _itemTarget(input.itemTarget) };
 }
 
 // ── Testeurs (recette #56-B) : identifiant de compte stable, pseudo seulement affiché ─────────────
@@ -338,7 +352,11 @@ function testerSuggestions() {
 }
 
 /** Points à régler avant de planifier (bloquants) et avertissements. */
-function readiness(ev) {
+/** Objets publiés de la fiche (les propositions #56-K ne tombent pas et ne sont pas vues des joueurs). */
+const published = ev => ev.items.filter(i => !i.proposal);
+
+function readiness(evIn) {
+  const ev = { ...evIn, items: published(evIn) };
   const blocking = [], warnings = [];
   if (!ev.items.length) blocking.push('Aucun objet.');
   if (!ev.items.some(i => i.enabled)) blocking.push('Aucun objet activé : rien ne tomberait.');
@@ -364,7 +382,7 @@ function readiness(ev) {
 function _itemRow(r) {
   return { id: r.id, icon: r.icon, image: r.image, brief: r.brief, names: J(r.names, {}), descs: J(r.descs, {}), rarity: r.rarity,
     chancePct: r.chance_pct, minDepth: r.min_depth, dropFrom: J(r.drop_from, []), enabled: !!r.enabled,
-    refDate: r.ref_date ?? '', inspiration: r.inspiration ?? '',
+    refDate: r.ref_date ?? '', inspiration: r.inspiration ?? '', proposal: !!r.proposal,
     publishedImage: r.published_image ?? null };
 }
 
@@ -384,7 +402,7 @@ function stateOf(ev, nowMs = Date.now()) {
 function _eventRow(r, nowMs = Date.now()) {
   if (!r) return null;
   const ev = { id: r.id, status: r.status, audience: r.audience, icon: r.icon, names: J(r.names, {}), taglines: J(r.taglines, {}),
-    startsAt: r.starts_at, endsAt: r.ends_at, testers: _readTesters(r.testers), source: r.source, revision: r.revision,
+    startsAt: r.starts_at, endsAt: r.ends_at, testers: _readTesters(r.testers), source: r.source, revision: r.revision, itemTarget: r.item_target ?? 0,
     createdAt: r.created_at, updatedAt: r.updated_at,
     items: conn().prepare(`SELECT i.*, p.image AS published_image FROM monthly_event_items i
         LEFT JOIN monthly_event_item_images p ON p.event_id = i.event_id AND p.item_id = i.id
@@ -397,7 +415,7 @@ function getEvent(id, nowMs) { return _eventRow(conn().prepare('SELECT * FROM mo
 function listEvents(nowMs) { return conn().prepare('SELECT * FROM monthly_events ORDER BY starts_at DESC, id').all().map(r => _eventRow(r, nowMs)); }
 
 const _content = ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt, endsAt: ev.endsAt,
-  audience: ev.audience, testers: ev.testers.map(t => (t.id ? { id: t.id, username: t.username } : t.username)),
+  audience: ev.audience, testers: ev.testers.map(t => (t.id ? { id: t.id, username: t.username } : t.username)), itemTarget: ev.itemTarget ?? 0,
   items: ev.items.map(({ publishedImage, ...it }) => it) });   // image publiée : hors révision (table à part)
 
 // ── Écriture ──────────────────────────────────────────────────────────────────
@@ -406,18 +424,18 @@ function _write(ev, { status, source, action }) {
   const c = conn();
   const prev = c.prepare('SELECT revision FROM monthly_events WHERE id = ?').get(ev.id);
   const revision = prev ? prev.revision + 1 : 1;
-  c.prepare(`INSERT INTO monthly_events (id, status, audience, icon, names, taglines, starts_at, ends_at, testers, source, revision)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)
+  c.prepare(`INSERT INTO monthly_events (id, status, audience, icon, names, taglines, starts_at, ends_at, testers, source, revision, item_target)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET status = excluded.status, audience = excluded.audience, icon = excluded.icon, names = excluded.names,
         taglines = excluded.taglines, starts_at = excluded.starts_at, ends_at = excluded.ends_at, testers = excluded.testers,
-        revision = excluded.revision, updated_at = datetime('now')`)
+        revision = excluded.revision, item_target = excluded.item_target, updated_at = datetime('now')`)
     .run(ev.id, status, ev.audience, ev.icon, JSON.stringify(ev.names), JSON.stringify(ev.taglines), ev.startsAt, ev.endsAt,
-      JSON.stringify(_content(ev).testers), source, revision);
+      JSON.stringify(_content(ev).testers), source, revision, ev.itemTarget ?? 0);
   c.prepare('DELETE FROM monthly_event_items WHERE event_id = ?').run(ev.id);   // objets de la fiche (définition admin, jamais les trouvailles)
-  const ins = c.prepare(`INSERT INTO monthly_event_items (event_id, id, sort, icon, image, brief, names, descs, rarity, chance_pct, min_depth, drop_from, enabled, ref_date, inspiration)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const ins = c.prepare(`INSERT INTO monthly_event_items (event_id, id, sort, icon, image, brief, names, descs, rarity, chance_pct, min_depth, drop_from, enabled, ref_date, inspiration, proposal)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   ev.items.forEach((it, i) => ins.run(ev.id, it.id, i, it.icon, it.image, it.brief, JSON.stringify(it.names), JSON.stringify(it.descs),
-    it.rarity, it.chancePct, it.minDepth, JSON.stringify(it.dropFrom), it.enabled ? 1 : 0, it.refDate ?? '', it.inspiration ?? ''));
+    it.rarity, it.chancePct, it.minDepth, JSON.stringify(it.dropFrom), it.enabled ? 1 : 0, it.refDate ?? '', it.inspiration ?? '', it.proposal ? 1 : 0));
   c.prepare('INSERT INTO monthly_event_revisions (event_id, revision, content, action) VALUES (?,?,?,?)')
     .run(ev.id, revision, JSON.stringify({ ..._content(ev), status }), action);
   _log(ev.id, action, { revision });
@@ -448,6 +466,9 @@ function updateEvent(id, input) {
     if (!cur) throw new EventError(404, 'Événement introuvable.');
     if (cur.status !== 'draft') throw new EventError(409, 'Événement planifié : repassez-le en brouillon pour le modifier (les drops s\'arrêtent).');
     _assertItemsNotReused(ev);
+    // #56-K : publier une proposition = action explicite (« Publier les propositions ») ; l'enregistrement du brouillon garde l'état connu
+    const known = new Map(cur.items.map(i => [i.id, i.proposal]));
+    ev.items = ev.items.map(it => (known.has(it.id) ? { ...it, proposal: known.get(it.id) } : it));
     _write(ev, { status: 'draft', source: cur.source, action: 'update' });
     return getEvent(id);
   });
@@ -520,7 +541,7 @@ function unscheduleEvent(id) {
 
 /** Copie l'image de la fiche de chaque objet vers l'image vue des joueurs (seulement celles qui diffèrent). */
 function _publishImages(ev) {
-  const changed = ev.items.filter(it => imageState(it) === 'draft');
+  const changed = ev.items.filter(it => !it.proposal && imageState(it) === 'draft');   // proposition (#56-K) : image publiée avec elle, plus tard
   const up = conn().prepare(`INSERT INTO monthly_event_item_images (event_id, item_id, image) VALUES (?, ?, ?)
       ON CONFLICT(event_id, item_id) DO UPDATE SET image = excluded.image, published_at = datetime('now')`);
   for (const it of changed) up.run(ev.id, it.id, it.image ?? null);
@@ -561,6 +582,158 @@ function setItemImage(eventId, itemId, image) {
     _log(eventId, 'item_image', { itemId, before: it.image ?? null, after: url });
     return getEvent(eventId);
   });
+}
+
+// ── Souvenirs proposés (recette #56-K du 08/11/2026) ──────────────────────────
+// « + Ajouter un souvenir » : sur un événement en brouillon OU déjà planifié, l'objet est enregistré comme
+// PROPOSITION. Il ne tombe pas, n'est pas montré aux joueurs, ne compte ni dans la vérification ni dans le
+// barème affiché ; le statut, les dates et les objets publiés ne changent pas (l'événement ne repasse pas en
+// brouillon). « Publier les propositions » (barème confirmé) les rend actives d'un bloc, dans une transaction
+// journalisée (révision avant/après) ; « Retirer de la publication » les remet en proposition tant que
+// personne ne les a trouvées.
+
+function _proposalTarget(eventId) {
+  const cur = getEvent(eventId);
+  if (!cur) throw new EventError(404, 'Événement introuvable.');
+  if (cur.state === 'ended') throw new EventError(409, 'Événement terminé : plus aucun souvenir à proposer.');
+  return cur;
+}
+
+/** Ajoute un souvenir proposé (non publié) à un événement en brouillon ou planifié. */
+function addProposal(eventId, input) {
+  const it = normalizeItem({ ...input, proposal: true }, 'Souvenir proposé');
+  return db.runTransaction(() => {
+    const cur = _proposalTarget(eventId);
+    if (cur.items.some(i => i.id === it.id)) throw new EventError(409, `Un objet utilise déjà l'identifiant « ${it.id} ».`);
+    if (cur.items.length >= MAX.items) throw new EventError(409, `${MAX.items} objets au plus par événement.`);
+    _write({ ...cur, items: [...cur.items, it] }, { status: cur.status, source: cur.source, action: 'proposal_add' });
+    _log(eventId, 'proposal_add_item', { itemId: it.id, chancePct: it.chancePct, rarity: it.rarity });
+    return getEvent(eventId);
+  });
+}
+
+/** Modifie un souvenir encore PROPOSÉ (un objet publié d'un événement planifié reste figé). */
+function updateProposal(eventId, itemId, input) {
+  const it = normalizeItem({ ...input, id: itemId, proposal: true }, 'Souvenir proposé');
+  return db.runTransaction(() => {
+    const cur = _proposalTarget(eventId);
+    const old = cur.items.find(i => i.id === itemId);
+    if (!old) throw new EventError(404, 'Objet introuvable dans cet événement.');
+    if (!old.proposal) throw new EventError(409, 'Objet déjà publié : il se modifie dans la fiche (en brouillon seulement).');
+    _write({ ...cur, items: cur.items.map(i => (i.id === itemId ? { ...it, image: 'image' in (input ?? {}) ? it.image : old.image } : i)) }, { status: cur.status, source: cur.source, action: 'proposal_update' });
+    return getEvent(eventId);
+  });
+}
+
+/** Retire un souvenir proposé (jamais tombé : personne ne peut l'avoir trouvé). */
+function removeProposal(eventId, itemId) {
+  return db.runTransaction(() => {
+    const cur = _proposalTarget(eventId);
+    const old = cur.items.find(i => i.id === itemId);
+    if (!old) throw new EventError(404, 'Objet introuvable dans cet événement.');
+    if (!old.proposal) throw new EventError(409, 'Objet publié : il ne se retire pas ici.');
+    if (conn().prepare('SELECT 1 FROM monthly_event_finds WHERE event_id = ? AND item_id = ?').get(eventId, itemId)) throw new EventError(409, 'Objet déjà trouvé : impossible de le retirer.');
+    _write({ ...cur, items: cur.items.filter(i => i.id !== itemId) }, { status: cur.status, source: cur.source, action: 'proposal_remove' });
+    return getEvent(eventId);
+  });
+}
+
+/** Points à régler avant de publier une proposition (textes dans toutes les langues). */
+function proposalBlocking(it) {
+  const out = [];
+  for (const l of LANGS) {
+    if (!it.names[l]) out.push(`« ${it.names.fr || it.id} » : nom ${l.toUpperCase()} manquant.`);
+    if (!it.descs[l]) out.push(`« ${it.names.fr || it.id} » : description ${l.toUpperCase()} manquante.`);
+  }
+  return out;
+}
+
+/**
+ * Publie des propositions : elles deviennent des objets de l'événement (tirés dès que l'événement est actif).
+ * Barème confirmé obligatoire ; les chances des objets déjà publiés ne changent pas.
+ */
+function publishProposals(eventId, { itemIds = [], confirmRates = false } = {}) {
+  if (!confirmRates) throw new EventError(409, 'Cochez « barème des nouveaux souvenirs validé par le propriétaire ».');
+  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : []).map(String))];
+  if (!ids.length) throw new EventError(400, 'Aucune proposition choisie.');
+  return db.runTransaction(() => {
+    const cur = _proposalTarget(eventId);
+    const pick = ids.map(id => cur.items.find(i => i.id === id));
+    if (pick.some(i => !i)) throw new EventError(404, 'Proposition introuvable dans cet événement.');
+    if (pick.some(i => !i.proposal)) throw new EventError(409, 'Objet déjà publié dans la liste choisie.');
+    const blocking = pick.flatMap(proposalBlocking);
+    if (blocking.length) throw new EventError(409, `Propositions incomplètes : ${blocking.slice(0, 6).join(' ')}`);
+    const before = cur.revision;
+    const set = new Set(ids);
+    const revision = _write({ ...cur, items: cur.items.map(i => (set.has(i.id) ? { ...i, proposal: false } : i)) },
+      { status: cur.status, source: cur.source, action: 'proposals_publish' });
+    _log(eventId, 'proposals_published', { items: pick.map(i => ({ id: i.id, rarity: i.rarity, chancePct: i.chancePct, minDepth: i.minDepth, dropFrom: i.dropFrom })),
+      revisionBefore: before, revision, state: cur.state });
+    return { event: getEvent(eventId), published: ids };
+  });
+}
+
+/** Retour arrière d'une publication : remet en proposition les objets choisis, si personne ne les a trouvés. */
+function unpublishProposals(eventId, { itemIds = [] } = {}) {
+  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : []).map(String))];
+  if (!ids.length) throw new EventError(400, 'Aucun objet choisi.');
+  return db.runTransaction(() => {
+    const cur = _proposalTarget(eventId);
+    const found = new Set(conn().prepare('SELECT DISTINCT item_id FROM monthly_event_finds WHERE event_id = ?').all(eventId).map(r => r.item_id));
+    for (const id of ids) {
+      const it = cur.items.find(i => i.id === id);
+      if (!it) throw new EventError(404, `Objet « ${id} » introuvable.`);
+      if (found.has(id)) throw new EventError(409, `« ${it.names.fr} » a déjà été trouvé : il reste publié (désactivez-le en brouillon à la place).`);
+    }
+    const set = new Set(ids);
+    const items = cur.items.map(i => (set.has(i.id) ? { ...i, proposal: true } : i));
+    if (cur.status === 'scheduled' && !items.some(i => !i.proposal && i.enabled)) throw new EventError(409, 'Un événement planifié doit garder au moins un objet publié.');
+    const revision = _write({ ...cur, items }, { status: cur.status, source: cur.source, action: 'proposals_unpublish' });
+    _log(eventId, 'proposals_unpublished', { items: ids, revision });
+    return { event: getEvent(eventId), unpublished: ids };
+  });
+}
+
+/** Objectif éditorial (nombre de souvenirs visé) : information admin, modifiable dans tous les états. */
+function setItemTarget(eventId, value) {
+  const n = _itemTarget(value);
+  return db.runTransaction(() => {
+    const cur = getEvent(eventId);
+    if (!cur) throw new EventError(404, 'Événement introuvable.');
+    if (cur.itemTarget === n) return cur;
+    conn().prepare("UPDATE monthly_events SET item_target = ?, updated_at = datetime('now') WHERE id = ?").run(n, eventId);
+    _log(eventId, 'item_target', { before: cur.itemTarget, after: n });
+    return getEvent(eventId);
+  });
+}
+
+/**
+ * Préparation ÉDITORIALE d'un événement (distincte de l'état technique « Planifié ») : objectif, objets
+ * publiés, propositions, et alertes hiérarchisées — `missing` = contenu réellement à compléter,
+ * `acceptable` = admissible tel quel (emoji à la place d'une image, consigne d'illustration absente).
+ */
+function contentChecks(ev, lore = getLore(ev.id)) {
+  const pub = published(ev), props = ev.items.filter(i => i.proposal);
+  const target = ev.itemTarget || 0;
+  const missing = [], acceptable = [];
+  if (target && pub.length < target) {
+    missing.push(`Contenu à compléter : ${pub.length} souvenir(s) publié(s) / objectif ${target}${props.length ? ` — ${props.length} proposition(s) à valider` : ''}.`);
+  } else if (props.length) missing.push(`${props.length} proposition(s) de souvenir en attente de validation (non publiées).`);
+  const noLore = pub.filter(i => !lore[i.id]?.verified);
+  if (noLore.length) missing.push(`${noLore.length} « Pourquoi cet objet ? » sans source vérifiée (${noLore.slice(0, 3).map(i => i.names.fr || i.id).join(', ')}${noLore.length > 3 ? '…' : ''}) : rien n'est montré aux joueurs.`);
+  const untranslated = pub.filter(it => !LANGS.every(l => it.names[l] && it.descs[l])).length;
+  if (untranslated) missing.push(`${untranslated} objet(s) pas encore traduit(s) dans toutes les langues.`);
+  const img = { published: 0, draft: 0, none: 0 };
+  for (const it of pub) img[imageState(it)]++;
+  if (img.draft) missing.push(`${img.draft} image(s) conservée(s) dans la fiche mais pas encore publiée(s) (« Publier les images »).`);
+  if (pub.length && img.published < pub.length) {
+    acceptable.push(img.published ? `${img.published}/${pub.length} objets ont une image publiée ; les ${pub.length - img.published} autres affichent leur emoji (non bloquant).`
+      : `Aucune image publiée : les ${pub.length} objets affichent leur emoji (non bloquant).`);
+  }
+  const noBrief = pub.filter(it => !it.brief).length;
+  if (noBrief) acceptable.push(`${noBrief} objet(s) sans consigne d'image pour l'atelier (non bloquant).`);
+  return { target, published: pub.length, proposals: props.length, complete: !missing.length, images: img,
+    label: target ? `${pub.length} préparé(s) / objectif ${target}` : `${pub.length} objet(s)`, missing, acceptable };
 }
 
 function listRevisions(id) {
@@ -654,8 +827,9 @@ function _publicLore(l) {
 
 /** Points de préparation des explications (admin) : objets sans explication vérifiée. */
 function loreReadiness(ev, lore = getLore(ev.id)) {
-  const missing = ev.items.filter(i => !lore[i.id]?.verified).map(i => i.names.fr || i.id);
-  return { verified: ev.items.length - missing.length, total: ev.items.length, missing };
+  const pub = published(ev);
+  const missing = pub.filter(i => !lore[i.id]?.verified).map(i => i.names.fr || i.id);
+  return { verified: pub.length - missing.length, total: pub.length, missing };
 }
 
 /**
@@ -736,7 +910,7 @@ function processSave(userId, { nowMs = Date.now(), rand = _rand } = {}) {
       }
       const owned = new Set(conn().prepare('SELECT item_id FROM monthly_event_finds WHERE user_id = ? AND event_id = ?').all(userId, ev.id).map(r => r.item_id));
       for (const it of ev.items) {
-        if (!it.enabled || owned.has(it.id) || depth < it.minDepth) continue;
+        if (!it.enabled || it.proposal || owned.has(it.id) || depth < it.minDepth) continue;
         let n = 0;
         for (const [id, d] of Object.entries(delta)) if (!it.dropFrom.length || it.dropFrom.includes(catOf.get(id))) n += d;
         if (!n) continue;
@@ -771,11 +945,11 @@ function publicView(userId = null, nowMs = Date.now()) {
     return { id: it.id, found: true, foundAt: at, icon: it.icon, image: it.publishedImage, names: it.names, descs: it.descs, rarity: it.rarity, ...(lore ? { lore } : {}) };
   };
   const active = activeFor(userId, nowMs).map(ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt,
-    endsAt: ev.endsAt, test: ev.audience === 'test', items: ev.items.filter(i => i.enabled || foundAt.has(`${ev.id}/${i.id}`)).map(i => itemView(ev, i)) }));
+    endsAt: ev.endsAt, test: ev.audience === 'test', items: ev.items.filter(i => (i.enabled && !i.proposal) || foundAt.has(`${ev.id}/${i.id}`)).map(i => itemView(ev, i)) }));
   const activeIds = new Set(active.map(e => e.id));
   const upcoming = conn().prepare("SELECT * FROM monthly_events WHERE status = 'scheduled' AND audience = 'public' AND starts_at > ? AND starts_at <= ? ORDER BY starts_at")
     .all(_iso(nowMs), _iso(nowMs + ANNOUNCE_DAYS * 86_400_000)).map(r => _eventRow(r, nowMs))
-    .map(ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt, endsAt: ev.endsAt, count: ev.items.filter(i => i.enabled).length }));
+    .map(ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt, endsAt: ev.endsAt, count: ev.items.filter(i => i.enabled && !i.proposal).length }));
   const souvenirs = [];
   for (const evId of [...new Set(finds.map(f => f.event_id))]) {
     if (activeIds.has(evId)) continue;
@@ -908,7 +1082,7 @@ function isFullMonth(ev) {
 }
 
 const MONTH_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-const MONTH_STATES = { absent: 'Absent', incomplete: 'À compléter', unscheduled: 'Brouillon non planifié', planned: 'Prêt — planifié', active: 'Actif', ended: 'Terminé' };
+const MONTH_STATES = { absent: 'Absent', incomplete: 'À compléter', unscheduled: 'Brouillon non planifié', planned: 'Planifié', active: 'Actif', ended: 'Terminé' };
 
 /** « du 1er décembre 2026 à 00 h 01 au 31 décembre 2026 à 23 h 59, heure de Bruxelles » (aucun « minuit » ambigu). */
 function frRange(startsAt, endsAt) {
@@ -931,7 +1105,8 @@ function monthStatus(year, month, nowMs = Date.now(), events = listEvents(nowMs)
     .sort((x, y) => (y.status === 'scheduled') - (x.status === 'scheduled') || Date.parse(x.startsAt) - Date.parse(y.startsAt));
   const ev = covering[0] ?? null;
   const blocking = [], warnings = [];
-  let state = 'absent', counts = null;
+  let state = 'absent', counts = null, content = null;
+  const acceptable = [];
   const past = mEnd <= nowMs;
   if (!ev) {
     (past ? warnings : blocking).push(past ? `Aucun événement public en ${label}.`
@@ -944,24 +1119,22 @@ function monthStatus(year, month, nowMs = Date.now(), events = listEvents(nowMs)
       blocking.push(...r.blocking.filter(x => x !== 'Aucun objet.'));
       if (r.ready) blocking.push('Brouillon complet mais NON planifié : il ne démarrera pas tout seul. « Vérifier / Planifier ».');
     }
-    const img = { published: 0, draft: 0, none: 0 };
-    for (const it of ev.items) img[imageState(it)]++;
-    const translated = ev.items.filter(it => LANGS.every(l => it.names[l] && it.descs[l])).length;
-    counts = { items: ev.items.length, enabled: ev.items.filter(i => i.enabled).length, images: img, translated };
-    if (ev.items.length && img.published < ev.items.length) {
-      warnings.push(img.published ? `${img.published}/${ev.items.length} objets ont une image publiée ; les ${ev.items.length - img.published} autres affichent leur emoji (non bloquant).`
-        : `Aucune image publiée : les ${ev.items.length} objets affichent leur emoji (non bloquant).`);
-    }
-    if (img.draft) warnings.push(`${img.draft} image(s) conservée(s) dans la fiche mais pas encore publiée(s) (« Publier les images »).`);
-    const noBrief = ev.items.filter(it => !it.brief).length;
-    if (noBrief) warnings.push(`${noBrief} objet(s) sans consigne d'image pour l'atelier.`);
-    if (ev.items.length && translated < ev.items.length) warnings.push(`${ev.items.length - translated} objet(s) pas encore traduit(s) dans toutes les langues.`);
+    // #56-K : objets PUBLIÉS seulement (les propositions sont comptées à part) ; alertes hiérarchisées
+    const pub = published(ev);
+    content = contentChecks(ev);
+    const translated = pub.filter(it => LANGS.every(l => it.names[l] && it.descs[l])).length;
+    counts = { items: pub.length, enabled: pub.filter(i => i.enabled).length, images: content.images, translated, proposals: content.proposals, target: content.target };
+    warnings.push(...content.missing);
+    acceptable.push(...content.acceptable);
     if (!isFullMonth(ev)) warnings.push(`Dates ${frRange(ev.startsAt, ev.endsAt)} : un événement mensuel couvre le mois entier, ${frRange(b.startsAt, b.endsAt)}.`);
     if (covering.filter(e => e.status === 'scheduled').length > 1) warnings.push('Plusieurs événements publics planifiés se chevauchent sur ce mois.');
     const started = Date.parse(b.startsAt) <= nowMs;
     for (const w of r.warnings) if (!/pas d'illustration/.test(w) && !(started && /annonce tardive/.test(w)) && !warnings.includes(w)) warnings.push(w);
   }
   if (past) blocking.length = 0;   // mois terminé : plus aucune tâche à faire
+  const missing = past ? [] : [...warnings];   // mois terminé : information, plus rien « à compléter »
+  if (past) acceptable.unshift(...warnings.splice(0));
+  warnings.push(...acceptable);   // compatibilité : `warnings` = manquants puis admissibles
   const daysLeft = Math.ceil((Date.parse(b.startsAt) - nowMs) / DAY_MS);
   const settled = ['planned', 'active', 'ended'].includes(state);
   const reminder = settled || daysLeft <= 0 ? null : (REMIND_DAYS.slice().reverse().find(d => daysLeft <= d) ?? null);
@@ -973,7 +1146,8 @@ function monthStatus(year, month, nowMs = Date.now(), events = listEvents(nowMs)
       startsAt: ev.startsAt, endsAt: ev.endsAt, startsLocal: utcToBrussels(ev.startsAt), endsLocal: utcToBrussels(ev.endsAt), fullMonth: isFullMonth(ev),
       period: frRange(ev.startsAt, ev.endsAt) } : null,
     others: covering.slice(1).map(e => ({ id: e.id, icon: e.icon, name: e.names.fr, state: e.state })),
-    counts, blocking, warnings,
+    counts, blocking, warnings, missing, acceptable,
+    content: content ? { target: content.target, published: content.published, proposals: content.proposals, complete: content.complete, label: content.label } : null,
   };
 }
 
@@ -998,15 +1172,19 @@ function transitionPreview(year, month) {
 function preparation(nowMs = Date.now()) {
   const events = listEvents(nowMs);
   const cur = monthOf(nowMs);
-  const [previous, current, next] = [-1, 0, 1].map(d => { const m = shiftMonth(cur, d); return monthStatus(m.year, m.month, nowMs, events); });
+  const [previous, current, next, following] = [-1, 0, 1, 2].map(d => { const m = shiftMonth(cur, d); return monthStatus(m.year, m.month, nowMs, events); });
   let level = 'ok';
   if (!['planned', 'active'].includes(next.state)) level = next.reminder === 'J-1' ? 'urgent' : next.reminder ? 'warn' : 'info';
+  const todo = next.content && !next.content.complete ? ` Contenu à compléter : ${next.content.label}${next.content.proposals ? `, ${next.content.proposals} proposition(s) à valider` : ''}.` : '';
   const headline = ['planned', 'active'].includes(next.state)
-    ? `${next.label} : ${next.event.icon} ${next.event.name} planifié, actif automatiquement ${next.event.period}.`
+    ? `${next.label} : ${next.event.icon} ${next.event.name} planifié, actif automatiquement ${next.event.period}.${todo}`
     : next.state === 'absent' ? `Aucun événement prévu pour ${next.label} (dans ${next.daysLeft} j) : le jeu reste jouable sans événement mensuel.`
       : `${next.label} : ${next.event.icon} ${next.event.name} — ${next.stateLabel.toLowerCase()}, il ne démarrera pas tout seul (dans ${next.daysLeft} j).`;
   return { now: _iso(nowMs), nowLocal: utcToBrussels(_iso(nowMs)), timezone: TZ, remindDays: REMIND_DAYS, previous, current, next, level, headline,
-    transition: transitionPreview(next.year, next.month) };
+    transition: transitionPreview(next.year, next.month),
+    // « Tester le passage au mois suivant » (#56-K) : le mois d'après, pour montrer qu'il n'est rien inventé
+    following: { year: following.year, month: following.month, label: following.label, state: following.state, stateLabel: following.stateLabel,
+      event: following.event ? { id: following.event.id, icon: following.event.icon, name: following.event.name, state: following.event.state } : null } };
 }
 
 /**
@@ -1037,7 +1215,7 @@ function proposeCalendar(year, nowMs = Date.now()) {
       prepareBy: _ymd(new Date(startMs - REMIND_DAYS[0] * DAY_MS + _tzOffsetMs(startMs))),
       announceAt: _ymd(new Date(startMs - ANNOUNCE_DAYS * DAY_MS + _tzOffsetMs(startMs))),
       late: nowMs > startMs - REMIND_DAYS[0] * DAY_MS && !['planned', 'active', 'ended'].includes(st.state) && nowMs < monthEnd,
-      state: st.state, stateLabel: st.stateLabel, counts: st.counts, blocking: st.blocking.length, warnings: st.warnings.length,
+      state: st.state, stateLabel: st.stateLabel, counts: st.counts, blocking: st.blocking.length, warnings: st.warnings.length, missing: st.missing.length, content: st.content,
       main: st.event,
       events: covering,
     });
@@ -1146,6 +1324,50 @@ function importPrepared(dir = CONTENT_DIR) {
       console.log(`[events] événement préparé « ${raw.id} » ajouté en brouillon (${f})`);
     } catch (err) {
       console.error(`[events] import de ${f} impossible :`, err.message);
+    }
+  }
+  return done;
+}
+
+/**
+ * Souvenirs proposés préparés (`server/content/event-proposals/*.json` : { eventId, itemTarget, items }) —
+ * recette #56-K. Une seule fois par fichier : ajoute en PROPOSITION (jamais publiée, jamais tirée) les objets
+ * dont l'identifiant n'existe pas encore, sans toucher au statut, aux dates ni aux objets existants ;
+ * l'objectif éditorial n'est posé que s'il n'y en a pas déjà un.
+ */
+function importProposals(dir = PROPOSALS_DIR) {
+  if (!fs.existsSync(dir)) return [];
+  const done = [];
+  for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.json')).sort()) {
+    const key = `proposals:${f}`;
+    if (conn().prepare('SELECT 1 FROM monthly_event_meta WHERE key = ?').get(key)) continue;
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const items = (raw.items ?? []).map((it, i) => normalizeItem({ ...it, proposal: true }, `${f} / objet ${i + 1}`));
+      const target = _itemTarget(raw.itemTarget);
+      const res = db.runTransaction(() => {
+        if (conn().prepare('SELECT 1 FROM monthly_event_meta WHERE key = ?').get(key)) return null;
+        const cur = getEvent(String(raw.eventId ?? ''));
+        let rec;
+        if (!cur) rec = { outcome: 'skipped', reason: 'événement absent' };
+        else if (cur.state === 'ended') rec = { outcome: 'skipped', reason: 'événement terminé' };
+        else {
+          const have = new Set(cur.items.map(i => i.id));
+          const add = items.filter(i => !have.has(i.id)).slice(0, Math.max(0, MAX.items - cur.items.length));
+          const next = { ...cur, itemTarget: cur.itemTarget || target, items: [...cur.items, ...add] };
+          if (add.length || next.itemTarget !== cur.itemTarget) _write(next, { status: cur.status, source: cur.source, action: 'proposal_import' });
+          rec = { outcome: 'applied', added: add.length, itemTarget: next.itemTarget, status: cur.status };
+        }
+        conn().prepare('INSERT INTO monthly_event_meta (key, value) VALUES (?, ?)').run(key, JSON.stringify({ ...rec, at: new Date().toISOString() }));
+        _log(raw.eventId ?? null, `proposal_import_${rec.outcome}`, { file: f, ...rec });
+        return rec;
+      });
+      if (res) {
+        done.push({ file: f, eventId: raw.eventId, ...res });
+        console.log(`[events] ${f} : ${res.outcome === 'applied' ? `${res.added} souvenir(s) PROPOSÉ(S) ajouté(s) à « ${raw.eventId} » (non publiés, aucun drop)` : `ignoré (${res.reason})`}`);
+      }
+    } catch (err) {
+      console.error(`[events] propositions de ${f} impossibles à importer :`, err.message);
     }
   }
   return done;
@@ -1269,7 +1491,7 @@ function _studioProposals() {
 function adminView(nowMs = Date.now()) {
   const proposals = _studioProposals();
   const events = listEvents(nowMs).map(ev => { const lore = getLore(ev.id); return { ...ev, startsLocal: utcToBrussels(ev.startsAt), endsLocal: utcToBrussels(ev.endsAt),
-    readiness: readiness(ev), stats: stats(ev.id), lore, loreReadiness: loreReadiness(ev, lore),
+    readiness: readiness(ev), stats: stats(ev.id), lore, loreReadiness: loreReadiness(ev, lore), content: contentChecks(ev, lore),
     items: ev.items.map(it => {
       const key = studioKey(ev.id, it.id), state = imageState(it), n = proposals[key] ?? 0;
       // « proposition » : l'atelier a des images pour cet objet, aucune n'est encore dans la fiche
@@ -1287,5 +1509,6 @@ module.exports = {
   startAiDraft, getAiJob, listAiJobs, adminView, MAX_BLOCKS_PER_SAVE,
   imageState, publishImages, setItemImage, studioKey, ID_RE,
   normalizeLore, safeSourceUrl, getLore, setItemLore, loreReadiness, importLore,
+  addProposal, updateProposal, removeProposal, publishProposals, unpublishProposals, proposalBlocking, setItemTarget, contentChecks, importProposals,
   monthBounds, monthOf, isFullMonth, frRange, monthStatus, preparation, transitionPreview, publicActiveAt, applyOwnerDecisions, OWNER_DECISIONS,
 };
