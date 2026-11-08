@@ -1,8 +1,52 @@
 # Ticket #59 — [P1] Langues extensibles : traductions IA automatiques et pilote italien
 
 - Ticket : https://github.com/ReC82/Dig/issues/59
-- Branche : `feature/59-langues-extensibles` (dernier commit de correction `7d74a7c`, develop `6b5a981`, déployé `6b5a981`)
-- Dates : 03/11/2026, mise à jour le 04/11/2026
+- Branche : `feature/59-langues-extensibles` (dernier commit de correction `3fe2fb1`, develop `3681410`, déployé `3681410`)
+- Dates : 03/11/2026, mises à jour le 04/11/2026 et le 08/11/2026
+
+## Mise à jour du 08/11/2026 — recette mobile NL du propriétaire (captures Android)
+
+### État réel
+**Déployé en production (SHA `3681410`) — en attente de recette.** Classement : **Après lancement** (qualité linguistique, aucun blocage du MVP).
+
+### Recette prise en compte
+Commentaire du propriétaire du 08/11 (https://github.com/ReC82/Dig/issues/59#issuecomment-6724293589), six captures sur téléphone :
+- **Validé, rien à changer** : écran Verbeteringen (Geluk sur deux lignes, Auto-graven sans chevauchement du bouton, « Op 437 m ») et fenêtres « beloningen en kansen » des coffres simple, rare et antique. Cette recette ne vaut pas validation de l'équilibrage économique (#49/#88) : aucun taux n'a été touché.
+- **Seule anomalie restante, corrigée** : sur la carte du catalogue **Eenvoudige kist**, la description commençait par le mot anglais « Coins ».
+
+### Changement (aucun prix, taux ni effet modifié)
+| Écran | Avant | Après |
+|---|---|---|
+| Carte Eenvoudige kist (catalogue des coffres, NL) | Coins, fragmenten of een boost — kleine gegarandeerde beloningen. | **Munten, fragmenten of een boost — kleine gegarandeerde beloningen.** |
+
+Fichiers : `public/js/i18n.js` (une ligne de la locale NL), `test/i18n-languages.test.js` (nouveau test : aucun « coin(s) » dans les noms et descriptions des trois coffres en NL).
+
+**Périmètre** : seul le néerlandais est modifié. Le même mot anglais existe encore dans la carte **FR** (« Coins, fragments ou boost ») et **EN** (« Coins », correct en anglais). La correction FR et italienne est déjà prête dans #84-C (`4648133`, branche `feature/84-beta-collegues-audit`). Elle n'est pas intégrée, parce que le propriétaire a demandé de ne rien changer en production pour #84-C sans son accord. Je ne l'ai pas dupliquée ici.
+
+### SHA et procédure de test
+- Branche `feature/59-langues-extensibles` : `3fe2fb1`. `develop` : `3681410` (même arbre que la branche testée).
+- `npm test` : **1006/1006** sur la branche et sur le SHA exact de la release `3681410`.
+
+### Vérifications
+- Avant déploiement : dernier appel IA de l'atelier à 17:00 UTC (plus de 4 h avant) et aucune génération en cours.
+- Copie de la base de production démarrée en mode production sur la release : `/health` ok, version `1.0.0+3681410`, nouveau texte servi, empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` **identiques** avant et après démarrage. La copie est supprimée.
+- Non fait : essai dans un navigateur headless de la carte du catalogue (il faut un compte connecté). Le texte est vérifié par le test automatisé et dans le `i18n.js` servi en production.
+
+### Déploiement
+- `main` avancé rapidement `a70a024 → 3681410`. `scripts/deploy.sh` de la release : sauvegarde vérifiée `dig-20261108-220424-pre-deploy-3681410.sqlite`, `npm ci` inutile (lock inchangé), santé et version OK.
+- Après le déploiement : les 2 domaines répondent **200** avec la version `1.0.0+3681410` ; `i18n.js` servi contient « Munten, fragmenten of een boost » ; journal sans erreur ; `quick_check` ok ; empreintes joueurs **identiques** à la sauvegarde pré-déploiement.
+- Retour arrière immédiat possible : `git -C /home/ubuntu/Dig reset --keep a70a024` puis `sudo systemctl restart dig` (aucune migration).
+
+### Test fonctionnel à faire par le propriétaire
+1. Jeu en **Nederlands** → onglet de la boutique, catalogue des coffres de saison.
+2. Carte **Eenvoudige kist** : la description commence par « **Munten**, fragmenten of een boost — kleine gegarandeerde beloningen. ».
+3. Rien d'autre à revérifier : les écrans validés le 08/11 n'ont pas changé.
+
+### Décisions demandées au propriétaire
+Toujours ouvertes (voir section 8 plus bas) : 1) activer l'italien pour tous après la recette du collègue (recommandé : oui) ; 2) traduction par l'API OpenAI avec une commande manuelle (recommandé : oui, manuel) ; 3) passer le russe en preview (recommandé : plus tard). À noter aussi : intégrer #84-C pour corriger le même mot en FR/IT, sur décision dans #84.
+
+### Remarque (signalée, non traitée)
+Les cartes des coffres NL disent « fragmenten » (« Grotere kans op fragmenten », « fragmentenjackpot »), alors que les fenêtres des coffres et la page Collection disent « scherven ». Le propriétaire n'a pas relevé ce point. Je le laisse tel quel pour ne pas élargir la recette. Je l'harmoniserai si le propriétaire le souhaite.
 
 ## Mise à jour du 04/11/2026 — recettes #59-E à #59-H (écrans NL Verbeteringen et kansen van kisten)
 
