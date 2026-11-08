@@ -1507,3 +1507,74 @@ Classement MVP : **Bloquant MVP public** (classement doté de lots pour la bêta
 
 - #91 : défi après 25 clics au même pixel, cadence 125 ms, signaux croisés, suspensions sur fraude corroborée — **Bloquant pour un concours sérieux**, en cours dans #91.
 - Audit écrit complet des flux de crédit (pièces, ressources, profondeur) pendant un défi ou une suspension, demandé à 12:59 UTC. **Non refait dans cette session.** Le gel du classement (blocs manuels) et de la profondeur hors Auto-Dig est prouvé (recette #25-G, +0). Le jeu officiel bloque les coups pendant un défi, donc pas de pièces ni de ressources par le minage manuel. En revanche, la validation serveur des monnaies face à un client modifié n'a pas été auditée ici (lien avec #74 / #77). À documenter dans une prochaine session — Bloquant pour des lots plus importants, pas pour la bêta.
+
+---
+
+# Session du 08/11/2026 (soir) — Décision « CAPTCHA maison conservé » et audit des flux de crédit pendant un défi
+
+## 1. Ticket et état réel
+
+#25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
+
+**Déployé en production (SHA `55240ce`) — en attente de recette. Cette session n'ajoute que de la documentation, sans code ni déploiement.**
+
+Source : [décision du propriétaire du 08/11/2026, 13:59 UTC](https://github.com/ReC82/Dig/issues/25#issuecomment-6722406587).
+Le propriétaire garde le **CAPTCHA natif de Dig** et veut l'améliorer. Il ne veut **ni Cloudflare Turnstile ni aucun service CAPTCHA tiers**, ni dépense ou dépendance Cloudflare. Il demande de poursuivre en local les détecteurs et le chronomètre prévus.
+
+## 2. Résultat
+
+| Point de la décision | Situation |
+|---|---|
+| Pas de CAPTCHA tiers | Vérifié : aucune trace de Turnstile, hCaptcha ou reCAPTCHA dans le code de `develop` (seulement dans les rapports). Rien à retirer. La question n°3 du rapport (Turnstile) est **tranchée** et retirée des questions ouvertes. |
+| Chronomètre de vérification | **Déjà en production** (`55240ce`) : 30 s pour la grille et 60 s pour la version accessible, réglables, avec une expiration côté serveur. Rien de plus à faire ici. |
+| Détecteurs locaux (25 clics au même pixel, cadence 125 ms, signaux croisés) | Confiés par le propriétaire à **#91** (13:19 UTC). Pas codés dans #25, pour ne pas faire deux fois le travail. La décision « CAPTCHA maison » s'applique aussi à #91. |
+
+Audit demandé le 08/11 à 12:59 UTC (point 2), resté en suspens jusqu'ici. Il a été fait par lecture du code de `develop` et des réglages de production, en **lecture seule**.
+
+### Matrice des gains avant / pendant / après un défi (mode Appliqué, en production depuis `55240ce`)
+
+« Pendant » = un défi est en attente ou le minage manuel est suspendu. Le serveur pose alors un **gel** (`antibotResponses.beforeSave` → `hold`).
+
+| Gain | Qui fait foi | Avant / après le défi | Pendant le défi, jeu officiel | Pendant le défi, client modifié |
+|---|---|---|---|---|
+| **Blocs manuels classés** (classement, lots de la bêta) | Serveur (`season_rankings.effective_manual_blocks`) | Crédités dans la limite des contrôles existants : clics ≥ blocs, plafond de cadence `processAntiCheat` (refusé / réduit / signalé), blocs ≤ profondeur retenue − 1 | **+0** : les coups sont bloqués à l'écran | **+0** : les compteurs de la fenêtre sont consommés sans crédit et le total validé est plafonné à sa valeur d'avant la sauvegarde (`recordHoldSave`). Prouvé en production (recettes #25-G et #87-C : +0). |
+| **Profondeur retenue** (sert au classement, aux badges, aux souvenirs et à la collection) | Serveur (`depth_tracking.accepted_depth`, budget de clics, #9) | Avance selon le budget de clics validés | **Gelée** pour le minage manuel ; l'Auto-Dig (amélioration achetée) continue | **Gelée** : les clics de la fenêtre sont consommés et une profondeur déclarée plus grande est ignorée |
+| Profondeur, blocs et statistiques **affichés dans la sauvegarde** | Navigateur (`user_saves.data`) | Enregistrés tels quels | Pas de minage manuel, donc pas de hausse | **Peuvent être écrits librement**. Ils ne comptent ni pour le classement ni pour les lots, qui ne lisent que les valeurs retenues par le serveur. |
+| **Badges, souvenirs d'événement (#56), collection (#39)** | Serveur, tirages fondés sur la profondeur retenue et les blocs validés | Selon les valeurs validées | Gelés, puisque leur base est gelée | Gelés, pour la même raison |
+| **Points de récompense et gagnants** (#29, #33) | Serveur, depuis le classement figé en fin de saison | Dérivés du classement | Dérivés du classement gelé | Idem |
+| **Pièces, ressources, améliorations** | **Navigateur** (sauvegarde) | Gagnées en minant | Pas de minage, donc pas de gain | **Non protégées, avec ou sans défi** : un client modifié peut déclarer n'importe quel montant. Les dépenses côté serveur (ouverture de coffre en boutique) sont débitées sur ce solde déclaré. Ce n'est pas lié au défi. |
+| **Gemmes** | Navigateur aujourd'hui ; registre serveur #49 en mode **`off`** en production | Déclarées par le jeu | Pas de gain par le minage | Non protégées tant que le registre #49 n'est pas en `enforce` |
+| **Missions quotidiennes** | Mode serveur #68 **`off`** en production (calcul dans le navigateur) | Côté navigateur | Pas de progression par le minage | Non protégées tant que #68 est `off` (le double paiement #83 est bloqué) |
+| PV exacts des blocs | #77 en **`shadow`** (observation) | — | — | Mesurés, sans effet |
+
+### Conclusion de l'audit
+
+1. **Pour la bêta du 09/11, ce qui donne droit aux lots est protégé** : blocs manuels classés et profondeur retenue, calculés par le serveur. Pendant un défi, ils sont gelés, même contre un client modifié. Aucun autre chemin ne crédite le classement : l'Auto-Dig n'entre jamais dans le classement, et les badges, souvenirs et collection n'en sont que des dérivés.
+2. **Ce qui n'est pas protégé, et ne l'était pas non plus avant le défi** : les gains *entre* deux défis par un autoclicker supervisé (c'est l'objet de #91), et les monnaies du jeu (pièces, ressources, gemmes) face à un client modifié. Ces monnaies ne comptent pas pour les lots. Leur validation serveur relève de #49 (registre de gemmes, à passer en `enforce`) et de #77 (PV exacts, en `shadow`). Elle sort du périmètre de #25.
+3. Aucun retrait rétroactif automatique n'a été fait ni proposé.
+
+## 3. SHA, branche, procédure de vérification
+
+- Branche `feature/25-anti-bot-lots-ab`. Code inchangé depuis `55240ce`, déjà en production ; seul ce rapport est ajouté.
+- Pour relire l'audit : `server/index.js` (`POST /api/me/save`, ouverture de coffre, réclamation de mission), `server/seasons.js` (`_syncPlayerRanking` : `beforeSave`, `validateDepth`, `recordHoldSave`), `server/badges.js` / `monthlyEvents.js` / `collectionPity.js` (`processSave`, base = `accepted_depth`), `server/chestShop.js` (`rollChest`, débit sur `data.coins`).
+- Réglages de production lus en lecture seule : `antibot_response_mode = enforce`, `ab_puzzle_seconds = 30`, `ab_puzzle_text_seconds = 60`, registre de gemmes `off`, missions serveur `off`, `exact_hp_mode = shadow`.
+
+## 4. Impact sur les données des joueurs et déploiement
+
+Aucune donnée modifiée. Rien à déployer : un commit de rapport seul ne justifie pas un déploiement. La production reste en **`55240ce`**.
+
+Test fonctionnel à faire par le propriétaire : **le même que dans la section précédente** (chrono, temps écoulé, « Autre énigme », arrêt d'urgence, ≈ 3 min). Classement MVP : **Bloquant MVP public**, livré.
+
+## 5. Décisions demandées au propriétaire
+
+1. Chrono : garder 30 s (grille) / 60 s (texte) ? Recommandation : oui, et ajuster dans Config → Protections en cas de plaintes.
+2. Optionnel : éligibilité aux récompenses (≥ 30 min de jeu sur ≥ 2 jours) via #19 ? Recommandation : oui.
+3. Optionnel : adresse de contestation ? Recommandation : l'expéditeur SMTP de #23 ou une adresse dédiée.
+4. Optionnel : reporter le lot D après le lancement ? Recommandation : oui.
+
+La question Turnstile est **tranchée** (CAPTCHA maison, aucun tiers).
+
+## 6. Éléments restant à réaliser
+
+- #91 : détecteurs locaux rapides (25 clics au même pixel, cadence, signaux croisés) et suspensions graduées. **Bloquant pour un concours sérieux.**
+- #49 en `enforce` (gemmes) et #77 (PV exacts) : validation serveur des monnaies face à un client modifié. **Après lancement** pour la bêta à petits lots, puisque les lots ne dépendent que du classement ; à faire avant des lots plus importants.
