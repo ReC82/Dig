@@ -101,10 +101,13 @@ test('calendrier : une proposition par mois, fêtes calculées, idées sans thè
   assert.ok(m(2).alternatives.some(a => a.key === 'nouvel_an_chinois' && a.date === '2027-02-06'));
   assert.strictEqual(m(10).holiday.key, 'halloween');
   assert.strictEqual(m(12).holiday.key, 'noel');
-  assert.deepStrictEqual(m(12).suggested, { startsAt: '2027-12-01T00:00', endsAt: '2028-01-01T00:00' });
-  assert.strictEqual(m(12).prepareBy, '2027-11-10');
+  // Règle du 08/11/2026 : un événement mensuel = le mois civil entier (00:01 → 1er suivant 00:00), J-14 pour préparer
+  assert.deepStrictEqual(m(12).suggested, { startsAt: '2027-12-01T00:01', endsAt: '2028-01-01T00:00' });
+  assert.deepStrictEqual(m(10).suggested, { startsAt: '2027-10-01T00:01', endsAt: '2027-11-01T00:00' }, 'Halloween inspire octobre sans raccourcir la durée');
+  assert.strictEqual(m(12).prepareBy, '2027-11-17');
   assert.strictEqual(m(5).holiday, null);
-  assert.ok(m(5).ideas.length >= 1 && m(5).suggested === null, 'mois sans fête : idées seulement');
+  assert.ok(m(5).ideas.length >= 1, 'mois sans fête : idées, jamais un thème imposé');
+  assert.deepStrictEqual(m(5).suggested, { startsAt: '2027-05-01T00:01', endsAt: '2027-06-01T00:00' });
   // Pâques 2026 = 5 avril, 2028 = 16 avril
   assert.strictEqual(ev.holidays(2026).find(h => h.key === 'paques').date.toISOString().slice(0, 10), '2026-04-05');
   assert.strictEqual(ev.holidays(2028).find(h => h.key === 'paques').date.toISOString().slice(0, 10), '2028-04-16');

@@ -47,6 +47,8 @@
     </div>
   </nav>
   <main class="admin-main" id="admin-main">
+  <!-- #56 (08/11) : indicateur d'accueil — événement mensuel en cours / mois prochain, rappels J-14/J-7/J-1 -->
+  <button type="button" id="ev-prep-banner" class="ev-prep-banner hidden"></button>
 
   <!-- Tab Saisons -->
   <section id="tab-seasons" class="tab-content">
@@ -3538,6 +3540,23 @@
         <button class="btn btn-outline" id="btn-ev-refresh" type="button">↻ Rafraîchir</button>
       </div>
     </div>
+    <div class="overview-card" id="ev-prep">
+      <h3 class="overview-card-title">🗓️ Préparation du mois prochain</h3>
+      <p id="ev-prep-headline" class="ev-prep-headline" role="status"></p>
+      <div id="ev-prep-months" class="ev-prep-months"></div>
+      <details class="ev-prep-sim">
+        <summary>⏱ Aperçu d'un changement de mois (simulation, ne modifie rien)</summary>
+        <p class="muted ev-help">Événements publics actifs autour du passage au mois suivant, selon ce qui est planifié. Une minute sans événement de 00:00:00 à 00:00:59, jamais de chevauchement.</p>
+        <div style="overflow-x:auto"><table><thead><tr><th>Heure de Bruxelles</th><th>Événement public actif</th></tr></thead><tbody id="ev-prep-transition"></tbody></table></div>
+        <div class="ev-prep-simform">
+          <label>Simuler l'heure (Bruxelles) <input type="text" id="ev-prep-at" placeholder="JJ/MM/AAAA HH:mm" maxlength="16" inputmode="numeric"></label>
+          <button class="btn-ghost" type="button" id="ev-prep-sim-btn">Voir l'état à cette heure</button>
+          <button class="btn-ghost" type="button" id="ev-prep-sim-reset">Revenir à maintenant</button>
+        </div>
+        <p id="ev-prep-sim-msg" class="muted ev-help" aria-live="polite"></p>
+      </details>
+    </div>
+
     <div class="overview-card">
       <p class="muted" style="font-size:0.8rem">Objets exclusifs tirés <strong>par le serveur</strong> sur les blocs dont le minage est validé ; un exemplaire par joueur, souvenir permanent, aucun gain de pièces ni de gemmes. Brouillon → planifié → actif → terminé ; « Repasser en brouillon » arrête les drops (objets trouvés conservés). Cliquez sur une ligne pour ouvrir la fiche.</p>
       <div style="overflow-x:auto"><table class="ev-table"><thead><tr><th>État</th><th>Événement</th><th>Public</th><th>Dates (Bruxelles)</th><th>Objets</th><th>Trouvailles</th></tr></thead><tbody id="ev-list"></tbody></table></div>
@@ -3545,11 +3564,15 @@
       <ul id="ev-ai-jobs" class="muted" style="font-size:0.8rem"></ul>
     </div>
 
-    <details class="overview-card">
-      <summary>📅 Calendrier proposé (un événement par mois)</summary>
-      <p class="muted" style="font-size:0.8rem">Fêtes calculées (Pâques, carnaval, Nouvel An chinois…) ; les mois sans fête proposent des idées à valider, jamais imposées. « À préparer avant » = début − 21 jours ; l'annonce « Bientôt » paraît dans les Actualités 7 jours avant (événements publics planifiés).</p>
-      <label>Année <select id="ev-cal-year"></select></label>
-      <div style="overflow-x:auto"><table><thead><tr><th>Mois</th><th>Proposition</th><th>Dates suggérées</th><th>À préparer avant</th><th>Événement</th><th></th></tr></thead><tbody id="ev-calendar"></tbody></table></div>
+    <details class="overview-card" id="ev-cal-box">
+      <summary>📅 Calendrier annuel (un événement = un mois civil entier)</summary>
+      <p class="muted" style="font-size:0.8rem">Chaque mois : du 1er à 00 h 01 au dernier jour à 23 h 59, heure de Bruxelles. Les fêtes inspirent le thème et les objets, elles ne raccourcissent jamais la durée. Les événements TEST et courts spéciaux restent à part. « À préparer avant » = J-14 ; l'annonce « Bientôt » paraît dans les Actualités à J-7 (événements publics planifiés).</p>
+      <div class="ev-cal-nav">
+        <button class="btn-ghost" type="button" id="ev-cal-prev" aria-label="Année précédente">◀</button>
+        <label>Année <select id="ev-cal-year"></select></label>
+        <button class="btn-ghost" type="button" id="ev-cal-next" aria-label="Année suivante">▶</button>
+      </div>
+      <div style="overflow-x:auto"><table class="ev-table"><thead><tr><th>Mois</th><th>Thème / inspiration</th><th>Période (Bruxelles)</th><th>État</th><th>Contenu</th><th>À préparer avant</th><th></th></tr></thead><tbody id="ev-calendar"></tbody></table></div>
     </details>
 
     <details class="overview-card">

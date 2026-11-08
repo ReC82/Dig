@@ -1059,7 +1059,7 @@ document.addEventListener('keydown', e => {
 // ── Load all ──────────────────────────────────────────────────────────────────
 
 async function loadAll() {
-  await Promise.all([loadSeasons(), loadLeagues(), loadConfig(), loadSeasonOverview()]);
+  await Promise.all([loadSeasons(), loadLeagues(), loadConfig(), loadSeasonOverview(), loadEvPrepBanner()]);
   loadLeaderboard();
   loadAntiCheatLogs();
 }
@@ -11507,7 +11507,11 @@ async function loadEvents() {
   const { ok, data } = await api('GET', '/api/admin/events');
   if (!ok) return nwMessage('ev-msg', data.error ?? 'Chargement impossible.', true);
   _ev = data;
+  _evCalCache = {};
   renderEvents();
+  renderEvPrep(data.preparation);
+  const msg = document.getElementById('ev-prep-sim-msg');
+  if (msg) msg.textContent = '';
 }
 
 /** Avertissements groupés (« 5 illustrations absentes » plutôt que 5 lignes). */
@@ -11569,33 +11573,168 @@ function renderEvents() {
   }
 }
 
-function renderEvCalendar() {
+// ── Préparation du mois prochain et calendrier annuel (#56, décisions du 08/11/2026) ──────────────
+// Un événement mensuel public = un mois civil entier (1er 00:01 → 1er suivant 00:00, Bruxelles). Le serveur
+// calcule tout (GET /api/admin/events → preparation) ; ici : affichage, liens directs, simulation d'heure.
+const EV_MONTH_STATE = { absent: ['⛔ Absent', 'bad'], incomplete: ['✏️ À compléter', 'warn'], unscheduled: ['📝 Brouillon non planifié', 'warn'],
+  planned: ['✅ Prêt — planifié', 'ok'], active: ['🟢 Actif', 'ok'], ended: ['🏁 Terminé', 'muted'] };
+const evMonthChip = st => { const [l, c] = EV_MONTH_STATE[st] ?? [st, 'muted']; return evChip(l, c); };
+let _evCalCache = {};
+
+/** Ouvre la fiche d'un événement de la liste (rechargée si besoin). */
+async function evOpenById(id, opener) {
+  let ev = _ev?.events.find(e => e.id === id);
+  if (!ev) { await loadEvents(); ev = _ev?.events.find(e => e.id === id); }
+  if (ev) evOpen(ev, opener);
+}
+
+/** Brouillon public prérempli pour un mois civil entier (rien n'est enregistré avant « Enregistrer »). */
+function evNewMonthDraft(m, opener) {
+  const y = m.year, mm = String(m.month).padStart(2, '0');
+  evOpen(null, opener, { id: m.holiday ? `${m.holiday.key}_${y}` : `evenement_${y}_${mm}`, icon: '🎉', audience: 'public', testers: [],
+    names: { fr: m.holiday ? m.holiday.name : '' }, taglines: {}, startsLocal: m.startsLocal ?? m.suggested?.startsAt, endsLocal: m.endsLocal ?? m.suggested?.endsAt, items: [] });
+}
+
+function evMonthCounts(c) {
+  if (!c) return '—';
+  const img = c.images;
+  return `${c.enabled}/${c.items} objet(s) actif(s) · 🖼 ${img.published}/${c.items} publiée(s)${img.draft ? ` (+${img.draft} en fiche)` : ''} · 🌐 ${c.translated}/${c.items} traduit(s)`;
+}
+
+function evMonthActions(m, box) {
+  const btn = (label, fn, cls = 'btn-ghost') => { const b = aiEl('button', { type: 'button', class: cls }, label); b.addEventListener('click', () => fn(b)); box.appendChild(b); };
+  if (!m.event) { if (m.daysLeft > -m.days) btn('＋ Créer un événement', b => evNewMonthDraft(m, b), 'btn btn-primary'); return; }
+  const id = m.event.id;
+  if (m.event.status === 'draft') {
+    btn(m.counts?.items ? '✏️ Ajouter / modifier les objets' : '＋ Ajouter les objets', b => evOpenById(id, b));
+    btn('🎨 Ouvrir l\'atelier d\'images', () => document.querySelector('.tab-btn[data-tab="icons"]').click());
+    btn('🔎 Vérifier / Planifier', b => evOpenById(id, b), 'btn btn-primary');
+  } else {
+    btn('📄 Ouvrir la fiche', b => evOpenById(id, b));
+    if (m.state !== 'ended') btn('⏸ Arrêter / reporter…', b => evOpenById(id, b));
+    if ((m.counts?.images.published ?? 0) < (m.counts?.items ?? 0)) btn('🎨 Ouvrir l\'atelier d\'images', () => document.querySelector('.tab-btn[data-tab="icons"]').click());
+  }
+}
+
+function renderEvPrep(p, { simulated = false } = {}) {
+  const head = document.getElementById('ev-prep-headline');
+  if (!head || !p) return;
+  head.textContent = `${simulated ? `🧪 Simulation au ${evFmt(p.nowLocal)} — ` : ''}${p.headline}`;
+  head.className = `ev-prep-headline ev-prep--${p.level}`;
+  const box = document.getElementById('ev-prep-months');
+  box.textContent = '';
+  for (const [key, title] of [['previous', 'Mois précédent'], ['current', 'Mois en cours'], ['next', 'Mois prochain']]) {
+    const m = p[key];
+    const card = aiEl('section', { class: `ev-prep-month ev-prep-month--${key}`, 'aria-label': `${title} : ${m.label}` });
+    const h = aiEl('h4', {}, `${title} — ${m.label}`);
+    card.appendChild(h);
+    const line = aiEl('div', { class: 'ev-prep-line' });
+    line.appendChild(key === 'previous' && m.state === 'absent' ? evChip('Aucun événement', 'muted') : evMonthChip(m.state));
+    if (m.reminder) line.appendChild(evChip(`⏰ ${m.reminder} (dans ${m.daysLeft} j)`, m.reminder === 'J-1' ? 'bad' : 'warn'));
+    card.appendChild(line);
+    card.appendChild(aiEl('p', { class: 'muted ev-help' }, m.event ? `${m.event.icon} ${m.event.name} · ${m.event.period}` : `Bascule : ${m.period}`));
+    if (m.counts) card.appendChild(aiEl('p', { class: 'ev-help' }, evMonthCounts(m.counts)));
+    if (m.blocking.length) {
+      const ul = aiEl('ul', { class: 'ev-prep-list ev-prep-list--bad', 'aria-label': 'Tâches bloquantes' });
+      for (const x of m.blocking.slice(0, 6)) ul.appendChild(aiEl('li', {}, `❌ ${x}`));
+      if (m.blocking.length > 6) ul.appendChild(aiEl('li', { class: 'muted' }, `… et ${m.blocking.length - 6} autre(s) : voir la fiche.`));
+      card.appendChild(ul);
+    }
+    if (m.warnings.length) {
+      const d = aiEl('details', { class: 'ev-prep-warn' });
+      d.appendChild(aiEl('summary', {}, `⚠ ${m.warnings.length} avertissement(s) non bloquant(s)`));
+      const ul = aiEl('ul', { class: 'ev-prep-list' });
+      for (const x of m.warnings) ul.appendChild(aiEl('li', {}, x));
+      d.appendChild(ul);
+      card.appendChild(d);
+    }
+    const act = aiEl('div', { class: 'ev-prep-actions' });
+    if (!simulated) evMonthActions(m, act);
+    card.appendChild(act);
+    box.appendChild(card);
+  }
+  const tb = document.getElementById('ev-prep-transition');
+  tb.textContent = '';
+  const names = new Map((_ev?.events ?? []).map(e => [e.id, `${e.icon} ${e.names.fr}`]));
+  for (const t of p.transition) {
+    const tr = document.createElement('tr');
+    addCell(tr, evFmt(t.local) + t.local.slice(16));
+    addCell(tr, t.active.length ? t.active.map(id => names.get(id) ?? id).join(', ') : '— aucun (jeu normal)');
+    tb.appendChild(tr);
+  }
+  renderEvPrepBanner(p);
+}
+
+/** Indicateur d'accueil (toutes rubriques) : « novembre actif / décembre planifié », rappels J-14/J-7/J-1. */
+function renderEvPrepBanner(p) {
+  const el = document.getElementById('ev-prep-banner');
+  if (!el || !p) return;
+  const part = m => `${m.label} : ${(EV_MONTH_STATE[m.state] ?? [m.state])[0]}${m.event ? ` (${m.event.name})` : ''}`;
+  el.textContent = `🎉 Événements — ${part(p.current)} · ${part(p.next)}${p.next.reminder ? ` · ⏰ ${p.next.reminder}` : ''}`;
+  el.className = `ev-prep-banner ev-prep--${p.level}`;
+  el.title = p.headline;
+}
+
+async function loadEvPrepBanner() {
+  const { ok, data } = await api('GET', '/api/admin/events/preparation');
+  if (ok) renderEvPrepBanner(data.preparation);
+}
+
+async function evPrepSimulate() {
+  const msg = document.getElementById('ev-prep-sim-msg');
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2})[:hH](\d{2})$/.exec(document.getElementById('ev-prep-at').value.trim());
+  if (!m) { msg.textContent = 'Format attendu : JJ/MM/AAAA HH:mm (heure de Bruxelles).'; return; }
+  const local = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}T${m[4].padStart(2, '0')}:${m[5]}`;
+  const ms = evLocalToMs(local);
+  if (!Number.isFinite(ms)) { msg.textContent = 'Date invalide.'; return; }
+  const { ok, data } = await api('GET', `/api/admin/events/preparation?at=${encodeURIComponent(new Date(ms).toISOString())}`);
+  if (!ok) { msg.textContent = data.error ?? 'Simulation impossible.'; return; }
+  msg.textContent = 'Simulation en lecture seule : aucune donnée ni aucun joueur modifié. Les boutons d\'action sont masqués.';
+  renderEvPrep(data.preparation, { simulated: true });
+}
+
+async function renderEvCalendar() {
   const sel = document.getElementById('ev-cal-year');
-  const years = _ev.calendar.map(c => c.year);
-  if (!sel.options.length || [...sel.options].map(o => +o.value).join() !== years.join()) {
+  for (const c of _ev.calendar) _evCalCache[c.year] = c;
+  const cur = _ev.calendar[0].year;
+  const want = +sel.value || cur;
+  const years = [];
+  for (let y = Math.min(cur - 1, want); y <= Math.max(cur + 3, want); y++) years.push(y);
+  if ([...sel.options].map(o => +o.value).join() !== years.join()) {
     sel.textContent = '';
     for (const y of years) sel.appendChild(aiEl('option', { value: String(y) }, String(y)));
   }
-  const cal = _ev.calendar.find(c => c.year === +sel.value) ?? _ev.calendar[0];
+  sel.value = String(want);
+  let cal = _evCalCache[want];
+  if (!cal) {
+    const { ok, data } = await api('GET', `/api/admin/events/calendar?year=${want}`);
+    if (!ok) return nwMessage('ev-msg', data.error ?? 'Calendrier indisponible.', true);
+    cal = _evCalCache[want] = data.calendar;
+  }
   const tb = document.getElementById('ev-calendar');
   tb.textContent = '';
   for (const m of cal.months) {
     const tr = document.createElement('tr');
-    addCell(tr, `${EV_MONTHS[m.month - 1]} ${m.year}`);
+    addCell(tr, `${EV_MONTHS[m.month - 1]} ${m.year}`).appendChild(aiEl('div', { class: 'muted ev-sub' }, `${m.days} jours`));
     const prop = addCell(tr, m.holiday ? `${m.holiday.name} (${m.holiday.date})` : `Idées : ${m.ideas.join(' · ')}`);
     if (m.alternatives.length) prop.appendChild(aiEl('div', { class: 'muted ev-sub' }, `Autres : ${m.alternatives.map(a => `${a.name} (${a.date})`).join(', ')}`));
-    addCell(tr, m.suggested ? evFmtRange(m.suggested.startsAt, m.suggested.endsAt) : 'à choisir');
-    addCell(tr, m.prepareBy ? `${m.prepareBy}${m.late ? ' ⚠️ en retard' : ''}` : '—');
-    addCell(tr, m.events.length ? m.events.map(e => `${e.icon} ${e.name} (${EV_STATES[e.state] ?? e.state})`).join(', ') : '—');
+    addCell(tr, evFmtRange(m.suggested.startsAt, m.suggested.endsAt)).classList.add('ev-nowrap');
+    const st = addCell(tr, '');
+    st.appendChild(evMonthChip(m.state));
+    if (m.main) st.appendChild(aiEl('div', { class: 'muted ev-sub' }, `${m.main.icon} ${m.main.name}${m.main.fullMonth ? '' : ' · ⚠ pas le mois entier'}`));
+    const others = m.events.filter(e => e.id !== m.main?.id);
+    if (others.length) st.appendChild(aiEl('div', { class: 'muted ev-sub' }, `Aussi : ${others.map(e => `${e.icon} ${e.name}${e.audience === 'test' ? ' (TEST)' : ''}`).join(', ')}`));
+    const c = addCell(tr, evMonthCounts(m.counts));
+    if (m.blocking || m.warnings) c.appendChild(aiEl('div', { class: 'muted ev-sub' }, `${m.blocking ? `❌ ${m.blocking} bloquant(s) ` : ''}${m.warnings ? `⚠ ${m.warnings} avertissement(s)` : ''}`));
+    addCell(tr, `${m.prepareBy}${m.late ? ' ⚠️ en retard' : ''}`);
     const act = addCell(tr, '');
-    if (!m.events.length) {
-      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, 'Préparer un brouillon');
-      b.addEventListener('click', () => evOpen(null, b, {
-        id: m.holiday ? `${m.holiday.key}_${m.year}` : '', icon: '🎉', audience: 'public', testers: [],
-        names: { fr: m.holiday ? m.holiday.name : '' }, taglines: {},
-        startsLocal: m.suggested?.startsAt ?? `${m.year}-${String(m.month).padStart(2, '0')}-01T00:00`,
-        endsLocal: m.suggested?.endsAt ?? '', items: [],
-      }));
+    if (!m.main && m.state === 'absent' && !(m.blocking === 0 && m.warnings)) {
+      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, '＋ Créer un événement');
+      b.addEventListener('click', () => evNewMonthDraft(m, b));
+      act.appendChild(b);
+    } else if (m.main) {
+      const b = aiEl('button', { class: 'btn-ghost', type: 'button' }, m.main.status === 'draft' ? '🔎 Vérifier / Planifier' : '📄 Fiche');
+      b.addEventListener('click', () => evOpenById(m.main.id, b));
       act.appendChild(b);
     }
     tb.appendChild(tr);
@@ -12159,6 +12298,20 @@ document.getElementById('btn-evi-remove')?.addEventListener('click', eviRemove);
 document.getElementById('btn-evi-studio')?.addEventListener('click', eviOpenStudio);
 document.getElementById('btn-ev-publish-images')?.addEventListener('click', evPublishImages);
 document.getElementById('ev-cal-year')?.addEventListener('change', renderEvCalendar);
+for (const [id, d] of [['ev-cal-prev', -1], ['ev-cal-next', 1]]) {
+  document.getElementById(id)?.addEventListener('click', () => {
+    const sel = document.getElementById('ev-cal-year');
+    sel.appendChild(aiEl('option', { value: String(+sel.value + d) }, String(+sel.value + d)));
+    sel.value = String(+sel.value + d);
+    renderEvCalendar();
+  });
+}
+document.getElementById('ev-prep-sim-btn')?.addEventListener('click', evPrepSimulate);
+document.getElementById('ev-prep-sim-reset')?.addEventListener('click', () => { if (_ev) { renderEvPrep(_ev.preparation); document.getElementById('ev-prep-sim-msg').textContent = ''; } });
+document.getElementById('ev-prep-banner')?.addEventListener('click', () => {
+  document.querySelector('.tab-btn[data-tab="events"]').click();
+  document.getElementById('ev-prep')?.scrollIntoView({ block: 'start' });
+});
 document.getElementById('ev-audience')?.addEventListener('change', evRenderState);
 document.getElementById('ev-name')?.addEventListener('input', e => { _evCur.draft.names[_evLang] = e.target.value; });
 document.getElementById('ev-tag')?.addEventListener('input', e => { _evCur.draft.taglines[_evLang] = e.target.value; });

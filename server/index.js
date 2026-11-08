@@ -2365,6 +2365,14 @@ app.get('/api/events', limit.news, eventRoute('GET /api/events', req => monthlyE
 
 // Panel : liste + calendrier + IA, création/édition en brouillon, planification, retour en brouillon, révisions.
 app.get('/api/admin/events', requireAdmin, eventRoute('GET /api/admin/events', () => monthlyEvents.adminView()));
+// Préparation du mois prochain et calendrier navigable (#56, 08/11) : lecture seule ; `at` simule une autre heure sans rien modifier
+app.get('/api/admin/events/preparation', requireAdmin, eventRoute('GET /api/admin/events/preparation', req => {
+  const at = req.query.at ? Date.parse(String(req.query.at)) : Date.now();
+  if (!Number.isFinite(at)) throw new monthlyEvents.EventError(400, 'Heure simulée invalide (ISO).');
+  return { preparation: monthlyEvents.preparation(at), simulated: !!req.query.at };
+}));
+app.get('/api/admin/events/calendar', requireAdmin, eventRoute('GET /api/admin/events/calendar',
+  req => ({ calendar: monthlyEvents.proposeCalendar(intParam(req.query.year, { def: monthlyEvents.monthOf(Date.now()).year, min: 2024, max: 2100 })) })));
 app.post('/api/admin/events', requireAdmin, eventRoute('POST /api/admin/events', req => ({ event: monthlyEvents.createEvent(req.body ?? {}) })));
 app.post('/api/admin/events/test', requireAdmin, eventRoute('POST /api/admin/events/test',
   req => ({ event: monthlyEvents.createTestEvent({ testers: req.body?.testers, minutes: req.body?.minutes }) })));
@@ -2843,6 +2851,8 @@ news.init();                     // centre d'actualités : annonces, lu par comp
 monthlyEvents.init();            // événements mensuels : objets exclusifs, souvenirs permanents, révisions (#56)
 // Événements préparés (server/content/events) → brouillon, une seule fois ; pas en test (bases neuves)
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importPrepared();
+// Décisions écrites du propriétaire (planification de novembre et Noël 2026), une seule fois, mêmes contrôles que « Planifier »
+if (process.env.NODE_ENV !== 'test' && process.env.DIG_EVENT_DECISIONS !== '0') monthlyEvents.applyOwnerDecisions();
 testRuns.init();                 // essais de test : instantanés, reset complet, restauration, audit chaîné (#75)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)

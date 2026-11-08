@@ -54,7 +54,6 @@ const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];
 const ID_RE = /^[a-z][a-z0-9_]{2,39}$/;
 const MAX = { name: 60, tagline: 240, desc: 320, brief: 600, inspiration: 400, items: 40, testers: 20, durationDays: 62, concept: 600 };
 const MAX_BLOCKS_PER_SAVE = 2000;   // au-delà, le curseur avance sans tirage (aucune rafale d'objets)
-const PREP_DAYS = 21;               // préparation conseillée avant le début
 const ANNOUNCE_DAYS = 7;            // annonce « à venir » dans le centre d'actualités (#50)
 const CONTENT_DIR = path.join(__dirname, 'content', 'events');
 
@@ -756,9 +755,143 @@ const IDEAS = {
   11: ['Brouillard et lanternes', 'Mines englouties'],
 };
 
+// ── Mois civil et préparation du mois suivant (#56, décisions du propriétaire du 08/11/2026) ──────
+// Un événement mensuel PUBLIC = un mois civil entier, heure de Bruxelles : début INCLUS le 1er à 00:01,
+// fin EXCLUE le 1er du mois suivant à 00:00 (la minute 23:59 du dernier jour est couverte ; une minute
+// sans événement entre deux mois, jamais de chevauchement). Aucune tâche planifiée : un événement planifié
+// est actif dès que l'heure du serveur est dans ses bornes (activeFor), donc un redémarrage, une absence
+// du serveur ou un changement d'heure ne déclenchent rien deux fois et n'en ratent aucun. Rien n'est
+// jamais inventé ni prolongé : un mois sans événement planifié reste sans événement.
+
+const DAY_MS = 86_400_000;
+const REMIND_DAYS = [14, 7, 1];      // rappels de préparation : J-14, J-7, J-1 avant le début du mois
+const _pad = n => String(n).padStart(2, '0');
+
+/** Bornes d'un mois civil : { startsLocal 'AAAA-MM-01T00:01', endsLocal '1er du mois suivant T00:00', en UTC, début civil 00:00 }. */
+function monthBounds(year, month) {
+  const ny = month === 12 ? year + 1 : year, nm = month === 12 ? 1 : month + 1;
+  const startsLocal = `${year}-${_pad(month)}-01T00:01`, endsLocal = `${ny}-${_pad(nm)}-01T00:00`;
+  return { year, month, startsLocal, endsLocal, startsAt: brusselsToUtc(startsLocal), endsAt: brusselsToUtc(endsLocal),
+    monthStartAt: brusselsToUtc(`${year}-${_pad(month)}-01T00:00`), days: new Date(Date.UTC(year, month, 0)).getUTCDate() };
+}
+
+/** Mois civil (Bruxelles) d'un instant. */
+function monthOf(ms) { const l = utcToBrussels(_iso(ms)); return { year: +l.slice(0, 4), month: +l.slice(5, 7) }; }
+function shiftMonth({ year, month }, delta) { const i = year * 12 + (month - 1) + delta; return { year: Math.floor(i / 12), month: (i % 12) + 1 }; }
+
+/** Vrai si l'événement couvre exactement le mois civil de son début (règle du 08/11). */
+function isFullMonth(ev) {
+  const { year, month } = monthOf(Date.parse(ev.startsAt) + 60_000);
+  const b = monthBounds(year, month);
+  return ev.startsAt === b.startsAt && ev.endsAt === b.endsAt;
+}
+
+const MONTH_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const MONTH_STATES = { absent: 'Absent', incomplete: 'À compléter', unscheduled: 'Brouillon non planifié', planned: 'Prêt — planifié', active: 'Actif', ended: 'Terminé' };
+
+/** « du 1er décembre 2026 à 00 h 01 au 31 décembre 2026 à 23 h 59, heure de Bruxelles » (aucun « minuit » ambigu). */
+function frRange(startsAt, endsAt) {
+  const f = ms => { const l = utcToBrussels(_iso(ms)); const d = +l.slice(8, 10);
+    return `${d === 1 ? '1er' : d} ${MONTH_FR[+l.slice(5, 7) - 1]} ${l.slice(0, 4)} à ${l.slice(11, 13)} h ${l.slice(14, 16)}`; };
+  return `du ${f(Date.parse(startsAt))} au ${f(Date.parse(endsAt) - 60_000)}, heure de Bruxelles`;
+}
+
 /**
- * Calendrier de l'année : une proposition par mois, avec l'événement existant qui la couvre,
- * l'échéance de préparation (début − 21 j) et l'annonce (début − 7 j).
+ * État d'un mois pour l'admin : événement public qui le couvre (planifié d'abord), état explicite,
+ * tâches bloquantes, avertissements non bloquants, compteurs (objets, images, traductions) et rappel J-14/J-7/J-1.
+ * Lecture seule : `nowMs` peut simuler une autre heure sans rien modifier.
+ */
+function monthStatus(year, month, nowMs = Date.now(), events = listEvents(nowMs)) {
+  const b = monthBounds(year, month);
+  const label = `${MONTH_FR[month - 1]} ${year}`;
+  const mStart = Date.parse(b.monthStartAt), mEnd = Date.parse(b.endsAt);
+  const covering = events.filter(e => e.audience === 'public' && Date.parse(e.startsAt) < mEnd && Date.parse(e.endsAt) > mStart)
+    .map(e => ({ ...e, state: stateOf(e, nowMs) }))
+    .sort((x, y) => (y.status === 'scheduled') - (x.status === 'scheduled') || Date.parse(x.startsAt) - Date.parse(y.startsAt));
+  const ev = covering[0] ?? null;
+  const blocking = [], warnings = [];
+  let state = 'absent', counts = null;
+  const past = mEnd <= nowMs;
+  if (!ev) {
+    (past ? warnings : blocking).push(past ? `Aucun événement public en ${label}.`
+      : `Aucun événement prévu pour ${label} : le jeu reste jouable sans événement mensuel. Rien ne sera inventé ni prolongé.`);
+  } else {
+    const r = readiness(ev);
+    state = ev.status === 'scheduled' ? ev.state : (r.ready ? 'unscheduled' : 'incomplete');
+    if (ev.status !== 'scheduled') {
+      if (!ev.items.length) blocking.push('0 objet : ajoutez les objets.');
+      blocking.push(...r.blocking.filter(x => x !== 'Aucun objet.'));
+      if (r.ready) blocking.push('Brouillon complet mais NON planifié : il ne démarrera pas tout seul. « Vérifier / Planifier ».');
+    }
+    const img = { published: 0, draft: 0, none: 0 };
+    for (const it of ev.items) img[imageState(it)]++;
+    const translated = ev.items.filter(it => LANGS.every(l => it.names[l] && it.descs[l])).length;
+    counts = { items: ev.items.length, enabled: ev.items.filter(i => i.enabled).length, images: img, translated };
+    if (ev.items.length && img.published < ev.items.length) {
+      warnings.push(img.published ? `${img.published}/${ev.items.length} objets ont une image publiée ; les ${ev.items.length - img.published} autres affichent leur emoji (non bloquant).`
+        : `Aucune image publiée : les ${ev.items.length} objets affichent leur emoji (non bloquant).`);
+    }
+    if (img.draft) warnings.push(`${img.draft} image(s) conservée(s) dans la fiche mais pas encore publiée(s) (« Publier les images »).`);
+    const noBrief = ev.items.filter(it => !it.brief).length;
+    if (noBrief) warnings.push(`${noBrief} objet(s) sans consigne d'image pour l'atelier.`);
+    if (ev.items.length && translated < ev.items.length) warnings.push(`${ev.items.length - translated} objet(s) pas encore traduit(s) dans toutes les langues.`);
+    if (!isFullMonth(ev)) warnings.push(`Dates ${frRange(ev.startsAt, ev.endsAt)} : un événement mensuel couvre le mois entier, ${frRange(b.startsAt, b.endsAt)}.`);
+    if (covering.filter(e => e.status === 'scheduled').length > 1) warnings.push('Plusieurs événements publics planifiés se chevauchent sur ce mois.');
+    const started = Date.parse(b.startsAt) <= nowMs;
+    for (const w of r.warnings) if (!/pas d'illustration/.test(w) && !(started && /annonce tardive/.test(w)) && !warnings.includes(w)) warnings.push(w);
+  }
+  if (past) blocking.length = 0;   // mois terminé : plus aucune tâche à faire
+  const daysLeft = Math.ceil((Date.parse(b.startsAt) - nowMs) / DAY_MS);
+  const settled = ['planned', 'active', 'ended'].includes(state);
+  const reminder = settled || daysLeft <= 0 ? null : (REMIND_DAYS.slice().reverse().find(d => daysLeft <= d) ?? null);
+  return {
+    year, month, label, state, stateLabel: MONTH_STATES[state], period: frRange(b.startsAt, b.endsAt),
+    startsAt: b.startsAt, endsAt: b.endsAt, startsLocal: b.startsLocal, endsLocal: b.endsLocal, days: b.days, daysLeft,
+    reminder: reminder ? `J-${reminder}` : null,
+    event: ev ? { id: ev.id, icon: ev.icon, name: ev.names.fr, status: ev.status, state: ev.state, revision: ev.revision,
+      startsAt: ev.startsAt, endsAt: ev.endsAt, startsLocal: utcToBrussels(ev.startsAt), endsLocal: utcToBrussels(ev.endsAt), fullMonth: isFullMonth(ev),
+      period: frRange(ev.startsAt, ev.endsAt) } : null,
+    others: covering.slice(1).map(e => ({ id: e.id, icon: e.icon, name: e.names.fr, state: e.state })),
+    counts, blocking, warnings,
+  };
+}
+
+/** Événements publics actifs à un instant (lecture seule) — sert à l'aperçu d'un changement de mois. */
+function publicActiveAt(ms) {
+  return conn().prepare("SELECT id FROM monthly_events WHERE status = 'scheduled' AND audience = 'public' AND starts_at <= ? AND ends_at > ? ORDER BY starts_at")
+    .all(_iso(ms), _iso(ms)).map(r => r.id);
+}
+
+/**
+ * Aperçu du passage au mois `year`/`month` (simulation d'horloge, aucune écriture) : événements publics
+ * actifs la veille à 23:59:00 et 23:59:59, à 00:00:00, 00:00:30, puis 00:01:00 et 00:01:30.
+ */
+function transitionPreview(year, month) {
+  const b = monthBounds(year, month);
+  const m0 = Date.parse(b.monthStartAt);
+  return [-60_000, -1000, 0, 30_000, 60_000, 90_000].map(d => ({ at: _iso(m0 + d), local: utcToBrussels(_iso(m0 + d)) + (d % 60_000 ? `:${_pad(((d % 60_000) + 60_000) % 60_000 / 1000)}` : ':00'),
+    active: publicActiveAt(m0 + d) }));
+}
+
+/** Tableau de bord « Préparation du mois prochain » : mois précédent / en cours / suivant + rappel. */
+function preparation(nowMs = Date.now()) {
+  const events = listEvents(nowMs);
+  const cur = monthOf(nowMs);
+  const [previous, current, next] = [-1, 0, 1].map(d => { const m = shiftMonth(cur, d); return monthStatus(m.year, m.month, nowMs, events); });
+  let level = 'ok';
+  if (!['planned', 'active'].includes(next.state)) level = next.reminder === 'J-1' ? 'urgent' : next.reminder ? 'warn' : 'info';
+  const headline = ['planned', 'active'].includes(next.state)
+    ? `${next.label} : ${next.event.icon} ${next.event.name} planifié, actif automatiquement ${next.event.period}.`
+    : next.state === 'absent' ? `Aucun événement prévu pour ${next.label} (dans ${next.daysLeft} j) : le jeu reste jouable sans événement mensuel.`
+      : `${next.label} : ${next.event.icon} ${next.event.name} — ${next.stateLabel.toLowerCase()}, il ne démarrera pas tout seul (dans ${next.daysLeft} j).`;
+  return { now: _iso(nowMs), nowLocal: utcToBrussels(_iso(nowMs)), timezone: TZ, remindDays: REMIND_DAYS, previous, current, next, level, headline,
+    transition: transitionPreview(next.year, next.month) };
+}
+
+/**
+ * Calendrier de l'année : un mois civil entier par mois (00:01 → 1er suivant 00:00), la fête du mois
+ * comme INSPIRATION du thème (jamais une durée raccourcie), l'état de préparation du mois, l'échéance
+ * de préparation (J-14) et l'annonce « Bientôt » (J-7).
  */
 function proposeCalendar(year, nowMs = Date.now()) {
   const hs = holidays(year);
@@ -767,25 +900,82 @@ function proposeCalendar(year, nowMs = Date.now()) {
   for (let m = 1; m <= 12; m++) {
     const inMonth = hs.filter(h => h.month === m).sort((a, b) => PRIORITY.indexOf(a.key) - PRIORITY.indexOf(b.key));
     const main = inMonth[0] ?? null;
-    const pad = n => String(n).padStart(2, '0');   // bornes du mois en heure de Bruxelles
-    const monthStart = Date.parse(brusselsToUtc(`${year}-${pad(m)}-01T00:00`));
-    const monthEnd = Date.parse(brusselsToUtc(m === 12 ? `${year + 1}-01-01T00:00` : `${year}-${pad(m + 1)}-01T00:00`));
+    const b = monthBounds(year, m);
+    const st = monthStatus(year, m, nowMs, events);
+    const monthStart = Date.parse(b.monthStartAt), monthEnd = Date.parse(b.endsAt);
     const covering = events.filter(e => Date.parse(e.startsAt) < monthEnd && Date.parse(e.endsAt) > monthStart)
-      .map(e => ({ id: e.id, icon: e.icon, name: e.names.fr, state: e.state, audience: e.audience }));
-    const start = main ? main.window[0] : null;
+      .map(e => ({ id: e.id, icon: e.icon, name: e.names.fr, state: e.state, audience: e.audience, fullMonth: isFullMonth(e) }));
+    const startMs = Date.parse(b.startsAt);
     months.push({
-      month: m, year,
+      month: m, year, days: b.days,
       holiday: main ? { key: main.key, name: main.fr, date: _ymd(main.date) } : null,
       alternatives: inMonth.slice(1).map(h => ({ key: h.key, name: h.fr, date: _ymd(h.date) })),
       ideas: main ? [] : (IDEAS[m] ?? ['Thème original à choisir']),
-      suggested: main ? { startsAt: `${_ymd(main.window[0])}T00:00`, endsAt: `${_ymd(main.window[1])}T00:00` } : null,
-      prepareBy: start ? _ymd(_add(start, -PREP_DAYS)) : null,
-      announceAt: start ? _ymd(_add(start, -ANNOUNCE_DAYS)) : null,
-      late: start ? nowMs > _add(start, -PREP_DAYS).getTime() && !covering.length : false,
+      suggested: { startsAt: b.startsLocal, endsAt: b.endsLocal },
+      period: st.period,
+      prepareBy: _ymd(new Date(startMs - REMIND_DAYS[0] * DAY_MS + _tzOffsetMs(startMs))),
+      announceAt: _ymd(new Date(startMs - ANNOUNCE_DAYS * DAY_MS + _tzOffsetMs(startMs))),
+      late: nowMs > startMs - REMIND_DAYS[0] * DAY_MS && !['planned', 'active', 'ended'].includes(st.state) && nowMs < monthEnd,
+      state: st.state, stateLabel: st.stateLabel, counts: st.counts, blocking: st.blocking.length, warnings: st.warnings.length,
+      main: st.event,
       events: covering,
     });
   }
-  return { year, timezone: TZ, prepDays: PREP_DAYS, announceDays: ANNOUNCE_DAYS, months };
+  return { year, timezone: TZ, prepDays: REMIND_DAYS[0], announceDays: ANNOUNCE_DAYS, months };
+}
+
+// ── Décisions écrites du propriétaire, appliquées une seule fois au démarrage ────────────────────
+// Le propriétaire n'a pas accès au panel (08/11/2026) et a autorisé par écrit la planification de
+// novembre et de Noël 2026 « via le workflow légitime ». Chaque décision passe par les mêmes contrôles
+// que le bouton « Planifier » (fiche complète, période non terminée) et n'est appliquée que si la fiche
+// est encore EXACTEMENT celle relue (brouillon, même révision) ; sinon elle est ignorée et journalisée.
+// Jamais rejouée (clé dans monthly_event_meta) : un « Repasser en brouillon » du propriétaire reste acquis.
+// Les images de la fiche ne sont PAS publiées par ces décisions (emoji affichés ; « Publier les images » reste un clic admin).
+const OWNER_DECISIONS = [
+  // #56 issuecomment-6722406304 et #86 issuecomment-6722405932 (08/11/2026) : novembre 01/11 00:01 → 01/12 00:00,
+  // barème validé #86 issuecomment-6720004334 (0,25 / 0,15 / 0,08 / 0,05 dès 10 m / 0,03 % dès 20 m), aucun drop rétroactif.
+  { id: 'issue56-novembre-histoire-2026-planifie', eventId: 'novembre_histoire_2026', revision: 3, year: 2026, month: 11 },
+  // #56 issuecomment-6722406304 : Noël « sous la mine » planifié pour le 01/12 00:01 → 01/01 00:00, barème de la fiche inchangé.
+  { id: 'issue56-noel-2026-planifie', eventId: 'noel_2026', revision: 1, year: 2026, month: 12 },
+];
+
+function applyOwnerDecisions(list = OWNER_DECISIONS, nowMs = Date.now()) {
+  const out = [];
+  for (const d of list) {
+    const key = `decision:${d.id}`;
+    if (conn().prepare('SELECT 1 FROM monthly_event_meta WHERE key = ?').get(key)) continue;
+    const res = db.runTransaction(() => {
+      if (conn().prepare('SELECT 1 FROM monthly_event_meta WHERE key = ?').get(key)) return null;
+      const cur = getEvent(d.eventId, nowMs);
+      const b = monthBounds(d.year, d.month);
+      let outcome = 'applied', reason = '';
+      if (!cur) { outcome = 'skipped'; reason = 'événement absent'; }
+      else if (cur.status !== 'draft' || cur.revision !== d.revision) { outcome = 'skipped'; reason = `fiche modifiée depuis la décision (${cur.status}, rév. ${cur.revision}, attendue brouillon rév. ${d.revision})`; }
+      else if (cur.audience !== 'public') { outcome = 'skipped'; reason = 'événement non public'; }
+      else if (Date.parse(b.endsAt) <= nowMs) { outcome = 'skipped'; reason = 'mois déjà terminé'; }
+      else {
+        const ev = { ...cur, startsAt: b.startsAt, endsAt: b.endsAt };
+        const r = readiness(ev);
+        if (!r.ready) { outcome = 'skipped'; reason = `fiche incomplète : ${r.blocking.slice(0, 3).join(' ')}`; }
+        else {
+          if (cur.startsAt !== b.startsAt || cur.endsAt !== b.endsAt) {
+            _write(ev, { status: 'draft', source: cur.source, action: 'owner_decision_dates' });
+            _log(d.eventId, 'owner_decision_dates', { decision: d.id, previous: { startsAt: cur.startsAt, endsAt: cur.endsAt }, startsAt: b.startsAt, endsAt: b.endsAt });
+          }
+          _write(ev, { status: 'scheduled', source: cur.source, action: 'schedule_public_owner_decision' });
+        }
+      }
+      const rec = { decision: d.id, eventId: d.eventId, outcome, reason, at: _iso(nowMs) };
+      conn().prepare('INSERT INTO monthly_event_meta (key, value) VALUES (?, ?)').run(key, JSON.stringify(rec));
+      _log(d.eventId, `owner_decision_${outcome}`, rec);
+      return rec;
+    });
+    if (res) {
+      out.push(res);
+      console.log(`[events] Décision ${d.id} : ${res.outcome === 'applied' ? `« ${d.eventId} » planifié ${frRange(monthBounds(d.year, d.month).startsAt, monthBounds(d.year, d.month).endsAt)}` : `ignorée (${res.reason})`}`);
+    }
+  }
+  return out;
 }
 
 // ── Événement TEST (gabarit) ──────────────────────────────────────────────────
@@ -964,9 +1154,9 @@ function adminView(nowMs = Date.now()) {
       // « proposition » : l'atelier a des images pour cet objet, aucune n'est encore dans la fiche
       return { ...it, studioKey: key, proposals: n, imageState: state === 'none' && n ? 'proposal' : state };
     }) }));
-  const y = new Date(nowMs).getUTCFullYear();
+  const y = monthOf(nowMs).year;
   return { timezone: TZ, now: _iso(nowMs), rarities: RARITIES, categories: CATEGORIES, langs: LANGS, events, testerSuggestions: testerSuggestions(),
-    calendar: [proposeCalendar(y, nowMs), proposeCalendar(y + 1, nowMs)], ai: listAiJobs(), log: listLog(60) };
+    calendar: [proposeCalendar(y, nowMs), proposeCalendar(y + 1, nowMs)], preparation: preparation(nowMs), ai: listAiJobs(), log: listLog(60) };
 }
 
 module.exports = {
@@ -975,4 +1165,5 @@ module.exports = {
   activeFor, processSave, publicView, categoryShare, simulate, stats, holidays, proposeCalendar, createTestEvent, importPrepared,
   startAiDraft, getAiJob, listAiJobs, adminView, MAX_BLOCKS_PER_SAVE,
   imageState, publishImages, setItemImage, studioKey, ID_RE,
+  monthBounds, monthOf, isFullMonth, frRange, monthStatus, preparation, transitionPreview, publicActiveAt, applyOwnerDecisions, OWNER_DECISIONS,
 };
