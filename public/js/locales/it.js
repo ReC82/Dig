@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 902/902 textes. Absents → français. */
+/* Italian (preview) : 904/904 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -110,6 +110,8 @@ I18n.registerLocale("it", {
  "antibot": {
   "btn_alt_grid": "Torna ai simboli",
   "btn_alt_text": "Versione accessibile (testo)",
+  "btn_back_challenge": "🛡️ Riprendi la verifica",
+  "btn_back_susp": "⏸️ Torna al gioco",
   "btn_check": "Conferma",
   "btn_close": "Chiudi (torno più tardi)",
   "btn_new": "Altro enigma",

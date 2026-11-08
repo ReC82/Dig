@@ -730,6 +730,20 @@
    "by": "claude-opus-5-5 (session #25, relu)",
    "at": "2026-11-06T18:13:49.876Z"
   },
+  "antibot.btn_back_challenge": {
+   "text": "🛡️ Riprendi la verifica",
+   "src": "1c5b2beece85",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T17:40:16.623Z"
+  },
+  "antibot.btn_back_susp": {
+   "text": "⏸️ Torna al gioco",
+   "src": "1dc9b96fa937",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T17:40:16.623Z"
+  },
   "antibot.btn_check": {
    "text": "Conferma",
    "src": "bf217853cd54",
@@ -750,6 +764,13 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #25, relu)",
    "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.btn_report": {
+   "text": "🐞 Segnala un errore",
+   "src": "79af36f6a4f5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T15:53:28.109Z"
   },
   "antibot.err_expired": {
    "text": "Enigma scaduto — eccone uno nuovo.",
@@ -806,6 +827,20 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #25, relu)",
    "at": "2026-11-06T18:13:49.876Z"
+  },
+  "antibot.report_step_challenge": {
+   "text": "Verifica anti-bot mostrata mentre giocavo normalmente (senza autoclicker).",
+   "src": "73a367e06bd4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T15:53:28.109Z"
+  },
+  "antibot.report_step_susp": {
+   "text": "Scavo manuale sospeso dall’anti-bot fino a {time}, anche se giocavo normalmente (senza autoclicker).",
+   "src": "5677f6d1dc09",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T15:53:28.109Z"
   },
   "antibot.susp_help": {
    "text": "Il tuo account resta disponibile (Auto-Dig, negozio, inventario). Un errore? Scrivici tramite Aiuto: il team può revocare la sospensione.",
@@ -1944,6 +1979,34 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
+  },
+  "events.lore_new_tab": {
+   "text": "(si apre in una nuova scheda)",
+   "src": "5adbbe33ad8a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
+  },
+  "events.lore_source": {
+   "text": "Fonte: {title}",
+   "src": "18edb611c969",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
+  },
+  "events.lore_title": {
+   "text": "Perché questo oggetto?",
+   "src": "df8e169d53c9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
+  },
+  "events.lore_yearly": {
+   "text": "Ogni anno il {date}",
+   "src": "d87c7033c2dc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
   },
   "events.section": {
    "text": "🎉 Eventi",
@@ -6332,55 +6395,6 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #69, relu)",
    "at": "2026-11-04T21:13:02.305Z"
-  },
-  "antibot.btn_report": {
-   "text": "🐞 Segnala un errore",
-   "src": "79af36f6a4f5",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #84)",
-   "at": "2026-11-08T15:53:28.109Z"
-  },
-  "antibot.report_step_challenge": {
-   "text": "Verifica anti-bot mostrata mentre giocavo normalmente (senza autoclicker).",
-   "src": "73a367e06bd4",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #84)",
-   "at": "2026-11-08T15:53:28.109Z"
-  },
-  "antibot.report_step_susp": {
-   "text": "Scavo manuale sospeso dall’anti-bot fino a {time}, anche se giocavo normalmente (senza autoclicker).",
-   "src": "5677f6d1dc09",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #84)",
-   "at": "2026-11-08T15:53:28.109Z"
-  },
-  "events.lore_title": {
-   "text": "Perché questo oggetto?",
-   "src": "df8e169d53c9",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #86)",
-   "at": "2026-11-08T16:52:58.799Z"
-  },
-  "events.lore_yearly": {
-   "text": "Ogni anno il {date}",
-   "src": "d87c7033c2dc",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #86)",
-   "at": "2026-11-08T16:52:58.799Z"
-  },
-  "events.lore_source": {
-   "text": "Fonte: {title}",
-   "src": "18edb611c969",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #86)",
-   "at": "2026-11-08T16:52:58.799Z"
-  },
-  "events.lore_new_tab": {
-   "text": "(si apre in una nuova scheda)",
-   "src": "5adbbe33ad8a",
-   "origin": "ai",
-   "by": "claude-opus-5-5 (session #86)",
-   "at": "2026-11-08T16:52:58.799Z"
   }
  }
 }

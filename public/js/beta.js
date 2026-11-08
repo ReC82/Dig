@@ -213,10 +213,16 @@ const DigBeta = (() => {
   let _draft = null;
   const DRAFT_FIELDS = ['beta-step', 'beta-expected', 'beta-observed', 'beta-device'];
 
-  /** `prefill.step` (#84) : texte de départ du champ « ce que tu faisais », sauf brouillon en cours. */
+  /**
+   * `prefill.step` (#84) : texte de départ du champ « ce que tu faisais », sauf brouillon en cours.
+   * `prefill.onClose` / `prefill.returnLabel` (#84-E) : rappel à la fermeture du formulaire (une
+   * fois) et libellé du bouton de fermeture après l'envoi (ex. « Reprendre la vérification »).
+   */
   function openReport(prefill) {
     if (!_config?.reports) return;
     document.getElementById('beta-report-modal')?.remove();
+    let closed = false;
+    const onClose = typeof prefill?.onClose === 'function' ? prefill.onClose : null;
     const diag = _diagnostics();
     const modal = document.createElement('div');
     modal.id = 'beta-report-modal';
@@ -256,6 +262,12 @@ const DigBeta = (() => {
     </form>`;
     document.body.appendChild(modal);
     const $ = id => modal.querySelector(`#${id}`);
+    const close = () => {
+      modal.remove();
+      if (closed) return;
+      closed = true;
+      onClose?.();
+    };
 
     // Reprise du brouillon (même onglet) ; sinon formulaire vide avec l'appareil deviné.
     const initialDevice = _deviceGuess();
@@ -274,14 +286,14 @@ const DigBeta = (() => {
 
     const confirmBox = $('beta-confirm');
     const askClose = () => {
-      if (!dirty()) { _draft = null; modal.remove(); return; }
+      if (!dirty()) { _draft = null; close(); return; }
       if (!confirmBox.hidden) return;
       confirmBox.hidden = false;
       $('btn-beta-keep').focus();
     };
     const keepWriting = () => { confirmBox.hidden = true; ($('beta-observed').value ? $('beta-observed') : $('beta-step')).focus(); };
     $('btn-beta-keep').addEventListener('click', keepWriting);
-    $('btn-beta-discard').addEventListener('click', () => { _draft = null; modal.remove(); });
+    $('btn-beta-discard').addEventListener('click', () => { _draft = null; close(); });
     $('btn-beta-cancel').addEventListener('click', askClose);
     $('btn-beta-x').addEventListener('click', askClose);
     // Fond : seul un clic commencé ET terminé sur le fond compte (une sélection de texte qui
@@ -323,6 +335,12 @@ const DigBeta = (() => {
         msg(t('beta.sent', { id: data.report.id }), true);
         send.hidden = true;
         $('btn-beta-copy').hidden = false;
+        if (prefill?.returnLabel) {
+          const back = $('btn-beta-cancel');
+          back.textContent = String(prefill.returnLabel);
+          back.className = 'beta-report-btn';
+          back.focus();
+        }
         _mine = null;
       } catch {
         send.disabled = false;
