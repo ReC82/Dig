@@ -12,6 +12,7 @@
   déployé `3f726c2`** (section « Session 4 » en fin de document)
 - **Session du 07/11/2026 (après-midi) : recette du défi manuel — pictogramme « pièce » en carré
   vide corrigé (SVG locaux) ; déployé `510a1df`** (dernière section du document)
+- **Session du 08/11/2026 (fin d'après-midi) : Appliqué pour tous, arrêt d'urgence, chrono de l'énigme 30 s / 60 s ; déployé `55240ce`** (dernière section)
 - **Session du 08/11/2026 : recette #25-G — preuve du gel pendant un défi (audit : 0 bloc pendant le défi), relevés horodatés dans l'admin, coffres récupérés seuls en recette ; déployé `487ff7d`** (dernière section)
 
 ---
@@ -1421,3 +1422,88 @@ pas pour la bêta fermée sans lot.
 
 - Activation générale du mode Appliqué : sur décision distincte — Bloquant pour des récompenses réelles.
 - Option B : non autorisée, rien à faire.
+
+---
+
+# Session du 08/11/2026 (fin d'après-midi) — Protections « Appliqué » pour tous, arrêt d'urgence, chrono de l'énigme
+
+## 1. Ticket et état réel
+
+#25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
+
+**Déployé en production (SHA `55240ce`, 08/11/2026 15:36 Bruxelles) — protections « Appliqué » actives pour tous, vérifié en base ; en attente de recette.**
+
+Sources (commentaires du propriétaire du 08/11/2026) :
+[13:11 UTC, chrono](https://github.com/ReC82/Dig/issues/25#issuecomment-6721915229),
+[13:28 UTC, protections globales actives](https://github.com/ReC82/Dig/issues/25#issuecomment-6722088344),
+[13:32 UTC, mise en service immédiate pour tous](https://github.com/ReC82/Dig/issues/25#issuecomment-6722134355).
+Le commentaire de 12:53 UTC (preuve du gel, +0 bloc) ne demande rien de plus. La session
+précédente n'avait pas pris en compte ceux de 13:11 à 13:32 (elle disait encore « Appliqué = décision
+distincte »).
+
+## 2. Résultat et changements
+
+| Demande | Fait |
+|---|---|
+| Activer **Appliqué pour tous** sans clic du propriétaire, de façon traçable | Décision de réglage journalisée `issue25-global-enforce-2026-11-08` (mécanisme existant `admin_config_decisions`, déjà utilisé pour #19) : `antibot_response_mode` passe de `observe` à `enforce` **une seule fois**, au démarrage. Elle n'est jamais rejouée : un arrêt d'urgence reste acquis après un redémarrage. Si le réglage a été modifié entre-temps, il est respecté et la décision est notée « skipped ». Aucun contournement de l'authentification admin. |
+| Arrêt d'urgence visible et immédiat | En tête de Admin → Anti-bot, quand le mode est Appliqué : gros bouton rouge **« 🚨 Arrêt d'urgence : repasser en Observation »**. Il agit en un clic, sans confirmation, et l'action est journalisée (audit `admin_config`). En Observation, les défis en attente ne bloquent plus le minage ; rien n'est supprimé. Pour réactiver : Réglages → « Appliqué » (avec confirmation). |
+| Levée des sanctions erronées | Déjà en place (fiche joueur : annuler le défi, lever la suspension, remettre le palier à 0). Vérifié, rien à changer. |
+| Chrono de l'énigme | « Vérification : encore 00:30 » et une barre discrète, orange sous 10 s. **30 s** pour la grille et **60 s** pour la version accessible (texte), réglables dans Config → Protections (`ab_puzzle_seconds` 10–300, `ab_puzzle_text_seconds` 10–600). À zéro : l'énigme est désactivée, le message dit « Le temps est écoulé. Demande une autre énigme (aucune sanction). » et le focus va sur « Autre énigme ». |
+| Sécurité du chrono | Le serveur garde sa propre expiration : durée + 5 s de marge réseau, comptée depuis la demande de l'énigme. Le jeu ne demande l'énigme que quand la fenêtre est réellement affichée. Le navigateur décompte avec son horloge monotone (`performance.now`) : l'heure du PC n'intervient pas, et le décompte est recalculé au retour d'un onglet en arrière-plan. Fenêtre fermée puis rouverte après expiration : nouvelle énigme avec chrono complet. Usage unique, délai minimal de 1,2 s, plafond de 15 énigmes par 10 min : inchangés. Tant que le défi n'est pas résolu, le minage classé reste gelé. |
+| Aucune sanction pour un temps écoulé, une erreur ou un abandon | Inchangé et testé : ni suspension, ni palier. Une suspension n'existe que pour ≥ 30 clics déclarés après l'affichage du défi. Le jeu officiel bloque ces clics, donc seul un client modifié ou un automate qui ignore la fenêtre peut y arriver. |
+
+Inchangés : seuils 60 / 180 / 360 min, score 60, délai minimal 30 min, paliers 5 → 1440 min, option A (cumuls conservés), option B non appliquée, Auto-Dig jamais compté.
+
+Fichiers : `server/db.js` (décision et 2 réglages ajoutés), `server/antibotResponses.js` (durée de l'énigme), `server/index.js` (config transmise), `public/js/antibotGate.js` (chrono), `public/js/i18n.js` et `public/js/locales/it.js` / `i18n/it.json` (2 textes × 5 langues), `public/css/style.css`, `public/admin/index.html` et `public/admin/admin.js` (arrêt d'urgence, 2 réglages), tests.
+
+## 3. Hors de ce lot (renvoyé à #91, ticket dédié du propriétaire)
+
+- **Défi après 25 clics consécutifs au même pixel**, détection de cadence fixe à 125 ms, `isTrusted` et signaux croisés sur des fenêtres de 10 à 60 s. Le propriétaire a confié ce volet à #91 (commentaire du 13:19 UTC). Il n'est pas codé ici, pour ne pas faire deux fois le même travail.
+- Pour l'instant, un autoclicker à 8 clics/s déclenche une vérification **réelle** au bout de 60 min de minage continu, puis à 180 min sur 6 h et 360 min sur 24 h, puis au plus une fois toutes les 30 min. Pendant chaque vérification, le classement est gelé. Ce n'est **pas** une détection en quelques secondes : c'est l'objet de #91.
+
+## 4. SHA, branche, procédure de test
+
+- Branche `feature/25-anti-bot-lots-ab`, commit `52f6afb` ; **develop `55240ce`** (fusion, arbre identique).
+- `npm test` : 949/949 sur la branche, 949/949 sur la release `55240ce`. Nouveau fichier `test/antibot-global-enforce-timer.test.js` (6 tests) : décision appliquée une seule fois, arrêt d'urgence conservé au redémarrage, réglage modifié respecté, `ANTIBOT=off` toujours prioritaire, 30 / 60 s et marge de 5 s, temps écoulé sans sanction, bornes et plafond de renouvellement. 3 attentes « défaut Observation » mises à jour (`antibot-lot-c`, `antibot-recidive-option-a`, `leagues-beta-threshold`).
+- Essais navigateur (serveur de test, base neuve, port 3125) : `test/e2e/antibot-timer.e2e.js` **TOUT OK** en 1280×900 et 390×844 (compte ordinaire en Appliqué, chrono réduit à 10 s pour l'essai) : chrono affiché, temps écoulé (tuiles désactivées, message, aucune suspension), « Autre énigme » → chrono complet, réouverture après expiration → nouvelle énigme, résolution, arrêt d'urgence visible → Observation en un clic. `antibot-challenge.e2e.js` OK. Les e2e plus anciens (`antibot-challenge`, `antibot-freeze-proof`, `admin-antibot-87`) repassent d'abord en Observation, puisqu'une base neuve est désormais en Appliqué.
+
+## 5. Impact sur les données des joueurs
+
+Aucune donnée joueur modifiée. Deux réglages sont ajoutés (`ab_puzzle_seconds`, `ab_puzzle_text_seconds`), un réglage est modifié par décision journalisée (`antibot_response_mode`) et la table `admin_config_decisions` gagne une ligne. Les gains passés ne sont jamais retirés.
+
+## 6. Déploiement
+
+- SHA déployé : **`55240ce`** (18f4cd1 → 55240ce, `npm ci` non nécessaire). Sauvegarde vérifiée avant déploiement : `~/backups/dig/dig-20261108-153623-pre-deploy-55240ce.sqlite`.
+- Avant : release `npm test` 949/949. Sur une copie de la base de production démarrée en mode production : `/health` ok, version `1.0.0+55240ce`, décision appliquée (`observe → enforce`), empreintes des 6 tables joueurs identiques avant et après le démarrage ; copie supprimée.
+- Après : les 2 domaines répondent 200 avec la version `1.0.0+55240ce` ; journal sans erreur (`[db] Décision issue25-global-enforce-2026-11-08 : antibot_response_mode observe → enforce`) ; `quick_check` ok. **En base de production : `antibot_response_mode = enforce`**, `ab_puzzle_seconds = 30`, `ab_puzzle_text_seconds = 60`, décision `applied` à 14:36:23 UTC. Saves et classement identiques à la sauvegarde pré-déploiement. Page du jeu chargée en Chromium (1280×900 et 390×844) : module de vérification présent, 0 erreur JavaScript.
+- Retour arrière : **arrêt d'urgence** dans Admin → Anti-bot (un clic, sans redéploiement). Retour de code : `git -C /home/ubuntu/Dig reset --keep 18f4cd1` puis redémarrage. Le mode reste Appliqué tant que l'arrêt d'urgence n'est pas utilisé, car la décision n'est pas rejouée et pas annulée par un retour de code.
+
+### Test fonctionnel à faire par le propriétaire (≈ 3 min)
+
+1. Admin → Anti-bot : en haut, « Protection des joueurs : **Appliquée** » et le bouton rouge « Arrêt d'urgence ».
+2. « Tester la protection » avec votre compte, puis « Sans autoclicker : envoyer la vérification tout de suite ». Ouvrez le jeu : « Vérification : encore 00:30 » décompte.
+3. Attendez 30 s sans répondre : « Le temps est écoulé… » apparaît, les symboles sont grisés. Cliquez sur « Autre énigme » : le chrono repart à 00:30. Résolvez.
+4. Optionnel : « Version accessible (texte) » → 01:00.
+5. « Terminer le test ». Le mode global reste **Appliqué**. L'arrêt d'urgence n'est à utiliser qu'en cas de faux positifs.
+
+Résultat attendu : aucune suspension, aucune perte, minage repris après la résolution.
+
+Classement MVP : **Bloquant MVP public** (classement doté de lots pour la bêta du 09/11), livré.
+
+## 7. Choix techniques faits seul
+
+- **Activation par décision de réglage au démarrage**, plutôt que par le panel, faute d'accès admin (secret non lisible, par règle). Ce mécanisme existe déjà, est journalisé et réversible, et respecte un réglage modifié entre-temps. Une base neuve (test, réinstallation) démarre donc aussi en Appliqué.
+- **Arrêt d'urgence sans confirmation**, comme demandé (« immédiat ») ; la réactivation garde sa confirmation.
+- **Marge serveur de 5 s** au-delà du chrono affiché : la latence et un téléphone lent ne doivent pas transformer une bonne réponse donnée à 00:01 en « expirée ».
+- **Pas de renouvellement automatique** au temps écoulé : le joueur clique sur « Autre énigme », comme demandé. Une réponse fausse ou une expiration détectée par le serveur donne, elle, une nouvelle énigme tout de suite (comportement existant).
+- Le chrono part de la **demande de l'énigme**, pas de l'émission du défi : un défi émis onglet fermé ne fait pas courir le temps.
+
+## 8. Décisions demandées au propriétaire
+
+1. Durée du chrono : **30 s** (grille) / **60 s** (texte) par défaut. Comparatif : 20 s = rapide mais stressant sur mobile ; **30 s** = une grille de 6 symboles se résout en 3 à 8 s ; 45 s / 60 s = plus confortable, sans gain anti-bot (un bot répond en 1,2 s ou pas du tout). Recommandation : garder 30 / 60 s et ajuster dans Config → Protections si des collègues se plaignent.
+2. Les autres questions (Turnstile, éligibilité #19, adresse de contestation, lot D) restent sans changement. La question « Appliqué pour tous » est **tranchée** (13:32 UTC) et appliquée.
+
+## 9. Éléments restant à réaliser
+
+- #91 : défi après 25 clics au même pixel, cadence 125 ms, signaux croisés, suspensions sur fraude corroborée — **Bloquant pour un concours sérieux**, en cours dans #91.
+- Audit écrit complet des flux de crédit (pièces, ressources, profondeur) pendant un défi ou une suspension, demandé à 12:59 UTC. **Non refait dans cette session.** Le gel du classement (blocs manuels) et de la profondeur hors Auto-Dig est prouvé (recette #25-G, +0). Le jeu officiel bloque les coups pendant un défi, donc pas de pièces ni de ressources par le minage manuel. En revanche, la validation serveur des monnaies face à un client modifié n'a pas été auditée ici (lien avec #74 / #77). À documenter dans une prochaine session — Bloquant pour des lots plus importants, pas pour la bêta.
