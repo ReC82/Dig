@@ -23,6 +23,7 @@
 
 const crypto = require('crypto');
 const { getDb } = require('./db');
+const { normalizeFast } = require('./autoclickDetector');
 
 // ── Lot B : budget de dégâts ──────────────────────────────────────────────────
 // Valeurs maximales du jeu (public/js/upgrades.js, relics.js, blocks.js), vérifiées par
@@ -471,7 +472,9 @@ function normalizeTelemetry(t) {
   const h = Array.isArray(t.h) && t.h.length === TELEMETRY_BINS ? t.h.map(int) : null;
   const p = t.p && typeof t.p === 'object' ? { m: int(t.p.m), t: int(t.p.t), k: int(t.p.k), o: int(t.p.o) } : null;
   const cv = typeof t.cv === 'number' && Number.isFinite(t.cv) && t.cv >= 0 ? Math.min(t.cv, 10) : null;
-  return { n, h, u: Math.min(int(t.u), n), x: Math.min(int(t.x), n), p, cv };
+  // f : mesures de la détection rapide des autoclickers (#91), absentes des anciens clients
+  const f = normalizeFast(t.f);
+  return { n, h, u: Math.min(int(t.u), n), x: Math.min(int(t.x), n), p, cv, ...(f ? { f } : {}) };
 }
 
 /** Indices tirés de la télémétrie (seuils prudents : tactile multi-doigts, accessibilité). */
@@ -519,7 +522,7 @@ function getTimings() {
 const EVENT_GROUPS = {
   player: [...Object.keys(SIGNALS), 'risk_level'],
   // Lot C : défis (simulés en Observation) et suspensions du minage manuel
-  responses: ['challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started', 'freeze_clamped', 'antibot_admin'],
+  responses: ['challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started', 'suspension_shadow', 'freeze_clamped', 'antibot_admin'],
   admin:  ['admin_action', 'admin_config', 'admin_login', 'admin_login_failed'],
   system: ['standings_frozen', 'standings_freeze_failed'],
 };

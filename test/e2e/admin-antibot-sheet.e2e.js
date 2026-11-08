@@ -71,7 +71,7 @@ const check = (tag, label, ok, extra = '') => { console.log(`${ok ? 'OK  ' : 'É
         };
       });
       check(tag, 'vue essentielle ouverte par défaut, diagnostic masqué', st.essSel === 'true' && st.essVis && !st.advVis);
-      check(tag, '4 cartes : progression, PV réels, classement, risque', st.cards.length === 4
+      check(tag, '5 cartes : progression, PV réels, classement, risque, autoclicker (#91)', st.cards.length === 5
         && /169 m déclarés/.test(st.cards[0]) && /Validée \(classement\) : 160 m/.test(st.cards[0]) && /Écart déclaré − validé : 9 m/.test(st.cards[0])
         && /150 m couverts/.test(st.cards[1]) && /Écart à la dernière sauvegarde : 19 m/.test(st.cards[1])
         && /120 validés/.test(st.cards[2]) && /non retenus : 11/.test(st.cards[2]) && /Sanctions : aucune/.test(st.cards[3]), st.cards.join(' | '));

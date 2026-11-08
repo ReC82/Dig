@@ -858,7 +858,9 @@ function initDb() {
   for (const [table, add] of [
     ['antibot_challenges', [['issued_snapshot', 'TEXT'], ['resolved_snapshot', 'TEXT'], ['pending_saves', 'INTEGER NOT NULL DEFAULT 0'],
       ['pending_last_ms', 'INTEGER'], ['clamped_blocks', 'INTEGER NOT NULL DEFAULT 0']]],
-    ['antibot_activity', [['rebase_ms', 'INTEGER']]],
+    ['antibot_activity', [['rebase_ms', 'INTEGER'],
+      // Détection rapide des autoclickers (#91) : dernières fenêtres serveur et dernier verdict
+      ['fast_state', 'TEXT']]],
   ]) {
     const cols = new Set(_db.prepare(`PRAGMA table_info(${table})`).all().map(r => r.name));
     for (const [name, type] of add) {
@@ -1050,6 +1052,13 @@ function initDb() {
   cfgStmt.run('ab_decay_days',                '30');
   cfgStmt.run('ab_puzzle_seconds',            '30');    // chrono de l'énigme visuelle (s)
   cfgStmt.run('ab_puzzle_text_seconds',       '60');    // chrono de la version accessible (s)
+  // Détection rapide des autoclickers (#91) : activée pour tous sur décision du propriétaire du 08/11
+  // (25 clics au même pixel → vérification ; autoclicker corroboré revu après vérification → suspension)
+  cfgStmt.run('ab_fast_mode',                 'on');
+  cfgStmt.run('ab_same_pixel_mode',           'on');
+  cfgStmt.run('ab_same_pixel_clicks',         '25');
+  cfgStmt.run('ab_fast_suspend',              'on');
+  cfgStmt.run('ab_fast_repeat_min',           '60');
   // Économie — multiplicateurs globaux (informations + appliqués par chestShop)
   cfgStmt.run('upgrade_cost_multiplier',  '1.0');   // ×coût des upgrades saisonniers
   cfgStmt.run('coin_gain_multiplier',     '1.0');   // ×gains de pièces (blocs)

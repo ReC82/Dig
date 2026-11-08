@@ -147,6 +147,7 @@ function _teleRecord(ev) {
     : ev.type === 'keydown' ? 'k'
     : ev.type === 'click' ? 'm' : 'o';
   _tele.p[kind]++;
+  _fastRecord(ev, kind, now);
   if (_tele.last) {
     const gap = now - _tele.last;
     let i = 0;
@@ -157,13 +158,94 @@ function _teleRecord(ev) {
   _tele.last = now;
 }
 
+// ── Détection rapide des autoclickers (#91) ───────────────────────────────────
+// Par fenêtre de sauvegarde : intervalles entre coups (régularité par classes de 4 ms), plus longue
+// série de coups aux mêmes coordonnées exactes (souris ou tactile ; clavier exclu), coups de souris
+// sans déplacement réel du pointeur depuis le coup précédent. Indices pour le serveur, jamais une
+// sanction à eux seuls (server/autoclickDetector.js).
+const _FAST_BIN_MS = 4;
+const _fast = { iv: [], run: 0, sp: 0, key: null, mc: 0, mm: 0, still: 0, moved: true, mx: null, my: null, last: 0 };
+let _samePixelSync = 25;   // série au même pixel qui déclenche un envoi immédiat (config serveur)
+let _fastSyncAt = 0;
+// Horloge volontairement grossière (protection anti-empreinte) : régularité non mesurable
+const _coarseTimer = (() => {
+  const a = performance.now();
+  let b = a;
+  for (let i = 0; b === a && i < 1e6; i++) b = performance.now();
+  return b - a >= 2;
+})();
+
+// Déplacement réel uniquement : le navigateur peut émettre un mousemove sans bouger (contenu animé)
+window.addEventListener('mousemove', e => {
+  if (_fast.mx === null || e.screenX !== _fast.mx || e.screenY !== _fast.my) _fast.moved = true;
+}, { passive: true });
+
+function _fastRecord(ev, kind, now) {
+  if (_fast.last && now - _fast.last < 2000 && _fast.iv.length < 1000) _fast.iv.push(now - _fast.last);
+  _fast.last = now;
+  const pt = kind === 't' ? (ev.touches?.[0] ?? ev.changedTouches?.[0]) : kind === 'm' ? ev : null;
+  if (!pt) { _fast.run = 0; _fast.key = null; return; }
+  const key = `${pt.clientX}:${pt.clientY}`;
+  _fast.run = key === _fast.key ? _fast.run + 1 : 1;
+  _fast.key = key;
+  if (_fast.run > _fast.sp) _fast.sp = _fast.run;
+  _fast.mc++;
+  if (kind === 'm') {
+    _fast.mm++;
+    if (!_fast.moved) _fast.still++;
+    _fast.moved = false;
+    _fast.mx = ev.screenX;
+    _fast.my = ev.screenY;
+  }
+  // Seuil atteint : la sauvegarde part tout de suite (vérification en quelques secondes)
+  if (_samePixelSync > 0 && _fast.run === _samePixelSync && now - _fastSyncAt > 5000) {
+    _fastSyncAt = now;
+    setTimeout(() => _syncToCloud(), 0);
+  }
+}
+
+/** Vérification affichée : la série au même pixel repart de zéro. */
+function _fastReset() {
+  _fast.run = 0;
+  _fast.key = null;
+}
+
+function _fastStats() {
+  const iv = _fast.iv;
+  const k = iv.length;
+  let t3 = null;
+  let med = null;
+  let mad = null;
+  if (k) {
+    med = [...iv].sort((a, b) => a - b)[k >> 1];
+    mad = iv.map(g => Math.abs(g - med)).sort((a, b) => a - b)[k >> 1];
+    const bins = new Map();
+    for (const g of iv) { const b = Math.floor(g / _FAST_BIN_MS); bins.set(b, (bins.get(b) || 0) + 1); }
+    const top = [...bins.values()].sort((a, b) => b - a);
+    t3 = (top[0] + (top[1] || 0) + (top[2] || 0)) / k;
+  }
+  return {
+    k, t3: t3 === null ? null : Math.round(t3 * 1000) / 1000, med: med === null ? null : Math.round(med * 10) / 10,
+    mad: mad === null ? null : Math.round(mad * 10) / 10,
+    coarse: _coarseTimer ? 1 : 0, sp: _fast.sp, run: _fast.run, mc: _fast.mc, mm: _fast.mm, still: _fast.still,
+  };
+}
+
+function _fastConsume(f) {
+  _fast.iv.splice(0, f.k);
+  _fast.mc = Math.max(0, _fast.mc - f.mc);
+  _fast.mm = Math.max(0, _fast.mm - f.mm);
+  _fast.still = Math.max(0, _fast.still - f.still);
+  _fast.sp = _fast.run;
+}
+
 /** Résumé à envoyer (null si aucun clic depuis le dernier envoi réussi). */
 function _teleSnapshot() {
   if (_tele.n === 0) return null;
   const mean = _tele.c ? _tele.s1 / _tele.c : 0;
   const cv   = _tele.c >= 5 && mean > 0 ? Math.sqrt(Math.max(0, _tele.s2 / _tele.c - mean * mean)) / mean : null;
   return {
-    v: 1, n: _tele.n, h: [..._tele.h], u: _tele.u, x: _tele.x, p: { ..._tele.p },
+    v: 2, n: _tele.n, h: [..._tele.h], u: _tele.u, x: _tele.x, p: { ..._tele.p }, f: _fastStats(),
     ...(cv === null ? {} : { cv: Math.round(cv * 1000) / 1000 }),
     _s: { s1: _tele.s1, s2: _tele.s2, c: _tele.c },
   };
@@ -180,6 +262,7 @@ function _teleConsume(snap) {
   _tele.s1 = Math.max(0, _tele.s1 - snap._s.s1);
   _tele.s2 = Math.max(0, _tele.s2 - snap._s.s2);
   _tele.c  = Math.max(0, _tele.c  - snap._s.c);
+  if (snap.f) _fastConsume(snap.f);
 }
 
 /** Corps JSON de la télémétrie (sans les cumuls internes). */
@@ -195,6 +278,7 @@ function _applyHitLimits(config) {
   const burst = Number(config?.hitBurst);
   if (Number.isFinite(rate) && rate > 0)   _hitRate  = rate;
   if (Number.isFinite(burst) && burst >= 1) _hitBurst = burst;
+  if (config && 'samePixelClicks' in config) _samePixelSync = Number(config.samePixelClicks) > 0 ? Number(config.samePixelClicks) : 0;
   _hitTokens = Math.min(_hitTokens, _hitBurst);
 }
 
@@ -1979,7 +2063,10 @@ async function _pushSave(retry) {
     _teleConsume(tele);
     _setCloudMeta(res.data.revision);
     // Défi / suspension du minage manuel décidés par le serveur (#25 lot C, mode Appliqué seulement)
-    if ('antibot' in res.data && typeof AntibotGate !== 'undefined') AntibotGate.update(res.data.antibot);
+    if ('antibot' in res.data && typeof AntibotGate !== 'undefined') {
+      AntibotGate.update(res.data.antibot);
+      if (res.data.antibot) _fastReset();
+    }
     _antibotRecipe = res.data.antibotRecipe === true;
     if (Array.isArray(res.data.badgesEarned) && res.data.badgesEarned.length) _onBadgesEarned(res.data.badgesEarned);
     if (Array.isArray(res.data.eventFinds) && res.data.eventFinds.length) _onEventFinds(res.data.eventFinds);
@@ -4181,7 +4268,7 @@ function onBlockHit(cx, cy, ev) {
   if (!Blocks.current) { spawnBlock(); return; }
 
   // Vérification anti-bot en cours (#25 lot C) : aucun coup manuel compté ; la fenêtre se rouvre
-  if (typeof AntibotGate !== 'undefined' && AntibotGate.blocksManual()) { AntibotGate.show(); return; }
+  if (typeof AntibotGate !== 'undefined' && AntibotGate.blocksManual()) { _fastReset(); AntibotGate.show(); return; }
 
   _teleRecord(ev);
   _recordClickTs();

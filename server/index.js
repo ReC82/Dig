@@ -113,6 +113,7 @@ const { validateEconomyValue, getEconomy } = require('./economy');
 const security = require('./security');
 const { createRateLimiters, describeMailLimits } = require('./rateLimits');
 const antibot = require('./antibot');
+const autoclickDetector = require('./autoclickDetector');
 const antibotResponses = require('./antibotResponses');
 const playSession = require('./playSession');
 const testRuns = require('./testRuns');
@@ -1988,7 +1989,7 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
       return res.status(409).json({ error: 'Le prix des coffres se modifie dans 🎲 Coffres & drops (fiche du coffre → brouillon → publication), avec ses récompenses.' });
     }
     // Paramètres économiques bornés (#20), interrupteurs anti-bot (#25) et paramètres de ligue (#19) : appliqués sans redéploiement.
-    const checked = antibot.validateConfigValue(key, value) ?? antibotResponses.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
+    const checked = antibot.validateConfigValue(key, value) ?? antibotResponses.validateConfigValue(key, value) ?? autoclickDetector.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
       ?? validateEconomyValue(key, value);
     if (checked.error) return res.status(400).json({ error: checked.error });
     const previous = getAdminConfig()[key];

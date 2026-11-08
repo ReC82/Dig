@@ -29,6 +29,7 @@
 const crypto = require('crypto');
 const { getDb } = require('./db');
 const antibot = require('./antibot');
+const detector = require('./autoclickDetector');
 
 // ── Paramètres (config admin, bornés) ─────────────────────────────────────────
 
@@ -145,9 +146,9 @@ function _buckets(row) {
 function _saveState(userId, s) {
   getDb().prepare(`
     INSERT INTO antibot_activity (user_id, season_id, last_ms, last_clicks, last_blocks, streak_active_s, pause_s, buckets,
-      force_mode, violation_level, last_violation_ms, last_challenge_ms, rebase_clicks, rebase_blocks, tel_h, last_window, test_streak_min, test_started_ms, test_snapshot, rebase_ms, updated_ms)
+      force_mode, violation_level, last_violation_ms, last_challenge_ms, rebase_clicks, rebase_blocks, tel_h, last_window, test_streak_min, test_started_ms, test_snapshot, rebase_ms, fast_state, updated_ms)
     VALUES (@user_id, @season_id, @last_ms, @last_clicks, @last_blocks, @streak_active_s, @pause_s, @buckets,
-      @force_mode, @violation_level, @last_violation_ms, @last_challenge_ms, @rebase_clicks, @rebase_blocks, @tel_h, @last_window, @test_streak_min, @test_started_ms, @test_snapshot, @rebase_ms, @updated_ms)
+      @force_mode, @violation_level, @last_violation_ms, @last_challenge_ms, @rebase_clicks, @rebase_blocks, @tel_h, @last_window, @test_streak_min, @test_started_ms, @test_snapshot, @rebase_ms, @fast_state, @updated_ms)
     ON CONFLICT(user_id) DO UPDATE SET season_id = excluded.season_id, last_ms = excluded.last_ms,
       last_clicks = excluded.last_clicks, last_blocks = excluded.last_blocks, streak_active_s = excluded.streak_active_s,
       pause_s = excluded.pause_s, buckets = excluded.buckets, force_mode = excluded.force_mode,
@@ -155,7 +156,7 @@ function _saveState(userId, s) {
       last_challenge_ms = excluded.last_challenge_ms, rebase_clicks = excluded.rebase_clicks,
       rebase_blocks = excluded.rebase_blocks, tel_h = excluded.tel_h, last_window = excluded.last_window,
       test_streak_min = excluded.test_streak_min, test_started_ms = excluded.test_started_ms,
-      test_snapshot = excluded.test_snapshot, rebase_ms = excluded.rebase_ms, updated_ms = excluded.updated_ms
+      test_snapshot = excluded.test_snapshot, rebase_ms = excluded.rebase_ms, fast_state = excluded.fast_state, updated_ms = excluded.updated_ms
   `).run({
     user_id: userId, season_id: s.season_id ?? null, last_ms: s.last_ms ?? null, last_clicks: s.last_clicks ?? null,
     last_blocks: s.last_blocks ?? null, streak_active_s: s.streak_active_s ?? 0, pause_s: s.pause_s ?? 0,
@@ -165,21 +166,22 @@ function _saveState(userId, s) {
     tel_h: s.tel ? JSON.stringify(s.tel) : null,
     last_window: s.last_window ? JSON.stringify(s.last_window) : null,
     test_streak_min: s.test_streak_min ?? null, test_started_ms: s.test_started_ms ?? null,
-    test_snapshot: s.test_snapshot ? JSON.stringify(s.test_snapshot) : null, rebase_ms: s.rebase_ms ?? null, updated_ms: s.updated_ms ?? Date.now(),
+    test_snapshot: s.test_snapshot ? JSON.stringify(s.test_snapshot) : null, rebase_ms: s.rebase_ms ?? null,
+    fast_state: s.fast ? JSON.stringify(s.fast) : null, updated_ms: s.updated_ms ?? Date.now(),
   });
 }
 
 function _blank(userId) {
   return { user_id: userId, season_id: null, last_ms: null, last_clicks: null, last_blocks: null, streak_active_s: 0,
     pause_s: 0, buckets: [], force_mode: null, violation_level: 0, last_violation_ms: null, last_challenge_ms: null,
-    rebase_clicks: null, rebase_blocks: null, rebase_ms: null, tel: null, last_window: null, test_streak_min: null, test_started_ms: null, test_snapshot: null };
+    rebase_clicks: null, rebase_blocks: null, rebase_ms: null, tel: null, last_window: null, test_streak_min: null, test_started_ms: null, test_snapshot: null, fast: null };
 }
 
 function _load(userId) {
   const row = _state(userId);
   if (!row) return _blank(userId);
   const json = raw => { try { return raw ? JSON.parse(raw) : null; } catch (_) { return null; } };
-  return { ...row, buckets: _buckets(row), tel: json(row.tel_h), last_window: json(row.last_window), test_snapshot: json(row.test_snapshot) };
+  return { ...row, buckets: _buckets(row), tel: json(row.tel_h), last_window: json(row.last_window), test_snapshot: json(row.test_snapshot), fast: json(row.fast_state) };
 }
 
 /** Mode effectif pour un joueur : global, sauf essai « Appliqué » sur ce compte (jamais si global off). */
@@ -312,9 +314,65 @@ function playerStatus(userId, { config = {}, nowMs = Date.now() } = {}) {
     mode: 'enforce',
     challenge: ch ? { id: ch.id, issuedAt: _iso(ch.created_ms), seen: !!ch.seen_ms } : null,
     suspension: susp ? { id: susp.id, level: susp.level, minutes: Math.round((susp.ends_ms - susp.starts_ms) / 60_000),
-      startsAt: _iso(susp.starts_ms), endsAt: _iso(susp.ends_ms) } : null,
+      startsAt: _iso(susp.starts_ms), endsAt: _iso(susp.ends_ms), reason: _json(susp.reason)?.code ?? null } : null,
     manualRanked: false,   // clics manuels non crédités au classement tant que l'état dure
   };
+}
+
+
+/**
+ * Suspension du minage manuel au palier suivant (après décroissance). Raisons : clics pendant un
+ * défi affiché (#25) ou automatisation corroborée revue juste après une vérification résolue (#91).
+ */
+function _startSuspension(userId, seasonId, s, { challengeId, reason, params, nowMs, ip }) {
+  const level = effectiveViolationLevel(s, nowMs, params) + 1;
+  const ladder = params.ab_suspension_ladder;
+  const minutes = ladder[Math.min(level, ladder.length) - 1];
+  const id = getDb().prepare(`
+    INSERT INTO antibot_suspensions (user_id, season_id, challenge_id, level, starts_ms, ends_ms, status, origin, reason)
+    VALUES (?, ?, ?, ?, ?, ?, 'active', 'auto', ?)
+  `).run(userId, seasonId, challengeId, level, nowMs, nowMs + minutes * 60_000, JSON.stringify(reason)).lastInsertRowid;
+  s.violation_level = level; s.last_violation_ms = nowMs;
+  const { code, ...rest } = reason;
+  antibot.logSecurityEvent('suspension_started', { userId, seasonId, ip,
+    details: { suspensionId: Number(id), challengeId, level, minutes, reason: code, ...rest, applied: true } });
+  return { level, minutes };
+}
+
+// ── Détection rapide des autoclickers (#91) ──────────────────────────────────
+
+/** Fenêtres serveur conservées pour la cadence stable (≈ 2 min). */
+const FAST_WINDOW_KEEP_MS = 120_000;
+
+/**
+ * Qualifie la fenêtre de sauvegarde (server/autoclickDetector.js) et garde l'état pour la fiche
+ * admin. Pendant un défi ou une suspension (Appliqué), rien n'est évalué et la cadence repart.
+ */
+function _fastEvaluate(s, tel, m, config, nowMs, frozen) {
+  const settings = detector.getSettings(config);
+  if (settings.ab_fast_mode === 'off') return null;
+  const st = s.fast && typeof s.fast === 'object' ? s.fast : {};
+  let w = frozen ? [] : (Array.isArray(st.w) ? st.w : []).filter(x => Array.isArray(x) && nowMs - x[0] < FAST_WINDOW_KEEP_MS);
+  if (!frozen && m.dt > 0) w.push([nowMs, Math.round(m.dt * 10) / 10, m.dClicks]);
+  w = w.slice(-6);
+  const v = frozen || !tel ? null : detector.evaluate(tel, w, settings);
+  const last = v ? { atMs: nowMs, regular: v.regular, regularKnown: v.regularKnown, fixed: v.fixed, still: v.still,
+    untrusted: v.untrusted, steady: v.steady, automation: v.automation, evidence: v.evidence } : (st.last ?? null);
+  // autoSince : fenêtres corroborées consécutives depuis la dernière vérification (règle 3)
+  s.fast = { w, last, lastAutomationMs: v?.automation ? nowMs : (st.lastAutomationMs ?? null),
+    detections: (st.detections ?? 0) + (v?.automation ? 1 : 0),
+    autoSince: v ? (v.automation ? (st.autoSince ?? 0) + 1 : 0) : (st.autoSince ?? 0) };
+  return v ? { ...v, settings } : null;
+}
+
+/** Dernière vérification #91 (même pixel ou automatisation), résolue (Appliqué) ou simulée (Observation), depuis `sinceMs`. */
+function _lastFastChallenge(userId, mode, sinceMs) {
+  return getDb().prepare(`
+    SELECT id, resolved_ms FROM antibot_challenges
+    WHERE user_id = ? AND status = ? AND resolved_ms >= ?
+      AND (reasons LIKE '%"autoclick_corroborated"%' OR reasons LIKE '%"same_pixel"%')
+    ORDER BY id DESC LIMIT 1
+  `).get(userId, mode === 'enforce' ? 'solved' : 'shadow', sinceMs) ?? null;
 }
 
 // ── Pipeline de sauvegarde ────────────────────────────────────────────────────
@@ -326,7 +384,7 @@ function playerStatus(userId, { config = {}, nowMs = Date.now() } = {}) {
  */
 function beforeSave(userId, seasonId, { claimedClicks, claimedBlocks, telemetry = null, config = {}, nowMs = Date.now(), ip = null } = {}) {
   const mode = getUserMode(userId, config);
-  if (mode === 'off') return { mode, hold: false, held: null, rebase: null, metrics: null, violation: null, signals: [] };
+  if (mode === 'off') return { mode, hold: false, held: null, rebase: null, metrics: null, violation: null, signals: [], fast: null };
   const params = getParams(config);
   const db = getDb();
   return db.transaction(() => {
@@ -335,6 +393,7 @@ function beforeSave(userId, seasonId, { claimedClicks, claimedBlocks, telemetry 
     const frozen = mode === 'enforce' && !!(_pendingChallenge(userId) || _activeSuspension(userId, nowMs));
     const m = _measure(s, seasonId, claimedClicks, claimedBlocks, nowMs, { frozen });
     const signals = _activitySignals(s, prevStreak, telemetry, params);
+    const fast = _fastEvaluate(s, telemetry, m, config, nowMs, frozen);
     let hold = false;
     let rebase = null;
     let violation = null;
@@ -344,22 +403,11 @@ function beforeSave(userId, seasonId, { claimedClicks, claimedBlocks, telemetry 
       let susp = _activeSuspension(userId, nowMs);
       // Violation confirmée : clics déclarés au-delà du compteur relevé quand le défi était affiché
       if (ch && ch.seen_ms && !susp && Number.isSafeInteger(ch.seen_clicks) && claimedClicks - ch.seen_clicks >= params.ab_violation_clicks) {
-        const from = effectiveViolationLevel(s, nowMs, params);
-        const level = from + 1;
-        const ladder = params.ab_suspension_ladder;
-        const minutes = ladder[Math.min(level, ladder.length) - 1];
         const clicks = claimedClicks - ch.seen_clicks;
-        const id = db.prepare(`
-          INSERT INTO antibot_suspensions (user_id, season_id, challenge_id, level, starts_ms, ends_ms, status, origin, reason)
-          VALUES (?, ?, ?, ?, ?, ?, 'active', 'auto', ?)
-        `).run(userId, seasonId, ch.id, level, nowMs, nowMs + minutes * 60_000,
-          JSON.stringify({ code: 'clicks_during_challenge', clicksAfterShown: clicks })).lastInsertRowid;
-        s.violation_level = level; s.last_violation_ms = nowMs;
+        violation = _startSuspension(userId, seasonId, s, { challengeId: ch.id, params, nowMs, ip,
+          reason: { code: 'clicks_during_challenge', clicksAfterShown: clicks } });
         // Le défi reste à résoudre après la suspension ; il devra être réaffiché (nouveau relevé)
         db.prepare('UPDATE antibot_challenges SET seen_ms = NULL, seen_clicks = NULL, violations = violations + 1 WHERE id = ?').run(ch.id);
-        antibot.logSecurityEvent('suspension_started', { userId, seasonId, ip,
-          details: { suspensionId: Number(id), challengeId: ch.id, level, minutes, clicksAfterShown: clicks, applied: true } });
-        violation = { level, minutes };
         susp = _activeSuspension(userId, nowMs);
       }
       if (ch || susp) {
@@ -381,7 +429,7 @@ function beforeSave(userId, seasonId, { claimedClicks, claimedBlocks, telemetry 
     }
     s.updated_ms = nowMs;
     _saveState(userId, s);
-    return { mode, hold, held, rebase, metrics: metrics(s, nowMs), violation, dClicks: m.dClicks, signals };
+    return { mode, hold, held, rebase, metrics: metrics(s, nowMs), violation, dClicks: m.dClicks, signals, fast };
   })();
 }
 
@@ -406,10 +454,19 @@ function recordHoldSave(userId, seasonId, held, { before, after, nowMs = Date.no
 }
 
 /** Déclencheurs d'un défi (au moins un) — jamais une sanction. */
-function _triggers(s, risk, params, nowMs) {
+function _triggers(s, risk, params, nowMs, fast = null) {
   const m = metrics(s, nowMs);
   const out = [];
   const cooling = s.last_challenge_ms && nowMs - s.last_challenge_ms < params.ab_cooldown_min * 60_000;
+  // #91 : automatisation corroborée (régularité machine + même pixel + 3ᵉ indice) → tout de suite ;
+  // même pixel seul → au plus une vérification par délai minimal (joueur immobile : pas de boucle)
+  if (fast?.automation) {
+    out.push({ code: 'autoclick_corroborated', value: fast.evidence.samePixelRun, threshold: fast.evidence.samePixelThreshold,
+      signals: ['regular', 'same_pixel', ...(fast.still ? ['still'] : []), ...(fast.untrusted ? ['untrusted'] : []), ...(fast.steady ? ['steady'] : [])],
+      evidence: fast.evidence });
+  } else if (fast?.samePixel && fast.settings.ab_same_pixel_mode === 'on' && !cooling) {
+    out.push({ code: 'same_pixel', value: fast.evidence.samePixelRun, threshold: fast.evidence.samePixelThreshold, evidence: fast.evidence });
+  }
   if (risk && risk.score >= params.ab_challenge_score && !cooling) out.push({ code: 'risk_score', value: Math.round(risk.score * 10) / 10, threshold: params.ab_challenge_score });
   const testMin = testStreakMin(s, nowMs);
   const streakMin = testMin ?? params.ab_streak_min;
@@ -423,6 +480,7 @@ function _triggers(s, risk, params, nowMs) {
 /** Option A (08/11) : seule la série continue repart de zéro ; cumuls 6 h / 24 h (buckets) conservés. */
 function _resetStreak(s, nowMs) {
   s.streak_active_s = 0; s.pause_s = 0; s.tel = null; s.last_challenge_ms = nowMs;
+  if (s.fast) s.fast.autoSince = 0;
 }
 
 /**
@@ -448,7 +506,7 @@ function issueChallenge(userId, seasonId, { mode, reasons, metrics: m, origin = 
  * Après la validation : décide d'un défi selon les mesures et le score de risque à jour.
  * @returns {object|null} État joueur à renvoyer (null : rien à afficher)
  */
-function afterSave(userId, seasonId, { config = {}, nowMs = Date.now(), ip = null } = {}) {
+function afterSave(userId, seasonId, { config = {}, nowMs = Date.now(), ip = null, fast = null } = {}) {
   const mode = getUserMode(userId, config);
   if (mode === 'off') return null;
   const params = getParams(config);
@@ -458,9 +516,23 @@ function afterSave(userId, seasonId, { config = {}, nowMs = Date.now(), ip = nul
     if (mode === 'enforce' && (_pendingChallenge(userId) || _activeSuspension(userId, nowMs))) return;
     const s = _load(userId);
     if (s.season_id !== seasonId) return;
-    const { reasons, metrics: m } = _triggers(s, antibot.getRisk(userId, seasonId, nowMs), params, nowMs);
+    // #91 règle 3 : automatisation corroborée peu après une vérification #91 résolue → suspension, mais
+    // seulement après 2 fenêtres consécutives (≈ 24 s) ; la 1ʳᵉ attend sa confirmation
+    const recent = fast?.automation && fast.settings.ab_fast_suspend === 'on'
+      ? _lastFastChallenge(userId, mode, nowMs - fast.settings.ab_fast_repeat_min * 60_000) : null;
+    const confirmed = !!recent && (s.fast?.autoSince ?? 0) >= detector.REPEAT_WINDOWS;
+    let { reasons, metrics: m } = _triggers(s, antibot.getRisk(userId, seasonId, nowMs), params, nowMs, fast);
+    if (recent && !confirmed) reasons = reasons.filter(r => r.code !== 'autoclick_corroborated' && r.code !== 'same_pixel');
     if (!reasons.length) return;
-    issueChallenge(userId, seasonId, { mode, reasons, metrics: m, nowMs, ip });
+    const repeat = confirmed ? recent : null;
+    const chId = issueChallenge(userId, seasonId, { mode, reasons, metrics: m, nowMs, ip });
+    if (repeat) {
+      const reason = { code: 'autoclick_repeat', previousChallengeId: repeat.id,
+        minutesSinceSolved: Math.round((nowMs - repeat.resolved_ms) / 6000) / 10, evidence: fast.evidence };
+      if (mode === 'enforce') _startSuspension(userId, seasonId, s, { challengeId: chId, reason, params, nowMs, ip });
+      else antibot.logSecurityEvent('suspension_shadow', { userId, seasonId, ip,
+        details: { challengeId: chId, ...reason, wouldBeMinutes: params.ab_suspension_ladder[Math.min(effectiveViolationLevel(s, nowMs, params) + 1, params.ab_suspension_ladder.length) - 1], applied: false } });
+    }
     _resetStreak(s, nowMs);
     s.updated_ms = nowMs;
     _saveState(userId, s);
@@ -821,6 +893,7 @@ function adminSummary({ config = {}, nowMs = Date.now() } = {}) {
     mode: getGlobalMode(config), modeDefault: RESPONSE_MODE_DEFAULT, params: getParams(config),
     paramDefs: Object.fromEntries(Object.entries(PARAMS).map(([k, d]) => [k, { label: d.label, def: d.def, min: d.range[0], max: d.range[1] }])),
     ladderDefault: LADDER_DEFAULT, testAccounts,
+    fast: detector.getSettings(config),
     last7d: { ...Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v ?? 0])),
       suspensions: s.total ?? 0, activeSuspensions: s.active ?? 0, liftedSuspensions: s.lifted ?? 0 },
     challenges, suspensions,
@@ -844,6 +917,9 @@ function playerSection(userId, { config = {}, nowMs = Date.now() } = {}) {
       before: s.test_snapshot ?? null, now: progressSnapshot(userId, s.test_snapshot?.seasonId ?? s.season_id, nowMs) } : null,
     observation: observation(userId, s, params, mode, nowMs),
     recidivism: recidivism(userId, nowMs),
+    // #91 : dernier verdict de la détection rapide (preuves lisibles dans la fiche)
+    fast: { settings: detector.getSettings(config), last: s.fast?.last ? { ...s.fast.last, at: _iso(s.fast.last.atMs) } : null,
+      lastAutomationAt: _iso(s.fast?.lastAutomationMs), detections: s.fast?.detections ?? 0 },
     progressNow: s.season_id != null ? progressSnapshot(userId, s.season_id, nowMs) : null,
     metrics: metrics(s, nowMs), thresholds: { streakMin: params.ab_streak_min, active6hMin: params.ab_active6h_min,
       active24hMin: params.ab_active24h_min, challengeScore: params.ab_challenge_score },

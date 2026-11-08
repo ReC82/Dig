@@ -247,7 +247,7 @@ const AntibotGate = (() => {
     el.querySelector('#antibot-icon').textContent = susp ? '⏸️' : '🛡️';
     el.querySelector('#antibot-title').textContent = T(susp ? 'susp_title' : 'title');
     el.querySelector('#antibot-text').textContent = susp
-      ? T('susp_text', { time: _fmtBrussels(susp.endsAt) })
+      ? T(susp.reason === 'autoclick_repeat' ? 'susp_text_auto' : 'susp_text', { time: _fmtBrussels(susp.endsAt) })
       : T('text');
     el.querySelector('#antibot-keep').textContent = T('keep');
     el.querySelector('#antibot-help').textContent = T(susp ? 'susp_help' : 'help');

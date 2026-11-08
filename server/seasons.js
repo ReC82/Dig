@@ -21,6 +21,7 @@ const { getEconomy } = require('./economy');
 
 const cal = require('./seasonCalendar');
 const antibot = require('./antibot');
+const autoclickDetector = require('./autoclickDetector');
 const antibotResponses = require('./antibotResponses');
 const blockHp = require('./blockHp');
 const standings = require('./standings');
@@ -1074,7 +1075,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs) {
   }
 
   // Lot C : défi éventuel d'après les mesures et le score à jour (Observation : simulé, rien d'affiché)
-  try { return antibotResponses.afterSave(userId, season.id, { config, nowMs, ip }); }
+  try { return antibotResponses.afterSave(userId, season.id, { config, nowMs, ip, fast: pre?.fast ?? null }); }
   catch (err) { console.error('[antibot] réponses (après)', err.message); return null; }
 }
 
@@ -1170,6 +1171,8 @@ function buildCurrentSeasonResponse(userId = null) {
       cpsLimit:             parseInt(config.max_effective_cps ?? config.cps_limit ?? '8', 10),
       hitRate:              antibot.getHitLimits(config).rate,
       hitBurst:             antibot.getHitLimits(config).burst,
+      // #91 : le jeu envoie sa sauvegarde dès N coups au même pixel (vérification en secondes)
+      samePixelClicks:      autoclickDetector.getSettings(config).ab_fast_mode === 'on' ? autoclickDetector.getSettings(config).ab_same_pixel_clicks : null,
       antiAutoclickEnabled: (config.anti_autoclick_enabled ?? 'true') === 'true',
       economy:              getEconomy(config),
     },
