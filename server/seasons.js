@@ -945,7 +945,7 @@ function syncPlayerRanking(userId, seasonStats, { telemetry = null, ip = null, s
  * profondeur (#9, budget #25, PV réels #77) et de l'anti-autoclic (#10) avancent jusqu'à ces
  * compteurs, sans rien créditer. Les références ne reculent jamais.
  */
-function _consumeManualCounters(userId, seasonId, clicks, blocks) {
+function _consumeManualCounters(userId, seasonId, clicks, blocks, sinceMs = null) {
   const t = getDepthTracking(userId);
   if (t && t.season_id === seasonId) {
     let x = t.xhp_state;
@@ -961,7 +961,10 @@ function _consumeManualCounters(userId, seasonId, clicks, blocks) {
   }
   const c = getClickTracking(userId);
   if (c && c.season_id === seasonId) {
-    upsertClickTracking(userId, seasonId, Math.max(c.last_manual_clicks, clicks), Math.max(c.last_blocks, blocks), c.last_save_at, c.accepted_blocks);
+    // Reprise après un défi résolu : la fenêtre de cadence part de la résolution (jamais en arrière)
+    const since = sinceMs != null ? fmtUtc(new Date(sinceMs)) : null;
+    const at = since && since > c.last_save_at ? since : c.last_save_at;
+    upsertClickTracking(userId, seasonId, Math.max(c.last_manual_clicks, clicks), Math.max(c.last_blocks, blocks), at, c.accepted_blocks);
   }
 }
 
@@ -999,7 +1002,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs) {
   try {
     pre = antibotResponses.beforeSave(userId, season.id, { claimedClicks: _toCount(manualClicks), claimedBlocks: _toCount(manualBlocks),
       telemetry: tel, config, nowMs, ip });
-    if (pre.rebase) _consumeManualCounters(userId, season.id, pre.rebase.clicks, pre.rebase.blocks);
+    if (pre.rebase) _consumeManualCounters(userId, season.id, pre.rebase.clicks, pre.rebase.blocks, pre.rebase.sinceMs ?? null);
   } catch (err) { console.error('[antibot] réponses (avant)', err.message); }
 
   // ── Profondeur : validée côté serveur à chaque sauvegarde (ticket #9, budget #25) ─
@@ -1016,6 +1019,11 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs) {
   if ((autoBlocks ?? 0) > 0) {
     recordAutoBreaks(userId, season.id, autoBlocks);
   }
+
+  // Gel strict pendant un défi / une suspension (#25, recette du 08/11) : blocs validés relevés
+  // avant ce traitement, jamais dépassés après (garde-fou en plus des compteurs consommés)
+  const validatedOf = e => (e ? Math.min(e.effective_manual_blocks ?? e.manual_blocks ?? 0, e.manual_blocks ?? 0) : 0);
+  const heldBefore = pre?.hold ? validatedOf(getPlayerSeasonEntry(season.id, userId)) : null;
 
   // ── Blocs manuels + validation anti-autoclicker ───────────────────────────
   if (manualBlocks >= 1) {
@@ -1040,6 +1048,14 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs) {
     // Met à jour le compteur effectif (utilisé pour le classement et les promotions).
     // Chaque bloc manuel fait descendre d'un mètre : blocs manuels ≤ profondeur retenue − 1.
     updateEffectiveBlocks(season.id, userId, Math.min(effectiveManualBlocks, Math.max(0, acceptedDepth - 1)));
+  }
+
+  if (pre?.hold) {
+    try {
+      const after = validatedOf(getPlayerSeasonEntry(season.id, userId));
+      const keep = antibotResponses.recordHoldSave(userId, season.id, pre.held, { before: heldBefore, after, nowMs, ip });
+      if (keep < after) updateEffectiveBlocks(season.id, userId, keep);
+    } catch (err) { console.error('[antibot] gel du classement', err.message); }
   }
 
   if (signals.length) {

@@ -720,7 +720,7 @@
         <p class="sec-step-state" id="sec-test-ac-state"></p>
         <ol class="sec-test-ac-steps">
           <li>Étapes 1 et 2 ci-dessus (compte de test, essai lancé), puis « Activer le seuil court ». Le relevé du début (blocs manuels validés, rang) est noté.</li>
-          <li>Dans le jeu, avec ce compte : autoclicker sur le bloc (par exemple 8 clics/s), sans pause de plus de 3 min. Si un coffre s'ouvre, il arrête les clics : fermez-le et relancez l'autoclicker (moins de 3 min de pause, la série continue).</li>
+          <li>Dans le jeu, avec ce compte : autoclicker sur le bloc (par exemple 8 clics/s), sans pause de plus de 3 min. Pendant ce test, un coffre se récupère seul après 1,5 s (même récompense, ce compte seulement) : l'autoclicker n'est plus interrompu.</li>
           <li>Après le seuil choisi (plus 12 s environ, le temps d'une sauvegarde), la fenêtre « Petite vérification » s'affiche et les coups sur le bloc n'ont plus d'effet (le jeu ne les compte plus). Arrêtez alors l'autoclicker, qui cliquerait dans la fenêtre. Seul un client modifié qui déclarerait encore 30 clics serait suspendu (5 min, ce compte seulement).</li>
           <li>Cliquez sur « ↻ Voir où en est le compte » : « Blocs manuels validés » ne bouge plus depuis la vérification.</li>
           <li>Résolvez la vérification, puis « Terminer le test / remettre l'état normal » (seuil, essai, palier remis à l'état normal).</li>
@@ -841,6 +841,7 @@
                 <option value="challenge_issued">Défi imposé</option>
                 <option value="challenge_solved">Défi résolu</option>
                 <option value="suspension_started">Suspension du minage manuel</option>
+                <option value="freeze_clamped">Crédit refusé pendant un défi (garde-fou du gel)</option>
                 <option value="antibot_admin">Action admin (essai, levée…)</option>
                 <option value="sustained_activity">Minage continu prolongé (indice)</option>
                 <option value="narrow_jitter">Gigue synthétique (indice)</option>

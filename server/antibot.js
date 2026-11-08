@@ -519,7 +519,7 @@ function getTimings() {
 const EVENT_GROUPS = {
   player: [...Object.keys(SIGNALS), 'risk_level'],
   // Lot C : défis (simulés en Observation) et suspensions du minage manuel
-  responses: ['challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started', 'antibot_admin'],
+  responses: ['challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started', 'freeze_clamped', 'antibot_admin'],
   admin:  ['admin_action', 'admin_config', 'admin_login', 'admin_login_failed'],
   system: ['standings_frozen', 'standings_freeze_failed'],
 };
