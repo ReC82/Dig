@@ -12,6 +12,7 @@
   déployé `3f726c2`** (section « Session 4 » en fin de document)
 - **Session du 07/11/2026 (après-midi) : recette du défi manuel — pictogramme « pièce » en carré
   vide corrigé (SVG locaux) ; déployé `510a1df`** (dernière section du document)
+- **Session du 08/11/2026 : recette #25-G — preuve du gel pendant un défi (audit : 0 bloc pendant le défi), relevés horodatés dans l'admin, coffres récupérés seuls en recette ; déployé `487ff7d`** (dernière section)
 
 ---
 
@@ -1135,3 +1136,165 @@ Aucune nouvelle décision. Les questions précédentes restent ouvertes :
 - Décision sur le mode Appliqué pour tous. — Bloquant MVP
 - Option, signalée sans être réalisée : faire peser davantage `untrusted_clicks` répétés dans le score
   (plafond de 25 aujourd'hui). Cela touche à l'algorithme, donc décision séparée. — Après lancement
+
+---
+
+# Session du 08/11/2026 — Preuve du gel du classement pendant un défi (recette #25-G)
+
+## 1. Ticket et état réel
+
+#25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
+
+**Déployé en production (SHA `487ff7d`, 08/11/2026 12:31 Bruxelles) — en attente de recette.** Source : commentaire du propriétaire du 08/11/2026 10:40 UTC
+([issuecomment-6720465294](https://github.com/ReC82/Dig/issues/25#issuecomment-6720465294)) :
+défi réel déclenché par OP Auto Clicker, mais gel du classement pendant le défi **non prouvé** ;
+relevé 194 → 206 blocs (+12) à expliquer par des horodatages ; demandes 1 à 5.
+
+## 2. Audit de l'essai réel du 08/11 (base de production lue en copie, lecture seule)
+
+Compte n° 1, essai Appliqué, seuil court de 3 min. Heures en UTC (Bruxelles = +1 h). Source :
+une ligne par sauvegarde (`antibot_save_samples`), table des défis, journal de sécurité.
+
+| Phase | Heure serveur (UTC) | Blocs manuels déclarés | Clics déclarés | Constat |
+|---|---|---|---|---|
+| Seuil d'essai activé (relevé « Au début ») | 10:28:00 | 194 | 7 611 | rang 1 |
+| Dernière sauvegarde **avant** le défi | 10:31:03.232 | 203 | 8 900 | +9 blocs gagnés AVANT l'émission |
+| **Émission du défi n° 4** (`continuous_mining`, 3 min) | 10:31:03 | 203 | 8 900 | même requête, après le crédit de cette sauvegarde |
+| Pendant le défi (6 sauvegardes : 10:31:15 → 10:32:44) | — | **203** | 8 901 | 1 clic en vol, retenu (`held_clicks = 1`) ; **0 bloc** |
+| **Résolution** (grille, 104 s) | 10:32:47 | 203 | 8 901 | — |
+| Autoclicker relancé (bot supervisé) | 10:32:56 → 10:33:44 | 206 | 9 307 | +3 blocs APRÈS la résolution, clics `isTrusted=false` journalisés dès 10:32:56 |
+
+**Conclusion : +12 = +9 avant l'émission + 0 pendant + 3 après la résolution. Aucune fuite
+constatée** : pendant le défi, le compteur déclaré n'a pas bougé (le jeu bloque les coups) et le
+serveur a retenu le seul clic reçu. Le relevé « 187 → 187 » correspond au défi d'essai admin n° 3
+(10:15:25 → 10:15:35, résolu en 10 s, aucun clic). Les blocs validés finaux (206) sont égaux aux
+blocs déclarés. Limite honnête : ce défi n° 4 est antérieur aux relevés horodatés ajoutés ce jour ;
+la preuve repose sur les sauvegardes déclarées (le validé ne peut jamais dépasser le déclaré).
+
+## 3. Revue du gel côté serveur (demande 2)
+
+Le gel est décidé dans la même transaction synchrone que la sauvegarde (Node + SQLite synchrones :
+deux requêtes d'un même compte ne s'entrelacent jamais). Pendant un défi en attente, les compteurs
+reçus sont « consommés » sans crédit avant tout calcul. Cas éprouvés par des tests automatisés :
+sauvegarde en retard (compteurs d'avant l'émission reçus après), client modifié qui continue de
+cliquer, second appareil (compteurs plus bas), fenêtre de coffre, onglet changé / F5.
+
+**Un défaut réel, mineur, corrigé** : après la résolution, un client modifié qui aurait cliqué pendant
+le défi sans sauvegarder, puis déclaré des compteurs anciens en répondant, voyait ces clics jugés par
+l'anti-autoclic sur une fenêtre partant de la dernière sauvegarde retenue (durée du défi incluse,
+jusqu'à 120 s) : cadence diluée. **La fenêtre part désormais de la résolution** ; la rafale est
+détectée (`flagged`/`reduced`) et le crédit borné à 8 clics/s depuis la résolution. Le jeu officiel
+n'est pas concerné (il bloque les coups pendant le défi).
+
+**Garde-fou ajouté** : pendant un défi ou une suspension, les blocs validés sont relevés avant et après
+le traitement de la sauvegarde ; toute hausse (aucun chemin connu) est retirée aussitôt, comptée sur le
+défi et journalisée (`freeze_clamped`, filtre « Crédit refusé pendant un défi » du journal).
+
+## 4. Changements (comportement visible)
+
+- **Admin → Anti-bot, fiche et parcours de test : encadré « Preuve du gel »** pour le dernier défi réel :
+  tableau horodaté (heure serveur, secondes) **Avant (début du test) / Émission du défi / Pendant le
+  défi / Résolution / Maintenant** avec blocs validés, clics déclarés et rang ; ligne « Pendant » :
+  sauvegardes retenues, clics non crédités, blocs refusés par le garde-fou, écart ; verdict
+  « ✓ Gel vérifié : +0 bloc… », « ⚠ Écart » ou « défi antérieur au 08/11 : pas de relevé ».
+- **Indice de reprise (bot supervisé), sans aucune action** : délai entre la résolution et le premier
+  clic suivant, cadence de reprise, alertes « clics non fiables » depuis, vérifications résolues en 24 h.
+- **Coffres pendant la recette** : sur le seul compte en essai avec seuil court actif, la fenêtre du
+  coffre se récupère seule après 1,5 s (même récompense, taux inchangés) ; l'autoclicker à position fixe
+  n'est plus interrompu. Aucun effet sur les autres comptes ni après « Terminer le test ».
+- Serveur : relevés à l'émission et à la résolution/annulation, compteur de sauvegardes retenues.
+  Migration additive : 5 colonnes `antibot_challenges`, 1 colonne `antibot_activity`.
+- Inchangé : mode global **Observation**, seuils, algorithmes de détection, économie, classement des
+  autres joueurs. Aucune suspension réelle.
+
+## 5. Tests
+
+- `test/antibot-freeze-proof.test.js` (9 tests) : essai du 08/11 reproduit (+N avant, 0 pendant,
+  progression après) ; client modifié + sauvegarde en retard ; compteurs du défi déclarés après la
+  résolution (ce test **échoue sans le correctif** de fenêtre) ; second appareil + coffre + F5 ;
+  garde-fou ; annulation admin + témoin inchangé ; indice de reprise sans effet ; défi sans relevé
+  → « inconnu » ; migration idempotente.
+- `npm test` complet : **929/929** sur la branche (`9528875`), sur `develop` (`487ff7d`) et dans la release.
+- E2e navigateur `test/e2e/antibot-freeze-proof.e2e.js`, serveur de test (port 3101, base de test),
+  **TOUT OK en 1280×900 et 390×844** : vrais clics souris à 8 clics/s ; vérification après ≈ 57 s
+  (seuil 1 min) ; coffre récupéré seul en 1,35 s ; défi **résolu dans le jeu** (énigme texte) ;
+  autoclicker relancé ; fiche : « ✓ Gel vérifié : +0 bloc », phases Avant / Émission / Pendant /
+  Résolution / Maintenant ; reprise mesurée « au plus 12 s après, ≈ 7,2 clics/s » ; mode global et
+  paramètres inchangés ; aucune erreur JS. Remarque : le jeu n'envoie une sauvegarde que s'il y a du
+  changement, d'où parfois 1 seule sauvegarde retenue pendant un défi (6 en production le 08/11).
+
+## 6. Déploiement
+
+- **SHA déployé : `487ff7d`** (merge dans `develop`), 08/11/2026 12:31 Bruxelles, par `scripts/deploy.sh`
+  de la release. Sauvegarde vérifiée : `~/backups/dig/dig-20261108-123118-pre-deploy-487ff7d.sqlite`.
+- Copie de la base de production : empreintes (lignes + hachage) de `users`, `user_saves`,
+  `season_rankings`, `seasons`, `leagues`, `player_click_tracking` **identiques** avant et après
+  démarrage ; seules les 6 colonnes ajoutées apparaissent ; copie supprimée.
+- Après déploiement : 2 domaines 200, `/api/version` = `1.0.0+487ff7d`, aucune erreur dans le journal,
+  `quick_check` ok, classement de la saison identique à la sauvegarde (206 / 80 blocs validés).
+- Aucun appel IA en cours avant le redémarrage. Retour arrière : `git reset --keep 5f0c2a6` +
+  redémarrage (colonnes ajoutées sans effet sur l'ancien code).
+- Note : le compte n° 1 était encore en essai Appliqué (seuil 3 min expiré à 13:28 Bruxelles) ; rien
+  n'a été modifié sur ce compte — « Terminer le test » dans l'admin le remet à l'état normal.
+
+### Test fonctionnel à faire par le propriétaire (≈ 4 min, non redondant)
+
+Le défi lui-même est déjà validé : ne pas le revalider. Ce test sert uniquement à voir la preuve.
+1. Admin → Anti-bot → « Tester la protection » : votre compte, « Lancer l'essai », variante
+   autoclicker, seuil **1 min**, « Activer le seuil court ».
+2. Dans le jeu : OP Auto Clicker sur le bloc. Les coffres se récupèrent seuls (≈ 1,5 s).
+3. Quand « Petite vérification » apparaît : Alt+F2 (arrêt), attendez 30 s, résolvez, Alt+F1 (relance)
+   30 s.
+4. Admin → « Voir où en est le compte » : l'encadré vert **« Preuve du gel — ✓ Gel vérifié : +0 bloc
+   validé entre l'émission (hh:mm:ss) et la résolution (hh:mm:ss) »**, avec le tableau Avant /
+   Émission / Pendant / Résolution / Maintenant ; « Maintenant » > « Résolution » (reprise permise) ;
+   ligne « Reprise … au plus N s après, ≈ 8 clics/s » (indice seulement, aucune sanction).
+5. « Terminer le test ».
+
+### GO / NO-GO classement pour la bêta du 09/11 (demande 5)
+
+- **Constaté en réel** (production, 08/11) : défi déclenché par un autoclicker réel ; 0 bloc crédité
+  pendant le défi (sauvegardes horodatées) ; reprise immédiate après résolution (bot supervisé).
+- **Simulé / testé** : gel face aux sauvegardes en retard, client modifié, second appareil, coffre,
+  F5 ; crédit rétroactif borné ; aucun faux positif sur des humains avec pauses (tests du 07/11).
+- **Limite** : en mode global **Observation** (maintenu, comme demandé), aucun joueur n'est gelé :
+  un autoclicker à ≤ 8 clics/s progresse au classement comme un humain très assidu ; seuls le plafond
+  de cadence (#10) et les contrôles de profondeur s'appliquent, et les défis simulés sont visibles
+  dans l'admin. Un bot supervisé résout chaque défi : en Appliqué, il perd ≈ le temps du défi par heure.
+- **Verdict : GO pour un classement de bêta entre collègues sans lot réel** (surveiller « Défis
+  simulés » dans Admin → Anti-bot). **NO-GO pour tout classement doté d'un lot réel** tant que le
+  mode Appliqué et une règle de récidive ne sont pas décidés (questions 1 et 2).
+
+Classement MVP : la preuve du gel est **Bloquant MVP public** (livrée) ; récidive graduée et mode
+Appliqué pour tous : **Bloquant pour des récompenses réelles**, pas pour la bêta fermée.
+
+## 7. Choix techniques faits seul
+
+- Relevés stockés sur le défi (JSON, heure serveur) plutôt que recalculés : preuve figée, indépendante
+  des sauvegardes suivantes. Défis antérieurs : verdict « inconnu », jamais « prouvé » par défaut.
+- Garde-fou après traitement plutôt qu'un court-circuit du pipeline : les autres contrôles (profondeur,
+  journal) continuent de voir les sauvegardes retenues.
+- Coffres : récupération automatique de la MÊME récompense pour le seul compte en recette (seuil court
+  actif, expire en 2 h), plutôt qu'un changement de taux ou de séquence de blocs (économie inchangée).
+- Indice de reprise en lecture seule (aucun seuil, aucune action) : l'algorithme ne change pas sans
+  décision.
+
+## 8. Décisions demandées au propriétaire
+
+1. **Récidive graduée (bot supervisé)** — aujourd'hui une vérification réussie remet à zéro la série
+   ET les temps actifs 6 h / 24 h. Options : (a) ne remettre à zéro que la série continue (les cumuls
+   6 h / 24 h continuent : un bot supervisé atteint 180 min/6 h et reçoit des défis plus fréquents) ;
+   (b) (a) + seuil de série divisé par 2 à chaque défi résolu dans les 24 h (plancher 10 min) ;
+   (c) rien. Jamais de suspension sur simple réussite ou cadence. **Recommandation : (a) puis (b)
+   après une semaine d'observation de l'indice de reprise.**
+2. Rappel (inchangé) : défis et suspensions en Appliqué pour tous — (a) après cette recette, (b) dès la
+   bêta, (c) après 1 semaine d'Observation. **Recommandation : (a), au plus tard (c)** ; obligatoire
+   avant tout classement doté d'un lot réel.
+3. Les autres questions en attente (seuils par défaut, Turnstile, images de défi, éligibilité #19,
+   adresse de contestation, lot D) restent valables, sans changement.
+
+## 9. Éléments restant à réaliser
+
+- Selon décision 1 : récidive graduée (≈ 0,5 jour, tests de faux positifs inclus) — Après la bêta.
+- Le pas 3 du parcours guidé reste surligné quand le défi vient du seuil automatique (pas de l'admin) :
+  cosmétique, à traiter dans #87 — Après lancement.
