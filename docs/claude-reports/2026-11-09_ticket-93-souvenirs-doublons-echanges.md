@@ -6,7 +6,7 @@ Lien : https://github.com/ReC82/Dig/issues/93 — branche `feature/93-souvenirs-
 
 ### 1. État réel
 
-Voir la section « Déploiement » en bas (complétée après la mise en ligne). **Rien n'est activé** :
+**Déployé en production (SHA `dc8cf1e`, 09/11 00:28) — en attente de recette.** **Rien n'est activé** :
 doubles OFF, échanges OFF, aucune règle de doubles enregistrée, aucun taux d'événement modifié,
 aucun micro-bonus appliqué. Pour les joueurs, le jeu se comporte exactement comme avant.
 
@@ -160,3 +160,30 @@ collection d'un joueur seul (types distincts identiques dans toutes les lignes).
 3. Interface d'échange joueur (invitation au pseudo, choix du double, contre-proposition, notifications après réussite).
 4. Alertes anti-abus (paires récurrentes, comptes récents) et tableau de bord.
 5. Activation sur un événement TEST, puis décision propriétaire.
+
+### 10. SHA, tests et procédure de test
+
+- Branche `feature/93-souvenirs-doublons-echanges` (commit `14d40de`) ; **develop `dc8cf1e`** (fusion) ;
+  rapport intégré ensuite dans develop (sans nouveau déploiement).
+- `npm test` : **1034/1034** sur la branche, sur develop et sur la release `dc8cf1e` (dont
+  `test/souvenir-trades-93.test.js` 12/12 et les tests événements #56/#86, reset #75, joueurs #90).
+- Rejouer : `DB_FILE=test-93.sqlite node --test test/souvenir-trades-93.test.js` (base temporaire hors `server/data/`).
+- Simulation : `GET /api/admin/souvenirs/simulate/novembre_histoire_2026?factor=0.05&maxCopies=2` (admin, lecture seule).
+
+### 11. Déploiement
+
+- SHA déployé **`dc8cf1e`** (précédent `b8d8f77`) par `scripts/deploy.sh` de la release ;
+  sauvegarde vérifiée `dig-20261109-002854-pre-deploy-dc8cf1e.sqlite`.
+- Avant : copie de la base de production démarrée sur le port 3122 → `/health` ok, version `1.0.0+dc8cf1e`,
+  empreintes (lignes + hachage des colonnes) **identiques** pour `users`, `user_saves`, `season_rankings`,
+  `seasons`, `leagues`, `player_click_tracking`, `monthly_event_finds`, `monthly_events`, `monthly_event_items` ;
+  7 tables ajoutées, réglages OFF ; copie supprimée.
+- Après : les deux domaines 200 et `1.0.0+dc8cf1e`, journal sans erreur, `quick_check` ok, empreintes
+  identiques à la sauvegarde ; jeu chargé dans Chromium 1280×900 et 390×844 sans erreur JS.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep b8d8f77` + redémarrage ; les tables ajoutées
+  (vides) peuvent rester, l'ancien code les ignore.
+- Impact joueurs : aucun (aucune donnée réécrite ; affichage `×N` jamais visible à ×1).
+
+**Test fonctionnel à faire par le propriétaire (≈ 1 min, facultatif)** : jeu → Collection →
+« 🏛️ Novembre déterre l'Histoire » : identique à avant (pas de ×N, n / 30 inchangé). Le vrai test
+viendra avec l'écran admin et l'activation sur un événement TEST, après vos décisions § 8.
