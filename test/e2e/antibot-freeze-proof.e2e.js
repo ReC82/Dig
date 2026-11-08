@@ -103,14 +103,13 @@ async function solveInGame(p) {
       await page.fill('#sec-test-q', user);
       await page.click('#sec-test-form button[type="submit"]');
       await page.waitForFunction(() => document.getElementById('sec-step-1').classList.contains('is-done'));
-      await page.click('#sec-test-ac > summary');
       await page.click('#btn-sec-test-start');
       await page.waitForSelector('#adm-confirm[open]');
       await page.click('#adm-confirm-yes');
       await page.waitForFunction(() => document.getElementById('sec-step-2').classList.contains('is-done'));
-      await page.selectOption('#sec-test-ac-min', '1');
+      await page.click('#sec-test-delay label:has(input[value="1"])');
       await page.click('#btn-sec-test-ac-on');
-      await page.waitForFunction(() => /Seuil court actif/.test(document.getElementById('sec-test-ac-state').textContent));
+      await page.waitForFunction(() => /Délai actif/.test(document.getElementById('sec-step-3-state').textContent));
 
       // 1. Autoclicker jusqu'à la vérification ; les coffres ne le bloquent plus
       const run = await autoclick(game, 150);
@@ -135,12 +134,13 @@ async function solveInGame(p) {
         JSON.stringify(r.last));
       // 4. Fiche admin : tableau horodaté
       await page.evaluate(() => secTestRefresh());
-      await page.waitForSelector('#sec-test-ac-snap .sec-freeze');
-      const verdict = await page.getAttribute('#sec-test-ac-snap .sec-freeze', 'data-verdict');
-      const rows = await page.$$eval('#sec-test-ac-snap .sec-freeze tbody th', ths => ths.map(t => t.textContent));
+      await page.click('#sec-test-adv > summary');
+      await page.waitForSelector('#sec-test-adv-body .sec-freeze');
+      const verdict = await page.getAttribute('#sec-test-adv-body .sec-freeze', 'data-verdict');
+      const rows = await page.$$eval('#sec-test-adv-body .sec-freeze tbody th', ths => ths.map(t => t.textContent));
       check(tag, 'admin : « Preuve du gel » vérifiée, phases horodatées', verdict === 'frozen'
         && ['Émission du défi', 'Pendant le défi', 'Résolution'].every(x => rows.includes(x)) && rows.some(x => x.startsWith('Maintenant')), rows.join(' | '));
-      await page.locator('#sec-test-ac-snap .sec-freeze').scrollIntoViewIfNeeded();
+      await page.locator('#sec-test-adv-body .sec-freeze').scrollIntoViewIfNeeded();
       await page.screenshot({ path: path.join(OUT, `25fz-${short}-2-admin-preuve.png`), fullPage: true });
 
       await page.click('#btn-sec-test-end');

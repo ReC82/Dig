@@ -1752,11 +1752,50 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .sec-seen--real { border-left-color: #c0392b; }
 .sec-seen-title { margin: 0; font-weight: 600; font-size: 0.85rem; }
 .sec-seen-list { margin: 4px 0 0; padding-left: 18px; font-size: 0.8rem; }
-.sec-test-ac { margin-top: 12px; }
-.sec-test-ac > summary { cursor: pointer; font-weight: 600; }
-.sec-test-ac-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
-.sec-test-ac-steps { font-size: 0.8rem; padding-left: 20px; }
 .sec-test-ac-table { font-size: 0.8rem; margin-top: 6px; }
+
+/* Parcours guidé simplifié (recette #87 du 08/11) : état, délai 1/2/3 min, résultat lisible */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sec-test-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.sec-test-head .overview-card-title { margin: 0; }
+.sec-test-badge { font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.sec-test-badge[data-state="running"] { border-color: var(--gold); color: var(--gold); }
+.sec-test-badge[data-state="pending"] { border-color: #f59e0b; color: #000; background: #f59e0b; }
+.sec-test-badge[data-state="solved"], .sec-test-badge[data-state="done"] { border-color: var(--green); color: var(--green); }
+.sec-test-badge[data-state="suspended"] { border-color: var(--red); color: var(--red); }
+.sec-delay { display: flex; gap: 6px; border: 0; margin: 0 0 8px; padding: 0; }
+.sec-delay label { flex: 0 1 auto; cursor: pointer; }
+.sec-delay input { position: absolute; opacity: 0; }
+.sec-delay label { display: inline-block; min-width: 64px; min-height: 36px; line-height: 34px; text-align: center; border: 1px solid var(--border); border-radius: var(--radius); font-weight: 600; font-size: 0.88rem; }
+.sec-delay label:has(input:checked) { border-color: var(--gold); background: rgba(251, 191, 36, 0.14); color: var(--gold); }
+.sec-delay label:has(input:focus-visible) { outline: 2px solid var(--gold); outline-offset: 2px; }
+.sec-step-alt { margin: 6px 0 0; }
+.sec-link-btn { background: none; border: 0; padding: 4px 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 0.8rem; text-align: left; }
+.sec-link-btn:disabled { text-decoration: none; cursor: default; opacity: 0.6; }
+.sec-step-hint { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+p.sec-step-hint { margin: 6px 0 0; }
+.sec-test-todo { font-size: 0.85rem; line-height: 1.5; margin: 6px 0 8px; padding-left: 20px; }
+.sec-step a.btn { text-decoration: none; display: inline-block; }
+.sec-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 8px; }
+.sec-progress progress { flex: 1 1 140px; height: 10px; accent-color: var(--gold); }
+.sec-result { border: 1px solid var(--border); border-left: 4px solid var(--green); border-radius: var(--radius); padding: 8px 10px; margin: 0 0 8px; }
+.sec-result--open { border-left-color: #f59e0b; }
+.sec-result--leak { border-left-color: var(--red); }
+.sec-result-title { margin: 0 0 6px; font-weight: 700; font-size: 0.88rem; }
+.sec-result-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.sec-result-tile { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: rgba(127, 127, 127, 0.08); min-width: 0; }
+.sec-result-label { font-size: 0.72rem; color: var(--muted); }
+.sec-result-value { font-size: 1.2rem; }
+.sec-result-sub { font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+.sec-result-tile.is-good .sec-result-value { color: var(--green); }
+.sec-result-tile.is-bad .sec-result-value { color: var(--red); }
+.sec-test-adv { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 8px; }
+.sec-test-adv > summary { cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+@media (max-width: 420px) {
+  .sec-result-tiles { grid-template-columns: 1fr; }
+  .sec-result-tile { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .sec-delay label { flex: 1 1 0; min-width: 0; }
+}
 
 /* Économie : prix des coffres en lecture (#88) */
 .eco-chest-costs { margin: 0 0 10px; padding-left: 20px; }

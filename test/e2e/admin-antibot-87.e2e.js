@@ -133,7 +133,7 @@ const stepState = (page, n) => page.evaluate(i => {
       f = await admin('GET', `/api/admin/security/player?q=${user}`);
       check(tag, 'étape 3 : un seul défi malgré le double clic', f.lotC.history.challenges.filter(c => c.status === 'pending').length === 1 && f.lotC.history.challenges.length === 1, `${f.lotC.history.challenges.length}`);
       const s4a = await stepState(page, 4);
-      check(tag, 'étape 4 : « pas encore affichée » tant que le joueur n\'a pas rouvert le jeu', s4a.current && /Pas encore affichée/.test(s4a.text), s4a.text);
+      check(tag, 'étape 4 : « pas encore affichée » tant que le joueur n\'a pas rouvert le jeu', s4a.current && /Vérification prête/.test(s4a.text), s4a.text);
       await page.screenshot({ path: path.join(OUT, `87-${short}-2-parcours.png`), fullPage: true });
 
       // Jeu : le joueur voit la vérification, la résout
@@ -142,7 +142,7 @@ const stepState = (page, n) => page.evaluate(i => {
       await game.waitForSelector('.antibot-tile');
       await sleep(800);
       await page.click('#btn-sec-test-check');
-      await page.waitForFunction(() => /Affichée dans le jeu/.test(document.getElementById('sec-step-4-state').textContent), null, { timeout: 8000 });
+      await page.waitForFunction(() => /Vérification affichée depuis/.test(document.getElementById('sec-step-4-state').textContent), null, { timeout: 8000 });
       check(tag, 'étape 4 : « affichée dans le jeu » après ouverture par le joueur', true);
       await solveGrid(game);
       await game.waitForSelector('#antibot-modal', { state: 'hidden', timeout: 8000 });
@@ -174,7 +174,7 @@ const stepState = (page, n) => page.evaluate(i => {
       const resp = await admin('GET', '/api/admin/security/responses');
       const w = await admin('GET', `/api/admin/security/player?q=${witness}`);
       check(tag, 'étape 5 : essai arrêté, état normal, palier 0', f.lotC.testEnforce === false && f.lotC.state === 'normal' && f.lotC.violationLevel === 0 && f.lotC.mode === globalBefore);
-      check(tag, 'mode global inchangé (Observation) et affiché', resp.mode === globalBefore && globalBefore === 'observe' && /Mode global inchangé : Observation/.test((await stepState(page, 5)).text));
+      check(tag, 'mode global inchangé (Observation) et affiché', resp.mode === globalBefore && globalBefore === 'observe' && /Protection des autres joueurs inchangée \(Observation\)/.test((await stepState(page, 5)).text));
       check(tag, 'autre compte jamais concerné', w.lotC.testEnforce === false && w.lotC.history.challenges.length === 0 && w.lotC.mode === 'observe');
       await page.screenshot({ path: path.join(OUT, `87-${short}-4-termine.png`), fullPage: true });
 

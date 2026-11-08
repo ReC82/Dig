@@ -661,12 +661,15 @@
       </div>
     </div>
 
-    <!-- 2. Parcours guidé « Tester la protection » -->
+    <!-- 2. Parcours guidé « Tester la protection » (recette #87 du 08/11 : 5 étapes, un bouton principal par étape) -->
     <div class="overview-card sec-test" id="sec-test-card">
-      <h3 class="overview-card-title">Tester la protection</h3>
-      <p class="sec-help">Un <strong>essai</strong> ne concerne qu'<strong>un seul compte</strong> (le vôtre ou un compte de test) : lui seul peut voir la vérification. Le <span class="sec-tip" tabindex="0" title="Le mode global vaut pour tous les joueurs. Il se change uniquement dans « Réglages », plus bas.">mode global</span> reste <strong id="sec-test-global">…</strong> pour tous les autres joueurs.</p>
+      <div class="sec-test-head">
+        <h3 class="overview-card-title">Tester la protection</h3>
+        <span class="sec-test-badge" id="sec-test-badge" data-state="ready" role="status" aria-live="polite">Prêt</span>
+      </div>
+      <p class="sec-help">Sur <strong>un seul compte</strong> (le vôtre ou un compte de test). La protection des autres joueurs reste <strong id="sec-test-global">…</strong>.</p>
       <ol class="sec-steps" id="sec-test-steps">
-        <li class="sec-step" id="sec-step-1" data-step="1">
+        <li class="sec-step is-current" id="sec-step-1" data-step="1" aria-current="step">
           <h4 class="sec-step-title">Choisir le compte de test</h4>
           <form id="sec-test-form" class="sec-player-form">
             <div class="player-ac">
@@ -674,60 +677,53 @@
                      role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sec-test-suggest">
               <ul id="sec-test-suggest" class="player-ac-list hidden" role="listbox" aria-label="Comptes trouvés"></ul>
             </div>
-            <button type="submit" class="btn btn-sm">Choisir ce compte</button>
+            <button type="submit" class="btn btn-sm sec-step-main" id="btn-sec-test-pick">Choisir ce compte</button>
           </form>
           <p class="sec-step-state sec-step-pick" id="sec-step-1-pick" role="status" aria-live="polite"></p>
           <p class="sec-step-state" id="sec-step-1-state"></p>
         </li>
         <li class="sec-step" id="sec-step-2" data-step="2">
           <h4 class="sec-step-title">Lancer l'essai sur ce compte</h4>
-          <button type="button" class="btn" id="btn-sec-test-start" disabled>Lancer un essai uniquement pour ce compte</button>
+          <button type="button" class="btn btn-outline sec-step-main" id="btn-sec-test-start" disabled>Lancer l'essai</button>
           <p class="sec-step-state" id="sec-step-2-state"></p>
         </li>
         <li class="sec-step" id="sec-step-3" data-step="3">
-          <h4 class="sec-step-title">Afficher le défi de vérification</h4>
-          <button type="button" class="btn" id="btn-sec-test-challenge" disabled>Afficher le défi de vérification</button>
+          <h4 class="sec-step-title">Choisir le délai avant la vérification</h4>
+          <fieldset class="sec-delay" id="sec-test-delay">
+            <legend class="sr-only">Minutes de minage continu avant la vérification</legend>
+            <label><input type="radio" name="sec-test-delay" value="1"> 1 min</label>
+            <label><input type="radio" name="sec-test-delay" value="2" checked> 2 min</label>
+            <label><input type="radio" name="sec-test-delay" value="3"> 3 min</label>
+          </fieldset>
+          <button type="button" class="btn btn-outline sec-step-main" id="btn-sec-test-ac-on" disabled>Activer le délai de 2 min</button>
           <p class="sec-step-state" id="sec-step-3-state"></p>
+          <p class="sec-step-alt"><button type="button" class="sec-link-btn" id="btn-sec-test-challenge" disabled>Sans autoclicker : envoyer la vérification tout de suite</button></p>
         </li>
         <li class="sec-step" id="sec-step-4" data-step="4">
-          <h4 class="sec-step-title">Dans le jeu : résoudre la vérification</h4>
-          <p class="sec-step-help">Revenez dans le jeu avec ce compte (touche F5 si la page était déjà ouverte). La fenêtre « Petite vérification » s'affiche : touchez le bloc (rien ne se passe), puis résolvez-la. Le minage normal reprend.</p>
-          <button type="button" class="btn btn-sm btn-outline" id="btn-sec-test-check" disabled>↻ Voir où en est le compte</button>
+          <h4 class="sec-step-title">Tester dans le jeu</h4>
+          <p><a class="btn btn-sm btn-outline" id="sec-test-open-game" href="/" target="_blank" rel="noopener">Ouvrir le jeu ↗</a> <span class="sec-step-hint">avec ce compte (F5 si déjà ouvert)</span></p>
+          <ol class="sec-test-todo">
+            <li>Lancez l'autoclicker sur le bloc.</li>
+            <li>Une vérification apparaîtra (<span id="sec-test-delay-txt">2 min</span> + quelques secondes).</li>
+            <li>Stoppez l'autoclicker, puis résolvez la vérification.</li>
+          </ol>
+          <div id="sec-test-progress"></div>
+          <div id="sec-test-result"></div>
+          <button type="button" class="btn btn-outline sec-step-main" id="btn-sec-test-check" disabled>↻ Actualiser le résultat</button>
           <p class="sec-step-state" id="sec-step-4-state"></p>
+          <p class="sec-step-hint">Le délai compte le minage sans pause ; la vérification arrive à la sauvegarde suivante (≈ 12 s). Pendant l'essai, les coffres s'ouvrent seuls : l'autoclicker n'est pas interrompu.</p>
         </li>
         <li class="sec-step" id="sec-step-5" data-step="5">
-          <h4 class="sec-step-title">Terminer le test</h4>
-          <button type="button" class="btn" id="btn-sec-test-end" disabled>Terminer le test / remettre l'état normal</button>
+          <h4 class="sec-step-title">Terminer et remettre à l'état normal</h4>
+          <button type="button" class="btn btn-outline sec-step-main" id="btn-sec-test-end" disabled>Terminer le test</button>
           <p class="sec-step-state" id="sec-step-5-state"></p>
         </li>
       </ol>
-      <div id="sec-test-seen"></div>
-      <details class="sec-test-ac" id="sec-test-ac">
-        <summary>Variante : tester un autoclicker sans attendre 60 min (ce compte seulement)</summary>
-        <p class="sec-help">Normalement, une vérification n'arrive qu'après <strong>60 min de minage continu</strong> (réglage global, inchangé ici). Pour la recette, <strong>ce compte seul</strong> passe à un seuil court. Il expire seul après 2 h et disparaît avec « Terminer le test ».</p>
-        <div class="sec-test-ac-row">
-          <label for="sec-test-ac-min">Seuil d'essai</label>
-          <select id="sec-test-ac-min">
-            <option value="1">1 min</option>
-            <option value="2" selected>2 min</option>
-            <option value="3">3 min</option>
-            <option value="5">5 min</option>
-            <option value="10">10 min</option>
-          </select>
-          <button type="button" class="btn btn-sm" id="btn-sec-test-ac-on" disabled>Activer le seuil court</button>
-          <button type="button" class="btn btn-sm btn-outline" id="btn-sec-test-ac-off" disabled>Revenir au seuil normal</button>
-        </div>
-        <p class="sec-step-state" id="sec-test-ac-state"></p>
-        <ol class="sec-test-ac-steps">
-          <li>Étapes 1 et 2 ci-dessus (compte de test, essai lancé), puis « Activer le seuil court ». Le relevé du début (blocs manuels validés, rang) est noté.</li>
-          <li>Dans le jeu, avec ce compte : autoclicker sur le bloc (par exemple 8 clics/s), sans pause de plus de 3 min. Pendant ce test, un coffre se récupère seul après 1,5 s (même récompense, ce compte seulement) : l'autoclicker n'est plus interrompu.</li>
-          <li>Après le seuil choisi (plus 12 s environ, le temps d'une sauvegarde), la fenêtre « Petite vérification » s'affiche et les coups sur le bloc n'ont plus d'effet (le jeu ne les compte plus). Arrêtez alors l'autoclicker, qui cliquerait dans la fenêtre. Seul un client modifié qui déclarerait encore 30 clics serait suspendu (5 min, ce compte seulement).</li>
-          <li>Cliquez sur « ↻ Voir où en est le compte » : « Blocs manuels validés » ne bouge plus depuis la vérification.</li>
-          <li>Résolvez la vérification, puis « Terminer le test / remettre l'état normal » (seuil, essai, palier remis à l'état normal).</li>
-        </ol>
-        <div id="sec-test-ac-snap"></div>
-      </details>
       <p id="sec-test-msg" class="sec-test-msg" role="status" aria-live="polite"></p>
+      <details class="sec-test-adv" id="sec-test-adv">
+        <summary>Diagnostic avancé de ce compte <span class="sec-fold-sum">ce que le serveur a vu, relevés, reprise</span></summary>
+        <div id="sec-test-adv-body"><p class="muted">Choisissez d'abord le compte.</p></div>
+      </details>
     </div>
 
     <!-- 3. Joueurs à surveiller -->

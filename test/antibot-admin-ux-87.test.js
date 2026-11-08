@@ -34,15 +34,46 @@ test('ordre de l\'onglet : cartes, parcours de test, joueurs à surveiller, puis
   assert.match(TAB, /id="btn-sec-start-test">▶ Tester la protection<\/button>/);
 });
 
-test('parcours guidé : 5 étapes, libellés orientés action, essai limité au compte expliqué', () => {
-  for (let i = 1; i <= 5; i++) assert.match(TAB, new RegExp(`id="sec-step-${i}"`));
-  assert.match(TAB, />Lancer un essai uniquement pour ce compte</);
-  assert.match(TAB, />Afficher le défi de vérification</);
-  assert.match(TAB, /Revenez dans le jeu avec ce compte/);
-  assert.match(TAB, />Terminer le test \/ remettre l'état normal</);
-  assert.match(TAB, /ne concerne qu'<strong>un seul compte<\/strong>/);
-  assert.match(TAB, /title="Le mode global vaut pour tous les joueurs/, 'info-bulle mode global');
-  assert.match(TAB, /aria-live="polite"/);
+test('parcours guidé (recette du 08/11) : 5 étapes claires, délai 1/2/3 min dans le flux, un bouton principal', () => {
+  const steps = [...TAB.matchAll(/<h4 class="sec-step-title">([^<]+)<\/h4>/g)].map(m => m[1]);
+  assert.deepStrictEqual(steps, ['Choisir le compte de test', 'Lancer l\'essai sur ce compte', 'Choisir le délai avant la vérification',
+    'Tester dans le jeu', 'Terminer et remettre à l\'état normal']);
+  const card = TAB.slice(TAB.indexOf('id="sec-test-card"'), TAB.indexOf('id="sec-watch-card"'));
+  assert.doesNotMatch(card, /Variante|Minage continu sans pause|Clics déclarés|clics déclarés/, 'plus de variante éloignée ni de jargon au premier niveau');
+  assert.deepStrictEqual([...card.matchAll(/name="sec-test-delay" value="(\d+)"/g)].map(m => m[1]), ['1', '2', '3']);
+  // Un seul bouton principal par étape (classe sec-step-main), basculé en contour hors de l'étape courante
+  for (let i = 1; i <= 5; i++) {
+    const li = card.slice(card.indexOf(`id="sec-step-${i}"`), i < 5 ? card.indexOf(`id="sec-step-${i + 1}"`) : card.indexOf('id="sec-test-msg"'));
+    assert.strictEqual((li.match(/sec-step-main/g) ?? []).length, 1, `étape ${i}`);
+  }
+  assert.match(fn('secTestRender'), /classList\.toggle\('btn-outline', i !== current\)/);
+  // Instructions minimales en jeu, lien vers le jeu, résultat lisible au premier niveau
+  assert.match(card, /Lancez l'autoclicker sur le bloc\./);
+  assert.match(card, /Une vérification apparaîtra/);
+  assert.match(card, /Stoppez l'autoclicker/);
+  assert.match(card, /id="sec-test-open-game" href="\/" target="_blank" rel="noopener"/);
+  assert.match(card, /id="sec-test-result"/);
+  // États compréhensibles
+  assert.match(JS, /ready: 'Prêt', running: 'Essai en cours', pending: 'Défi en attente', solved: 'Résolu', done: 'Terminé'/);
+  assert.match(card, /id="sec-test-badge"[^>]*role="status" aria-live="polite"/);
+  // Diagnostic avancé replié, après les étapes : ce que le serveur a vu, relevés complets
+  assert.match(card, /<details class="sec-test-adv" id="sec-test-adv">/);
+  assert.ok(card.indexOf('id="sec-test-adv"') > card.indexOf('id="sec-step-5"'));
+  assert.match(fn('secTestAdvRender'), /secObservedEl\(L\)[\s\S]*secFreezeEl\(L\)/);
+  assert.doesNotMatch(fn('secTestRender'), /secObservedEl|secFreezeEl/, 'pas de diagnostic technique au premier niveau');
+});
+
+test('résultat du test : blocs validés au moment exact du défi, pendant le défi, écart (preuve du gel #25)', () => {
+  const r = fn('secTestResultEl');
+  assert.match(r, /'Au moment du défi', secFmt\(f\.issued\.manualBlocks\)/);
+  assert.match(r, /secBxlS\(f\.issued\.at\)/, 'heure serveur de l\'émission');
+  assert.match(r, /'Pendant le défi'/);
+  assert.match(r, /'Écart'/);
+  assert.match(r, /Gel vérifié/);
+  // Défi réel émis pendant cet essai ; tuiles seulement si le relevé horodaté de l'émission existe
+  assert.match(fn('secTestChallenge'), /c\.freeze && Date\.parse\(c\.createdAt\)/);
+  assert.match(r, /if \(!f\?\.issued\) return null;/);
+  assert.match(fn('secTestChallenge'), /T\?\.startedAt/);
 });
 
 test('parcours : seules les routes d\'essai par compte ; jamais le mode global ; une seule confirmation', () => {
@@ -175,4 +206,12 @@ test('recette #87-B : recherche partielle du compte (pseudo partiel, casse, #ID,
   }
   assert.match(fn('attachPlayerAutocomplete'), /note\('Recherche…'\)/, 'réseau lent : état visible');
   assert.match(fn('attachPlayerAutocomplete'), /clearTimeout\(blurTimer\)/, 'liste rouverte après clic sur le bouton (blur annulé)');
+});
+
+test('autocomplétion partagée : fermer la liste annule la recherche en attente (liste rouverte après un choix, 08/11)', () => {
+  const ac = fn('attachPlayerAutocomplete');
+  const close = ac.slice(ac.indexOf('const close = () => {'), ac.indexOf('};', ac.indexOf('const close = () => {')));
+  assert.match(close, /clearTimeout\(timer\); seqNo\+\+;/);
+  // La réponse d'une recherche périmée est ignorée (numéro de séquence)
+  assert.match(ac, /if \(mine !== seqNo \|\| input\.value\.trim\(\) !== q\) return;/);
 });
