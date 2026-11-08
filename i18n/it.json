@@ -6332,6 +6332,27 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #69, relu)",
    "at": "2026-11-04T21:13:02.305Z"
+  },
+  "antibot.btn_report": {
+   "text": "🐞 Segnala un errore",
+   "src": "79af36f6a4f5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T15:53:28.109Z"
+  },
+  "antibot.report_step_challenge": {
+   "text": "Verifica anti-bot mostrata mentre giocavo normalmente (senza autoclicker).",
+   "src": "73a367e06bd4",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T15:53:28.109Z"
+  },
+  "antibot.report_step_susp": {
+   "text": "Scavo manuale sospeso dall’anti-bot fino a {time}, anche se giocavo normalmente (senza autoclicker).",
+   "src": "5677f6d1dc09",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #84)",
+   "at": "2026-11-08T15:53:28.109Z"
   }
  }
 }

@@ -59,6 +59,7 @@ const AntibotGate = (() => {
           <button type="button" id="antibot-alt" class="antibot-btn-ghost"></button>
           <button type="button" id="antibot-close" class="antibot-btn-ghost"></button>
         </div>
+        <button type="button" id="antibot-report" class="antibot-btn-ghost" hidden></button>
         <p id="antibot-help" class="antibot-muted"></p>
       </div>`;
     document.body.appendChild(_el);
@@ -69,6 +70,7 @@ const AntibotGate = (() => {
       _loadPuzzle();
     });
     _el.querySelector('#antibot-close').addEventListener('click', hide);
+    _el.querySelector('#antibot-report').addEventListener('click', _report);
     _el.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
     // Onglet remis au premier plan : les minuteries ont pu être ralenties, le chrono est recalculé
     document.addEventListener('visibilitychange', () => { if (!document.hidden) _tick(); });
@@ -248,6 +250,9 @@ const AntibotGate = (() => {
     el.querySelector('#antibot-new').textContent = T('btn_new');
     el.querySelector('#antibot-alt').textContent = T(_kind === 'grid' ? 'btn_alt_text' : 'btn_alt_grid');
     el.querySelector('#antibot-close').textContent = T('btn_close');
+    const report = el.querySelector('#antibot-report');
+    report.textContent = T('btn_report');
+    report.hidden = !_reportsOn();
     el.querySelector('#antibot-new').hidden = !!susp;
     el.querySelector('#antibot-alt').hidden = !!susp;
     if (susp) { _puzzle = null; _renderPuzzle(); }
@@ -292,6 +297,20 @@ const AntibotGate = (() => {
   }
 
   const _key = s => (s ? `${s.challenge?.id ?? ''}/${s.suspension?.id ?? ''}` : '');
+
+  // Bêta (#84, 08/11) : contester un défi ou une suspension depuis la fenêtre, via le formulaire
+  // « Signaler un bug » de la bêta (pré-rempli, diagnostic au choix du joueur). Hors bêta : masqué.
+  function _reportsOn() {
+    return typeof DigBeta !== 'undefined' && typeof DigBeta.reportsEnabled === 'function' && DigBeta.reportsEnabled();
+  }
+
+  function _report() {
+    if (!_reportsOn()) return;
+    const susp = _state?.suspension;
+    const step = susp ? T('report_step_susp', { time: _fmtBrussels(susp.endsAt) }) : T('report_step_challenge');
+    hide();
+    DigBeta.openReport({ step });
+  }
 
   async function refresh() {
     if (!_deps) return;

@@ -213,7 +213,8 @@ const DigBeta = (() => {
   let _draft = null;
   const DRAFT_FIELDS = ['beta-step', 'beta-expected', 'beta-observed', 'beta-device'];
 
-  function openReport() {
+  /** `prefill.step` (#84) : texte de départ du champ « ce que tu faisais », sauf brouillon en cours. */
+  function openReport(prefill) {
     if (!_config?.reports) return;
     document.getElementById('beta-report-modal')?.remove();
     const diag = _diagnostics();
@@ -259,9 +260,11 @@ const DigBeta = (() => {
     // Reprise du brouillon (même onglet) ; sinon formulaire vide avec l'appareil deviné.
     const initialDevice = _deviceGuess();
     for (const id of DRAFT_FIELDS) $(id).value = _draft?.[id] ?? (id === 'beta-device' ? initialDevice : '');
+    const initialStep = !_draft && typeof prefill?.step === 'string' ? prefill.step.slice(0, 1000) : '';
+    if (initialStep) $('beta-step').value = initialStep;
     $('beta-diag').checked = !!_draft?.diag;
     let sent = false;
-    const dirty = () => !sent && DRAFT_FIELDS.some(id => $(id).value.trim() !== (id === 'beta-device' ? initialDevice : ''));
+    const dirty = () => !sent && DRAFT_FIELDS.some(id => $(id).value.trim() !== (id === 'beta-device' ? initialDevice : id === 'beta-step' ? initialStep : ''));
     const saveDraft = () => {
       if (sent) return;
       _draft = dirty() ? Object.fromEntries([...DRAFT_FIELDS.map(id => [id, $(id).value]), ['diag', $('beta-diag').checked]]) : null;
@@ -343,6 +346,7 @@ const DigBeta = (() => {
   return {
     init, pendingInvite, inviteAccepted, inviteBlocked, clearInvite, showInviteField, inviteNoticeHtml, registerError,
     registrationMode, settingsSectionHtml, bindSettings, openReport,
+    reportsEnabled: () => !!_config?.reports,
     clearDraft: () => { _draft = null; document.getElementById('beta-report-modal')?.remove(); },
     discordUrl: () => _config?.discordUrl || null,
   };
