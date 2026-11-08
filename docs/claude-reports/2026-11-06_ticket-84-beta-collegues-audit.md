@@ -360,3 +360,116 @@ Réponds « #84-D validé » ou indique ce qui ne convient pas dans l'ordre ou l
 ### 9. Reste à faire
 
 Ta recette #84-D (ordre et repli). Après lancement : à 320×640, compacter la carte du thème pour faire remonter les premiers rangs du classement.
+
+## Mise à jour du 08/11/2026 (3) : compétition entre collègues avec petits lots réels — protections vérifiées, bouton « Signaler une erreur », déployé `b565fd9`
+
+### 1. État réel
+
+**Déployé en production (`1.0.0+b565fd9`) — en attente de recette #84-E.**
+
+Ton commentaire du 08/11 à 13:33 UTC change le cadre de la bêta : une **compétition interne d'une semaine**, avec **un sandwich pour le 1er** et **un petit chocolat pour le 2e**. Tu demandes aussi de mettre en service les protections #25, #91 et #71 sans clic de ta part, de surveiller les contestations, de dire aux collègues qu'ils peuvent signaler une erreur, de permettre une levée immédiate dans l'admin, de conserver les journaux et de ne rien annoncer comme actif sans vérification en production.
+
+L'activation des protections est traitée dans leurs propres tickets, déjà déployés aujourd'hui : #25 en `55240ce`, #71 en `edf25f2`. Dans #84, j'ai **vérifié leur état réel en production** et ajouté le seul élément manquant pour les collègues : un moyen de contester une vérification ou une suspension **depuis la fenêtre anti-bot**.
+
+### 2. Protections : ce qui est vraiment actif en production (relevé en lecture seule le 08/11 vers 16:20 UTC)
+
+| Protection | État constaté en base de production | Ce que ça fait vraiment |
+|---|---|---|
+| Anti-bot #25, réponses | `antibot_response_mode = enforce` (Appliqué pour tous). Décision `issue25-global-enforce-2026-11-08` appliquée à 14:36 UTC. | Une vraie vérification arrive après **60 min de minage continu**, puis selon les cumuls 6 h / 24 h (au plus une toutes les 30 min). Le classement du joueur est gelé jusqu'à la réponse. Une suspension n'arrive que si les clics continuent pendant une vérification. |
+| Pioche à charges #71 | Mode **Tous**, **5 000 coups**, **+1 toutes les 2 s**. Décision `issue71-global-on-2026-11-08` appliquée à 15:36 UTC. | Un autoclicker simple, qui clique toujours au même endroit, tombe en panne après environ 10 min. Il ne fait ensuite qu'1 dégât par coup. |
+| Détection rapide #91 (25 clics au même pixel, cadence de 125 ms) | **Non livrée** (ticket #91 encore à faire). | Rien. Un autoclicker n'est donc pas repéré en quelques secondes. |
+| Extensions de navigateur #92 | **Non livrée.** | Rien. |
+| PV exacts #77 | `exact_hp_mode = shadow` (observation, selon ta décision du 05/11). | Observation seulement. |
+
+**Activité depuis l'activation** : 0 vérification et 0 suspension créées. Aucun joueur n'a encore atteint un seuil. La chaîne de vérification n'a donc **pas encore été observée sur un vrai joueur en production**, seulement dans les tests et sur le serveur de test. Ta recette #25 (« Tester la protection ») en fera la preuve.
+
+**Ce qu'on peut dire aux collègues** : « des protections anti-triche sont en test et peuvent afficher une petite vérification ». Il ne faut pas dire « la triche est impossible » : tant que #91 n'est pas livré, un autoclicker lancé moins d'une heure d'affilée n'est pas arrêté par l'anti-bot. Seule la pioche le freine.
+
+**Levée immédiate et journaux** (déjà en place, vérifié dans le code déployé) :
+- Admin → Anti-bot → fiche du joueur : **lever une suspension**, annuler une vérification, remettre le palier à 0. Chaque action est journalisée. En haut de la page, le bouton rouge **« Arrêt d'urgence : repasser en Observation »** agit en un clic.
+- Les vérifications et suspensions (`antibot_challenges`, `antibot_suspensions`) ne sont **jamais purgées**. Le journal des événements de sécurité garde **90 jours**, largement plus que la semaine de compétition. Les signalements des joueurs restent dans Admin → 🧪 Bêta → « 💬 Voir les retours ».
+- Pendant la compétition, ne supprime aucun compte de collègue (#90). Sa fiche et ses journaux disparaîtraient avec lui.
+
+### 3. Changement livré : « 🐞 Signaler une erreur » dans la fenêtre anti-bot
+
+Avant, la fenêtre de suspension disait « Écris-nous via Aide », mais l'Aide ne propose qu'un lien Discord. Le bouton « 🐞 Signaler un bug » du bandeau violet existait, mais rien ne le reliait à la vérification.
+
+- Dans la fenêtre **« Petite vérification »** comme dans **« Minage manuel en pause »**, un bouton **« 🐞 Signaler une erreur »** apparaît sous « Fermer ». Il ferme la fenêtre et ouvre le formulaire de la bêta (le même que celui du bandeau), avec le champ « Ce que tu faisais » **pré-rempli** :
+  - pour une vérification : « Vérification anti-bot affichée pendant que je jouais normalement (sans autoclicker). » ;
+  - pour une suspension : « Minage manuel suspendu par l'anti-bot jusqu'au dim. 8 nov., 17:15, alors que je jouais normalement (sans autoclicker). »
+- Le joueur complète, coche ou non « joindre le diagnostic », puis envoie. Le signalement arrive dans Admin → 🧪 Bêta → « 💬 Voir les retours ». Si le joueur ferme sans rien écrire, aucune confirmation n'est demandée. Un brouillon déjà commencé n'est jamais écrasé.
+- Le bouton est **masqué** si les signalements de la bêta sont désactivés dans l'admin (« ⚙️ Configurer la bêta »). En production, ils sont **actifs**.
+- Textes en FR, EN, NL, ES et IT (italien traduit par cette session, `origin: ai`, non relu par un humain). Rien d'autre ne change : seuils, sanctions, énigme et chrono sont identiques.
+- Fichiers : `public/js/antibotGate.js`, `public/js/beta.js` (pré-remplissage, `reportsEnabled()`), `public/js/i18n.js`, `i18n/it.json`, `public/js/locales/it.js`. Tests : `test/antibot-report-84.test.js` (3 contrôles, qui échouent tous sans le changement), `test/e2e/antibot-report-84.e2e.js` (essai navigateur).
+
+Branche `feature/84-signalement-faux-positifs` (commit `430cd88`, créée depuis `develop` pour ne pas embarquer `4648133`), fusion **`develop` `b565fd9`**.
+
+### 4. Vérifications
+
+- `npm test` : **960/960** sur la branche, sur `develop` `b565fd9` et dans la release.
+- Essai navigateur `antibot-report-84.e2e.js` sur un serveur de test (port 3101, base de test neuve, supprimée ensuite) en **1280×900 et 390×844** : TOUT OK. Les étapes vérifiées sont : vérification émise, bouton visible et d'au moins 44 px, formulaire pré-rempli, fermeture sans confirmation ; suspension active avec l'heure de fin dans le texte ; signalements coupés, bouton masqué. **0 erreur JS.**
+- Production après le déploiement, en visiteur, en 1280 et 390 : `DigBeta.reportsEnabled()` = vrai, **0 erreur JS**.
+
+### 5. Déploiement
+
+- Release `b565fd9` : `npm ci`, `npm test` 960/960. Copie de la base de production démarrée en `NODE_ENV=production` sur le port 3122 : `/health` ok, version `1.0.0+b565fd9`, **empreintes identiques** avant et après le démarrage (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`). Copie supprimée.
+- Aucune génération IA n'était en cours. `main` a été avancé de `edf25f2` à `b565fd9` (avance rapide). `scripts/deploy.sh` a fait la sauvegarde vérifiée `~/backups/dig/dig-20261108-171704-pre-deploy-b565fd9.sqlite`, sans `npm ci`, puis contrôlé la santé et la version.
+- Après le déploiement : les 2 domaines renvoient 200 avec `1.0.0+b565fd9`. Le journal ne contient aucune erreur et `quick_check` = ok. Les comptes, les saisons, les ligues et les valeurs du classement sont identiques à la sauvegarde. Seule différence : la sauvegarde automatique d'un joueur en cours de partie (version +1, même profondeur). C'est une progression, pas une perte. Réglages inchangés : `enforce`, pioche Tous 5 000.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep edf25f2` puis `sudo systemctl restart dig`. Aucune migration et aucune donnée touchée : seul l'affichage change.
+- `4648133` (textes des coffres) **n'est toujours pas inclus**. Il attend ta réponse à la question 2.
+
+### 6. Verdict mis à jour et préparation de la compétition
+
+| Audience | Verdict |
+|---|---|
+| **Collègues, compétition d'une semaine avec sandwich et chocolat** | **GO**, à 4 conditions (ci-dessous). |
+| 10 à 20 testeurs, puis public | **NO-GO** (inchangé) : #43, #36, #91, #27. |
+
+1. **Période = la saison « des Lanternes »**. Les saisons sont hebdomadaires. La prochaine commence le **lundi 09/11 à 00:59** et se termine le **lundi 16/11 à 00:59** (heure de Bruxelles). À cette heure, le classement est **figé** côté serveur (#29). Annonce cette fin et donne les lots d'après le classement figé (onglet Saison → « Résultat de la saison précédente »). Pas besoin de capture au bon moment.
+2. **Critère = « blocs détruits manuellement »** (#73), celui de l'onglet Saison. L'Auto-Dig ne compte pas. Écarte toi-même tes comptes de test du podium.
+3. **Message** : utilise la version mise à jour ci-dessous. Elle n'annonce pas les protections comme infaillibles, elle explique la vérification et elle indique le bouton de signalement.
+4. **Contestations** : chaque soir, regarde Admin → 🧪 Bêta → « 💬 Voir les retours » et Admin → Anti-bot (vérifications et suspensions du jour). Lève une suspension injustifiée depuis la fiche du joueur. En cas de série de faux positifs, utilise l'arrêt d'urgence. Avant de remettre les lots, regarde dans Admin → Anti-bot la fiche des 2 premiers : vérifications réussies, suspensions, coups par seconde.
+
+Lots réels : ils sont remis par toi, hors du jeu. Dans le jeu, **rien ne change** : le concours intégré #27 reste désactivé (`enabled = 0`), aucun article n'est dans la boutique de cadeaux et aucun paiement n'est actif. Ton commentaire précise « Aucun cadeau payé en boutique ni paiement réel activé ». J'en déduis l'option **A** de la question 1 : ne rien changer et l'expliquer dans le message. Aucun réglage n'a donc été modifié. *Information, pas un blocage* : pour un concours ouvert au public, la conformité belge reste à traiter dans #27. Une compétition interne, gratuite, entre collègues, avec des lots symboliques, est ta décision.
+
+**Message d'invitation mis à jour (à copier, à adapter)**
+
+> Salut ! Je teste **DIG!**, un petit jeu où l'on creuse en touchant un bloc. Ton lien personnel (valable une seule fois) : **<lien>**
+> 1. Ouvre-le sur ton téléphone ou ton PC, choisis la langue, puis crée ton compte (pseudo, e-mail, mot de passe). **Note bien ton mot de passe** : la récupération par e-mail n'existe pas encore.
+> 2. Touche le bloc pour creuser. Le tutoriel est facultatif, et le **?** en haut explique tout.
+> 3. **Petite compétition** du lundi 09/11 (00:59) au lundi 16/11 (00:59) : classement de l'onglet 🏆 Saison, « blocs détruits manuellement » (l'Auto-Dig ne compte pas). 🥪 Un sandwich pour le 1er, 🍫 un chocolat pour le 2e, offerts par moi. Les points et la « boutique de cadeaux » du jeu sont des tests et ne donnent rien de réel.
+> 4. C'est une **bêta** : des protections anti-triche sont **en test**. Si tu creuses longtemps sans pause, une « Petite vérification » peut s'afficher. Touche les 2 symboles demandés et c'est reparti, sans rien perdre. Autoclickers et scripts interdits : ils peuvent exclure du classement.
+> 5. **Un bug, ou une vérification ou une pause injustifiée ?** Touche **🐞 Signaler une erreur** dans la fenêtre, ou **🐞 Signaler un bug** dans le bandeau violet. Décris ce que tu faisais et envoie. Je regarde chaque soir et je peux lever une pause tout de suite.
+> 6. Mot de passe oublié, ou souci pour te connecter : écris-moi directement.
+>
+> Merci, et bonne chance 😉
+
+### 7. Recette #84-E — contester une vérification (≈ 3 min, ton compte de test)
+
+1. Admin → Anti-bot → recherche ton compte de test → « Tester la protection » → « Sans autoclicker : envoyer la vérification tout de suite ».
+2. Ouvre le jeu avec ce compte, sur ton téléphone. *Attendu :* la fenêtre « Petite vérification », puis sous « Fermer (je reviens plus tard) » un bouton **« 🐞 Signaler une erreur »**.
+3. Touche-le. *Attendu :* la fenêtre se ferme et le formulaire de la bêta s'ouvre, avec « Vérification anti-bot affichée pendant que je jouais normalement (sans autoclicker). » déjà écrit. Ajoute « essai #84-E » et envoie.
+4. Admin → 🧪 Bêta → « 💬 Voir les retours ». *Attendu :* ton signalement « essai #84-E ».
+5. Touche le bloc. *Attendu :* la vérification revient. Résous-la, puis « Terminer le test » dans l'admin. Le mode global reste **Appliqué**.
+
+Réponds « #84-E validé » ou dis ce qui ne convient pas. #84-D (ordre de l'onglet Saison) reste aussi à recetter.
+
+### 8. Classement MVP
+
+**Bloquant bêta collègues** (contestation demandée avant la compétition) : livré et déployé. **Après lancement** : #91 (détection rapide) reste le vrai frein contre un autoclicker. C'est le ticket P0 suivant à traiter pour que la compétition soit vraiment protégée.
+
+### 9. Choix techniques faits seul
+
+- **Réutilisation du formulaire « Signaler un bug » de la bêta**, plutôt qu'un nouveau canal de contestation. Il est déjà relié à l'admin et au diagnostic, et il est suivi dans Paramètres → Bêta → « Mes signalements ». Aucune table ni route nouvelle.
+- **Bouton aussi sur la vérification**, pas seulement sur la suspension. Tu veux recueillir les faux positifs, et une vérification injustifiée en est déjà un.
+- **Texte pré-rempli à la 1re personne**, que le joueur peut modifier. Le diagnostic reste un choix du joueur (case à cocher), comme avant.
+- **Aucun changement des seuils, de la pioche ou de #91** dans #84. Ces réglages ont leurs propres tickets.
+- **Question 1 considérée comme tranchée (A)** par ton commentaire. A consistait justement à ne rien changer, donc rien n'a été modifié. Si tu voulais B ou C, dis-le : c'est réversible.
+
+### 10. Décisions demandées au propriétaire
+
+1. *(Toujours ouverte)* **Déployer avant lundi la correction de texte `4648133`** (4 textes FR des coffres, aucune donnée touchée) : **A** oui, intégration et déploiement habituel (**recommandé**) / **B** après la bêta.
+
+### 11. Reste à faire
+
+Tes recettes #84-D et #84-E. Avant d'élargir : #91 (détection rapide de l'autoclicker), #43, #36, #27.
