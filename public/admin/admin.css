@@ -1556,6 +1556,20 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .mb-sim-table th small { font-weight: normal; color: var(--muted); }
 .mb-sim-table td { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mb-sim-table td.mb-zero { color: var(--muted); }
+/* #81 (08/11) : fiche « Bonus du souvenir » dans la fiche objet d'un événement */
+.evi-bonus-status { padding: 6px 8px; border: 1px solid var(--gold); border-radius: 6px; }
+.evi-bonus-h { font-size: 0.82rem; font-weight: 600; margin: 10px 0 4px; }
+.evi-bonus-card { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; margin: 6px 0; }
+.evi-bonus-list { margin: 4px 0; padding-left: 18px; font-size: 0.8rem; line-height: 1.4; }
+.evi-bonus-details { margin: 8px 0; font-size: 0.82rem; }
+.evi-bonus-details > summary { cursor: pointer; font-weight: 600; }
+.evi-bonus-scroll { overflow-x: auto; max-width: 100%; }
+.evi-bonus-table { font-size: 0.78rem; width: 100%; }
+.evi-bonus-table th { white-space: normal; vertical-align: bottom; }
+.evi-bonus-table td, .evi-bonus-table th { padding: 3px 6px; text-align: right; }
+.evi-bonus-table td:first-child, .evi-bonus-table th:first-child { text-align: left; }
+.evi-bonus-table td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.evi-bonus-table td.mb-zero { color: var(--muted); }
 .mb-sim-help { margin: 8px 0; font-size: 0.82rem; line-height: 1.45; }
 .mb-sim-help summary { cursor: pointer; font-weight: 600; }
 .mb-sim-help ul { margin: 4px 0; padding-left: 18px; }

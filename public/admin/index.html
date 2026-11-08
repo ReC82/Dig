@@ -3835,8 +3835,13 @@
               <label class="co-span">Consigne d'illustration (anglais) <textarea id="evi-brief" rows="2" maxlength="600"></textarea></label>
             </div>
           </fieldset>
-          <fieldset class="co-fs"><legend>✨ Bonus du souvenir (#81)</legend>
-            <p class="ev-help">Aucun bonus défini — inactif. Ni permanent, ni calendaire : trouver ce souvenir ne change ni les dégâts, ni les gains, ni le classement. Cumul simulé avec les autres souvenirs : aucun effet. Les micro-bonus se préparent à part (#81) et restent désactivés.</p>
+          <fieldset class="co-fs" id="evi-bonus-fs"><legend>✨ Bonus du souvenir (#81) — proposition, inactif en jeu</legend>
+            <p class="ev-help evi-bonus-status" id="evi-bonus-status" role="status">Chargement…</p>
+            <div id="evi-bonus"></div>
+            <div class="form-actions">
+              <button class="btn btn-outline" id="btn-evi-bonus-draft" type="button">✨ Préparer un brouillon lié (inactif)</button>
+            </div>
+            <p class="muted ev-help">Le brouillon s'enregistre dans ✨ Micro-bonus (statut brouillon imposé). Rien n'est transmis au jeu : aucun effet sur les dégâts, les gains ou le classement tant que le propriétaire n'a pas approuvé un barème.</p>
           </fieldset>
         </div>
         <aside class="co-prop-preview" aria-label="Aperçu joueur">
