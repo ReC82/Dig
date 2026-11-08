@@ -224,3 +224,65 @@ Le message d'invitation du §6 peut ajouter une ligne : « 6. Envie d'échanger 
 ### 6. Reste à faire
 
 Rien côté code pour #84. Il reste la recette du propriétaire (étapes 1 à 8) et la réponse à la question 1.
+
+---
+
+## Mise à jour du 08/11/2026 : #84-B validé, préparation de la recette #84-C (premier coffre)
+
+### 1. État réel
+
+**Partiel — correction prête sur la branche, non intégrée et non déployée.** Le 08/11 à 09:19 UTC, le propriétaire a validé **#84-B** (premières améliorations comprises, effet perceptible). Il demande de poursuivre avec **#84-C : premier coffre et compréhension de la récompense**, à distinguer du chantier économique #49/#88, et précise : « Aucun changement de production autorisé par ce test ».
+
+La production reste donc en `1.0.0+444ee81`, sans changement. La correction de texte ci-dessous est committée sur `feature/84-beta-collegues-audit` (`4648133`), mais **pas fusionnée dans `develop`**. Sinon, le prochain ticket déployé l'emporterait en production sans ton accord.
+
+### 2. Ce qui a été vérifié (code de production `444ee81` + `develop` `b5cac5a`, docs seulement)
+
+Parcours joué dans Chromium à 390×844 (mode invitation, nouveau compte, serveur de test sur le port 3101, base `test-84.sqlite` supprimée ensuite) :
+- **Coffre miné** : le premier est apparu à 24 m avec 562 pièces (une « Vieille caisse » : 317 pièces). Sur un autre compte, aucun coffre n'est apparu en 1 500 coups. L'apparition est aléatoire.
+- **Coffres de saison** (onglet Amélios, sous les améliorations) : les cartes, le guide « Où dépenser quoi ? » et le bouton « ℹ️ Récompenses et chances » sont clairs. Le tableau des chances explique bien le boost (« des pièces des blocs ») et le fait que les pièces d'un coffre ne sont pas multipliées.
+- **Achat d'un Coffre simple** avec un compte connecté : tirage côté serveur, pièces débitées, fenêtre de récompense affichée. Aucune erreur JavaScript.
+- Prix publiés en production (`GET /api/shop/chests`) : Coffre simple **800**, rare 15 000, antique 80 000 (limité à 5). Les brouillons #88/#49 ne sont pas publiés et ne changent pas ce que voit le joueur.
+
+**3 défauts de vocabulaire trouvés en français** (dans les fenêtres que #84-C teste) :
+
+| Où | En production | Après la correction (`4648133`) |
+|---|---|---|
+| Titre d'un coffre miné | « Vieille caisse **ouvert** ! » (faute d'accord) | « Coffre ouvert : Vieille caisse » |
+| Récompense boost (coffre miné ou acheté) | « ⚡ Boost ×2 **coins** — 3 min » | « ⚡ Boost ×2 des pièces des blocs — 3 min » |
+| Description du Coffre simple | « **Coins**, fragments ou boost… » | « Pièces, fragments ou boost… » |
+| (même mot, récompense quotidienne) | « ⚡ ×2 **coins** pendant 10 min » | « ⚡ ×2 pièces pendant 10 min » |
+
+Changements : `public/js/i18n.js` (4 textes FR), pilote italien (`i18n/it.json`, `public/js/locales/it.js`, 4 entrées), nouveau test `test/first-chest-84c.test.js`. Le test échoue sans la correction et réussit avec. **`npm test` : 917/917.** Le rendu a été revérifié dans Chromium à 390 px, sans débordement et sans erreur JS. Les données des joueurs ne sont pas concernées : ce sont des textes seulement, sans migration.
+
+### 3. Recette #84-C proposée (≈ 5 min, téléphone, compte de test de #84-B)
+
+Elle peut se faire **sur la production actuelle**. Les 3 textes ci-dessus y apparaissent encore, sauf si tu autorises le déploiement (question 2).
+1. Onglet **Amélios**, descends jusqu'à « 📦 Coffres de saison ». *Attendu :* tu comprends que les coffres se paient en **pièces**, et tu vois le prix (Coffre simple : 800).
+2. Touche « ℹ️ Récompenses et chances » du Coffre simple. *Attendu :* tu comprends qu'une ouverture donne **une seule** récompense, tirée au sort, et ce que fait un boost. Ferme la fenêtre.
+3. Avec au moins 800 pièces, touche « Ouvrir ». *Attendu :* une fenêtre affiche la récompense. Après « Récupérer ! », tu vois l'effet : les **Pièces** changent, le compteur **🔮 Frags** augmente, ou un bandeau « Bonus ×2 pièces actif » apparaît.
+4. Mine jusqu'à tomber sur un coffre à la place d'un bloc (Vieille caisse, Coffre en bois ou en fer), ce qui peut prendre quelques minutes. *Attendu :* même fenêtre, et la récompense arrive dans le compteur correspondant.
+5. Si tu as reçu des fragments, touche **?** puis « Fragments ». *Attendu :* tu comprends à quoi ils servent (reliques, onglet Collection).
+
+À noter dans ta réponse : « #84-C validé » ou ce qui n'était pas clair.
+
+### 4. Classement
+
+Les 3 défauts de vocabulaire sont **Après lancement** : ils sont cosmétiques, ne bloquent rien, et le sens reste compréhensible. Le verdict du 06/11 ne change pas : **GO pour 3 à 5 collègues**, NO-GO pour 10 à 20 testeurs et le public.
+
+### 5. Choix techniques faits seul
+
+- **Pas d'intégration dans `develop`** : tout ce qui entre dans `develop` part en production avec le ticket suivant. Or ta consigne du 08/11 exclut tout changement de production pour ce test.
+- Titre « Coffre ouvert : {nom} » plutôt que « {nom} ouvert(e) ! » : une seule formulation, juste pour tous les coffres, sans gérer le genre de chaque nom.
+- Le boost reprend la formule du tableau des chances (« des pièces des blocs »), pour un seul vocabulaire.
+- Je n'ai pas ajouté de phrase « à quoi servent les fragments » dans la fenêtre du coffre : ce serait un nouveau texte à traduire dans 5 langues. L'aide l'explique déjà. C'est proposé « après lancement ».
+
+### 6. Décisions demandées au propriétaire
+
+1. *(Toujours ouverte)* **Points de récompense et boutique de cadeaux pendant la bêta** : **A** ne rien changer et le préciser dans le message (**recommandé**), **B** mode simulation, **C** masquer la boutique (#34).
+2. **Déployer avant lundi la correction de texte `4648133`** (4 textes FR, sans risque pour les données) ?
+   - **A** : oui. Elle est intégrée dans `develop` et déployée par la procédure habituelle (sauvegarde, retour arrière). **Recommandé** : les collègues verront « pièces » partout.
+   - **B** : non, après la bêta.
+
+### 7. Reste à faire
+
+Ta recette #84-C, puis ta réponse aux questions 1 et 2. Suite proposée, après lancement : une ligne d'aide sous une récompense « fragments » dans la fenêtre du coffre.
