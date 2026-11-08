@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 895/895 textes. Absents → français. */
+/* Italian (preview) : 898/898 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -113,6 +113,7 @@ I18n.registerLocale("it", {
   "btn_check": "Conferma",
   "btn_close": "Chiudi (torno più tardi)",
   "btn_new": "Altro enigma",
+  "btn_report": "🐞 Segnala un errore",
   "err_expired": "Enigma scaduto — eccone uno nuovo.",
   "err_network": "Connessione impossibile — riprova; un problema di rete non comporta mai una sanzione.",
   "err_too_fast": "Troppo veloce — prenditi un secondo e riprova.",
@@ -121,6 +122,8 @@ I18n.registerLocale("it", {
   "grid_question": "Tocca {a}, poi {b}.",
   "help": "Una risposta sbagliata o un enigma scaduto non comportano mai una sanzione: basta chiederne un altro.",
   "keep": "Non si perde nulla: blocco, inventario, potenziamenti, tempo di gioco e Auto-Dig restano invariati.",
+  "report_step_challenge": "Verifica anti-bot mostrata mentre giocavo normalmente (senza autoclicker).",
+  "report_step_susp": "Scavo manuale sospeso dall’anti-bot fino a {time}, anche se giocavo normalmente (senza autoclicker).",
   "susp_help": "Il tuo account resta disponibile (Auto-Dig, negozio, inventario). Un errore? Scrivici tramite Aiuto: il team può revocare la sospensione.",
   "susp_text": "I clic sono continuati durante la verifica: lo scavo manuale è sospeso fino al {time} (ora di Bruxelles).",
   "susp_title": "Scavo manuale in pausa",
