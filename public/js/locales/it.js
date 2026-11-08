@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 905/905 textes. Absents → français. */
+/* Italian (preview) : 906/906 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -633,6 +633,7 @@ I18n.registerLocale("it", {
   "upcoming": "In arrivo"
  },
  "notif": {
+  "account_deleted": "Questo account è stato eliminato dall'amministrazione: sei stato disconnesso e i progressi su questo dispositivo sono stati cancellati.",
   "ad_bonus": "+{amount} 💰 bonus pubblicità!",
   "boost_activated": "Boost ×{mult} attivo!",
   "chest_float": "📦 FORZIERE!",

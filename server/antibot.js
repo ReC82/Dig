@@ -525,7 +525,7 @@ const EVENT_GROUPS = {
   player: [...Object.keys(SIGNALS), 'risk_level', 'extension_signature'],
   // Lot C : défis (simulés en Observation) et suspensions du minage manuel
   responses: ['challenge_shadow', 'challenge_issued', 'challenge_solved', 'suspension_started', 'suspension_shadow', 'freeze_clamped', 'antibot_admin'],
-  admin:  ['admin_action', 'admin_config', 'admin_login', 'admin_login_failed'],
+  admin:  ['admin_action', 'admin_account_deleted', 'admin_config', 'admin_login', 'admin_login_failed'],
   system: ['standings_frozen', 'standings_freeze_failed'],
 };
 

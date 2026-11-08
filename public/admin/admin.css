@@ -1920,3 +1920,18 @@ p.sec-step-hint { margin: 6px 0 0; }
 #sec-ext #sec-ext-journal td { white-space: normal; }
 #sec-ext table:has(#sec-ext-journal) { min-width: 620px; }
 @media (max-width: 640px) { #sec-ext .sec-ext-table td:last-child { min-width: 0; } #sec-ext .sec-ext-table { table-layout: fixed; } }
+
+/* Liste paginée des joueurs (#90) : barre compacte, pseudo cliquable, cartes sur smartphone (adm-rtable) */
+.pl-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 12px; }
+.pl-toolbar .pl-search { flex: 1 1 200px; min-width: 0; }
+.pl-toolbar .pl-search input { width: 100%; }
+.pl-field { display: flex; flex-direction: column; gap: 2px; font-size: 0.78rem; color: var(--muted); }
+.pl-field select { min-width: 0; }
+.pl-name { background: none; border: 0; padding: 0; color: var(--gold); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; text-align: left; word-break: break-all; }
+.pl-name:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.pd-test-state { margin: 6px 0 10px; }
+@media (max-width: 480px) {
+  .pl-toolbar > .btn { flex: 1 1 auto; }
+  .pl-field { flex: 1 1 30%; }
+  .pl-field select { width: 100%; }
+}

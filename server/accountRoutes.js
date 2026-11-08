@@ -54,18 +54,28 @@ function publicAccount(user) {
  * Ferme les sessions d'un compte dont le mot de passe a changé ailleurs : la session porte
  * l'auth_version du moment de la connexion (absente = 0, sessions ouvertes avant #28).
  */
-function authVersionGuard(req, _res, next) {
+function authVersionGuard(req, res, next) {
+  if (!req.path.startsWith('/api/')) return next();
   const uid = req.session?.userId;
-  if (!uid || !req.path.startsWith('/api/')) return next();
-  try {
-    const v = db.getUserAuthVersion(uid);
-    if (v !== undefined && (req.session.authVersion ?? 0) !== v) {
-      delete req.session.userId;
-      delete req.session.authVersion;
+  if (uid) {
+    try {
+      const v = db.getUserAuthVersion(uid);
+      if (v === undefined) {
+        // Compte supprimé (#90) : session fermée ; le client purge sa sauvegarde locale à la réception
+        delete req.session.userId;
+        delete req.session.authVersion;
+        req.session.accountDeleted = true;
+      } else if ((req.session.authVersion ?? 0) !== v) {
+        delete req.session.userId;
+        delete req.session.authVersion;
+      } else if (req.session.accountDeleted) {
+        delete req.session.accountDeleted;   // reconnecté (ou réinscrit) depuis
+      }
+    } catch (err) {
+      console.error('[auth] contrôle de version', err.message);
     }
-  } catch (err) {
-    console.error('[auth] contrôle de version', err.message);
   }
+  if (req.session?.accountDeleted) res.set('X-Dig-Account-Deleted', '1');
   next();
 }
 

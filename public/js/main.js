@@ -1895,12 +1895,34 @@ async function _claimLiveMission(idx, btn) {
 
 // ── API comptes ───────────────────────────────────────────────────────────────
 
+let _accountDeletedHandled = false;   // compte supprimé déjà traité sur cette page (#90)
 async function _apiFetch(method, url, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const res  = await fetch(url, opts);
   const data = await res.json();
+  if (res.headers.get('X-Dig-Account-Deleted') === '1') _onAccountDeleted();
   return { ok: res.ok, status: res.status, data };
+}
+
+/**
+ * Compte supprimé par l'admin (#90, compte de test) : la session est fermée côté serveur. La
+ * sauvegarde locale de ce compte est effacée pour qu'une nouvelle inscription parte de zéro,
+ * puis le serveur est prévenu (GET /api/me) pour ne pas recommencer au prochain chargement.
+ */
+function _onAccountDeleted() {
+  if (_accountDeletedHandled) return;
+  _accountDeletedHandled = true;
+  _account = null;
+  _cloudReady = false;
+  _clearCloudMeta();
+  Save.purge();
+  _refreshAllAfterReset();
+  NotifLog.add({ icon: '🗑️', type: 'warning', text: t('notif.account_deleted') });
+  showAchievement('🗑️', t('notif.account_deleted'));
+  if (isViewActive('settings')) renderSettings();
+  if (isViewActive('profile'))  renderProfile();
+  _apiFetch('GET', '/api/me').catch(() => {});
 }
 
 // Vérification anti-bot du minage manuel (#25 lot C) : branchée dès le chargement (F5 compris)
@@ -2244,6 +2266,9 @@ async function _syncAfterLogin(forceCloud = false) {
         if (!forceCloud) NotifLog.add({ icon: '☁️', type: 'info', text: t('notif.cloud_resumed') });
       }
     } else {
+      // Save locale d'un AUTRE compte (session expirée, compte de test supprimé #90) : elle ne
+      // passe jamais à un nouveau compte, qui part de zéro. Une partie d'invité (sans compte) reste reprise.
+      if (meta && meta.userId !== _account.id) { Save.purge(); _refreshAllAfterReset(); }
       _clearCloudMeta(); // aucune sauvegarde cloud : la save locale devient celle du compte
     }
     _hasShownGuestWarning = true; // connecté → plus besoin d'avertir

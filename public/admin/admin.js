@@ -576,7 +576,7 @@ const ADM_NAV_GROUPS = [
   { id: 'ops',         icon: '🛠', label: 'Exploitation & paramètres' },
 ];
 const ADM_NAV = [
-  { id: 'players',         group: 'players',     order: 10, icon: '👤', label: 'Joueurs',                  keywords: 'gestion joueur pseudo fiche recherche debug essais test reset réinitialiser progression sauvegarde' },
+  { id: 'players',         group: 'players',     order: 10, icon: '👤', label: 'Joueurs',                  keywords: 'gestion joueur pseudo fiche recherche debug essais test reset réinitialiser progression sauvegarde liste supprimer compte', load: () => loadPlayersList() },
   { id: 'security',        group: 'players',     order: 20, icon: '🛡', label: 'Anti-bot',                 keywords: 'sécurité triche autoclic sanctions risque',     load: () => loadSecurity() },
   { id: 'beta',            group: 'players',     order: 30, icon: '🧪', label: 'Bêta fermée',              keywords: 'invitations testeurs retours',                  load: () => loadBeta() },
   { id: 'blocks',          group: 'game',        order: 10, icon: '🧱', label: 'Blocs',                    keywords: 'catalogue minerais matériaux ia',               load: () => { loadBlocks(); loadAi(); } },
@@ -620,6 +620,7 @@ const ADM_NAV_ACTIONS = [
   { id: 'find-player',    tab: 'players',  target: 'player-search-input',  label: 'Trouver un joueur (ouvrir sa fiche)',             keywords: 'pseudo chercher recherche debug joueur fiche gabpok', help: 'Tapez le pseudo et choisissez la suggestion : la fiche s\'ouvre sous la recherche.' },
   { id: 'reset-test',     tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Recommencer un test à zéro (joueur)', keywords: 'reset réinitialiser rejouer essai remise à zéro tentative snapshot instantané', help: 'Fiche du joueur → 🧪 Essais de test → « Recommencer un test à zéro ». Confirmation avec motif et pseudo ; instantané archivé avant.' },
   { id: 'export-tests',   tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Exporter l\'historique des essais d\'un joueur', keywords: 'csv json tentatives historique', help: 'Fiche du joueur → 🧪 Essais de test → « Exporter CSV » ou « Exporter JSON complet ».' },
+  { id: 'delete-test-account', tab: 'players', target: 'pd-sec-sensitive', player: true, label: 'Supprimer un compte de test (refaire l\'inscription)', keywords: 'supprimer effacer compte test inscription réinscription signup', help: 'Fiche du joueur → 🗑 Actions sensibles : marquer comme compte de test, puis « Supprimer le compte de test » (pseudo exact + SUPPRIMER + motif).' },
   { id: 'partial-reset',  tab: 'players',  target: 'pd-sec-partial', player: true, label: 'Réinitialisation saisonnière partielle (joueur)', keywords: 'reset sauvegarde seule saisonnier', help: 'Fiche du joueur → ⚠ Réinitialisation saisonnière partielle (sauvegarde seule, classement et anti-bot inchangés). Confirmation obligatoire.' },
   { id: 'sec-test',       tab: 'security', target: 'sec-test-card',        label: 'Tester la protection anti-bot sur un compte',    keywords: 'essai défi vérification captcha appliqué compte de test suspension', help: 'Parcours guidé en 5 étapes : choisir le compte, lancer l\'essai, choisir le délai (1, 2 ou 3 min), tester dans le jeu, terminer le test. Le mode global ne change pas.' },
   { id: 'player-antibot', tab: 'security', target: 'sec-player-q',         label: 'Voir l\'anti-bot d\'un joueur',                  keywords: 'risque score triche contrôle sécurité fiche joueur', help: 'Pseudo ou #ID puis « Ouvrir la fiche » (lecture seule). Aussi : fiche Joueurs → 🛡 Anti-bot de ce joueur.' },
@@ -2470,36 +2471,107 @@ function pdSavedAt(s) {
   return `${local} (${d.toISOString().slice(11, 16)} UTC)`;
 }
 
-async function searchPlayers() {
-  const q = document.getElementById('player-search-input').value.trim();
-  if (!q) return;
-  const { ok, data } = await api('GET', `/api/admin/players/search?q=${encodeURIComponent(q)}`);
-  const resultsDiv = document.getElementById('player-search-results');
-  const tbody      = document.querySelector('#player-results-table tbody');
+// Liste paginée des joueurs (#90) : affichée dès l'ouverture, pagination / tri / filtre / recherche côté serveur.
+// L'état (page, recherche, tri, filtre, taille) est conservé quand on ouvre puis ferme une fiche.
+const _pl = { q: '', page: 1, per: 20, sort: 'activity', filter: 'all', seq: 0 };
+
+/** Date UTC du serveur (SQLite « AAAA-MM-JJ HH:MM:SS » ou ISO) → heure de Bruxelles courte. */
+function plDate(v) {
+  if (!v) return '—';
+  const d = new Date(/T.*Z$/.test(v) ? v : `${String(v).replace(' ', 'T')}Z`);
+  return isNaN(d) ? String(v) : d.toLocaleString('fr-BE', { timeZone: 'Europe/Brussels', dateStyle: 'short', timeStyle: 'short' });
+}
+
+async function loadPlayersList({ openSingle = false } = {}) {
+  const mine = ++_pl.seq;
+  const params = new URLSearchParams({ page: _pl.page, per: _pl.per, sort: _pl.sort, filter: _pl.filter });
+  if (_pl.q) params.set('q', _pl.q);
+  const { ok, data } = await api('GET', `/api/admin/players?${params}`);
+  if (mine !== _pl.seq) return;   // réponse périmée (saisie ou page changée entre-temps)
+  const tbody = document.querySelector('#player-results-table tbody');
+  const err = document.getElementById('pl-error');
   if (!ok) {
-    tbody.innerHTML = '<tr><td colspan="6" class="error">Erreur lors de la recherche.</td></tr>';
-    resultsDiv.classList.remove('hidden');
+    admShowError(err, `Liste des joueurs indisponible : ${data?.error ?? 'serveur injoignable'} — réessayez.`);
     return;
   }
-  if (!data.users.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">Aucun joueur trouvé.</td></tr>';
-    resultsDiv.classList.remove('hidden');
-    return;
-  }
-  tbody.innerHTML = '';
-  data.users.forEach(u => {
-    const tr    = document.createElement('tr');
-    const since = (u.created_at ?? '').substring(0, 10);
-    [u.id, u.username, u.email ?? '—', u.league_id ?? '—', since].forEach(v => addCell(tr, v));
-    addButtonCell(tr, 'Ouvrir la fiche', () => viewPlayerSave(u.id, u.username));
+  admShowError(err, '');
+  Object.assign(_pl, { page: data.page, per: data.per });
+  document.getElementById('pl-total').textContent = _pl.q || _pl.filter !== 'all'
+    ? `— ${data.total} trouvé${data.total > 1 ? 's' : ''}` : `— ${data.total} au total`;
+  document.getElementById('btn-player-search-clear').hidden = !_pl.q;
+  tbody.textContent = '';
+  if (!data.players.length) {
+    const tr = document.createElement('tr');
+    const td = addCell(tr, _pl.q || _pl.filter !== 'all' ? 'Aucun joueur pour ce filtre.' : 'Aucun joueur inscrit pour le moment.');
+    td.colSpan = 6; td.className = 'muted';
     tbody.appendChild(tr);
-  });
-  const table = document.getElementById('player-results-table');
-  admTableLabels(table);
-  admTablePage(table, document.getElementById('player-results-pager'), 10);
-  resultsDiv.classList.remove('hidden');
-  // Un seul joueur trouvé (#76) : la fiche s'ouvre directement.
-  if (data.users.length === 1) viewPlayerSave(data.users[0].id, data.users[0].username);
+  }
+  for (const p of data.players) {
+    const tr = document.createElement('tr');
+    tr.dataset.userId = String(p.id);
+    const tdName = document.createElement('td');
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'pl-name', textContent: p.username });
+    b.dataset.admKey = `pl-${p.id}`;
+    b.addEventListener('click', () => viewPlayerSave(p.id, p.username));
+    tdName.appendChild(b);
+    tr.appendChild(tdName);
+    addCell(tr, p.id);
+    addCell(tr, plDate(p.createdAt));
+    addCell(tr, plDate(p.lastActivityAt));
+    const tags = [];
+    if (p.testAccount) tags.push('🏷 compte de test');
+    if (p.beta === 'tester') tags.push('🧪 testeur bêta'); else if (p.beta === 'removed') tags.push('retiré de la bêta');
+    if (p.suspended) tags.push('⛔ suspendu');
+    addCell(tr, tags.join(' · ') || 'joueur');
+    addCell(tr, p.depth == null ? 'aucune sauvegarde' : `${p.depth} m${p.seasonBlocks != null ? ` · ${p.seasonBlocks.toLocaleString('fr-BE')} blocs (saison)` : ''}`);
+    tbody.appendChild(tr);
+  }
+  admTableLabels(document.getElementById('player-results-table'));
+  plPager(data);
+  // Recherche lancée au bouton avec un seul résultat : la fiche s'ouvre directement (#76)
+  if (openSingle && data.total === 1) viewPlayerSave(data.players[0].id, data.players[0].username);
+}
+
+/** Barre de pages : précédente / suivante, numéros autour de la page courante, première et dernière. */
+function plPager(data) {
+  const nav = document.getElementById('player-results-pager');
+  nav.textContent = '';
+  nav.hidden = data.total === 0;
+  if (!data.total) return;
+  const go = page => { _pl.page = page; loadPlayersList(); };
+  const btn = (label, page, { disabled = false, current = false, aria } = {}) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: `btn btn-sm ${current ? '' : 'btn-outline'}`, textContent: label, disabled: disabled || current });
+    if (current) b.setAttribute('aria-current', 'page');
+    if (aria) b.setAttribute('aria-label', aria);
+    b.addEventListener('click', () => go(page));
+    return b;
+  };
+  const from = (data.page - 1) * data.per + 1, to = Math.min(data.total, data.page * data.per);
+  nav.appendChild(btn('‹', data.page - 1, { disabled: data.page <= 1, aria: 'Page précédente' }));
+  const nums = new Set([1, data.pages, data.page - 1, data.page, data.page + 1].filter(n => n >= 1 && n <= data.pages));
+  let prev = 0;
+  for (const n of [...nums].sort((a, b) => a - b)) {
+    if (n - prev > 1) nav.appendChild(Object.assign(document.createElement('span'), { className: 'muted', textContent: '…' }));
+    nav.appendChild(btn(String(n), n, { current: n === data.page, aria: `Page ${n}` }));
+    prev = n;
+  }
+  nav.appendChild(btn('›', data.page + 1, { disabled: data.page >= data.pages, aria: 'Page suivante' }));
+  nav.appendChild(Object.assign(document.createElement('span'), { className: 'muted', textContent: `${from}–${to} sur ${data.total}` }));
+}
+
+async function searchPlayers() {
+  _pl.q = document.getElementById('player-search-input').value.trim();
+  _pl.page = 1;
+  await loadPlayersList({ openSingle: !!_pl.q });
+}
+
+document.getElementById('btn-player-search-clear').addEventListener('click', () => {
+  document.getElementById('player-search-input').value = '';
+  _pl.q = ''; _pl.page = 1;
+  loadPlayersList();
+});
+for (const [id, key] of [['pl-sort', 'sort'], ['pl-filter', 'filter'], ['pl-per', 'per']]) {
+  document.getElementById(id).addEventListener('change', e => { _pl[key] = key === 'per' ? Number(e.target.value) : e.target.value; _pl.page = 1; loadPlayersList(); });
 }
 
 async function viewPlayerSave(userId, username) {
@@ -2515,6 +2587,8 @@ async function viewPlayerSave(userId, username) {
   }
 
   document.getElementById('pd-username').textContent = `${username} (ID ${userId})`;
+  document.getElementById('pd-sens-done').classList.add('hidden');
+  pdLoadSensitive(userId);
   const s = data.save;
   pdSummary(s);
   if (!s) { card.classList.remove('hidden'); loadTestRuns(userId); pdReveal(card); return; }
@@ -2591,8 +2665,131 @@ document.getElementById('btn-pd-antibot').addEventListener('click', e => {
 
 document.getElementById('btn-close-player-detail').addEventListener('click', () => {
   document.getElementById('player-detail-card').classList.add('hidden');
+  const back = _currentPlayerId != null && document.querySelector(`[data-adm-key="pl-${_currentPlayerId}"]`);
   _currentPlayerId   = null;
   _currentPlayerName = null;
+  // Retour à la liste, à la même page / recherche / tri (#90)
+  if (back) { back.scrollIntoView({ block: 'center' }); back.focus({ preventScroll: true }); }
+  else document.getElementById('players-list-card').scrollIntoView({ block: 'start' });
+});
+
+// ── Actions sensibles (#90) : compte de test, suppression contrôlée ─────────────
+
+let _pdDelCtx = null;
+
+/** État « compte de test » dans la fiche (lu dans l'aperçu de suppression, qui ne modifie rien). */
+async function pdLoadSensitive(userId) {
+  admShowError(document.getElementById('pd-sens-err'), '');
+  const { ok, data } = await api('GET', `/api/admin/players/${userId}/delete-preview`);
+  if (userId !== _currentPlayerId) return;
+  const state = document.getElementById('pd-test-state');
+  if (!ok) { state.textContent = 'État indisponible.'; return; }
+  const marked = !!data.testAccount;
+  state.textContent = marked
+    ? `🏷 Compte de test depuis le ${plDate(data.testAccount.marked_at)} — motif : ${data.testAccount.reason ?? '—'}.`
+    : 'Compte ordinaire : il doit d\'abord être marqué « compte de test » pour pouvoir être supprimé.';
+  document.getElementById('btn-pd-test-mark').classList.toggle('hidden', marked);
+  document.getElementById('btn-pd-test-unmark').classList.toggle('hidden', !marked);
+}
+
+function pdMarkCheck() {
+  document.getElementById('btn-pd-mark-confirm').disabled =
+    document.getElementById('pd-mark-input').value.trim() !== _currentPlayerName || document.getElementById('pd-mark-reason').value.trim().length < 3;
+}
+admDialogSetup('pd-mark-dialog');
+document.getElementById('pd-mark-input').addEventListener('input', pdMarkCheck);
+document.getElementById('pd-mark-reason').addEventListener('input', pdMarkCheck);
+document.getElementById('btn-pd-test-mark').addEventListener('click', e => {
+  if (_currentPlayerId == null) return;
+  document.querySelector('#pd-mark-dialog .pd-mark-name').textContent = _currentPlayerName;
+  document.getElementById('pd-mark-input').value = '';
+  document.getElementById('pd-mark-reason').value = '';
+  admShowError(document.getElementById('pd-mark-msg'), '');
+  pdMarkCheck();
+  admDialogOpen('pd-mark-dialog', e.currentTarget, 'pd-mark-reason');
+});
+document.getElementById('btn-pd-mark-confirm').addEventListener('click', async () => {
+  const userId = _currentPlayerId;
+  const btn = document.getElementById('btn-pd-mark-confirm');
+  btn.disabled = true;
+  const { ok, data } = await api('POST', `/api/admin/players/${userId}/test-account`, {
+    confirmUsername: document.getElementById('pd-mark-input').value.trim(), reason: document.getElementById('pd-mark-reason').value.trim() });
+  if (!ok) { admShowError(document.getElementById('pd-mark-msg'), data.error ?? 'Erreur : rien n\'a été modifié.'); pdMarkCheck(); return; }
+  document.getElementById('pd-mark-dialog').close();
+  const done = document.getElementById('pd-sens-done');
+  done.textContent = 'Compte marqué comme compte de test.'; done.classList.remove('hidden');
+  pdLoadSensitive(userId);
+  loadPlayersList();
+});
+document.getElementById('btn-pd-test-unmark').addEventListener('click', async () => {
+  const userId = _currentPlayerId;
+  if (userId == null || !await admConfirm({ title: 'Retirer la marque « compte de test »', impact: ['Le compte ne pourra plus être supprimé depuis cette fiche. Rien d\'autre ne change.'] })) return;
+  const { ok, data } = await api('DELETE', `/api/admin/players/${userId}/test-account`);
+  if (!ok) return admShowError(document.getElementById('pd-sens-err'), data.error ?? 'Erreur.');
+  const done = document.getElementById('pd-sens-done');
+  done.textContent = 'Marque « compte de test » retirée.'; done.classList.remove('hidden');
+  pdLoadSensitive(userId);
+  loadPlayersList();
+});
+
+function pdDelCheck() {
+  const ctx = _pdDelCtx;
+  document.getElementById('btn-pd-del-confirm').disabled = !ctx?.allowed
+    || document.getElementById('pd-del-input').value.trim() !== ctx.username
+    || document.getElementById('pd-del-word').value.trim() !== 'SUPPRIMER'
+    || document.getElementById('pd-del-reason').value.trim().length < 3;
+}
+admDialogSetup('pd-del-dialog');
+for (const id of ['pd-del-input', 'pd-del-word', 'pd-del-reason']) document.getElementById(id).addEventListener('input', pdDelCheck);
+document.getElementById('btn-pd-delete').addEventListener('click', async e => {
+  const userId = _currentPlayerId;
+  if (userId == null) return;
+  const opener = e.currentTarget;
+  admShowError(document.getElementById('pd-sens-err'), '');
+  const { ok, data } = await api('GET', `/api/admin/players/${userId}/delete-preview`);
+  if (!ok) return admShowError(document.getElementById('pd-sens-err'), data.error ?? 'Aperçu indisponible.');
+  _pdDelCtx = { userId, username: data.username, allowed: data.allowed, requestId: crypto.randomUUID() };
+  document.getElementById('pd-del-title').textContent = `Supprimer le compte de test — ${data.username} (ID ${data.userId})`;
+  document.querySelector('#pd-del-dialog .pd-del-name').textContent = data.username;
+  const blocked = document.getElementById('pd-del-blocked');
+  blocked.textContent = data.allowed ? '' : `Suppression impossible : ${data.blockers.map(b => b.label).join(' ; ')}.`;
+  blocked.classList.toggle('hidden', data.allowed);
+  document.getElementById('pd-del-form').hidden = !data.allowed;
+  const fill = (ul, items) => { ul.textContent = ''; for (const t of items) ul.appendChild(Object.assign(document.createElement('li'), { textContent: t })); };
+  fill(document.getElementById('pd-del-always'), data.always);
+  const tb = document.querySelector('#pd-del-erased tbody');
+  tb.textContent = '';
+  for (const r of data.erased) {
+    const tr = document.createElement('tr');
+    addCell(tr, `${r.label}${r.archived ? ' — copié dans la trace d\'audit' : ''}`);
+    addCell(tr, r.rows);
+    tb.appendChild(tr);
+  }
+  if (!data.erased.length) { const tr = document.createElement('tr'); const td = addCell(tr, 'Aucune ligne de jeu (compte jamais joué).'); td.colSpan = 2; tb.appendChild(tr); }
+  fill(document.getElementById('pd-del-kept'), data.kept.length ? data.kept.map(k => `Conservé : ${k.label} (${k.rows})`) : ['Conservé : journal global des actions admin (sans données de jeu).']);
+  for (const id of ['pd-del-input', 'pd-del-word', 'pd-del-reason']) document.getElementById(id).value = '';
+  admShowError(document.getElementById('pd-del-msg'), '');
+  pdDelCheck();
+  admDialogOpen('pd-del-dialog', opener, data.allowed ? 'pd-del-reason' : document.querySelector('#pd-del-dialog [data-close]'));
+});
+document.getElementById('btn-pd-del-confirm').addEventListener('click', async () => {
+  const ctx = _pdDelCtx;
+  if (!ctx) return;
+  const btn = document.getElementById('btn-pd-del-confirm');
+  btn.disabled = true;
+  const { ok, data } = await api('POST', `/api/admin/players/${ctx.userId}/delete`, {
+    confirmUsername: document.getElementById('pd-del-input').value.trim(), confirmWord: document.getElementById('pd-del-word').value.trim(),
+    reason: document.getElementById('pd-del-reason').value.trim(), requestId: ctx.requestId });
+  if (!ok) { admShowError(document.getElementById('pd-del-msg'), data.error ?? 'Erreur : aucune modification appliquée.'); pdDelCheck(); return; }
+  _pdDelCtx = null;
+  document.getElementById('pd-del-dialog').close();
+  document.getElementById('player-detail-card').classList.add('hidden');
+  _currentPlayerId = null; _currentPlayerName = null;
+  const hint = document.getElementById('players-hint');
+  hint.textContent = `Compte « ${data.username} » (ID ${data.userId}) supprimé${data.replayed ? ' (déjà fait)' : ''}. Le pseudo et l'adresse sont libres : créez une nouvelle invitation dans « Bêta fermée » si les inscriptions sont sur invitation.`;
+  hint.classList.remove('hidden');
+  await loadPlayersList();
+  document.getElementById('players-list-card').scrollIntoView({ block: 'start' });
 });
 
 document.getElementById('btn-season-reset-player').addEventListener('click', () => {
