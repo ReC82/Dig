@@ -926,6 +926,20 @@
    "by": "claude-opus-5-5 (session #25, relu)",
    "at": "2026-11-06T18:13:49.876Z"
   },
+  "antibot.time_up": {
+   "text": "Tempo scaduto. Chiedi un altro enigma (nessuna sanzione).",
+   "src": "ef3cf901060c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-08T14:16:58.323Z"
+  },
+  "antibot.timer": {
+   "text": "Verifica: ancora {time}",
+   "src": "d0331e1428b5",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #25, relu)",
+   "at": "2026-11-08T14:16:58.323Z"
+  },
   "antibot.title": {
    "text": "Piccola verifica",
    "src": "716eea44a4be",

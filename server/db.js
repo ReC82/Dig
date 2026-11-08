@@ -1048,6 +1048,8 @@ function initDb() {
   cfgStmt.run('ab_violation_clicks',          '30');    // clics pendant un défi affiché = violation confirmée
   cfgStmt.run('ab_suspension_ladder',         '5,15,30,60,120,720,1440');
   cfgStmt.run('ab_decay_days',                '30');
+  cfgStmt.run('ab_puzzle_seconds',            '30');    // chrono de l'énigme visuelle (s)
+  cfgStmt.run('ab_puzzle_text_seconds',       '60');    // chrono de la version accessible (s)
   // Économie — multiplicateurs globaux (informations + appliqués par chestShop)
   cfgStmt.run('upgrade_cost_multiplier',  '1.0');   // ×coût des upgrades saisonniers
   cfgStmt.run('coin_gain_multiplier',     '1.0');   // ×gains de pièces (blocs)
@@ -1074,6 +1076,9 @@ function initDb() {
   const decisions = [
     // #19, commentaire du propriétaire du 04/11/2026 : seuil bêta 10 → 3 joueurs actifs par ligue.
     { id: 'issue19-beta-min-active-3', key: 'min_active_players_per_league', expected: '10', value: '3' },
+    // #25, commentaires du propriétaire du 08/11/2026 (issuecomment-6722088344 et -6722134355) :
+    // défis et suspensions du minage manuel « Appliqué » pour tous. Arrêt d'urgence : panel Anti-bot.
+    { id: 'issue25-global-enforce-2026-11-08', key: 'antibot_response_mode', expected: 'observe', value: 'enforce' },
   ];
   for (const d of decisions) {
     _db.transaction(() => {

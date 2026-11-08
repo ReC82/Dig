@@ -620,7 +620,7 @@ app.post('/api/me/antibot/puzzle', limit.play, (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
     const { challengeId, kind } = req.body ?? {};
     if (!Number.isSafeInteger(challengeId)) return res.status(400).json({ error: 'challengeId invalide.' });
-    const p = antibotResponses.newPuzzle(req.session.userId, challengeId, { kind: kind === 'text' ? 'text' : 'grid' });
+    const p = antibotResponses.newPuzzle(req.session.userId, challengeId, { kind: kind === 'text' ? 'text' : 'grid', config: getAdminConfig() });
     if (p.error === 'no_challenge') return res.status(404).json({ error: 'Aucun défi en attente.', code: p.error });
     if (p.error) return res.status(429).json({ error: 'Trop d\'énigmes demandées, réessayez plus tard.', code: p.error, retryAt: p.retryAt });
     res.json({ ok: true, puzzle: p });

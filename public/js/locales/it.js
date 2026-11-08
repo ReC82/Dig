@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 893/893 textes. Absents → français. */
+/* Italian (preview) : 895/895 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -138,6 +138,8 @@ I18n.registerLocale("it", {
   "sym_star": "la stella",
   "text": "Lo scavo manuale conta per la classifica: prima di continuare, mostraci che ci sei. Nel frattempo i tuoi colpi sul blocco non vengono contati.",
   "text_question": "Versione accessibile: quanto fa {a} + {b}?",
+  "time_up": "Tempo scaduto. Chiedi un altro enigma (nessuna sanzione).",
+  "timer": "Verifica: ancora {time}",
   "title": "Piccola verifica"
  },
  "badges": {

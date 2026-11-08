@@ -1317,6 +1317,8 @@ const CONFIG_GROUPS = [
     ab_violation_clicks:      { label: 'Violation : clics pendant un défi affiché', hint: 'Le jeu officiel bloque les coups pendant le défi. 5 à 1000 (défaut 30).', type: 'number', min: 5, max: 1000, step: 1 },
     ab_suspension_ladder:     { label: 'Paliers de suspension (minutes)', hint: 'Séparés par des virgules ; le dernier s\'applique au-delà. Défaut 5,15,30,60,120,720,1440.', type: 'text' },
     ab_decay_days:            { label: 'Jours sans violation pour redescendre d\'un palier', hint: '1 à 365 (défaut 30).', type: 'number', min: 1, max: 365, step: 1 },
+    ab_puzzle_seconds:        { label: 'Vérification : temps pour l\'énigme visuelle (s)', hint: 'Chrono affiché au joueur, compté depuis l\'affichage de l\'énigme (+5 s de marge réseau côté serveur). Temps écoulé = nouvelle énigme, jamais de sanction. 10 à 300 (défaut 30).', type: 'number', min: 10, max: 300, step: 1 },
+    ab_puzzle_text_seconds:   { label: 'Vérification : temps pour la version accessible (s)', hint: 'Énigme en texte (lecteur d\'écran, clavier). 10 à 600 (défaut 60).', type: 'number', min: 10, max: 600, step: 1 },
     damage_budget_mode:       { label: 'Budget de dégâts (profondeur)', hint: 'off = arrêt ; shadow = observation ; enforce = profondeur plafonnée (#25).', type: 'enum', options: ['off', 'shadow', 'enforce'] },
     exact_hp_mode:            { label: 'Budget aux PV réels des blocs', hint: 'PV de chaque bloc recalculés par le serveur (#77). shadow = calcul et journal seuls (aucun joueur freiné) ; enforce = profondeur plafonnée ; off = arrêt.', type: 'enum', options: ['off', 'shadow', 'enforce'] },
   } },
@@ -3029,6 +3031,8 @@ function secRenderTop(sum, resp) {
     modeCard.classList.toggle('sec-top-card--info', r.mode !== 'enforce');
     document.getElementById('sec-test-global').textContent = `« ${SEC_RESP_MODES[r.mode] ?? r.mode} »`;
     document.getElementById('sec-settings-sum').textContent = `actuellement : ${SEC_RESP_MODES[r.mode] ?? r.mode}`;
+    document.getElementById('sec-top-stop-wrap').hidden = r.mode !== 'enforce';
+    document.getElementById('sec-top-stop-help').hidden = r.mode !== 'enforce';
   } else {
     mv.textContent = 'Non disponible';
     mh.textContent = 'Erreur lors du chargement : cliquez sur « Rafraîchir ».';
@@ -3051,6 +3055,8 @@ function secRenderTop(sum, resp) {
 }
 
 admRefreshButton('btn-refresh-sec', loadSecurity, 'Anti-bot');
+// Arrêt d'urgence (#25, décision du 08/11) : sans confirmation, l'appel PUT /api/admin/config est journalisé
+document.getElementById('btn-sec-emergency').addEventListener('click', e => secSetResponseMode('observe', e.currentTarget));
 document.getElementById('btn-sec-events-more').addEventListener('click', () => { _secEventsLimit = Math.min(100, _secEventsLimit + SEC_EVENTS_STEP); loadSecurity(); });
 document.getElementById('btn-sec-audit-more').addEventListener('click', () => { _secAuditLimit = Math.min(100, _secAuditLimit + SEC_EVENTS_STEP); secLoadAudit(); });
 document.getElementById('sec-audit-card').addEventListener('toggle', e => { if (e.target.open) secLoadAudit(); });
@@ -3462,7 +3468,7 @@ const SEC_REASONS = { risk_score: 'score de risque', continuous_mining: 'minage 
 async function secSetResponseMode(mode, btn) {
   if (mode === 'enforce') {
     const yes = await admConfirm({ title: 'Passer les défis et suspensions en « Appliqué » pour tous les joueurs ?',
-      text: 'Décision réservée au propriétaire, après le rapport faux positifs / mobile.',
+      text: 'Décision du propriétaire. L\'arrêt d\'urgence (en haut de la page) repasse en Observation en un clic.',
       impact: ['Les joueurs au seuil reçoivent un défi ; leurs clics manuels ne comptent plus au classement tant qu\'il n\'est pas résolu.',
         'Des suspensions de 5 min à 24 h deviennent possibles (clics poursuivis pendant un défi affiché).',
         'Réversible à tout moment (Observation ou Désactivé) ; rien n\'est supprimé.'],

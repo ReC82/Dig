@@ -102,9 +102,9 @@ test.after(() => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('défauts : mode global Observation, seuils 60 / 180 / 360 min et délai 30 min inchangés', () => {
+test('défauts : mode global Appliqué (décision du 08/11), seuils 60 / 180 / 360 min et délai 30 min inchangés', () => {
   const cfg = db.getAdminConfig();
-  assert.strictEqual(responses.getGlobalMode(cfg), 'observe');
+  assert.strictEqual(responses.getGlobalMode(cfg), 'enforce');
   const p = responses.getParams({});
   assert.deepStrictEqual([p.ab_streak_min, p.ab_active6h_min, p.ab_active24h_min, p.ab_cooldown_min], [60, 180, 360, 30]);
 });
