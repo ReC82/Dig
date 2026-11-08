@@ -433,7 +433,16 @@ indices nouveaux : `sustained_activity`, `narrow_jitter`). Aucune cadence ni gig
 
 **Défi** (jamais une sanction) si : série ≥ `ab_streak_min` (60), ou actif 6 h ≥ `ab_active6h_min`
 (180), ou actif 24 h ≥ `ab_active24h_min` (360), ou score ≥ `ab_challenge_score` (60, délai
-`ab_cooldown_min`). Résoudre remet les mesures à zéro et divise les indices (hors preuves) par deux.
+`ab_cooldown_min`). Résoudre divise les indices (hors preuves) par deux et remet à zéro la **seule
+série continue** (option A, décision du propriétaire du 08/11) : les cumuls 6 h / 24 h glissants sont
+conservés — émission, résolution et annulation d'un défi n'effacent jamais les paquets de 10 min,
+pas plus que le changement d'appareil, de session, de saison ou F5. Tant qu'un cumul reste au-dessus
+de son seuil, il redéclenche un défi au plus tôt `ab_cooldown_min` (30 min) après le précédent
+(compté depuis la résolution ou l'annulation). Le temps bloqué pendant un défi ou une suspension
+(Appliqué) n'est compté ni comme minage ni comme pause, et la mesure suivante repart de l'instant de
+la résolution (aucun double comptage). Seuils inchangés ; l'option B (seuil réduit après chaque
+défi) n'est pas appliquée. Bot supervisé à 8 clics/s : défis à 1 h et 2 h (série), puis toutes les
+30 min dès 180 min actives sur 6 h (≈ 3 h), cumul 24 h atteint à ≈ 6 h.
 Tant qu'un défi est en attente (Appliqué) : les clics manuels de chaque sauvegarde sont « consommés »
 sans crédit (références de #9, #25-B, #77 et #10 avancées) → ni profondeur manuelle, ni blocs classés,
 ni tirages serveur qui en dépendent ; l'Auto-Dig continue (jamais classé). Le client officiel bloque

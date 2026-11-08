@@ -132,6 +132,10 @@ async function solveInGame(p) {
       const r = f.lotC.recidivism;
       check(tag, 'reprise après résolution mesurée (indice, sans action)', r.solved24h === 1 && r.last.resumedAfterSecs != null && r.last.resumeCps >= 4 && f.lotC.state === 'normal',
         JSON.stringify(r.last));
+      // Option A (08/11) : la résolution remet la seule série à zéro ; les cumuls 6 h / 24 h sont conservés
+      const mt = f.lotC.metrics;
+      check(tag, 'après résolution : série repartie de zéro, cumuls 6 h / 24 h conservés (option A)',
+        mt.active6hMin >= 0.9 && mt.active24hMin >= 0.9 && mt.streakMin < mt.active6hMin - 0.5 && f.lotC.globalMode === 'observe', JSON.stringify(mt));
       // 4. Fiche admin : tableau horodaté
       await page.evaluate(() => secTestRefresh());
       await page.click('#sec-test-adv > summary');

@@ -1313,7 +1313,7 @@ const CONFIG_GROUPS = [
     ab_active6h_min:          { label: 'Défi : minage manuel actif sur 6 h (min)', hint: '30 à 360 (défaut 180).', type: 'number', min: 30, max: 360, step: 1 },
     ab_active24h_min:         { label: 'Défi : minage manuel actif sur 24 h (min)', hint: '60 à 1440 (défaut 360).', type: 'number', min: 60, max: 1440, step: 1 },
     ab_challenge_score:       { label: 'Défi : score de risque', hint: 'Multi-signal (#25). 20 à 100 (défaut 60).', type: 'number', min: 20, max: 100, step: 1 },
-    ab_cooldown_min:          { label: 'Délai minimal entre deux défis par score (min)', hint: '0 à 240 (défaut 30). Les seuils de durée repartent de zéro après un défi.', type: 'number', min: 0, max: 240, step: 1 },
+    ab_cooldown_min:          { label: 'Délai minimal entre deux défis par score ou cumul (min)', hint: '0 à 240 (défaut 30). Après un défi, seule la série continue repart de zéro ; les cumuls 6 h / 24 h sont conservés et redéclenchent au plus tôt après ce délai.', type: 'number', min: 0, max: 240, step: 1 },
     ab_violation_clicks:      { label: 'Violation : clics pendant un défi affiché', hint: 'Le jeu officiel bloque les coups pendant le défi. 5 à 1000 (défaut 30).', type: 'number', min: 5, max: 1000, step: 1 },
     ab_suspension_ladder:     { label: 'Paliers de suspension (minutes)', hint: 'Séparés par des virgules ; le dernier s\'applique au-delà. Défaut 5,15,30,60,120,720,1440.', type: 'text' },
     ab_decay_days:            { label: 'Jours sans violation pour redescendre d\'un palier', hint: '1 à 365 (défaut 30).', type: 'number', min: 1, max: 365, step: 1 },
@@ -3500,7 +3500,7 @@ function secRenderResponses(resp) {
   for (const line of [
     `7 derniers jours : ${c.shadow} défi(s) simulé(s) (Observation) · ${c.issued} imposé(s) · ${c.solved} résolu(s) · ${c.pending} en attente · ${c.fails} échec(s) · ${c.expirations} énigme(s) expirée(s) · ${c.heldClicks} clic(s) non crédités · ${c.players} joueur(s)`,
     `Suspensions (7 j) : ${c.suspensions} · actives : ${c.activeSuspensions} · levées : ${c.liftedSuspensions} — paliers : ${ladder} (−1 palier après ${r.params.ab_decay_days} j sans violation)`,
-    `Seuils : défi si série sans pause ≥ ${r.params.ab_streak_min} min, ou ≥ ${r.params.ab_active6h_min} min actives sur 6 h, ou ≥ ${r.params.ab_active24h_min} min sur 24 h, ou score ≥ ${r.params.ab_challenge_score} ; violation = ${r.params.ab_violation_clicks} clics pendant un défi affiché (Config → Protections).`,
+    `Seuils : défi si série sans pause ≥ ${r.params.ab_streak_min} min, ou ≥ ${r.params.ab_active6h_min} min actives sur 6 h, ou ≥ ${r.params.ab_active24h_min} min sur 24 h (cumuls conservés après un défi résolu), ou score ≥ ${r.params.ab_challenge_score} ; violation = ${r.params.ab_violation_clicks} clics pendant un défi affiché (Config → Protections).`,
     `Comptes en essai « Appliqué » : ${r.testAccounts.length ? r.testAccounts.map(a => `${a.username} (#${a.userId})`).join(', ') : 'aucun'}`,
   ]) stats.appendChild(secEl('p', 'sec-resp-line', line));
 

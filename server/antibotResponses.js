@@ -13,8 +13,12 @@
  *   - temps de minage manuel actif sur 6 h et 24 h glissantes (paquets de 10 min) ;
  *   - score de risque #25 (multi-signal, demi-vie 24 h).
  * Une cadence modérée ou un jitter aléatoire n'exonèrent de rien : la durée suffit à déclencher
- * un défi (jamais une suspension). Résoudre un défi remet les mesures à zéro (≈ 1 défi par heure
- * de minage continu pour un automate, aucune nuit entière sans humain).
+ * un défi (jamais une suspension). Récidive (décision du propriétaire du 08/11, option A) : émettre
+ * ou résoudre un défi remet à zéro la SEULE série continue ; les cumuls 6 h / 24 h glissants sont
+ * conservés (un automate supervisé ne « blanchit » pas son historique en résolvant un défi). Tant
+ * qu'un cumul reste au-dessus de son seuil, il redéclenche un défi au plus tôt `ab_cooldown_min`
+ * après le précédent (émission, résolution ou annulation). Le temps bloqué pendant un défi ou une
+ * suspension (Appliqué) n'est jamais compté comme minage, ni comme pause.
  *
  * Modes (config antibot_response_mode) : off | observe | enforce (Désactivé / Observation / Appliqué),
  * défaut observe : défis « simulés » journalisés, rien n'est montré ni retiré au joueur.
@@ -214,15 +218,21 @@ function _activeSum(buckets, nowMs, windowMs) {
  * Temps actif = min(durée, clics / 2) : un humain qui clique 5 s dans une fenêtre de 12 s compte
  * ≈ 5 s ; un automate qui clique sans arrêt compte toute la fenêtre.
  */
-function _measure(s, seasonId, claimedClicks, claimedBlocks, nowMs) {
+function _measure(s, seasonId, claimedClicks, claimedBlocks, nowMs, { frozen = false } = {}) {
   const rebase = s.season_id !== seasonId || s.last_ms == null || s.last_clicks == null || claimedClicks < s.last_clicks;
   const dClicks = rebase ? 0 : claimedClicks - s.last_clicks;
   const dt = rebase ? 0 : Math.max(0, (nowMs - s.last_ms) / 1000);
-  const active = Math.min(dt, dClicks / ACTIVE_CPS);
+  // Pendant un défi / une suspension (Appliqué) : la base avance, rien n'est compté (ni minage, ni pause)
+  const active = frozen ? 0 : Math.min(dt, dClicks / ACTIVE_CPS);
   const idle = dt - active;
-  if (s.season_id !== seasonId) { s.streak_active_s = 0; s.pause_s = 0; s.buckets = []; }
-  if (idle >= dt / 2 && dt > 0) s.pause_s = (s.pause_s ?? 0) + idle; else if (dt > 0) s.pause_s = 0;
-  if (s.pause_s >= PAUSE_SECS) { s.streak_active_s = 0; s.tel = null; }
+  // Changement de saison, compteur inférieur (nouvel appareil, réinitialisation) : fenêtre non
+  // mesurée, cumuls 6 h / 24 h conservés (fenêtres de temps, pas de saison) ; seule une vraie
+  // absence (≥ 3 min depuis la dernière mesure) coupe la série
+  if (rebase && (s.last_ms == null || nowMs - s.last_ms >= PAUSE_SECS * 1000)) { s.streak_active_s = 0; s.pause_s = 0; s.tel = null; }
+  if (!frozen) {
+    if (idle >= dt / 2 && dt > 0) s.pause_s = (s.pause_s ?? 0) + idle; else if (dt > 0) s.pause_s = 0;
+    if (s.pause_s >= PAUSE_SECS) { s.streak_active_s = 0; s.tel = null; }
+  }
   s.streak_active_s = (s.streak_active_s ?? 0) + active;
   if (active > 0) {
     const key = Math.floor(nowMs / BUCKET_MS) * BUCKET_MS;
@@ -232,7 +242,7 @@ function _measure(s, seasonId, claimedClicks, claimedBlocks, nowMs) {
   s.buckets = s.buckets.filter(([t]) => t + BUCKET_MS > nowMs - DAY_MS).map(([t, v]) => [t, Math.round(v * 10) / 10]);
   s.season_id = seasonId; s.last_ms = nowMs; s.last_clicks = claimedClicks; s.last_blocks = claimedBlocks;
   // Dernière fenêtre mesurée (fiche admin : « ce que le serveur a vu »)
-  s.last_window = { atMs: nowMs, secs: Math.round(dt * 10) / 10, clicks: dClicks, activeSecs: Math.round(active * 10) / 10 };
+  s.last_window = { atMs: nowMs, secs: Math.round(dt * 10) / 10, clicks: dClicks, activeSecs: Math.round(active * 10) / 10, ...(frozen ? { frozen: true } : {}) };
   return { dClicks, dt, active };
 }
 
@@ -315,7 +325,8 @@ function beforeSave(userId, seasonId, { claimedClicks, claimedBlocks, telemetry 
   return db.transaction(() => {
     const s = _load(userId);
     const prevStreak = s.streak_active_s ?? 0;
-    const m = _measure(s, seasonId, claimedClicks, claimedBlocks, nowMs);
+    const frozen = mode === 'enforce' && !!(_pendingChallenge(userId) || _activeSuspension(userId, nowMs));
+    const m = _measure(s, seasonId, claimedClicks, claimedBlocks, nowMs, { frozen });
     const signals = _activitySignals(s, prevStreak, telemetry, params);
     let hold = false;
     let rebase = null;
@@ -396,13 +407,15 @@ function _triggers(s, risk, params, nowMs) {
   const testMin = testStreakMin(s, nowMs);
   const streakMin = testMin ?? params.ab_streak_min;
   if (m.streakMin >= streakMin) out.push({ code: 'continuous_mining', value: m.streakMin, threshold: streakMin, ...(testMin != null ? { test: true } : {}) });
-  if (m.active6hMin >= params.ab_active6h_min) out.push({ code: 'active_6h', value: m.active6hMin, threshold: params.ab_active6h_min });
-  if (m.active24hMin >= params.ab_active24h_min) out.push({ code: 'active_24h', value: m.active24hMin, threshold: params.ab_active24h_min });
+  // Cumuls glissants conservés après un défi : au-dessus du seuil, au plus un défi par délai minimal
+  if (m.active6hMin >= params.ab_active6h_min && !cooling) out.push({ code: 'active_6h', value: m.active6hMin, threshold: params.ab_active6h_min });
+  if (m.active24hMin >= params.ab_active24h_min && !cooling) out.push({ code: 'active_24h', value: m.active24hMin, threshold: params.ab_active24h_min });
   return { reasons: out, metrics: m };
 }
 
-function _resetActivity(s, nowMs) {
-  s.streak_active_s = 0; s.pause_s = 0; s.buckets = []; s.tel = null; s.last_challenge_ms = nowMs;
+/** Option A (08/11) : seule la série continue repart de zéro ; cumuls 6 h / 24 h (buckets) conservés. */
+function _resetStreak(s, nowMs) {
+  s.streak_active_s = 0; s.pause_s = 0; s.tel = null; s.last_challenge_ms = nowMs;
 }
 
 /**
@@ -441,7 +454,7 @@ function afterSave(userId, seasonId, { config = {}, nowMs = Date.now(), ip = nul
     const { reasons, metrics: m } = _triggers(s, antibot.getRisk(userId, seasonId, nowMs), params, nowMs);
     if (!reasons.length) return;
     issueChallenge(userId, seasonId, { mode, reasons, metrics: m, nowMs, ip });
-    _resetActivity(s, nowMs);
+    _resetStreak(s, nowMs);
     s.updated_ms = nowMs;
     _saveState(userId, s);
   })();
@@ -532,13 +545,15 @@ function answer(userId, challengeId, puzzleId, value, { manualClicks, manualBloc
     db.prepare(`UPDATE antibot_challenges SET status = 'solved', resolved_ms = ?, resolved_snapshot = ? WHERE id = ?`)
       .run(nowMs, ch.season_id != null ? JSON.stringify(progressSnapshot(userId, ch.season_id, nowMs)) : null, ch.id);
     const s = _load(userId);
-    _resetActivity(s, nowMs);
+    _resetStreak(s, nowMs);
     // Seuls les clics postérieurs à la résolution compteront (jamais en deçà du dernier relevé serveur)
     const clicks = Number.isSafeInteger(manualClicks) && manualClicks >= 0 ? manualClicks : null;
     const blocks = Number.isSafeInteger(manualBlocks) && manualBlocks >= 0 ? manualBlocks : null;
     s.rebase_clicks = Math.max(clicks ?? 0, s.last_clicks ?? 0);
     s.rebase_blocks = Math.max(blocks ?? 0, s.last_blocks ?? 0);
     s.rebase_ms = nowMs;
+    // La mesure suivante part de la résolution : ni le temps bloqué ni les clics d'avant ne comptent
+    if (s.season_id === ch.season_id && s.last_ms != null) { s.last_ms = nowMs; s.last_clicks = s.rebase_clicks; s.last_blocks = s.rebase_blocks; }
     s.updated_ms = nowMs;
     _saveState(userId, s);
     const relief = ch.season_id != null ? antibot.relieveRisk(userId, ch.season_id, { nowMs }) : null;
@@ -659,6 +674,14 @@ function cancelChallenge(id, { note = null, nowMs = Date.now() } = {}) {
   const snap = ch.season_id != null ? JSON.stringify(progressSnapshot(ch.user_id, ch.season_id, nowMs)) : null;
   const r = getDb().prepare(`UPDATE antibot_challenges SET status = 'cancelled', resolved_ms = ?, resolved_snapshot = ?, admin_note = ? WHERE id = ? AND status = 'pending'`)
     .run(nowMs, snap, note ? String(note).slice(0, 200) : null, id);
+  if (r.changes > 0) {
+    // Délai minimal avant un nouveau défi de cumul : compté depuis l'annulation ; série repartie de zéro
+    const s = _load(ch.user_id);
+    _resetStreak(s, nowMs);
+    if (s.last_ms != null) s.last_ms = Math.max(s.last_ms, nowMs);
+    s.updated_ms = nowMs;
+    _saveState(ch.user_id, s);
+  }
   return r.changes > 0;
 }
 
