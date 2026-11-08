@@ -175,3 +175,146 @@ Mesure : avantage en **blocs détruits à nombre de coups égal**, pour un colle
   - images : un clic par objet dans 🎨 Icônes (au choix du propriétaire, payant) ;
   - si la décision 3 est A ou B : transmission serveur des bonus possédés, `STACK_CAP` anti-bot, textes joueur, plafonds ;
   - éventuellement un bouton « Exporter en JSON » dans la fiche, pour préparer le mois suivant à partir du mois en cours.
+
+---
+
+# Mise à jour du 08/11/2026 (≈ 18 h 30, Bruxelles) — « Pourquoi cet objet ? » et confirmation de publication lisible
+
+Ticket : [#86](https://github.com/ReC82/Dig/issues/86). Pris en compte : les commentaires du propriétaire du 08/11 ([décision de lancement](https://github.com/ReC82/Dig/issues/86#issuecomment-6719899583), [feu vert](https://github.com/ReC82/Dig/issues/86#issuecomment-6720004334), [rectificatif sur la fenêtre de publication et ajout éducatif](https://github.com/ReC82/Dig/issues/86#issuecomment-6720078814), [publication sans clic admin](https://github.com/ReC82/Dig/issues/86#issuecomment-6722405932)) et la [coordination #56](https://github.com/ReC82/Dig/issues/86#issuecomment-6723177145).
+
+## 1. État réel
+
+**Déployé en production (SHA `ce0a4db`) — en attente de recette.**
+
+- **Novembre est réellement actif en production.** La publication a été faite par #56 (`fdf90ee`), via la décision écrite `issue56-novembre-histoire-2026-planifie`, le 08/11 à 16 h 10 (heure de Bruxelles). Vérifié après ce déploiement :
+  - en base : `scheduled`, révision 7, du 31/10 23:01 UTC au 30/11 23:00 UTC, soit **du 1er novembre 00 h 01 au 30 novembre 23 h 59 (heure de Bruxelles)** ;
+  - API publique `/api/events` : événement **actif**, 30 objets ;
+  - 2 souvenirs de novembre déjà trouvés par des joueurs, qui restent acquis.
+- Ce déploiement **ne republie rien** et ne modifie pas l'événement : même statut, même révision, mêmes chances.
+- Il ajoute deux choses :
+  1. **l'explication éducative « Pourquoi cet objet ? »** des 30 souvenirs ;
+  2. **la confirmation de publication lisible**, qui servira aux prochains événements.
+
+Classement : **Après lancement** (contenu éducatif et ergonomie de l'admin). Rien de bloquant pour le MVP ni pour la bêta du 09/11.
+
+## 2. Résultat et changements
+
+**Côté joueur — fiche d'un souvenir trouvé** (Collection → Novembre → clic sur un objet trouvé), sous la description humoristique :
+- **« Pourquoi cet objet ? »** (traduit en FR/EN/NL/ES, et IT pour le pilote #59) ;
+- 📅 la date historique (« 17 novembre 1558 », ou « Chaque année le 13 novembre » pour une journée mondiale) ;
+- 1 à 3 phrases factuelles ;
+- un lien **📖 Source : Wikipédia — …**, qui s'ouvre dans un nouvel onglet (https uniquement, `noopener noreferrer`). Il n'est jamais nécessaire de l'ouvrir pour jouer.
+- **Objet non trouvé** : rien n'est envoyé par le serveur. La fiche reste « Objet non découvert » / « ??? ».
+- **Explication non cochée « Vérifiée »** : invisible des joueurs.
+- **L'inspiration admin** n'est toujours jamais envoyée au joueur.
+
+**Côté admin** (🎉 Événements → Novembre) :
+- **nouvelle colonne « Pourquoi ? »** dans le tableau des objets : ✅ Vérifiée, 📝 À vérifier ou ⚠ Absente. Le tableau de préparation signale aussi « N « Pourquoi cet objet ? » sans source vérifiée ».
+- **Fiche objet → section « 📖 Pourquoi cet objet ? »** :
+  - champs : explication (dans la langue choisie avec FR/EN/NL/ES), date historique, adresse de la source (https), titre de la source, case « Vérifiée — montrée aux joueurs », bouton « Ouvrir la source ↗ » ;
+  - **« 💾 Enregistrer l'explication »** enregistre tout de suite. Cela fonctionne **même quand l'événement est planifié** (fiche en lecture seule), sans révision et sans effet sur les drops ;
+  - fermer la fiche avec une saisie non enregistrée demande confirmation.
+- **Confirmation « 🗓️ Planifier… » d'un événement public**, refaite selon la demande du 08/11. **Étape 1 sur 2** : une liste courte :
+  - nom et identifiant ;
+  - Public ;
+  - période « du 01/11/2026 00:01 au 30/11/2026 23:59 inclus (heure de Bruxelles) » ;
+  - nombre d'objets par rareté ;
+  - nombre d'objets affichant l'emoji provisoire, « aucune génération IA n'est lancée » ;
+  - nombre d'explications vérifiées ;
+  - « 🚫 Aucun bonus : ni bonus permanent, ni bonus temporaire, ni effet sur le minage ou le classement » ;
+  - « Effet immédiat… sans attribution rétroactive » ;
+  - « Réversible : « Repasser en brouillon » arrête les futurs drops ; les souvenirs déjà trouvés restent acquis ».
+
+  Les 30 objets sont dans un tableau **replié** « Voir les 30 objet(s) — date, nom, rareté, chance » (une ligne par objet, défilement interne). Le focus est sur **Annuler**. **Étape 2 sur 2** : barème par rareté sur une ligne, bouton « 🗓️ Publier pour tous ». Un clic sur Annuler, Échap ou le fond, à l'une ou l'autre étape : rien n'est publié.
+
+**Contenu des 30 explications**
+- Fichier : `server/content/event-lore/novembre_histoire_2026.json`, rédigé sans IA payante.
+- Chaque fait a été **relu le 08/11 sur la source citée** : Wikipédia FR, Wikipédia EN quand la page FR ne donnait pas la date (Moby-Dick, Hubble, relativité générale, Journée de la gentillesse, indépendance albanaise) et UNESCO pour la Journée de la science.
+- Les **30 liens répondent HTTP 200**. Aucune adresse n'a été inventée : chaque lien provient de l'API Wikipédia ou d'un contrôle direct.
+- Écarts corrigés par rapport aux inspirations :
+  - **Sixtine** : la fresque a été inaugurée le **31 octobre 1512**, la veille de la Toussaint. La date historique est donc 1512-10-31 ; la date de référence de l'objet reste 01/11 ;
+  - **Toutânkhamon** : l'entrée a été découverte le 4/11 et la porte percée le **26/11** ; les deux dates sont citées ;
+  - **Tchaïkovski** : le 6/11 est une date du calendrier grégorien, précisé dans le texte ;
+  - **Conspiration des poudres** : le complot visait l'ouverture du Parlement du 5/11/1605.
+
+**Technique**
+- Table **ajoutée** `monthly_event_item_lore` (ajout seul, idempotente), séparée de la fiche de l'événement : la fiche planifiée n'est jamais réécrite. Journal : `lore_update` et `lore_import`.
+- Import au démarrage : **seulement pour les objets sans explication**. Une saisie admin n'est jamais écrasée. Au déploiement : « 30 explication(s) ajoutée(s) ».
+- Route `PUT /api/admin/events/:id/items/:itemId/lore` (admin). La vue joueur `publicView` n'ajoute `lore` qu'à un objet **trouvé** et **vérifié**.
+- Fichiers : `server/monthlyEvents.js`, `server/index.js`, `server/content/event-lore/novembre_histoire_2026.json`, `public/js/main.js`, `public/index.html`, `public/css/style.css`, `public/js/i18n.js`, `i18n/it.json` + `public/js/locales/it.js`, `public/admin/admin.js`, `public/admin/index.html`, `public/admin/admin.css`, `test/event-lore-86.test.js` (nouveau), `test/admin-unsaved.test.js`.
+
+## 3. SHA et procédure de test
+
+- Branche `feature/86-novembre-histoire` : commit `070e3bb`. Sur `develop` : merge `ce0a4db` (déployé).
+- `npm test` → 968/968 sur la branche, sur `develop` et sur la release `ce0a4db`. Le nouveau fichier `test/event-lore-86.test.js` contient 8 tests :
+  - les 30 explications : 4 langues, 1 à 3 phrases, https Wikipédia/UNESCO, date cohérente avec la date de référence et avec l'année de l'inspiration ;
+  - la validation : http, `javascript:`, identifiants dans l'URL ou date libre sont refusés ; « Vérifiée » exige les 4 langues et la source ;
+  - l'import une seule fois, sans écraser une saisie admin ;
+  - l'édition sur un événement planifié : pas de révision, statut inchangé ;
+  - la vue joueur : rien avant découverte, rien si non vérifiée, jamais l'inspiration ; le souvenir garde son explication après la fin ;
+  - aucun effet sur les drops ;
+  - la migration idempotente ;
+  - la présence des éléments du panel et du jeu.
+
+## 4. Vérifications effectuées
+
+- **Navigateur Chromium sur une copie de la base de production** (port 3101, copie supprimée ensuite), avec un compte de test créé dans la copie, qui possède 2 souvenirs :
+  - Collection : 30 cartes, « 2 / 30 trouvé(s) » ;
+  - fiche « La couronne d'Élisabeth » avec l'explication, la date et le lien Wikipédia (nouvel onglet, noopener) en **FR à 1280 px, NL à 390 px, ES à 320 px** ;
+  - objet non trouvé : « Objet non découvert », sans explication ;
+  - après F5, les 2 souvenirs sont toujours là ;
+  - 0 erreur JS.
+- **Admin à 1280, 390 et 320 px** :
+  - fenêtre de publication lisible, tableau fermé par défaut, 30 lignes, aucun débordement de page, focus sur Annuler ;
+  - Annuler à l'étape 1 puis à l'étape 2 : l'événement reste en brouillon ;
+  - sur l'événement planifié : nom et chances verrouillés, explication modifiable ; http refusé ; enregistrement en brouillon puis vérifié ; garde-fou de fermeture ; statut `scheduled` et révision inchangés.
+  - Pour cet essai seulement, novembre a été repassé en brouillon **dans la copie** puis replanifié. Aucune action de ce type n'a été faite en production.
+- **Non vérifié** : le clic réel « Publier pour tous » d'un nouvel événement public en production (aucun à publier aujourd'hui). Décembre (Noël) est déjà planifié par #56.
+
+## 5. Données des joueurs
+
+Aucune donnée joueur modifiée. Seules une table et des lignes d'explication ont été ajoutées. Empreintes (lignes + hachage) de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` : **identiques** sur la copie avant et après démarrage, et identiques entre la production après déploiement et la sauvegarde pré-déploiement. Les souvenirs déjà trouvés sont conservés.
+
+## 6. Déploiement
+
+- SHA déployé : **`ce0a4db`** (avance rapide de `main` `b565fd9` → `ce0a4db`, `scripts/deploy.sh` de la release).
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261108-183128-pre-deploy-ce0a4db.sqlite`.
+- Après déploiement :
+  - les 2 domaines répondent 200 avec la version `1.0.0+ce0a4db` ;
+  - journal sans erreur ;
+  - `quick_check` ok ;
+  - 30/30 explications en base ;
+  - novembre `scheduled` rév. 7 ;
+  - `/api/events` : actif, 30 objets, aucune explication envoyée sans compte ;
+  - jeu chargé sans erreur JS à 1280 et 390 px.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep b565fd9` puis `sudo systemctl restart dig`. La table ajoutée est simplement ignorée par l'ancien code.
+
+**Test fonctionnel pour le propriétaire (2 minutes)**
+1. En jeu, connecté : **Collection → « 🏛️ Novembre déterre l'Histoire »**. Résultat attendu : 30 cartes et le compteur « n / 30 trouvé(s) ».
+2. Cliquez un **objet trouvé**. Résultat attendu, sous la description drôle : « Pourquoi cet objet ? », la date, 1 à 3 phrases et « 📖 Source : Wikipédia — … ↗ », qui s'ouvre dans un nouvel onglet.
+3. Cliquez une carte **« ? »**. Résultat attendu : « Objet non découvert », sans explication.
+4. Changez de langue (EN/NL/ES). Résultat attendu : l'explication est traduite.
+5. Admin → 🎉 Événements → Novembre → colonne **« Pourquoi ? »**. Résultat attendu : ✅ Vérifiée ×30. Ouvrez « La couronne d'Élisabeth » → section 📖. Résultat attendu : le texte, la date 1558-11-17 et le lien sont modifiables, et « 💾 Enregistrer l'explication » fonctionne alors que l'événement est planifié.
+6. La nouvelle fenêtre « Planifier… » ne peut se voir que sur un événement en brouillon (par exemple un événement TEST). **Ne repassez pas novembre en brouillon** : cela arrêterait les drops.
+
+## 7. Choix techniques faits seul
+
+- **Table séparée** pour les explications, et non des colonnes dans la fiche. La fiche d'un événement planifié est figée (la modifier imposerait de repasser en brouillon, donc d'arrêter les drops). Le propriétaire veut pourtant compléter les sources sans bloquer la publication.
+- **Date historique distincte de la date de référence**. Exemple : la Sixtine, inaugurée le 31/10 pour un objet du 01/11. Format : AAAA-MM-JJ, ou MM-JJ pour une journée annuelle.
+- **Sources Wikipédia EN** quand l'article FR ne contient pas la date exacte. Le titre de la source l'indique : « Wikipedia (EN) ».
+- La confirmation est en **deux étapes conservées**, pour éviter une publication accidentelle. La période est affichée avec la dernière minute incluse (« 30/11 23:59 inclus ») au lieu de la fin exclusive « 01/12 00:00 ».
+
+## 8. Décisions demandées au propriétaire
+
+Aucune décision utilisateur nécessaire pour ce lot. Les questions précédentes restent à trancher plus tard, sans bloquer :
+1. **Bonus des souvenirs** : non activés, conformément à la décision du 08/11 (« aucun bonus permanent/conditionnel »). Recommandation inchangée : C (aucun effet) pour novembre.
+
+## 9. Éléments restant à réaliser
+
+- **Pour #56** :
+  - le libellé joueur « Jusqu'au 1 décembre 2026 » affiché sous le titre de l'événement (fin exclusive) pourrait devenir « jusqu'au 30 novembre, 23 h 59 » ;
+  - l'avertissement admin « Début dans moins de 7 jours : annonce tardive » reste affiché sur un événement déjà commencé.
+
+  Ces deux points sont signalés, pas modifiés ici (périmètre #56).
+- Les images définitives des 30 objets se feront par clic du propriétaire dans l'atelier (#65 / #89). La proposition « La brique de la liberté » n'a pas été touchée.
+- Explications des prochains mois : même mécanisme. Il suffit d'ajouter un fichier dans `server/content/event-lore/`, ou de les saisir dans la fiche objet.
