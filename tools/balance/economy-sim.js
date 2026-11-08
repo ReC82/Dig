@@ -278,7 +278,8 @@ function relicValue(p, id) {
 /** Nouveau joueur (ressources permanentes : gemmes plafonnées, fragments, reliques). */
 function newPlayer(o = {}) {
   const ch = o.charges ? { capacity: o.charges.capacity, regenS: o.charges.regenS, threshold: o.charges.threshold ?? 0.1,
-    charges: o.charges.capacity, at: 0, depleted: false } : null;
+    charges: o.charges.capacity, at: 0, depleted: false,
+    refillPct: o.charges.refillPct ?? 0, coinsPerCharge: o.charges.coinsPerCharge ?? 3 } : null;
   return { gems: 0, frags: 0, relics: {}, quests: false, streak: 0, lastDay: -99, collected: {}, ch };
 }
 
@@ -387,12 +388,23 @@ function chargesRegen(c, t) {
   if (c.depleted && c.charges >= Math.max(1, c.threshold * c.capacity)) c.depleted = false;
 }
 
-function breakWithCharges(c, m, hp, damage, autodig, cps, t0) {
+function breakWithCharges(c, m, hp, damage, autodig, cps, t0, s = null) {
   const step = 1 / cps;
   const auto = autodig / cps;
   let rem = hp, tt = 0;
   while (rem > 0) {
     chargesRegen(c, t0 + tt);
+    // Option `refillPct` (étude du 08/11) : à la panne, achète la recharge en pièces dès qu'elle est
+    // payable (même prix que pickaxeCharges.refillCost : coût × (1 + 5 %/m), charges réellement ajoutées)
+    if (c.depleted && c.refillPct > 0 && s) {
+      const add = Math.min(c.capacity - Math.floor(c.charges), Math.round(c.capacity * c.refillPct / 100));
+      const cost = Math.ceil(add * c.coinsPerCharge * (1 + (Math.max(1, s.depth) - 1) * 0.05));
+      if (add > 0 && s.coins >= cost) {
+        s.coins -= cost; c.charges += add;
+        m.refillCoins = (m.refillCoins ?? 0) + cost; m.refills = (m.refills ?? 0) + 1;
+        chargesRegen(c, t0 + tt);
+      }
+    }
     const full = !c.depleted && c.charges >= 1;
     if (full) {
       c.charges -= 1;
@@ -426,7 +438,7 @@ function mine(p, s, rules, o, random, { seconds, cps, now, chestWait, ad, played
     const autodig = s.auto + relicValue(p, 'ancient_engine');
     let dt;
     if (cps > 0 && o.charges) {
-      dt = breakWithCharges(p.ch, s.m, hp, damage, autodig, cps, t);   // pioche à charges (#71) : coup par coup
+      dt = breakWithCharges(p.ch, s.m, hp, damage, autodig, cps, t, s);   // pioche à charges (#71) : coup par coup
     } else if (cps > 0) {
       const rate = damage * cps + autodig;
       dt = Math.max(1, Math.ceil(hp / rate * cps)) / cps;
