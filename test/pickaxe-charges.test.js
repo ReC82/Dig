@@ -59,6 +59,36 @@ test.before(() => {
   gems.init(); // colonne ref_pickaxe ajoutée une seule fois
 });
 
+const auditCount = () => db.getDb().prepare('SELECT COUNT(*) AS n FROM pickaxe_charge_audit').get().n;
+
+test('décision du propriétaire (08/11) : activée pour tous à 5 000 / 2 s, une seule fois, arrêt d\'urgence respecté', () => {
+  const s = pk.getSettings();
+  assert.deepStrictEqual([s.mode, s.capacity, s.regenSeconds, s.resumeThreshold], ['on', 5000, 2, 0.1]);
+  assert.strictEqual(pk.publicConfig(null).enabled, true, 'tous les joueurs, invités compris');
+  // Le reste des réglages développés est inchangé (arbres, prix, recharges)
+  for (const k of ['capacityMult', 'capacityPrices', 'speedMult', 'speedPrices', 'refillPacks', 'refillCoinsPerCharge', 'refillEnabled']) {
+    assert.deepStrictEqual(s[k], pk.DEFAULTS[k], k);
+  }
+  const dec = db.getDb().prepare("SELECT * FROM admin_config_decisions WHERE id = 'issue71-global-on-2026-11-08'").get();
+  assert.strictEqual(dec.outcome, 'applied');
+  assert.deepStrictEqual(JSON.parse(dec.old_value), { mode: 'off', capacity: 1500, regenSeconds: 3 });
+  const audit = db.getDb().prepare('SELECT * FROM pickaxe_charge_audit').all();
+  assert.strictEqual(audit.length, 1, 'journalisée une fois malgré deux init()');
+  assert.match(audit[0].note, /Décision du propriétaire #71/);
+  // Arrêt d'urgence depuis le panel : jamais réactivé par un redémarrage
+  pk.saveSettings({ mode: 'off' });
+  pk.init();
+  assert.strictEqual(pk.getSettings().mode, 'off');
+  // Réglage changé dans le panel avant la décision : décision ignorée (jamais appliquée par-dessus)
+  db.getDb().prepare("DELETE FROM admin_config_decisions WHERE id = 'issue71-global-on-2026-11-08'").run();
+  pk.saveSettings({ capacity: 2000 });
+  pk.init();
+  assert.deepStrictEqual([pk.getSettings().mode, pk.getSettings().capacity], ['off', 2000]);
+  assert.strictEqual(db.getDb().prepare("SELECT outcome FROM admin_config_decisions WHERE id = 'issue71-global-on-2026-11-08'").get().outcome, 'skipped');
+  // Retour aux valeurs par défaut développées pour la suite des tests
+  pk.saveSettings({ mode: 'off', capacity: 1500, regenSeconds: 3 });
+});
+
 test.after(() => {
   try { db.getDb().close(); } catch (_) { /* déjà fermée */ }
   fs.rmSync(dir, { recursive: true, force: true });
@@ -78,15 +108,17 @@ test('réglages : OFF par défaut, valeurs prudentes, validation lisible et jour
     [{ capacityMult: '2 ; 3' }, /niveau 0 vaut 1/],
     [{ testers: 'inconnu_xyz' }, /Testeur inconnu/],
   ]) assert.throws(() => pk.saveSettings(patch), re, JSON.stringify(patch));
-  assert.strictEqual(db.getDb().prepare('SELECT COUNT(*) AS n FROM pickaxe_charge_audit').get().n, 0, 'refus : rien écrit');
+  const audit0 = auditCount();
+  for (const patch of [{ mode: 'tous' }, { capacity: 5 }]) assert.throws(() => pk.saveSettings(patch));
+  assert.strictEqual(auditCount(), audit0, 'refus : rien écrit');
   // Virgule décimale et « ; » acceptés
   const r = pk.saveSettings({ speedMult: '1 ; 0,8 ; 0,5', speedPrices: '4 ; 9', note: 'essai' });
   assert.strictEqual(r.changed, true);
   assert.deepStrictEqual(pk.getSettings().speedMult, [1, 0.8, 0.5]);
   assert.strictEqual(pk.saveSettings({ speedMult: [1, 0.8, 0.5] }).changed, false, 'même valeur : aucun journal');
-  const audit = db.getDb().prepare('SELECT * FROM pickaxe_charge_audit').all();
-  assert.strictEqual(audit.length, 1);
-  assert.strictEqual(JSON.parse(audit[0].old_value).speedMult.length, 8, 'ancienne valeur conservée');
+  const audit = db.getDb().prepare('SELECT * FROM pickaxe_charge_audit ORDER BY id').all();
+  assert.strictEqual(audit.length, audit0 + 1);
+  assert.strictEqual(JSON.parse(audit.at(-1).old_value).speedMult.length, 8, 'ancienne valeur conservée');
   assert.throws(() => db.getDb().prepare('DELETE FROM pickaxe_charge_audit').run(), /ajout seul/);
   pk.saveSettings({ speedMult: pk.DEFAULTS.speedMult, speedPrices: pk.DEFAULTS.speedPrices });
 });
@@ -269,6 +301,18 @@ test('simulation : les chiffres exploratoires videraient la réserve en moins d\
   assert.ok(r.defaut.maxDepth > r.exploratoire.maxDepth);
 });
 
+test('simulation du 08/11 : 5 000 / 2 s freine le bot nocturne sans toucher le débutant ; les recharges en pièces lèvent le frein', () => {
+  const sim = require('../tools/balance/pickaxe-night-sim.js');
+  const S = sim.SETTINGS;
+  const res = sim.run({ runs: 3, profiles: { debutant: sim.PROFILES.debutant, bot: sim.PROFILES.bot },
+    settings: { 'jeu actuel (OFF)': null, live: S['5 000/2 s (activé)'], dev: S['1 500/3 s'], refill: S['5 000/2 s + recharges +50 %'] } });
+  const d = res.debutant.rows, b = res.bot.rows;
+  assert.ok(d.live.manualBlocks >= d['jeu actuel (OFF)'].manualBlocks * 0.97, 'débutant 20 min/j : pas de perte');
+  assert.ok(d.dev.manualBlocks < d['jeu actuel (OFF)'].manualBlocks * 0.85, '1 500 / 3 s pénaliserait le débutant');
+  assert.ok(b.live.manualBlocks < b['jeu actuel (OFF)'].manualBlocks * 0.5, 'bot nocturne : frein fort');
+  assert.ok(b.refill.manualBlocks > b['jeu actuel (OFF)'].manualBlocks * 0.85, 'constat : recharges payées en pièces = frein levé');
+});
+
 test('HTTP : config par joueur, routes admin protégées, observation à la sauvegarde', async () => {
   const httpDb = path.join(dir, 'http.sqlite');
   const adminSecret = crypto.randomBytes(16).toString('hex');
@@ -285,7 +329,10 @@ test('HTTP : config par joueur, routes admin protégées, observation à la sauv
   const admin = { Authorization: `Bearer ${adminSecret}`, 'Content-Type': 'application/json' };
   const call = (method, p, body, headers = admin) => fetch(`${BASE}${p}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   try {
-    assert.deepStrictEqual(await (await fetch(`${BASE}/api/pickaxe/config`)).json(), { enabled: false });
+    // Base neuve : décision du propriétaire appliquée au démarrage (tous, 5 000 / 2 s)
+    const initial = await (await fetch(`${BASE}/api/pickaxe/config`)).json();
+    assert.deepStrictEqual([initial.enabled, initial.capacity, initial.regenSeconds, initial.refillPacks], [true, 5000, 2, [10, 25, 50]]);
+    assert.match(log, /Décision issue71-global-on-2026-11-08/);
     for (const [m, p] of [['GET', '/api/admin/pickaxe'], ['PUT', '/api/admin/pickaxe/settings']]) {
       assert.strictEqual((await fetch(`${BASE}${p}`, { method: m, headers: { 'Content-Type': 'application/json' }, body: m === 'PUT' ? '{"mode":"on"}' : undefined })).status, 401, p);
     }
@@ -294,7 +341,7 @@ test('HTTP : config par joueur, routes admin protégées, observation à la sauv
     assert.strictEqual(reg.status, 200);
     const player = { Cookie: reg.headers.get('set-cookie').split(';')[0], 'Content-Type': 'application/json' };
     assert.strictEqual((await call('PUT', '/api/admin/pickaxe/settings', { mode: 'testers', testers: 'inconnu' })).status, 400);
-    const put = await call('PUT', '/api/admin/pickaxe/settings', { mode: 'testers', testers: 'PICKHTTP', note: 'recette' });
+    const put = await call('PUT', '/api/admin/pickaxe/settings', { mode: 'testers', testers: 'PICKHTTP', capacity: 1500, regenSeconds: 3, note: 'recette' });
     assert.strictEqual(put.status, 200);
     const sum = await put.json();
     assert.deepStrictEqual(sum.testers.map(x => x.username), ['pickhttp']);

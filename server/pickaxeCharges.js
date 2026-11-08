@@ -108,6 +108,46 @@ function init() {
   `);
   conn().prepare(`INSERT INTO pickaxe_charge_settings (key, value) VALUES ('config', ?) ON CONFLICT(key) DO NOTHING`)
     .run(JSON.stringify(DEFAULTS));
+  applyOwnerDecisions();
+}
+
+/**
+ * Décisions écrites du propriétaire, appliquées UNE fois au démarrage (même principe que
+ * `admin_config_decisions` dans db.js) : journalisées dans `admin_config_decisions` et dans le journal
+ * de la pioche, jamais rejouées (un arrêt d'urgence depuis le panel reste acquis), ignorées si les
+ * réglages ont changé entre-temps dans le panel (`expected`).
+ */
+const OWNER_DECISIONS = [
+  // #71, commentaires du propriétaire du 08/11/2026 (issuecomment-6722089054 et -6722135142) : activer
+  // pour TOUS comme frein à l'automatisation nocturne. Réglage plus doux que 1 500 / 3 s, permis par le
+  // commentaire « à moins qu'une incompatibilité vérifiée impose un réglage plus doux » : à 1 500 / 3 s un
+  // débutant (20 min/j à 4 clics/s) perd 34 % de blocs au clic ; à 5 000 / 2 s il ne perd rien et le bot
+  // nocturne à 8 clics/s perd encore 65 % (contre 69 %) — tools/balance/pickaxe-night-sim.js.
+  // Arrêt d'urgence : admin 🔋 Pioche à charges → Mode OFF.
+  {
+    id: 'issue71-global-on-2026-11-08',
+    expected: { mode: 'off', capacity: 1500, regenSeconds: 3 },
+    patch: { mode: 'on', capacity: 5000, regenSeconds: 2 },
+    note: 'Décision du propriétaire #71 (08/11/2026) : activation pour tous, 5 000 coups / 2 s',
+  },
+];
+
+function applyOwnerDecisions() {
+  let table = true;
+  try { conn().prepare('SELECT 1 FROM admin_config_decisions LIMIT 1').get(); } catch { table = false; }
+  if (!table) return;   // base sans le journal des décisions (initDb non appelé) : rien à appliquer
+  for (const d of OWNER_DECISIONS) {
+    db.runTransaction(() => {
+      if (conn().prepare('SELECT 1 FROM admin_config_decisions WHERE id = ?').get(d.id)) return;
+      const cur = getSettings();
+      const apply = Object.entries(d.expected).every(([k, v]) => cur[k] === v);
+      if (apply) saveSettings(d.patch, { note: d.note });
+      const pick = s => JSON.stringify(Object.fromEntries(Object.keys(d.patch).map(k => [k, s[k]])));
+      conn().prepare('INSERT INTO admin_config_decisions (id, config_key, old_value, new_value, outcome) VALUES (?,?,?,?,?)')
+        .run(d.id, 'pickaxe_charge_settings.config', pick(cur), JSON.stringify(d.patch), apply ? 'applied' : 'skipped');
+      console.log(`[pickaxe] Décision ${d.id} : ${apply ? `${pick(cur)} → ${JSON.stringify(d.patch)}` : `inchangé (${pick(cur)})`}`);
+    });
+  }
 }
 
 // ── Réglages ─────────────────────────────────────────────────────────────────
@@ -361,6 +401,6 @@ function adminSummary() {
 }
 
 module.exports = {
-  PickaxeError, DEFAULTS, MODES, init, getSettings, validate, saveSettings, resolveTesters, isEnabledFor,
+  PickaxeError, DEFAULTS, MODES, OWNER_DECISIONS, init, getSettings, validate, saveSettings, resolveTesters, isEnabledFor,
   capacityAt, regenSecondsAt, refillCost, treeCost, publicConfig, observeSave, adminSummary,
 };
