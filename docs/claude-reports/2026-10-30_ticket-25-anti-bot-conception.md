@@ -1298,3 +1298,101 @@ Appliqué pour tous : **Bloquant pour des récompenses réelles**, pas pour la b
 - Selon décision 1 : récidive graduée (≈ 0,5 jour, tests de faux positifs inclus) — Après la bêta.
 - Le pas 3 du parcours guidé reste surligné quand le défi vient du seuil automatique (pas de l'admin) :
   cosmétique, à traiter dans #87 — Après lancement.
+
+---
+
+# Session du 08/11/2026 (après-midi) — Récidive, option A : cumuls 6 h / 24 h conservés après un défi
+
+## 1. Ticket et état réel
+
+#25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
+
+**ÉTAT_DEPLOIEMENT** Source : décision du propriétaire du 08/11/2026 11:36 UTC
+([issuecomment-6720990840](https://github.com/ReC82/Dig/issues/25#issuecomment-6720990840)) :
+option A validée ; option B, Turnstile, images, sanctions, coffres, économie et classement exclus ;
+mode global « Observation » maintenu.
+
+## 2. Sémantique avant / après (explicitée, comme demandé)
+
+| | Avant (jusqu'à `0c5d24e`) | Après (option A) |
+|---|---|---|
+| Émission ou résolution d'un défi | série **et** cumuls 6 h / 24 h effacés | **seule la série** (et sa pause) repart de zéro ; les paquets de 10 min sont conservés |
+| Défi par cumul (180 min / 6 h, 360 min / 24 h) | jamais atteint par un bot qui résout chaque défi (la série à 60 min effaçait tout) | atteint à ≈ 3 h / ≈ 6 h ; tant que le cumul reste au-dessus du seuil : au plus un défi par `ab_cooldown_min` (30 min, réglage existant), compté depuis la résolution ou l'annulation |
+| Temps bloqué pendant un défi / une suspension (Appliqué) | clics déclarés par un client modifié comptés comme minage | **ni minage, ni pause** ; la mesure suivante repart de l'instant de la résolution (aucun double comptage) |
+| Changement de saison | cumuls effacés | cumuls conservés (fenêtres de temps, pas de saison) |
+| Compteur inférieur (autre appareil, F5) | fenêtre ignorée | inchangé ; la série n'est coupée que par une vraie absence ≥ 3 min |
+| Annulation admin d'un défi | aucun effet sur les mesures | série remise à zéro, délai minimal compté depuis l'annulation |
+
+Fenêtres : vraies fenêtres glissantes (paquets de 10 min, conservés 24 h). Seuils (60 / 180 / 360 min,
+score 60, violation 30 clics, paliers 5 min → 24 h), détections, indices et politique de sanctions
+**inchangés**. Option B (seuil réduit après chaque défi) **non appliquée**.
+
+## 3. Changements
+
+- `server/antibotResponses.js` : `_resetActivity` → `_resetStreak` (buckets conservés) ; délai minimal
+  appliqué aux déclencheurs de cumul ; mesure « gelée » pendant un défi / une suspension Appliqué ;
+  base de mesure avancée à la résolution ; cumuls conservés au changement de saison ; annulation →
+  série et délai.
+- `public/admin/admin.js` : libellé et aide du « Délai minimal entre deux défis par score ou cumul »,
+  ligne des seuils de la fiche (« cumuls conservés après un défi résolu »).
+- `docs/ANTI-BOT.md` § 11 : sémantique mise à jour.
+- Tests : `test/antibot-recidive-option-a.test.js` (12 tests, horloge simulée) ; `test/antibot-lot-c.test.js`
+  (2 attentes mises à jour : 1 défi/h → 1/h puis 1/30 min dès 180 min sur 6 h) ;
+  `test/e2e/antibot-freeze-proof.e2e.js` (contrôle option A dans la fiche admin).
+- Aucune migration, aucune donnée joueur modifiée, aucune modification rétroactive : les cumuls
+  actuels des joueurs (déjà remis à zéro par les défis passés) repartent tels quels.
+
+## 4. Résultat du scénario bot supervisé (simulation, 8 clics/s, défi résolu en 60 s)
+
+Défis à 1 h et 2 h (série 60 min), puis **180 min / 6 h atteint à ≈ 3 h** et **360 min / 24 h à ≈ 6 h** ;
+ensuite un défi toutes les 30 min tant que le bot continue (≈ 10 défis en 7 h au lieu de 7). Aucune
+suspension (client officiel, défis résolus). Humain 6 clics/s (20 min / 10 min de pause) pendant
+4 h 30 avec un défi admin résolu : **aucun défi automatique, aucune sanction**, cumul 6 h conservé
+sous le seuil.
+
+## 5. Tests
+
+TESTS_PLACEHOLDER
+
+## 6. Déploiement
+
+DEPLOY_PLACEHOLDER
+
+### Test fonctionnel à faire par le propriétaire (≈ 3 min, unique)
+
+Le défi, le gel et la reprise sont déjà validés : ce test ne vérifie que l'option A.
+1. Admin → Anti-bot → « Tester la protection » : votre compte, « Lancer l'essai », délai **1 min**.
+2. Dans le jeu : autoclicker jusqu'à « Petite vérification », résolvez-la, relancez 30 s.
+3. Admin → même écran, « Diagnostic avancé de ce compte », encadré « Ce que le serveur a vu » :
+   « Minage continu sans pause : **< 1 min** » (repartie de zéro à la résolution) et « Temps de minage
+   actif : **≈ 1,5 / 180 min sur 6 h, ≈ 1,5 / 360 min sur 24 h** » (conservé : avant ce correctif, ce
+   cumul retombait à 0 à la résolution et ne montrait que la reprise). En haut : « Protection des
+   joueurs : **Observation** ».
+4. « Terminer le test ».
+
+Classement MVP : **Bloquant pour des récompenses réelles** (anti-contournement du bot supervisé),
+pas pour la bêta fermée sans lot.
+
+## 7. Choix techniques faits seul
+
+- Redéclenchement d'un cumul au-dessus du seuil limité par `ab_cooldown_min` (réglage existant,
+  libellé « délai minimal entre deux défis ») : sans limite, chaque sauvegarde (12 s) relancerait un
+  défi ; aucun nouveau paramètre, seuils inchangés.
+- Le temps pendant un défi n'est compté ni comme minage ni comme pause : la série est déjà remise à
+  zéro à l'émission, compter une pause n'aurait aucun effet utile.
+- Indicateur de gigue (`narrow_jitter`) : agrégé « par série », il repart avec la série (inchangé).
+- Onglets concurrents : déjà bloqués par la session de jeu unique (#35) ; le temps actif reste de
+  toute façon borné par le temps écoulé (testé).
+
+## 8. Décisions demandées au propriétaire
+
+1. Rappel (inchangé, décision distincte annoncée) : défis et suspensions en **Appliqué pour tous** —
+   (a) après cette recette, (b) dès la bêta, (c) après 1 semaine d'Observation. Recommandation : (a),
+   au plus tard (c) ; obligatoire avant tout classement doté d'un lot réel.
+2. Les autres questions (seuils par défaut, Turnstile, éligibilité #19, contestation, lot D) restent
+   valables sans changement.
+
+## 9. Éléments restant à réaliser
+
+- Activation générale du mode Appliqué : sur décision distincte — Bloquant pour des récompenses réelles.
+- Option B : non autorisée, rien à faire.

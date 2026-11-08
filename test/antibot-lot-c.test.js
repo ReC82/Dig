@@ -171,10 +171,12 @@ test('Auto-Dig seul pendant 10 h : aucun défi (le minage automatique légal n\'
 
 // ── Autoclickers : Observation ──────────────────────────────────────────────
 
-test('Observation : autoclicker 8 clics/s pendant 8 h → défis simulés ≈ 1/h, rien de retiré', () => {
+// Option A (08/11) : un défi ne remet à zéro que la série ; au-delà de 180 min actives sur 6 h,
+// le cumul conservé redéclenche un défi toutes les 30 min (ab_cooldown_min) : 1 h, 2 h, 3 h, puis 3 h 30 … 8 h
+test('Observation : autoclicker 8 clics/s pendant 8 h → défis simulés 1/h puis 1/30 min dès 180 min sur 6 h, rien de retiré', () => {
   setMode('observe');
   const r = player({ cpsAt: () => 8, hours: 8, jitter: 0 });
-  assert.ok(r.shadow >= 7 && r.shadow <= 9, `défis simulés : ${r.shadow}`);
+  assert.ok(r.shadow >= 11 && r.shadow <= 13, `défis simulés : ${r.shadow}`);
   assert.strictEqual(r.challenges, 0);
   assert.ok(r.ranked >= r.claimed * 0.95, 'observation : classement inchangé');
   const ev = db.getDb().prepare(`SELECT COUNT(*) AS n FROM security_events WHERE user_id = ? AND type = 'challenge_shadow'`).get(r.userId).n;
@@ -216,10 +218,10 @@ test('Appliqué : pauses de 4 min (série coupée) → défi par le temps actif 
   setMode('observe');
 });
 
-test('Appliqué : défi résolu par un humain → reprise, nouveau défi environ chaque heure', () => {
+test('Appliqué : défi résolu par un humain → reprise, défi chaque heure puis toutes les 30 min dès 180 min sur 6 h', () => {
   setMode('enforce');
   const r = player({ cpsAt: () => 10, hours: 6, jitter: 0.3, solveAfter: 60 });
-  assert.ok(r.challenges >= 5 && r.challenges <= 7, `défis : ${r.challenges}`);
+  assert.ok(r.challenges >= 7 && r.challenges <= 9, `défis : ${r.challenges}`);
   const solved = db.getDb().prepare(`SELECT COUNT(*) AS n FROM antibot_challenges WHERE user_id = ? AND status = 'solved'`).get(r.userId).n;
   assert.ok(solved >= r.challenges - 1);
   assert.strictEqual(r.suspensions.length, 0, 'défi résolu : aucune sanction');
