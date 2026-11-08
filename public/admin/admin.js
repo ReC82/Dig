@@ -600,7 +600,7 @@ const ADM_NAV_ACTIONS = [
   { id: 'reset-test',     tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Recommencer un test à zéro (joueur)', keywords: 'reset réinitialiser rejouer essai remise à zéro tentative snapshot instantané', help: 'Fiche du joueur → 🧪 Essais de test → « Recommencer un test à zéro ». Confirmation avec motif et pseudo ; instantané archivé avant.' },
   { id: 'export-tests',   tab: 'players',  target: 'pd-sec-tests', player: true, label: 'Exporter l\'historique des essais d\'un joueur', keywords: 'csv json tentatives historique', help: 'Fiche du joueur → 🧪 Essais de test → « Exporter CSV » ou « Exporter JSON complet ».' },
   { id: 'partial-reset',  tab: 'players',  target: 'pd-sec-partial', player: true, label: 'Réinitialisation saisonnière partielle (joueur)', keywords: 'reset sauvegarde seule saisonnier', help: 'Fiche du joueur → ⚠ Réinitialisation saisonnière partielle (sauvegarde seule, classement et anti-bot inchangés). Confirmation obligatoire.' },
-  { id: 'sec-test',       tab: 'security', target: 'sec-test-card',        label: 'Tester la protection anti-bot sur un compte',    keywords: 'essai défi vérification captcha appliqué compte de test suspension', help: 'Parcours guidé en 5 étapes : choisir le compte, lancer l\'essai, afficher le défi, le résoudre dans le jeu, terminer le test. Le mode global ne change pas.' },
+  { id: 'sec-test',       tab: 'security', target: 'sec-test-card',        label: 'Tester la protection anti-bot sur un compte',    keywords: 'essai défi vérification captcha appliqué compte de test suspension', help: 'Parcours guidé en 5 étapes : choisir le compte, lancer l\'essai, choisir le délai (1, 2 ou 3 min), tester dans le jeu, terminer le test. Le mode global ne change pas.' },
   { id: 'player-antibot', tab: 'security', target: 'sec-player-q',         label: 'Voir l\'anti-bot d\'un joueur',                  keywords: 'risque score triche contrôle sécurité fiche joueur', help: 'Pseudo ou #ID puis « Ouvrir la fiche » (lecture seule). Aussi : fiche Joueurs → 🛡 Anti-bot de ce joueur.' },
   { id: 'sec-journal',    tab: 'security', target: 'sec-journal-card',     label: 'Consulter le journal de sécurité',               keywords: 'anomalies audit connexions admin', help: 'Filtres par type d\'événement et par période.' },
   { id: 'invite',         tab: 'beta',     target: 'btn-beta-invite-open', label: 'Préparer une invitation bêta',                   keywords: 'inviter testeur code lien accès', help: 'Bouton « ➕ Inviter un testeur » : rien n\'est créé avant « Créer » dans la fiche.' },
@@ -2352,6 +2352,8 @@ document.getElementById('btn-player-search').addEventListener('click', searchPla
 function attachPlayerAutocomplete(input, list, { onSelect, onEnter, minChars = 2 } = {}) {
   let items = [], active = -1, timer = null, seqNo = 0, blurTimer = null;
   const close = () => {
+    // Annule aussi une recherche en attente : sinon sa réponse rouvrirait la liste après un choix (#87, 08/11)
+    clearTimeout(timer); seqNo++;
     list.classList.add('hidden'); list.innerHTML = ''; items = []; active = -1;
     input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant');
   };
@@ -3167,37 +3169,68 @@ function secFreezeEl(L) {
   return box;
 }
 
-/** Variante « autoclicker » : seuil court d'essai, relevé avant / maintenant (preuve de gel). */
-function secTestAcRender(L) {
-  const state = document.getElementById('sec-test-ac-state');
-  const snap = document.getElementById('sec-test-ac-snap');
-  if (!state) return;
-  const T = L?.testThreshold ?? null;
-  snap.innerHTML = '';
-  state.textContent = !L ? 'Choisissez d\'abord le compte.'
-    : !L.testEnforce ? 'Lancez d\'abord l\'essai (étape 2).'
-    : T ? `✓ Seuil court actif : défi après ${secMin(T.minutes)} min de minage continu, pour ce compte seulement (expire seul à ${secBxl(T.expiresAt)}).`
-    : `Seuil normal : ${secMin(L.thresholds?.streakMin)} min de minage continu (réglage global, inchangé).`;
-  document.getElementById('btn-sec-test-ac-on').disabled = _secTest.busy || !L?.testEnforce || !!T;
-  document.getElementById('btn-sec-test-ac-off').disabled = _secTest.busy || !T;
-  const freeze = secFreezeEl(L);
-  if (freeze) snap.appendChild(freeze);
-  if (!T?.before) return;
-  const table = secEl('table', 'sec-test-ac-table');
-  const head = table.createTHead().insertRow();
-  for (const h of ['', 'Au début du test', 'Maintenant', 'Écart']) head.appendChild(secEl('th', '', h));
-  const tb = table.createTBody();
-  const row = (label, a, b) => {
-    const tr = tb.insertRow();
-    tr.appendChild(secEl('th', '', label));
-    const diff = a == null || b == null ? '—' : (b - a > 0 ? '+' : '') + (b - a);
-    for (const v of [a ?? '—', b ?? '—', diff]) tr.appendChild(secEl('td', '', v));
+/** Défi du test en cours : dernier défi réel mesuré (relevés horodatés), émis pendant cet essai. */
+function secTestChallenge(L) {
+  const T = L?.testThreshold;
+  const since = T?.startedAt ? Date.parse(T.startedAt) : Date.now() - 2 * 3600_000;
+  return (L?.history?.challenges ?? []).find(c => c.freeze && Date.parse(c.createdAt) >= since - 1000) ?? null;
+}
+
+/**
+ * Résultat du test au premier niveau (recette #87 du 08/11) : blocs validés au moment exact du
+ * défi, pendant le défi (maintenant ou à la résolution) et écart — attendu +0.
+ */
+function secTestResultEl(L, ch) {
+  const f = ch?.freeze;
+  if (!f?.issued) return null;
+  const leak = f.verdict === 'leak';
+  const box = secEl('section', `sec-result sec-result--${leak ? 'leak' : f.open ? 'open' : 'ok'}`);
+  box.dataset.verdict = f.verdict;
+  box.appendChild(secEl('p', 'sec-result-title', leak ? `⚠ ${f.deltaBlocks} bloc(s) validé(s) pendant le défi : à signaler.`
+    : f.open ? '⏳ Défi en attente : les blocs validés sont figés.'
+    : ch.status === 'cancelled' ? '✓ Défi annulé : aucun bloc validé pendant le défi.' : '✓ Gel vérifié : aucun bloc validé pendant le défi.'));
+  const tiles = secEl('div', 'sec-result-tiles');
+  const tile = (label, value, sub, cls = '') => {
+    const t = secEl('div', `sec-result-tile ${cls}`);
+    t.append(secEl('span', 'sec-result-label', label), secEl('strong', 'sec-result-value', value), secEl('span', 'sec-result-sub', sub));
+    tiles.appendChild(t);
   };
-  row('Blocs manuels validés (classement)', T.before.manualBlocks, T.now?.manualBlocks);
-  row('Clics manuels déclarés', T.before.manualClicks, T.now?.manualClicks);
-  row('Rang (blocs manuels)', T.before.rank, T.now?.rank);
-  snap.appendChild(secEl('p', 'sec-help', `Relevé du début : ${secBxl(T.before.atMs ? new Date(T.before.atMs).toISOString() : null)}. Pendant une vérification en attente, « Blocs manuels validés » ne doit plus augmenter.`));
-  snap.appendChild(table);
+  const end = f.end;
+  tile('Au moment du défi', secFmt(f.issued.manualBlocks), `blocs validés · ${secBxlS(f.issued.at)}`);
+  tile(f.open ? 'Pendant le défi' : ch.status === 'cancelled' ? 'À l\'annulation' : 'À la résolution', end ? secFmt(end.manualBlocks) : '—', `blocs validés · ${f.open ? 'maintenant' : secBxlS(end?.at)}`);
+  const d = f.deltaBlocks ?? 0;
+  tile('Écart', `${d > 0 ? '+' : d < 0 ? '−' : '+'}${Math.abs(d)}`, `${ch.heldClicks} clic(s) non crédité(s)`, leak ? 'is-bad' : 'is-good');
+  box.appendChild(tiles);
+  const T = L.testThreshold;
+  if (T?.before && T.before.atMs < f.issued.atMs) {
+    const gain = f.issued.manualBlocks - T.before.manualBlocks;
+    box.appendChild(secEl('p', 'sec-step-hint', `Avant le défi : +${gain} bloc(s) validé(s) depuis l'activation du délai (${secBxlS(new Date(T.before.atMs).toISOString())}).`));
+  }
+  return box;
+}
+
+/** Progression vers la vérification (délai court actif, pas encore de défi). */
+function secTestProgressEl(L) {
+  const T = L?.testThreshold;
+  const o = L?.observation;
+  if (!T || !o) return null;
+  const box = secEl('div', 'sec-progress');
+  const bar = secEl('progress', '');
+  bar.max = 100; bar.value = o.streak.pct;
+  bar.setAttribute('aria-label', 'Minage continu avant la vérification');
+  box.append(bar, secEl('span', 'sec-step-hint', o.stale ? 'En attente du jeu : aucune mesure reçue récemment (ouvrez le jeu avec ce compte).'
+    : `Minage continu : ${secMin(o.streak.valueMin)} min sur ${secMin(T.minutes)} min.`));
+  return box;
+}
+
+/** Diagnostic avancé du compte (replié) : ce que le serveur a vu, relevés complets, reprise. */
+function secTestAdvRender(L) {
+  const body = document.getElementById('sec-test-adv-body');
+  body.innerHTML = '';
+  if (!L) { body.appendChild(secEl('p', 'muted', 'Choisissez d\'abord le compte.')); return; }
+  body.appendChild(secObservedEl(L));
+  const freeze = secFreezeEl(L);
+  if (freeze) body.appendChild(freeze);
 }
 
 async function secTestLoad(q) {
@@ -3236,55 +3269,74 @@ async function secTestRefresh() {
   secTestRender();
 }
 
+const SEC_TEST_BADGES = { ready: 'Prêt', running: 'Essai en cours', pending: 'Défi en attente', solved: 'Résolu', done: 'Terminé', suspended: 'Minage suspendu' };
+const secTestDelay = () => Number(document.querySelector('input[name="sec-test-delay"]:checked')?.value ?? 2);
+
 function secTestRender() {
   const d = _secTest.data;
   const L = d?.lotC ?? null;
   const name = d ? `${d.player.username} (#${d.player.userId})` : '';
   const pending = !!(L?.challenge);
-  const last = L?.history?.challenges?.[0] ?? null;
-  const solved = !!(L && !pending && L.mode === 'enforce' && last?.status === 'solved' && last.origin === 'admin');
-  const needsReset = !!(L && (L.testEnforce || L.testThreshold || L.challenge || L.suspension || L.violationLevel > 0));
-  const done = [!!d, L?.mode === 'enforce', pending || solved, solved, _secTest.ended && !needsReset];
-  const current = done.findIndex(x => !x);
-  const states = [];
+  const T = L?.testThreshold ?? null;
+  const ch = L ? secTestChallenge(L) : null;
+  const solved = !!(L && !pending && ch && ch.status === 'solved');
+  const needsReset = !!(L && (L.testEnforce || T || L.challenge || L.suspension || L.violationLevel > 0));
+  const ended = _secTest.ended && !needsReset;
+  const done = [!!d, L?.mode === 'enforce', !!T || pending || !!ch, solved, ended];
+  const current = ended ? -1 : done.findIndex(x => !x);
   const st = secPlayerStatus(L);
-  states[0] = d ? `✓ Compte choisi : ${name} — ${st.label}.` : 'Saisissez le pseudo du compte qui servira au test (le vôtre ou un compte de test consentant).';
-  states[1] = !L ? 'Choisissez d\'abord le compte.'
-    : L.globalMode === 'off' ? 'Impossible : les protections sont désactivées (voir « Réglages »).'
-    : L.testEnforce ? '✓ Essai actif : ce compte seul peut recevoir une vraie vérification.'
-    : L.mode === 'enforce' ? '✓ Le mode global est déjà « Appliqué » : ce compte reçoit déjà les vérifications.'
-    : 'Ce compte seul recevra de vraies vérifications. Les autres joueurs ne sont pas concernés.';
-  states[2] = !L || L.mode !== 'enforce' ? 'Disponible une fois l\'essai lancé.'
-    : pending ? `✓ Vérification envoyée (${secBxl(L.challenge.createdAt)}).`
-    : L.suspension ? 'Minage suspendu : terminez d\'abord le test.'
-    : solved ? '✓ Vérification envoyée puis résolue. Vous pouvez en envoyer une autre.'
-    : 'Le compte verra la fenêtre « Petite vérification » à son prochain passage dans le jeu.';
+  const delay = secTestDelay();
+  const states = [];
+  states[0] = d ? `✓ Compte choisi : ${name} — ${st.label}.` : 'Le vôtre ou un compte de test consentant.';
+  states[1] = !L ? ''
+    : L.globalMode === 'off' ? '⚠ Impossible : protections désactivées (voir « Réglages »).'
+    : L.testEnforce ? '✓ Essai actif sur ce compte seulement.'
+    : L.mode === 'enforce' ? '✓ Protection déjà « Appliqué » pour tous : rien à lancer.'
+    : 'Ce compte seul pourra recevoir une vraie vérification.';
+  states[2] = !L || L.mode !== 'enforce' ? ''
+    : T ? `✓ Délai actif : vérification après ${secMin(T.minutes)} min de minage continu (expire seul à ${secBxl(T.expiresAt)}).`
+    : pending || ch ? '✓ Vérification envoyée.'
+    : `Délai normal : ${secMin(L.thresholds?.streakMin)} min (inchangé pour les autres joueurs).`;
   states[3] = !L ? ''
     : L.suspension ? `⛔ ${st.label}.`
-    : pending ? (L.challenge.seenAt ? `⏳ Affichée dans le jeu depuis ${secBxl(L.challenge.seenAt)} : à résoudre.` : '⏳ Pas encore affichée : ouvrez le jeu avec ce compte (F5).')
+    : pending ? (L.challenge.seenAt ? `⏳ Vérification affichée depuis ${secBxl(L.challenge.seenAt)} : stoppez l'autoclicker et résolvez-la.` : '⏳ Vérification prête : elle s\'affiche au prochain passage dans le jeu (F5).')
       + (L.challenge.fails ? ` ${L.challenge.fails} mauvaise(s) réponse(s), sans sanction.` : '')
-    : solved ? `✓ Résolue (${secBxl(last.resolvedAt)}) : le compte peut miner normalement.`
+    : solved ? `✓ Résolue à ${secBxlS(ch.resolvedAt)} : le compte mine normalement.`
+    : T ? 'En attente de la vérification…' : '';
+  states[4] = ended ? `✓ Test terminé : ${d?.player.username ?? 'le compte'} est revenu à l'état normal. Protection des autres joueurs inchangée (${SEC_RESP_MODES[L?.globalMode] ?? '—'}).`
+    : needsReset ? 'Supprime le délai court et l\'essai, annule une vérification en cours, lève une suspension éventuelle.'
     : '';
-  states[4] = needsReset ? 'Annule la vérification en cours, lève une suspension éventuelle, remet le palier à 0 et arrête l\'essai. Le mode global ne change pas.'
-    : _secTest.ended ? `✓ Test terminé : ${d?.player.username ?? 'le compte'} peut miner normalement. Mode global inchangé : ${SEC_RESP_MODES[L?.globalMode] ?? '—'}.`
-    : d ? 'Rien à remettre en état.' : '';
   for (let i = 0; i < 5; i++) {
     const li = document.getElementById(`sec-step-${i + 1}`);
-    li.classList.toggle('is-done', done[i] && !(i === 4 && !_secTest.ended));
+    li.classList.toggle('is-done', done[i] && (i < 4 || ended));
     li.classList.toggle('is-current', i === current);
     if (i === current) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
     document.getElementById(`sec-step-${i + 1}-state`).textContent = states[i];
+    // Un seul bouton principal (doré) : celui de l'étape courante ; les autres en contour
+    for (const b of li.querySelectorAll('.sec-step-main')) b.classList.toggle('btn-outline', i !== current);
   }
+  const badgeKey = !d ? 'ready' : ended ? 'done' : L?.suspension ? 'suspended' : pending ? 'pending' : solved ? 'solved' : L?.testEnforce ? 'running' : 'ready';
+  const badge = document.getElementById('sec-test-badge');
+  badge.dataset.state = badgeKey;
+  badge.textContent = SEC_TEST_BADGES[badgeKey];
   const busy = _secTest.busy;
-  const startBtn = document.getElementById('btn-sec-test-start');
-  startBtn.disabled = busy || !L || L.globalMode === 'off' || L.mode === 'enforce';
+  document.getElementById('btn-sec-test-start').disabled = busy || !L || L.globalMode === 'off' || L.mode === 'enforce';
+  const acOn = document.getElementById('btn-sec-test-ac-on');
+  acOn.disabled = busy || !L?.testEnforce || pending || (!!T && T.minutes === delay);
+  acOn.textContent = T && T.minutes !== delay ? `Passer à ${delay} min` : `Activer le délai de ${delay} min`;
+  document.getElementById('sec-test-delay-txt').textContent = `${T ? secMin(T.minutes) : delay} min`;
   document.getElementById('btn-sec-test-challenge').disabled = busy || !L || L.mode !== 'enforce' || pending || !!L.suspension;
   document.getElementById('btn-sec-test-check').disabled = busy || !d;
   document.getElementById('btn-sec-test-end').disabled = busy || !needsReset;
-  const seen = document.getElementById('sec-test-seen');
-  seen.innerHTML = '';
-  if (L) seen.appendChild(secObservedEl(L));
-  secTestAcRender(L);
+  const prog = document.getElementById('sec-test-progress');
+  prog.innerHTML = '';
+  const p = !pending && !ch ? secTestProgressEl(L) : null;
+  if (p) prog.appendChild(p);
+  const res = document.getElementById('sec-test-result');
+  res.innerHTML = '';
+  const r = L && ch ? secTestResultEl(L, ch) : null;
+  if (r) res.appendChild(r);
+  secTestAdvRender(L);
   const pick = document.getElementById('sec-step-1-pick');
   pick.textContent = _secTest.pick ?? '';
   pick.classList.toggle('error', /^⚠/.test(_secTest.pick ?? ''));
@@ -3374,14 +3426,17 @@ document.getElementById('btn-sec-test-challenge').addEventListener('click', () =
 }));
 document.getElementById('btn-sec-test-check').addEventListener('click', () => secTestRun(async () => ''));
 document.getElementById('btn-sec-test-ac-on').addEventListener('click', () => secTestRun(async () => {
-  const minutes = Number(document.getElementById('sec-test-ac-min').value);
+  const minutes = secTestDelay();
   const { ok, data } = await api('POST', `/api/admin/security/player/${_secTest.data.player.userId}/test-threshold`, { minutes });
-  return ok ? '' : `⚠ Seuil court non activé : ${data?.error ?? 'erreur'}.`;
+  return ok ? '' : `⚠ Délai non activé : ${data?.error ?? 'erreur'}.`;
 }));
-document.getElementById('btn-sec-test-ac-off').addEventListener('click', () => secTestRun(async () => {
-  const { ok, data } = await api('POST', `/api/admin/security/player/${_secTest.data.player.userId}/test-threshold`, { minutes: null });
-  return ok ? '' : `⚠ Seuil court non retiré : ${data?.error ?? 'erreur'}.`;
-}));
+document.getElementById('sec-test-delay').addEventListener('change', () => secTestRender());
+// Pendant l'essai, le résultat se met à jour seul (toutes les 10 s, onglet Anti-bot visible)
+setInterval(() => {
+  const L = _secTest.data?.lotC;
+  if (_secTest.busy || !L?.testEnforce || document.hidden || !document.getElementById('sec-test-card').offsetParent) return;
+  secTestRefresh();
+}, 10_000);
 document.getElementById('btn-sec-test-end').addEventListener('click', () => secTestRun(async () => {
   const L = _secTest.data.lotC;
   const uid = _secTest.data.player.userId;
@@ -3669,9 +3724,10 @@ function secFicheHead(d) {
   head.id = 'sec-fiche-head';
   head.appendChild(secEl('p', 'sec-fiche-status', st.label));
   if (st.help) head.appendChild(secEl('p', 'sec-fiche-help', st.help));
-  if (L?.observation) head.appendChild(secObservedEl(L));
-  const freeze = L ? secFreezeEl(L) : null;
-  if (freeze) head.appendChild(freeze);
+  // Résultat lisible du dernier défi ; « Ce que le serveur a vu » et les relevés complets sont dans « Diagnostic avancé »
+  const lastCh = (L?.history?.challenges ?? []).find(c => c.freeze && c.freeze.verdict !== 'unknown');
+  const result = lastCh ? secTestResultEl(L, lastCh) : null;
+  if (result) head.appendChild(result);
   const actions = secEl('div', 'sec-fiche-actions');
   const uid = String(d.player.userId);
   const btn = (label, cls, key, fn) => {
@@ -3755,6 +3811,9 @@ function secRenderPlayer(d) {
     panes[key].setAttribute('aria-labelledby', btn.id);
   }
   root.append(secFicheHead(d), tabs, ess, adv);
+  if (d.lotC?.observation) adv.appendChild(secObservedEl(d.lotC));
+  const freeze = d.lotC ? secFreezeEl(d.lotC) : null;
+  if (freeze) adv.appendChild(freeze);
 
   // ── Vue essentielle ──
   const exactMode = m.exactHpMode ?? 'shadow';

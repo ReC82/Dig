@@ -94,19 +94,18 @@ const ranked = f => f.lotC.testThreshold?.now?.manualBlocks ?? null;
       await page.fill('#sec-test-q', user);
       await page.click('#sec-test-form button[type="submit"]');
       await page.waitForFunction(() => document.getElementById('sec-step-1').classList.contains('is-done'));
-      const seen0 = await page.getAttribute('#sec-test-seen .sec-seen', 'data-verdict');
+      const seen0 = await page.getAttribute('#sec-test-adv-body .sec-seen', 'data-verdict');
       // Jeu ouvert sans miner : sauvegardes reçues sans clic → « sous les seuils » (ou « aucun contrôle » si aucune encore)
       check(tag, '« Ce que le serveur a vu » avant de jouer : aucune anomalie ni défi', ['below', 'none'].includes(seen0), seen0);
-      await page.click('#sec-test-ac > summary');
       check(tag, 'seuil court indisponible avant l\'essai', await page.isDisabled('#btn-sec-test-ac-on'));
       await page.click('#btn-sec-test-start');
       await page.waitForSelector('#adm-confirm[open]');
       await page.click('#adm-confirm-yes');
       await page.waitForFunction(() => document.getElementById('sec-step-2').classList.contains('is-done'));
-      await page.selectOption('#sec-test-ac-min', '1');
+      await page.click('#sec-test-delay label:has(input[value="1"])');
       await page.click('#btn-sec-test-ac-on');
-      await page.waitForFunction(() => /Seuil court actif/.test(document.getElementById('sec-test-ac-state').textContent));
-      check(tag, 'seuil court actif, relevé du début affiché', await page.$('#sec-test-ac-snap table') !== null);
+      await page.waitForFunction(() => /Délai actif/.test(document.getElementById('sec-step-3-state').textContent));
+      check(tag, 'délai court actif, progression affichée', await page.$('#sec-test-progress progress') !== null);
       await page.screenshot({ path: path.join(OUT, `25ac-${short}-1-seuil.png`), fullPage: true });
 
       // Témoin au même rythme (sans essai) pendant que le compte de test mine
@@ -130,8 +129,8 @@ const ranked = f => f.lotC.testThreshold?.now?.manualBlocks ?? null;
       f = await admin('GET', `/api/admin/security/player?q=${user}`);
       check(tag, 'blocs manuels classés figés après la vérification', ranked(f) === frozen, `${frozen} → ${ranked(f)}`);
       await page.click('#btn-sec-test-check');
-      await page.waitForFunction(() => /Vérification envoyée/.test(document.getElementById('sec-step-3-state').textContent));
-      const seen1 = await page.getAttribute('#sec-test-seen .sec-seen', 'data-verdict');
+      await page.waitForSelector('#sec-test-result .sec-result');
+      const seen1 = await page.getAttribute('#sec-test-adv-body .sec-seen', 'data-verdict');
       check(tag, '« Ce que le serveur a vu » : défi réel', seen1 === 'real', seen1);
       await page.screenshot({ path: path.join(OUT, `25ac-${short}-3-admin-gel.png`), fullPage: true });
 
