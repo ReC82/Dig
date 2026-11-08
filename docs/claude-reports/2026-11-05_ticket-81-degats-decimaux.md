@@ -2,6 +2,154 @@
 
 Lien : https://github.com/ReC82/Dig/issues/81 — branche `feature/81-degats-decimaux`.
 
+## 00. Session du 08/11/2026 (22:45, Bruxelles) — bonus des souvenirs : fiche par souvenir, un bonus par type, doubles et échanges
+
+Prise en compte : [demande du propriétaire du 08/11](https://github.com/ReC82/Dig/issues/81#issuecomment-6725198581). Elle reprend la décision ferme du 06/11 (#86) : un souvenir est possédé à vie, son bonus est faible, constant ou calendaire récurrent, jamais consommable ni limité à 15 minutes. Le tout reste **inactif en production**.
+
+### État réel
+
+**Déployé en production (SHA `8002219`) — en attente de recette.** Aucun bonus n'est créé, activé ni transmis au jeu. Aucun taux, prix ou réglage d'économie n'a changé. Aucune migration.
+
+### Ce qui change (Admin → 🎉 Événements → un événement → un souvenir)
+
+La section **« ✨ Bonus du souvenir (#81) — proposition, inactif en jeu »** remplace l'ancien texte fixe. Elle affiche :
+
+1. **Le statut réel** : « 🔒 Aucun bonus défini — inactif en jeu », ou « 🔒 Brouillon — inactif en jeu (N brouillon(s) lié(s)) ».
+2. **Les brouillons ✨ Micro-bonus liés** à ce souvenir, pour chacun :
+   - l'effet (« +0,03 dégât par coup sur tous les blocs — les jeudis ») ;
+   - le type (constant ou calendaire) et le calendrier, en heure de Bruxelles ;
+   - « serait actif / inactif maintenant » et le prochain créneau ;
+   - « Statut réel : brouillon — jamais appliqué » ;
+   - le gain réel à 1, 10, 30, 50 et 100 m, avec une pioche de 1, 2 ou 5 dégâts.
+3. **La proposition à arbitrer pour ce souvenir seul**, avec deux variantes (non enregistrées) et leur gain selon la profondeur :
+   - **A — constante** : +0,01 tout le temps ;
+   - **B — calendaire** : +0,03 le jeudi.
+4. **L'effet cumulé de tous les souvenirs** : 30 Novembre + 31 Noël (dont 26 encore proposés) = **61**.
+   - Tableau par nombre de souvenirs possédés (1, 5, 10, 30, 61) : bonus brut, bonus après plafond, gain à 10, 50 et 100 m, moyenne sur la semaine, et ce que donnerait l'absence de plafond.
+   - Les plafonds anti-avantage des vétérans et les hypothèses sont listés en dessous.
+5. **Les règles proposées** pour la possession, les doubles et les échanges (voir plus bas).
+6. Un bouton **« ✨ Préparer un brouillon lié (inactif) »**. Il ouvre la fiche Micro-bonus par-dessus, déjà liée au souvenir, avec +0,01 sur tous les blocs. **Rien n'est enregistré sans clic sur « Enregistrer le brouillon »**, et un brouillon reste un brouillon (contrainte en base).
+
+Le « gain » est la part de blocs détruits en plus pour le même nombre de coups. C'est ce qui compte au classement #73, qui compte les blocs détruits à la main.
+
+### Chiffres (catalogue publié, sans Chance, simulateur #81 audité le 06/11)
+
+**Un souvenir seul** (pioche 1 / 2 / 5 dégâts) :
+
+| Profondeur | A : +0,01 toujours | B : +0,03 le jeudi |
+|---|---|---|
+| 1 m | 0 % / 0 % / 0 % (vrai zéro) | 0 % / 0 % / 0 % |
+| 10 m | 0 % / 0 % / 0 % | +0,67 % / 0 % / 0 % (le jeudi) |
+| 50 m | +0,67 % / +0,16 % / 0 % | +2,81 % / +1,38 % / +0,09 % (le jeudi) |
+| 100 m | +0,87 % / +0,34 % / +0,06 % | +2,87 % / +1,29 % / +0,41 % (le jeudi) |
+
+Pourquoi des zéros : près de la surface, les PV sont de petits entiers. +0,01 ne fait donc jamais tomber un coup.
+
+**Cumul, pioche de 1 dégât, à 50 m** :
+
+| Souvenirs possédés | A : brut → plafonné (+0,05) | A : gain | A sans plafond | B : brut → plafonné (+0,10) | B : gain le jeudi / moyenne semaine | B sans plafond |
+|---|---|---|---|---|---|---|
+| 1 | +0,01 | +0,67 % | +0,67 % | +0,03 | +2,81 % / +0,40 % | +2,81 % |
+| 5 | +0,05 | +4,67 % | +4,67 % | +0,15 → +0,10 | +9,66 % / +1,38 % | +14,72 % |
+| 30 (Novembre) | +0,30 → +0,05 | +4,67 % | +29,59 % | +0,90 → +0,10 | +9,66 % / +1,38 % | +89,29 % |
+| 61 (Novembre + Noël) | +0,61 → +0,05 | +4,67 % | +60,45 % | +1,83 → +0,10 | +9,66 % / +1,38 % | +99,45 % (borné à +1) |
+
+**Lecture**
+- **Sans plafond, l'avantage des vétérans exploserait** : jusqu'à +60 % de blocs en A et +99 % le jeudi en B.
+- **Avec les plafonds proposés**, l'écart maximal entre un vétéran et un nouveau joueur est de +4,7 % de blocs (A, en permanence), ou de +9,7 % le jeudi, soit +1,4 % sur la semaine (B).
+- **Le plafond est atteint dès 5 souvenirs.** Au-delà, collectionner n'apporte plus aucun avantage : la collection devient honorifique.
+- C'est voulu pour l'équité, mais cela réduit l'intérêt « bonus » de chaque souvenir. C'est à arbitrer (question 1).
+
+### Règle « un seul bonus par TYPE de souvenir » et échanges (#93) — étude
+
+Le module `server/souvenirBonus.js` est pur. Il n'écrit rien en base et n'est relié au jeu nulle part.
+- `resolve(inventaire, bonus)` calcule le bonus d'un joueur.
+  - Un type de souvenir possédé (1 ou 12 exemplaires) compte **une seule fois**.
+  - Les bonus de types différents s'additionnent, puis le total est plafonné.
+  - Le résultat ne dépend que de l'inventaire et de l'instant **actuels**. Il n'y a donc pas d'historique, et il n'y a **aucune rétroactivité** : les blocs déjà minés ne sont jamais recalculés.
+- `transfer(donneur, receveur, souvenir)` modélise un échange.
+  - Le donneur **garde** son bonus tant qu'il lui reste un exemplaire, et le **perd avec le dernier**.
+  - Le receveur gagne le bonus **immédiatement**, sauf s'il possédait déjà ce type : dans ce cas, il ne gagne rien.
+  - Un échange n'augmente jamais la puissance totale.
+  - Transférer un exemplaire non possédé est refusé.
+- **Réévaluation idempotente** : recalculer deux fois le même inventaire donne le même résultat. Le jour où un bonus sera actif, il suffira de recalculer après chaque changement d'inventaire (trouvaille, échange), côté serveur.
+- Si deux brouillons sont liés au même souvenir, seul le plus ancien compte. La fiche le signale.
+- Aujourd'hui, #56 garde « un exemplaire par joueur » (clé primaire `monthly_event_finds`). Les quantités arriveront avec #93. Le module accepte déjà des quantités.
+
+### Tests
+
+- `npm test` : **1013/1013** sur la branche, et sur le SHA exact de release `8002219`.
+- `test/souvenir-bonus-81.test.js` (nouveau) : **7/7**. Il couvre :
+  - doubles sans effet, quantités invalides, deux brouillons liés au même souvenir ;
+  - plafond, et jeudi 00:00 ↔ mercredi 23:59 à Bruxelles ;
+  - les transferts : un double, le dernier exemplaire, un receveur qui possède déjà le souvenir, les refus ;
+  - l'idempotence et l'absence de rétroactivité ;
+  - la fiche : chiffres identiques au simulateur audité, comptes 30 + 31 dont 26 proposés, aucune écriture en base ;
+  - une seule route, admin et en lecture seule, et aucune référence dans le code du jeu.
+- **e2e Chromium `test/e2e/souvenir-bonus-81.e2e.js`** (copie de la base de prod, PC 1280 et mobile 390) : **OK**.
+  - La section s'affiche avec les variantes, le cumul 61 et les règles.
+  - Les tableaux défilent à l'intérieur de la fiche.
+  - Le brouillon lié s'ouvre par-dessus et se ferme sans rien enregistrer.
+  - 0 erreur JS.
+- **Non-régression e2e `decimal-damage`** : 31/31 sur un passage. 2 passages sur 3 ont expiré dans la partie joueur `strikes`, comme lors de la session du 06/11 (rythme du test ; code joueur non modifié).
+- **Copie de prod en `NODE_ENV=production`** : empreintes des 6 tables identiques après démarrage, aucune table ajoutée.
+
+### Déploiement
+
+- **Déployé `8002219`** (précédent : `3681410`).
+- Sauvegarde pré-déploiement vérifiée : `~/backups/dig/dig-20261108-224133-pre-deploy-8002219.sqlite`.
+- Aucune génération IA n'était en cours (dernier appel à 17:00 UTC).
+- Vérifié après déploiement :
+  - les 2 domaines répondent 200, version `1.0.0+8002219` ;
+  - journal sans erreur, `quick_check` ok ;
+  - empreintes joueurs identiques à la sauvegarde ;
+  - la nouvelle route répond 401 sans authentification ;
+  - Chromium en production, PC et 390 px, jeu invité et admin : 0 erreur JS, pas de défilement horizontal.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 3681410` puis `sudo systemctl restart dig`. Il n'y a ni migration ni donnée à restaurer.
+
+### Test à faire par le propriétaire (environ 3 min)
+
+1. /admin/ (F5) → 🎉 Événements → « Novembre déterre l'Histoire » → cliquer sur un souvenir.
+2. En bas de la fiche, section ✨ : **attendu** « 🔒 Aucun bonus défini — inactif en jeu », et la proposition ouverte avec les variantes A et B.
+   - **Attendu à 50 m avec une pioche de 1 dégât** : +0,67 % en A et +2,81 % en B.
+   - **Attendu à 1 m** : « 0 % (aucun) ».
+3. Déplier « Effet cumulé… (30 … + 31 … dont 26 proposés = 61) ». **Attendu** :
+   - en A, ligne 61 : « +0,61 », « +0,05 (plafonné) », +4,67 % à 50 m, +60,45 % sans plafond ;
+   - en B, ligne 61 : « +1,83 », « +0,1 (plafonné) », +9,66 % le jeudi, +1,38 % sur la semaine.
+4. Déplier « Règles proposées… » : la règle « un seul bonus par TYPE », les doubles et les échanges.
+5. « ✨ Préparer un brouillon lié (inactif) » : la fiche Micro-bonus s'ouvre, le souvenir est déjà choisi. Fermer avec « ✕ Fermer » : rien n'est enregistré, rien ne change en jeu.
+
+Classement : **Après lancement**. Aucun bonus n'est nécessaire au MVP, et le système reste inactif.
+
+### Choix techniques faits seul
+
+- **Variantes chiffrées** : ce sont celles du rapport #86 § 7.2, avec les plafonds globaux qui y étaient recommandés (+0,05 / +0,10). Aucun nouveau barème n'a été inventé. Elles sont calculées à l'affichage et ne sont jamais enregistrées.
+- **Comptage des souvenirs** : les souvenirs proposés de Noël sont comptés dans le cumul (« futur 31 Noël »). Les événements de test sont exclus.
+- **Fiche Micro-bonus** : elle est déplacée sous `<body>` quand on l'ouvre depuis un souvenir. Un `<dialog>` placé dans une rubrique masquée ne s'affiche pas.
+
+### Remarque hors périmètre
+
+- Sur mobile 390, la fiche d'un souvenir déborde déjà de 55 px en largeur, **sans la nouvelle section** (mesuré avec la section masquée : même valeur). Ce n'est pas corrigé ici. À signaler pour #86/#76.
+
+### Décisions demandées au propriétaire
+
+1. **Barème** :
+   - (A) +0,01 constant par type, plafond +0,05 ;
+   - (B) +0,03 le jeudi, plafond +0,10 ;
+   - (C) aucun effet, souvenirs honorifiques.
+
+   *Recommandation : C pour le lancement. Si un bonus est voulu : B, avec le départ de saison protégé.*
+2. **Règle « un seul bonus par type de souvenir, quel que soit le nombre de doubles »** : à valider. *Recommandation : oui (modélisée et testée).*
+3. **Plafond global** : +0,05 en permanence, ou +0,10 le jeudi. Il est atteint dès 5 souvenirs. *Recommandation : garder ces plafonds, car l'écart sans plafond est démesuré.*
+4. (Toujours ouvertes) La préférence « valeurs précises » liée au compte : *pas avant le lancement*. Le bonus vise la nature visible du bloc : *garder*.
+
+### Reste à faire (Après lancement, seulement après validation d'un barème)
+
+- Transmettre côté serveur les bonus possédés (`resolve` après chaque trouvaille ou échange).
+- Ajouter le plafond du cumul dans la borne anti-bot `MAX_CLICK_DAMAGE` (#25/#77).
+- Rédiger les textes joueur en FR/EN/NL/ES/IT.
+- Gérer les quantités et les échanges dans #93.
+
 ## 0. Session du 06/11/2026 (14:00, Bruxelles) — recette #81-B : simulateur expliqué et audité
 
 ### 0.1 État réel
