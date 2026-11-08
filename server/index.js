@@ -119,6 +119,7 @@ const extensionSignatures = require('./extensionSignatures');
 const antibotResponses = require('./antibotResponses');
 const playSession = require('./playSession');
 const testRuns = require('./testRuns');
+const playerAdmin = require('./playerAdmin');
 const ads = require('./ads');
 const legal = require('./legal');
 const beta  = require('./beta');
@@ -432,7 +433,12 @@ app.post('/api/login', limit.login, async (req, res) => {
 app.get('/api/me', (req, res) => {
   try {
     const mail = mailer.enabled;
-    if (!req.session.userId) return res.json({ user: null, mail, social: social.describe(req, null), x: xStatus.describe(null) });
+    if (!req.session.userId) {
+      // Compte supprimé (#90) : signalé une seule fois, le client a purgé sa sauvegarde locale
+      const accountDeleted = req.session.accountDeleted === true;
+      if (accountDeleted) delete req.session.accountDeleted;
+      return res.json({ user: null, mail, social: social.describe(req, null), x: xStatus.describe(null), ...(accountDeleted ? { accountDeleted } : {}) });
+    }
     const user = getUserAuth(req.session.userId);
     if (!user) { req.session.destroy(() => {}); return res.json({ user: null, mail }); }
     res.json({ user: publicAccount(user), mail, social: social.describe(req, user), x: xStatus.describe(user) });
@@ -2563,6 +2569,38 @@ app.post('/api/admin/players/:userId/temp-password', requireAdmin, async (req, r
 
 // ── Admin — Joueurs ───────────────────────────────────────────────────────────
 
+function playerAdminRoute(label, fn) {
+  return (req, res) => {
+    const userId = parseInt(req.params.userId, 10);
+    if (req.params.userId !== undefined && (!Number.isSafeInteger(userId) || userId <= 0)) return res.status(400).json({ error: 'userId invalide.' });
+    try { res.json(fn(req, userId)); }
+    catch (err) {
+      if (err instanceof playerAdmin.PlayerAdminError) return res.status(err.status).json({ error: err.message, code: err.code });
+      console.error(`[${label}]`, err);
+      res.status(500).json({ error: 'Erreur serveur : aucune modification appliquée.' });
+    }
+  };
+}
+
+/**
+ * GET /api/admin/players?q=&page=&per=10|20|50&sort=activity|created_desc|created_asc|username|id&filter=all|active7|testers|test_accounts|suspended
+ * Liste paginée côté serveur (#90), affichée dès l'ouverture de la rubrique. Jamais d'e-mail.
+ */
+app.get('/api/admin/players', requireAdmin, playerAdminRoute('GET /api/admin/players', req => playerAdmin.listPlayers(req.query)));
+/** POST { confirmUsername, reason } — marque « compte de test » (prérequis de la suppression, #90). */
+app.post('/api/admin/players/:userId/test-account', requireAdmin, playerAdminRoute('POST test-account',
+  (req, id) => ({ ok: true, ...playerAdmin.markTestAccount(id, req.body, { actor: `admin (${req.adminVia})` }) })));
+/** DELETE — retire la marque « compte de test ». */
+app.delete('/api/admin/players/:userId/test-account', requireAdmin, playerAdminRoute('DELETE test-account',
+  (req, id) => ({ ok: true, ...playerAdmin.unmarkTestAccount(id, { actor: `admin (${req.adminVia})` }) })));
+/** GET — aperçu de la suppression : verrous, données effacées / conservées. Ne modifie rien. */
+app.get('/api/admin/players/:userId/delete-preview', requireAdmin, playerAdminRoute('GET delete-preview', (req, id) => playerAdmin.previewDelete(id)));
+/** POST { confirmUsername, confirmWord: 'SUPPRIMER', reason, requestId } — supprime un compte de test (#90). */
+app.post('/api/admin/players/:userId/delete', requireAdmin, playerAdminRoute('POST delete',
+  (req, id) => playerAdmin.deleteTestAccount(id, req.body, { actor: `admin (${req.adminVia})`, ip: req.ip })));
+/** GET — dernières suppressions de comptes de test (trace d'audit). */
+app.get('/api/admin/players-deletions', requireAdmin, playerAdminRoute('GET players-deletions', () => ({ deletions: playerAdmin.listDeletions() })));
+
 /**
  * GET /api/admin/players/search?q=<username>
  * Recherche des joueurs par nom d'utilisateur (max 20 résultats).
@@ -2931,6 +2969,7 @@ if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') 
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_EVENT_DECISIONS !== '0') monthlyEvents.applyOwnerDecisions();
 // Souvenirs PROPOSÉS préparés (server/content/event-proposals) : jamais publiés ni tirés, après les décisions (#56-K)
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importProposals();
+playerAdmin.init();              // liste paginée des joueurs, comptes de test et suppression contrôlée (#90)
 testRuns.init();                 // essais de test : instantanés, reset complet, restauration, audit chaîné (#75)
 rewardPoints.ensureDefaults();   // barème proposé v1 en simulation si aucun barème (#33)
 rewardPoints.applyOwnerDecision();   // décision du 30/10/2026 : barème v1 validé, crédit réel (une seule fois)

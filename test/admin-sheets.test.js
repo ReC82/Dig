@@ -70,7 +70,8 @@ test('historique : essai en cours d\'abord, plus récent ensuite ; recherche à 
   const load = JS.slice(JS.indexOf('async function loadTestRuns('), JS.indexOf('function trFillDialog('));
   assert.ok(load.indexOf('(en cours)') < load.indexOf('[...data.runs].reverse()'));
   assert.match(load, /admTablePage\(table, document\.getElementById\('tr-pager'\), TR_PAGE\)/);
-  assert.match(JS, /if \(data\.users\.length === 1\) viewPlayerSave\(data\.users\[0\]\.id, data\.users\[0\]\.username\)/);
+  // #90 : la recherche passe par la liste paginée ; un seul résultat au bouton → fiche ouverte directement
+  assert.match(JS, /if \(openSingle && data\.total === 1\) viewPlayerSave\(data\.players\[0\]\.id, data\.players\[0\]\.username\)/);
 });
 
 test('CSS : pied de confirmation fixe dans les fenêtres, tableaux en cartes sur smartphone', () => {

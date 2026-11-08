@@ -19,6 +19,7 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
 | Trouver un joueur (ouvrir sa fiche) | Joueurs & testeurs › Joueurs › recherche du pseudo (en tête de page) | `#a/find-player` |
 | Recommencer un test à zéro (joueur) | Joueurs › fiche du joueur › 🧪 Essais de test › « Recommencer un test à zéro » | `#a/reset-test` |
 | Exporter l'historique des essais d'un joueur | Joueurs › fiche du joueur › 🧪 Essais de test › Exporter CSV / JSON | `#a/export-tests` |
+| Supprimer un compte de test (refaire l'inscription) | Joueurs › fiche du joueur › 🗑 Actions sensibles (repliée) › marquer comme compte de test, puis « Supprimer le compte de test… » | `#a/delete-test-account` |
 | Réinitialisation saisonnière partielle (joueur) | Joueurs › fiche du joueur › ⚠ Réinitialisation saisonnière partielle (repliée) | `#a/partial-reset` |
 | Tester la protection anti-bot sur un compte | Joueurs & testeurs › Anti-bot › Tester la protection (parcours en 5 étapes) | `#a/sec-test` |
 | Voir l'anti-bot d'un joueur | Joueurs & testeurs › Anti-bot › Joueurs à surveiller › Ouvrir la fiche d'un joueur (ou bouton 🛡 de la fiche Joueurs) | `#a/player-antibot` |
@@ -47,7 +48,7 @@ Liens directs (à ajouter après `/admin/`) : `#<rubrique>` (ex. `#players`), `#
 ## Toutes les rubriques
 
 - **👥 Joueurs & testeurs**
-  - 👤 Joueurs (`#players`) — recherche du pseudo, fiche : progression, 🧪 essais de test, réinitialisation partielle, 🛡 anti-bot du joueur
+  - 👤 Joueurs (`#players`) — liste paginée (tri, filtre, recherche), fiche : progression, 🧪 essais de test, réinitialisation partielle, 🛡 anti-bot du joueur, 🗑 actions sensibles (compte de test)
   - 🛡 Anti-bot (`#security`)
   - 🧪 Bêta fermée (`#beta`)
 - **⛏ Jeu & progression**

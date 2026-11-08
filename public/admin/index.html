@@ -333,28 +333,52 @@
     <div class="section-header">
       <h2>👤 Gestion des joueurs</h2>
     </div>
-    <p class="muted" style="margin-bottom:12px;font-size:0.85rem">Tapez un pseudo puis choisissez-le : la fiche s'ouvre ici avec sa progression, ses <strong>essais de test</strong> (« Recommencer un test à zéro », exports) et un accès direct à sa <strong>fiche anti-bot</strong>. Aucune action n'est lancée sans confirmation.</p>
-    <!-- Recherche de joueurs -->
-    <div class="overview-card">
-      <h3 class="overview-card-title">🔎 Trouver un joueur</h3>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-        <div class="player-ac" style="flex:1;min-width:180px">
-          <input type="text" id="player-search-input" placeholder="Pseudo du joueur (2 lettres ou plus : suggestions)…" autocomplete="off"
+    <p class="muted" style="margin-bottom:12px;font-size:0.85rem">La liste des joueurs s'affiche tout de suite ; cliquez un pseudo pour ouvrir sa fiche (progression, <strong>essais de test</strong>, <strong>fiche anti-bot</strong>, actions sensibles). Aucune action n'est lancée sans confirmation.</p>
+    <!-- Liste paginée des joueurs (#90) : pagination, tri, filtre et recherche côté serveur -->
+    <div class="overview-card" id="players-list-card">
+      <h3 class="overview-card-title">👥 Joueurs <span class="muted" id="pl-total" aria-live="polite"></span></h3>
+      <div class="pl-toolbar">
+        <div class="player-ac pl-search">
+          <input type="text" id="player-search-input" placeholder="Pseudo (partiel) ou #ID…" autocomplete="off" maxlength="40"
                  role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="player-search-suggest"
                  aria-label="Rechercher un joueur par pseudo">
           <ul id="player-search-suggest" class="player-ac-list hidden" role="listbox" aria-label="Joueurs suggérés"></ul>
         </div>
-        <button class="btn" id="btn-player-search">Rechercher</button>
+        <button class="btn" id="btn-player-search" type="button">Rechercher</button>
+        <button class="btn btn-outline" id="btn-player-search-clear" type="button" hidden>Effacer</button>
+        <label class="pl-field">Tri
+          <select id="pl-sort" class="league-select">
+            <option value="activity">Dernière activité</option>
+            <option value="created_desc">Inscription (récentes)</option>
+            <option value="created_asc">Inscription (anciennes)</option>
+            <option value="username">Pseudo (A→Z)</option>
+            <option value="id">ID</option>
+          </select></label>
+        <label class="pl-field">Filtre
+          <select id="pl-filter" class="league-select">
+            <option value="all">Tous</option>
+            <option value="active7">Actifs (7 jours)</option>
+            <option value="testers">Testeurs bêta</option>
+            <option value="test_accounts">Comptes de test</option>
+            <option value="suspended">Suspendus (anti-bot)</option>
+          </select></label>
+        <label class="pl-field">Par page
+          <select id="pl-per" class="league-select">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select></label>
       </div>
-      <p class="muted" style="margin:-8px 0 12px;font-size:0.85rem">Choisir une suggestion ouvre directement la fiche du joueur (sélection par identifiant, sans e-mail). « Rechercher » affiche le tableau complet (la fiche s'ouvre directement s'il n'y a qu'un joueur).</p>
       <p id="players-hint" class="players-hint hidden" role="status"></p>
-      <div id="player-search-results" class="hidden">
-        <table id="player-results-table" class="adm-rtable">
-          <thead><tr><th>ID</th><th>Nom</th><th>Email</th><th>Ligue</th><th>Depuis</th><th>Action</th></tr></thead>
-          <tbody></tbody>
+      <p id="pl-error" class="error hidden" role="alert"></p>
+      <div id="player-search-results">
+        <table id="player-results-table" class="adm-rtable pl-table">
+          <thead><tr><th>Pseudo</th><th>ID</th><th>Inscription</th><th>Dernière activité</th><th>Statut</th><th>Progression</th></tr></thead>
+          <tbody><tr><td colspan="6" class="muted">Chargement…</td></tr></tbody>
         </table>
-        <div id="player-results-pager" class="adm-pager" hidden></div>
+        <nav id="player-results-pager" class="adm-pager" aria-label="Pages de joueurs" hidden></nav>
       </div>
+      <p class="muted pd-note">Dernière activité : dernière sauvegarde ou dernier signal de la page de jeu reçus par le serveur (heure de Bruxelles). Les adresses e-mail ne sont jamais affichées ici.</p>
     </div>
 
     <!-- Détails d'un joueur (#76 : résumé compact, actions en tête, détails repliés) -->
@@ -433,6 +457,21 @@
         <p id="player-reset-err" class="error hidden" style="margin-top:8px"></p>
       </div>
       </details>
+
+      <!-- Actions sensibles (#90) : compte de test et suppression, repliées par défaut -->
+      <details class="pd-sec" id="pd-sec-sensitive"><summary>🗑 Actions sensibles — compte de test, supprimer le compte pour refaire l'inscription</summary>
+      <div class="danger-zone pd-zone">
+        <p class="muted pd-note">Trois opérations différentes : <strong>« Recommencer un test à zéro »</strong> (ci-dessus) garde le compte et son login ; <strong>« Retirer de la bêta »</strong> (rubrique Bêta fermée) ne retire que l'accès bêta ; <strong>« Supprimer le compte de test »</strong> (ici) efface le compte pour que le même pseudo et la même adresse puissent refaire la vraie inscription.</p>
+        <p id="pd-test-state" class="pd-test-state"></p>
+        <div class="form-actions">
+          <button class="btn btn-outline btn-sm" id="btn-pd-test-mark" type="button">🏷 Marquer comme compte de test</button>
+          <button class="btn btn-outline btn-sm hidden" id="btn-pd-test-unmark" type="button">Retirer la marque « compte de test »</button>
+          <button class="btn btn-danger btn-sm" id="btn-pd-delete" type="button">🗑 Supprimer le compte de test…</button>
+        </div>
+        <p id="pd-sens-done" class="success hidden" role="status"></p>
+        <p id="pd-sens-err" class="error hidden" role="alert"></p>
+      </div>
+      </details>
     </div>
 
     <!-- Confirmation « Recommencer un test à zéro » (#75) : hors des sections repliables -->
@@ -455,6 +494,45 @@
         <div class="form-actions">
           <button type="button" class="btn btn-outline" data-close>Annuler</button>
           <button type="button" class="btn btn-danger" id="btn-tr-confirm" disabled>Confirmer</button>
+        </div>
+      </dialog>
+
+    <!-- Marquer comme compte de test (#90) -->
+      <dialog id="pd-mark-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="pd-mark-title">
+        <h3 class="overview-card-title" id="pd-mark-title">Marquer comme compte de test</h3>
+        <p>Seul un compte <strong>marqué comme compte de test</strong> peut être supprimé. Ne marquez jamais le compte d'un vrai joueur.</p>
+        <div class="adm-form">
+          <label>Motif (obligatoire, sans donnée personnelle) <textarea id="pd-mark-reason" rows="2" maxlength="300"></textarea></label>
+          <label>Pour confirmer, saisissez exactement le pseudo <strong class="pd-mark-name"></strong> <input type="text" id="pd-mark-input" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <p id="pd-mark-msg" class="error hidden"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" data-close>Annuler</button>
+          <button type="button" class="btn btn-danger" id="btn-pd-mark-confirm" disabled>Marquer</button>
+        </div>
+      </dialog>
+
+    <!-- Supprimer un compte de test (#90) : aperçu d'impact + confirmation forte -->
+      <dialog id="pd-del-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="pd-del-title">
+        <h3 class="overview-card-title" id="pd-del-title">Supprimer le compte de test</h3>
+        <p id="pd-del-blocked" class="error hidden"></p>
+        <ul id="pd-del-always" class="adm-confirm-impact"></ul>
+        <details class="pd-more" id="pd-del-details"><summary>Détails : données effacées et conservées</summary>
+          <div class="table-wrapper">
+            <table id="pd-del-erased"><thead><tr><th>Effacé</th><th>Lignes</th></tr></thead><tbody></tbody></table>
+          </div>
+          <ul id="pd-del-kept" class="adm-confirm-impact"></ul>
+        </details>
+        <div class="adm-form" id="pd-del-form">
+          <label>Motif (obligatoire, sans donnée personnelle) <textarea id="pd-del-reason" rows="2" maxlength="300"></textarea></label>
+          <label>Saisissez exactement le pseudo <strong class="pd-del-name"></strong> <input type="text" id="pd-del-input" autocomplete="off" spellcheck="false"></label>
+          <label>Puis le mot <strong>SUPPRIMER</strong> <input type="text" id="pd-del-word" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <p class="muted pd-note">Vous devrez peut-être créer une nouvelle invitation (rubrique Bêta fermée) : le lien déjà utilisé reste consommé. Action irréversible.</p>
+        <p id="pd-del-msg" class="error hidden"></p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" data-close>Annuler</button>
+          <button type="button" class="btn btn-danger" id="btn-pd-del-confirm" disabled>Supprimer définitivement</button>
         </div>
       </dialog>
   </section>
@@ -895,6 +973,7 @@
                 <option value="group:admin">Tout l'audit admin</option>
                 <option value="admin_config">Config admin</option>
                 <option value="admin_action">Actions admin</option>
+                <option value="admin_account_deleted">Compte de test supprimé (#90)</option>
                 <option value="admin_login">Connexions admin</option>
                 <option value="admin_login_failed">Connexions admin refusées</option>
               </optgroup>
