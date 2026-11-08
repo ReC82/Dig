@@ -354,3 +354,13 @@ test('recettes #59-G/H : Verbeteringen et kansen van kisten en NL, unité « m �
     }
   }
 });
+
+test('recette du 08/11 : cartes des coffres en NL sans « Coins » anglais', () => {
+  const { ctx } = browser({ locales: ['it'] });
+  ctx.I18n.setLang('nl');
+  assert.strictEqual(ctx.t('shop_chest.simple.desc'), 'Munten, fragmenten of een boost — kleine gegarandeerde beloningen.');
+  for (const k of ['simple', 'rare', 'antique']) {
+    assert.doesNotMatch(ctx.t(`shop_chest.${k}.desc`), /\bcoins?\b/i, k);
+    assert.doesNotMatch(ctx.t(`shop_chest.${k}.name`), /\bcoins?\b/i, k);
+  }
+});

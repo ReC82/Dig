@@ -2602,7 +2602,7 @@ const I18n = (() => {
         close:        'Sluiten',
       },
       shop_chest: {
-        simple:  { name: 'Eenvoudige kist', desc: 'Coins, fragmenten of een boost — kleine gegarandeerde beloningen.' },
+        simple:  { name: 'Eenvoudige kist', desc: 'Munten, fragmenten of een boost — kleine gegarandeerde beloningen.' },
         rare:    { name: 'Zeldzame kist',   desc: 'Grotere kans op fragmenten en een verzamelobject.' },
         antique: { name: 'Antieke kist',    desc: 'Mogelijke fragmentenjackpot. Beperkt tot 5 keer openen per seizoen.' },
       },
