@@ -120,14 +120,18 @@ test('traductions EN/NL du résultat figé', () => {
 
 test('onglet Saison branché : carte du résultat, règles du mérite, accès boutique, erreur', () => {
   const main = read('public/js/main.js');
-  // Recette #48-D : synthèse (points, classement) en haut ; résultat archivé et boutique repliés dessous
-  assert.match(main, /<div id="season-points">[\s\S]*?id="\$\{lbId\}"[\s\S]*?<div id="season-last">\$\{_lastResultHtml\(\)\}<\/div>\s*<div id="season-shop">/);
+  // Recette #84-D : rang puis classement tout de suite ; points (boutique comprise) repliés sur une
+  // ligne, annonce de la saison suivante, puis résultat archivé
+  assert.match(main, /\$\{playerHtml\}\s*<h3 class="season-section-title">[\s\S]*?id="\$\{lbId\}"[\s\S]*?<div id="season-points">\$\{_pointsHtml\(\)\}<\/div>\s*\$\{_nextSeasonHtml\(apiData\.next\)\}\s*<div id="season-last">/);
+  assert.ok(!main.includes('<div id="season-shop">${_shopHtml()}</div>\n    ${infoHtml}'), 'plus de boutique en double en bas');
   assert.match(main, /<details class="points-card last-card season-fold"\$\{foldOpen\}>/);
   assert.match(main, /<details class="points-card shop-card season-fold"\$\{foldOpen\}>/);
-  assert.match(main, /if \(sh\) sh\.open = true;/);
+  assert.match(main, /<details class="points-card points-fold season-fold"\$\{foldOpen\}>/);
+  assert.match(main, /if \(fold\) fold\.open = true;/);
+  assert.match(main, /sh\.open = true;/);
   for (const k of ['season.merit.join', 'season.merit.order', 'season.merit.freeze', 'season.merit.points'])
     assert.ok(main.includes(`t('${k}'`), k);
-  assert.match(main, /data-scroll-shop/);
+  assert.ok(!main.includes('data-scroll-shop'), 'lien « Ouvrir la boutique » en double retiré (#84-D)');
   assert.match(main, /el\.innerHTML = `<div class="view-title-bar">\$\{t\('season\.title'\)\}<\/div>\$\{_seasonErrorHtml\(\)\}`/);
   const fr = read('public/js/i18n.js');
   assert.match(fr, /Aucun tirage au sort/);
