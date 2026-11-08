@@ -53,6 +53,8 @@ const stepState = (page, n) => page.evaluate(i => {
 }, n);
 
 (async () => {
+  // Base neuve : la décision du 08/11 met le mode global en Appliqué ; cet essai part d'Observation
+  await admin('PUT', '/api/admin/config', { key: 'antibot_response_mode', value: 'observe' });
   const browser = await chromium.launch({ executablePath: process.env.CHROME });
   try {
     for (const [tag, viewport, isMobile] of [['pc 1280', { width: 1280, height: 900 }, false], ['mobile 390', { width: 390, height: 844 }, true], ['mobile 320', { width: 320, height: 640 }, true]]) {

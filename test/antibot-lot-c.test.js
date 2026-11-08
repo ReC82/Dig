@@ -128,10 +128,12 @@ test.after(() => {
 
 // ── Valeurs par défaut sûres ────────────────────────────────────────────────
 
-test('défaut : mode Observation, rien n\'est montré au joueur ; validation des réglages', () => {
+test('défaut : Appliqué par décision du propriétaire (08/11), Observation en repli ; validation des réglages', () => {
   const cfg = db.getAdminConfig();
-  assert.strictEqual(cfg.antibot_response_mode, 'observe');
-  assert.strictEqual(responses.getGlobalMode(cfg), 'observe');
+  // Décision issue25-global-enforce-2026-11-08 : observe → enforce une seule fois (voir antibot-global-enforce-timer)
+  assert.strictEqual(cfg.antibot_response_mode, 'enforce');
+  assert.strictEqual(responses.getGlobalMode(cfg), 'enforce');
+  assert.strictEqual(responses.getGlobalMode({}), 'observe', 'sans réglage : Observation');
   assert.strictEqual(responses.getGlobalMode({ ...cfg, antibot_mode: 'off' }), 'off');
   assert.strictEqual(responses.getGlobalMode(cfg, { ANTIBOT: 'off' }), 'off');
   assert.deepStrictEqual(responses.getParams({}).ab_suspension_ladder, [5, 15, 30, 60, 120, 720, 1440]);
@@ -281,7 +283,7 @@ test('énigme : mauvaise réponse, trop rapide, expirée, rejouée → aucune sa
   p = responses.newPuzzle(u, id, { nowMs: T0 + 6000 });
   assert.strictEqual(responses.answer(u, id, p.puzzleId, '9,9', { nowMs: T0 + 9000 }).reason, 'wrong');
   p = responses.newPuzzle(u, id, { nowMs: T0 + 10_000 });
-  assert.strictEqual(responses.answer(u, id, p.puzzleId, 'x', { nowMs: T0 + 10_000 + responses.PUZZLE_TTL_MS + 1 }).reason, 'expired');
+  assert.strictEqual(responses.answer(u, id, p.puzzleId, 'x', { nowMs: T0 + 10_000 + 30_000 + responses.PUZZLE_GRACE_MS + 1 }).reason, 'expired');
   const ch = db.getDb().prepare('SELECT * FROM antibot_challenges WHERE id = ?').get(id);
   assert.strictEqual(ch.status, 'pending');
   assert.strictEqual(ch.fails, 2);

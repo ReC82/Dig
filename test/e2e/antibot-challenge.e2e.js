@@ -37,6 +37,8 @@ async function solveGrid(p) {
 }
 
 (async () => {
+  // Base neuve : la décision du 08/11 met le mode global en Appliqué ; cet essai part d'Observation
+  await admin('PUT', '/api/admin/config', { key: 'antibot_response_mode', value: 'observe' });
   const b = await chromium.launch({ executablePath: process.env.CHROME || undefined });
   for (const [w, h] of [[1280, 900], [390, 844]]) {
     const mobile = w < 600, tag = `${w}`;

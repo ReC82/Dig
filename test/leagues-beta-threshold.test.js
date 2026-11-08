@@ -84,7 +84,7 @@ test('base au seuil 10 : passage à 3 une seule fois, autres réglages identique
 
   quiet(() => db.initDb());
   assert.strictEqual(value(), '3');
-  assert.strictEqual(sql().prepare('SELECT COUNT(*) n FROM admin_config_decisions').get().n, 1);
+  assert.strictEqual(sql().prepare('SELECT COUNT(*) n FROM admin_config_decisions WHERE id = ?').get(DECISION).n, 1);
 });
 
 test('retour arrière à 10 depuis le panel : conservé après redémarrage', () => {

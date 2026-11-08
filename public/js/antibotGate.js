@@ -7,6 +7,8 @@
  *   - l'Auto-Dig, la boutique, l'inventaire, les boosts et le compte restent utilisables ;
  *   - la fenêtre peut être fermée et rouverte (bouton dans le jeu ou clic sur le bloc).
  * Un échec, une énigme expirée ou une erreur réseau ne sanctionnent jamais : nouvelle énigme.
+ * Chrono (#25, 08/11) : durée envoyée par le serveur (`seconds`), décomptée avec l'horloge monotone
+ * du navigateur depuis la réception ; le serveur garde sa propre expiration (marge réseau en plus).
  * Aucune réponse n'est vérifiée ici : l'énigme et sa solution restent sur le serveur.
  */
 const AntibotGate = (() => {
@@ -19,6 +21,8 @@ const AntibotGate = (() => {
   let _timer  = null;
   let _seenId = null;
   let _busy   = false;
+  let _deadline = 0;      // performance.now() de fin de l'énigme affichée (0 : pas de chrono)
+  let _tickId = null;
 
   const T = (k, v) => (_deps ? _deps.t(`antibot.${k}`, v) : k);
 
@@ -44,6 +48,10 @@ const AntibotGate = (() => {
         <h2 id="antibot-title"></h2>
         <p id="antibot-text"></p>
         <p id="antibot-keep" class="antibot-muted"></p>
+        <div id="antibot-timer" hidden>
+          <span id="antibot-timer-txt" role="timer" aria-live="off"></span>
+          <span class="antibot-timer-bar" aria-hidden="true"><i id="antibot-timer-fill"></i></span>
+        </div>
         <div id="antibot-puzzle"></div>
         <p id="antibot-msg" role="status" aria-live="polite"></p>
         <div id="antibot-actions">
@@ -62,6 +70,8 @@ const AntibotGate = (() => {
     });
     _el.querySelector('#antibot-close').addEventListener('click', hide);
     _el.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+    // Onglet remis au premier plan : les minuteries ont pu être ralenties, le chrono est recalculé
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) _tick(); });
     return _el;
   }
 
@@ -105,10 +115,43 @@ const AntibotGate = (() => {
     return tpl.content.firstChild;
   }
 
+  const _expired = () => !!_puzzle && _deadline > 0 && performance.now() >= _deadline;
+
+  function _stopTimer() { clearInterval(_tickId); _tickId = null; }
+
+  /** Met à jour le chrono ; à zéro : énigme désactivée, le joueur en demande une autre (sans sanction). */
+  function _tick() {
+    const box = _el?.querySelector('#antibot-timer');
+    if (!box) return;
+    if (!_puzzle || !_deadline || _state?.suspension) { box.hidden = true; _stopTimer(); return; }
+    const total = (_puzzle.seconds || 1) * 1000;
+    const left = Math.max(0, _deadline - performance.now());
+    const sec = Math.ceil(left / 1000);
+    box.hidden = false;
+    box.classList.toggle('low', sec <= 10);
+    _el.querySelector('#antibot-timer-txt').textContent =
+      T('timer', { time: `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}` });
+    _el.querySelector('#antibot-timer-fill').style.width = `${(100 * left / total).toFixed(1)}%`;
+    if (left > 0) return;
+    _stopTimer();
+    if (_puzzle.done) return;
+    _puzzle.done = true;
+    _el.querySelectorAll('#antibot-puzzle button, #antibot-puzzle input').forEach(b => { b.disabled = true; });
+    _msg(T('time_up'), 'warn');
+    if (!_el.hidden) _el.querySelector('#antibot-new').focus();
+  }
+
+  function _startTimer() {
+    _stopTimer();
+    _deadline = _puzzle && _puzzle.seconds > 0 ? performance.now() + _puzzle.seconds * 1000 : 0;
+    _tick();
+    if (_deadline) _tickId = setInterval(_tick, 250);
+  }
+
   function _renderPuzzle() {
     const box = _el.querySelector('#antibot-puzzle');
     box.textContent = '';
-    if (!_puzzle) return;
+    if (!_puzzle) { _deadline = 0; _tick(); return; }
     if (_puzzle.kind === 'text') {
       const form = document.createElement('form');
       form.className = 'antibot-text-form';
@@ -163,7 +206,7 @@ const AntibotGate = (() => {
     if (!keepMsg) _msg('');
     try {
       const { ok, status, data } = await _deps.api('POST', '/api/me/antibot/puzzle', { challengeId: _state.challenge.id, kind: _kind });
-      if (ok) { _puzzle = data.puzzle; _renderPuzzle(); }
+      if (ok) { _puzzle = data.puzzle; _renderPuzzle(); _startTimer(); }
       else if (status === 404) { update(null); }
       else if (status === 429) { _puzzle = null; _renderPuzzle(); _msg(T('err_too_many', { time: _fmtBrussels(data.retryAt) }), 'warn'); }
       else _msg(T('err_network'), 'warn');
@@ -173,7 +216,7 @@ const AntibotGate = (() => {
   }
 
   async function _submit(answer) {
-    if (!_puzzle || _busy) return;
+    if (!_puzzle || _busy || _puzzle.done) return;
     _busy = true;
     const c = _deps.counters();
     try {
@@ -220,11 +263,13 @@ const AntibotGate = (() => {
       _seenId = ch.id;
       _deps.api('POST', '/api/me/antibot/seen', { challengeId: ch.id, manualClicks: _deps.counters().manualClicks }).catch(() => { _seenId = null; });
     }
-    if (ch && !_state.suspension && !_puzzle) _loadPuzzle();
+    // Énigme expirée pendant que la fenêtre était fermée : une nouvelle, avec un chrono complet
+    if (ch && !_state.suspension && (!_puzzle || _expired())) _loadPuzzle();
+    else if (_puzzle && _deadline && !_tickId) { _tick(); if (!_expired()) _tickId = setInterval(_tick, 250); }
     _el.querySelector('#antibot-close').focus();
   }
 
-  function hide() { if (_el) _el.hidden = true; }
+  function hide() { if (_el) _el.hidden = true; _stopTimer(); }
 
   /**
    * Nouvel état du serveur (null : plus rien à vérifier). Un nouvel état ouvre la fenêtre ; un état

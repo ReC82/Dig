@@ -46,6 +46,8 @@ const PARAMS = {
   ab_cooldown_min:    { def: 30,  range: [0, 240],   label: 'Délai minimal entre deux défis (min)' },
   ab_violation_clicks:{ def: 30,  range: [5, 1000],  label: 'Clics pendant un défi affiché = violation' },
   ab_decay_days:      { def: 30,  range: [1, 365],   label: 'Jours sans violation pour redescendre d\'un palier' },
+  ab_puzzle_seconds:  { def: 30,  range: [10, 300],  label: 'Temps pour résoudre une énigme visuelle (s)' },
+  ab_puzzle_text_seconds: { def: 60, range: [10, 600], label: 'Temps pour résoudre la version accessible (s)' },
 };
 
 /** Une pause de 3 min sans minage manuel coupe la série continue. */
@@ -55,8 +57,13 @@ const ACTIVE_CPS = 2;
 const BUCKET_MS = 10 * 60_000;
 const DAY_MS = 86_400_000;
 
-/** Défi maison : validité d'une énigme, délai minimal de réponse, plafond d'énigmes. */
-const PUZZLE_TTL_MS = 5 * 60_000;
+/**
+ * Défi maison : délai minimal de réponse, plafond d'énigmes. Chrono (#25, demande du 08/11) : la
+ * durée d'une énigme (ab_puzzle_seconds / ab_puzzle_text_seconds) part de sa demande, faite par le
+ * jeu quand la fenêtre est réellement affichée ; le serveur ajoute une marge réseau. Une énigme
+ * expirée ne sanctionne jamais : le joueur en demande une autre (plafond par fenêtre de 10 min).
+ */
+const PUZZLE_GRACE_MS = 5_000;
 const PUZZLE_MIN_ANSWER_MS = 1200;
 const PUZZLE_WINDOW_MS = 10 * 60_000;
 const PUZZLE_MAX_PER_WINDOW = 15;
@@ -474,7 +481,7 @@ function _shuffle(arr) {
 }
 
 /** Nouvelle énigme pour le défi en attente (relance permise, plafonnée). */
-function newPuzzle(userId, challengeId, { kind = 'grid', nowMs = Date.now() } = {}) {
+function newPuzzle(userId, challengeId, { kind = 'grid', config = {}, nowMs = Date.now() } = {}) {
   const db = getDb();
   const ch = _pendingChallenge(userId);
   if (!ch || ch.id !== challengeId) return { error: 'no_challenge' };
@@ -500,11 +507,15 @@ function newPuzzle(userId, challengeId, { kind = 'grid', nowMs = Date.now() } = 
     puzzle = { kind: 'grid', tiles: syms.map(sym => ({ sym, icon: SYMBOL_ICONS[sym] })), targets };
     answer = targets.map(t => syms.indexOf(t)).join(',');
   }
+  const params = getParams(config);
+  const seconds = kind === 'text' ? params.ab_puzzle_text_seconds : params.ab_puzzle_seconds;
+  const expiresMs = nowMs + seconds * 1000 + PUZZLE_GRACE_MS;
   db.prepare(`
     UPDATE antibot_challenges SET puzzle_id = ?, puzzle_hash = ?, puzzle_kind = ?, puzzle_issued_ms = ?, puzzle_expires_ms = ?,
       puzzle_window_ms = ?, puzzle_count = ?, expirations = expirations + ? WHERE id = ?
-  `).run(id, _hash(id, answer), puzzle.kind, nowMs, nowMs + PUZZLE_TTL_MS, windowStart, count + 1, expired, ch.id);
-  return { challengeId: ch.id, puzzleId: id, expiresAt: _iso(nowMs + PUZZLE_TTL_MS), ...puzzle };
+  `).run(id, _hash(id, answer), puzzle.kind, nowMs, expiresMs, windowStart, count + 1, expired, ch.id);
+  // seconds : durée affichée par le chrono (relative, insensible à l'horloge du navigateur)
+  return { challengeId: ch.id, puzzleId: id, expiresAt: _iso(expiresMs), seconds, ...puzzle };
 }
 
 /** Le joueur voit le défi : relevé du compteur de clics (base de la violation confirmée). */
@@ -853,7 +864,7 @@ function playerSection(userId, { config = {}, nowMs = Date.now() } = {}) {
 
 module.exports = {
   RESPONSE_MODES, RESPONSE_MODE_DEFAULT, LADDER_DEFAULT, PARAMS, PAUSE_SECS, ACTIVE_CPS,
-  PUZZLE_TTL_MS, PUZZLE_MIN_ANSWER_MS, PUZZLE_MAX_PER_WINDOW, SYMBOLS, TEST_STREAK_RANGE, TEST_STREAK_TTL_MS,
+  PUZZLE_GRACE_MS, PUZZLE_MIN_ANSWER_MS, PUZZLE_MAX_PER_WINDOW, SYMBOLS, TEST_STREAK_RANGE, TEST_STREAK_TTL_MS,
   getParams, getGlobalMode, getUserMode, validateConfigValue, effectiveViolationLevel, metrics,
   beforeSave, recordHoldSave, afterSave, playerStatus, issueChallenge, newPuzzle, markSeen, answer,
   setForceMode, setTestThreshold, progressSnapshot, recidivism, recipeActive, testStreakMin, adminIssueChallenge, cancelChallenge, liftSuspension, setViolationLevel, adminSummary, playerSection,
