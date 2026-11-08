@@ -1307,7 +1307,7 @@ Appliqué pour tous : **Bloquant pour des récompenses réelles**, pas pour la b
 
 #25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
 
-**ÉTAT_DEPLOIEMENT** Source : décision du propriétaire du 08/11/2026 11:36 UTC
+**Déployé en production (SHA `18f4cd1`, 08/11/2026 14:56 Bruxelles) — en attente de recette.** Source : décision du propriétaire du 08/11/2026 11:36 UTC
 ([issuecomment-6720990840](https://github.com/ReC82/Dig/issues/25#issuecomment-6720990840)) :
 option A validée ; option B, Turnstile, images, sanctions, coffres, économie et classement exclus ;
 mode global « Observation » maintenu.
@@ -1352,11 +1352,36 @@ sous le seuil.
 
 ## 5. Tests
 
-TESTS_PLACEHOLDER
+- `npm test` **943/943** sur la branche (`14cabb3`), sur `develop` `18f4cd1` et sur la release.
+- Nouveau `test/antibot-recidive-option-a.test.js` (12 tests, horloge simulée) : défauts inchangés
+  (Observation, 60/180/360, délai 30) ; bot supervisé 8 clics/s fixe (série remise à zéro, cumuls
+  conservés ; 180 min/6 h à ≈ 3 h, 360 min/24 h à ≈ 6 h ; au plus un défi par 30 min ensuite ; temps
+  bloqué non compté) ; bot à cadence variable 4–12 clics/s ; humain avec pauses + défi admin résolu
+  (aucun défi automatique, aucune sanction) ; frontières glissantes 6 h / 24 h ; F5, nouvel appareil,
+  changement de saison, absence ; client modifié (cumul figé pendant le défi) ; pas de double
+  comptage à la résolution ; onglets concurrents (actif ≤ temps écoulé) ; annulation admin ; preuve
+  du gel +0.
+- Essais navigateur (serveur de test, port 3101, base isolée) : `antibot-freeze-proof` **TOUT OK**
+  en 1280×900 et 390×844 (vrais clics 8/s, défi à ≈ 57 s, résolu dans le jeu, gel +0, reprise
+  ≈ 7,2 clics/s, **contrôle option A : série 0,6 min, actif 6 h 1,6 min, actif 24 h 1,6 min après la
+  résolution**, aucune erreur JS) ; `admin-antibot-87-guided`, `antibot-challenge`,
+  `admin-antibot-sheet` TOUT OK. Limite : relancer `antibot-freeze-proof` plusieurs fois sur le
+  MÊME serveur de test échoue (défi non affiché) — sur serveur et base neufs il réussit à chaque
+  fois ; pollution d'essai entre passages, pas une régression (le premier passage du code identique
+  avait réussi).
 
 ## 6. Déploiement
 
-DEPLOY_PLACEHOLDER
+- **SHA déployé : `18f4cd1`** (merge dans `develop`), 08/11/2026 14:56 Bruxelles, `scripts/deploy.sh`
+  de la release. Sauvegarde vérifiée : `~/backups/dig/dig-20261108-145600-pre-deploy-18f4cd1.sqlite`.
+- Copie de la base de production : empreintes (lignes + hachage) de `users`, `user_saves`,
+  `season_rankings`, `seasons`, `leagues`, `player_click_tracking`, `antibot_activity` **identiques**
+  avant et après démarrage ; aucune migration ; copie supprimée.
+- Après déploiement : 2 domaines 200, `/api/version` = `1.0.0+18f4cd1`, aucune erreur au journal,
+  `quick_check` ok, classement identique à la sauvegarde (221 / 80 blocs validés).
+- **Mode global : `observe` (Observation), lu en base avant et après — inchangé.** Aucun essai Appliqué
+  actif en production ; aucun défi ni suspension créé sur des joueurs réels.
+- Retour arrière : `git reset --keep 0c5d24e` + redémarrage (aucun changement de schéma).
 
 ### Test fonctionnel à faire par le propriétaire (≈ 3 min, unique)
 
