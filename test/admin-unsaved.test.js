@@ -84,7 +84,7 @@ test('fiches à instantané branchées sur le mécanisme commun (Collections, Ac
   assert.match(JS, /admDialogSetup\('co-prop-dialog', \{ dirty: \(\) => !!_coPropWork\?\.dirty/);
   assert.match(JS, /admDialogSetup\('news-dialog', \{ canClose: nwCanClose, dirty: \(\) => nwDirty\(\) \}\)/);
   assert.match(JS, /admDialogSetup\('ev-dialog', \{ canClose: evCanClose, dirty: \(\) => evDirty\(\) \}\)/);
-  assert.match(JS, /admDialogSetup\('ev-item-dialog', \{ canClose: eviCanClose, dirty: \(\) => eviDirty\(\) \}\)/);
+  assert.match(JS, /admDialogSetup\('ev-item-dialog', \{ canClose: eviCanClose, dirty: \(\) => eviDirty\(\) \|\| eviLoreDirty\(\) \}\)/);
   // Ouvrir l'atelier depuis une fiche = même protection
   assert.match(JS, /coItemDirty\(\) && !await admConfirmDiscard\(/);
   assert.match(JS, /if \(!await document\.getElementById\('bg-dialog'\)\._admRequestClose\(\)\) return;/);

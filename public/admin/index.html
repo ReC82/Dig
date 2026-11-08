@@ -3672,7 +3672,7 @@
           <div id="ev-testers-box"><span class="ev-label">Testeurs</span><div id="ev-testers"></div></div>
         </fieldset>
         <fieldset class="co-fs"><legend>Objets exclusifs</legend>
-          <div style="overflow-x:auto"><table class="ev-table ev-items-table"><thead><tr><th></th><th>Objet</th><th>Rareté</th><th>Sources</th><th>Chance / bloc</th><th>Langues</th><th>Actif</th></tr></thead><tbody id="ev-items"></tbody></table></div>
+          <div style="overflow-x:auto"><table class="ev-table ev-items-table"><thead><tr><th></th><th>Objet</th><th>Rareté</th><th>Sources</th><th>Chance / bloc</th><th>Langues</th><th title="« Pourquoi cet objet ? » : explication et source montrées au joueur après découverte">Pourquoi ?</th><th>Actif</th></tr></thead><tbody id="ev-items"></tbody></table></div>
           <div class="form-actions"><button class="btn btn-outline" id="btn-ev-item-add" type="button">＋ Objet</button></div>
         </fieldset>
         <details class="co-fs" id="ev-sim-box"><summary>📊 Simulateur de chances</summary>
@@ -3725,6 +3725,21 @@
               <label class="co-span"><span id="evi-desc-label">Description (FR)</span> <textarea id="evi-desc" rows="3" maxlength="320"></textarea></label>
             </div>
           </fieldset>
+          <fieldset class="co-fs" id="evi-lore-fs"><legend>📖 Pourquoi cet objet ? (joueur, après découverte)</legend>
+            <p class="muted ev-help">Explication factuelle (1 à 3 phrases), date historique et source vérifiable. Le joueur la voit sous la description humoristique, <strong>seulement après avoir trouvé l'objet</strong> et si « Vérifiée » est cochée. Enregistrée à part : possible même quand l'événement est planifié, sans effet sur les drops.</p>
+            <div class="co-grid">
+              <label class="co-span"><span id="evi-lore-label">Explication (FR)</span> <textarea id="evi-lore-text" rows="3" maxlength="420"></textarea></label>
+              <label>Date historique (AAAA-MM-JJ, ou MM-JJ si annuelle) <input type="text" id="evi-lore-date" maxlength="10" placeholder="1989-11-09"></label>
+              <label class="co-inline-check"><input type="checkbox" id="evi-lore-verified"> Vérifiée — montrée aux joueurs</label>
+              <label class="co-span">Source (adresse https://) <input type="url" id="evi-lore-url" maxlength="300" placeholder="https://fr.wikipedia.org/wiki/…"></label>
+              <label class="co-span">Titre de la source <input type="text" id="evi-lore-title" maxlength="120" placeholder="Wikipédia — Chute du mur de Berlin"></label>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-outline" id="btn-evi-lore-save" type="button">💾 Enregistrer l'explication</button>
+              <a class="btn btn-outline hidden" id="evi-lore-open" target="_blank" rel="noopener noreferrer">Ouvrir la source ↗</a>
+            </div>
+            <p id="evi-lore-msg" class="hidden"></p>
+          </fieldset>
           <fieldset class="co-fs"><legend>Drop</legend>
             <span class="ev-label">Blocs sources</span>
             <div class="ev-cats" id="evi-cats"></div>
@@ -3754,6 +3769,7 @@
           <strong id="evi-pv-name"></strong>
           <div class="muted" id="evi-pv-rarity" style="font-size:0.75rem"></div>
           <p id="evi-pv-desc"></p>
+          <p class="muted" id="evi-pv-lore" style="font-size:0.75rem"></p>
         </aside>
       </div>
       <div class="bk-sheet-actions">

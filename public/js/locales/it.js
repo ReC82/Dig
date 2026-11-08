@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 898/898 textes. Absents → français. */
+/* Italian (preview) : 902/902 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -306,6 +306,10 @@ I18n.registerLocale("it", {
   "ended": "Terminato il {date}",
   "found_on": "Trovato il {date}",
   "keep": "Gli oggetti trovati restano nella tua collezione anche dopo l’evento.",
+  "lore_new_tab": "(si apre in una nuova scheda)",
+  "lore_source": "Fonte: {title}",
+  "lore_title": "Perché questo oggetto?",
+  "lore_yearly": "Ogni anno il {date}",
   "section": "🎉 Eventi",
   "souvenirs": "Ricordi degli eventi",
   "test": "TEST (visibile solo ai tester)",

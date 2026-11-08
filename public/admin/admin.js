@@ -158,7 +158,8 @@ function admDialogOpen(id, opener, focusEl) {
  * `impact` : lignes expliquant l'effet (réversible ou non, visible des joueurs…). Rend une promesse booléenne.
  */
 // #61 : `cancel: null` = simple information (un seul bouton) ; `field` = petite fiche de saisie (voir admPrompt).
-function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 'Annuler', danger = false, field = null }) {
+// #86 : `details` = tableau repliable { summary, head: [...], rows: [[...]] } (ex. les 30 objets d'un événement), fermé par défaut.
+function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 'Annuler', danger = false, field = null, details = null }) {
   let dlg = document.getElementById('adm-confirm');
   if (!dlg) {
     dlg = document.createElement('dialog');
@@ -193,7 +194,15 @@ function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 
     const yes = document.createElement('button');
     yes.type = 'button'; yes.id = 'adm-confirm-yes';
     act.append(no, yes);
-    dlg.append(h, p, ul, lab, act);
+    const det = document.createElement('details');
+    det.id = 'adm-confirm-details';
+    det.className = 'adm-confirm-details';
+    const sum = document.createElement('summary');
+    const wrap = document.createElement('div');
+    wrap.className = 'adm-confirm-table-wrap';
+    wrap.appendChild(document.createElement('table'));
+    det.append(sum, wrap);
+    dlg.append(h, p, ul, det, lab, act);
     document.body.appendChild(dlg);
     no.addEventListener('click', () => dlg.close('no'));
     yes.addEventListener('click', () => dlg.close('yes'));
@@ -209,6 +218,18 @@ function admConfirm({ title, text = '', impact = [], ok = 'Confirmer', cancel = 
   ul.textContent = '';
   for (const line of impact) { const li = document.createElement('li'); li.textContent = line; ul.appendChild(li); }
   ul.classList.toggle('hidden', !impact.length);
+  const det = dlg.querySelector('#adm-confirm-details');
+  det.open = false;
+  det.classList.toggle('hidden', !details);
+  if (details) {
+    det.querySelector('summary').textContent = details.summary;
+    const table = det.querySelector('table');
+    table.textContent = '';
+    const hr = table.createTHead().insertRow();
+    for (const c of details.head ?? []) { const th = document.createElement('th'); th.scope = 'col'; th.textContent = c; hr.appendChild(th); }
+    const tb = table.createTBody();
+    for (const r of details.rows ?? []) { const tr = tb.insertRow(); for (const c of r) tr.insertCell().textContent = c; }
+  }
   dlg.querySelector('#adm-confirm-no').textContent = cancel ?? '';
   dlg.querySelector('#adm-confirm-no').classList.toggle('hidden', cancel === null);
   const yes = dlg.querySelector('#adm-confirm-yes');
@@ -11362,6 +11383,11 @@ function evFmt(local) {
   return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : '—';
 }
 const evFmtRange = (a, b) => `${evFmt(a)} → ${evFmt(b)}`;
+/** #86 : « du 01/11/2026 00:01 au 30/11/2026 23:59 inclus » — fin exclusive à minuit affichée comme la dernière minute comprise. */
+function evFmtRangeIncl(a, b) {
+  const end = /T00:00$/.test(b ?? '') ? evMsToLocal(evLocalToMs(b) - 60000) : b;
+  return `du ${evFmt(a)} au ${evFmt(end)}${end !== b ? ' inclus' : ''}`;
+}
 function evDuration(ms) {
   const min = Math.round(ms / 60000);
   if (min < 120) return `${min} min`;
@@ -11518,7 +11544,9 @@ async function loadEvents() {
 function evGroupedWarnings(ev) {
   const img = ev.readiness.warnings.filter(w => /pas d'illustration/.test(w)).length;
   const rest = ev.readiness.warnings.filter(w => !/pas d'illustration/.test(w));
-  return [...(img ? [`${img} illustration(s) absente(s)`] : []), ...rest];
+  const lr = ev.loreReadiness;
+  const lore = lr && lr.missing.length ? [`${lr.missing.length} « Pourquoi cet objet ? » sans source vérifiée (${lr.missing.slice(0, 3).join(', ')}${lr.missing.length > 3 ? '…' : ''})`] : [];
+  return [...(img ? [`${img} illustration(s) absente(s) : emoji provisoire affiché`] : []), ...rest, ...lore];
 }
 
 function renderEvents() {
@@ -11773,7 +11801,7 @@ function evRenderItems() {
   const items = _evCur.draft.items;
   if (!items.length) {
     const tr = document.createElement('tr');
-    addCell(tr, 'Aucun objet : « ＋ Objet » pour en ajouter.').colSpan = 7;
+    addCell(tr, 'Aucun objet : « ＋ Objet » pour en ajouter.').colSpan = 8;
     tb.appendChild(tr);
   }
   items.forEach((it, i) => {
@@ -11794,6 +11822,9 @@ function evRenderItems() {
     addCell(tr, `${it.chancePct} %${it.minDepth ? ` · ≥ ${it.minDepth} m` : ''}`);
     const langs = addCell(tr, '');
     for (const l of EV_LANGS) langs.appendChild(aiEl('span', { class: `co-lang co-lang--${it.names[l] && it.descs[l] ? 'ok' : it.names[l] ? 'name' : 'none'}` }, l.toUpperCase()));
+    // #86 : « Pourquoi cet objet ? » — vérifiée (vue des joueurs après découverte), brouillon ou absente
+    const lore = _evCur.ev?.lore?.[it.id];
+    addCell(tr, '').appendChild(lore?.verified ? evChip('✅ Vérifiée', 'ok') : lore ? evChip('📝 À vérifier', 'warn') : evChip('⚠ Absente', 'muted'));
     addCell(tr, it.enabled ? '✅' : '—');
     tr.addEventListener('click', () => eviOpen(i, tr));
     tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); eviOpen(i, tr); } });
@@ -11953,8 +11984,30 @@ function evImpactLines(ev, startLocal = ev.startsLocal, endLocal = ev.endsLocal)
   return [
     ev.audience === 'public' ? '🌍 Public : TOUS les joueurs verront l\'événement et pourront trouver ses objets.' : `🧪 TEST : visible uniquement par ${evTesterNames(ev)}.`,
     `📅 ${evFmtRange(startLocal, endLocal)} (heure de Bruxelles) — ${evDuration(evLocalToMs(endLocal) - evLocalToMs(startLocal))}.`,
-    `🎁 ${ev.items.filter(i => i.enabled).length} objet(s) : ${ev.items.filter(i => i.enabled).map(i => `${i.icon} ${i.names.fr} (${i.chancePct} %, ${i.dropFrom.length ? i.dropFrom.join('/') : 'tous blocs'})`).join(' · ')}.`,
+    `🎁 ${evRarityCounts(ev)} — détail dans « Voir les objets » ci-dessous.`,
   ];
+}
+
+const EV_RARITY_ORDER = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
+/** « 30 objets : 6 Commun, 9 Peu commun, … » (objets activés). */
+function evRarityCounts(ev) {
+  const on = ev.items.filter(i => i.enabled);
+  const parts = EV_RARITY_ORDER.map(r => [r, on.filter(i => i.rarity === r).length]).filter(([, n]) => n).map(([r, n]) => `${n} ${EV_RARITIES[r] ?? r}`);
+  return `${on.length} objet(s) : ${parts.join(' · ')}`;
+}
+/** Barème par rareté : « Commun 0,25 % · Épique 0,05 % dès 10 m … » (valeurs distinctes de la fiche). */
+function evRateSummary(ev) {
+  const on = ev.items.filter(i => i.enabled);
+  const fmt = n => String(n).replace('.', ',');
+  return EV_RARITY_ORDER.flatMap(r => [...new Set(on.filter(i => i.rarity === r).map(i => `${fmt(i.chancePct)} %${i.minDepth ? ` dès ${i.minDepth} m` : ''}`))]
+    .map(v => `${EV_RARITIES[r] ?? r} ${v}`)).join(' · ');
+}
+/** Tableau repliable des objets pour les confirmations : date, nom, rareté, chance (#86). */
+function evItemsDetails(ev) {
+  const on = ev.items.filter(i => i.enabled);
+  return { summary: `Voir les ${on.length} objet(s) — date, nom, rareté, chance`, head: ['Date', 'Objet', 'Rareté', 'Chance / bloc'],
+    rows: on.map(i => [/^\d{2}-\d{2}$/.test(i.refDate ?? '') ? `${i.refDate.slice(3)}/${i.refDate.slice(0, 2)}` : '—', `${i.icon} ${i.names.fr}`,
+      EV_RARITIES[i.rarity] ?? i.rarity, `${String(i.chancePct).replace('.', ',')} %${i.minDepth ? ` · ≥ ${i.minDepth} m` : ''}${i.dropFrom.length ? ` · ${i.dropFrom.join('/')}` : ''}`]) };
 }
 
 async function evSchedule() {
@@ -11973,14 +12026,31 @@ async function evSchedule() {
       : `Début dans ${evDuration(a - now)} : rien ne change pour les joueurs avant.`,
     'Réversible : « Repasser en brouillon » arrête les drops ; les objets trouvés restent acquis.'];
   if (ev.audience === 'public') {
-    if (!await admConfirm({ title: `Publier « ${ev.names.fr} » pour tous les joueurs ?`, text: 'À faire seulement après validation du propriétaire (textes, barème, illustrations).',
-      impact, ok: 'Continuer', danger: true })) return;
-    if (!await admConfirm({ title: 'Barème des drops validé ?', text: 'Confirmez que les chances et profondeurs ont été simulées et validées.',
-      impact: evImpactLines(ev).slice(2), ok: '🗓️ Planifier pour tous', danger: true })) return;
+    // #86 (recette du 08/11) : résumé court et lisible ; les objets dans un tableau replié ; deux étapes, Annuler en premier
+    const on = ev.items.filter(i => i.enabled);
+    const noImg = on.filter(i => !i.publishedImage).length;
+    const lr = ev.loreReadiness;
+    const summary = [
+      `🏷 ${ev.icon} ${ev.names.fr} (${ev.id})`,
+      '🌍 Public : tous les joueurs verront l\'événement dans Collection et pourront trouver ses objets.',
+      `📅 ${evFmtRangeIncl(ev.startsLocal, ev.endsLocal)} (heure de Bruxelles) — ${evDuration(b - a)}.`,
+      `🎁 ${evRarityCounts(ev)}. Souvenirs de collection, conservés à vie.`,
+      noImg ? `🖼 ${noImg} objet(s) sans image publiée : l'emoji provisoire est affiché (aucune génération IA n'est lancée).` : '🖼 Toutes les images sont publiées.',
+      ...(lr ? [`📖 « Pourquoi cet objet ? » : ${lr.verified}/${lr.total} explication(s) vérifiée(s)${lr.missing.length ? ' ; les autres restent invisibles des joueurs' : ''}.`] : []),
+      '🚫 Aucun bonus : ni bonus permanent, ni bonus temporaire, ni effet sur le minage ou le classement.',
+      elapsed ? `⏱ Effet immédiat : les objets deviennent trouvables dès la publication, sans attribution rétroactive (reste ${evDuration(b - now)}).`
+        : `⏱ Début dans ${evDuration(a - now)} : rien ne change pour les joueurs avant.`,
+      '↩ Réversible : « Repasser en brouillon » arrête les futurs drops ; les souvenirs déjà trouvés restent acquis.',
+    ];
+    if (!await admConfirm({ title: `Publier « ${ev.names.fr} » pour tous les joueurs ?`, text: 'Étape 1 sur 2 — rien n\'est publié tant que l\'étape 2 n\'est pas confirmée.',
+      impact: summary, details: evItemsDetails(ev), ok: 'Continuer vers l\'étape 2', danger: true })) return;
+    if (!await admConfirm({ title: 'Étape 2 sur 2 — barème des drops validé ?', text: 'Confirmez que ces chances et profondeurs ont été simulées et validées.',
+      impact: [`🎲 Chance par bloc éligible : ${evRateSummary(ev)}.`, `🎁 ${evRarityCounts(ev)}.`], details: evItemsDetails(ev),
+      ok: '🗓️ Publier pour tous', danger: true })) return;
     return evAction(ev.id, 'schedule', `« ${ev.names.fr} » planifié pour tous les joueurs.`, { confirmRates: true, confirmPublic: true, confirmElapsed: elapsed });
   }
   if (!await admConfirm({ title: `Planifier l'événement TEST « ${ev.names.fr} » ?`, text: 'Les testeurs choisis pourront trouver ses objets en minant pendant la période.',
-    impact, ok: elapsed ? `Planifier (reste ${evDuration(b - now)})` : '🗓️ Planifier' })) return;
+    impact, details: evItemsDetails(ev), ok: elapsed ? `Planifier (reste ${evDuration(b - now)})` : '🗓️ Planifier' })) return;
   return evAction(ev.id, 'schedule', 'Événement TEST planifié : seuls les testeurs le voient.', { confirmElapsed: elapsed });
 }
 
@@ -12037,6 +12107,47 @@ async function evRevisions() {
 let _evi = null;         // { idx (-1 = nouveau), item }
 let _eviSnap = null;
 let _eviLang = 'fr';
+let _eviLore = null;     // #86 : « Pourquoi cet objet ? » de l'objet enregistré (null = objet pas encore enregistré)
+let _eviLoreSnap = null;
+
+const EVI_LORE_EMPTY = () => ({ explains: {}, historicDate: '', sourceUrl: '', sourceTitle: '', verified: false });
+function eviLoreRead() {
+  if (!_eviLore) return null;
+  return { explains: Object.fromEntries(EV_LANGS.map(l => [l, (_eviLore.explains[l] ?? '').trim()])), historicDate: document.getElementById('evi-lore-date').value.trim(),
+    sourceUrl: document.getElementById('evi-lore-url').value.trim(), sourceTitle: document.getElementById('evi-lore-title').value.trim(),
+    verified: document.getElementById('evi-lore-verified').checked };
+}
+const eviLoreDirty = () => document.getElementById('ev-item-dialog').open && _eviLore !== null && _eviLoreSnap !== null && JSON.stringify(eviLoreRead()) !== _eviLoreSnap;
+
+function eviLoreOpenLink() {
+  const a = document.getElementById('evi-lore-open'), url = document.getElementById('evi-lore-url').value.trim();
+  const ok = /^https:\/\/\S+\.\S+/.test(url);
+  a.classList.toggle('hidden', !ok);
+  if (ok) a.href = url; else a.removeAttribute('href');
+}
+
+/** #86 : enregistre l'explication (route à part, possible même si l'événement est planifié). */
+async function eviLoreSave() {
+  const ev = _evCur.ev, it = _evi?.item;
+  if (!ev || !_eviLore) return nwMessage('evi-lore-msg', 'Enregistrez d\'abord l\'objet dans l\'événement.', true);
+  const body = eviLoreRead();
+  if (body.sourceUrl && !/^https:\/\//.test(body.sourceUrl)) return nwMessage('evi-lore-msg', 'La source doit commencer par https://', true);
+  const btn = document.getElementById('btn-evi-lore-save');
+  btn.disabled = true;
+  try {
+    const { ok, data } = await api('PUT', `/api/admin/events/${encodeURIComponent(ev.id)}/items/${encodeURIComponent(it.id)}/lore`, body);
+    if (!ok) return nwMessage('evi-lore-msg', data.error ?? 'Enregistrement impossible.', true);
+    ev.lore = { ...(ev.lore ?? {}), [it.id]: data.lore };
+    const missing = ev.items.filter(i => !ev.lore[i.id]?.verified).map(i => i.names.fr || i.id);
+    ev.loreReadiness = { verified: ev.items.length - missing.length, total: ev.items.length, missing };
+    _eviLore = { ...data.lore, explains: { ...data.lore.explains } };
+    _eviLoreSnap = JSON.stringify(eviLoreRead());
+    nwMessage('evi-lore-msg', data.lore.verified ? 'Explication enregistrée : visible des joueurs qui ont trouvé cet objet.' : 'Explication enregistrée en brouillon : invisible des joueurs tant que « Vérifiée » n\'est pas cochée.');
+    admToast('Explication enregistrée.');
+    evRenderItems();
+    evRenderState();
+  } finally { btn.disabled = false; }
+}
 
 function eviRead() {
   const it = _evi.item;
@@ -12058,6 +12169,8 @@ function eviRenderLang() {
   document.getElementById('evi-desc-label').textContent = `Description humoristique (${L})`;
   document.getElementById('evi-name').value = it.names[_eviLang] ?? '';
   document.getElementById('evi-desc').value = it.descs[_eviLang] ?? '';
+  document.getElementById('evi-lore-label').textContent = `Explication factuelle (${L})`;
+  document.getElementById('evi-lore-text').value = _eviLore?.explains[_eviLang] ?? '';
   eviPreview();
 }
 
@@ -12071,6 +12184,8 @@ function eviPreview() {
   document.getElementById('evi-pv-name').textContent = it.names[_eviLang] || it.names.fr || '(sans nom)';
   document.getElementById('evi-pv-rarity').textContent = EV_RARITIES[it.rarity] ?? it.rarity;
   document.getElementById('evi-pv-desc').textContent = it.descs[_eviLang] || '…';
+  const lt = _eviLore?.explains[_eviLang];
+  document.getElementById('evi-pv-lore').textContent = lt ? `📖 Pourquoi cet objet ? ${lt}${document.getElementById('evi-lore-verified').checked ? '' : ' (non vérifiée : invisible des joueurs)'}` : '';
   const p = it.chancePct / 100;
   document.getElementById('evi-chance-help').textContent = p > 0 && p <= 1
     ? `≈ 1 chance sur ${Math.max(1, Math.round(1 / p))} par bloc éligible : ${Math.round((1 - Math.pow(1 - p, 100)) * 100)} % de l'avoir en 100 blocs éligibles, ${Math.round((1 - Math.pow(1 - p, 1000)) * 100)} % en 1 000. Le simulateur de la fiche tient compte de la part réelle des blocs.`
@@ -12108,9 +12223,21 @@ function eviOpen(idx, opener) {
   }
   const found = idx >= 0 ? (_evCur.ev?.stats.finds[it.id] ?? 0) : 0;
   document.getElementById('evi-id').disabled = ro || found > 0;
+  // #86 : l'explication ne concerne qu'un objet déjà enregistré ; modifiable même en lecture seule (planifié)
+  const savedItem = idx >= 0 && _evCur.ev?.items.some(x => x.id === it.id);
+  const lore = savedItem ? (_evCur.ev.lore?.[it.id] ?? EVI_LORE_EMPTY()) : null;
+  _eviLore = lore ? { ...lore, explains: { ...lore.explains } } : null;
+  document.getElementById('evi-lore-date').value = lore?.historicDate ?? '';
+  document.getElementById('evi-lore-url').value = lore?.sourceUrl ?? '';
+  document.getElementById('evi-lore-title').value = lore?.sourceTitle ?? '';
+  document.getElementById('evi-lore-verified').checked = !!lore?.verified;
+  eviLoreOpenLink();
   for (const el of document.querySelectorAll('#ev-item-dialog .co-prop-fields input, #ev-item-dialog .co-prop-fields select, #ev-item-dialog .co-prop-fields textarea')) {
-    if (el.id !== 'evi-id') el.disabled = ro;
+    if (el.closest('#evi-lore-fs')) el.disabled = !savedItem;
+    else if (el.id !== 'evi-id') el.disabled = ro;
   }
+  document.getElementById('btn-evi-lore-save').disabled = !savedItem;
+  nwMessage('evi-lore-msg', savedItem ? '' : 'Enregistrez d\'abord l\'objet dans l\'événement pour lui ajouter une explication.');
   document.getElementById('btn-evi-apply').classList.toggle('hidden', ro);
   document.getElementById('btn-evi-remove').classList.toggle('hidden', ro || idx < 0);
   eviRenderImageState();
@@ -12118,6 +12245,7 @@ function eviOpen(idx, opener) {
   nwMessage('evi-msg', '');
   eviRenderLang();
   _eviSnap = JSON.stringify(eviRead());
+  _eviLoreSnap = _eviLore ? JSON.stringify(eviLoreRead()) : null;
   admDialogOpen('ev-item-dialog', opener, idx >= 0 ? null : 'evi-id');
 }
 
@@ -12138,7 +12266,7 @@ async function eviOpenStudio() {
   const ev = _evCur.ev;
   const saved = _evi.idx >= 0 ? ev?.items.find(x => x.id === _evi.item.id) : null;
   if (!saved) return nwMessage('evi-msg', 'Enregistrez d\'abord l\'objet (« Appliquer à la fiche » puis « Enregistrer le brouillon ») : l\'atelier travaille sur un objet enregistré.', true);
-  if ((eviDirty() || evDirty()) && !await admConfirmDiscard({ keep: 'Enregistrer le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
+  if ((eviDirty() || eviLoreDirty() || evDirty()) && !await admConfirmDiscard({ keep: 'Enregistrer le brouillon', effect: 'ferme la fiche, perd ces saisies et ouvre l\'atelier d\'icônes.' })) return;
   _eviSnap = null; _evSnap = null;
   document.getElementById('ev-item-dialog').close();
   document.getElementById('ev-dialog').close();
@@ -12175,6 +12303,12 @@ async function evPublishImages() {
 }
 
 async function eviCanClose() {
+  if (eviLoreDirty() && !await admConfirm({
+    title: 'Explication non enregistrée',
+    text: 'L\'explication « Pourquoi cet objet ? » contient des saisies non enregistrées.',
+    impact: ['« Abandonner » ferme la fiche et perd ces saisies.', 'Pour les garder : « Continuer à modifier », puis « 💾 Enregistrer l\'explication ».'],
+    ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
+  })) return false;
   if (eviDirty() && !await admConfirm({
     title: 'Modifications de l\'objet non appliquées',
     text: 'Cette fiche d\'objet contient des saisies qui ne sont pas appliquées à l\'événement.',
@@ -12182,9 +12316,10 @@ async function eviCanClose() {
     ok: 'Abandonner les modifications', cancel: 'Continuer à modifier', danger: true,
   })) return false;
   _eviSnap = null;
+  _eviLoreSnap = null;
   return true;
 }
-admDialogSetup('ev-item-dialog', { canClose: eviCanClose, dirty: () => eviDirty() });
+admDialogSetup('ev-item-dialog', { canClose: eviCanClose, dirty: () => eviDirty() || eviLoreDirty() });
 
 function eviApply() {
   const it = eviRead();
@@ -12317,6 +12452,11 @@ document.getElementById('ev-name')?.addEventListener('input', e => { _evCur.draf
 document.getElementById('ev-tag')?.addEventListener('input', e => { _evCur.draft.taglines[_evLang] = e.target.value; });
 document.getElementById('evi-name')?.addEventListener('input', e => { _evi.item.names[_eviLang] = e.target.value; eviPreview(); });
 document.getElementById('evi-desc')?.addEventListener('input', e => { _evi.item.descs[_eviLang] = e.target.value; eviPreview(); });
+// #86 : « Pourquoi cet objet ? » (langue éditée = celle du nom/description)
+document.getElementById('evi-lore-text')?.addEventListener('input', e => { if (_eviLore) _eviLore.explains[_eviLang] = e.target.value; eviPreview(); });
+document.getElementById('evi-lore-verified')?.addEventListener('change', eviPreview);
+document.getElementById('evi-lore-url')?.addEventListener('input', eviLoreOpenLink);
+document.getElementById('btn-evi-lore-save')?.addEventListener('click', eviLoreSave);
 for (const id of ['evi-icon', 'evi-rarity', 'evi-chance', 'evi-image']) document.getElementById(id)?.addEventListener('input', eviPreview);
 document.getElementById('evi-upload')?.addEventListener('change', e => {
   const f = e.target.files[0];

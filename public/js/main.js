@@ -1105,7 +1105,48 @@ function showEventItemSheet(ev, it, active, opener) {
     context: `${evName} · ${when}`,
     foundText: it.found && it.foundAt ? t('events.found_on', { date: fmt(it.foundAt) }) : '',
     story: it.found ? _badgeText(it.descs) : t('events.unknown'),
+    lore: it.found ? it.lore : null,   // #86 : « Pourquoi cet objet ? » — reçu du serveur seulement après découverte
   }, opener);
+}
+
+/**
+ * #86 : bloc éducatif « Pourquoi cet objet ? » (explication, date historique, source HTTPS dans un nouvel onglet).
+ * Texte seul via le DOM ; lien seulement si l'adresse est en https.
+ */
+function _renderLore(box, lore) {
+  box.textContent = '';
+  box.hidden = true;
+  const text = lore && _badgeText(lore.explains);
+  if (!text) return;
+  const lang = I18n.intl();
+  const h = document.createElement('h4');
+  h.className = 'fm-lore-title';
+  h.textContent = t('events.lore_title');
+  box.appendChild(h);
+  const m = /^(?:(\d{4})-)?(\d{2})-(\d{2})$/.exec(lore.historicDate || '');
+  if (m) {
+    const d = new Date(Date.UTC(m[1] ? +m[1] : 2000, +m[2] - 1, +m[3]));
+    const day = d.toLocaleDateString(lang, { day: 'numeric', month: 'long', ...(m[1] ? { year: 'numeric' } : {}), timeZone: 'UTC' });
+    const p = document.createElement('p');
+    p.className = 'fm-lore-date';
+    p.textContent = `📅 ${m[1] ? day : t('events.lore_yearly', { date: day })}`;
+    box.appendChild(p);
+  }
+  const p = document.createElement('p');
+  p.className = 'fm-lore-text';
+  p.textContent = text;
+  box.appendChild(p);
+  if (/^https:\/\/[^\s]+$/.test(lore.sourceUrl || '')) {
+    const a = document.createElement('a');
+    a.className = 'fm-lore-link';
+    a.href = lore.sourceUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer nofollow';
+    a.textContent = `📖 ${t('events.lore_source', { title: lore.sourceTitle || new URL(lore.sourceUrl).hostname })} ↗`;
+    a.setAttribute('aria-label', `${a.textContent} ${t('events.lore_new_tab')}`);
+    box.appendChild(a);
+  }
+  box.hidden = false;
 }
 
 let _badgesReq = 0;
@@ -1338,6 +1379,7 @@ function _openItemSheet(o, opener) {
       extra.appendChild(bar);
     }
   }
+  _renderLore($('find-modal-lore'), o.found ? o.lore : null);
   modal.hidden = false;
   const close = $('btn-find-modal-close');
   const hide = () => {

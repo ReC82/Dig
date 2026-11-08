@@ -14,6 +14,10 @@
  *     descriptions humoristiques FR/EN/NL/ES, rareté, chance en % PAR BLOC ÉLIGIBLE, profondeur
  *     minimale, catégories de blocs (vide = toutes), activé ; pour l'admin seulement (#86) : date de
  *     référence « MM-JJ » et inspiration historique (jamais une condition de drop, jamais envoyées au joueur).
+ *   - « Pourquoi cet objet ? » (#86, demande du propriétaire du 08/11/2026) : explication factuelle FR/EN/NL/ES,
+ *     date historique, source HTTPS (`monthly_event_item_lore`). Table à part : modifiable même quand
+ *     l'événement est planifié (aucun effet sur les drops ni sur les révisions). Le joueur ne la reçoit
+ *     qu'APRÈS avoir trouvé l'objet, et seulement si elle est marquée vérifiée.
  *   - Drop côté serveur uniquement, à la sauvegarde : seuls les blocs VALIDÉS par le serveur
  *     (compteurs `blocks:<type>` de #38, bornés par la profondeur retenue #9/#25) minés depuis le
  *     dernier passage comptent ; tirage par `crypto` (le client ne peut ni choisir ni rejouer).
@@ -52,10 +56,11 @@ const TZ = 'Europe/Brussels';
 const RARITIES = ['commun', 'peu-commun', 'rare', 'epique', 'legendaire'];
 const CATEGORIES = ['terre', 'pierre', 'minerai', 'coffre', 'gemme'];
 const ID_RE = /^[a-z][a-z0-9_]{2,39}$/;
-const MAX = { name: 60, tagline: 240, desc: 320, brief: 600, inspiration: 400, items: 40, testers: 20, durationDays: 62, concept: 600 };
+const MAX = { explain: 420, sourceTitle: 120, sourceUrl: 300, name: 60, tagline: 240, desc: 320, brief: 600, inspiration: 400, items: 40, testers: 20, durationDays: 62, concept: 600 };
 const MAX_BLOCKS_PER_SAVE = 2000;   // au-delà, le curseur avance sans tirage (aucune rafale d'objets)
 const ANNOUNCE_DAYS = 7;            // annonce « à venir » dans le centre d'actualités (#50)
 const CONTENT_DIR = path.join(__dirname, 'content', 'events');
+const LORE_DIR = path.join(__dirname, 'content', 'event-lore');
 
 class EventError extends Error {
   constructor(status, message, code = null) { super(message); this.status = status; this.code = code; }
@@ -148,6 +153,17 @@ function init(c = conn()) {
       item_id       TEXT NOT NULL,
       image         TEXT,
       published_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (event_id, item_id)
+    );
+    CREATE TABLE IF NOT EXISTS monthly_event_item_lore (
+      event_id       TEXT NOT NULL,
+      item_id        TEXT NOT NULL,
+      explains       TEXT NOT NULL DEFAULT '{}',
+      historic_date  TEXT NOT NULL DEFAULT '',
+      source_url     TEXT NOT NULL DEFAULT '',
+      source_title   TEXT NOT NULL DEFAULT '',
+      verified       INTEGER NOT NULL DEFAULT 0,
+      updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (event_id, item_id)
     );
   `);
@@ -572,6 +588,107 @@ function listLog(limit = 100) {
     .map(r => ({ at: r.at, eventId: r.event_id, action: r.action, details: J(r.details, null) }));
 }
 
+// ── « Pourquoi cet objet ? » (#86) ────────────────────────────────────────────
+
+// Date historique : « AAAA-MM-JJ » (événement daté) ou « MM-JJ » (journée célébrée chaque année)
+const HISTORIC_DATE_RE = /^(\d{4}-)?(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/** URL de source : HTTPS uniquement, sans identifiants ni espaces ; null si invalide. */
+function safeSourceUrl(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  if (s.length > MAX.sourceUrl || /\s/.test(s)) return null;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'https:' || u.username || u.password || !u.hostname.includes('.')) return null;
+    return u.href;
+  } catch (_) { return null; }
+}
+
+function normalizeLore(input = {}, where = 'Explication') {
+  const explains = _texts(input.explains, MAX.explain);
+  const historicDate = String(input.historicDate ?? '').trim();
+  if (historicDate && !HISTORIC_DATE_RE.test(historicDate)) throw new EventError(400, `${where} : date historique attendue au format AAAA-MM-JJ ou MM-JJ.`);
+  const sourceUrl = safeSourceUrl(input.sourceUrl);
+  if (sourceUrl === null) throw new EventError(400, `${where} : la source doit être une adresse https:// complète.`);
+  const sourceTitle = _str(input.sourceTitle, MAX.sourceTitle);
+  const verified = input.verified === true;
+  if (verified) {
+    const miss = LANGS.filter(l => !explains[l]).map(l => l.toUpperCase());
+    if (miss.length) throw new EventError(400, `${where} : explication ${miss.join(', ')} manquante pour la marquer vérifiée.`);
+    if (!sourceUrl || !sourceTitle || !historicDate) throw new EventError(400, `${where} : date historique, source et titre de source obligatoires pour la marquer vérifiée.`);
+  }
+  return { explains, historicDate, sourceUrl, sourceTitle, verified };
+}
+
+const _loreRow = r => ({ explains: J(r.explains, {}), historicDate: r.historic_date, sourceUrl: r.source_url, sourceTitle: r.source_title,
+  verified: !!r.verified, updatedAt: r.updated_at });
+
+/** Explications d'un événement : { itemId → lore } (admin). */
+function getLore(eventId) {
+  return Object.fromEntries(conn().prepare('SELECT * FROM monthly_event_item_lore WHERE event_id = ?').all(eventId).map(r => [r.item_id, _loreRow(r)]));
+}
+
+/** Enregistre l'explication d'un objet — possible même si l'événement est planifié (aucun effet sur les drops). */
+function setItemLore(eventId, itemId, input) {
+  const lore = normalizeLore(input);
+  return db.runTransaction(() => {
+    const ev = getEvent(eventId);
+    if (!ev) throw new EventError(404, 'Événement introuvable.');
+    if (!ev.items.some(i => i.id === itemId)) throw new EventError(404, 'Objet introuvable dans cet événement.');
+    conn().prepare(`INSERT INTO monthly_event_item_lore (event_id, item_id, explains, historic_date, source_url, source_title, verified)
+        VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(event_id, item_id) DO UPDATE SET explains = excluded.explains, historic_date = excluded.historic_date,
+          source_url = excluded.source_url, source_title = excluded.source_title, verified = excluded.verified, updated_at = datetime('now')`)
+      .run(eventId, itemId, JSON.stringify(lore.explains), lore.historicDate, lore.sourceUrl, lore.sourceTitle, lore.verified ? 1 : 0);
+    _log(eventId, 'lore_update', { itemId, verified: lore.verified, sourceUrl: lore.sourceUrl });
+    return getLore(eventId)[itemId];
+  });
+}
+
+/** Vue joueur : seulement une explication vérifiée, avec une source HTTPS valide. */
+function _publicLore(l) {
+  if (!l || !l.verified || !safeSourceUrl(l.sourceUrl)) return null;
+  return { explains: l.explains, historicDate: l.historicDate, sourceUrl: l.sourceUrl, sourceTitle: l.sourceTitle };
+}
+
+/** Points de préparation des explications (admin) : objets sans explication vérifiée. */
+function loreReadiness(ev, lore = getLore(ev.id)) {
+  const missing = ev.items.filter(i => !lore[i.id]?.verified).map(i => i.names.fr || i.id);
+  return { verified: ev.items.length - missing.length, total: ev.items.length, missing };
+}
+
+/**
+ * Explications préparées (`server/content/event-lore/*.json` : { eventId, items: { itemId: lore } }) :
+ * ajoutées seulement pour les objets existants SANS explication — une saisie admin n'est jamais écrasée.
+ */
+function importLore(dir = LORE_DIR) {
+  if (!fs.existsSync(dir)) return 0;
+  let added = 0;
+  for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.json')).sort()) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const ev = getEvent(String(raw.eventId ?? ''));
+      if (!ev) continue;
+      const ids = new Set(ev.items.map(i => i.id));
+      const norm = Object.entries(raw.items ?? {}).filter(([id]) => ids.has(id)).map(([id, l]) => [id, normalizeLore(l, `${f} / ${id}`)]);
+      const n = db.runTransaction(() => {
+        const ins = conn().prepare(`INSERT OR IGNORE INTO monthly_event_item_lore (event_id, item_id, explains, historic_date, source_url, source_title, verified)
+            VALUES (?,?,?,?,?,?,?)`);
+        let k = 0;
+        for (const [id, l] of norm) k += ins.run(ev.id, id, JSON.stringify(l.explains), l.historicDate, l.sourceUrl, l.sourceTitle, l.verified ? 1 : 0).changes;
+        if (k) _log(ev.id, 'lore_import', { file: f, added: k });
+        return k;
+      });
+      if (n) console.log(`[events] ${n} explication(s) « Pourquoi cet objet ? » ajoutée(s) à « ${ev.id} » (${f})`);
+      added += n;
+    } catch (err) {
+      console.error(`[events] explications de ${f} impossibles à importer :`, err.message);
+    }
+  }
+  return added;
+}
+
 // ── Drops (serveur) ───────────────────────────────────────────────────────────
 
 function _isTester(ev, userId) { return ev.testers.some(t => t.id === userId && !t.missing); }
@@ -643,11 +760,15 @@ function processSave(userId, { nowMs = Date.now(), rand = _rand } = {}) {
 function publicView(userId = null, nowMs = Date.now()) {
   const finds = userId ? conn().prepare('SELECT event_id, item_id, found_at FROM monthly_event_finds WHERE user_id = ? ORDER BY found_at').all(userId) : [];
   const foundAt = new Map(finds.map(f => [`${f.event_id}/${f.item_id}`, f.found_at]));
+  const loreOf = new Map();
   const itemView = (ev, it) => {
     const at = foundAt.get(`${ev.id}/${it.id}`) ?? null;
-    // Image PUBLIÉE seulement (#65) : celle du brouillon n'est jamais montrée au joueur ; sinon l'emoji
-    return at ? { id: it.id, found: true, foundAt: at, icon: it.icon, image: it.publishedImage, names: it.names, descs: it.descs, rarity: it.rarity }
-      : { id: it.id, found: false, rarity: it.rarity };
+    if (!at) return { id: it.id, found: false, rarity: it.rarity };
+    // Image PUBLIÉE seulement (#65) : celle du brouillon n'est jamais montrée au joueur ; sinon l'emoji.
+    // « Pourquoi cet objet ? » (#86) : seulement après découverte, et seulement vérifiée.
+    if (!loreOf.has(ev.id)) loreOf.set(ev.id, getLore(ev.id));
+    const lore = _publicLore(loreOf.get(ev.id)[it.id]);
+    return { id: it.id, found: true, foundAt: at, icon: it.icon, image: it.publishedImage, names: it.names, descs: it.descs, rarity: it.rarity, ...(lore ? { lore } : {}) };
   };
   const active = activeFor(userId, nowMs).map(ev => ({ id: ev.id, icon: ev.icon, names: ev.names, taglines: ev.taglines, startsAt: ev.startsAt,
     endsAt: ev.endsAt, test: ev.audience === 'test', items: ev.items.filter(i => i.enabled || foundAt.has(`${ev.id}/${i.id}`)).map(i => itemView(ev, i)) }));
@@ -1147,13 +1268,13 @@ function _studioProposals() {
 
 function adminView(nowMs = Date.now()) {
   const proposals = _studioProposals();
-  const events = listEvents(nowMs).map(ev => ({ ...ev, startsLocal: utcToBrussels(ev.startsAt), endsLocal: utcToBrussels(ev.endsAt),
-    readiness: readiness(ev), stats: stats(ev.id),
+  const events = listEvents(nowMs).map(ev => { const lore = getLore(ev.id); return { ...ev, startsLocal: utcToBrussels(ev.startsAt), endsLocal: utcToBrussels(ev.endsAt),
+    readiness: readiness(ev), stats: stats(ev.id), lore, loreReadiness: loreReadiness(ev, lore),
     items: ev.items.map(it => {
       const key = studioKey(ev.id, it.id), state = imageState(it), n = proposals[key] ?? 0;
       // « proposition » : l'atelier a des images pour cet objet, aucune n'est encore dans la fiche
       return { ...it, studioKey: key, proposals: n, imageState: state === 'none' && n ? 'proposal' : state };
-    }) }));
+    }) }; });
   const y = monthOf(nowMs).year;
   return { timezone: TZ, now: _iso(nowMs), rarities: RARITIES, categories: CATEGORIES, langs: LANGS, events, testerSuggestions: testerSuggestions(),
     calendar: [proposeCalendar(y, nowMs), proposeCalendar(y + 1, nowMs)], preparation: preparation(nowMs), ai: listAiJobs(), log: listLog(60) };
@@ -1165,5 +1286,6 @@ module.exports = {
   activeFor, processSave, publicView, categoryShare, simulate, stats, holidays, proposeCalendar, createTestEvent, importPrepared,
   startAiDraft, getAiJob, listAiJobs, adminView, MAX_BLOCKS_PER_SAVE,
   imageState, publishImages, setItemImage, studioKey, ID_RE,
+  normalizeLore, safeSourceUrl, getLore, setItemLore, loreReadiness, importLore,
   monthBounds, monthOf, isFullMonth, frRange, monthStatus, preparation, transitionPreview, publicActiveAt, applyOwnerDecisions, OWNER_DECISIONS,
 };

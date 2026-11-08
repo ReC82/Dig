@@ -1,0 +1,366 @@
+{
+  "eventId": "novembre_histoire_2026",
+  "_note": "#86 (08/11/2026) — « Pourquoi cet objet ? » : faits relus sur la source citée le 08/11/2026 (Wikipédia FR/EN, UNESCO). Importé seulement pour les objets sans explication ; une saisie admin n'est jamais écrasée.",
+  "items": {
+    "nov26_01_echelle_michel_ange": {
+      "historicDate": "1512-10-31",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Plafond_de_la_chapelle_Sixtine",
+      "sourceTitle": "Wikipédia — Plafond de la chapelle Sixtine",
+      "verified": true,
+      "explains": {
+        "fr": "Michel-Ange a peint le plafond de la chapelle Sixtine, au Vatican, de 1508 à 1512. La fresque a été inaugurée par le pape Jules II le 31 octobre 1512, veille de la Toussaint.",
+        "en": "Michelangelo painted the ceiling of the Sistine Chapel, in the Vatican, from 1508 to 1512. Pope Julius II unveiled the fresco on 31 October 1512, the eve of All Saints' Day.",
+        "nl": "Michelangelo beschilderde het plafond van de Sixtijnse Kapel in het Vaticaan van 1508 tot 1512. Paus Julius II onthulde het fresco op 31 oktober 1512, de vooravond van Allerheiligen.",
+        "es": "Miguel Ángel pintó el techo de la Capilla Sixtina, en el Vaticano, entre 1508 y 1512. El papa Julio II inauguró el fresco el 31 de octubre de 1512, víspera de Todos los Santos."
+      }
+    },
+    "nov26_02_boulon_orbital": {
+      "historicDate": "2000-11-02",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Exp%C3%A9dition_1_(ISS)",
+      "sourceTitle": "Wikipédia — Expédition 1 (ISS)",
+      "verified": true,
+      "explains": {
+        "fr": "Le 2 novembre 2000, les trois membres de l'Expédition 1, arrivés à bord du Soyouz TM-31, s'installent dans la Station spatiale internationale. Depuis ce jour, des humains vivent en permanence dans l'espace.",
+        "en": "On 2 November 2000, the three members of Expedition 1, aboard Soyuz TM-31, moved into the International Space Station. Humans have lived in space continuously ever since.",
+        "nl": "Op 2 november 2000 namen de drie leden van Expeditie 1, aangekomen met de Sojoez TM-31, hun intrek in het Internationaal Ruimtestation. Sindsdien wonen er voortdurend mensen in de ruimte.",
+        "es": "El 2 de noviembre de 2000, los tres miembros de la Expedición 1, llegados a bordo de la Soyuz TM-31, se instalaron en la Estación Espacial Internacional. Desde entonces siempre hay personas viviendo en el espacio."
+      }
+    },
+    "nov26_03_bicorne_cabosse": {
+      "historicDate": "1812-11-03",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Bataille_de_Viazma",
+      "sourceTitle": "Wikipédia — Bataille de Viazma",
+      "verified": true,
+      "explains": {
+        "fr": "Le 3 novembre 1812, pendant la retraite de Russie, des corps de la Grande Armée de Napoléon sont battus à Viazma par les troupes russes du général Miloradovitch.",
+        "en": "On 3 November 1812, during the retreat from Russia, corps of Napoleon's Grande Armée were defeated at Vyazma by Russian troops under General Miloradovich.",
+        "nl": "Op 3 november 1812, tijdens de terugtocht uit Rusland, werden legerkorpsen van Napoleons Grande Armée bij Vjazma verslagen door Russische troepen onder generaal Miloradovitsj.",
+        "es": "El 3 de noviembre de 1812, durante la retirada de Rusia, cuerpos de la Grande Armée de Napoleón fueron derrotados en Viazma por las tropas rusas del general Miloradovich."
+      }
+    },
+    "nov26_04_bulletin_changement": {
+      "historicDate": "2008-11-04",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/%C3%89lection_pr%C3%A9sidentielle_am%C3%A9ricaine_de_2008",
+      "sourceTitle": "Wikipédia — Élection présidentielle américaine de 2008",
+      "verified": true,
+      "explains": {
+        "fr": "Le 4 novembre 2008, Barack Obama, sénateur de l'Illinois, remporte l'élection présidentielle américaine face à John McCain. Il devient le premier président afro-américain des États-Unis.",
+        "en": "On 4 November 2008, Barack Obama, senator from Illinois, won the US presidential election against John McCain. He became the first African-American president of the United States.",
+        "nl": "Op 4 november 2008 won Barack Obama, senator uit Illinois, de Amerikaanse presidentsverkiezingen van John McCain. Hij werd de eerste Afro-Amerikaanse president van de Verenigde Staten.",
+        "es": "El 4 de noviembre de 2008, Barack Obama, senador por Illinois, ganó las elecciones presidenciales de Estados Unidos frente a John McCain. Fue el primer presidente afroamericano del país."
+      }
+    },
+    "nov26_05_meche_fawkes": {
+      "historicDate": "1605-11-05",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Conspiration_des_Poudres",
+      "sourceTitle": "Wikipédia — Conspiration des Poudres",
+      "verified": true,
+      "explains": {
+        "fr": "Le 5 novembre 1605, des conjurés catholiques menés par Robert Catesby voulaient faire sauter la Chambre des lords pendant l'ouverture du Parlement. Guy Fawkes, arrêté près des barils de poudre, est resté le symbole de ce complot raté, rappelé chaque 5 novembre au Royaume-Uni.",
+        "en": "On 5 November 1605, Catholic plotters led by Robert Catesby planned to blow up the House of Lords during the State Opening of Parliament. Guy Fawkes, caught guarding the gunpowder, became the symbol of the failed plot, remembered every 5 November in the UK.",
+        "nl": "Op 5 november 1605 wilden katholieke samenzweerders onder leiding van Robert Catesby het Hogerhuis opblazen tijdens de opening van het Parlement. Guy Fawkes, betrapt bij de vaten buskruit, werd het symbool van dit mislukte complot, dat elk jaar op 5 november in het Verenigd Koninkrijk wordt herdacht.",
+        "es": "El 5 de noviembre de 1605, conspiradores católicos dirigidos por Robert Catesby querían volar la Cámara de los Lores durante la apertura del Parlamento. Guy Fawkes, detenido junto a los barriles de pólvora, quedó como símbolo de aquel complot fallido, que se recuerda cada 5 de noviembre en el Reino Unido."
+      }
+    },
+    "nov26_06_baguette_tchaikovski": {
+      "historicDate": "1893-11-06",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Piotr_Ilitch_Tcha%C3%AFkovski",
+      "sourceTitle": "Wikipédia — Piotr Ilitch Tchaïkovski",
+      "verified": true,
+      "explains": {
+        "fr": "Le compositeur russe Piotr Ilitch Tchaïkovski, auteur du Lac des cygnes et de Casse-Noisette, meurt à Saint-Pétersbourg le 6 novembre 1893 (calendrier grégorien).",
+        "en": "Russian composer Pyotr Ilyich Tchaikovsky, who wrote Swan Lake and The Nutcracker, died in Saint Petersburg on 6 November 1893 (Gregorian calendar).",
+        "nl": "De Russische componist Pjotr Iljitsj Tsjaikovski, bekend van Het Zwanenmeer en De Notenkraker, stierf op 6 november 1893 (gregoriaanse kalender) in Sint-Petersburg.",
+        "es": "El compositor ruso Piotr Ilich Chaikovski, autor de El lago de los cisnes y El cascanueces, murió en San Petersburgo el 6 de noviembre de 1893 (calendario gregoriano)."
+      }
+    },
+    "nov26_07_tube_marie_curie": {
+      "historicDate": "1867-11-07",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Marie_Curie",
+      "sourceTitle": "Wikipédia — Marie Curie",
+      "verified": true,
+      "explains": {
+        "fr": "Marie Curie naît à Varsovie le 7 novembre 1867. Physicienne et chimiste, elle est la première femme à recevoir un prix Nobel et la seule personne récompensée dans deux sciences différentes, la physique et la chimie.",
+        "en": "Marie Curie was born in Warsaw on 7 November 1867. A physicist and chemist, she was the first woman to win a Nobel Prize and the only person honoured in two different sciences, physics and chemistry.",
+        "nl": "Marie Curie werd op 7 november 1867 in Warschau geboren. Als natuurkundige en scheikundige was ze de eerste vrouw met een Nobelprijs en de enige persoon die in twee verschillende wetenschappen werd bekroond: natuurkunde en scheikunde.",
+        "es": "Marie Curie nació en Varsovia el 7 de noviembre de 1867. Física y química, fue la primera mujer en recibir un Premio Nobel y la única persona premiada en dos ciencias distintas: física y química."
+      }
+    },
+    "nov26_08_cadre_louvre_lointain": {
+      "historicDate": "2017-11-08",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Louvre_Abou_Dabi",
+      "sourceTitle": "Wikipédia — Louvre Abou Dabi",
+      "verified": true,
+      "explains": {
+        "fr": "Le Louvre Abou Dabi, musée conçu par l'architecte Jean Nouvel aux Émirats arabes unis, est inauguré le 8 novembre 2017 et ouvre au public le 11 novembre.",
+        "en": "The Louvre Abu Dhabi, a museum designed by architect Jean Nouvel in the United Arab Emirates, was inaugurated on 8 November 2017 and opened to the public on 11 November.",
+        "nl": "Het Louvre Abu Dhabi, een museum in de Verenigde Arabische Emiraten ontworpen door architect Jean Nouvel, werd op 8 november 2017 ingehuldigd en ging op 11 november open voor het publiek.",
+        "es": "El Louvre Abu Dabi, museo diseñado por el arquitecto Jean Nouvel en los Emiratos Árabes Unidos, se inauguró el 8 de noviembre de 2017 y abrió al público el 11 de noviembre."
+      }
+    },
+    "nov26_09_brique_liberte": {
+      "historicDate": "1989-11-09",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Chute_du_mur_de_Berlin",
+      "sourceTitle": "Wikipédia — Chute du mur de Berlin",
+      "verified": true,
+      "explains": {
+        "fr": "Dans la nuit du 9 novembre 1989, des Berlinois de l'Est forcent sans violence l'ouverture des points de passage du mur de Berlin, qui coupait la ville en deux depuis 1961. C'est un tournant de la fin de la guerre froide.",
+        "en": "On the night of 9 November 1989, East Berliners peacefully forced open the crossing points of the Berlin Wall, which had divided the city since 1961. It was a turning point at the end of the Cold War.",
+        "nl": "In de nacht van 9 november 1989 dwongen Oost-Berlijners zonder geweld de doorgangen in de Berlijnse Muur open, die de stad sinds 1961 in tweeën deelde. Het was een keerpunt aan het einde van de Koude Oorlog.",
+        "es": "En la noche del 9 de noviembre de 1989, habitantes de Berlín Este forzaron sin violencia la apertura de los pasos del Muro de Berlín, que dividía la ciudad desde 1961. Fue un momento clave del final de la Guerra Fría."
+      }
+    },
+    "nov26_10_microscope_louche": {
+      "historicDate": "11-10",
+      "sourceUrl": "https://www.unesco.org/fr/days/science-peace-development",
+      "sourceTitle": "UNESCO — Journée mondiale de la science au service de la paix et du développement",
+      "verified": true,
+      "explains": {
+        "fr": "Chaque 10 novembre, l'UNESCO célèbre la Journée mondiale de la science au service de la paix et du développement, pour rappeler le rôle de la science dans la société et rapprocher chercheurs et citoyens.",
+        "en": "Every 10 November, UNESCO celebrates World Science Day for Peace and Development, highlighting the role of science in society and bringing scientists and citizens closer together.",
+        "nl": "Elk jaar op 10 november viert UNESCO de Werelddag van de wetenschap voor vrede en ontwikkeling, om de rol van wetenschap in de samenleving te benadrukken en onderzoekers en burgers dichter bij elkaar te brengen.",
+        "es": "Cada 10 de noviembre, la UNESCO celebra el Día Mundial de la Ciencia para la Paz y el Desarrollo, para destacar el papel de la ciencia en la sociedad y acercar a científicos y ciudadanos."
+      }
+    },
+    "nov26_11_coquelicot_memoire": {
+      "historicDate": "1918-11-11",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Armistice_du_11_novembre_1918",
+      "sourceTitle": "Wikipédia — Armistice du 11 novembre 1918",
+      "verified": true,
+      "explains": {
+        "fr": "L'armistice signé le 11 novembre 1918 met fin aux combats de la Première Guerre mondiale : le cessez-le-feu entre en vigueur à 11 h. Le coquelicot, qui fleurissait sur les champs de bataille, est devenu un symbole du souvenir.",
+        "en": "The armistice signed on 11 November 1918 ended the fighting of the First World War, with the ceasefire taking effect at 11 a.m. The poppy, which bloomed on the battlefields, became a symbol of remembrance.",
+        "nl": "De wapenstilstand van 11 november 1918 maakte een einde aan de gevechten van de Eerste Wereldoorlog; het staakt-het-vuren ging om 11 uur in. De klaproos, die op de slagvelden bloeide, werd een symbool van herdenking.",
+        "es": "El armisticio firmado el 11 de noviembre de 1918 puso fin a los combates de la Primera Guerra Mundial: el alto el fuego entró en vigor a las 11 h. La amapola, que florecía en los campos de batalla, se convirtió en símbolo del recuerdo."
+      }
+    },
+    "nov26_12_anneau_saturne": {
+      "historicDate": "1980-11-12",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Voyager_1",
+      "sourceTitle": "Wikipédia — Voyager 1",
+      "verified": true,
+      "explains": {
+        "fr": "Le 12 novembre 1980, la sonde Voyager 1 de la NASA passe au plus près de Saturne, à environ 124 000 km de son centre, et observe ses anneaux et plusieurs de ses lunes.",
+        "en": "On 12 November 1980, NASA's Voyager 1 probe made its closest approach to Saturn, about 124,000 km from its centre, observing its rings and several of its moons.",
+        "nl": "Op 12 november 1980 kwam de NASA-sonde Voyager 1 het dichtst bij Saturnus, op ongeveer 124.000 km van het centrum, en bestudeerde ze de ringen en enkele manen.",
+        "es": "El 12 de noviembre de 1980, la sonda Voyager 1 de la NASA pasó lo más cerca posible de Saturno, a unos 124 000 km de su centro, y observó sus anillos y varias de sus lunas."
+      }
+    },
+    "nov26_13_sourire_secours": {
+      "historicDate": "11-13",
+      "sourceUrl": "https://en.wikipedia.org/wiki/World_Kindness_Day",
+      "sourceTitle": "Wikipedia (EN) — World Kindness Day",
+      "verified": true,
+      "explains": {
+        "fr": "Le 13 novembre est la Journée mondiale de la gentillesse, lancée en 1998 par le World Kindness Movement, un réseau d'associations de plusieurs pays.",
+        "en": "13 November is World Kindness Day, introduced in 1998 by the World Kindness Movement, a coalition of kindness organisations from several countries.",
+        "nl": "13 november is de Werelddag van de vriendelijkheid, in 1998 gestart door de World Kindness Movement, een netwerk van organisaties uit verschillende landen.",
+        "es": "El 13 de noviembre es el Día Mundial de la Amabilidad, impulsado en 1998 por el World Kindness Movement, una red de asociaciones de varios países."
+      }
+    },
+    "nov26_14_dent_cachalot_lettre": {
+      "historicDate": "1851-11-14",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Moby-Dick",
+      "sourceTitle": "Wikipedia (EN) — Moby-Dick",
+      "verified": true,
+      "explains": {
+        "fr": "Le roman Moby-Dick d'Herman Melville paraît aux États-Unis le 14 novembre 1851, un mois après une première édition à Londres. Le capitaine Achab y poursuit un gigantesque cachalot blanc.",
+        "en": "Herman Melville's novel Moby-Dick was published in the United States on 14 November 1851, a month after a first edition in London. In it, Captain Ahab hunts a giant white sperm whale.",
+        "nl": "Herman Melvilles roman Moby-Dick verscheen op 14 november 1851 in de Verenigde Staten, een maand na een eerste uitgave in Londen. Kapitein Achab jaagt erin op een reusachtige witte potvis.",
+        "es": "La novela Moby-Dick de Herman Melville se publicó en Estados Unidos el 14 de noviembre de 1851, un mes después de una primera edición en Londres. En ella, el capitán Ahab persigue a un gigantesco cachalote blanco."
+      }
+    },
+    "nov26_15_compas_kepler": {
+      "historicDate": "1630-11-15",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Johannes_Kepler",
+      "sourceTitle": "Wikipédia — Johannes Kepler",
+      "verified": true,
+      "explains": {
+        "fr": "L'astronome allemand Johannes Kepler meurt le 15 novembre 1630 à Ratisbonne. Il a découvert que les planètes tournent autour du Soleil sur des ellipses, et non sur des cercles parfaits.",
+        "en": "German astronomer Johannes Kepler died in Regensburg on 15 November 1630. He discovered that planets orbit the Sun along ellipses, not perfect circles.",
+        "nl": "De Duitse astronoom Johannes Kepler stierf op 15 november 1630 in Regensburg. Hij ontdekte dat planeten in ellipsen rond de zon draaien, niet in perfecte cirkels.",
+        "es": "El astrónomo alemán Johannes Kepler murió en Ratisbona el 15 de noviembre de 1630. Descubrió que los planetas giran alrededor del Sol siguiendo elipses, no círculos perfectos."
+      }
+    },
+    "nov26_16_drapeau_compromis": {
+      "historicDate": "11-16",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Journ%C3%A9e_internationale_de_la_tol%C3%A9rance",
+      "sourceTitle": "Wikipédia — Journée internationale de la tolérance",
+      "verified": true,
+      "explains": {
+        "fr": "Créée par l'UNESCO en 1995, la Journée internationale de la tolérance a lieu chaque 16 novembre pour sensibiliser l'opinion publique aux dangers de l'intolérance.",
+        "en": "Created by UNESCO in 1995, the International Day for Tolerance is held every 16 November to raise public awareness of the dangers of intolerance.",
+        "nl": "De Internationale Dag van de Verdraagzaamheid, in 1995 door UNESCO ingesteld, vindt elk jaar op 16 november plaats om het publiek bewust te maken van de gevaren van onverdraagzaamheid.",
+        "es": "Creado por la UNESCO en 1995, el Día Internacional para la Tolerancia se celebra cada 16 de noviembre para concienciar sobre los peligros de la intolerancia."
+      }
+    },
+    "nov26_17_couronne_elisabeth": {
+      "historicDate": "1558-11-17",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/%C3%89lisabeth_Ire_(reine_d%27Angleterre)",
+      "sourceTitle": "Wikipédia — Élisabeth Ire (reine d'Angleterre)",
+      "verified": true,
+      "explains": {
+        "fr": "Le 17 novembre 1558, à la mort de sa demi-sœur Marie Ire, Élisabeth Ire monte sur le trône d'Angleterre. Elle règne jusqu'en 1603 et sera la dernière souveraine de la dynastie Tudor.",
+        "en": "On 17 November 1558, on the death of her half-sister Mary I, Elizabeth I became Queen of England. She reigned until 1603 and was the last monarch of the Tudor dynasty.",
+        "nl": "Op 17 november 1558, bij de dood van haar halfzus Maria I, besteeg Elizabeth I de Engelse troon. Ze regeerde tot 1603 en was de laatste vorstin uit het huis Tudor.",
+        "es": "El 17 de noviembre de 1558, a la muerte de su media hermana María I, Isabel I subió al trono de Inglaterra. Reinó hasta 1603 y fue la última soberana de la dinastía Tudor."
+      }
+    },
+    "nov26_18_madeleine_proust": {
+      "historicDate": "1922-11-18",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Marcel_Proust",
+      "sourceTitle": "Wikipédia — Marcel Proust",
+      "verified": true,
+      "explains": {
+        "fr": "Marcel Proust, auteur d'« À la recherche du temps perdu », meurt à Paris le 18 novembre 1922. Dans ce roman, une madeleine trempée dans du thé fait ressurgir les souvenirs d'enfance du narrateur.",
+        "en": "Marcel Proust, author of In Search of Lost Time, died in Paris on 18 November 1922. In the novel, a madeleine dipped in tea brings back the narrator's childhood memories.",
+        "nl": "Marcel Proust, auteur van Op zoek naar de verloren tijd, stierf op 18 november 1922 in Parijs. In die roman roept een in thee gedoopte madeleine de jeugdherinneringen van de verteller op.",
+        "es": "Marcel Proust, autor de En busca del tiempo perdido, murió en París el 18 de noviembre de 1922. En esa novela, una magdalena mojada en té despierta los recuerdos de infancia del narrador."
+      }
+    },
+    "nov26_19_combine_geneve": {
+      "historicDate": "1985-11-19",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Sommet_de_Gen%C3%A8ve_(1985)",
+      "sourceTitle": "Wikipédia — Sommet de Genève (1985)",
+      "verified": true,
+      "explains": {
+        "fr": "Les 19 et 20 novembre 1985, Ronald Reagan et Mikhaïl Gorbatchev se rencontrent pour la première fois à Genève, en pleine guerre froide, pour parler de diplomatie et de course aux armements.",
+        "en": "On 19 and 20 November 1985, Ronald Reagan and Mikhail Gorbachev met for the first time in Geneva, in the middle of the Cold War, to discuss diplomacy and the arms race.",
+        "nl": "Op 19 en 20 november 1985 ontmoetten Ronald Reagan en Michail Gorbatsjov elkaar voor het eerst in Genève, midden in de Koude Oorlog, om te praten over diplomatie en de wapenwedloop.",
+        "es": "El 19 y 20 de noviembre de 1985, Ronald Reagan y Mijaíl Gorbachov se reunieron por primera vez en Ginebra, en plena Guerra Fría, para hablar de diplomacia y de la carrera armamentística."
+      }
+    },
+    "nov26_20_toupie_enfants": {
+      "historicDate": "1989-11-20",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Convention_relative_aux_droits_de_l%27enfant",
+      "sourceTitle": "Wikipédia — Convention relative aux droits de l'enfant",
+      "verified": true,
+      "explains": {
+        "fr": "Le 20 novembre 1989, l'Assemblée générale des Nations unies adopte la Convention relative aux droits de l'enfant, qui reconnaît et protège les droits propres aux enfants. Le 20 novembre est aussi la Journée mondiale de l'enfance.",
+        "en": "On 20 November 1989, the United Nations General Assembly adopted the Convention on the Rights of the Child, which recognises and protects children's specific rights. 20 November is also World Children's Day.",
+        "nl": "Op 20 november 1989 nam de Algemene Vergadering van de Verenigde Naties het Verdrag inzake de rechten van het kind aan, dat de specifieke rechten van kinderen erkent en beschermt. 20 november is ook Wereldkinderdag.",
+        "es": "El 20 de noviembre de 1989, la Asamblea General de las Naciones Unidas aprobó la Convención sobre los Derechos del Niño, que reconoce y protege los derechos propios de la infancia. El 20 de noviembre es también el Día Mundial del Niño."
+      }
+    },
+    "nov26_21_plume_voltaire": {
+      "historicDate": "1694-11-21",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Voltaire",
+      "sourceTitle": "Wikipédia — Voltaire",
+      "verified": true,
+      "explains": {
+        "fr": "François-Marie Arouet, dit Voltaire, naît à Paris le 21 novembre 1694. Écrivain et philosophe, il est l'une des grandes figures des Lumières.",
+        "en": "François-Marie Arouet, known as Voltaire, was born in Paris on 21 November 1694. A writer and philosopher, he was one of the leading figures of the Enlightenment.",
+        "nl": "François-Marie Arouet, beter bekend als Voltaire, werd op 21 november 1694 in Parijs geboren. Als schrijver en filosoof was hij een van de grote figuren van de Verlichting.",
+        "es": "François-Marie Arouet, conocido como Voltaire, nació en París el 21 de noviembre de 1694. Escritor y filósofo, fue una de las grandes figuras de la Ilustración."
+      }
+    },
+    "nov26_22_kepi_gigantesque": {
+      "historicDate": "1890-11-22",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Charles_de_Gaulle",
+      "sourceTitle": "Wikipédia — Charles de Gaulle",
+      "verified": true,
+      "explains": {
+        "fr": "Charles de Gaulle naît à Lille le 22 novembre 1890. Chef de la France libre pendant la Seconde Guerre mondiale, il devient le premier président de la Ve République, de 1959 à 1969.",
+        "en": "Charles de Gaulle was born in Lille on 22 November 1890. Leader of Free France during the Second World War, he became the first president of the Fifth Republic, from 1959 to 1969.",
+        "nl": "Charles de Gaulle werd op 22 november 1890 in Rijsel (Lille) geboren. Hij leidde de Vrije Fransen tijdens de Tweede Wereldoorlog en werd de eerste president van de Vijfde Republiek, van 1959 tot 1969.",
+        "es": "Charles de Gaulle nació en Lille el 22 de noviembre de 1890. Líder de la Francia Libre durante la Segunda Guerra Mundial, fue el primer presidente de la Quinta República, de 1959 a 1969."
+      }
+    },
+    "nov26_23_galaxie_poche": {
+      "historicDate": "1924-11-23",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Edwin_Hubble",
+      "sourceTitle": "Wikipedia (EN) — Edwin Hubble",
+      "verified": true,
+      "explains": {
+        "fr": "Le 23 novembre 1924, le New York Times publie les résultats d'Edwin Hubble : la « nébuleuse » d'Andromède est en réalité une galaxie située bien au-delà de la Voie lactée. Ses travaux sont présentés aux astronomes début 1925.",
+        "en": "On 23 November 1924, The New York Times published Edwin Hubble's findings: the Andromeda 'nebula' is actually a galaxy far beyond the Milky Way. He presented his work to astronomers in early 1925.",
+        "nl": "Op 23 november 1924 publiceerde The New York Times de resultaten van Edwin Hubble: de Andromeda-'nevel' is in werkelijkheid een sterrenstelsel ver buiten de Melkweg. Begin 1925 stelde hij zijn werk voor aan astronomen.",
+        "es": "El 23 de noviembre de 1924, The New York Times publicó los resultados de Edwin Hubble: la «nebulosa» de Andrómeda es en realidad una galaxia situada mucho más allá de la Vía Láctea. Presentó su trabajo a los astrónomos a principios de 1925."
+      }
+    },
+    "nov26_24_lentille_spinoza": {
+      "historicDate": "1632-11-24",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Baruch_Spinoza",
+      "sourceTitle": "Wikipédia — Baruch Spinoza",
+      "verified": true,
+      "explains": {
+        "fr": "Le philosophe Baruch Spinoza naît à Amsterdam le 24 novembre 1632. Il gagnait sa vie en taillant des lentilles optiques pour lunettes et microscopes.",
+        "en": "Philosopher Baruch Spinoza was born in Amsterdam on 24 November 1632. He earned his living by grinding optical lenses for spectacles and microscopes.",
+        "nl": "De filosoof Baruch Spinoza werd op 24 november 1632 in Amsterdam geboren. Hij verdiende de kost met het slijpen van optische lenzen voor brillen en microscopen.",
+        "es": "El filósofo Baruch Spinoza nació en Ámsterdam el 24 de noviembre de 1632. Se ganaba la vida puliendo lentes ópticas para gafas y microscopios."
+      }
+    },
+    "nov26_25_craie_relativite": {
+      "historicDate": "1915-11-25",
+      "sourceUrl": "https://en.wikipedia.org/wiki/History_of_general_relativity",
+      "sourceTitle": "Wikipedia (EN) — History of general relativity",
+      "verified": true,
+      "explains": {
+        "fr": "Le 25 novembre 1915, Albert Einstein présente à l'Académie prussienne des sciences les équations définitives de la relativité générale, sa théorie de la gravitation.",
+        "en": "On 25 November 1915, Albert Einstein presented the final field equations of general relativity, his theory of gravitation, to the Prussian Academy of Sciences.",
+        "nl": "Op 25 november 1915 presenteerde Albert Einstein aan de Pruisische Academie van Wetenschappen de definitieve vergelijkingen van de algemene relativiteitstheorie, zijn theorie van de zwaartekracht.",
+        "es": "El 25 de noviembre de 1915, Albert Einstein presentó ante la Academia Prusiana de las Ciencias las ecuaciones definitivas de la relatividad general, su teoría de la gravitación."
+      }
+    },
+    "nov26_26_cle_pharaon_enrhume": {
+      "historicDate": "1922-11-26",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Tombeau_de_Tout%C3%A2nkhamon",
+      "sourceTitle": "Wikipédia — Tombeau de Toutânkhamon",
+      "verified": true,
+      "explains": {
+        "fr": "Le 26 novembre 1922, dans la vallée des Rois, en Égypte, Howard Carter perce la porte scellée qui mène au tombeau de Toutânkhamon et aperçoit ses trésors. L'entrée avait été découverte le 4 novembre.",
+        "en": "On 26 November 1922, in Egypt's Valley of the Kings, Howard Carter made a hole in the sealed doorway of Tutankhamun's tomb and glimpsed its treasures. The entrance had been found on 4 November.",
+        "nl": "Op 26 november 1922 maakte Howard Carter in de Vallei der Koningen in Egypte een gat in de verzegelde deur van het graf van Toetanchamon en zag hij de schatten. De ingang was op 4 november gevonden.",
+        "es": "El 26 de noviembre de 1922, en el Valle de los Reyes, en Egipto, Howard Carter abrió un agujero en la puerta sellada de la tumba de Tutankamón y vislumbró sus tesoros. La entrada se había descubierto el 4 de noviembre."
+      }
+    },
+    "nov26_27_testament_alfred": {
+      "historicDate": "1895-11-27",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Alfred_Nobel",
+      "sourceTitle": "Wikipédia — Alfred Nobel",
+      "verified": true,
+      "explains": {
+        "fr": "Le 27 novembre 1895, à Paris, Alfred Nobel, l'inventeur de la dynamite, signe le testament qui lègue la quasi-totalité de sa fortune à la création des prix Nobel.",
+        "en": "On 27 November 1895, in Paris, Alfred Nobel, the inventor of dynamite, signed the will leaving almost all his fortune to create the Nobel Prizes.",
+        "nl": "Op 27 november 1895 ondertekende Alfred Nobel, de uitvinder van dynamiet, in Parijs het testament waarmee hij bijna zijn hele fortuin naliet voor de oprichting van de Nobelprijzen.",
+        "es": "El 27 de noviembre de 1895, en París, Alfred Nobel, inventor de la dinamita, firmó el testamento que destinaba casi toda su fortuna a la creación de los Premios Nobel."
+      }
+    },
+    "nov26_28_aigle_roche": {
+      "historicDate": "1912-11-28",
+      "sourceUrl": "https://en.wikipedia.org/wiki/Albanian_Declaration_of_Independence",
+      "sourceTitle": "Wikipedia (EN) — Albanian Declaration of Independence",
+      "verified": true,
+      "explains": {
+        "fr": "Le 28 novembre 1912, une assemblée réunie à Vlorë proclame l'indépendance de l'Albanie vis-à-vis de l'Empire ottoman. L'aigle noir à deux têtes figure sur le drapeau albanais.",
+        "en": "On 28 November 1912, an assembly meeting in Vlorë proclaimed Albania's independence from the Ottoman Empire. A black double-headed eagle appears on the Albanian flag.",
+        "nl": "Op 28 november 1912 riep een vergadering in Vlorë de onafhankelijkheid van Albanië van het Ottomaanse Rijk uit. Op de Albanese vlag staat een zwarte dubbelkoppige adelaar.",
+        "es": "El 28 de noviembre de 1912, una asamblea reunida en Vlorë proclamó la independencia de Albania respecto del Imperio otomano. Un águila negra bicéfala figura en la bandera albanesa."
+      }
+    },
+    "nov26_29_ballon_1899": {
+      "historicDate": "1899-11-29",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Histoire_du_FC_Barcelone",
+      "sourceTitle": "Wikipédia — Histoire du FC Barcelone",
+      "verified": true,
+      "explains": {
+        "fr": "Le 29 novembre 1899, onze passionnés réunis au Gimnasio Solé, à l'appel du Suisse Joan Gamper, fondent le FC Barcelone.",
+        "en": "On 29 November 1899, eleven enthusiasts gathered at the Gimnasio Solé, answering an advert by Swiss-born Joan Gamper, and founded FC Barcelona.",
+        "nl": "Op 29 november 1899 richtten elf liefhebbers, bijeengeroepen door de Zwitser Joan Gamper, in het Gimnasio Solé FC Barcelona op.",
+        "es": "El 29 de noviembre de 1899, once aficionados reunidos en el Gimnasio Solé, convocados por el suizo Joan Gamper, fundaron el FC Barcelona."
+      }
+    },
+    "nov26_30_noeud_churchill": {
+      "historicDate": "1874-11-30",
+      "sourceUrl": "https://fr.wikipedia.org/wiki/Winston_Churchill",
+      "sourceTitle": "Wikipédia — Winston Churchill",
+      "verified": true,
+      "explains": {
+        "fr": "Winston Churchill naît le 30 novembre 1874 à Woodstock, en Angleterre. Premier ministre du Royaume-Uni de 1940 à 1945, il joue un rôle décisif dans la victoire des Alliés lors de la Seconde Guerre mondiale.",
+        "en": "Winston Churchill was born on 30 November 1874 in Woodstock, England. Prime Minister of the United Kingdom from 1940 to 1945, he played a decisive role in the Allied victory in the Second World War.",
+        "nl": "Winston Churchill werd op 30 november 1874 geboren in Woodstock, Engeland. Als premier van het Verenigd Koninkrijk van 1940 tot 1945 speelde hij een beslissende rol in de overwinning van de geallieerden in de Tweede Wereldoorlog.",
+        "es": "Winston Churchill nació el 30 de noviembre de 1874 en Woodstock, Inglaterra. Primer ministro del Reino Unido de 1940 a 1945, desempeñó un papel decisivo en la victoria aliada en la Segunda Guerra Mundial."
+      }
+    }
+  }
+}

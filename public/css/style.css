@@ -1836,6 +1836,13 @@ h1 {
 #find-modal-extra .fm-line b { color: var(--gold); font-weight: 700; }
 #find-modal-extra .fm-note { font-size: 0.7rem; color: var(--muted); }
 #find-modal-extra .badge-bar { margin-top: 0; }
+/* #86 : « Pourquoi cet objet ? » — explication historique sous la description humoristique */
+#find-modal-lore { width: 100%; text-align: left; border-top: 1px solid var(--border, rgba(255,255,255,0.12)); padding-top: 8px; margin-top: 2px; }
+#find-modal-lore[hidden] { display: none; }
+#find-modal-lore .fm-lore-title { margin: 0 0 4px; font-size: 0.85rem; color: var(--gold); }
+#find-modal-lore .fm-lore-date { margin: 0 0 4px; font-size: 0.75rem; color: var(--muted); }
+#find-modal-lore .fm-lore-text { margin: 0 0 6px; font-size: 0.8rem; line-height: 1.4; color: var(--text); }
+#find-modal-lore .fm-lore-link { display: inline-block; font-size: 0.75rem; color: var(--gold); overflow-wrap: anywhere; min-height: 24px; }
 .rarity-badge.badge-status-earned { background: rgba(245, 197, 24, 0.18); color: var(--gold); border: 1px solid rgba(245, 197, 24, 0.45); }
 .rarity-badge.badge-status-locked { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
 #btn-find-modal-close {
