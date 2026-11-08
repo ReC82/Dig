@@ -1,5 +1,131 @@
 # Ticket #56 — Événements mensuels : objets exclusifs à miner et calendrier automatique
 
+# Mise à jour du 08/11/2026, ~16 h 15 (Bruxelles) — transition mensuelle automatique, préparation du mois prochain, novembre et Noël planifiés
+
+Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Demandes prises en compte : [priorité du 08/11 09:37](https://github.com/ReC82/Dig/issues/56#issuecomment-6719899927), [rectificatif du 08/11 09:57](https://github.com/ReC82/Dig/issues/56#issuecomment-6720078513) et [décision du 08/11 13:59](https://github.com/ReC82/Dig/issues/56#issuecomment-6722406304) (heures explicites, publication sans clic admin). Coordination [#86](https://github.com/ReC82/Dig/issues/86) : feu vert et barème de novembre ([commentaire du 08/11 09:49](https://github.com/ReC82/Dig/issues/86#issuecomment-6720004334), [décision du 08/11 13:59](https://github.com/ReC82/Dig/issues/86#issuecomment-6722405932)).
+
+## 1. État réel
+
+**Déployé en production (SHA `fdf90ee`) — en attente de recette.**
+
+- « 🏛️ Novembre déterre l'Histoire » est **actif pour tous** depuis 16 h 10 (08/11), 30 objets. Vérifié en production : `/api/events` renvoie l'événement actif avec 30 objets.
+- « 🎄 Noël sous la mine » est **planifié** : il démarrera seul le 01/12/2026 à 00 h 01.
+
+Classement : **Bloquant bêta du 09/11** pour le lancement de novembre et la lisibilité ; **Après lancement** pour l'assistant IA.
+
+## 2. Ce qui était déjà automatique dans #56, et ce qui manquait
+
+**Déjà automatique (vérifié, pas réécrit)**
+- Un événement planifié est actif dès que l'heure du serveur est dans ses bornes. Aucune tâche planifiée ni minuterie n'est en jeu. Un redémarrage, une absence du serveur ou un changement d'heure ne déclenchent donc rien deux fois et n'en ratent aucun.
+- Pas de doublon : un objet par joueur (clé primaire).
+- Pas de drop rétroactif : le minage d'avant le premier passage pendant l'événement ne compte pas.
+- Pas de drop hors dates.
+- Les souvenirs sont conservés à vie, même après la fin de l'événement.
+
+**Ce qui manquait (fait dans ce lot)**
+1. **Règle du mois civil entier.** Elle couvre du 1er à **00:01** (inclus) au 1er du mois suivant à **00:00** (exclu), heure de Bruxelles : `monthBounds()`.
+   - Mois de 28, 29, 30 ou 31 jours, 2028 bissextile, heure d'été et d'hiver, changement d'année.
+   - Une minute sans événement entre deux mois, jamais de chevauchement.
+   - Dates écrites en clair, sans « minuit » : « du 1er décembre 2026 à 00 h 01 au 31 décembre 2026 à 23 h 59, heure de Bruxelles ».
+2. **Calendrier annuel.**
+   - Chaque mois propose le mois entier (avant : des fenêtres de 7 à 15 jours autour des fêtes). La fête du mois n'inspire plus que le thème.
+   - Navigable par années (◀ ▶, 2024 à 2100), avec pour chaque mois : état, contenu (objets, images, traductions), échéance J-14 et un bouton direct.
+3. **Tableau Admin → Événements « 🗓️ Préparation du mois prochain »** : trois cartes, mois précédent, en cours et suivant.
+   - État explicite : **Absent / À compléter / Brouillon non planifié / Prêt — planifié / Actif / Terminé**.
+   - Tâches bloquantes : aucun événement, 0 objet, textes obligatoires manquants, brouillon non planifié qui « ne démarrera pas tout seul »…
+   - Avertissements non bloquants : images publiées x/n et « emoji affiché », images conservées mais non publiées, consignes d'image manquantes, traductions, dates qui ne couvrent pas le mois entier, chevauchements.
+   - Rappels **J-14 / J-7 / J-1**, de plus en plus visibles.
+   - Boutons directs : « Créer un événement » (brouillon public prérempli sur le mois entier, rien d'enregistré avant « Enregistrer »), « Ajouter les objets », « Ouvrir l'atelier d'images », « Vérifier / Planifier », « Arrêter / reporter… » (ouvre la fiche, où se trouve « Repasser en brouillon »).
+4. **Indicateur d'accueil** en haut de toutes les rubriques, par exemple « 🎉 Événements — novembre 2026 : 🟢 Actif · décembre 2026 : ✅ Prêt — planifié ». Un clic mène au tableau. Il remplace la cloche ou le mail, puisque le SMTP n'est pas prêt.
+5. **Aperçu d'un changement de mois**, en lecture seule. Il montre les événements actifs à 23:59:00, 23:59:59, 00:00:00, 00:00:30, 00:01:00 et 00:01:30. Un champ « Simuler l'heure » affiche l'état du tableau à n'importe quelle date sans rien modifier (`GET /api/admin/events/preparation?at=…`).
+6. **Mois non préparé** : rien n'est inventé ni prolongé. Le tableau affiche « Aucun événement prévu pour … : le jeu reste jouable sans événement mensuel », avec le bouton « Créer un événement ».
+7. **Décisions écrites du propriétaire appliquées une seule fois au démarrage** (`OWNER_DECISIONS` dans `server/monthlyEvents.js`, journal `owner_decision_*`). C'est le même mécanisme que les réglages #19 et #25 : le propriétaire n'a pas accès au panel et l'authentification n'est pas contournée.
+   - Chaque décision passe par les mêmes contrôles que « Planifier » (fiche complète, période non terminée).
+   - Elle n'agit que si la fiche est encore exactement celle relue (brouillon, même révision). Sinon, elle est ignorée et journalisée.
+   - Elle n'est jamais rejouée : un « Repasser en brouillon » du propriétaire reste acquis après un redémarrage.
+   - **Elle ne publie aucune image** : l'image de « La brique de la liberté », conservée dans la fiche, n'est pas montrée aux joueurs avant « Publier les images ».
+
+Fichiers : `server/monthlyEvents.js`, `server/index.js` (deux routes en lecture seule, décisions au démarrage), `public/admin/{index.html,admin.js,admin.css}`, `test/monthly-events-transition.test.js` (nouveau, 6 tests), `test/monthly-events.test.js` (calendrier adapté à la règle du mois entier).
+
+## 3. Statuts exacts en production (08/11 16:10, vérifiés en base)
+
+| Événement | Statut | Bornes (UTC en base) | Heure de Bruxelles | Objets | Images joueurs |
+|---|---|---|---|---|---|
+| `novembre_histoire_2026` | planifié → **actif** (rév. 5) | 2026-10-31T23:01:00Z → 2026-11-30T23:00:00Z | 01/11 00:01 → 30/11 23:59 | 30 (barème #86 : 0,25 / 0,15 / 0,08 / 0,05 % dès 10 m / 0,03 % dès 20 m) | emoji (0 publiée) |
+| `noel_2026` | **planifié** (rév. 3) | 2026-11-30T23:01:00Z → 2026-12-31T23:00:00Z | 01/12 00:01 → 31/12 23:59 | 5, barème de la fiche **inchangé** | emoji (0 publiée) |
+
+- Aucun bonus ni micro-bonus activé : ceux de #81 et #86 restent en brouillon, et les événements n'en portent pas.
+- Aucune trouvaille rétroactive : les premiers objets de novembre ne peuvent tomber que sur des blocs minés après 16 h 10 le 08/11.
+- Annonce « Bientôt » de Noël automatique dans les Actualités à J-7 (24/11).
+
+## 4. SHA et procédure de test
+
+- Branche `feature/56-evenements-mensuels` : `7b33ffb`. **develop : `fdf90ee`** (= production).
+- Tests : `node --test test/monthly-events-transition.test.js` (6/6).
+  - Horloge 30/11 23:59:59 → 01/12 00:00:00 (aucun événement, aucun drop) → 00:01 (décembre seul).
+  - 31/12 → 01/01, février 2028 avec son 29.
+  - Bornes en heure d'été et d'hiver.
+  - Janvier non prolongé en février.
+  - Décisions : appliquées une seule fois, ignorées si la fiche a changé, si elle est incomplète, si le mois est terminé ou si l'événement est absent ; jamais rejouées après un « Repasser en brouillon ».
+  - Souvenirs conservés après la fin.
+  - Tableau : états, J-14/J-7/J-1, lecture seule.
+  - Calendrier 2026 à 2028.
+- `npm test` complet sur le SHA de release `fdf90ee` : **955/955**.
+
+## 5. Vérifications, limites, données joueurs
+
+- Copie de la base de production démarrée (port 3122) : les deux décisions s'appliquent ; empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` **identiques** ; `quick_check` ok. Seules des lignes d'événements, de révisions et de journal sont ajoutées.
+- Navigateur, ordinateur 1280×900 et téléphone 390×844 (copie de la base) : bandeau, trois cartes, simulation au 01/12 00:00, calendrier 2028 (février 29 jours). Seule erreur de console : le 401 normal avant connexion.
+- Limites :
+  - l'assistant IA demandé dans le rectificatif (« Proposer un autre thème / Améliorer / Proposer des objets », contraintes libres) **n'est pas fait** (voir §9) ;
+  - la fiche joueur « Pourquoi cet objet ? » relève de #86 ;
+  - il n'y a pas de cloche admin persistante : le bandeau d'accueil en tient lieu.
+
+## 6. Déploiement
+
+- Déployé `fdf90ee` le 08/11 à 16 h 10, par avance rapide de `main` (55240ce → fdf90ee) et `scripts/deploy.sh` de la release.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261108-161003-pre-deploy-fdf90ee.sqlite`.
+- Après déploiement :
+  - dig.lodygames.com et dig.lodylands.com répondent 200, version `1.0.0+fdf90ee` ;
+  - journal sans erreur, avec les deux lignes « Décision … planifié » ;
+  - `quick_check` ok ; empreintes joueurs identiques à la sauvegarde.
+- Retour arrière :
+  - pour un événement, Admin → Événements → fiche → « Repasser en brouillon » : les drops s'arrêtent aussitôt, les objets trouvés restent ;
+  - pour le code, revenir à `55240ce` (procédure habituelle), ce qui ne repasse pas les événements en brouillon.
+
+**Test fonctionnel à faire par le propriétaire (≈ 3 min)**
+1. /admin/ (Ctrl+F5) → bandeau du haut « 🎉 Événements — novembre 2026 : 🟢 Actif (Novembre déterre l'Histoire) · décembre 2026 : ✅ Prêt — planifié (Noël sous la mine) ».
+2. Clic sur le bandeau → « Préparation du mois prochain » : novembre Actif, 30/30 objets, 🖼 0/30 publiées (+1 en fiche) ; décembre Prêt — planifié, 5/5.
+3. Déplier « ⏱ Aperçu d'un changement de mois » :
+   - 30/11 23:59:59 = Novembre ;
+   - 01/12 00:00:00 et 00:00:30 = aucun ;
+   - 01/12 00:01 = Noël.
+   Saisir `30/12/2026 12:00` → « Voir l'état » : « Aucun événement prévu pour janvier 2027 : le jeu reste jouable… ».
+4. « 📅 Calendrier annuel » ▶ ▶ 2028 : février « 29 jours », 01/02/2028 00:01 → 01/03/2028 00:00.
+5. Jeu → Collection → Événements : « Novembre déterre l'Histoire » en cours, 30 « ? ». Miner un moment : un souvenir peut tomber.
+
+## 7. Choix techniques faits seul
+
+- **Planification par décision au démarrage plutôt qu'une écriture directe en base.** Les règles interdisent d'écrire dans la base de production hors `deploy.sh`. Ce mécanisme existe déjà (#19, #25), il est journalisé, idempotent et respecte toute modification ultérieure du propriétaire.
+- **Novembre planifié dans ce ticket**, bien que la publication relève de #86. La décision du 08/11 13:59 sur #56 dit « Publication novembre immédiate autorisée… Respecter cette nouvelle décision en priorité P0 », et la bêta est lundi. La décision étant liée à la révision 3, une nouvelle exécution de #86 ne peut rien dupliquer.
+- **Images non publiées par la décision** : le propriétaire avait demandé de ne pas toucher à la proposition « La brique de la liberté ».
+- **Barème de Noël inchangé** : la décision interdit les « drops arbitraires ». Diviser par 2 était une recommandation jamais validée (question 1).
+- **Pas de règle « mois entier » imposée** à la création : les événements TEST et courts spéciaux restent possibles. Un événement public qui ne couvre pas le mois entier reçoit seulement un avertissement.
+
+## 8. Décisions demandées au propriétaire
+
+1. **Barème de Noël (avant le 30/11)** : a) garder la fiche actuelle, qui est en ligne et planifiée (commun 0,8 % minerai, peu commun 0,4 % dès 10 m, rare 0,25 % pierre dès 25 m, épique 3 % coffres dès 40 m, légendaire 0,05 % dès 80 m) ; b) aligner sur l'échelle de novembre (0,25 / 0,15 / 0,08 / 0,05 / 0,03 %). **Recommandation : b)** pour la cohérence entre les mois. Pour le faire : fiche → Repasser en brouillon → modifier → Planifier. Il reste 23 jours.
+2. **Assistant IA du panel** (« Proposer un autre thème », « Améliorer », « Proposer des objets », champ de contraintes) : faut-il le développer maintenant, avec un appel IA par clic dans le budget du panel, ou après la bêta ? **Recommandation : après la bêta** ; l'outil IA existant (« ✨ IA ») couvre déjà une proposition complète en brouillon.
+3. **Thèmes 2027** : le calendrier affiche désormais chaque mois entier avec sa fête d'inspiration. Il reste à choisir les thèmes, au plus tard à J-14 de chaque mois.
+
+## 9. Restant à réaliser
+
+- Assistant IA (question 2), avec tests IA simulés sans dépense.
+- Publication des images définitives de novembre et de Noël : action « Publier les images » du propriétaire, après génération dans l'atelier.
+- #86 : fiche joueur « Pourquoi cet objet ? » et confirmation de publication lisible (hors de ce ticket).
+
+---
+
 # Mise à jour du 05/11/2026, ~17 h (Bruxelles) — tests automatiques manquants (priorisation du propriétaire)
 
 Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Demande prise en compte : [priorisation du 05/11](https://github.com/ReC82/Dig/issues/56#issuecomment-6661250025). Elle demande de continuer uniquement le câblage technique et les tests automatiques manquants (activation par dates, drops, conservation des souvenirs, traduction et rendu joueur), en environnement de test. Elle interdit de publier un événement, de toucher aux taux ou aux récompenses, et de générer des images payantes. Les recettes #56-H et #56-I ne sont pas à refaire.
