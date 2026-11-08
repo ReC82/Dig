@@ -22,6 +22,7 @@ const { getEconomy } = require('./economy');
 const cal = require('./seasonCalendar');
 const antibot = require('./antibot');
 const autoclickDetector = require('./autoclickDetector');
+const extensionSignatures = require('./extensionSignatures');
 const antibotResponses = require('./antibotResponses');
 const blockHp = require('./blockHp');
 const standings = require('./standings');
@@ -1014,6 +1015,13 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs) {
   const forged = antibot.forgedCounters(seasonStats);
   if (forged.length) signals.push({ type: 'forged_counters', details: { fields: forged } });
   signals.push(...antibot.telemetrySignals(tel));
+  // Signatures d'extensions d'autoclic (#92) : OFF par défaut, journal court ; vérification seulement
+  // si le réglage le demande et que l'indicateur d'autoclic est présent pendant les coups
+  let ext = null;
+  if (tel?.e) {
+    try { ext = extensionSignatures.record(userId, tel.e, { config, source: 'save', seasonId: season.id, nowMs, ip }).challenge; }
+    catch (err) { console.error('[antibot] signatures d\'extensions', err.message); }
+  }
   let acAction = null;
 
   // ── Blocs auto (jamais comptés dans le classement) ────────────────────────
@@ -1075,7 +1083,7 @@ function _syncPlayerRanking(userId, seasonStats, telemetry, ip, save, nowMs) {
   }
 
   // Lot C : défi éventuel d'après les mesures et le score à jour (Observation : simulé, rien d'affiché)
-  try { return antibotResponses.afterSave(userId, season.id, { config, nowMs, ip, fast: pre?.fast ?? null }); }
+  try { return antibotResponses.afterSave(userId, season.id, { config, nowMs, ip, fast: pre?.fast ?? null, ext }); }
   catch (err) { console.error('[antibot] réponses (après)', err.message); return null; }
 }
 
@@ -1173,6 +1181,8 @@ function buildCurrentSeasonResponse(userId = null) {
       hitBurst:             antibot.getHitLimits(config).burst,
       // #91 : le jeu envoie sa sauvegarde dès N coups au même pixel (vérification en secondes)
       samePixelClicks:      autoclickDetector.getSettings(config).ab_fast_mode === 'on' ? autoclickDetector.getSettings(config).ab_same_pixel_clicks : null,
+      // #92 : signatures d'extensions activées pour CE joueur (vide par défaut : le jeu ne vérifie rien)
+      extSignatures:        userId ? extensionSignatures.forUser(userId, config) : [],
       antiAutoclickEnabled: (config.anti_autoclick_enabled ?? 'true') === 'true',
       economy:              getEconomy(config),
     },

@@ -501,3 +501,34 @@ journalisée `suspension_shadow`). Limites connues : autoclicker à cadence alé
 mouvements simulés (lot 2) ; client modifié qui ment sur sa télémétrie (seules la cadence stable
 serveur, les seaux #9/#10 et le budget de dégâts restent alors) ; humain exceptionnellement régulier
 (CV ≈ 5 %) à souris immobile.
+
+## 14. Signatures ciblées d'extensions d'autoclic (#92, 08/11/2026)
+
+**Principe.** Un site ne peut pas lister les extensions installées (`chrome.management` / `browser.management`
+sont réservées aux extensions). Dig cherche seulement la **trace précise** de quelques extensions connues,
+comme un site anti-AdBlock observe l'*effet* d'un bloqueur, sans pouvoir garantir son identité :
+
+- **installation** : l'extension injecte une feuille CSS sur tous les sites ; un élément témoin portant le même
+  identifiant reçoit ses styles (`getComputedStyle`). Créé, mesuré puis retiré dans la même tâche (`public/js/extProbe.js`) ;
+- **activité** : indicateur que l'extension ajoute à la page pendant ses clics (DOM partagé).
+
+Absence de trace ≠ absence d'extension (accès au site « au clic » ou limité, navigation privée, extension
+activée sans recharger la page, autre version, Firefox non vérifié). Une trace est falsifiable et ne prouve
+pas la triche. Aucune sonde par URL `chrome-extension://` / `moz-extension://` (ID aléatoire sous Firefox).
+
+**Catalogue** (`server/extensionSignatures.js`) : statut Détectable / Incertain / Non détectable par extension,
+navigateur, ID exact, version testée, méthode. Vérifié dans Chrome for Testing 156 avec l'extension réelle :
+OP Auto Clicker 0.1.4 (installation + activité) et Auto Clicker - AutoFill 5.4.1 (installation). IO Auto Clicker
+(Firefox) : incertain (code lu, pas d'essai Firefox réel). Les autres : non détectables → #91.
+
+**Réglages** (`admin_config`, absents = OFF) : `ab_ext_sig_<id>` = `off` | `self` (comptes de
+`ab_ext_test_users`, 5 au plus) | `global` (seulement si Détectable) ; `ab_ext_stop` = `on` coupe tout ;
+`ab_ext_reaction` = `log` (défaut) | `challenge` (énigme #25 si l'indicateur d'activité **vérifié** est présent
+pendant ≥ 5 coups d'une sauvegarde, au plus une par `ab_cooldown_min`, selon le mode global).
+**Jamais de suspension ni de bannissement** pour une extension : les suspensions restent celles de #91.
+
+**Données** : le jeu ne reçoit que les signatures activées pour ce compte (`/api/seasons/current` →
+`config.extSignatures`, vide par défaut) et ne renvoie que `{ id: { i: 0|1, a: coups } }` pour elles
+(`POST /api/me/antibot/ext` au chargement, `telemetry.e` à la sauvegarde). Journal : `security_events`
+type `extension_signature` (une ligne par joueur/signature/état toutes les 10 min, 90 jours). Admin :
+Anti-bot → Extensions d'autoclic (tableau filtrable, interrupteurs, « Tester ce navigateur », journal court).

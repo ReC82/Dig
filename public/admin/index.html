@@ -764,6 +764,49 @@
       <p class="muted" style="font-size:0.78rem">Les seuils se règlent dans Config → Protections. Pour un simple essai, préférez « Tester la protection » : il ne concerne qu'un compte.</p>
     </details>
 
+    <!-- 4 bis. Extensions d'autoclic (#92) : signatures ciblées, OFF par défaut, essai sur un compte d'abord -->
+    <details class="overview-card sec-fold" id="sec-ext">
+      <summary><span class="sec-fold-title">Extensions d'autoclic</span> <span class="sec-fold-sum" id="sec-ext-sum">signatures par extension, OFF par défaut</span></summary>
+      <div class="sec-ext-intro">
+        <p class="sec-help"><strong>Ce qu'un site peut savoir :</strong> aucune liste des extensions installées (le navigateur la réserve aux extensions). Dig cherche seulement la <strong>trace précise</strong> de quelques extensions connues : un style qu'elles ajoutent à toutes les pages ou l'indicateur qu'elles affichent pendant les clics.
+          Comme pour AdBlock, on observe un <em>effet</em> de l'extension, pas son identité garantie : <strong>aucune trace ne prouve qu'il n'y a pas d'extension</strong> (accès au site restreint, navigation privée, autre version), et une trace ne prouve pas la triche (extension présente mais inutilisée).</p>
+        <p class="sec-help">Les autoclickers sans trace (et les programmes Windows) sont arrêtés par leur <strong>comportement</strong> (#91 : même pixel, rythme de machine), quelle que soit leur marque. Ici : jamais de suspension ni de bannissement pour une extension installée.</p>
+      </div>
+      <div class="sec-ext-controls">
+        <p class="sec-resp-line" id="sec-ext-stop-line"></p>
+        <p class="sec-resp-line" id="sec-ext-reaction-line"></p>
+        <form id="sec-ext-users-form" class="sec-player-form">
+          <label for="sec-ext-users">Comptes de test (« Mon compte de test ») :</label>
+          <input type="text" id="sec-ext-users" maxlength="200" placeholder="pseudo exact ou #ID, séparés par des virgules (5 au plus)" autocomplete="off">
+          <button type="submit" class="btn btn-sm btn-outline">Enregistrer</button>
+          <span id="sec-ext-users-state" class="sec-step-state" role="status" aria-live="polite"></span>
+        </form>
+      </div>
+      <div class="sec-ext-check">
+        <button type="button" class="btn btn-primary" id="btn-sec-ext-check">🔎 Tester ce navigateur maintenant</button>
+        <span class="sec-step-hint">Cherche les traces de toutes les signatures dans <strong>ce</strong> navigateur (le vôtre), sans rien activer. Après avoir activé ou désactivé une extension : rechargez la page (F5) avant de tester.</span>
+        <div id="sec-ext-check-result" role="status" aria-live="polite"></div>
+      </div>
+      <div class="sec-ext-filters">
+        <label>Navigateur <select id="sec-ext-browser" class="league-select"><option value="">Tous</option></select></label>
+        <label>Recherche <input type="search" id="sec-ext-q" placeholder="nom, identifiant, méthode" autocomplete="off"></label>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="sec-ext-table">
+          <thead><tr><th>Extension</th><th>Navigateurs</th><th>Version testée</th><th>Statut</th><th>Méthode et limites</th><th>Interrupteur</th></tr></thead>
+          <tbody id="sec-ext-body"><tr><td colspan="6" class="muted">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <h4 class="sec-resp-sub">Journal court des signatures déclenchées</h4>
+      <p class="muted" style="font-size:0.78rem">Seulement les signatures activées : traces trouvées (tous modes) et résultats « non détectée » des comptes de test. Une ligne par joueur, signature et état toutes les 10 min ; conservé 90 jours. Aucun inventaire d'extensions.</p>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Date (UTC)</th><th>Joueur</th><th>Signature</th><th>Résultat</th><th>Mode</th><th>Réaction</th></tr></thead>
+          <tbody id="sec-ext-journal"><tr><td colspan="6" class="muted">Rien pour l'instant.</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+
     <!-- 5. Diagnostic et historique (replié) -->
     <details class="overview-card sec-fold" id="sec-diag">
       <summary><span class="sec-fold-title">Diagnostic et historique</span> <span class="sec-fold-sum">détails techniques, journaux et audit admin</span></summary>
@@ -833,6 +876,7 @@
                 <option value="block_seed_changed">Graine des blocs changée (0 point)</option>
                 <option value="block_seq_skips">Blocs sautés / bloc absent (0 point)</option>
                 <option value="regular_clicks">Rythme régulier</option>
+                <option value="extension_signature">Signature d'extension d'autoclic (#92)</option>
                 <option value="risk_level">Changement de niveau</option>
               </optgroup>
               <optgroup label="Réponses (défis, suspensions)">
@@ -3833,6 +3877,7 @@
 <script src="/js/i18n.js"></script>
 <script src="/js/iconLibrary.js"></script>
 <script src="/js/gemCallout.js"></script>
+<script src="/js/extProbe.js"></script>
 <div id="nw-print" class="nw-print" aria-hidden="true"></div>
 <script src="admin.js"></script>
 </body>

@@ -114,6 +114,7 @@ const security = require('./security');
 const { createRateLimiters, describeMailLimits } = require('./rateLimits');
 const antibot = require('./antibot');
 const autoclickDetector = require('./autoclickDetector');
+const extensionSignatures = require('./extensionSignatures');
 const antibotResponses = require('./antibotResponses');
 const playSession = require('./playSession');
 const testRuns = require('./testRuns');
@@ -603,6 +604,19 @@ app.get('/api/me/antibot', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
     res.json({ ok: true, antibot: antibotResponses.playerStatus(req.session.userId, { config: getAdminConfig() }) });
   } catch (err) { console.error('[GET /api/me/antibot]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/**
+ * POST /api/me/antibot/ext { results } — signatures d'extensions vérifiées au chargement du jeu (#92).
+ * Seules les signatures activées pour ce joueur sont lues ; réponse détaillée pour un compte de test
+ * uniquement (les autres joueurs ne voient rien). Jamais de sanction ici.
+ */
+app.post('/api/me/antibot/ext', limit.play, (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    const r = extensionSignatures.record(req.session.userId, req.body?.results, { config: getAdminConfig(), source: 'load', ip: req.ip });
+    res.json({ ok: true, ...(r.feedback ? { test: r.feedback } : {}) });
+  } catch (err) { console.error('[POST /api/me/antibot/ext]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 
 /** POST /api/me/antibot/seen { challengeId, manualClicks } — le défi est affiché (relevé du compteur). */
@@ -1989,7 +2003,7 @@ app.put('/api/admin/config', requireAdmin, (req, res) => {
       return res.status(409).json({ error: 'Le prix des coffres se modifie dans 🎲 Coffres & drops (fiche du coffre → brouillon → publication), avec ses récompenses.' });
     }
     // Paramètres économiques bornés (#20), interrupteurs anti-bot (#25) et paramètres de ligue (#19) : appliqués sans redéploiement.
-    const checked = antibot.validateConfigValue(key, value) ?? antibotResponses.validateConfigValue(key, value) ?? autoclickDetector.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
+    const checked = antibot.validateConfigValue(key, value) ?? antibotResponses.validateConfigValue(key, value) ?? autoclickDetector.validateConfigValue(key, value) ?? extensionSignatures.validateConfigValue(key, value) ?? validateLeagueConfigValue(key, value) ?? seasonThemes.validateConfigValue(key, value)
       ?? validateEconomyValue(key, value);
     if (checked.error) return res.status(400).json({ error: checked.error });
     const previous = getAdminConfig()[key];
@@ -2078,6 +2092,44 @@ app.get('/api/admin/security/events', requireAdmin, (req, res) => {
  * Fiche diagnostique d'un joueur (lecture seule) : progression retenue vs déclarée, compteurs,
  * score de risque expliqué, journal filtré, échantillons par sauvegarde, réponses appliquées.
  */
+// ── Admin — Anti-bot → Extensions (#92) ──────────────────────────────────────
+
+/** Catalogue des signatures, interrupteurs, comptes de test et journal court. */
+app.get('/api/admin/antibot/extensions', requireAdmin, (req, res) => {
+  try { res.json(extensionSignatures.adminView(getAdminConfig())); }
+  catch (err) { console.error('[GET /api/admin/antibot/extensions]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** PUT { users: "pseudo, #12" } — comptes concernés par le mode « Mon compte de test » (5 au plus). */
+app.put('/api/admin/antibot/extensions/test-users', requireAdmin, (req, res) => {
+  try {
+    const raw = String(req.body?.users ?? '').split(',').map(x => x.trim()).filter(Boolean);
+    if (raw.length > extensionSignatures.MAX_TEST_USERS) return res.status(400).json({ error: `${extensionSignatures.MAX_TEST_USERS} comptes de test au plus.` });
+    const ids = [];
+    for (const q of raw) {
+      const found = antibot.findPlayer(q);
+      if (!found) return res.status(404).json({ error: `Compte introuvable : ${q.slice(0, 40)} (pseudo exact ou #ID).` });
+      if (!ids.includes(found.id)) ids.push(found.id);
+    }
+    const value = ids.join(',');
+    const previous = getAdminConfig().ab_ext_test_users ?? '';
+    setAdminConfig('ab_ext_test_users', value);
+    if (previous !== value) antibot.logSecurityEvent('admin_config', { details: { key: 'ab_ext_test_users', old: previous || null, new: value }, ip: req.ip });
+    res.json({ ok: true, ...extensionSignatures.adminView(getAdminConfig()) });
+  } catch (err) { console.error('[PUT /api/admin/antibot/extensions/test-users]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
+/** POST { results, browser } — essai dans le navigateur de l'admin : résultat journalisé (audit), rien d'autre. */
+app.post('/api/admin/antibot/extensions/check', requireAdmin, (req, res) => {
+  try {
+    const raw = req.body?.results && typeof req.body.results === 'object' ? req.body.results : {};
+    const results = extensionSignatures.CATALOG.filter(s => s.probe && Object.hasOwn(raw, s.id))
+      .map(s => ({ id: s.id, installed: raw[s.id]?.i === 1, active: raw[s.id]?.a > 0 }));
+    antibot.logSecurityEvent('antibot_admin', { details: { action: 'extension_check', browser: String(req.body?.browser ?? '').slice(0, 40), results }, ip: req.ip });
+    res.json({ ok: true, results });
+  } catch (err) { console.error('[POST /api/admin/antibot/extensions/check]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+
 app.get('/api/admin/security/player', requireAdmin, (req, res) => {
   try {
     const found = antibot.findPlayer(req.query.q);

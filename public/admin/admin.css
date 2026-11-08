@@ -1871,3 +1871,31 @@ p.sec-step-hint { margin: 6px 0 0; }
 #ev-dialog fieldset, #ev-item-dialog fieldset { min-width: 0; }
 #ev-dialog .ev-sheet, #ev-item-dialog .co-prop-fields { min-width: 0; max-width: 100%; }
 #tab-events .ev-list-table .ev-nowrap { white-space: normal; min-width: 110px; }
+
+/* ── Anti-bot → Extensions d'autoclic (#92) ── */
+#sec-ext .sec-ext-controls, #sec-ext .sec-ext-check, #sec-ext .sec-ext-filters { margin: 10px 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#sec-ext .sec-ext-controls { flex-direction: column; align-items: stretch; }
+#sec-ext .sec-ext-controls .sec-resp-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#sec-ext #sec-ext-users { min-width: 260px; flex: 1; }
+#sec-ext #sec-ext-check-result { flex-basis: 100%; }
+#sec-ext .sec-ext-check-list { margin: 4px 0 4px 18px; }
+#sec-ext .sec-ext-hit { font-weight: 700; color: var(--danger, #c0392b); }
+#sec-ext .sec-ext-on { font-size: 0.75rem; color: var(--success, #1e8449); margin-top: 3px; }
+#sec-ext .sec-ext-id { font-size: 0.72rem; word-break: break-all; }
+#sec-ext .sec-ext-table td { vertical-align: top; font-size: 0.8rem; }
+#sec-ext .sec-ext-status { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; white-space: nowrap; }
+#sec-ext .sec-ext-status--detectable { background: #d5f5e3; color: #145a32; }
+#sec-ext .sec-ext-status--uncertain { background: #fdebd0; color: #7e5109; }
+#sec-ext .sec-ext-status--undetectable { background: #e5e7e9; color: #2c3e50; }
+@media (max-width: 640px) {
+  #sec-ext .sec-ext-table thead { display: none; }
+  #sec-ext .sec-ext-table tr { display: block; border-bottom: 1px solid #ddd; padding: 6px 0; }
+  #sec-ext .sec-ext-table td { display: block; border: 0; padding: 2px 0; }
+}
+#sec-ext .sec-ext-table { width: 100%; }
+#sec-ext .sec-ext-table td { white-space: normal; overflow-wrap: anywhere; }
+#sec-ext .sec-ext-table td:last-child { min-width: 170px; }
+#sec-ext a { color: var(--accent, #f5c542); }
+#sec-ext #sec-ext-journal td { white-space: normal; }
+#sec-ext table:has(#sec-ext-journal) { min-width: 620px; }
+@media (max-width: 640px) { #sec-ext .sec-ext-table td:last-child { min-width: 0; } #sec-ext .sec-ext-table { table-layout: fixed; } }
