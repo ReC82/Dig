@@ -5936,7 +5936,7 @@ document.getElementById('btn-bk-studio').addEventListener('click', () => {
   const id = document.getElementById('bk-id').value.trim();
   bkRequestClose(() => {
     document.querySelector('.tab-btn[data-tab="icons"]').click();
-    if (id) icOpen(`block:${id}`);
+    if (id) { icFocusOn(`block:${id}`); icOpen(`block:${id}`); }
   });
 });
 
@@ -7119,7 +7119,7 @@ document.getElementById('btn-co-i-studio').addEventListener('click', async () =>
   _coItemSnap = null;
   document.getElementById('co-item-dialog').close();
   document.querySelector('.tab-btn[data-tab="icons"]').click();
-  if (id) { _icFrom = { kind: 'item', id }; icOpen(`item:${id}`); }
+  if (id) { _icFrom = { kind: 'item', id }; icFocusOn(`item:${id}`); icOpen(`item:${id}`); }
 });
 
 document.getElementById('co-i-upload').addEventListener('change', e => {
@@ -7829,6 +7829,7 @@ async function loadIcons() {
   if (!ok) { icNotice(document.getElementById('ic-notice'), data.error || 'Erreur.', 'error'); return; }
   _ic = data;
   icSetJob(data.job);
+  icRestoreFilters();
   icRenderGrid();
   const s = data.status;
   document.getElementById('ic-tech').textContent = s.configured
@@ -7846,26 +7847,183 @@ async function loadIcons() {
   if (_icOpen) icOpen(_icOpen, { keepSel: true });
 }
 
-function icFiltered() {
+// ── #89 : filtre par événement, recherche sans accents, repli vers les autres familles ──
+
+/**
+ * Texte comparable : casse, accents, ligatures (Œ/Æ) et apostrophes ignorés (« Oeil » → « Œil du mineur »,
+ * « coeur d'or » → « Cœur d'or ») ; ponctuation = espace.
+ */
+function icFold(s) {
+  return String(s ?? '').toLowerCase().replace(/œ/g, 'oe').replace(/æ/g, 'ae').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/['’‘`´ʼ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+/** Tous les mots de la recherche présents dans le nom, l'identifiant, la famille ou l'événement de la cible. */
+function icMatches(t, q) {
+  const words = icFold(q).split(' ').filter(Boolean);
+  if (!words.length) return true;
+  const hay = icFold(`${t.name} ${t.id} ${t.kindLabel ?? ''} ${t.event?.name ?? ''} ${t.zoneLabel ?? ''}`);
+  return words.every(w => hay.includes(w));
+}
+
+const IC_EV_STATES = { draft: 'Brouillon', planned: 'Planifié', active: 'Actif', ended: 'Terminé' };
+/** Statut en clair d'un événement : « Brouillon », « Actif », « Terminé »… et « TEST » pour un événement de test. */
+const icEventStatus = e => [e.audience === 'test' ? 'TEST' : null, IC_EV_STATES[e.state] ?? e.state].filter(Boolean).join(' · ');
+
+const IC_FILTER_IDS = { kind: 'ic-kind', event: 'ic-event', state: 'ic-state', zone: 'ic-zone', q: 'ic-search' };
+const IC_URL_KEYS = { kind: 'icf', event: 'ice', state: 'ics', zone: 'icz', q: 'icq' };
+let _icEventWanted = '';         // événement demandé avant que la liste ne soit chargée (lien direct, URL)
+let _icFiltersRestored = false;
+
+function icFilters() {
+  const v = id => document.getElementById(id)?.value ?? '';
+  const kind = v('ic-kind');
+  // Zone (#67) : propre aux pictogrammes d'interface ; masquée et ignorée pour les autres familles
+  return { kind, event: kind === 'event' ? v('ic-event') : '', state: v('ic-state'), zone: !kind || kind === 'ui' ? v('ic-zone') : '', q: v('ic-search').trim() };
+}
+
+/**
+ * Filtre retenu dans l'adresse (?icf=event&ice=ev:…&icq=…) : restauré après F5 ou au retour sur le panel, lien
+ * partageable. replaceState seulement (décision #50-F/#70) : aucune entrée d'historique, aucune fiche rouverte.
+ */
+function icSaveFilters() {
+  const f = icFilters();
+  if (document.getElementById('ic-kind').value === 'event' && !f.event && _icEventWanted) f.event = _icEventWanted;
+  const params = new URLSearchParams(location.search);
+  for (const [k, u] of Object.entries(IC_URL_KEYS)) { if (f[k]) params.set(u, f[k]); else params.delete(u); }
+  const qs = params.toString();
+  const url = `${location.pathname}${qs ? `?${qs}` : ''}${location.hash}`;
+  if (url !== `${location.pathname}${location.search}${location.hash}`) history.replaceState(history.state, '', url);
+}
+function icRestoreFilters() {
+  if (_icFiltersRestored) return;
+  _icFiltersRestored = true;
+  const params = new URLSearchParams(location.search);
+  if (![...Object.values(IC_URL_KEYS)].some(u => params.has(u))) return;
+  icSetFilters(Object.fromEntries(Object.entries(IC_URL_KEYS).map(([k, u]) => [k, params.get(u) ?? ''])), { save: false });
+}
+
+/** Applique un filtre complet (valeurs inconnues ignorées) ; `event` est retenu jusqu'au chargement des événements. */
+function icSetFilters({ kind = '', event = '', state = '', zone = '', q = '' }, { save = true } = {}) {
+  _icFiltersRestored = true;
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el.tagName !== 'SELECT' || [...el.options].some(o => o.value === val)) el.value = val;
+    else el.value = '';
+  };
+  set('ic-kind', kind); set('ic-state', state); set('ic-zone', zone);
+  document.getElementById('ic-search').value = q;
+  _icEventWanted = kind === 'event' ? event : '';
+  icBuildEventOptions();
+  if (save) icSaveFilters();
+}
+
+/** Lien direct depuis une fiche (événement, relique…) : famille de la cible, et son événement ; recherche vidée. */
+function icFocusOn(key, eventId = null) {
+  icSetFilters({ kind: String(key).split(':')[0], event: eventId ? `ev:${eventId}` : '' });
+}
+
+/** Menu « Événement » : un choix par événement (publics puis TEST), statut et nombre d'objets en clair. */
+function icBuildEventOptions() {
+  const sel = document.getElementById('ic-event');
   const kind = document.getElementById('ic-kind').value;
-  const state = document.getElementById('ic-state').value;
-  const q = document.getElementById('ic-search').value.trim().toLowerCase();
-  const zone = document.getElementById('ic-zone')?.value ?? '';
-  return (_ic?.targets ?? []).filter(t => (!kind || t.kind === kind) && (!state || icState(t).key === state) && (!zone || t.zone === zone)
-    && (!q || `${t.name} ${t.id}`.toLowerCase().includes(q)));
+  sel.classList.toggle('hidden', kind !== 'event');
+  document.getElementById('ic-zone')?.classList.toggle('hidden', !!kind && kind !== 'ui');
+  const evs = new Map();
+  for (const t of _ic?.targets ?? []) {
+    if (t.kind !== 'event' || !t.event) continue;
+    const e = evs.get(t.event.id) ?? { ...t.event, n: 0 };
+    e.n++;
+    evs.set(t.event.id, e);
+  }
+  const want = sel.value || _icEventWanted;
+  sel.textContent = '';
+  const all = [...evs.values()];
+  sel.appendChild(aiEl('option', { value: '' }, `Tous les événements (${all.reduce((n, e) => n + e.n, 0)})`));
+  for (const [aud, label] of [['public', 'Événements publics'], ['test', 'Événements TEST']]) {
+    const list = all.filter(e => (e.audience === 'test') === (aud === 'test'));
+    if (!list.length) continue;
+    const g = aiEl('optgroup', { label });
+    if (aud === 'test' && list.length > 1) g.appendChild(aiEl('option', { value: 'aud:test' }, `Tous les événements TEST (${list.reduce((n, e) => n + e.n, 0)})`));
+    for (const e of list) g.appendChild(aiEl('option', { value: `ev:${e.id}` }, `${e.icon ?? ''} ${e.name} — ${icEventStatus(e)} (${e.n})`.trim()));
+    sel.appendChild(g);
+  }
+  const found = [...sel.options].some(o => o.value === want);
+  sel.value = found ? want : '';
+  // Événement pas encore dans la liste chargée (lien direct pendant le chargement) : gardé jusqu'au suivant
+  if (found) _icEventWanted = '';
+}
+
+function icEventPass(t, ev) {
+  if (!ev) return true;
+  if (ev === 'aud:test') return t.event?.audience === 'test';
+  return ev.startsWith('ev:') && t.event?.id === ev.slice(3);
+}
+
+function icFiltered(f = icFilters(), { onlySearch = false } = {}) {
+  return (_ic?.targets ?? []).filter(t => (onlySearch || ((!f.kind || t.kind === f.kind) && (!f.state || icState(t).key === f.state) && (!f.zone || t.zone === f.zone)
+    && icEventPass(t, f.event))) && icMatches(t, f.q));
+}
+
+const icOptText = (id, v) => [...document.getElementById(id).options].find(o => o.value === v)?.textContent ?? v;
+/** Description du filtre actif, pour le compteur et l'état vide. */
+function icFilterText(f) {
+  return [f.kind && icOptText('ic-kind', f.kind), f.event && icOptText('ic-event', f.event).replace(/\s*\(\d+\)$/, ''),
+    f.zone && icOptText('ic-zone', f.zone), f.state && icOptText('ic-state', f.state)].filter(Boolean);
+}
+
+/** Aucun résultat : on dit où la recherche a cherché et on propose les familles où elle trouve quelque chose. */
+function icEmptyState(f) {
+  const box = aiEl('div', { class: 'ic-empty', role: 'status' });
+  const scope = icFilterText(f);
+  if (!f.q) {
+    box.appendChild(aiEl('p', { class: 'muted' }, `Aucune icône dans ce filtre (${scope.join(' · ')}).`));
+    icButton(box, 'Voir toutes les icônes', () => { icSetFilters({}); icRenderGrid(); });
+    return box;
+  }
+  const elsewhere = icFiltered(f, { onlySearch: true });
+  box.appendChild(aiEl('p', {}, scope.length
+    ? `Aucun résultat pour « ${f.q} » dans « ${scope.join(' · ')} ».`
+    : `Aucune icône ne correspond à « ${f.q} », dans aucune famille.`));
+  if (!scope.length) {
+    box.appendChild(aiEl('p', { class: 'muted' }, 'La recherche ignore majuscules, accents, Œ/Æ et apostrophes (« oeil » trouve « Œil »). Essayez un autre mot.'));
+    return box;
+  }
+  if (!elsewhere.length) {
+    box.appendChild(aiEl('p', { class: 'muted' }, `Rien non plus dans les autres familles.`));
+    icButton(box, 'Retirer les filtres', () => { icSetFilters({ q: f.q }); icRenderGrid(); });
+    return box;
+  }
+  const byKind = new Map();
+  for (const t of elsewhere) byKind.set(t.kind, (byKind.get(t.kind) ?? 0) + 1);
+  box.appendChild(aiEl('p', { class: 'muted' }, `Trouvé ailleurs : ${elsewhere.length} résultat${elsewhere.length > 1 ? 's' : ''}.`));
+  const row = aiEl('div', { class: 'ic-row' });
+  for (const [kind, n] of byKind) {
+    icButton(row, `Chercher dans « ${icOptText('ic-kind', kind)} » (${n})`, () => { icSetFilters({ kind, q: f.q }); icRenderGrid(); }, 'btn ic-main');
+  }
+  if (byKind.size > 1) icButton(row, `Toutes les familles (${elsewhere.length})`, () => { icSetFilters({ q: f.q }); icRenderGrid(); });
+  box.appendChild(row);
+  return box;
 }
 
 function icRenderGrid() {
+  icBuildEventOptions();
   icRenderSeries();
   const grid = document.getElementById('ic-grid');
   grid.textContent = '';
-  const list = icFiltered();
-  document.getElementById('ic-count').textContent = `${list.length} icône${list.length > 1 ? 's' : ''}`;
+  const f = icFilters();
+  const list = icFiltered(f);
+  const scope = icFilterText(f);
+  const total = _ic?.targets?.length ?? 0;
+  document.getElementById('ic-count').textContent = `${list.length} icône${list.length > 1 ? 's' : ''}`
+    + (scope.length || f.q ? ` sur ${total} — ${[...scope, f.q && `recherche « ${f.q} »`].filter(Boolean).join(' · ')}` : ' (toutes les familles)');
   for (const t of list) {
     const card = aiEl('button', { type: 'button', class: 'ic-card', 'aria-label': `Ouvrir la fiche ${t.name}` });
     card.appendChild(icThumb(t, 72));
     card.appendChild(aiEl('span', { class: 'ic-card-name' }, t.name));
-    card.appendChild(aiEl('span', { class: 'ic-card-kind' }, t.kind === 'ui' ? `${t.kindLabel} · ${t.zoneLabel ?? ''}${t.deployable === false ? ' · stockage seul' : ''}` : t.kindLabel));
+    card.appendChild(aiEl('span', { class: 'ic-card-kind' }, t.kind === 'ui' ? `${t.kindLabel} · ${t.zoneLabel ?? ''}${t.deployable === false ? ' · stockage seul' : ''}`
+      : t.kind === 'event' && t.event ? `${t.event.icon ?? ''} ${t.event.name}`.trim() : t.kindLabel));
+    if (t.kind === 'event' && t.event) card.appendChild(aiEl('span', { class: `ic-card-event ic-card-event--${t.event.state}` }, `Événement : ${icEventStatus(t.event)}`));
     card.appendChild(icBadge(icState(t)));
     // Survol : aperçu agrandi (appareils à pointeur seulement, voir CSS)
     const zoom = aiEl('span', { class: 'ic-zoom', 'aria-hidden': 'true' });
@@ -7874,7 +8032,7 @@ function icRenderGrid() {
     card.addEventListener('click', () => icOpen(t.key));
     grid.appendChild(card);
   }
-  if (!list.length) grid.appendChild(aiEl('p', { class: 'muted' }, 'Aucune icône ne correspond à cette recherche.'));
+  if (!list.length) grid.appendChild(icEmptyState(f));
 }
 
 // ── Collection entière : une image par objet sans image, enchaînées (demande du 02/11) ──
@@ -8756,8 +8914,9 @@ async function loadIconsQuiet() {
   if (!_icOpen) icRenderGrid();
 }
 
-['ic-kind', 'ic-state', 'ic-zone'].forEach(id => document.getElementById(id).addEventListener('change', icRenderGrid));
-document.getElementById('ic-search').addEventListener('input', icRenderGrid);
+const icFilterChanged = () => { _icFiltersRestored = true; _icEventWanted = ''; icRenderGrid(); icSaveFilters(); };
+['ic-kind', 'ic-event', 'ic-state', 'ic-zone'].forEach(id => document.getElementById(id).addEventListener('change', icFilterChanged));
+document.getElementById('ic-search').addEventListener('input', icFilterChanged);
 admRefreshButton('btn-refresh-icons', loadIcons, 'Atelier d’icônes');
 // Ctrl+Entrée (ou ⌘+Entrée) dans le champ de consigne = action principale ; Entrée seule = retour à la ligne
 document.getElementById('ic-sheet').addEventListener('keydown', e => {
@@ -9938,6 +10097,7 @@ async function rwOpenStudio(key) {
     dlg.close();
   }
   document.querySelector('.tab-btn[data-tab="icons"]').click();
+  icFocusOn(key);
   _icFrom = { kind: 'rewards', key };
   icOpen(key);
 }
@@ -12754,6 +12914,7 @@ async function eviOpenStudio() {
   document.getElementById('ev-dialog').close();
   document.querySelector('.tab-btn[data-tab="icons"]').click();
   _icFrom = { kind: 'event', id: saved.studioKey, eventId: ev.id, itemId: saved.id };
+  icFocusOn(saved.studioKey, ev.id);
   icOpen(saved.studioKey);
 }
 
@@ -13471,6 +13632,7 @@ document.getElementById('btn-rl-studio').addEventListener('click', async () => {
   dlg.close();
   document.querySelector('.tab-btn[data-tab="icons"]').click();
   _icFrom = { kind: 'relic', id };
+  icFocusOn(`relic:${id}`);
   icOpen(`relic:${id}`);
 });
 
@@ -13993,6 +14155,7 @@ document.getElementById('btn-up-studio').addEventListener('click', async () => {
   dlg.close();
   document.querySelector('.tab-btn[data-tab="icons"]').click();
   _icFrom = { kind: 'upgrade', id };
+  icFocusOn(`ui:upgrade_${id}`);
   icOpen(`ui:upgrade_${id}`);
 });
 
@@ -14985,6 +15148,7 @@ document.getElementById('btn-mq-studio').addEventListener('click', async () => {
   dlg.close();
   document.querySelector('.tab-btn[data-tab="icons"]').click();
   _icFrom = { kind: 'mission', id };
+  icFocusOn(`mission:${id}`);
   icOpen(`mission:${id}`);
 });
 
