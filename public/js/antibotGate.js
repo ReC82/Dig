@@ -118,6 +118,10 @@ const AntibotGate = (() => {
   }
 
   const _expired = () => !!_puzzle && _deadline > 0 && performance.now() >= _deadline;
+  // Recette #84-E (08/11) : rouvrir sur une énigme à 00:00 ou presque obligeait à deviner « Autre
+  // énigme ». En dessous de ce reste, la réouverture demande une nouvelle énigme (chrono complet).
+  const REOPEN_MIN_LEFT_MS = 10_000;
+  const _almostExpired = () => !!_puzzle && _deadline > 0 && _deadline - performance.now() < REOPEN_MIN_LEFT_MS;
 
   function _stopTimer() { clearInterval(_tickId); _tickId = null; }
 
@@ -268,8 +272,8 @@ const AntibotGate = (() => {
       _seenId = ch.id;
       _deps.api('POST', '/api/me/antibot/seen', { challengeId: ch.id, manualClicks: _deps.counters().manualClicks }).catch(() => { _seenId = null; });
     }
-    // Énigme expirée pendant que la fenêtre était fermée : une nouvelle, avec un chrono complet
-    if (ch && !_state.suspension && (!_puzzle || _expired())) _loadPuzzle();
+    // Énigme expirée (ou presque) pendant que la fenêtre était fermée : une nouvelle, chrono complet
+    if (ch && !_state.suspension && (!_puzzle || _almostExpired())) _loadPuzzle();
     else if (_puzzle && _deadline && !_tickId) { _tick(); if (!_expired()) _tickId = setInterval(_tick, 250); }
     _el.querySelector('#antibot-close').focus();
   }
@@ -304,12 +308,14 @@ const AntibotGate = (() => {
     return typeof DigBeta !== 'undefined' && typeof DigBeta.reportsEnabled === 'function' && DigBeta.reportsEnabled();
   }
 
+  // Recette #84-E (08/11) : signaler n'est pas résoudre. À la fermeture du formulaire (envoyé ou
+  // non), la fenêtre revient d'elle-même si le défi ou la suspension dure encore (état serveur).
   function _report() {
     if (!_reportsOn()) return;
     const susp = _state?.suspension;
     const step = susp ? T('report_step_susp', { time: _fmtBrussels(susp.endsAt) }) : T('report_step_challenge');
     hide();
-    DigBeta.openReport({ step });
+    DigBeta.openReport({ step, returnLabel: T(susp ? 'btn_back_susp' : 'btn_back_challenge'), onClose: () => { if (_state) show(); } });
   }
 
   async function refresh() {
