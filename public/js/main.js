@@ -34,6 +34,7 @@ let _account              = null;    // { id, username, email, emailVerified } s
 let _tutoFresh            = false;
 let _tutoCloudAdopted     = false;
 let _tutoBooted           = false;
+let _antibotRecipe        = false;   // recette autoclicker (#25) : coffres récupérés seuls, ce compte seulement
 let _accountTab           = 'login'; // onglet actif : login | register | forgot | reset (#28)
 let _mailEnabled          = false;   // e-mails de compte disponibles côté serveur (#28)
 let _resetToken           = null;    // jeton du lien « mot de passe oublié » ouvert (#28)
@@ -1937,6 +1938,7 @@ async function _pushSave(retry) {
     _setCloudMeta(res.data.revision);
     // Défi / suspension du minage manuel décidés par le serveur (#25 lot C, mode Appliqué seulement)
     if ('antibot' in res.data && typeof AntibotGate !== 'undefined') AntibotGate.update(res.data.antibot);
+    _antibotRecipe = res.data.antibotRecipe === true;
     if (Array.isArray(res.data.badgesEarned) && res.data.badgesEarned.length) _onBadgesEarned(res.data.badgesEarned);
     if (Array.isArray(res.data.eventFinds) && res.data.eventFinds.length) _onEventFinds(res.data.eventFinds);
     // Collection à chance croissante (#39) : objet tiré par le serveur, ajouté et annoncé comme un drop
@@ -3899,6 +3901,12 @@ function showChestPopup(chestType, reward) {
     }
     Save.save();
   };
+  // Recette autoclicker (#25, 08/11) : le serveur signale l'essai sur ce compte → même récompense,
+  // récupérée seule après 1,5 s, pour que l'autoclicker à position fixe continue de miner
+  if (_antibotRecipe) {
+    const collect = collectBtn.onclick;
+    setTimeout(() => { if (!modal.hidden && collectBtn.onclick === collect) collect(); }, 1500);
+  }
 }
 
 // ── Pioche à charges (#71) ────────────────────────────────────────────────────

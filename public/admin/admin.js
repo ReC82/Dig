@@ -3114,6 +3114,59 @@ function secObservedEl(L) {
   return box;
 }
 
+const secBxlS = iso => (iso ? new Date(iso).toLocaleTimeString('fr-BE', { timeZone: 'Europe/Brussels', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—');
+
+/**
+ * Preuve du gel (recette du 08/11) : dernier défi réel du compte, relevés horodatés par le serveur
+ * avant / à l'émission / pendant / à la résolution / maintenant, et verdict sur l'écart de blocs
+ * validés entre émission et résolution (attendu : 0). Puis l'indice de reprise (bot supervisé).
+ */
+function secFreezeEl(L) {
+  const box = secEl('div', 'sec-seen sec-freeze');
+  const ch = (L?.history?.challenges ?? []).find(c => c.freeze);
+  if (!ch) return null;
+  const f = ch.freeze;
+  const verdict = f.verdict === 'frozen'
+    ? ['below', `✓ Gel vérifié : +0 bloc validé entre l'émission (${secBxlS(f.issued.at)}) et ${f.open ? 'maintenant (défi en cours)' : `la résolution (${secBxlS(f.end.at)})`} — ${f.pendingSaves} sauvegarde(s) retenue(s), ${ch.heldClicks} clic(s) non crédité(s).`]
+    : f.verdict === 'leak'
+      ? ['real', `⚠ Écart : +${f.deltaBlocks} bloc(s) validé(s) pendant le défi n° ${ch.id}. À signaler (#25).`]
+      : ['none', `Défi n° ${ch.id} antérieur au 08/11 : pas de relevé horodaté, gel non mesurable ici (voir le rapport #25).`];
+  box.classList.add(`sec-seen--${verdict[0]}`);
+  box.dataset.verdict = f.verdict;
+  box.appendChild(secEl('p', 'sec-seen-title', `Preuve du gel — défi n° ${ch.id} (${ch.origin === 'admin' ? 'envoyé par l\'admin' : 'automatique'}) : ${verdict[1]}`));
+  if (f.issued) {
+    const table = secEl('table', 'sec-test-ac-table');
+    const head = table.createTHead().insertRow();
+    for (const h of ['Phase', 'Heure serveur', 'Blocs validés', 'Clics déclarés', 'Rang']) head.appendChild(secEl('th', '', h));
+    const tb = table.createTBody();
+    const row = (label, at, snap, note) => {
+      const tr = tb.insertRow();
+      tr.appendChild(secEl('th', '', label));
+      for (const v of [at ? secBxlS(at) : '—', snap?.manualBlocks ?? note ?? '—', snap?.manualClicks ?? '—', snap?.rank ?? '—']) tr.appendChild(secEl('td', '', v));
+    };
+    const T = L.testThreshold;
+    if (T?.before && T.before.atMs < f.issued.atMs) row('Avant (début du test)', new Date(T.before.atMs).toISOString(), T.before);
+    row('Émission du défi', f.issued.at, f.issued);
+    const tr = tb.insertRow();
+    tr.appendChild(secEl('th', '', 'Pendant le défi'));
+    const td = secEl('td', '', `${f.pendingSaves} sauvegarde(s) retenue(s)${f.lastHeldSaveAt ? `, dernière ${secBxlS(f.lastHeldSaveAt)}` : ''} ; ${ch.heldClicks} clic(s) reçus non crédités ; ${f.clampedBlocks} bloc(s) refusé(s) par le garde-fou ; écart ${f.deltaBlocks > 0 ? '+' : ''}${f.deltaBlocks ?? '—'} bloc.`);
+    td.colSpan = 4;
+    tr.appendChild(td);
+    if (!f.open) row(ch.status === 'cancelled' ? 'Annulation (admin)' : 'Résolution', f.end?.at, f.end);
+    const now = L.progressNow;
+    if (now) row(f.open ? 'Maintenant (défi en cours)' : 'Maintenant (après résolution)', new Date(now.atMs).toISOString(), now);
+    box.appendChild(table);
+  }
+  const r = L.recidivism?.last;
+  if (r) {
+    box.appendChild(secEl('p', 'sec-help', `Reprise après la dernière vérification résolue (${secBxlS(r.resolvedAt)}) : `
+      + (r.resumedAfterSecs == null ? 'aucun clic manuel depuis.' : `reprise du minage au plus ${r.resumedAfterSecs} s après (sauvegarde suivante), ≈ ${secMin(r.resumeCps)} clics/s`)
+      + ` ; ${r.untrustedSince} alerte(s) « clics non fiables » depuis ; ${L.recidivism.solved24h} vérification(s) résolue(s) en 24 h. `
+      + 'Indice de bot supervisé, sans aucune action (décision du propriétaire en attente).'));
+  }
+  return box;
+}
+
 /** Variante « autoclicker » : seuil court d'essai, relevé avant / maintenant (preuve de gel). */
 function secTestAcRender(L) {
   const state = document.getElementById('sec-test-ac-state');
@@ -3127,6 +3180,8 @@ function secTestAcRender(L) {
     : `Seuil normal : ${secMin(L.thresholds?.streakMin)} min de minage continu (réglage global, inchangé).`;
   document.getElementById('btn-sec-test-ac-on').disabled = _secTest.busy || !L?.testEnforce || !!T;
   document.getElementById('btn-sec-test-ac-off').disabled = _secTest.busy || !T;
+  const freeze = secFreezeEl(L);
+  if (freeze) snap.appendChild(freeze);
   if (!T?.before) return;
   const table = secEl('table', 'sec-test-ac-table');
   const head = table.createTHead().insertRow();
@@ -3615,6 +3670,8 @@ function secFicheHead(d) {
   head.appendChild(secEl('p', 'sec-fiche-status', st.label));
   if (st.help) head.appendChild(secEl('p', 'sec-fiche-help', st.help));
   if (L?.observation) head.appendChild(secObservedEl(L));
+  const freeze = L ? secFreezeEl(L) : null;
+  if (freeze) head.appendChild(freeze);
   const actions = secEl('div', 'sec-fiche-actions');
   const uid = String(d.player.userId);
   const btn = (label, cls, key, fn) => {

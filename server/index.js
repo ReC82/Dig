@@ -573,12 +573,16 @@ app.post('/api/me/save', limit.save, (req, res) => {
     // Missions quotidiennes du serveur (#68, étape B) : progression du jour cumulée ; sans effet si le drapeau est OFF
     try { missionsLive.observeSave(req.session.userId, data); }
     catch (err) { console.error('[POST /api/me/save] missions', err.message); }
+    // Recette autoclicker (#25, 08/11) : coffres récupérés seuls pour le seul compte en essai
+    let antibotRecipe = false;
+    try { antibotRecipe = antibotResponses.recipeActive(req.session.userId, getAdminConfig()); }
+    catch (err) { console.error('[POST /api/me/save] recette anti-bot', err.message); }
     let gemsAuthoritative = null;
     try { if (gemLedger.observeSave(req.session.userId, data, { revision: version })) gemsAuthoritative = gemLedger.authoritativeBalance(req.session.userId); }
     catch (err) { console.error('[POST /api/me/save] gemmes', err.message); }
     res.json({ ok: true, revision: version, version, ...(badgesEarned.length ? { badgesEarned } : {}), ...(eventFinds.length ? { eventFinds } : {}),
       ...(collectionFinds.length ? { collectionFinds } : {}), ...(gemsAuthoritative !== null ? { gems: gemsAuthoritative } : {}),
-      antibot: antibotState });
+      antibot: antibotState, ...(antibotRecipe ? { antibotRecipe: true } : {}) });
   } catch (err) {
     console.error('[POST /api/me/save]', err);
     res.status(500).json({ error: 'Erreur serveur.' });

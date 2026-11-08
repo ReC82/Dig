@@ -852,6 +852,21 @@ function initDb() {
       console.log(`[db] Migration : antibot_activity.${name} ajouté`);
     }
   }
+  // Preuve du gel (#25, recette du 08/11) : relevés à l'émission et à la résolution du défi,
+  // sauvegardes retenues pendant le défi, crédit refusé ; heure de résolution pour la fenêtre
+  // anti-autoclic de la reprise. Colonnes ajoutées seules.
+  for (const [table, add] of [
+    ['antibot_challenges', [['issued_snapshot', 'TEXT'], ['resolved_snapshot', 'TEXT'], ['pending_saves', 'INTEGER NOT NULL DEFAULT 0'],
+      ['pending_last_ms', 'INTEGER'], ['clamped_blocks', 'INTEGER NOT NULL DEFAULT 0']]],
+    ['antibot_activity', [['rebase_ms', 'INTEGER']]],
+  ]) {
+    const cols = new Set(_db.prepare(`PRAGMA table_info(${table})`).all().map(r => r.name));
+    for (const [name, type] of add) {
+      if (cols.has(name)) continue;
+      _db.prepare(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`).run();
+      console.log(`[db] Migration : ${table}.${name} ajouté`);
+    }
+  }
 
   // Session de jeu unique par compte (#35) : un seul contrôleur (onglet, appareil, PWA) peut
   // miner et écrire la sauvegarde. Table ajoutée, aucune donnée existante modifiée.
