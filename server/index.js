@@ -2388,6 +2388,8 @@ app.post('/api/admin/events/:id/start-now', requireAdmin, eventRoute('POST /api/
   req => ({ event: monthlyEvents.startTestNow(eventId(req), { minutes: req.body?.minutes }) })));
 // #65 : images de la fiche → images vues des joueurs (action explicite, aucun changement de statut ni de drops)
 app.post('/api/admin/events/:id/publish-images', requireAdmin, eventRoute('POST /api/admin/events/:id/publish-images', req => monthlyEvents.publishImages(eventId(req))));
+app.put('/api/admin/events/:id/items/:itemId/lore', requireAdmin, eventRoute('PUT /api/admin/events/:id/items/:itemId/lore',
+  req => ({ lore: monthlyEvents.setItemLore(eventId(req), String(req.params.itemId ?? '').slice(0, 40), req.body ?? {}) })));
 app.post('/api/admin/events/:id/unschedule', requireAdmin, eventRoute('POST /api/admin/events/:id/unschedule', req => ({ event: monthlyEvents.unscheduleEvent(eventId(req)) })));
 app.get('/api/admin/events/:id/revisions', requireAdmin, eventRoute('GET /api/admin/events/:id/revisions', req => ({ revisions: monthlyEvents.listRevisions(eventId(req)) })));
 app.post('/api/admin/events/:id/restore', requireAdmin, eventRoute('POST /api/admin/events/:id/restore',
@@ -2851,6 +2853,8 @@ news.init();                     // centre d'actualités : annonces, lu par comp
 monthlyEvents.init();            // événements mensuels : objets exclusifs, souvenirs permanents, révisions (#56)
 // Événements préparés (server/content/events) → brouillon, une seule fois ; pas en test (bases neuves)
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importPrepared();
+// « Pourquoi cet objet ? » préparés (server/content/event-lore) : seulement pour les objets sans explication (#86)
+if (process.env.NODE_ENV !== 'test' && process.env.DIG_PREPARED_EVENTS !== '0') monthlyEvents.importLore();
 // Décisions écrites du propriétaire (planification de novembre et Noël 2026), une seule fois, mêmes contrôles que « Planifier »
 if (process.env.NODE_ENV !== 'test' && process.env.DIG_EVENT_DECISIONS !== '0') monthlyEvents.applyOwnerDecisions();
 testRuns.init();                 // essais de test : instantanés, reset complet, restauration, audit chaîné (#75)

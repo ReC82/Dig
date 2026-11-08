@@ -6353,6 +6353,34 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #84)",
    "at": "2026-11-08T15:53:28.109Z"
+  },
+  "events.lore_title": {
+   "text": "Perché questo oggetto?",
+   "src": "df8e169d53c9",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
+  },
+  "events.lore_yearly": {
+   "text": "Ogni anno il {date}",
+   "src": "d87c7033c2dc",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
+  },
+  "events.lore_source": {
+   "text": "Fonte: {title}",
+   "src": "18edb611c969",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
+  },
+  "events.lore_new_tab": {
+   "text": "(si apre in una nuova scheda)",
+   "src": "5adbbe33ad8a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #86)",
+   "at": "2026-11-08T16:52:58.799Z"
   }
  }
 }

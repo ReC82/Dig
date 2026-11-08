@@ -346,6 +346,10 @@ const I18n = (() => {
         toast:      'Objet d\u2019événement trouvé : {name}',
         keep:       'Les objets trouvés restent dans ta collection après l\u2019événement.',
         ended:      'Terminé le {date}',
+        lore_title: 'Pourquoi cet objet\u00a0?',
+        lore_yearly: 'Chaque année le {date}',
+        lore_source: 'Source\u00a0: {title}',
+        lore_new_tab: '(s\u2019ouvre dans un nouvel onglet)',
       },
       badges: {
         section: '🏅 Badges et succès',
@@ -1290,6 +1294,10 @@ const I18n = (() => {
         toast:      'Event item found: {name}',
         keep:       'Items you find stay in your collection after the event.',
         ended:      'Ended on {date}',
+        lore_title: 'Why this item?',
+        lore_yearly: 'Every year on {date}',
+        lore_source: 'Source: {title}',
+        lore_new_tab: '(opens in a new tab)',
       },
       badges: {
         section: '🏅 Badges & achievements',
@@ -2233,6 +2241,10 @@ const I18n = (() => {
         toast:      'Evenementvoorwerp gevonden: {name}',
         keep:       'Gevonden voorwerpen blijven na het evenement in je collectie.',
         ended:      'Afgelopen op {date}',
+        lore_title: 'Waarom dit voorwerp?',
+        lore_yearly: 'Elk jaar op {date}',
+        lore_source: 'Bron: {title}',
+        lore_new_tab: '(opent in een nieuw tabblad)',
       },
       badges: {
         section: '🏅 Badges en prestaties',
@@ -3176,6 +3188,10 @@ const I18n = (() => {
         toast:      'Objeto de evento encontrado: {name}',
         keep:       'Los objetos encontrados se quedan en tu colección tras el evento.',
         ended:      'Terminado el {date}',
+        lore_title: '¿Por qué este objeto?',
+        lore_yearly: 'Cada año el {date}',
+        lore_source: 'Fuente: {title}',
+        lore_new_tab: '(se abre en una pestaña nueva)',
       },
       badges: {
         section: '🏅 Insignias y logros',
