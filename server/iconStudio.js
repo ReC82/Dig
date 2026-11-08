@@ -419,7 +419,7 @@ function _target(key) {
   } else if (kind === 'event') {
     const e = _eventItem(id);
     if (e) {
-      src = { ...e.it, eventId: e.ev.id, eventName: e.ev.names?.en || e.ev.names?.fr || e.ev.id, eventNameFr: e.ev.names?.fr ?? e.ev.id, eventState: e.ev.state, eventAudience: e.ev.audience };
+      src = { ...e.it, eventId: e.ev.id, eventName: e.ev.names?.en || e.ev.names?.fr || e.ev.id, eventNameFr: e.ev.names?.fr ?? e.ev.id, eventIcon: e.ev.icon, eventState: e.ev.state, eventAudience: e.ev.audience };
       current = { emoji: e.it.icon, image: e.it.image ?? null, name: e.it.names?.fr ?? e.it.id,
         extra: `${e.ev.icon} ${src.eventNameFr} (${e.ev.audience === 'test' ? 'TEST' : 'public'}, ${_EV_STATES[e.ev.state] ?? e.ev.state}) · ${e.it.rarity}` };
     }
@@ -664,6 +664,8 @@ function _summary(t, counts) {
     unpublished: t.applicable && (t.current.image ?? null) !== (t.current.publishedImage ?? null),
     // Pictogramme d'interface (#67) : zone, emplacement exact, application possible ou non
     // Coffre de la boutique (#66) : emplacement en jeu et identifiant servi au jeu (aperçu ?uiicon=)
+    // #89 : événement de l'objet (filtre « Événement » de l'atelier, statut en clair)
+    ...(t.kind === 'event' ? { event: { id: t.src.eventId, name: t.src.eventNameFr, icon: t.src.eventIcon ?? null, state: t.src.eventState, audience: t.src.eventAudience } } : {}),
     ...(t.kind === 'chest' ? { where: t.src.where, gameIconId: chestGameIconId(t.id), deployable: true } : {}),
     ...(t.kind === 'ui' ? { gameIconId: t.id, zone: t.src.zone, zoneLabel: UI_ZONES[t.src.zone] ?? t.src.zone, where: t.src.where, deployable: !!t.src.deployable, notDeployable: t.src.notDeployable ?? null } : {}) };
 }

@@ -683,6 +683,13 @@ select.config-value { background: var(--bg); border: 1px solid var(--border); bo
 .ic-card:hover, .ic-card:focus-visible { border-color: var(--gold); outline: none; }
 .ic-card-name { font-size: 0.86rem; font-weight: 600; line-height: 1.2; }
 .ic-card-kind { font-size: 0.72rem; color: var(--muted); }
+.ic-card-event { font-size: 0.7rem; color: var(--muted); }
+.ic-card-event--active { color: #86efac; }
+.ic-card-event--planned { color: #93c5fd; }
+.ic-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.ic-empty p { margin: 0 0 8px; }
+.ic-empty .ic-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.bk-filters #ic-event { flex: 1 1 200px; min-width: 0; max-width: 100%; }
 .ic-thumb { margin: 0 auto; }
 .ic-thumb img { object-fit: contain; }
 .ic-thumb--none { border: 1px dashed var(--border); }
