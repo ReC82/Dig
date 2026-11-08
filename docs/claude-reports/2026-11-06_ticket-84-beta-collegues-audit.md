@@ -286,3 +286,77 @@ Les 3 défauts de vocabulaire sont **Après lancement** : ils sont cosmétiques,
 ### 7. Reste à faire
 
 Ta recette #84-C, puis ta réponse aux questions 1 et 2. Suite proposée, après lancement : une ligne d'aide sous une récompense « fragments » dans la fenêtre du coffre.
+
+## Mise à jour du 08/11/2026 (2) : #84-C validé, recette #84-D — ordre de l'onglet Saison corrigé et déployé `5f0c2a6`
+
+### 1. État réel
+
+**Déployé en production (`1.0.0+5f0c2a6`) — en attente de recette #84-D (ordre et repli des blocs).**
+
+Le propriétaire a validé **#84-C** (premier coffre, 08/11 09:26 UTC), puis testé l'onglet **Saison** sur téléphone (**#84-D**, 08/11 09:33 UTC). La compréhension du classement est validée. Il demande de corriger la hiérarchie, sans question et avant la bêta du 09/11 : classement plus haut, « Prochaine saison » plus bas, points de récompense sur une ligne repliable, plus de doublon avec la boutique de cadeaux. Aucun calcul, aucun réglage et aucun mode de production ne devait changer.
+
+### 2. Changements (branche `feature/84-saison-hierarchie`, commit `264f2d6`, fusion `develop` `5f0c2a6`)
+
+Nouvel ordre de l'onglet Saison :
+
+| Avant (`444ee81`) | Après (`5f0c2a6`) |
+|---|---|
+| Thème · fin · **Prochaine saison** · rang · **grande carte Points** (avec bouton « Ouvrir la boutique de cadeaux ») · classement · résultat précédent · **Boutique de cadeaux** · explications · historique | Thème · fin · rang · **classement** · **🏅 Points de récompense · Solde : 10 pts ›** (une ligne repliée) · **Prochaine saison** · résultat précédent · explications · historique |
+
+- **Points de récompense** : une ligne repliée par défaut, avec le titre, le solde et un chevron qui tourne à l'ouverture. Dépliée, elle contient tout ce qui existait : la bannière « Crédit réel actif » (ou simulation), l'estimation de fin de saison, le barème, l'historique et la **boutique de cadeaux** (catalogue, commandes, échanges). Rien n'est supprimé.
+- **Doublon retiré** : le bouton « 🎁 Ouvrir la boutique de cadeaux (0 articles) » et la carte boutique séparée en bas sont remplacés par une seule boutique, rangée dans les points dépliés. Le solde n'y est plus répété.
+- **État conservé** : la section reste ouverte après l'actualisation automatique (30 s) et après un échange. Elle est repliée à chaque nouvelle ouverture de l'onglet. Le lien « 🎁 Cadeaux » du guide « Où dépenser quoi ? » (Amélios, Boutique) déplie les points et la boutique, puis y fait défiler l'écran.
+- **Clavier et petits écrans** : Tab puis Entrée déplie et replie la section, avec un contour de focus visible. En dessous de 380 px, le libellé « Solde : » est masqué (« 🏅 Points de récompense 10 pts › ») pour garder une seule ligne sans couper le titre.
+- Fichiers : `public/js/main.js` (rendu de l'onglet Saison), `public/css/style.css`, nouveau test `test/season-points-fold-84d.test.js`, tests mis à jour `test/season-view.test.js`, `test/e2e/season-player-fold.e2e.js`, `test/e2e/shop-ux.e2e.js`.
+
+### 3. Vérifications
+
+- `npm test` : **920/920** sur la branche, sur `develop` `5f0c2a6` et dans la release. Le nouveau test échoue (0/4) avec l'ancien `main.js` et réussit avec le nouveau.
+- Chromium sur un serveur de test (port 3101, **copie locale de la base**, avec un compte de test à 10 points et 40 blocs ; copie supprimée ensuite) en **320×640, 360, 390×844 et 1280×900** :
+  - À 390×844 et 1280×900, le titre du classement et les premiers rangs sont **visibles dès l'ouverture**, sans défilement. À 320×640, le titre du classement apparaît en bas de l'écran.
+  - Ordre vérifié : thème < rang < classement < points < prochaine saison < résultat < explications < historique.
+  - Points repliés par défaut, sur une ligne de 32 px, titre non coupé à 320, 360 et 390 px. Une seule boutique, rangée dans les points. Plus de lien en double.
+  - Dépliage au clavier, chevron qui tourne, section toujours ouverte après l'actualisation. Le guide des boutiques ouvre la boutique de cadeaux dépliée.
+  - Aucun défilement horizontal, **0 erreur JS**. `season-player-fold.e2e.js` et `shop-guide.e2e.js` : OK.
+- Non lancé : `shop-ux.e2e.js` (il demande un article créé dans l'admin). Il a seulement été adapté à la nouvelle structure.
+
+### 4. Déploiement
+
+- Release `5f0c2a6` : `npm ci` et `npm test` 920/920. Copie de la base de production démarrée en `NODE_ENV=production` sur le port 3122 : `/health` ok, version `1.0.0+5f0c2a6`, **empreintes identiques** avant et après le démarrage (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`). Copie supprimée.
+- Aucune génération IA en cours (dernier appel de l'atelier : 09:43 UTC, déjà appliqué).
+- `main` avancé `444ee81 → 5f0c2a6` (avance rapide). `scripts/deploy.sh` : sauvegarde vérifiée `~/backups/dig/dig-20261108-114028-pre-deploy-5f0c2a6.sqlite`, sans `npm ci`, santé et version OK.
+- Après le déploiement : dig.lodygames.com et dig.lodylands.com renvoient 200, `1.0.0+5f0c2a6`. Le journal ne contient aucune erreur. `quick_check` = ok. Les empreintes des joueurs sont identiques à la sauvegarde. Onglet Saison en visiteur à 390 et 1280 px : classement avant « Prochaine saison », 0 erreur JS.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep 444ee81` puis `sudo systemctl restart dig`. Il n'y a ni migration ni donnée touchée : changement d'affichage seulement.
+- La correction de vocabulaire des coffres `4648133` **n'est pas incluse** : elle attend toujours ta réponse à la question 2.
+
+### 5. Recette #84-D — ordre et repli (≈ 2 min, téléphone, compte de test)
+
+1. Ouvre l'onglet **Saison**. *Attendu :* sous la saison en cours et le compte à rebours, ton rang, puis tout de suite **« Classement — blocs détruits manuellement »**, avec les premiers joueurs visibles sans défiler.
+2. Sous le classement : une seule ligne **« 🏅 Points de récompense · Solde : … pts › »**, repliée. *Attendu :* plus de grande carte de points en haut, et plus de bouton « Ouvrir la boutique de cadeaux » en double.
+3. Touche cette ligne. *Attendu :* le chevron tourne et tu retrouves « Crédit réel actif », l'estimation de fin de saison, le barème, l'historique et la **🎁 Boutique de cadeaux**. Touche-la de nouveau : elle se replie.
+4. Descends. *Attendu :* « Prochaine saison : … » apparaît après les points, puis le résultat de la saison précédente, « Comment fonctionne la saison ? » et l'historique.
+
+Réponds « #84-D validé » ou indique ce qui ne convient pas dans l'ordre ou le repli.
+
+**Note** : la saison 45 se termine ce soir (09/11 00:59, heure de Bruxelles). Après cette heure, la carte « Prochaine saison » disparaît, parce que la saison des Lanternes sera en cours. Pour voir l'étape 4 telle quelle, teste avant ; sinon, vérifie seulement les étapes 1 à 3.
+
+### 6. Classement MVP
+
+**Bloquant bêta collègues** (demandé P1 UX avant le 09/11) : livré et déployé. Le verdict ne change pas : **GO pour 3 à 5 collègues**.
+
+### 7. Choix techniques faits seul
+
+- **Boutique de cadeaux rangée dans les points dépliés**, et non laissée seule plus bas. Ta demande 3 liste la boutique parmi ce qu'on retrouve « au dépliage ». C'est aussi ce qui supprime le doublon (demande 4) sans supprimer de fonction.
+- **Points placés juste après le classement**, avant « Prochaine saison » : ils tiennent sur une ligne et concernent le joueur, alors que l'annonce est informative.
+- **Repliée à chaque ouverture de l'onglet**, ouverte pendant les actualisations : c'est le comportement des autres sections repliables de l'onglet. Pas de mémoire entre les visites, pour garder la page courte par défaut.
+- Branche dédiée `feature/84-saison-hierarchie`, créée depuis `develop`, pour ne pas embarquer `4648133` (encore soumis à ta question 2).
+- La clé de traduction `points.shop_link` n'est plus utilisée, mais elle est conservée : aucun texte n'est supprimé dans les 5 langues.
+
+### 8. Décisions demandées au propriétaire
+
+1. *(Toujours ouverte)* **Points de récompense et boutique de cadeaux pendant la bêta** : **A** ne rien changer et le préciser dans le message (**recommandé**), **B** mode simulation, **C** masquer la boutique (#34). La nouvelle disposition replie déjà ces éléments, sans changer de mode.
+2. *(Toujours ouverte)* **Déployer avant lundi la correction de texte `4648133`** (4 textes FR des coffres) : **A** oui (**recommandé**) / **B** après la bêta.
+
+### 9. Reste à faire
+
+Ta recette #84-D (ordre et repli). Après lancement : à 320×640, compacter la carte du thème pour faire remonter les premiers rangs du classement.
