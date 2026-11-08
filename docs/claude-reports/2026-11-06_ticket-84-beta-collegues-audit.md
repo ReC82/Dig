@@ -473,3 +473,86 @@ Réponds « #84-E validé » ou dis ce qui ne convient pas. #84-D (ordre de l'on
 ### 11. Reste à faire
 
 Tes recettes #84-D et #84-E. Avant d'élargir : #91 (détection rapide de l'autoclicker), #43, #36, #27.
+
+## Mise à jour du 08/11/2026 (4) : recette #84-E échouée, correction du retour à la vérification après « Signaler une erreur », déployée `4682799`
+
+### 1. État réel
+
+**Déployé en production (`1.0.0+4682799`) — en attente de la recette #84-E corrigée.** Ta validation #84-D (commentaire du 08/11 à 16:48 UTC) est notée : A, B, C et D sont acquis et ne seront plus redemandés.
+
+### 2. Ce que tu as constaté (commentaires du 08/11, de 17:07 à 17:09 UTC) et ce que j'ai reproduit
+
+Constat : le CAPTCHA disparaît à l'envoi du signalement. Il ne revient que lorsque tu retouches le bloc, et alors parfois sur une énigme à **00:00** (« Le temps est écoulé. Demande une autre énigme »).
+
+Reproduction sur un serveur de test en mode **Appliqué** (390×844 puis 1280×900, vérification émise par l'admin, signalement envoyé après 36 s de rédaction) :
+
+| Moment | Fenêtre de vérification | Côté serveur |
+|---|---|---|
+| Vérification affichée | visible, 00:30 | défi **en attente**, 0 bloc, 0 clic |
+| Signalement envoyé | **cachée** (fermée par le bouton) | défi **en attente**, 0 bloc, 0 clic |
+| Formulaire fermé | **toujours cachée** ← le bug | défi **en attente**, 0 bloc, 0 clic |
+| Coup sur le bloc | revient | défi **en attente**, 0 bloc, 0 clic |
+
+**Conclusion : il s'agissait seulement d'une fermeture visuelle prévue, pas d'un déblocage.** Le serveur n'a jamais levé le défi, et aucun bloc, clic, pièce, profondeur ni coup de pioche n'a été crédité pendant la transition. Le signalement est enregistré **une seule fois**. Le « compte remis à 0 » était bien le **chrono de l'énigme à 00:00**, et aucune progression n'a été perdue.
+
+D'où venait le 00:00 : une énigme dure 30 s, et ce délai continue de courir pendant qu'on écrit le signalement. En revenant juste avant la fin (il restait par exemple 2 s), on retrouvait l'ancienne énigme, qui expirait aussitôt. Si l'énigme avait déjà expiré, le jeu en demandait déjà une nouvelle.
+
+### 3. Correction
+
+- **La vérification revient seule** dès que le formulaire se ferme, quelle que soit la manière (envoi puis bouton, Annuler, ✕, Échap, clic sur le fond, « Abandonner »). Elle ne revient que si le serveur dit qu'un défi ou une suspension est toujours en cours.
+- **Après l'envoi**, le bouton de fermeture du formulaire devient **« 🛡️ Reprendre la vérification »** (bouton violet, qui reçoit le focus). Pour une suspension, il s'appelle **« ⏸️ Retour au jeu »** et ramène à la fenêtre « Minage manuel en pause ».
+- **Jamais d'énigme à 00:00 à la réouverture** : s'il reste moins de 10 s (ou plus rien), une nouvelle énigme est demandée, avec un chrono complet. Cela vaut aussi quand la fenêtre est rouverte par un coup sur le bloc. Les durées (30 s, ou 60 s en version texte), la marge serveur, la limite de 15 énigmes par 10 min et les règles « jamais de sanction » sont **inchangées**. Aucune règle anti-bot n'a été touchée : tout se passe dans l'affichage.
+- Textes FR, EN, NL, ES et IT (italien traduit par cette session, non relu par un humain).
+- Fichiers : `public/js/beta.js` (`openReport` accepte `onClose` et `returnLabel` ; une seule fermeture « officielle »), `public/js/antibotGate.js` (retour automatique, seuil `REOPEN_MIN_LEFT_MS = 10 s`), `public/js/i18n.js`, `i18n/it.json`, `public/js/locales/it.js`.
+- Tests : `test/antibot-report-84.test.js` passe de 3 à **4 contrôles**. Sans la correction, **3 sur 4 échouent**. `test/e2e/antibot-report-84.e2e.js` est étendu au scénario #84-E.
+
+Branche `feature/84-signalement-faux-positifs` (commit `2421605`), fusion **`develop` `4682799`**.
+
+### 4. Vérifications
+
+- `npm test` : **969/969** sur la branche, sur `develop` `4682799` et dans la release.
+- Essai navigateur `antibot-report-84.e2e.js` sur un serveur de test (port 3101, base neuve supprimée ensuite) en **1280×900 et 390×844** : TOUT OK, 0 erreur JS. Scénario #84-E :
+  - formulaire fermé sans envoi → la vérification revient seule ;
+  - signalement envoyé **après expiration** de l'énigme (31 s d'attente) → bouton « 🛡️ Reprendre la vérification » → nouvelle énigme jouable, chrono ≥ 25 s, sans message « temps écoulé » ;
+  - 12 coups sur le bloc fenêtre fermée, puis attente d'une sauvegarde, puis F5 → la vérification revient. **Côté serveur** : défi toujours `challenge` (en attente) ; relevé de la sauvegarde et du classement (pièces, profondeur, blocs, charges de pioche, ligne de classement) **identique** avant et après ;
+  - un seul signalement enregistré, visible dans la liste admin des retours ;
+  - suspension → formulaire → fermeture → la fenêtre « Minage manuel en pause » revient ;
+  - signalements coupés → bouton masqué (inchangé).
+- Limite : le compte d'essai est neuf (0 bloc), donc l'essai prouve qu'aucun crédit n'apparaît, pas qu'un crédit existant serait gelé. Le gel côté serveur d'un compte qui progresse est déjà prouvé par l'essai #25 `antibot-freeze-proof.e2e.js` et ses tests unitaires, que cette correction ne touche pas.
+- Production après le déploiement, en visiteur, en 1280 et 390 : **0 erreur JS**, nouveau code servi.
+
+### 5. Déploiement
+
+- Release `4682799` : `npm ci`, `npm test` 969/969. Copie de la base de production démarrée en `NODE_ENV=production` (port 3122) : `/health` ok, `1.0.0+4682799`, **empreintes identiques** avant et après le démarrage. Copie supprimée.
+- Aucune génération IA en cours (dernier appel à 17:00 UTC). `main` avancé de `ce0a4db` à `4682799` (avance rapide). La sauvegarde vérifiée `~/backups/dig/dig-20261108-190739-pre-deploy-4682799.sqlite` a été faite, sans `npm ci`, puis la santé et la version ont été contrôlées.
+- Après le déploiement : les 2 domaines renvoient 200 avec `1.0.0+4682799`, le journal ne contient aucune erreur et `quick_check` = ok. Les empreintes des 6 tables joueurs sont **identiques** à la sauvegarde pré-déploiement.
+- **Retour arrière** : `git -C /home/ubuntu/Dig reset --keep ce0a4db` puis `sudo systemctl restart dig`. Aucune migration et aucune donnée touchée.
+- `4648133` (textes des coffres) **n'est toujours pas inclus** : il attend ta réponse à la question 1.
+
+### 6. Recette #84-E corrigée (≈ 3 min, ton compte de test, téléphone)
+
+1. Admin → Anti-bot → ton compte de test → « Tester la protection » → envoyer la vérification tout de suite.
+2. Dans le jeu : « Petite vérification » → **🐞 Signaler une erreur**. Écris « essai #84-E bis », **attends au moins 30 s**, puis envoie. *Attendu :* « Merci ! Signalement n° … reçu » et un bouton violet **« 🛡️ Reprendre la vérification »**.
+3. Touche-le. *Attendu :* la vérification revient **tout de suite**, sans toucher le bloc, avec une **nouvelle énigme** et un chrono plein (00:30), pas 00:00.
+4. Bonus : rouvre « Signaler une erreur » puis « Annuler » sans écrire. *Attendu :* la vérification revient aussi.
+5. Admin → 🧪 Bêta → « 💬 Voir les retours ». *Attendu :* ton signalement, **une seule fois**. Résous l'énigme, puis « Terminer le test ». Le mode global reste **Appliqué**.
+
+Réponds « #84-E validé » ou dis ce qui ne convient pas.
+
+### 7. Classement MVP
+
+**Bloquant bêta collègues** (la compétition démarre le 09/11 à 00:59) : corrigé et déployé. **Après lancement** : #91 (détection rapide de l'autoclicker), inchangé.
+
+### 8. Choix techniques faits seul
+
+- **Retour automatique plutôt qu'un simple bouton** : tu demandais l'un ou l'autre. J'ai fait les deux. La fenêtre revient à toute fermeture, et le bouton nomme clairement l'action après l'envoi.
+- **Seuil de 10 s à la réouverture** : en dessous, l'énigme est quasiment injouable. En demander une nouvelle est déjà prévu sans sanction (bouton « Autre énigme »), et la limite de 15 énigmes par 10 min s'applique toujours. Les délais de protection ne changent pas.
+- **Le formulaire reste par-dessus, la vérification est fermée pendant la rédaction** : les deux fenêtres superposées seraient illisibles sur téléphone. L'énigme ne peut de toute façon pas être résolue pendant qu'on écrit.
+
+### 9. Décisions demandées au propriétaire
+
+1. *(Toujours ouverte)* **Déployer avant lundi la correction de texte `4648133`** (4 textes FR des coffres, aucune donnée touchée) : **A** oui, intégration et déploiement habituel (**recommandé**) / **B** après la bêta.
+
+### 10. Reste à faire
+
+Ta recette #84-E corrigée. Avant d'élargir : #91, #43, #36, #27.
