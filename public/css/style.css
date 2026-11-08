@@ -3030,7 +3030,17 @@ h1 {
 .season-fold > summary::after { content: '›'; margin-left: auto; font-size: 1rem; line-height: 1; color: var(--muted); transition: transform 0.2s; }
 .season-fold[open] > summary::after { transform: rotate(90deg); }
 .season-fold > summary .points-balance { margin-left: auto; }
-.shop-card.season-fold > summary::after { margin-left: 0; }
+.shop-card.season-fold > summary::after, .points-fold > summary::after { margin-left: 0; }
+.points-fold .shop-card.season-fold > summary::after { margin-left: auto; }
+/* Boutique de cadeaux rangée dans les points de récompense dépliés (recette #84-D) */
+.points-fold .shop-card { margin-bottom: 0; background: rgba(0,0,0,0.12); }
+.points-fold > summary { flex-wrap: nowrap; gap: 6px; }
+.points-fold > summary .points-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 379px) {
+  .points-fold > summary .points-balance-label { display: none; }
+  .points-fold > summary .points-title { font-size: 0.8rem; }
+}
+.season-fold > summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 6px; }
 .season-fold-sub { flex-basis: 100%; order: 3; color: var(--text); font-size: 0.8rem; }
 .season-fold-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 #season-last:not(:empty) { margin-top: 12px; }
@@ -3296,11 +3306,7 @@ header {
 .last-mine { font-weight: 600; }
 .last-hash { word-break: break-all; font-size: 0.72rem; color: var(--text); }
 .last-proof a { color: #7dd3fc; }
-.points-shop-link {
-  align-self: flex-start; min-height: 36px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
-  background: rgba(252,211,77,0.12); border: 1px solid rgba(252,211,77,0.4); color: #fcd34d; font: inherit;
-}
-.points-shop-link:focus-visible, .season-retry-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.season-retry-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .season-merit-list { margin-top: 4px; }
 .season-merit-list li { margin-bottom: 4px; }
 .season-error {

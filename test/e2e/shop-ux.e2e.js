@@ -43,8 +43,8 @@ const errors = [], dialogs = [];
     const pick = page.locator('.lang-pick-btn[data-lang="fr"]');
     if (await pick.isVisible().catch(() => false)) await pick.click();
     await page.click('.nav-btn[data-view="season"]');
-    await page.waitForSelector('#season-shop .shop-card');
-    await page.evaluate(() => { document.querySelector('#season-shop .shop-card').open = true; });
+    await page.waitForSelector('#season-shop .shop-card', { state: 'attached' });   // rangée dans les points repliés (#84-D)
+    await page.evaluate(() => { document.querySelector('#season-points > .points-fold').open = true; document.querySelector('#season-shop .shop-card').open = true; });
     const item = page.locator('#season-shop .shop-item', { hasText: `Titre honorifique E2E ${user}` });
     await item.waitFor();
     assert.strictEqual((await item.locator('.shop-item-cost').innerText()).trim(), '1 pt', 'prix « 1 pt »');

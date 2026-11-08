@@ -1,7 +1,8 @@
 /**
- * Essai navigateur de la recette #48-D (03/11) : onglet Saison du joueur — synthèse en haut
- * (thème, fin, carte joueur, points, classement), puis résultat archivé, boutique, explications et
- * historique repliés ; le lien « Ouvrir la boutique » déplie la boutique ; aucun défilement
+ * Essai navigateur des recettes #48-D (03/11) et #84-D (08/11) : onglet Saison du joueur — thème,
+ * fin, carte joueur puis classement tout de suite ; points de récompense repliés sur une ligne (boutique
+ * de cadeaux rangée dedans), annonce de la saison suivante, résultat archivé, explications et
+ * historique en dessous ; le résumé des points se déplie au clavier ; aucun défilement
  * horizontal ; 0 erreur JS. Captures dans OUT pour vérifier la mise en page réelle (espaces).
  * Hors `npm test` (navigateur requis).
  *
@@ -29,15 +30,18 @@ const errors = [];
     if (await pick.isVisible().catch(() => false)) await pick.click();
     await page.click('.nav-btn[data-view="season"]');
     await page.waitForSelector('#view-season .season-player-card');
-    await page.waitForSelector('#season-shop .shop-card');
+    await page.waitForSelector('#season-shop .shop-card', { state: 'attached' });   // rangée dans les points repliés (#84-D)
     await page.waitForSelector('#season-last .last-card');
     await page.waitForSelector('#season-lb-body .lb-row, #season-lb-body .season-empty');
     await page.waitForTimeout(300);
     const m = await page.evaluate(() => {
       const top = s => Math.round(document.querySelector(s)?.getBoundingClientRect().top ?? -1);
       return {
-        order: ['.season-theme-card', '.season-player-card', '#season-points', '#season-lb-body', '#season-last', '#season-shop', '.season-info-card', '.season-history'].map(top),
-        open: ['#season-last > details', '#season-shop > details', '.season-info-card', '.season-history'].map(s => document.querySelector(s)?.open ?? null),
+        order: ['.season-theme-card', '.season-player-card', '#season-lb-body', '#season-points', '.season-next-card', '#season-last', '.season-info-card', '.season-history'].map(top),
+        open: ['#season-last > details', '#season-points > details', '#season-shop > details', '.season-info-card', '.season-history'].map(s => document.querySelector(s)?.open ?? null),
+        lbVisible: (document.querySelector('#season-lb-body .lb-row:not(.lb-head)')?.getBoundingClientRect().bottom ?? 1e9) <= innerHeight,
+        pointsOneLine: Math.round(document.querySelector('#season-points > details > summary')?.getBoundingClientRect().height ?? 0) <= 40,
+        shopInPoints: !!document.querySelector('#season-points > details #season-shop'),
         lastSummary: document.querySelector('#season-last summary')?.innerText,
         shopSummary: document.querySelector('#season-shop summary')?.innerText,
         depth: document.querySelector('.season-player-stats')?.innerText,
@@ -47,19 +51,19 @@ const errors = [];
     console.log(w, JSON.stringify(m));
     const order = m.order.filter(x => x >= 0);
     assert.deepStrictEqual(order, [...order].sort((a, c) => a - c), 'synthèse puis sections repliées');
-    assert.deepStrictEqual(m.open.slice(0, 2), [false, false], 'résultat et boutique repliés par défaut');
+    assert.deepStrictEqual(m.open.slice(0, 3), [false, false, false], 'résultat, points et boutique repliés par défaut');
+    assert.ok(m.pointsOneLine && m.shopInPoints, 'points sur une ligne, boutique rangée dedans (#84-D)');
+    if (h >= 800) assert.ok(m.lbVisible, 'premier rang du classement visible à l\'ouverture');
     assert.ok(/\d m\b/.test(m.depth), 'profondeur « 22 m »');
     assert.ok(m.overflow <= 0, 'pas de défilement horizontal');
     await page.screenshot({ path: `${OUT}/saison-${w}-haut.png`, fullPage: true });
     await page.evaluate(() => document.querySelector('#season-lb-body').scrollIntoView());
     await page.screenshot({ path: `${OUT}/saison-${w}-replie.png` });
-    // Lien « Ouvrir la boutique » : déplie la boutique
-    const link = page.locator('[data-scroll-shop]');
-    if (await link.count()) {
-      await link.click();
-      await page.waitForTimeout(600);
-      assert.ok(await page.evaluate(() => document.querySelector('#season-shop > details').open), 'boutique dépliée par le lien');
-    }
+    // Résumé des points : se déplie au clavier (Entrée), avec crédit, barème, historique et boutique
+    await page.focus('#season-points > details > summary');
+    await page.keyboard.press('Enter');
+    assert.ok(await page.evaluate(() => { const f = document.querySelector('#season-points > details');
+      return f.open && !!f.querySelector('.points-scale') && !!f.querySelector('.points-history') && !!f.querySelector('.shop-card'); }), 'points dépliés au clavier');
     // Déplier le résultat : reste déplié après l'actualisation automatique (30 s)
     await page.click('#season-last summary');
     await page.evaluate(() => { _seasonRefreshAt = 0; return _refreshSeasonView(); });

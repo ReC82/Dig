@@ -352,6 +352,8 @@ function _revealGiftShop() {
   const sh = document.querySelector('#season-shop .shop-card');
   if (!sh) return;
   _goGiftShop = false;
+  const fold = sh.closest('.points-fold');
+  if (fold) fold.open = true;   // boutique rangée dans les points de récompense (#84-D)
   sh.open = true;
   // Défilement immédiat : un défilement animé était annulé quand la vue Saison se re-rendait pendant
   // l'animation (scrollTop mémorisé à mi-course puis restauré) — carte restée hors écran sur téléphone.
@@ -2306,8 +2308,9 @@ function renderSeasonView(apiData, lbData) {
       </div>
     </details>`;
 
-  // Synthèse en haut (thème, fin, joueur, points, classement) ; résultat archivé, boutique,
-  // explications et historique repliés en dessous (recette #48-D du 03/11).
+  // Saison en cours, fin, rang du joueur puis classement tout de suite (recette #84-D du 08/11) ;
+  // points de récompense et boutique de cadeaux repliés sur une ligne, annonce de la saison
+  // suivante, résultat archivé, explications et historique en dessous.
   const lbId = 'season-lb-body';
   const scrollTop = el.scrollTop;
   const historyOpen = !!el.querySelector('.season-history')?.open;
@@ -2315,16 +2318,15 @@ function renderSeasonView(apiData, lbData) {
     <div class="view-title-bar"><span>${t('season.title')} — ${escapeHtml(season.name)}</span>${DigHelp.tipHtml('season')}</div>
     ${_seasonThemeHtml(season)}
     <p class="season-ends-in">${endsIn}</p>
-    ${_nextSeasonHtml(apiData.next)}
     ${playerHtml}
-    <div id="season-points">${_pointsHtml()}</div>
     <h3 class="season-section-title">${t('season.leaderboard_blocks')}${DigHelp.tipHtml('ranking')}</h3>
     <p class="season-lb-rule">${t('season.lb.rule')}</p>
     <div class="season-leaderboard" id="${lbId}">
       ${lbData ? _leaderboardHtml(lbData) : `<p class="season-loading">${t('season.loading')}</p>`}
     </div>
+    <div id="season-points">${_pointsHtml()}</div>
+    ${_nextSeasonHtml(apiData.next)}
     <div id="season-last">${_lastResultHtml()}</div>
-    <div id="season-shop">${_shopHtml()}</div>
     ${infoHtml}
     ${_seasonHistoryHtml(apiData.history, historyOpen)}`;
   el.scrollTop = scrollTop;
@@ -2508,9 +2510,7 @@ async function _loadPoints() {
     _pointsData = pts.ok ? pts.data : null;
     _shopData   = cat.ok && mine.ok ? { ...cat.data, ...mine.data } : null;
     const el = document.getElementById('season-points');
-    if (el) el.innerHTML = _pointsHtml();
-    const sh = document.getElementById('season-shop');
-    if (sh) sh.innerHTML = _shopHtml();
+    if (el) el.innerHTML = _pointsHtml();   // boutique de cadeaux comprise (#84-D)
     _revealGiftShop();
     const last = document.getElementById('season-last');
     if (last) last.innerHTML = _lastResultHtml();
@@ -2526,13 +2526,17 @@ function _tierLabel(tier) {
   return t('points.tier_active');
 }
 
+/** Points de récompense + boutique de cadeaux : une seule ligne repliée par défaut (recette #84-D). */
 function _pointsHtml() {
   const d = _pointsData;
-  if (!_account || !d) return '';
+  if (!_account) return '';
+  if (!d) return _shopData ? `<div id="season-shop">${_shopHtml()}</div>` : '';
   const n = v => Number(v).toLocaleString(I18n.getCurrent());
   const tiers = d.scale?.tiers ?? [];
   const tierById = Object.fromEntries(tiers.map(x => [x.id, x]));
   const open = sel => document.querySelector(`#season-points ${sel}`)?.open ? ' open' : '';
+  // Dépliée : le reste après une actualisation, et à l'issue d'un échange ou d'une annulation
+  const foldOpen = document.querySelector('#season-points > .points-fold')?.open || _shopMsg ? ' open' : '';
 
   const pot = d.potential;
   const potHtml = pot && pot.rank && pot.points > 0
@@ -2567,14 +2571,14 @@ function _pointsHtml() {
     : `<li class="points-empty">${t('points.history_empty')}</li>`;
 
   return `
-    <div class="points-card">
-      <div class="points-head">
+    <details class="points-card points-fold season-fold"${foldOpen}>
+      <summary class="points-head">
         <span class="points-title">${t('points.title')}</span>
-        <span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
-      </div>
+        <span class="points-balance"><span class="points-balance-label">${t('points.balance')}</span> <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
+      </summary>
+      <div class="season-fold-body">
       ${d.mode !== 'live' ? `<p class="points-sim-banner">${t('points.simulation')}</p>` : `<p class="points-live-banner">${t('points.live')}</p>`}
       <p class="points-potential">${potHtml}</p>
-      ${_shopData ? `<button type="button" class="points-shop-link" data-scroll-shop>${t('points.shop_link', { n: n(_shopData.items.length) })}</button>` : ''}
       <details class="points-details points-scale"${open('.points-scale')}>
         <summary>${t('points.scale_toggle')}</summary>
         <table class="points-table">${scaleRows}</table>
@@ -2585,7 +2589,9 @@ function _pointsHtml() {
         <summary>${t('points.history_toggle')}</summary>
         <ul class="points-list">${histHtml}</ul>
       </details>
-    </div>`;
+      ${_shopData ? `<div id="season-shop">${_shopHtml(true)}</div>` : ''}
+      </div>
+    </details>`;
 }
 
 // ── Boutique de cadeaux (#34) ────────────────────────────────────────────────
@@ -2599,7 +2605,8 @@ function _shopText(texts, field) {
   return texts?.[I18n.getCurrent()]?.[field] || texts?.fr?.[field] || '';
 }
 
-function _shopHtml() {
+/** Boutique de cadeaux ; `nested` : rangée dans les points dépliés, dont le résumé affiche déjà le solde (#84-D). */
+function _shopHtml(nested = false) {
   const d = _shopData;
   if (!_account || !d) return '';
   const lang = I18n.getCurrent();
@@ -2655,7 +2662,7 @@ function _shopHtml() {
     <details class="points-card shop-card season-fold"${foldOpen}>
       <summary class="points-head">
         <span class="points-title">${t('giftshop.title')}</span>
-        <span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
+        ${nested ? '' : `<span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>`}
       </summary>
       <div class="season-fold-body">
       <p class="points-note">${t('giftshop.intro')}</p>
@@ -2786,13 +2793,6 @@ document.addEventListener('click', (e) => {
   if (buy) { _shopExchange(Number(buy.dataset.shopItem)); return; }
   const cancel = e.target.closest?.('[data-shop-cancel]');
   if (cancel) { _shopCancel(Number(cancel.dataset.shopCancel)); return; }
-  if (e.target.closest?.('[data-scroll-shop]')) {
-    const sh = document.querySelector('#season-shop .shop-card');
-    if (sh) sh.open = true;
-    sh?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    sh?.querySelector('button:not([disabled]), summary')?.focus({ preventScroll: true });
-    return;
-  }
   if (e.target.closest?.('[data-season-retry]')) { _lastResult = null; _openSeasonView(); }
 });
 
