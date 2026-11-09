@@ -3313,7 +3313,7 @@ document.getElementById('btn-sec-start-test').addEventListener('click', () => {
 // Enchaîne les routes d'essai existantes (#25 lot C) sur UN compte : essai Appliqué, défi d'essai,
 // suivi de la résolution, remise en état. Le mode global n'est jamais modifié ici.
 
-let _secTest = { userId: null, data: null, busy: false, ended: false, msg: '', pick: '' };
+let _secTest = { userId: null, data: null, busy: false, ended: false, after: 0, msg: '', pick: '' };
 
 /** Statut compréhensible d'un compte (fiche et parcours). */
 function secPlayerStatus(L) {
@@ -3418,10 +3418,30 @@ function secFreezeEl(L) {
 }
 
 /** Défi du test en cours : dernier défi réel mesuré (relevés horodatés), émis pendant cet essai. */
-function secTestChallenge(L) {
+function secTestChallenge(L, after = 0) {
   const T = L?.testThreshold;
   const since = T?.startedAt ? Date.parse(T.startedAt) : Date.now() - 2 * 3600_000;
-  return (L?.history?.challenges ?? []).find(c => c.freeze && Date.parse(c.createdAt) >= since - 1000) ?? null;
+  // « Nouveau test » : les vérifications du test précédent (identifiants ≤ after) ne comptent plus
+  return (L?.history?.challenges ?? []).find(c => c.freeze && Date.parse(c.createdAt) >= since - 1000 && c.id > after) ?? null;
+}
+
+/**
+ * Fin du parcours (recette du 09/11) : « Terminer le test » n'est actif que s'il reste quelque chose
+ * à remettre en état côté serveur (essai, délai court, vérification, suspension, palier) ; ce qui
+ * reste est nommé. Rien à remettre et vérification terminée (ou test terminé) → étape 5 cochée,
+ * « Nouveau test » proposé. Jamais de bouton grisé sans raison écrite à côté.
+ */
+function secTestEnd(L, ch, ended) {
+  if (!L) return { needsReset: false, finished: false, left: [] };
+  const left = [];
+  if (L.challenge) left.push('vérification en attente');
+  if (L.suspension) left.push('suspension du minage');
+  if (L.violationLevel > 0) left.push(`palier de sanction ${L.violationLevel}`);
+  if (L.testThreshold) left.push('délai court');
+  if (L.testEnforce) left.push('essai sur ce compte');
+  const needsReset = left.length > 0;
+  const finished = !needsReset && (!!ended || !!(ch && ch.status !== 'pending'));
+  return { needsReset, finished, left };
 }
 
 /**
@@ -3491,7 +3511,7 @@ async function secTestLoad(q) {
 async function secTestSelect(q, { point = false } = {}) {
   const r = await secTestLoad(q);
   if (r.error) { _secTest.pick = `⚠ ${r.error}`; secTestRender(); return false; }
-  _secTest = { userId: String(r.data.player.userId), data: r.data, busy: false, ended: false, msg: '', pick: '' };
+  _secTest = { userId: String(r.data.player.userId), data: r.data, busy: false, ended: false, after: 0, msg: '', pick: '' };
   document.getElementById('sec-test-q').value = r.data.player.username;
   secTestRender();
   if (point) admNavPoint(document.getElementById('sec-test-card'));
@@ -3526,10 +3546,9 @@ function secTestRender() {
   const name = d ? `${d.player.username} (#${d.player.userId})` : '';
   const pending = !!(L?.challenge);
   const T = L?.testThreshold ?? null;
-  const ch = L ? secTestChallenge(L) : null;
+  const ch = L ? secTestChallenge(L, _secTest.after) : null;
   const solved = !!(L && !pending && ch && ch.status === 'solved');
-  const needsReset = !!(L && (L.testEnforce || T || L.challenge || L.suspension || L.violationLevel > 0));
-  const ended = _secTest.ended && !needsReset;
+  const { needsReset, finished: ended, left } = secTestEnd(L, ch, _secTest.ended);
   const done = [!!d, L?.mode === 'enforce', !!T || pending || !!ch, solved, ended];
   const current = ended ? -1 : done.findIndex(x => !x);
   const st = secPlayerStatus(L);
@@ -3544,16 +3563,19 @@ function secTestRender() {
   states[2] = !L || L.mode !== 'enforce' ? ''
     : T ? `✓ Délai actif : vérification après ${secMin(T.minutes)} min de minage continu (expire seul à ${secBxl(T.expiresAt)}).`
     : pending || ch ? '✓ Vérification envoyée.'
-    : `Délai normal : ${secMin(L.thresholds?.streakMin)} min (inchangé pour les autres joueurs).`;
+    : `Délai normal : ${secMin(L.thresholds?.streakMin)} min (inchangé pour les autres joueurs).${L.testEnforce ? '' : ' Activer un délai court place ce compte seul en essai.'}`;
   states[3] = !L ? ''
     : L.suspension ? `⛔ ${st.label}.`
     : pending ? (L.challenge.seenAt ? `⏳ Vérification affichée depuis ${secBxl(L.challenge.seenAt)} : stoppez l'autoclicker et résolvez-la.` : '⏳ Vérification prête : elle s\'affiche au prochain passage dans le jeu (F5).')
       + (L.challenge.fails ? ` ${L.challenge.fails} mauvaise(s) réponse(s), sans sanction.` : '')
     : solved ? `✓ Résolue à ${secBxlS(ch.resolvedAt)} : le compte mine normalement.`
     : T ? 'En attente de la vérification…' : '';
-  states[4] = ended ? `✓ Test terminé : ${d?.player.username ?? 'le compte'} est revenu à l'état normal. Protection des autres joueurs inchangée (${SEC_RESP_MODES[L?.globalMode] ?? '—'}).`
-    : needsReset ? 'Supprime le délai court et l\'essai, annule une vérification en cours, lève une suspension éventuelle.'
-    : '';
+  const others = `Protection des autres joueurs inchangée (${SEC_RESP_MODES[L?.globalMode] ?? '—'}).`;
+  states[4] = !L ? ''
+    : ended && _secTest.ended ? `✓ Test terminé : ${d.player.username} est revenu à l'état normal. ${others}`
+    : ended ? `✓ Essai terminé — ${d.player.username} mine normalement ; aucune remise à zéro nécessaire (ni essai, ni délai court, ni vérification, ni suspension en cours). ${others}`
+    : needsReset ? `À remettre en état : ${left.join(', ')}. « Terminer le test » s'en charge (rien d'autre n'est modifié).`
+    : 'Rien à remettre en état : aucun essai, délai court, vérification ni suspension sur ce compte.';
   for (let i = 0; i < 5; i++) {
     const li = document.getElementById(`sec-step-${i + 1}`);
     li.classList.toggle('is-done', done[i] && (i < 4 || ended));
@@ -3570,12 +3592,18 @@ function secTestRender() {
   const busy = _secTest.busy;
   document.getElementById('btn-sec-test-start').disabled = busy || !L || L.globalMode === 'off' || L.mode === 'enforce';
   const acOn = document.getElementById('btn-sec-test-ac-on');
-  acOn.disabled = busy || !L?.testEnforce || pending || (!!T && T.minutes === delay);
+  // Mode Appliqué pour tous : le délai court place d'abord ce compte seul en essai (recette du 09/11)
+  acOn.disabled = busy || !L || L.mode !== 'enforce' || pending || !!L.suspension || (!!T && T.minutes === delay);
   acOn.textContent = T && T.minutes !== delay ? `Passer à ${delay} min` : `Activer le délai de ${delay} min`;
   document.getElementById('sec-test-delay-txt').textContent = `${T ? secMin(T.minutes) : delay} min`;
   document.getElementById('btn-sec-test-challenge').disabled = busy || !L || L.mode !== 'enforce' || pending || !!L.suspension;
   document.getElementById('btn-sec-test-check').disabled = busy || !d;
-  document.getElementById('btn-sec-test-end').disabled = busy || !needsReset;
+  const endBtn = document.getElementById('btn-sec-test-end');
+  endBtn.disabled = busy || !needsReset;
+  endBtn.hidden = ended;
+  const newBtn = document.getElementById('btn-sec-test-new');
+  newBtn.hidden = !ended;
+  newBtn.disabled = busy;
   const prog = document.getElementById('sec-test-progress');
   prog.innerHTML = '';
   const p = !pending && !ch ? secTestProgressEl(L) : null;
@@ -3675,7 +3703,14 @@ document.getElementById('btn-sec-test-challenge').addEventListener('click', () =
 document.getElementById('btn-sec-test-check').addEventListener('click', () => secTestRun(async () => ''));
 document.getElementById('btn-sec-test-ac-on').addEventListener('click', () => secTestRun(async () => {
   const minutes = secTestDelay();
-  const { ok, data } = await api('POST', `/api/admin/security/player/${_secTest.data.player.userId}/test-threshold`, { minutes });
+  const uid = _secTest.data.player.userId;
+  _secTest.ended = false;
+  // Déjà « Appliqué » pour tous : l'essai de ce compte ne change pas ce qu'il subit, il porte le délai court
+  if (!_secTest.data.lotC.testEnforce) {
+    const r = await api('POST', `/api/admin/security/player/${uid}/test-mode`, { enforce: true });
+    if (!r.ok) return `⚠ Délai non activé : ${r.data?.error ?? 'erreur'}.`;
+  }
+  const { ok, data } = await api('POST', `/api/admin/security/player/${uid}/test-threshold`, { minutes });
   return ok ? '' : `⚠ Délai non activé : ${data?.error ?? 'erreur'}.`;
 }));
 document.getElementById('sec-test-delay').addEventListener('change', () => secTestRender());
@@ -3685,10 +3720,20 @@ setInterval(() => {
   if (_secTest.busy || !L?.testEnforce || document.hidden || !document.getElementById('sec-test-card').offsetParent) return;
   secTestRefresh();
 }, 10_000);
+// Nouveau test : n'efface rien côté serveur ; le parcours ignore seulement les vérifications déjà terminées
+document.getElementById('btn-sec-test-new').addEventListener('click', () => {
+  const L = _secTest.data?.lotC;
+  if (_secTest.busy || !L) return;
+  _secTest.after = Math.max(_secTest.after, ...(L.history?.challenges ?? []).map(c => c.id));
+  _secTest.ended = false;
+  _secTest.msg = '';
+  secTestRender();
+});
 document.getElementById('btn-sec-test-end').addEventListener('click', () => secTestRun(async () => {
   const L = _secTest.data.lotC;
   const uid = _secTest.data.player.userId;
   const before = L.globalMode;
+  if (!secTestEnd(L, null, false).needsReset) { _secTest.ended = true; return ''; }
   const errs = [];
   if (L.challenge && !(await api('POST', `/api/admin/security/challenge/${L.challenge.id}/cancel`, { note: 'fin du test (#87)' })).ok) errs.push('vérification');
   if (L.suspension && !(await api('POST', `/api/admin/security/suspension/${L.suspension.id}/lift`, { note: 'fin du test (#87)' })).ok) errs.push('suspension');
