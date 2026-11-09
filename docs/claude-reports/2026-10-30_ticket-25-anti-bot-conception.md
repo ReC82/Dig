@@ -1578,3 +1578,87 @@ La question Turnstile est **tranchée** (CAPTCHA maison, aucun tiers).
 
 - #91 : détecteurs locaux rapides (25 clics au même pixel, cadence, signaux croisés) et suspensions graduées. **Bloquant pour un concours sérieux.**
 - #49 en `enforce` (gemmes) et #77 (PV exacts) : validation serveur des monnaies face à un client modifié. **Après lancement** pour la bêta à petits lots, puisque les lots ne dépendent que du classement ; à faire avant des lots plus importants.
+
+---
+
+# Session du 09/11/2026 — « Terminer le test » grisé sans explication (recette du 09/11, BLOQUÉE UX)
+
+## 1. Ticket et état réel
+
+#25 — [P0] Protection anti-bot globale — https://github.com/ReC82/Dig/issues/25
+
+**Déployé en production (SHA `611cf30`) — en attente de recette.**
+
+Source : [recette du propriétaire du 09/11/2026, 13:51 UTC](https://github.com/ReC82/Dig/issues/25#issuecomment-6741715484). Dans Admin → Anti-bot → « Tester la protection », sur le compte de test du propriétaire, après une vérification résolue : bandeau « Résolu », gel vérifié (+0), mais l'étape 5 « Terminer et remettre à l'état normal » avait un bouton **« Terminer le test » grisé, sans aucune raison**.
+
+## 2. Diagnostic : état cohérent, explication absente
+
+Le bouton était **volontairement** grisé : il n'y avait **plus rien à remettre en état**. Ce n'était **pas** un état incohérent.
+
+- Condition exacte (avant correctif) : le bouton n'était actif que si le compte avait **au moins un** de ces éléments : essai propre au compte (`testEnforce`), délai court, vérification en attente, suspension, ou palier de sanction supérieur à 0.
+- Le mode est « Appliqué » **pour tous** depuis le 08/11. L'étape 2 (« Lancer l'essai ») n'a donc rien à faire. L'étape 3 (délai court) était **grisée elle aussi**, car elle exigeait un essai propre au compte. Il ne restait que « envoyer la vérification tout de suite ».
+- Une fois cette vérification résolue, le serveur n'avait plus rien d'actif à nettoyer. Relevé en lecture seule de la base de production pour ce compte : vérification n° 9 `solved` (émise à 13:46:16 UTC, résolue à 13:47:16 UTC), aucun essai, aucun délai court, palier 0, aucune suspension active.
+- Le défaut : l'étape 5 restait affichée **comme l'étape à faire** (encadrée en doré), avec un bouton grisé et **aucun texte**. La phrase « Test terminé » n'apparaissait qu'après un clic… sur ce bouton grisé. Le parcours ne pouvait donc **jamais se terminer** visuellement en mode « Appliqué » pour tous.
+
+## 3. Correctif (interface admin uniquement)
+
+| Situation du compte | Étape 5 maintenant |
+|---|---|
+| Vérification résolue ou annulée, rien d'actif (le cas de la capture) | Étape **cochée**, badge **« Terminé »**, texte : « ✓ Essai terminé — *pseudo* mine normalement ; aucune remise à zéro nécessaire (ni essai, ni délai court, ni vérification, ni suspension en cours). Protection des autres joueurs inchangée (Appliqué). » « Terminer le test » est masqué ; **« Nouveau test »** apparaît. |
+| Quelque chose reste actif | « Terminer le test » **actif**, avec la liste de ce qui reste, par exemple : « À remettre en état : vérification en attente » ou « délai court, essai sur ce compte ». |
+| Rien encore fait | Bouton grisé **avec sa raison** : « Rien à remettre en état : aucun essai, délai court, vérification ni suspension sur ce compte. » |
+| Après un clic sur « Terminer le test » | « ✓ Test terminé : *pseudo* est revenu à l'état normal », étape cochée, « Nouveau test ». |
+
+- **« Nouveau test »** n'appelle **pas** le serveur et **n'efface rien**. Le parcours ignore seulement les vérifications déjà terminées et revient à l'étape 3.
+- **Étape 3 en mode « Appliqué » pour tous** : « Activer le délai de 1/2/3 min » n'est plus grisé. Il place d'abord **ce compte seul** en essai (route existante `test-mode`), puis il active le délai court. Pour ce compte, rien ne change dans ce qu'il subit, puisqu'il est déjà en « Appliqué ». Cela rend le test avec un autoclicker de nouveau possible, et « Terminer le test » retire ensuite l'essai et le délai. Le texte de l'étape l'annonce : « Activer un délai court place ce compte seul en essai. »
+- Après un F5 : rien n'est stocké dans le navigateur. En rechoisissant le compte, l'état terminé est relu côté serveur. Il reste affiché tant que la vérification a moins de 2 h.
+- Fichiers : `public/admin/admin.js` (`secTestEnd`, `secTestChallenge`, `secTestRender`, boutons), `public/admin/index.html` (bouton « Nouveau test »), `public/admin/admin.css` (une ligne). Aucun changement côté serveur.
+
+**Inchangés** : mode global, seuils, chrono, détecteurs #91 et #92, routes du serveur et règles anti-bot. Aucun joueur suspendu ni modifié.
+
+## 4. SHA, branche, vérification
+
+- Branche `feature/25-anti-bot-lots-ab`, commit `dcd8496`. Intégré dans `develop` : `611cf30`.
+- `npm test` : **1042/1042** sur le SHA exact `611cf30` (worktree de release). Un premier passage avait échoué, à cause d'un serveur de test orphelin de ma propre session resté sur le port 3131. Je l'ai arrêté, puis tout est passé.
+- Nouveau test unitaire `test/antibot-admin-end-25.test.js` (8 cas) : vérification résolue (cas de la capture), vérification en attente (énigme expirée, signalement #84), suspension/palier/délai/essai, aucun test en cours, F5 après « Terminer », « Nouveau test » sans appel au serveur, délai court en mode « Appliqué » pour tous, et « Terminer » sans appel au serveur quand rien n'est actif.
+- Nouvel essai navigateur `test/e2e/admin-antibot-end-25.e2e.js`, en **1280×900 et 390×844** : **TOUT OK, 0 erreur JS**. Il se déroule sur un serveur de test en mode « Appliqué » pour tous et rejoue tout le parcours **#84-E bis** :
+  1. vérification envoyée tout de suite ;
+  2. « 🐞 Signaler une erreur », puis envoi : « 🛡️ Reprendre la vérification » s'affiche, la vérification revient, le défi reste en attente côté serveur, et il n'y a **qu'un seul** signalement ;
+  3. énigme résolue : étape 5 cochée, « Essai terminé… aucune remise à zéro nécessaire », « Nouveau test » ;
+  4. F5 : même état ;
+  5. « Nouveau test » : retour à l'étape 3, historique intact ;
+  6. délai court de 1 min : « Terminer le test » actif, puis essai et délai retirés côté serveur ;
+  7. le mode global reste « Appliqué » et la progression classée est conservée.
+- Je n'ai **pas** testé l'énigme qui expire **pendant** le signalement : c'est déjà couvert par l'essai `antibot-report-84` du 08/11, et ce correctif n'y touche pas.
+
+## 5. Données des joueurs et déploiement
+
+- Copie de la base de production démarrée avec `611cf30` : empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` **identiques**. Aucune migration.
+- Sauvegarde avant déploiement : `dig-20261109-153922-pre-deploy-611cf30.sqlite` (vérifiée par `deploy.sh`). Aucune génération IA n'était en cours (dernier appel terminé à 13:45 UTC).
+- Déployé le 09/11 à 15:39 (heure de Bruxelles) : `dc8cf1e` → `611cf30`. Les 2 domaines répondent 200 avec `1.0.0+611cf30`, le journal ne montre aucune erreur et `quick_check` est ok. Après le déploiement, seuls les horodatages de sauvegarde du compte ouvert ont avancé. Blocs, profondeur, pièces et classement sont identiques.
+- Retour arrière possible vers `dc8cf1e`, sans toucher à la base.
+
+## 6. Test fonctionnel à faire par le propriétaire (une seule recette, ≈ 3 min)
+
+1. Admin → Anti-bot → « Tester la protection » → ton compte de test. *Attendu :* l'étape 5 ne montre plus un bouton grisé sans texte. Selon l'état du compte, elle affiche « Rien à remettre en état… » ou « ✓ Essai terminé… ».
+2. « Sans autoclicker : envoyer la vérification tout de suite ». *Attendu :* l'étape 5 dit « À remettre en état : vérification en attente » et « Terminer le test » est actif.
+3. Dans le jeu (F5), fais le parcours #84-E bis : « 🐞 Signaler une erreur », écris « essai #84-E bis », envoie, puis « 🛡️ Reprendre la vérification ». Résous l'énigme.
+4. Admin → « ↻ Actualiser le résultat ». *Attendu :* étape 5 **cochée**, badge **Terminé**, « ✓ Essai terminé — *ton compte* mine normalement ; aucune remise à zéro nécessaire… », et un bouton **« Nouveau test »**. **C'est la bonne fin de #84-E bis : il n'y a rien d'autre à cliquer.**
+5. Facultatif : « Nouveau test », puis « Activer le délai de 1 min » (désormais actif en mode « Appliqué »). *Attendu :* l'étape 5 dit « À remettre en état : délai court, essai sur ce compte ». « Terminer le test » mène à « ✓ Test terminé ». Le mode reste « Appliqué ».
+
+Classement : **Bloquant MVP public** (le parcours de recette anti-bot ne pouvait pas être terminé).
+
+## 7. Choix techniques faits seul
+
+- J'ai gardé « Terminer le test » **inactif** quand rien n'est à nettoyer, plutôt que de le réactiver pour rien : il n'y a pas d'action trompeuse. À la place, l'interface affiche une raison écrite, l'étape cochée et « Nouveau test ».
+- « Nouveau test » est purement visuel, pour qu'aucun historique ni aucune donnée ne soit effacé.
+- J'ai réparé l'étape 3 en mode « Appliqué » pour tous : elle était grisée sans raison, et le test avec un autoclicker était impossible. Je réutilise la route d'essai existante, sans nouvelle route ni changement de règle.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune nouvelle décision. Les questions facultatives précédentes (éligibilité via #19, adresse de contestation, lot D) restent inchangées.
+
+## 9. Éléments restant à réaliser
+
+- La recette ci-dessus, puis la validation de #84-E bis dans #84 (non validée tant que le propriétaire ne l'a pas testée).
+- Idem session précédente : #91 (détecteurs) et la validation serveur des monnaies face à un client modifié (#49/#77) — Après lancement pour la bêta.
