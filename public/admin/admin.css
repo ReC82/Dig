@@ -1734,6 +1734,7 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .sec-step-help { font-size: 0.8rem; line-height: 1.45; margin: 0 0 6px; }
 .sec-step-state { font-size: 0.8rem; margin: 6px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 .sec-step-pick:empty { display: none; }
+.sec-step .btn[hidden] { display: none; }
 .sec-step .sec-step-pick { color: var(--text); }
 .sec-step .sec-step-pick.error { color: var(--danger, #f87171); }
 .sec-step.is-done .sec-step-state, .sec-step.is-current .sec-step-state { color: var(--text); }
