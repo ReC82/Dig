@@ -1580,7 +1580,42 @@ details.nw-sec:not([open]) > summary { margin-bottom: 0; }
 .mb-sim-help { margin: 8px 0; font-size: 0.82rem; line-height: 1.45; }
 .mb-sim-help summary { cursor: pointer; font-weight: 600; }
 .mb-sim-help ul { margin: 4px 0; padding-left: 18px; }
+/* Recette #81-B bis (10/11) : fiche en trois niveaux — Configurer, Résultat en bref, Détails repliés. */
+.mb-lock { margin: 0 0 10px; padding: 6px 10px; border: 1px solid var(--gold); border-radius: 6px; font-weight: 600; font-size: 0.9rem; }
+.mb-card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; min-width: 0; }
+.mb-card-title { font-size: 0.95rem; margin: 0 0 8px; }
+.mb-presets { margin: 0 0 8px; font-size: 0.8rem; line-height: 1.9; }
+.mb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.mb-grid > label, .mb-grid .bk-field > label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; min-width: 0; }
+.mb-grid input, .mb-grid select { min-width: 0; width: 100%; box-sizing: border-box; }
+.mb-fold { margin: 6px 0; font-size: 0.85rem; }
+.mb-fold > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.mb-fold > summary .muted { font-weight: normal; font-size: 0.8rem; }
+.mb-fold[open] > summary { margin-bottom: 6px; }
+.mb-fold > div { margin-bottom: 6px; }
+.mb-note-label textarea { width: 100%; box-sizing: border-box; }
+.mb-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+.mb-tile { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); min-width: 0; }
+.mb-tile-label { font-size: 0.75rem; color: var(--muted); }
+.mb-tile strong { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.mb-tile small { font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
+.mb-brief-sentence { margin: 4px 0; font-size: 0.9rem; line-height: 1.45; }
+.mb-brief-note, .mb-brief-cal, .mb-brief-wait { margin: 2px 0; font-size: 0.78rem; line-height: 1.4; }
+.mb-brief-warn { margin: 4px 0; padding-left: 18px; font-size: 0.78rem; }
+.mb-brief-warn:empty { display: none; }
+.mb-details { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 8px; }
+.mb-details .mb-real { margin: 6px 0; padding: 6px 8px; border: 1px solid var(--gold); border-radius: 6px; font-size: 0.82rem; }
+#btn-mb-preview { margin-top: 6px; }
+#mb-dialog input[type=date] { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 0.85rem; color-scheme: dark; }
 @media (max-width: 480px) {
+  .mb-tiles { grid-template-columns: 1fr; }
+  .mb-tile { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .mb-tile-label { flex-basis: 100%; }
+  .mb-tile strong { font-size: 1.1rem; }
+  .mb-card { padding: 8px; }
+  #mb-dialog .bk-sheet-actions .form-actions { flex-direction: row; flex-wrap: nowrap; }
+  #mb-dialog .bk-sheet-actions .form-actions .btn { width: auto; flex: 1 1 auto; padding-inline: 8px; }
+  .mb-presets > .muted { display: block; }
   #mb-preview table th, #mb-preview table td { padding: 5px 4px; font-size: 0.74rem; }
   #mb-preview table td { white-space: normal; }
   #mb-preview .mb-sim-table td { white-space: nowrap; }

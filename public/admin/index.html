@@ -3583,76 +3583,104 @@
       <div style="overflow-x:auto"><table><thead><tr><th>Date (UTC)</th><th>Brouillon</th><th>Action</th><th>Effet</th></tr></thead><tbody id="mb-log"></tbody></table></div>
     </details>
 
+    <!-- Recette #81-B bis (10/11) : trois niveaux — Configurer, Résultat en bref, Détails repliés. -->
     <dialog id="mb-dialog" class="bk-dialog adm-dialog" aria-labelledby="mb-title">
       <div class="section-header bk-dialog-head">
         <h3 class="overview-card-title" id="mb-title">Micro-bonus (brouillon)</h3>
         <button type="button" class="btn btn-outline" data-close aria-label="Fermer">✕ Fermer</button>
       </div>
-      <p class="muted" style="font-size:0.78rem">Exemples (valeurs fictives non validées) : <span id="mb-examples"></span></p>
-      <div class="adm-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
-        <label>Nom du brouillon <input id="mb-label" type="text" maxlength="80" placeholder="Souvenir de novembre"></label>
-        <div class="bk-field"><label><span>Dégâts ajoutés par coup <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-value" aria-label="Aide : dégâts ajoutés">ⓘ</button></span><input id="mb-value" type="number" min="0.01" max="1" step="0.01" value="0.25"></label><small id="mb-h-value" class="bk-hint" hidden>Ajouté à chaque coup manuel, de 0,01 à 1. Exemple : 0,25 → un joueur qui frappe à 1 dégât frappe à 1,25 sur les blocs visés.</small></div>
-        <div class="bk-field"><label><span>Cible <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-target" aria-label="Aide : cible">ⓘ</button></span><select id="mb-target"></select></label><small id="mb-h-target" class="bk-hint" hidden>Blocs sur lesquels le bonus jouerait, d'après leur nature visible (ce que le joueur voit : « Pierre », « Charbon »…). Catégorie = tous les blocs de cette famille.</small></div>
-        <div class="bk-field"><label><span>Du (inclus) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-dates" aria-label="Aide : dates">ⓘ</button></span><input id="mb-from" type="date"></label><small id="mb-h-dates" class="bk-hint" hidden>Jours entiers à l'heure de Bruxelles, de 00:00 à 23:59, date de début ET date de fin incluses. Vide = pas de limite. Exemple : du 01/12 au 24/12 → actif du 01/12 00:00 au 24/12 23:59.</small></div>
-        <label>Au (inclus) <input id="mb-to" type="date"></label>
-      </div>
-      <div class="adm-form">
-        <p class="muted mb-cal-help">📅 <strong>Calendrier</strong> : aucun mois coché = tous les mois ; aucun jour coché = tous les jours. Plusieurs conditions (dates, mois, jours) doivent <strong>toutes</strong> être vraies en même temps (ET). Exemple : novembre + mardi → seulement les mardis de novembre.</p>
-        <div><span class="ev-label">Mois (aucun = tous) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-months" aria-label="Aide : mois">ⓘ</button></span><small id="mb-h-months" class="bk-hint" hidden>Cochez un ou plusieurs mois : le bonus serait actif pendant ces mois seulement (combiné avec les jours et les dates).</small><div id="mb-months" class="mb-checks"></div></div>
-        <div><span class="ev-label">Jours (aucun = tous) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-days" aria-label="Aide : jours">ⓘ</button></span><small id="mb-h-days" class="bk-hint" hidden>Cochez un ou plusieurs jours de la semaine (heure de Bruxelles, de 00:00 à 23:59).</small><div id="mb-weekdays" class="mb-checks"></div></div>
-        <label>Jours du mois (vide = tous) <input type="text" id="mb-monthdays" maxlength="40" placeholder="1-7 = première semaine de chaque mois"></label>
-        <div class="bk-field"><label><span>Souvenir lié (facultatif) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-src" aria-label="Aide : souvenir lié">ⓘ</button></span><select id="mb-source"></select></label><small id="mb-h-src" class="bk-hint" hidden>Objet souvenir d'un événement mensuel (rubrique 🎉 Événements) qui porterait ce bonus le jour où il serait activé. Simple lien de préparation : ne change ni l'objet, ni ses chances, ni ses détenteurs.</small></div>
-        <label>Note <textarea id="mb-note" rows="2" maxlength="600" placeholder="Pourquoi ce bonus, alternative d'équité envisagée…"></textarea></label>
-      </div>
-      <div class="adm-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">
-        <div class="bk-field"><label><span>Simulation : profondeur (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-depth" aria-label="Aide : profondeur simulée">ⓘ</button></span><input id="mb-depth" type="number" min="1" max="10000" value="50"></label><small id="mb-h-depth" class="bk-hint" hidden>Profondeur à laquelle on calcule l'effet : elle fixe les blocs possibles, leurs chances d'apparition et leurs PV. Ne change rien en jeu.</small></div>
-        <div class="bk-field"><label><span>Simulation : niveau de Chance <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-luck" aria-label="Aide : Chance">ⓘ</button></span><input id="mb-luck" type="number" min="0" max="12" value="0"></label><small id="mb-h-luck" class="bk-hint" hidden>La Chance rend plus fréquents les blocs rares, épiques et légendaires, donc un peu moins fréquents les blocs communs comme la Pierre. 0 = joueur sans Chance.</small></div>
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-outline" id="btn-mb-preview" type="button">Aperçu et simulation</button>
-        <button class="btn btn-primary" id="btn-mb-save" type="button">Enregistrer le brouillon</button>
-        <button class="btn btn-outline" id="btn-mb-archive" type="button">Archiver</button>
-        <button class="btn btn-outline" type="button" data-close>Annuler</button>
-      </div>
-      <p id="mb-dlg-msg" class="hidden"></p>
-      <div id="mb-preview" class="hidden">
-        <p><strong id="mb-prev-fr"></strong><br><span class="muted" id="mb-prev-en"></span></p>
-        <div class="mb-status">
-          <p id="mb-prev-state"></p>
-          <p class="mb-real">🔒 <strong>Statut réel : brouillon</strong> — jamais appliqué au jeu, quel que soit le calendrier.</p>
+      <p class="mb-lock" id="mb-lock">🔒 Brouillon — aucun effet en jeu</p>
+
+      <section class="mb-card" aria-labelledby="mb-cfg-title">
+        <h4 class="mb-card-title" id="mb-cfg-title">1. Configurer le bonus</h4>
+        <p class="mb-presets"><span class="muted">Partir d'un exemple (valeurs fictives) :</span> <span id="mb-examples"></span></p>
+        <div class="mb-grid">
+          <label>Nom du brouillon <input id="mb-label" type="text" maxlength="80" placeholder="Souvenir de novembre"></label>
+          <div class="bk-field"><label><span>Dégâts ajoutés par coup <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-value" aria-label="Aide : dégâts ajoutés">ⓘ</button></span><input id="mb-value" type="number" min="0.01" max="1" step="0.01" value="0.25"></label><small id="mb-h-value" class="bk-hint" hidden>Ajouté à chaque coup manuel, de 0,01 à 1. Exemple : 0,25 → un joueur qui frappe à 1 dégât frappe à 1,25 sur les blocs visés.</small></div>
+          <div class="bk-field"><label><span>Cible <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-target" aria-label="Aide : cible">ⓘ</button></span><select id="mb-target"></select></label><small id="mb-h-target" class="bk-hint" hidden>Blocs sur lesquels le bonus jouerait, d'après leur nature visible (ce que le joueur voit : « Pierre », « Charbon »…). Catégorie = tous les blocs de cette famille.</small></div>
+          <div class="bk-field"><label><span>Souvenir lié (facultatif) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-src" aria-label="Aide : souvenir lié">ⓘ</button></span><select id="mb-source"></select></label><small id="mb-h-src" class="bk-hint" hidden>Objet souvenir d'un événement mensuel (rubrique 🎉 Événements) qui porterait ce bonus le jour où il serait activé. Simple lien de préparation : ne change ni l'objet, ni ses chances, ni ses détenteurs.</small></div>
         </div>
-        <ul id="mb-prev-warn" class="muted" style="font-size:0.8rem"></ul>
-        <div style="overflow-x:auto"><table><thead><tr><th>Date repère (heure de Bruxelles)</th><th>Si le bonus était publié</th></tr></thead><tbody id="mb-prev-samples"></tbody></table></div>
-        <h4 class="mb-sim-title" id="mb-prev-sim-title"></h4>
-        <div style="overflow-x:auto"><table class="mb-sim-table"><thead><tr>
-          <th>Dégâts par coup<br><small>sans bonus</small></th>
-          <th>Coups par bloc<br><small>moyenne, sans bonus</small></th>
-          <th>Coups par bloc<br><small>moyenne, avec bonus</small></th>
-          <th>Coups en moins</th>
-          <th>Coups économisés<br><small>pour 100 blocs</small></th>
-          <th>Blocs visés</th>
-        </tr></thead><tbody id="mb-prev-sim"></tbody></table></div>
-        <details class="mb-sim-help" id="mb-sim-help">
-          <summary>Comment lire cette simulation ?</summary>
-          <ul>
-            <li><strong>Dégâts par coup sans bonus</strong> : force d'un coup manuel du joueur (selon sa pioche), avant le bonus. Une ligne = un exemple de joueur.</li>
-            <li><strong>Coups par bloc (moyenne)</strong> : nombre moyen de coups pour casser un bloc, tous blocs confondus à cette profondeur. Sur un bloc donné, on donne toujours un nombre entier de coups ; la moyenne a des décimales parce qu'elle mélange des blocs différents.</li>
-            <li><strong>Coups en moins</strong> = 1 − (avec ÷ sans). Exemple : 100 coups → 94 coups = 6 % de coups en moins. C'est un nombre de frappes, pas un temps chronométré ; avec le même rythme de clics, on casse alors environ 6,4 % de blocs en plus.</li>
-            <li><strong>Coups économisés pour 100 blocs</strong> = (sans − avec) × 100 : combien de coups le joueur ne donnerait pas sur 100 blocs, en moyenne.</li>
-            <li><strong>Blocs visés</strong> : part des blocs rencontrés à cette profondeur sur lesquels le bonus joue (selon les chances d'apparition du tableau « Blocs possibles »).</li>
-            <li><strong>0 %</strong> : aucun bloc possible ne demande un coup de moins avec le bonus (vrai zéro). <strong>&lt; 0,01 %</strong> : gain réel mais minuscule.</li>
-          </ul>
-          <p><strong>Avec les chiffres de cette simulation :</strong></p>
-          <ul id="mb-prev-explain"></ul>
-          <p class="muted"><strong>Hypothèses</strong></p>
-          <ul id="mb-prev-hyp" class="muted"></ul>
+        <details class="mb-fold" id="mb-when">
+          <summary>📅 Quand s'applique-t-il ? <span class="muted" id="mb-when-sum">Toujours (aucune condition)</span></summary>
+          <p class="muted mb-cal-help">Aucun mois coché = tous les mois ; aucun jour coché = tous les jours. Les conditions (dates, mois, jours) doivent <strong>toutes</strong> être vraies en même temps. Exemple : novembre + mardi → seulement les mardis de novembre.</p>
+          <div class="mb-grid">
+            <div class="bk-field"><label><span>Du (inclus) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-dates" aria-label="Aide : dates">ⓘ</button></span><input id="mb-from" type="date"></label><small id="mb-h-dates" class="bk-hint" hidden>Jours entiers à l'heure de Bruxelles, de 00:00 à 23:59, date de début ET date de fin incluses. Vide = pas de limite. Exemple : du 01/12 au 24/12 → actif du 01/12 00:00 au 24/12 23:59.</small></div>
+            <label>Au (inclus) <input id="mb-to" type="date"></label>
+            <label>Jours du mois (vide = tous) <input type="text" id="mb-monthdays" maxlength="40" placeholder="1-7 = première semaine"></label>
+          </div>
+          <div><span class="ev-label">Mois (aucun = tous) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-months" aria-label="Aide : mois">ⓘ</button></span><small id="mb-h-months" class="bk-hint" hidden>Cochez un ou plusieurs mois : le bonus serait actif pendant ces mois seulement (combiné avec les jours et les dates).</small><div id="mb-months" class="mb-checks"></div></div>
+          <div><span class="ev-label">Jours (aucun = tous) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-days" aria-label="Aide : jours">ⓘ</button></span><small id="mb-h-days" class="bk-hint" hidden>Cochez un ou plusieurs jours de la semaine (heure de Bruxelles, de 00:00 à 23:59).</small><div id="mb-weekdays" class="mb-checks"></div></div>
         </details>
-        <details class="mb-sim-help">
-          <summary id="mb-prev-pool-title">Blocs possibles à cette profondeur</summary>
-          <div style="overflow-x:auto"><table><thead><tr><th>Bloc</th><th>Chance d'apparition</th><th>PV à cette profondeur</th><th>Visé par le bonus</th></tr></thead><tbody id="mb-prev-pool"></tbody></table></div>
-          <p class="muted" style="font-size:0.78rem">La chance d'apparition d'un bloc = son poids ÷ la somme des poids des blocs possibles. Les PV d'un bloc rencontré sont tirés séparément dans ce même tableau (sans la Chance) : un bloc « Pierre » peut avoir les PV d'un autre bloc (#32).</p>
+        <details class="mb-fold" id="mb-note-box">
+          <summary>📝 Note interne <span class="muted">(facultatif)</span></summary>
+          <label class="mb-note-label"><span class="sr-only">Note</span><textarea id="mb-note" rows="2" maxlength="600" placeholder="Pourquoi ce bonus, alternative d'équité envisagée…"></textarea></label>
         </details>
-      </div>
+      </section>
+
+      <section class="mb-card" aria-labelledby="mb-brief-title">
+        <h4 class="mb-card-title" id="mb-brief-title">2. Résultat en bref</h4>
+        <div class="mb-grid mb-grid--sim">
+          <div class="bk-field"><label><span>Profondeur (m) <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-depth" aria-label="Aide : profondeur simulée">ⓘ</button></span><input id="mb-depth" type="number" min="1" max="10000" value="50"></label><small id="mb-h-depth" class="bk-hint" hidden>Profondeur à laquelle on calcule l'effet : elle fixe les blocs possibles, leurs chances d'apparition et leurs PV. Ne change rien en jeu.</small></div>
+          <div class="bk-field"><label><span>Dégâts du joueur par coup <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-base" aria-label="Aide : dégâts du joueur">ⓘ</button></span><select id="mb-base"><option value="0">1</option></select></label><small id="mb-h-base" class="bk-hint" hidden>Force d'un coup manuel avant le bonus (selon la pioche du joueur). Les autres forces restent visibles dans « Comprendre les détails ».</small></div>
+          <div class="bk-field"><label><span>Niveau de Chance <button type="button" class="bk-info" aria-expanded="false" aria-controls="mb-h-luck" aria-label="Aide : Chance">ⓘ</button></span><input id="mb-luck" type="number" min="0" max="12" value="0"></label><small id="mb-h-luck" class="bk-hint" hidden>La Chance rend plus fréquents les blocs rares, épiques et légendaires, donc un peu moins fréquents les blocs communs comme la Pierre. 0 = joueur sans Chance.</small></div>
+        </div>
+        <p id="mb-dlg-msg" class="hidden"></p>
+        <p class="muted mb-brief-wait" id="mb-brief-wait">Calcul en cours…</p>
+        <div id="mb-preview" class="hidden">
+          <div class="mb-tiles" id="mb-brief">
+            <div class="mb-tile"><span class="mb-tile-label">Dégâts en plus</span><strong id="mb-brief-value"></strong><small id="mb-brief-target"></small></div>
+            <div class="mb-tile"><span class="mb-tile-label">Coups en moins</span><strong id="mb-brief-gain"></strong><small id="mb-brief-saved"></small></div>
+            <div class="mb-tile"><span class="mb-tile-label">Blocs concernés</span><strong id="mb-brief-share"></strong><small id="mb-brief-depth"></small></div>
+          </div>
+          <p class="mb-brief-sentence" id="mb-brief-sentence"></p>
+          <p class="muted mb-brief-note" id="mb-brief-note"></p>
+          <p class="muted mb-brief-cal" id="mb-prev-state"></p>
+          <ul id="mb-prev-warn" class="muted mb-brief-warn"></ul>
+
+          <details class="mb-fold mb-details" id="mb-details">
+            <summary>🔍 Comprendre les détails <span class="muted">(simulation complète, formule, hypothèses, blocs)</span></summary>
+            <p><strong id="mb-prev-fr"></strong><br><span class="muted" id="mb-prev-en"></span></p>
+            <p class="mb-real">🔒 <strong>Statut réel : brouillon</strong> — jamais appliqué au jeu, quel que soit le calendrier.</p>
+            <div style="overflow-x:auto"><table><thead><tr><th>Date repère (heure de Bruxelles)</th><th>Si le bonus était publié</th></tr></thead><tbody id="mb-prev-samples"></tbody></table></div>
+            <h4 class="mb-sim-title" id="mb-prev-sim-title"></h4>
+            <div style="overflow-x:auto"><table class="mb-sim-table"><thead><tr>
+              <th>Dégâts par coup<br><small>sans bonus</small></th>
+              <th>Coups par bloc<br><small>moyenne, sans bonus</small></th>
+              <th>Coups par bloc<br><small>moyenne, avec bonus</small></th>
+              <th>Coups en moins</th>
+              <th>Coups économisés<br><small>pour 100 blocs</small></th>
+              <th>Blocs visés</th>
+            </tr></thead><tbody id="mb-prev-sim"></tbody></table></div>
+            <details class="mb-sim-help" id="mb-sim-help">
+              <summary>Comment lire cette simulation ?</summary>
+              <ul>
+                <li><strong>Dégâts par coup sans bonus</strong> : force d'un coup manuel du joueur (selon sa pioche), avant le bonus. Une ligne = un exemple de joueur.</li>
+                <li><strong>Coups par bloc (moyenne)</strong> : nombre moyen de coups pour casser un bloc, tous blocs confondus à cette profondeur. Sur un bloc donné, on donne toujours un nombre entier de coups ; la moyenne a des décimales parce qu'elle mélange des blocs différents.</li>
+                <li><strong>Coups en moins</strong> = 1 − (avec ÷ sans). Exemple : 100 coups → 94 coups = 6 % de coups en moins. C'est un nombre de frappes, pas un temps chronométré ; avec le même rythme de clics, on casse alors environ 6,4 % de blocs en plus.</li>
+                <li><strong>Coups économisés pour 100 blocs</strong> = (sans − avec) × 100 : combien de coups le joueur ne donnerait pas sur 100 blocs, en moyenne.</li>
+                <li><strong>Blocs visés</strong> : part des blocs rencontrés à cette profondeur sur lesquels le bonus joue (selon les chances d'apparition du tableau « Blocs possibles »).</li>
+                <li><strong>0 %</strong> : aucun bloc possible ne demande un coup de moins avec le bonus (vrai zéro). <strong>&lt; 0,01 %</strong> : gain réel mais minuscule.</li>
+              </ul>
+              <p><strong>Avec les chiffres de cette simulation :</strong></p>
+              <ul id="mb-prev-explain"></ul>
+              <p class="muted"><strong>Hypothèses</strong></p>
+              <ul id="mb-prev-hyp" class="muted"></ul>
+            </details>
+            <details class="mb-sim-help">
+              <summary id="mb-prev-pool-title">Blocs possibles à cette profondeur</summary>
+              <div style="overflow-x:auto"><table><thead><tr><th>Bloc</th><th>Chance d'apparition</th><th>PV à cette profondeur</th><th>Visé par le bonus</th></tr></thead><tbody id="mb-prev-pool"></tbody></table></div>
+              <p class="muted" style="font-size:0.78rem">La chance d'apparition d'un bloc = son poids ÷ la somme des poids des blocs possibles. Les PV d'un bloc rencontré sont tirés séparément dans ce même tableau (sans la Chance) : un bloc « Pierre » peut avoir les PV d'un autre bloc (#32).</p>
+            </details>
+          </details>
+        </div>
+        <button class="btn btn-outline btn-sm" id="btn-mb-preview" type="button">↻ Recalculer</button>
+      </section>
+
+      <div class="bk-sheet-actions"><div class="form-actions">
+        <button class="btn btn-outline" type="button" data-close>Annuler</button>
+        <button class="btn btn-outline" id="btn-mb-archive" type="button">Archiver</button>
+        <button class="btn btn-primary" id="btn-mb-save" type="button">Enregistrer le brouillon</button>
+      </div></div>
     </dialog>
   </section>
 
