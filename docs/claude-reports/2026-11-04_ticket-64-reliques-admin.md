@@ -2,6 +2,98 @@
 
 Lien : https://github.com/ReC82/Dig/issues/64
 
+## Session du 10/11/2026 (après-midi) — recette #64-B : « Actuelle en jeu » de l'Atelier
+
+### 1. État réel
+
+**Déployé en production (SHA `05fb3d6`), en attente de recette.** Commit du correctif : `71635c9` (branche `feature/64-reliques-admin`). Il est intégré dans `develop` par la fusion `05fb3d6`.
+
+Classement : **Après lancement** (outil d'administration). Le jeu n'a pas changé : aucune image de relique n'est publiée, et l'économie n'a pas bougé.
+
+### 2. Retour du propriétaire (10/11, 12:30 UTC)
+
+#64-B est **validé pour la navigation**. Le lien Reliques → Atelier ouvre la bonne fiche et la proposition est conservée. Ce parcours n'est pas redemandé.
+
+Défaut signalé : la vignette « Actuelle en jeu » de l'Atelier (un « œil stylisé blanc sur carreau bleu ») ne semblait pas être l'icône réellement utilisée. Le propriétaire avait donc l'impression de devoir générer une image.
+
+### 3. Audit : source exacte de l'icône des 6 reliques
+
+Le jeu (`public/js/main.js`, carte de la relique) affiche `def.image` s'il existe, sinon l'emoji `def.icon`. Il lit le **catalogue publié** (`GET /api/relics/catalog`, version 1), jamais le brouillon. La liste Admin → Reliques utilise la même règle (image, sinon emoji).
+
+| Relique | Servi aux joueurs (prod, 10/11) | Image publiée | Proposition IA dans l'Atelier |
+|---|---|---|---|
+| Œil du mineur | emoji 👁 | aucune | 1 (08/11) |
+| Cœur d'or | emoji 💛 | aucune | 1 (08/11) |
+| Aimant à éclats | emoji 🧲 | aucune | 1 (08/11) |
+| Lentille fissurée | emoji 🔭 | aucune | 1 (09/11) |
+| Griffe d'obsidienne | emoji 🖤 | aucune | 1 (09/11) |
+| Moteur ancien | emoji ⚗️ | aucune | aucune |
+
+Les images IA des 08 et 09/11 étaient dans le brouillon. Celui-ci a été **abandonné le 10/11 à 12:23 UTC** (recette #64-A) : aucune n'a jamais été en jeu.
+
+**Cause du « carreau bleu »** : 👁 (U+1F441) n'a pas de présentation emoji par défaut. Sans sélecteur de variante, beaucoup de navigateurs le dessinent comme un **pictogramme monochrome blanc** (reproduit dans Chromium). L'Atelier le montrait à 88 px sur la vignette ardoise (#374151), d'où l'« œil blanc sur carreau bleu ». Dans le jeu, c'est le même caractère, dans une carte de 2,2rem. Sur un même appareil, le rendu est identique, seuls la taille et le fond changent.
+
+**Défaut générique corrigé au passage** : la vignette « Actuelle » utilisait l'image du **brouillon** quand il y en avait une. Une image non publiée pouvait donc passer pour l'icône « actuelle ». Cela concerne aussi les blocs, objets de collection, missions, badges et objets d'événement. Les pictogrammes d'interface et les coffres (#66/#67) indiquaient déjà « pictogramme d'origine » ou « image appliquée » : rien n'a changé pour eux, rien à renvoyer vers #67.
+
+### 4. Changements réalisés
+
+- `public/admin/admin.js` :
+  - `icLiveSrc()` : « Actuelle en jeu » vient du catalogue **publié** (blocs : bibliothèque v1 à défaut).
+  - Légende explicite : « Actuelle en jeu : pictogramme d'origine 👁 (emoji, aucune image publiée) » ou « Actuelle en jeu (image publiée) ».
+  - Une image du brouillon non publiée apparaît à part : « Dans le brouillon, pas encore en jeu — publication dans 🔮 Reliques ».
+  - **Aperçu à la taille réelle du jeu** pour les reliques : carte identique à `.relic-card` (emoji 2,2rem ou image 40 × 40, police du jeu), en version actuelle et avec la proposition. Une phrase explique que l'emoji est dessiné par la police de l'appareil, comme dans le jeu.
+  - Sans image publiée : « ✓ Icône actuelle conservée — aucune génération nécessaire… ». Le message rappelle que « Conserver cette image » ne remplit que le brouillon et que seule « Publier » dans 🔮 Reliques met l'image en jeu.
+  - Après « Conserver », le bouton « Ouvrir l'onglet » mène à **🔮 Reliques** (🎯 Missions pour une mission). Avant, il menait à tort vers 📿 Collections.
+  - « ← Retour à la fiche de la relique » affiche un message de repli si le catalogue ou la relique est introuvable, au lieu de ne rien faire.
+- `public/admin/admin.css` : styles de la carte d'aperçu (`.ic-game-relic`).
+- Tests : `test/relic-studio-64b.test.js` (4 tests) et l'essai navigateur `test/e2e/relic-studio-64b.e2e.js` (PC 1280×900 et smartphone 390×844).
+
+### 5. Vérifications
+
+- `npm test` complet : **1053/1053** dans le worktree du ticket, puis à nouveau sur le SHA exact `05fb3d6` (release).
+- Essai navigateur sur une copie de la base de production (serveur de test, port 3101, `DIG_AI_FAKE=1`), PC et smartphone :
+  1. « Œil du mineur » affiche « Actuelle en jeu » = 👁 sans image, la carte du jeu à 35,2 px et le message « aucune génération nécessaire ».
+  2. « Conserver » écrit le brouillon seulement. Le catalogue public n'a pas d'image et « Actuelle en jeu » reste 👁. La vignette « Dans le brouillon » et le bouton « Ouvrir l'onglet 🔮 Reliques » apparaissent.
+  3. « Retour à la fiche de la relique » ouvre la fiche avec l'image du brouillon.
+  4. Aucun appel IA, aucune publication (version 1), aucune erreur JavaScript.
+- Copie de la base de prod démarrée avec le SHA de la release : empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking` identiques avant et après. Copie supprimée.
+- **Non vérifié** : le rendu sur l'appareil Windows du propriétaire. La couleur de 👁 dépend de la police du système.
+
+### 6. Déploiement
+
+- Déployé : `05fb3d6`. Version précédente : `ab547b2`. Sauvegarde vérifiée : `~/backups/dig/dig-20261110-140235-pre-deploy-05fb3d6.sqlite`.
+- Après déploiement : les deux domaines répondent 200 avec `1.0.0+05fb3d6`, `pragma quick_check` = ok, aucune erreur dans le journal, empreintes joueurs identiques à la sauvegarde. Le panel sert `admin.js?v=1.0.0+05fb3d6`.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep ab547b2` puis `sudo systemctl restart dig` (aucune migration).
+- Aucune génération IA n'était en cours au moment du redémarrage (dernière génération terminée à 12:55 UTC).
+
+**Test fonctionnel à faire par le propriétaire (recette courte #64-C)** :
+1. Recharger le panel (Ctrl+F5). Ouvrir Admin → 🔮 Reliques → Œil du mineur, puis « 🎨 Générer / Refaire dans Icônes ».
+2. Attendu :
+   - la vignette de gauche s'intitule « Actuelle en jeu : pictogramme d'origine 👁 (emoji, aucune image publiée) » ;
+   - sous la comparaison, « Taille réelle dans le jeu » montre la carte « En jeu aujourd'hui » (👁) et la carte « Avec cette proposition » ;
+   - le message « ✓ Icône actuelle conservée — aucune génération nécessaire » est affiché.
+3. Dans le jeu, sur le même ordinateur : Collection → Reliques. L'œil de la carte « Œil du mineur » doit avoir le même aspect que la carte « En jeu aujourd'hui » de l'Atelier (couleur ou blanc selon Windows).
+4. Facultatif : « ✓ Conserver cette image » → le bouton proposé est « Ouvrir l'onglet 🔮 Reliques ». « Actuelle en jeu » reste 👁. Abandonner ensuite le brouillon dans 🔮 Reliques (rien n'est publié).
+
+### 7. Choix techniques faits seul
+
+- La source « en jeu » est le catalogue publié, comme dans le jeu. Je n'ai pas fait de capture d'écran serveur : un emoji est dessiné par l'appareil qui l'affiche. La carte d'aperçu reproduit donc la carte du jeu dans le navigateur du propriétaire, ce qui est la représentation la plus fidèle possible.
+- Je n'ai pas ajouté de sélecteur de variante emoji (U+FE0F) à 👁, ni dans le jeu ni dans l'Atelier : cela changerait le visuel servi aux joueurs. C'est une décision visuelle du propriétaire.
+- La correction « image du brouillon ≠ actuelle en jeu » s'applique à toutes les familles à catalogue, parce que la cause est commune. Le message « aucune génération nécessaire » ne concerne que les catalogues à brouillon (blocs, reliques, missions, collections).
+
+### 8. Décisions demandées au propriétaire
+
+1. (Facultatif, visuel) Faut-il afficher 👁 en couleur partout (ajout du sélecteur emoji U+FE0F à l'icône de l'Œil du mineur, dans le jeu et l'admin) ? Recommandation : non pour l'instant. Si une image IA est publiée plus tard, elle remplacera l'emoji.
+
+### 9. Reste à faire sur #64
+
+Ces points restent à démontrer :
+- publication contrôlée d'une version ;
+- retour arrière d'une version publiée ;
+- garde-fous des effets (plafonds anti-bot) en recette réelle.
+
+Rien n'a été publié dans cette session.
+
 ## Session du 04/11/2026 (soir)
 
 ### 1. État réel
