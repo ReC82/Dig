@@ -6,6 +6,9 @@
  *  - Éléments statiques : `data-ui-icon="<id>"` ; leur contenu d'origine (emoji ou SVG) est conservé
  *    et rétabli si l'image est retirée ou ne se charge pas.
  *  - Rendus dynamiques : `UiIcons.html(id, emoji)` rend l'image ou l'emoji d'origine (échappé).
+ *  - Libellés traduits commençant par un pictogramme (« 🏁 Résultat — … », #67-B) : `UiIcons.lead(id, texte)`
+ *    pour un rendu dynamique, `data-ui-lead="<id>"` sur un élément statique [data-i18n]. Sans image
+ *    appliquée, le libellé reste strictement identique (aucun élément ajouté).
  * Repli permanent : sans réponse du serveur, hors ligne ou image en échec → emoji/SVG d'origine.
  * La dernière liste reçue est gardée (localStorage) pour éviter un clignotement au démarrage ; elle est
  * remplacée dès la réponse du serveur, donc un retour arrière s'applique au chargement suivant.
@@ -57,9 +60,53 @@ const UiIcons = (() => {
     return `<img class="ui-ico" src="${esc(u)}" alt="" aria-hidden="true" draggable="false" data-ui-fallback="${esc(emoji)}">`;
   }
 
+  // Pictogramme en tête d'un libellé : un emoji (avec sélecteur de variante, modificateur ou séquence ZWJ)
+  // suivi d'espaces. « ? » n'en est pas un : les boutons d'aide passent par `data-ui-icon` / html().
+  const LEAD_RE = /^(\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier}|\u200D\p{Extended_Pictographic})*)\s*/u;
+
+  /** [pictogramme de tête, reste du libellé] ; pictogramme vide si le libellé n'en a pas. */
+  function splitLead(text) {
+    const s = String(text ?? '');
+    const m = LEAD_RE.exec(s);
+    return m ? [m[1], s.slice(m[0].length)] : ['', s];
+  }
+
+  /**
+   * Libellé traduit (HTML de confiance, déjà échappé par l'appelant s'il le faut) dont le pictogramme de tête
+   * est remplacé par l'image appliquée `id`. Sans image, ou libellé sans pictogramme : libellé inchangé.
+   */
+  function lead(id, text) {
+    const s = String(text ?? '');
+    if (!url(id)) return s;
+    const [emoji, rest] = splitLead(s);
+    return emoji ? `${html(id, emoji)} ${rest}` : s;
+  }
+
+  /** Éléments statiques `[data-ui-lead]` : pictogramme de tête isolé dans un `[data-ui-icon]` seulement si une image est appliquée. */
+  function _decorateLeads(root) {
+    for (const el of root.querySelectorAll('[data-ui-lead]')) {
+      const slot = el.querySelector(':scope > .ui-lead');
+      if (url(el.dataset.uiLead)) {
+        if (slot) continue;
+        const text = el.textContent;
+        const [emoji, rest] = splitLead(text);
+        if (!emoji) continue;
+        el.dataset.uiLeadText = text;
+        const span = document.createElement('span');
+        span.className = 'ui-lead';
+        span.dataset.uiIcon = el.dataset.uiLead;
+        span.textContent = emoji;
+        el.replaceChildren(span, ` ${rest}`);
+      } else if (slot && el.dataset.uiLeadText != null) {
+        el.textContent = el.dataset.uiLeadText;   // image retirée : libellé d'origine, sans élément ajouté
+      }
+    }
+  }
+
   /** Applique la liste aux éléments `[data-ui-icon]` (contenu d'origine conservé et rétabli au besoin). */
   function decorate(root) {
     if (typeof document === 'undefined') return;
+    _decorateLeads(root || document);
     for (const el of (root || document).querySelectorAll('[data-ui-icon]')) {
       if (!originals.has(el)) originals.set(el, el.innerHTML);
       const u = url(el.dataset.uiIcon);
@@ -119,7 +166,7 @@ const UiIcons = (() => {
 
   if (typeof document !== 'undefined') document.addEventListener('error', _onError, true);
 
-  return { load, html, url, decorate, _parsePreview, _clean, get icons() { return { ...icons }; } };
+  return { load, html, lead, splitLead, url, decorate, _parsePreview, _clean, get icons() { return { ...icons }; } };
 })();
 
 if (typeof module !== 'undefined') module.exports = UiIcons;

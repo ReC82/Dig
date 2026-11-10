@@ -27,6 +27,7 @@ function load({ points, shop, openFold = false, shopMsg = null }) {
     console, Date, JSON, Math, Number, String, Array, Object, isNaN, encodeURIComponent,
     localStorage: { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) },
     navigator: { language: 'fr' },
+    UiIcons: require('../public/js/uiIcons.js'),   // pictogrammes de l'atelier (#67) : emoji d'origine ici
     document: {
       querySelector: s => (s === '#season-points > .points-fold' && openFold ? { open: true } : null),
       getElementById: () => null, documentElement: {}, querySelectorAll: () => [], addEventListener: () => {},

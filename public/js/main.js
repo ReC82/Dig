@@ -449,11 +449,12 @@ function switchView(viewId) {
 
 function _shopGuideHtml(current) {
   const entries = [
-    { id: 'chests', cur: t('shopguide.chests_cur'), where: t('nav.upgrades') },
-    { id: 'gems',   cur: t(Monetization.PAYMENTS_ENABLED ? 'shopguide.gems_cur' : 'shopguide.gems_cur_soon'), where: t('nav.shop') },
-    { id: 'gifts',  cur: t('shopguide.gifts_cur'), where: t('season.title') },
+    { id: 'chests', ico: 'coffres',          cur: UiIcons.lead('pieces', t('shopguide.chests_cur')), where: t('nav.upgrades') },
+    { id: 'gems',   ico: 'gemmes',           cur: UiIcons.lead('argent_reel', t(Monetization.PAYMENTS_ENABLED ? 'shopguide.gems_cur' : 'shopguide.gems_cur_soon')), where: t('nav.shop') },
+    { id: 'gifts',  ico: 'cadeaux_boutique', cur: UiIcons.lead('points_recompense', t('shopguide.gifts_cur')), where: t('season.title') },
   ];
-  const inner = e => `<span class="shop-guide-name">${t(`shopguide.${e.id}`)}</span>
+  // Pictogrammes de tête remplaçables depuis l'atelier (#67-B) ; libellés inchangés sans image appliquée
+  const inner = e => `<span class="shop-guide-name">${UiIcons.lead(e.ico, t(`shopguide.${e.id}`))}</span>
       <span class="shop-guide-cur">${e.cur}</span>
       <span class="shop-guide-where">${e.id === current ? t('shopguide.here') : `${e.where} ›`}</span>`;
   return `<nav class="shop-guide" aria-label="${t('shopguide.aria')}">
@@ -577,7 +578,7 @@ function updateAdButtonState() {
     // ── Pub disponible ────────────────────────────────────────────────────────
     btn.disabled        = false;
     btn.dataset.bonusState = 'ready';
-    if (iconEl) iconEl.textContent = '📺';
+    if (iconEl) iconEl.innerHTML = UiIcons.html('doubler', '📺');   // pictogramme de l'atelier (#67-B)
     if (textEl) textEl.textContent = t('ui.btn_watch_ad');
     if (timer)  timer.textContent  = '';
 
@@ -847,7 +848,7 @@ function renderShopChests() {
         aria-label="${btnLabel}">
         ${maxed ? t('ui.shop_chest_limit_reached') : t('ui.btn_open_chest')}
       </button>
-      <button type="button" class="shop-chest-odds-btn">${t('chest_odds.btn')}</button>`;
+      <button type="button" class="shop-chest-odds-btn">${UiIcons.lead('info', t('chest_odds.btn'))}</button>`;
 
     // Consultable avant tout achat, même sans pièces, sans compte ou limite atteinte (#20)
     card.querySelector('.shop-chest-odds-btn').addEventListener('click', e => showChestOdds(def.id, e.currentTarget));
@@ -1059,7 +1060,7 @@ async function showChestOdds(chestId, opener) {
     </table>
     <p class="odds-summary">${escapeHtml(t('chest_odds.summary'))}</p>
     <details class="odds-details">
-      <summary>${escapeHtml(t('chest_odds.how'))}</summary>
+      <summary>${UiIcons.lead('info', escapeHtml(t('chest_odds.how')))}</summary>
       ${sections.map(([title, lines]) => `<section class="odds-section"><h3>${escapeHtml(title)}</h3>${lines.map(l => `<p>${escapeHtml(l)}</p>`).join('')}</section>`).join('')}
     </details>`;
 }
@@ -1211,7 +1212,7 @@ async function renderEvents() {
     html += `<h3 class="collection-archives-title">${escapeHtml(t('events.souvenirs'))}</h3>`;
     for (const ev of d.souvenirs) html += section(ev, `${ev.icon} ${_badgeText(ev.names)} · ${ev.items.length}`, '');
   }
-  el.innerHTML = `<div class="section-divider"><span>${escapeHtml(t('events.section'))}</span>${typeof DigHelp !== 'undefined' ? DigHelp.tipHtml('events') : ''}</div>${html}`;
+  el.innerHTML = `<div class="section-divider"><span>${UiIcons.lead('evenements', escapeHtml(t('events.section')))}</span>${typeof DigHelp !== 'undefined' ? DigHelp.tipHtml('events') : ''}</div>${html}`;
   const all = [...d.active.map(ev => ({ ev, active: true })), ...d.souvenirs.map(ev => ({ ev, active: false }))];
   el.querySelectorAll('.find-card').forEach(b => b.addEventListener('click', () => {
     const entry = all.find(e => e.ev.id === b.dataset.ev);
@@ -1544,7 +1545,7 @@ function renderDaily() {
   const nextDay         = Daily.getNextDay();
   const available       = Daily.isAvailable();
 
-  let html = `<div class="view-title-bar">${t('ui.view_daily')}</div><div class="daily-title">${t('ui.daily_title')}${DigHelp.tipHtml('daily')}</div><div class="streak-row">`;
+  let html = `<div class="view-title-bar">${UiIcons.lead('quotidien', t('ui.view_daily'))}</div><div class="daily-title">${t('ui.daily_title')}${DigHelp.tipHtml('daily')}</div><div class="streak-row">`;
   for (let i = 1; i <= 7; i++) {
     let state;
     if (claimedToday) {
@@ -1565,9 +1566,9 @@ function renderDaily() {
   if (available) {
     const r = Daily.REWARDS[nextDay - 1];
     const parts = [];
-    if (r.coins > 0) parts.push(t('ui.daily_reward_coins', { amount: r.coins, s: r.coins > 1 ? 's' : '' }));
-    if (r.gems  > 0) parts.push(t('ui.daily_reward_gems',  { amount: r.gems,  s: r.gems  > 1 ? 's' : '' }));
-    if (r.boost) parts.push(t('ui.daily_reward_boost', { mult: r.boost.mult, minutes: r.boost.minutes }));
+    if (r.coins > 0) parts.push(UiIcons.lead('pieces', t('ui.daily_reward_coins', { amount: r.coins, s: r.coins > 1 ? 's' : '' })));
+    if (r.gems  > 0) parts.push(UiIcons.lead('gemmes', t('ui.daily_reward_gems',  { amount: r.gems,  s: r.gems  > 1 ? 's' : '' })));
+    if (r.boost) parts.push(UiIcons.lead('boost', t('ui.daily_reward_boost', { mult: r.boost.mult, minutes: r.boost.minutes })));
 
     html += `
       <div class="daily-reward-box">
@@ -1583,7 +1584,7 @@ function renderDaily() {
 
   // ── Section missions du jour ────────────────────────────────────────────
   html += `
-    <div class="section-divider" style="margin-top:24px"><span>${t('ui.section_missions')}</span>${DigHelp.tipHtml('missions')}</div>
+    <div class="section-divider" style="margin-top:24px"><span>${UiIcons.lead('missions_jour', t('ui.section_missions'))}</span>${DigHelp.tipHtml('missions')}</div>
     <div id="daily-missions-list"></div>`;
 
   container.innerHTML = html;
@@ -1659,7 +1660,7 @@ function renderRelics() {
     if (!unlocked) {
       actionHtml = `
         <div class="relic-cost${canUnlock ? ' can-afford' : ''}">
-          ${t('ui.relic_cost', { n: nextCost, s: nextCost > 1 ? 's' : '' })}
+          ${UiIcons.lead('fragments', t('ui.relic_cost', { n: nextCost, s: nextCost > 1 ? 's' : '' }))}
           ${!canUnlock ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
         </div>
         <button class="relic-unlock-btn" ${canUnlock ? '' : 'disabled'}
@@ -1671,7 +1672,7 @@ function renderRelics() {
     } else {
       actionHtml = `
         <div class="relic-cost${canUpgrade ? ' can-afford' : ''}">
-          ${t('ui.relic_upgrade_cost', { n: nextCost, next: level + 1, s: nextCost > 1 ? 's' : '' })}
+          ${UiIcons.lead('fragments', t('ui.relic_upgrade_cost', { n: nextCost, next: level + 1, s: nextCost > 1 ? 's' : '' }))}
           ${!canUpgrade ? `<span class="relic-shortfall">${t('ui.relic_shortfall', { n: shortfall })}</span>` : ''}
         </div>
         <button class="relic-upgrade-btn" ${canUpgrade ? '' : 'disabled'}
@@ -2476,28 +2477,28 @@ function renderSeasonView(apiData, lbData) {
   const infoOpen = el.querySelector('.season-info-card')?.open ? ' open' : '';
   const infoHtml = `
     <details class="season-info-card"${infoOpen}>
-      <summary class="season-info-toggle">${t('season.info.toggle')}</summary>
+      <summary class="season-info-toggle">${UiIcons.lead('info', t('season.info.toggle'))}</summary>
       <div class="season-info-body">
         <p class="season-info-intro">${t('season.info.intro')}</p>
         <div class="season-info-grid">
           <div class="season-info-col season-info-col-reset">
             <div class="season-info-col-title">${t('season.info.reset_title')}</div>
             <ul class="season-info-list">
-              <li>💰 ${t('season.info.r_coins')}</li>
+              <li>${UiIcons.html('pieces', '💰')} ${t('season.info.r_coins')}</li>
               <li>⛏ ${t('season.info.r_depth')}</li>
               <li>⬆ ${t('season.info.r_upgrades')}</li>
-              <li>⚡ ${t('season.info.r_boosts')}</li>
-              <li>🏆 ${t('season.info.r_rank')}</li>
+              <li>${UiIcons.html('boost', '⚡')} ${t('season.info.r_boosts')}</li>
+              <li>${UiIcons.html('saison', '🏆')} ${t('season.info.r_rank')}</li>
             </ul>
           </div>
           <div class="season-info-col season-info-col-kept">
             <div class="season-info-col-title">${t('season.info.kept_title')}</div>
             <ul class="season-info-list">
-              <li>💎 ${t('season.info.k_gems')}</li>
-              <li>🔮 ${t('season.info.k_frags')}</li>
-              <li>✨ ${t('season.info.k_relics')}</li>
+              <li>${UiIcons.html('gemmes', '💎')} ${t('season.info.k_gems')}</li>
+              <li>${UiIcons.html('fragments', '🔮')} ${t('season.info.k_frags')}</li>
+              <li>${UiIcons.html('reliques', '✨')} ${t('season.info.k_relics')}</li>
               <li>🎁 ${t('season.info.k_bonuses')}</li>
-              <li>🏅 ${t('season.info.k_points')}</li>
+              <li>${UiIcons.html('points_recompense', '🏅')} ${t('season.info.k_points')}</li>
             </ul>
           </div>
         </div>
@@ -2565,7 +2566,7 @@ function _seasonThemeHtml(season) {
   return `
     <div class="season-theme-card">
       <div class="season-theme-head">
-        <span class="season-theme-icon" aria-hidden="true">${escapeHtml(season.theme.icon ?? '')}</span>
+        <span class="season-theme-icon" aria-hidden="true">${UiIcons.html('saison_theme', season.theme.icon ?? '')}</span>
         <div>
           <div class="season-theme-label">${t('season.theme_label')}</div>
           <div class="season-theme-name">${escapeHtml(_loc(season.theme.names))}</div>
@@ -2683,7 +2684,7 @@ function _lastResultHtml() {
   return `
     <details class="points-card last-card season-fold"${foldOpen}>
       <summary class="points-head">
-        <h3 class="points-title">${t('season.last.title', { name: escapeHtml(season.name ?? '') })}</h3>
+        <h3 class="points-title">${UiIcons.lead('saison_resultat', t('season.last.title', { name: escapeHtml(season.name ?? '') }))}</h3>
         ${mine ? `<span class="season-fold-sub last-mine">${mine}</span>` : ''}
       </summary>
       <div class="season-fold-body">
@@ -2776,7 +2777,7 @@ function _pointsHtml() {
   return `
     <details class="points-card points-fold season-fold"${foldOpen}>
       <summary class="points-head">
-        <span class="points-title">${t('points.title')}</span>
+        <span class="points-title">${UiIcons.lead('points_recompense', t('points.title'))}</span>
         <span class="points-balance"><span class="points-balance-label">${t('points.balance')}</span> <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>
       </summary>
       <div class="season-fold-body">
@@ -2864,7 +2865,7 @@ function _shopHtml(nested = false) {
   return `
     <details class="points-card shop-card season-fold"${foldOpen}>
       <summary class="points-head">
-        <span class="points-title">${t('giftshop.title')}</span>
+        <span class="points-title">${UiIcons.lead('cadeaux_boutique', t('giftshop.title'))}</span>
         ${nested ? '' : `<span class="points-balance">${t('points.balance')} <strong>${t('points.pts', { n: n(d.balance) })}</strong></span>`}
       </summary>
       <div class="season-fold-body">
@@ -3009,12 +3010,12 @@ async function _loadLeaderboard(seasonId, containerId) {
 }
 
 // Rang = blocs détruits manuellement et validés par le serveur (#73) ; profondeur en donnée secondaire.
-// Pictogramme « blocs minés à la main » (#67) dans l'en-tête, à côté du libellé, sans repli 👆 ambigu.
+// En-tête « Blocs manuels » en texte seul, comme les colonnes voisines (recette #67-B du 10/11).
 function _leaderboardHtml(data) {
   if (!data?.leaderboard?.length) return `<p class="season-empty">${escapeHtml(t('season.empty'))}</p>`;
   const head = `<div class="lb-row lb-head" aria-hidden="true">
         <span class="lb-rank">#</span><span class="lb-name">${t('season.lb.player')}</span>
-        <span class="lb-blocks">${UiIcons.html('blocs_mines', '')}${t('season.lb.blocks')}</span><span class="lb-depth">${t('season.lb.depth')}</span>
+        <span class="lb-blocks">${t('season.lb.blocks')}</span><span class="lb-depth">${t('season.lb.depth')}</span>
       </div>`;
   return head + data.leaderboard.map(row => {
       const medal  = row.rank >= 1 && row.rank <= 3 ? _medalHtml(row.rank) : `#${escapeHtml(row.rank)}`;
@@ -3807,17 +3808,17 @@ function renderShop() {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="view-title-bar">${t('ui.view_shop')}</div>
+    <div class="view-title-bar">${UiIcons.lead('boutique', t('ui.view_shop'))}</div>
     <div class="shop-header">
       <div class="shop-balance">${UiIcons.html('gemmes', '💎')} ${GameState.gems} ${t('stats.gems')}${DigHelp.tipHtml('gems')}</div>
       <div class="shop-balance-sub">${t('shop.balance_label')}</div>
     </div>
     ${_shopGuideHtml('gems')}
-    <div class="section-divider" id="shop-gems-anchor"><span>${t('shop.section_gems')}</span></div>
+    <div class="section-divider" id="shop-gems-anchor"><span>${UiIcons.lead('gemmes', t('shop.section_gems'))}</span></div>
     <div class="shop-grid" id="shop-grid-gems"></div>
     ${_pickaxeShopHtml()}
     ${_fragmentPackShopHtml()}
-    <div class="section-divider"><span>${t('shop.section_boosts')}</span></div>
+    <div class="section-divider"><span>${UiIcons.lead('boost', t('shop.section_boosts'))}</span></div>
     <div class="shop-grid shop-grid-2" id="shop-grid-boosts"></div>
     <div class="shop-disclaimer">${t(Monetization.PAYMENTS_ENABLED ? 'shop.disclaimer_live' : 'shop.disclaimer')}</div>
   `;
@@ -3862,10 +3863,10 @@ function _fragmentPackShopHtml() {
   const left = Math.max(0, Number(_fragPack.remaining) || 0);
   const label = !Monetization.PAYMENTS_ENABLED ? t('fragpack.btn_unavailable') : left <= 0 ? t('fragpack.btn_limit') : t('fragpack.btn_buy', { price });
   const canBuy = Monetization.PAYMENTS_ENABLED && left > 0;
-  return `<div class="section-divider" id="shop-fragpack"><span>${t('fragpack.section')}</span></div>
+  return `<div class="section-divider" id="shop-fragpack"><span>${UiIcons.lead('fragments', t('fragpack.section'))}</span></div>
     <div class="shop-grid">
       <div class="shop-card fragpack-card">
-        <div class="shop-item-icon" aria-hidden="true">🔮</div>
+        <div class="shop-item-icon" aria-hidden="true">${UiIcons.html('fragments', '🔮')}</div>
         <div class="shop-item-name">${t('fragpack.name', { n: o.fragments })}</div>
         <div class="shop-item-label">${t('fragpack.desc')}</div>
         <div class="shop-item-label">${t('fragpack.free')}</div>
@@ -3883,6 +3884,9 @@ async function _buyFragmentPack() {
   } catch (_) { showAchievement('⚠️', t('fragpack.error'), 'warning'); }
 }
 
+// Pictogrammes des articles de la Boutique remplaçables depuis l'atelier (#67-B) ; emoji d'origine sinon
+const SHOP_ITEM_ICON_IDS = { gems_5: 'pack_gems_5', gems_20: 'pack_gems_20', gems_60: 'pack_gems_60', boost_x3_30m: 'boost' };
+
 function _fillShopGrid(gridId, items) {
   const grid = document.getElementById(gridId);
   if (!grid) return;
@@ -3899,7 +3903,7 @@ function _fillShopGrid(gridId, items) {
     const btnText = owned ? t('shop.btn_owned') : enabled ? item.price : t('shop.btn_soon');
     card.innerHTML = `
       ${item.badge ? `<div class="shop-badge">${t(item.badge)}</div>` : ''}
-      <div class="shop-item-icon">${item.icon}</div>
+      <div class="shop-item-icon">${UiIcons.html(SHOP_ITEM_ICON_IDS[item.id] ?? '', item.icon)}</div>
       <div class="shop-item-name">${t(item.name)}</div>
       <div class="shop-item-label">${t(item.label)}</div>
       <button class="shop-btn${owned ? ' owned' : ''}"
@@ -4181,7 +4185,7 @@ function _pickaxeShopHtml() {
       : t('pickaxe.speed_desc', { now: _fmtS(o.now), next: _fmtS(o.next) });
     const label = !o ? t('pickaxe.maxed') : o.affordable ? t('pickaxe.btn_gems', { price: o.price }) : t('pickaxe.not_enough_gems', { price: o.price });
     return `<div class="shop-card pick-card">
-      <div class="shop-item-icon" aria-hidden="true">${kind === 'cap' ? '🔋' : '⏱'}</div>
+      <div class="shop-item-icon" aria-hidden="true">${kind === 'cap' ? UiIcons.html('pioche_reserve', '🔋') : UiIcons.html('pioche_vitesse', '⏱')}</div>
       <div class="shop-item-name">${t(`pickaxe.${kind}_name`)}</div>
       <div class="shop-item-label">${t('pickaxe.level', { n: lvl, max })}</div>
       <div class="shop-item-label">${desc}</div>
@@ -4193,13 +4197,13 @@ function _pickaxeShopHtml() {
     const o = PickaxeCharges.refillOffer(pct);
     const label = !o.add ? t('pickaxe.refill_full') : o.affordable ? t('pickaxe.btn_coins', { cost: _fmtN(o.cost) }) : t('pickaxe.not_enough_coins', { cost: _fmtN(o.cost) });
     return `<div class="shop-card pick-card">
-      <div class="shop-item-icon" aria-hidden="true">⚡</div>
+      <div class="shop-item-icon" aria-hidden="true">${UiIcons.html('pioche_recharge', '⚡')}</div>
       <div class="shop-item-name">${t('pickaxe.refill_name', { pct })}</div>
       <div class="shop-item-label">${o.add ? t('pickaxe.refill_desc', { add: _fmtN(o.add), cost: _fmtN(o.cost) }) : t('pickaxe.refill_full')}</div>
       <button type="button" class="shop-btn" data-pick-refill="${pct}" ${o.affordable ? '' : 'disabled'}>${label}</button>
     </div>`;
   };
-  return `<div class="section-divider" id="shop-pickaxe"><span>${t('pickaxe.shop_section')}</span></div>
+  return `<div class="section-divider" id="shop-pickaxe"><span>${UiIcons.lead('pioche_entretien', t('pickaxe.shop_section'))}</span></div>
     <div class="pick-shop-intro">
       <p class="pick-shop-status${p.depleted ? ' is-blunt' : ''}">${status}</p>
       <p class="pick-shop-help">${t('pickaxe.shop_intro')}</p>
@@ -4597,7 +4601,7 @@ function init() {
   // vues dynamiques re-rendues seulement si la liste a changé (emoji d'origine en repli).
   UiIcons.load(() => {
     if (Blocks.current) renderBlock();
-    renderUpgrades(); renderQuests(); renderShopChests();
+    renderUpgrades(); renderQuests(); renderShopChests(); renderRelics(); updateAdButtonState();
     if (isViewActive('daily')) renderDaily();
     if (isViewActive('season')) _refreshSeasonView();
     if (isViewActive('shop')) renderShop();

@@ -287,6 +287,7 @@ function playerPanel(payload) {
     console, Intl, Date, JSON, Math, Object, Array, Number, String, Boolean, Set, Map, Promise, setTimeout,
     localStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) },
     navigator: { language: 'fr-BE', languages: ['fr-BE'] },
+    UiIcons: require('../public/js/uiIcons.js'),   // pictogrammes de l'atelier (#67) : emoji d'origine ici
     location: { search: '', href: 'https://dig.example/' },
     document: { documentElement: {}, querySelectorAll: () => [], getElementById: id => (id === 'events-panel' ? el : null),
       head: { appendChild: () => {} }, createElement: () => ({}) },

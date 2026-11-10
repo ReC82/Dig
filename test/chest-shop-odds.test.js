@@ -24,6 +24,7 @@ function loadBrowser(files, exportsList, lang = 'fr') {
   const ctx = vm.createContext({
     Math, Object, Array, Number, String, Boolean, JSON, Date, t: k => k,
     I18n: { getCurrent: () => lang },
+    UiIcons: require('../public/js/uiIcons.js'),   // pictogrammes de l'atelier (#67) : emoji d'origine ici
   });
   for (const f of files) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8'), ctx, { filename: f });
@@ -283,6 +284,7 @@ async function renderOdds(chestId, { shardLevel = 0, owned = [] } = {}) {
     t: (k, p) => k + (p ? JSON.stringify(p) : ''),
     I18n: { getCurrent: () => 'fr' },
     document: { getElementById: el },
+    UiIcons: require('../public/js/uiIcons.js'),
   });
   for (const f of ['gameState.js', 'balance.js', 'upgrades.js', 'escapeHtml.js']) {
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'public', 'js', f), 'utf8'), ctx, { filename: f });
