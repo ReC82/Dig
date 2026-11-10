@@ -1,5 +1,110 @@
 # Ticket #56 — Événements mensuels : objets exclusifs à miner et calendrier automatique
 
+# Mise à jour du 10/11/2026, ~15 h (Bruxelles) : fenêtre de découverte d'un souvenir (décision du propriétaire du 10/11)
+
+Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Demande prise en compte : [décision du propriétaire du 10/11 12:51](https://github.com/ReC82/Dig/issues/56#issuecomment-6767800780), « découverte exceptionnelle d'un souvenir : vraie fenêtre à fermer ». Lien : #81 (bonus) et #93 (doubles).
+
+## 1. État réel
+
+**Déployé en production (SHA `96a6235`), en attente de recette.**
+
+## 2. Résultat et changements
+
+Avant, un souvenir obtenu en minant ne produisait qu'un toast de quelques secondes (« Objet d'événement trouvé : … »), facile à rater. Désormais :
+
+**Fenêtre de découverte (jeu).**
+- Elle s'ouvre pour **chaque acquisition réelle confirmée par le serveur** : première découverte, ou double #93 s'il est un jour activé (« Nouvel exemplaire : tu en possèdes N »). Elle ne s'ouvre ni pour un objet de collection ordinaire ni pour un badge : ceux-là gardent leur toast.
+- Contenu : titre selon la rareté (« Nouveau souvenir ! », « Joli souvenir ! », « Découverte rare ! », « Découverte épique ! », « Découverte légendaire ! »), **grande image publiée** (200 px ; sinon l'emoji), badge de rareté, nom traduit, « Souvenir de l'événement 📜 … », description courte, « Rangé dans ta Collection, pour toujours », bouton **« Continuer »**.
+- Ambiance selon la rareté : couleur du liseré et du halo (gris, vert, bleu, violet, or), sans image IA supplémentaire. Animation d'apparition courte, supprimée si l'appareil demande moins d'animations.
+- **Fermeture manuelle** : bouton « Continuer » (souris, toucher, Entrée/Espace) ou Échap. Un clic à côté ne ferme pas la fenêtre.
+- Plusieurs découvertes à la fois : une seule fenêtre à la fois, « Encore N découverte(s) à voir », puis la suivante.
+- Accessibilité : `role="dialog"`, `aria-modal`, titre et description reliés, focus placé sur « Continuer » et gardé dans la fenêtre, puis rendu à l'élément précédent. Textes en FR, EN, NL, ES et IT (pilote).
+- Téléphone : à 320×568, la fenêtre tient dans l'écran, avec un défilement interne si le texte est long. Aucun débordement horizontal à 320, 390 et 1280 px.
+- **Pendant l'affichage, les coups manuels sont ignorés** : ils ne sont ni comptés ni envoyés à l'anti-bot. Le minage automatique, les coffres et la sauvegarde continuent normalement : aucun bloc ni coffre perdu.
+
+**Une seule fois, même après F5, une coupure ou un autre appareil (serveur).**
+- Nouvelle table `monthly_event_discoveries`, ajoutée sans rien modifier d'existant. Une ligne y est écrite **dans la même transaction que le tirage** : il n'y a pas de fenêtre sans objet, ni d'objet sans fenêtre.
+- `GET /api/me/event-discoveries` renvoie les découvertes **pas encore fermées**, au plus 10, les plus anciennes d'abord. Le jeu les lit à chaque chargement : si la page est rechargée ou la connexion coupée avant « Continuer », la fenêtre revient au prochain chargement.
+- `POST /api/me/event-discoveries/ack` est envoyé quand le joueur ferme la fenêtre. Il est idempotent et ne touche qu'aux lignes du joueur.
+- Le jeu retient les identifiants déjà montrés : la réponse de sauvegarde et la liste du chargement ne peuvent pas ouvrir deux fois la même fenêtre. Un rejeu de la même sauvegarde ne tire rien (curseur existant) et ne crée donc aucune découverte.
+- **Les trouvailles d'avant ce déploiement n'ont pas de ligne : aucun joueur ne verra de fenêtre a posteriori pour novembre.**
+- Image : seule l'image **publiée** est montrée (règle #65), jamais celle du brouillon.
+
+**Aperçu dans le panel (sans injecter d'objet).**
+- Admin → Événements → fiche d'un souvenir : nouveau bouton **« ✨ Voir la fenêtre de découverte dans le jeu »**. Il ouvre le jeu dans un nouvel onglet avec la vraie fenêtre, marquée « Aperçu admin : rien n'est ajouté à ton compte ».
+- L'objet passe par le fragment d'URL (`#…`), qui n'est jamais envoyé au serveur. Le jeu le lit puis l'efface de l'adresse : un F5 ne le réaffiche pas. Il n'y a aucun appel serveur et aucun stockage dans le navigateur (règle du panel).
+
+**Inchangé** : les chances, poids, raretés et contenus des objets ; la collection ; les badges ; les objets de collection ; l'économie.
+
+**Bonus (#81)** : la fenêtre n'affiche **aucun bonus**. Aucun bonus de souvenir n'est actif aujourd'hui (#81 reste un brouillon inactif). Une ligne de bonus ne s'ajoutera que lorsqu'un bonus sera réellement appliqué.
+
+Fichiers : `server/monthlyEvents.js` (table, `_discovery`, `pendingDiscoveries`, `ackDiscoveries`), `server/index.js` (2 routes), `public/index.html`, `public/css/style.css`, `public/js/main.js`, `public/js/i18n.js`, `i18n/it.json` et `public/js/locales/it.js`, `public/admin/index.html` et `public/admin/admin.js`, `test/monthly-events-discovery.test.js`.
+
+## 3. SHA, branche et procédure de test
+
+- Branche `feature/56-evenements-mensuels` : `71d2c84` (fonctionnalité) et `4d38669` (aperçu par le fragment d'URL, clés i18n, italien).
+- **`develop` : `96a6235`** (fusion).
+- Tests automatiques : `npm test` ; spécifiques : `node --test test/monthly-events-discovery.test.js` (7 tests : serveur, routes et vraie section du jeu exécutée en vm).
+
+## 4. Vérifications
+
+- `npm test` : 1060/1060 sur la branche et sur la release `96a6235` (dont les 7 nouveaux tests ; les tests i18n italiens et « aucun stockage navigateur dans le panel » passent après correction).
+- Chromium sur un serveur de test (port 3101, base de test, compte de test avec 2 découvertes non vues : une légendaire au nom très long, une peu commune) :
+  - à 1280×900, 390×844 et 320×568 : fenêtre affichée au chargement, focus sur « Continuer », aucun débordement horizontal, aucune erreur JS ;
+  - un clic à côté ne ferme pas ; Tab reste sur le bouton ; Entrée affiche la suivante ; après fermeture puis F5, plus de fenêtre ;
+  - aperçu admin : fenêtre marquée, adresse nettoyée, aucune requête vers `/api/me/event-discoveries`.
+- Copie de la base de production démarrée en `NODE_ENV=production` sur la release : empreintes `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et `player_click_tracking` identiques après démarrage ; table ajoutée vide ; 7 trouvailles existantes et 0 découverte en attente, donc **aucune fenêtre a posteriori** ; `quick_check` ok ; `/api/me/event-discoveries` sans session = 401. Copie supprimée.
+- Non vérifié : un vrai lecteur d'écran (NVDA/VoiceOver). Seuls les attributs ARIA et le focus ont été contrôlés.
+
+## 5. Impact sur les données des joueurs
+
+Ajout d'une table uniquement. Aucune ligne existante n'est modifiée. Aucune trouvaille n'est créée ni retirée.
+
+## 6. Déploiement et test à faire
+
+**Déployé : `96a6235`** (avance rapide de `main` 05fb3d6 → 96a6235, `scripts/deploy.sh` de la release) le 10/11 à 14:38 Bruxelles. J'ai vérifié avant le déploiement qu'aucune génération IA de l'atelier n'était en cours (journal nginx).
+- Sauvegarde vérifiée avant le déploiement : `~/backups/dig/dig-20261110-143841-pre-deploy-96a6235.sqlite`.
+- Après le déploiement : dig.lodygames.com et dig.lodylands.com répondent 200 en `1.0.0+96a6235`, le journal est sans erreur, `quick_check` ok, et les 6 empreintes sont identiques à la sauvegarde.
+- Chromium en production, à 1280×900 et 390×844 : aperçu affiché, adresse nettoyée, fermeture par « Continuer », aucune erreur JS, aucun débordement, aucun appel serveur.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 05fb3d6` puis `sudo systemctl restart dig`. La table ajoutée est inerte pour l'ancien code.
+
+**Test fonctionnel à faire par le propriétaire** (aucun vrai objet rare dans un compte public) :
+1. **Aperçu visuel (1 min).** Admin → Événements → « Novembre déterre l'Histoire » → ouvre un souvenir légendaire ou épique → « ✨ Voir la fenêtre de découverte dans le jeu ». Attendu : nouvel onglet, fenêtre marquée « Aperçu admin », image ou emoji en grand, rareté, nom, événement, description, « Continuer ». Un clic à côté ne ferme pas. « Continuer » ferme. F5 ne la réaffiche pas. Refaire sur téléphone.
+2. **Vraie découverte de test (5–10 min).** Admin → Événements → « 🧪 Nouvel événement TEST » : choisir **un compte de test** comme testeur (pas un compte public), « Créer le brouillon TEST », puis dans sa fiche « ▶ Démarrer le test maintenant… ». Avec ce compte, creuser quelques blocs : le « Caillou de test » tombe à 25 % par bloc éligible, à la sauvegarde. Attendu : la fenêtre « Nouveau souvenir ! » s'ouvre une fois.
+   - Avant de cliquer « Continuer », faire F5 : la fenêtre revient une fois.
+   - Après « Continuer » puis F5 : plus de fenêtre, l'objet est dans Collection.
+   - Pendant que la fenêtre est ouverte, taper sur le bloc ne fait rien.
+3. Ensuite, repasser l'événement de test en brouillon.
+
+Classement : **Après lancement** (amélioration de la célébration ; rien de bloquant pour le MVP), livrée car demandée et sans risque pour les données.
+
+## 7. Choix techniques faits seul
+
+- **Table séparée plutôt qu'une colonne « vue » dans `monthly_event_finds`** : on ne touche pas aux trouvailles existantes et on évite une fenêtre a posteriori pour les souvenirs de novembre déjà trouvés. Cela couvre aussi les doubles #93.
+- **Acquittement à la fermeture, et non à l'affichage** : c'est la garantie demandée (« non acquittée → présentée au prochain chargement »). Si l'acquittement échoue (réseau), la fenêtre revient une fois au chargement suivant. C'est voulu.
+- **Échap ferme la fenêtre** : c'est un geste manuel explicite attendu au clavier. Le clic à côté ne ferme pas.
+- **Le minage automatique n'est pas mis en pause** : seuls les coups manuels le sont. Arrêter le jeu changerait l'équilibrage, et la demande vise la « pause sûre du clic ».
+- **Aperçu par le fragment d'URL** : aucune route admin à ouvrir côté jeu, rien d'envoyé au serveur, et la règle « aucun stockage navigateur dans le panel » est respectée.
+- **Au plus 10 fenêtres en attente par chargement** : les suivantes viendront au chargement suivant.
+- Échanges #93 (désactivés) : un souvenir **reçu par échange** n'ouvre pas la fenêtre de découverte, car ce n'est pas une trouvaille. À revoir si les échanges sont activés.
+
+## 8. Décisions demandées au propriétaire
+
+Aucune nouvelle décision nécessaire pour cette fenêtre. Questions toujours ouvertes (inchangées) :
+1. Publier les 26 souvenirs de Noël proposés tels quels avec le barème de novembre, ou en corriger/retirer d'abord ? Recommandé : relire, puis publier avant le 24/11.
+2. Aligner le barème des 5 objets de Noël déjà planifiés sur novembre (et appliquer les dates de référence suggérées) ? Recommandé : oui.
+3. Assistant IA du panel : maintenant ou après la bêta ? Recommandé : après la bêta.
+4. Thèmes 2027 : à choisir mois par mois, au plus tard à J-14.
+
+## 9. Reste à faire
+
+- Recette propriétaire de la fenêtre (aperçu + vraie découverte de test).
+- Le jour où un bonus #81 est réellement appliqué : l'afficher dans la fenêtre.
+- Le jour où les échanges #93 sont activés : décider si un souvenir reçu par échange mérite sa propre fenêtre.
+
+---
+
+
 # Mise à jour du 08/11/2026, ~21 h 05 (Bruxelles) : recette #56-K corrigée (test de bascule, souvenirs proposés, préparation éditoriale)
 
 Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Retour pris en compte : [recette #56-K BLOQUÉE du 08/11 19:13](https://github.com/ReC82/Dig/issues/56#issuecomment-6725198013), avec la capture PDF « DIG! Admin(20261108-180904) » d'Admin → Événements. Chantier lié : [#93](https://github.com/ReC82/Dig/issues/93) (doubles et échanges), ouvert à part par le propriétaire ([commentaire](https://github.com/ReC82/Dig/issues/56#issuecomment-6725207106)).
