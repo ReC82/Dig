@@ -1306,7 +1306,7 @@ async function renderEvents() {
   const fmtDate = iso => new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'long', timeZone: 'Europe/Brussels' });
   const card = (ev, it) => {
     const icon = it.found ? (it.image ? `<img src="${escapeHtml(it.image)}" alt="" loading="lazy">` : escapeHtml(it.icon)) : '?';
-    const name = it.found ? _badgeText(it.names) : '???';
+    const name = it.found ? _badgeText(it.names) : t('collection.to_discover');
     return `<button type="button" class="find-card${it.found ? ' found' : ''} find-rarity-${it.found ? escapeHtml(it.rarity) : 'unknown'}"`
       + ` data-ev="${escapeHtml(ev.id)}" data-item="${escapeHtml(it.id)}" aria-label="${escapeHtml(it.found ? name : t('collection.unknown_title'))}">`
       + `<div class="find-icon">${icon}</div><div class="find-name">${escapeHtml(name)}</div>`
@@ -1534,7 +1534,7 @@ function renderCollection() {
       }
       const name = document.createElement('div');
       name.className = 'find-name';
-      name.textContent = isFound ? Collection.displayName(find) : '???';
+      name.textContent = isFound ? Collection.displayName(find) : t('collection.to_discover');
       card.append(icon, name);
       card.setAttribute('aria-label', isFound ? Collection.displayName(find) : t('collection.unknown_title'));
       card.addEventListener('click', () => showFindSheet(find, g.series));

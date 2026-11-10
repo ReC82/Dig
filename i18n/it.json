@@ -1938,6 +1938,13 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "collection.to_discover": {
+   "text": "Da scoprire",
+   "src": "f9b057bc7d79",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, relu)",
+   "at": "2026-11-10T14:28:24.486Z"
+  },
   "collection.unknown_archived": {
    "text": "Questo oggetto apparteneva a una stagione conclusa: non è stato trovato in tempo.",
    "src": "020e31338567",

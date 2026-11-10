@@ -345,7 +345,9 @@ test('rendu joueur : panneau traduit en FR/EN/NL/ES (IT : textes du jeu traduits
       assert.ok(html.includes(txt.replace(/&/g, '&amp;').replace(/'/g, '&#39;')), `${lang} : ${key} affiché`);
     }
     assert.ok(html.includes(panel.t('events.count', { n: 1, total: 2 })), `${lang} : compteur 1 / 2`);
-    assert.ok(html.includes('???'), `${lang} : objet non trouvé en « ??? »`);
+    const todo = panel.t('collection.to_discover');
+    assert.ok(todo && todo !== 'collection.to_discover' && html.includes(`<div class="find-name">${todo}</div>`), `${lang} : objet non trouvé « ${todo} »`);
+    assert.ok(!html.includes('???'), `${lang} : plus de « ??? » illisible`);
     assert.ok(!/Secret absolu/.test(html));
     assert.ok(!/events\.\w+/.test(html), `${lang} : aucune clé technique`);
     assert.ok(html.includes(lang === 'it' || lang === 'fr' ? 'Bientôt-là' : `Bientôt-là ${lang.toUpperCase()}`), `${lang} : annonce à venir`);
