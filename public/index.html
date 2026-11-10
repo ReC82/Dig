@@ -337,6 +337,22 @@
     </div>
   </div>
 
+  <!-- Découverte d'un souvenir d'événement (#56, 10/11) : fenêtre à fermer soi-même, une fois par acquisition confirmée par le serveur -->
+  <div id="discovery-modal" hidden role="dialog" aria-modal="true" aria-labelledby="discovery-title" aria-describedby="discovery-desc">
+    <div id="discovery-inner">
+      <p id="discovery-preview" class="disc-preview" hidden></p>
+      <p id="discovery-kicker" class="disc-kicker"></p>
+      <div id="discovery-art" class="disc-art" aria-hidden="true"></div>
+      <div id="discovery-rarity"></div>
+      <h2 id="discovery-title"></h2>
+      <p id="discovery-event" class="disc-event"></p>
+      <p id="discovery-desc" class="disc-desc"></p>
+      <p id="discovery-note" class="disc-note"></p>
+      <p id="discovery-more" class="disc-more" hidden></p>
+      <button id="btn-discovery-close" type="button" class="disc-close" data-i18n="events.disc_continue">Continuer</button>
+    </div>
+  </div>
+
   <div id="save-toast" aria-live="polite" data-i18n="ui.saved">Sauvegardé ✓</div>
 
   <!-- ── Centre d'actualités (#50) : panneau par-dessus le jeu, qui continue de tourner ── -->

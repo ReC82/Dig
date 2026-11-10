@@ -13483,6 +13483,14 @@ document.getElementById('btn-ev-ai')?.addEventListener('click', async () => {
 
 admRefreshButton('btn-ev-refresh', loadEvents, 'Événements');
 document.getElementById('btn-ev-item-add')?.addEventListener('click', e => eviOpen(-1, e.currentTarget));
+// #56 (10/11) : aperçu de la fenêtre de découverte dans le vrai jeu — objet passé dans le fragment d'URL (#…, jamais
+// envoyé au serveur ni stocké), lu puis effacé par le jeu ; aucun appel serveur, aucun objet ajouté à un compte.
+document.getElementById('btn-evi-discovery-preview')?.addEventListener('click', () => {
+  const it = eviRead();
+  const d = { icon: it.icon, image: it.image, names: it.names, descs: it.descs, rarity: it.rarity,
+    eventIcon: document.getElementById('ev-icon')?.value.trim() || _evCur.ev?.icon || '🎉', eventNames: _evCur.draft?.names || {} };
+  window.open(`/?apercu-decouverte=1#apercu=${encodeURIComponent(JSON.stringify(d))}`, '_blank', 'noopener');
+});
 document.getElementById('btn-ev-save')?.addEventListener('click', evSave);
 document.getElementById('btn-ev-sim')?.addEventListener('click', evSimulate);
 document.getElementById('btn-ev-schedule')?.addEventListener('click', evSchedule);

@@ -2426,6 +2426,20 @@ const eventId = req => String(req.params.id || '');
 
 // Jeu : événements en cours (objets trouvés ou « ? »), à venir (publics, J-7) et souvenirs du joueur.
 app.get('/api/events', limit.news, eventRoute('GET /api/events', req => monthlyEvents.publicView(req.session.userId || null)));
+// Fenêtre de découverte (#56, 10/11) : acquisitions réelles pas encore fermées, puis acquittement par le joueur
+app.get('/api/me/event-discoveries', limit.news, (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    res.json({ ok: true, discoveries: monthlyEvents.pendingDiscoveries(req.session.userId) });
+  } catch (err) { console.error('[GET /api/me/event-discoveries]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
+app.post('/api/me/event-discoveries/ack', limit.save, (req, res) => {
+  try {
+    if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
+    res.json({ ok: true, acked: monthlyEvents.ackDiscoveries(req.session.userId, req.body?.ids) });
+  } catch (err) { console.error('[POST /api/me/event-discoveries/ack]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
+});
 
 // ── Souvenirs : doubles et échanges (#93) — tout OFF par défaut, activation = décision du propriétaire ──
 const souvenirInventory = require('./souvenirInventory');

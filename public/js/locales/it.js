@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 907/907 textes. Absents → français. */
+/* Italian (preview) : 918/918 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -306,6 +306,17 @@ I18n.registerLocale("it", {
  },
  "events": {
   "count": "{n} / {total} trovati",
+  "disc_commun": "Nuovo ricordo!",
+  "disc_continue": "Continua",
+  "disc_dup": "Nuovo esemplare: ne possiedi {n}.",
+  "disc_epique": "Scoperta epica!",
+  "disc_event": "Ricordo dell’evento {name}",
+  "disc_keep": "Conservato nella tua Collezione, per sempre.",
+  "disc_legendaire": "Scoperta leggendaria!",
+  "disc_more": "Ancora {n} scoperta/e da vedere",
+  "disc_peu_commun": "Bel ricordo!",
+  "disc_preview": "Anteprima admin: non viene aggiunto nulla al tuo account.",
+  "disc_rare": "Scoperta rara!",
   "ended": "Terminato il {date}",
   "found_on": "Trovato il {date}",
   "keep": "Gli oggetti trovati restano nella tua collezione anche dopo l’evento.",
