@@ -24,7 +24,8 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {
   const browser = await chromium.launch({ executablePath: `${process.env.HOME}/.cache/ms-playwright/${exe}/chrome-linux64/chrome` });
-  for (const [w, h, tag] of [[1280, 900, 'pc'], [390, 844, 'mob']]) {
+  // DIG_E2E_ONLY=admin : parcours de la fiche Micro-bonus seul (recette #81-B bis)
+  for (const [w, h, tag] of process.env.DIG_E2E_ONLY === 'admin' ? [] : [[1280, 900, 'pc'], [390, 844, 'mob']]) {
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: tag === 'mob', isMobile: tag === 'mob' });
     // Tutoriel #79 déjà passé (sinon sa carte couvre le bas de l'écran)
     await ctx.addInitScript(() => { localStorage.setItem('dig_lang', 'fr'); localStorage.setItem('dig_tutorial', JSON.stringify({ v: 1, state: 'skipped', step: 0, at: new Date().toISOString() })); });
@@ -104,8 +105,36 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     await page.waitForSelector('#btn-mb-add', { state: 'visible' });
     await page.click('#btn-mb-add');
     await page.waitForSelector('#mb-dialog[open]');
-    await page.click('#mb-examples button:first-child');
+    // Recette #81-B bis : brouillon affiché d'abord, calendrier et détails repliés, résultat en bref calculé d'office
     await page.waitForSelector('#mb-preview:not(.hidden)');
+    const first = await page.evaluate(() => {
+      const d = document.getElementById('mb-dialog');
+      const lock = document.getElementById('mb-lock');
+      return { lock: lock.textContent, lockTop: lock.getBoundingClientRect().top < document.getElementById('mb-label').getBoundingClientRect().top,
+        when: document.getElementById('mb-when').open, details: document.getElementById('mb-details').open,
+        simVisible: document.getElementById('mb-prev-sim').checkVisibility(), poolVisible: document.getElementById('mb-prev-pool').checkVisibility(),
+        sum: document.getElementById('mb-when-sum').textContent, active: /actif en jeu|est actif/i.test(d.textContent.replace(/aucun effet en jeu|serait actif/gi, '')) };
+    });
+    check('admin', '81-B bis « 🔒 Brouillon — aucun effet en jeu » en tête, calendrier et détails repliés', first.lock === '🔒 Brouillon — aucun effet en jeu' && first.lockTop
+      && !first.when && !first.details && !first.simVisible && !first.poolVisible && first.sum === 'Toujours (aucune condition)' && !first.active, JSON.stringify(first));
+    await page.click('#mb-examples button:first-child');
+    await page.waitForFunction(() => /pierre/i.test(document.getElementById('mb-prev-fr').textContent) && /193,92/.test(document.getElementById('mb-brief-sentence').textContent));
+    const brief = await page.evaluate(() => Object.fromEntries(Object.entries({ v: document.getElementById('mb-brief-value').textContent, g: document.getElementById('mb-brief-gain').textContent,
+      saved: document.getElementById('mb-brief-saved').textContent, share: document.getElementById('mb-brief-share').textContent,
+      s: document.getElementById('mb-brief-sentence').textContent, note: document.getElementById('mb-brief-note').textContent }).map(([k, t]) => [k, t.replace(/\s/g, ' ')])));
+    check('admin', '81-B bis résultat en bref : 3 valeurs et phrase reliant coups économisés et %', brief.v === '+0,25' && brief.g === '−6,09 %' && brief.share === '30,9 %'
+      && brief.saved === '≈ 1 180 coups sur 100 blocs'
+      && brief.s === 'À 50 m, avec 1 dégât par coup, vous économiseriez environ 1 180 coups sur 100 blocs (−6,09 % de coups) : 182,12 coups par bloc en moyenne au lieu de 193,92.'
+      && /Estimation moyenne selon les blocs tirés/.test(brief.note) && /pas du temps/.test(brief.note), JSON.stringify(brief));
+    await page.selectOption('#mb-base', { label: '2' });
+    const b2 = await page.evaluate(() => ({ g: document.getElementById('mb-brief-gain').textContent, s: document.getElementById('mb-brief-sentence').textContent }));
+    check('admin', '81-B bis valeur différente selon les dégâts du joueur', b2.g !== brief.g && /avec 2 dégâts par coup/.test(b2.s), JSON.stringify(b2));
+    await page.fill('#mb-depth', '120');
+    await page.waitForFunction(() => /^À 120 m, avec 2 dégâts/.test(document.getElementById('mb-brief-sentence').textContent));
+    await page.fill('#mb-depth', '50');
+    await page.waitForFunction(() => /^À 50 m, avec 2 dégâts/.test(document.getElementById('mb-brief-sentence').textContent));
+    check('admin', '81-B bis profondeur recalculée seule, choix des dégâts conservé', true);
+    await page.selectOption('#mb-base', { label: '1' });
     const prev = await page.evaluate(() => ({ fr: document.getElementById('mb-prev-fr').textContent, state: document.getElementById('mb-prev-state').textContent,
       sims: document.querySelectorAll('#mb-prev-sim tr').length, samples: document.querySelectorAll('#mb-prev-samples tr').length }));
     check('admin', 'D aperçu : texte, état, dates repères, simulation', /^\+0,25 dégât par coup sur le bloc/.test(prev.fr) && /s'il était publié/.test(prev.state) && prev.sims >= 5 && prev.samples === 5, JSON.stringify(prev));
@@ -121,8 +150,16 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     check('admin', '81-B statut réel « brouillon » séparé, dates repères au conditionnel', /Statut réel : brouillon/.test(help.real) && help.samples.every(t => /^(Serait|Pas encore)/.test(t)), JSON.stringify(help.samples));
     check('admin', '81-B tableau : 193,92 → 182,12, −6,09 %, 30,9 % visés', help.row1[1] === '193,92' && help.row1[2] === '182,12' && help.row1[3] === '−6,09 %' && help.row1[5] === '30,9 %', JSON.stringify(help.row1));
     check('admin', '81-B explications chiffrées et blocs possibles', help.explain.length >= 3 && /5 ÷ 1,25 = 4/.test(help.explain[0]) && help.pool >= 10 && help.source === 'Aucun', JSON.stringify(help.explain));
+    await page.click('#mb-when summary');
+    await page.check('#mb-weekdays input[value="1"]');
+    await page.waitForFunction(() => document.getElementById('mb-when-sum').textContent === 'lun.' && /lundis/.test(document.getElementById('mb-prev-fr').textContent));
+    check('admin', '81-B bis calendrier : résumé « lun. » et aperçu recalculé', true);
+    await page.uncheck('#mb-weekdays input[value="1"]');
+    await page.waitForFunction(() => !/lundis/.test(document.getElementById('mb-prev-fr').textContent));
     await page.click('#mb-dialog .bk-info[aria-controls="mb-h-dates"]');
     check('admin', '81-B aide ⓘ des dates', await page.isVisible('#mb-h-dates') && /incluses/.test(await page.textContent('#mb-h-dates')));
+    await page.screenshot({ path: `${SHOTS}/81bbis-admin-bref.png`, fullPage: true });
+    await page.click('#mb-details summary');
     await page.click('#mb-sim-help summary');
     await page.screenshot({ path: `${SHOTS}/81b-admin-explications.png`, fullPage: true });
     await page.screenshot({ path: `${SHOTS}/81-admin-apercu.png`, fullPage: true });
@@ -139,9 +176,17 @@ const pause = ms => new Promise(r => setTimeout(r, ms));
     await mp.waitForSelector('#btn-mb-add', { state: 'visible' });
     await mp.click('#btn-mb-add');
     await mp.click('#mb-examples button:first-child');
-    await mp.waitForSelector('#mb-preview:not(.hidden)');
+    await mp.waitForFunction(() => /193,92/.test(document.getElementById('mb-brief-sentence').textContent));
+    for (const w of [390, 320]) {
+      await mp.setViewportSize({ width: w, height: 844 });
+      const over = await mp.evaluate(() => ({ page: document.documentElement.scrollWidth, dlg: document.getElementById('mb-dialog').scrollWidth, w: innerWidth,
+        save: (() => { const r = document.getElementById('btn-mb-save').getBoundingClientRect(); return r.right <= innerWidth && r.width > 0; })() }));
+      check('admin', `81-B bis mobile ${w} : fiche sans débordement, Enregistrer visible`, over.page <= over.w && over.dlg <= over.w && over.save, JSON.stringify(over));
+      await mp.screenshot({ path: `${SHOTS}/81bbis-admin-mobile-${w}.png` });
+    }
+    await mp.click('#mb-details summary');
     const over = await mp.evaluate(() => ({ page: document.documentElement.scrollWidth, dlg: document.getElementById('mb-dialog').scrollWidth, w: innerWidth }));
-    check('admin', '81-B mobile 390 : fiche sans débordement horizontal', over.page <= over.w && over.dlg <= over.w, JSON.stringify(over));
+    check('admin', '81-B mobile 320 : détails ouverts sans débordement de la fiche', over.page <= over.w && over.dlg <= over.w, JSON.stringify(over));
     await mp.screenshot({ path: `${SHOTS}/81b-admin-mobile.png`, fullPage: true });
     await mob.close();
     const play = await ctx.newPage();

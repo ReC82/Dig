@@ -15645,7 +15645,7 @@ function renderMicroBonus(data) {
   for (const x of data.examples) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn btn-outline btn-sm'; b.textContent = x.label.replace(/^Exemple — /, '');
-    b.addEventListener('click', () => { mbWrite({ label: x.label, effect: x.effect }); document.getElementById('mb-label').dispatchEvent(new Event('input', { bubbles: true })); mbPreview(); });
+    b.addEventListener('click', () => { mbWrite({ label: x.label, effect: x.effect }); mbWhenSummary(); document.getElementById('mb-label').dispatchEvent(new Event('input', { bubbles: true })); mbPreview(); });
     ex.append(b, ' ');
   }
 }
@@ -15668,8 +15668,39 @@ function mbOpen(d, opener) {
   arch.textContent = d?.archived ? 'Désarchiver' : 'Archiver';
   document.getElementById('mb-preview').classList.add('hidden');
   document.getElementById('mb-dlg-msg').className = 'hidden';
+  // recette #81-B bis : calendrier et détails repliés à chaque ouverture, résultat en bref calculé d'office
+  for (const id of ['mb-when', 'mb-details', 'mb-sim-help']) document.getElementById(id).open = false;
+  document.getElementById('mb-note-box').open = Boolean(d?.note);
+  mbWhenSummary();
   admDialogOpen('mb-dialog', opener, 'mb-label');
+  mbSchedulePreview(0);   // différé : lit les champs après un éventuel préremplissage (fiche souvenir)
 }
+
+/** Résumé lisible du calendrier, affiché sur « Quand s'applique-t-il ? » replié. */
+function mbWhenSummary() {
+  const s = mbRead().effect.schedule;
+  const bits = [];
+  if (s.from && s.to) bits.push(`du ${mbDay(s.from)} au ${mbDay(s.to)}`);
+  else if (s.from) bits.push(`à partir du ${mbDay(s.from)}`);
+  else if (s.to) bits.push(`jusqu'au ${mbDay(s.to)}`);
+  if (s.months) bits.push(s.months.map(n => MB_MONTHS[n - 1]).join(', '));
+  if (s.weekdays) bits.push(s.weekdays.map(n => MB_DAYS[n - 1]).join(', '));
+  if (s.monthDays) bits.push(`jours ${s.monthDays}`);
+  document.getElementById('mb-when-sum').textContent = bits.length ? bits.join(' · ') : 'Toujours (aucune condition)';
+}
+const mbDay = iso => iso.split('-').reverse().join('/');
+
+// Résultat en bref recalculé seul après chaque saisie (lecture seule côté serveur, rien n'est enregistré)
+let _mbTimer = null, _mbSeq = 0;
+function mbSchedulePreview(delay = 400) {
+  clearTimeout(_mbTimer);
+  _mbTimer = setTimeout(() => { if (document.getElementById('mb-dialog').open) mbPreview(); }, delay);
+}
+document.getElementById('mb-dialog').addEventListener('input', e => {
+  if (e.target.closest('#mb-when')) mbWhenSummary();
+  if (e.target.id === 'mb-base') return mbBrief();   // simple choix de ligne : pas de nouveau calcul
+  if (e.target.id !== 'mb-label' && e.target.id !== 'mb-note') mbSchedulePreview();
+});
 
 // Aides ⓘ de la fiche Micro-bonus (recette #81-B) : une seule aide ouverte à la fois
 document.getElementById('mb-dialog').addEventListener('click', e => {
@@ -15693,11 +15724,25 @@ function mbPct(r) {
 }
 document.getElementById('btn-mb-add').addEventListener('click', e => mbOpen(null, e.currentTarget));
 
+let _mbPrev = null;   // dernier aperçu reçu (résultat en bref)
 async function mbPreview() {
+  const seq = ++_mbSeq;
+  const wait = document.getElementById('mb-brief-wait');
+  wait.classList.remove('hidden');
   const { ok, data } = await api('POST', '/api/admin/micro-bonuses/preview', { effect: mbRead().effect, depth: Number(document.getElementById('mb-depth').value), luck: Number(document.getElementById('mb-luck').value) });
+  if (seq !== _mbSeq) return;   // une saisie plus récente a relancé le calcul
+  wait.classList.add('hidden');
   const box = document.getElementById('mb-preview');
   if (!ok) { box.classList.add('hidden'); return adMessage('mb-dlg-msg', data.error || 'Erreur.', false); }
   document.getElementById('mb-dlg-msg').className = 'hidden';
+  _mbPrev = data;
+  const baseSel = document.getElementById('mb-base');
+  const keep = baseSel.options[baseSel.selectedIndex]?.textContent ?? '1';
+  baseSel.textContent = '';
+  data.simulation.rows.forEach((r, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = mbFr(r.base); baseSel.appendChild(o); });
+  const same = [...baseSel.options].find(o => o.textContent === keep);
+  baseSel.value = same ? same.value : '0';
+  mbBrief();
   document.getElementById('mb-prev-fr').textContent = data.text.fr;
   document.getElementById('mb-prev-en').textContent = `EN : ${data.text.en}`;
   document.getElementById('mb-prev-state').textContent = `📅 Calendrier : aujourd'hui, ce bonus ${data.state.code === 'active' ? 'serait actif s\'il était publié.' : `serait inactif s'il était publié (${data.state.text}).`}${data.state.next ? ` — ${data.state.next}.` : ''}`;
@@ -15736,6 +15781,35 @@ async function mbPreview() {
   box.classList.remove('hidden');
 }
 document.getElementById('btn-mb-preview').addEventListener('click', mbPreview);
+
+/** Recette #81-B bis : trois valeurs lisibles et une phrase qui relie coups économisés et pourcentage. */
+function mbBrief() {
+  const data = _mbPrev;
+  if (!data) return;
+  const sm = data.simulation;
+  const r = sm.rows[Number(document.getElementById('mb-base').value)] ?? sm.rows[0];
+  const tgt = document.getElementById('mb-target');
+  const set = (id, t) => { document.getElementById(id).textContent = t; };
+  const dmg = n => `${mbFr(n)} dégât${n >= 2 ? 's' : ''}`;
+  set('mb-brief-value', `+${mbFr(data.effect.value)}`);
+  set('mb-brief-target', `par coup manuel · ${tgt.options[tgt.selectedIndex]?.textContent ?? 'Tous les blocs'}`);
+  set('mb-brief-gain', mbPct(r));
+  set('mb-brief-share', `${mbFr(r.targetShare)} %`);
+  set('mb-brief-depth', `des blocs rencontrés à ${sm.depth} m`);
+  const where = `À ${sm.depth} m${sm.luck ? ` (Chance ${sm.luck})` : ''}, avec ${dmg(r.base)} par coup`;
+  if (r.zero) {
+    set('mb-brief-saved', 'aucun coup économisé');
+    set('mb-brief-sentence', `${where}, ce bonus ne ferait gagner aucun coup : aucun bloc possible ne se casse plus vite avec +${mbFr(data.effect.value)}.`);
+    set('mb-brief-note', 'Estimation selon les blocs tirés à cette profondeur.');
+    return;
+  }
+  const saved = r.savedPer100.toLocaleString('fr-BE', { maximumFractionDigits: r.savedPer100 >= 100 ? 0 : 1 });
+  const more = (r.hitsBefore / r.hitsAfter - 1) * 100;
+  set('mb-brief-saved', `≈ ${saved} coups sur 100 blocs`);
+  set('mb-brief-sentence', `${where}, vous économiseriez environ ${saved} coups sur 100 blocs (${mbPct(r)} de coups) : `
+    + `${mbFr(r.hitsAfter)} coups par bloc en moyenne au lieu de ${mbFr(r.hitsBefore)}.`);
+  set('mb-brief-note', `Estimation moyenne selon les blocs tirés. Ce sont des frappes, pas du temps : au même rythme de clics, environ +${more.toLocaleString('fr-BE', { maximumFractionDigits: more < 1 ? 2 : 1 })} % de blocs cassés.`);
+}
 
 document.getElementById('btn-mb-save').addEventListener('click', async () => {
   const body = mbRead();
