@@ -1,5 +1,77 @@
 # Ticket #56 — Événements mensuels : objets exclusifs à miner et calendrier automatique
 
+# Mise à jour du 10/11/2026, ~16 h (Bruxelles) : cases « à découvrir » lisibles sur téléphone (demande UX du propriétaire du 10/11)
+
+Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Demandes prises en compte :
+- [recette #56-L du 10/11 14:07](https://github.com/ReC82/Dig/issues/56#issuecomment-6769445533) : **VALIDÉE** (fenêtre de découverte, aperçu admin). Ne plus demander #56-L ni #56-K bis. Rien à corriger.
+- [demande UX du 10/11 14:09](https://github.com/ReC82/Dig/issues/56#issuecomment-6769498178) : « les icônes cachés […] ne sont quasi pas visibles » dans Collection → Événements sur téléphone. **À corriger directement** : c'est l'objet de cette mise à jour.
+
+## 1. État réel
+
+**Déployé en production (SHA `1b06667`), en attente de recette.**
+
+## 2. Résultat et changements
+
+**Cause.** Une case encore inconnue était affichée à **32 % d'opacité et en niveaux de gris**, avec un « ? » et un « ??? » gris (#6b7280) sur un fond très sombre. Contraste réel : environ **1,3:1**, donc quasi invisible.
+
+**Correction (CSS + libellé, aucune donnée touchée) :**
+- Opacité pleine, plus de filtre gris. Fond en léger dégradé (`--surface2` → `--surface`), comme le reste du thème sombre.
+- **« ? » dans un cercle** clair : glyphe #d5d9e3 (≥ 10,9:1), cercle #8a91ab (≥ 4,9:1).
+- **Contour pointillé** #7c8299 (≥ 4,0:1 ; l'exigence est de 3:1). Il devient doré au survol, pour inviter au clic.
+- Le libellé « ??? » devient **« À découvrir »** (#a3a9bb, ≥ 6,6:1, AA texte normal), traduit : *To discover*, *Te ontdekken*, *Por descubrir*, *Da scoprire* (IT pilote).
+- **Rien n'est divulgué** : ni nom, ni image, ni rareté (la classe reste `find-rarity-unknown`, sans liseré coloré), ni provenance, ni chances. Le libellé accessible reste « Objet non découvert ». La fiche ouverte au clic est inchangée : « Objet non découvert », sans rareté, avec « Personne ne sait encore… ».
+- **Même style pour les séries de collection** (« Collection des origines », séries de saison) : elles utilisaient le même `.find-card` et avaient le même défaut. Le panneau souvenirs et la grille Collection sont donc couverts.
+- **Objets trouvés inchangés** : contour plein, liseré de rareté, image ou emoji, nom.
+
+Fichiers : `public/css/style.css`, `public/js/main.js` (2 libellés), `public/js/i18n.js` (clé `collection.to_discover` FR/EN/NL/ES), `i18n/it.json` + `public/js/locales/it.js` (IT reconstruit par `tools/i18n/cli.js build it`), `test/collection-unknown-contrast.test.js` (nouveau, 3 tests), `test/monthly-events-coverage.test.js` (attendu « À découvrir » au lieu de « ??? »), `test/e2e/unknown-cards-56.e2e.js` (nouvel essai navigateur).
+
+## 3. SHA, branche, procédure de test
+
+- Branche `feature/56-evenements-mensuels`, commit `29592e9` ; **`develop` = `1b06667`** (fusion), déployé.
+- `npm test` → 1068/1068 (dont les contrastes calculés depuis `style.css`).
+- Navigateur (serveur de test démarré, `/api/events` simulé, aucun compte) :
+  `PW=…/playwright-core CHROME=…/chrome-headless-shell BASE=http://127.0.0.1:3101 OUT=/tmp/x node test/e2e/unknown-cards-56.e2e.js` → `OK`.
+
+## 4. Vérifications, limites, données joueurs
+
+- Essai Chromium à **320×568, 390×844, 430×932 et 1280×900** : 29 cases d'événement et 8 cases de série inconnues, toutes à opacité 1 et sans filtre. Contrastes mesurés dans la page : texte 6,59, « ? » 10,95, contour 4,06, cercle 4,95. Aucune classe de rareté. Libellé sans débordement, aucun défilement horizontal. Focus clavier visible (Tab → contour doré). Entrée ouvre la fiche générique, sans rareté. Objet trouvé inchangé. 0 erreur JS.
+- Captures relues à 320 et 390 px : les cases sont nettement visibles sans écraser l'objet trouvé.
+- **Non fait** : essai navigateur sur la production elle-même. La version servie est vérifiée : `style.css?v=1.0.0+1b06667` contient la nouvelle règle.
+- **Données joueurs** : aucune migration, aucune écriture. Objets, drops, chances, effets, sauvegardes, événements et langue sont inchangés.
+
+## 5. Déploiement
+
+- Release `1b06667` : `npm ci` + `npm test` 1068/1068. Sur une copie de la production, empreintes identiques avant et après démarrage (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`), `quick_check` ok, `/api/version` = `1.0.0+1b06667` ; copie supprimée.
+- Aucune génération IA en cours (dernier appel de l'atelier : 13:48 UTC).
+- `main` avancé en avance rapide (`fabf0ce` → `1b06667`) ; `scripts/deploy.sh` OK. Sauvegarde vérifiée : `dig-20261110-155446-pre-deploy-1b06667.sqlite`.
+- Après le déploiement : les 2 domaines répondent 200 en `1.0.0+1b06667`, journal sans erreur, `quick_check` ok, empreintes identiques à la sauvegarde.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep fabf0ce` + `sudo systemctl restart dig`. Changement purement visuel, sans aucune donnée.
+
+**Recette mobile courte (#56-M), à faire par le propriétaire :**
+1. Sur téléphone, Dig → **Collection** → Événements → « Novembre déterre l'Histoire ».
+2. Attendu : chaque case non trouvée est **nettement visible**. Elle montre un « ? » dans un cercle clair, un contour pointillé et le texte « À découvrir ». Aucun nom, image ni couleur de rareté.
+3. Faire défiler jusqu'à « Collection des origines » : même aspect pour les objets non trouvés. Les objets déjà trouvés gardent leur aspect habituel.
+4. Toucher une case inconnue : fiche « Objet non découvert », sans rareté ; la fermer.
+
+Classement : **Bloquant MVP public** (lisibilité de la Collection sur téléphone pour la bêta), petit et livré.
+
+## 6. Choix techniques faits seul
+
+- Teintes fixes choisies pour le contraste plutôt que de modifier `--muted` : changer la variable globale aurait touché tout le jeu (« ne pas toucher aux visuels adjacents »).
+- « À découvrir » remplace « ??? » : le texte est lisible et traduit, et le « ? » cerclé suffit comme symbole. Le libellé d'accessibilité « Objet non découvert » est conservé.
+- Le contour devient doré au survol : un indice d'interaction discret, qui ne révèle rien.
+
+## 7. Décisions demandées au propriétaire
+
+Aucune nouvelle décision pour cette correction. Les questions déjà ouvertes sur #56 restent valables (voir la section précédente) : publication des 26 souvenirs de Noël, alignement du barème des 5 objets de Noël, assistant IA du panel après la bêta, thèmes 2027 à J-14.
+
+## 8. Restant à réaliser
+
+- Recette #56-M (ci-dessus).
+- Découvertes réelles observées en bêta (portée limitée de #56-L, notée par le propriétaire) et préparation de Noël (décisions ci-dessus).
+
+---
+
 # Mise à jour du 10/11/2026, ~15 h (Bruxelles) : fenêtre de découverte d'un souvenir (décision du propriétaire du 10/11)
 
 Ticket : [#56](https://github.com/ReC82/Dig/issues/56). Demande prise en compte : [décision du propriétaire du 10/11 12:51](https://github.com/ReC82/Dig/issues/56#issuecomment-6767800780), « découverte exceptionnelle d'un souvenir : vraie fenêtre à fermer ». Lien : #81 (bonus) et #93 (doubles).
