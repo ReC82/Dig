@@ -3,6 +3,86 @@
 - Ticket : #91 « [P0][SÉCURITÉ] Détecter autoclickers en secondes et préparer suspensions graduées sans faux positifs » — https://github.com/ReC82/Dig/issues/91
 - Session du 08/11/2026 (DIGORCH), lot 1 (autoclickers basiques) demandé par le propriétaire le 08/11.
 
+## Mise à jour du 10/11/2026 — décision du propriétaire : suspensions effectivement appliquées, mêmes règles pour tous
+
+Commentaires du propriétaire du 10/11 (12:51 et 12:59 UTC) : appliquer réellement les suspensions graduées (5 → 15 → 30 → 60 → 120 → 720 → 1440 min) en cas d'autoclic **corroboré**, pour **tous** les bêta-testeurs (fin du « compte de test seulement »), sans sanction pour la simple présence d'une extension (#92), sans bannissement ni effacement rétroactif ; si c'est déjà en place, corriger seulement le défaut trouvé.
+
+### 1. État réel
+
+**Déployé en production (SHA `fabf0ce`, 10/11/2026 15:22 Bruxelles) — en attente de recette.** Classement : **Bloquant MVP public** (concours des collègues en cours).
+
+### 2. Vérification de ce qui était en place (lecture seule de la base de production)
+
+- Réglages en production : réponses anti-bot **Appliqué pour tous** (`antibot_response_mode = enforce`), détection rapide ON, vérification « même pixel » ON (25 clics), suspension sur récidive ON (60 min), paliers `5,15,30,60,120,720,1440`. **Aucun compte en régime particulier** (aucun « essai » forcé, admin compris) : le compte du propriétaire a été suspendu comme n'importe quel joueur.
+- **La suspension fonctionne déjà réellement** : le 10/11 à 13:56:16 (Bruxelles) l'extension OP Auto Clicker du propriétaire a déclenché une vérification (25 clics au même pixel) ; énigme résolue 10 s plus tard ; reprise de l'extension → **suspension n° 1, palier 1, 5 min, à 13:57:03** (47 s après la résolution), motif « clics automatiques repris après une vérification ». Pendant la suspension et la vérification qui suivait, **0 clic compté et 0 bloc classé** (305 clics / 24 blocs avant et après, jusqu'à la résolution à 14:28).
+- **Pourquoi l'activité détectée par #92-B à 11:21 n'a abouti à rien** : (1) le propriétaire venait de faire un test admin (vérification à 11:08) → la vérification « même pixel » était en délai minimal de 30 min ; (2) la session d'extension n'a duré ≈ 14 s (25 + 40 + 10 clics) : chaque fenêtre avait moins de 40 intervalles, donc la « régularité machine » — seule voie de corroboration — n'était jamais calculée ; (3) la gigue de l'extension (10–15 %, 13 % des intervalles hors de la classe principale) la place souvent sous le seuil « 80 % dans 3 classes de 4 ms » (0,67 à 0,89 mesuré). Et une suspension exige une vérification #91 résolue auparavant : sans vérification, pas de suspension (règle voulue).
+- Défaut trouvé dans le navigateur : après une vérification ou une suspension, la **plus longue série au même pixel** n'était pas remise à zéro. À 14:38, la 1ʳᵉ fenêtre de clics humains du propriétaire a été envoyée avec « 158 clics au même pixel » hérités de l'extension (sans effet ce jour-là grâce au délai minimal, mais c'est une fausse preuve possible, et des mesures d'avant la vérification pouvaient compter dans la confirmation d'après).
+- Autres joueurs : 1 vérification « même pixel » pour un bêta-testeur humain qui clique vite souris posée (résolue en 12 s) — comportement prévu, **0 suspension d'humain**. Données insuffisantes (2 joueurs mesurés depuis le 08/11) pour un taux de faux positifs en conditions réelles : les chiffres ci-dessous viennent des simulations.
+
+### 3. Correction réalisée (uniquement les défauts trouvés)
+
+- `server/autoclickDetector.js` — **deuxième faisceau de corroboration** : même pixel (≥ 25) **+** ≥ 90 % de coups générés par script (`isTrusted = false`, au moins 20 coups, cadence ≥ 2 coups/s) **+** souris immobile ou cadence stable mesurée par le serveur ⇒ « autoclicker corroboré », même si la gigue masque le rythme machine. Un humain, un outil d'accessibilité (clics fiables du navigateur) ou un clic lent ne remplissent jamais ce faisceau. Le premier faisceau (rythme machine + même pixel + 3ᵉ indice) est inchangé. La présence d'une extension (#92) n'est **pas** utilisée.
+- `public/js/main.js` — à l'affichage d'une vérification ou d'une suspension, **toutes** les mesures rapides repartent de zéro (série au même pixel, plus longue série, intervalles, souris immobile).
+- `server/antibotResponses.js` — la vérification liste ses vrais indices (`scripted`, `regular` seulement s'il est établi) ; la fiche admin garde l'indicateur « script ».
+- `public/admin/admin.js` — carte « Autoclicker » : ligne « Presque tous les clics générés par script… » ; texte « < 40 intervalles » corrigé.
+- Inchangé (vérifié) : paliers, délai de 60 min pour la récidive, 2 fenêtres consécutives exigées, interrupteurs d'urgence, levée et palier admin, message joueur (motif + heure de fin, 5 langues), « 🐞 Signaler une erreur », historique admin, Auto-Dig non concerné.
+
+### 4. SHA, branche, procédure de test
+
+- Branche `feature/91-autoclicker-rapide` (`8b0c1c0`), **`develop` = `fabf0ce`** (= production).
+- `node --test test/autoclick-fast-91.test.js` : **24/24** (5 nouveaux : fenêtres réelles du 10/11 rejouées, garde-fous du faisceau script, remise à zéro client, pipeline « Appliqué pour tous » avec palier 5 → 15 puis levée + palier 0 → 5, requêtes forgées pendant la suspension).
+- `npm test` : **1065/1065** sur la branche, sur `develop` et sur le SHA exact de la release.
+- Navigateur réel (Chromium, serveur de test port 3101, base jetable) : `PW=… CHROME=… BASE=http://127.0.0.1:3101 ADMIN=… node test/e2e/autoclick-fast-91.e2e.js` → **TOUT OK** :
+  - A (PC, souris au même pixel 125 ms) : vérification 5,3 s ; suspension 5 min 27,6 s après la reprise ;
+  - B (humain qui bouge) : rien ; C (souris posée, rythme humain) : vérification « même pixel » seule, 0 suspension ; D (mobile 390×844) : vérification 5,5 s ;
+  - **E (nouveau, type extension : clics générés par script, gigue ±15 %)** : vérification **4,6 s** (raison « autoclicker corroboré ») ; énigme ; reprise → **suspension 5 min 15,9 s après** ; **F5 : suspension toujours affichée, 0 coup compté** ; levée admin + palier 0 → prochain palier 5 min ; énigme ; clics humains ensuite : aucune vérification, aucune série héritée.
+- Rejeu des fenêtres réelles du propriétaire : avec la correction, la vérification serait tombée dès la 1ʳᵉ fenêtre à 11:21, et la suspension de 13:57 serait tombée **14 s** après la reprise au lieu de 37 s.
+- Requête forgée pendant la suspension (autre appareil, sans télémétrie : +2 000 clics, +200 blocs, profondeur +200, 6 envois) : **0 bloc classé, 0 m de profondeur**, la suspension est renvoyée à chaque envoi ; après la fin, rien de rétroactif n'est crédité.
+
+### 5. Vérifications, limites, données joueurs
+
+- Faux positifs (simulation) : 0/2 000 fenêtres humaines (CV 8–20 %) jugées « machine » ; le faisceau « script » est impossible sans coups `isTrusted = false` (un humain n'en produit pas). Ce n'est **pas** une preuve d'absence de faux positifs en bêta : surveiller la carte « Autoclicker » et les suspensions dans 🛡 Anti-bot.
+- Limites (inchangées, lot 2) : autoclicker **système** (Windows) à gigue aléatoire et souris qui bouge, client modifié qui ment sur `isTrusted`/les coordonnées → seule la vérification « même pixel » ou le score de risque les attrapent. Ne pas annoncer « triche impossible ».
+- Pièces, gemmes, ressources : déclarées par le navigateur (protection serveur = blocs classés et profondeur, ce qui donne les lots) — #49/#77.
+- Aucune donnée joueur modifiée ; aucune migration (aucune colonne ajoutée).
+
+### 6. Déploiement
+
+- SHA déployé **`fabf0ce`** (précédent `96a6235`), 10/11 15:22 ; sauvegarde vérifiée `~/backups/dig/dig-20261110-152229-pre-deploy-fabf0ce.sqlite` ; copie de prod démarrée en `NODE_ENV=production` : empreintes identiques ; après déploiement : 2 domaines 200 et `1.0.0+fabf0ce`, journal sans erreur, `quick_check` ok, comptes inchangés, réglages vérifiés, Chromium visiteur PC/mobile 0 erreur (nouveau code servi). Retour arrière : `git -C /home/ubuntu/Dig reset --keep 96a6235` + redémarrage (aucun changement de base).
+
+#### Test fonctionnel à faire par le propriétaire (≈ 5 min, compte habituel — règles identiques pour tous)
+
+1. Jeu PC (Ctrl+F5). Lancer l'extension OP Auto Clicker (ou l'autoclicker Windows à 125 ms) au centre du bloc → « 🛡️ Petite vérification » en **moins de 10 s**.
+2. Arrêter l'autoclicker, résoudre l'énigme, **relancer aussitôt** → en ≈ 15–30 s : « ⏸️ Minage manuel en pause — Des clics automatiques… jusqu'à HH:MM » (5 min, ou le palier suivant si le palier n'a pas été remis à 0 depuis ce matin : 15 min).
+3. F5, ou ouvrir le jeu sur le téléphone : la pause est toujours affichée, les clics ne comptent pas, le classement ne bouge pas. « 🐞 Signaler une erreur » est disponible.
+4. Admin → 🛡 Anti-bot → fiche du compte : carte « Autoclicker — détection rapide (#91) » = « autoclicker corroboré » (✔ même pixel, ✔ souris immobile, ✔ « clics générés par script » pour l'extension) ; historique des suspensions ; **« Lever »** puis **palier → 0** (remise à zéro sûre après le test).
+5. Témoin : jouer 1 min à la main en bougeant la souris → rien.
+- Arrêt d'urgence : Anti-bot → Réglages → « Suspension si automatisation corroborée répétée » OFF (vérifications seules), ou « Détection rapide » OFF.
+- Note : le palier de ton compte est actuellement **1** (suspension de 13:57) ; le remettre à 0 si tu veux revoir 5 min au prochain essai.
+
+### 7. Choix techniques faits seul
+
+- Faisceau « script » plutôt qu'un seuil de rythme abaissé : abaisser le seuil de régularité aurait rapproché les humains rapides ; `isTrusted = false` sur ≥ 90 % des coups est un indice qu'aucun humain ne produit, combiné au même pixel et à la souris immobile (3 indices indépendants), et la suspension exige toujours une récidive après une vérification résolue + 2 fenêtres consécutives.
+- Seuils : ≥ 20 coups, ≥ 90 % non fiables, médiane ≤ 500 ms (exclut un clic d'accessibilité lent).
+- Aucune utilisation de la présence d'une extension (#92) dans la sanction.
+
+### 8. Décisions demandées au propriétaire
+
+Aucune décision bloquante. Deux points restent ouverts (non bloquants) :
+1. Vérification « même pixel » pour une souris posée : garder au plus 1 par 30 min (recommandé) ?
+2. Lot 2 (autoclicker système à gigue aléatoire + mouvements simulés, client modifié) après le concours (recommandé) ?
+(La question « gains de la fenêtre suspecte » est tranchée par le commentaire du 10/11 : aucun effacement rétroactif — gel prospectif seulement, option A, en place.)
+
+À signaler (hors #91) : la signature #92 « OP Auto Clicker » est en mode « Mon compte de test » (`ab_ext_sig_op_auto_clicker = self`, journal seulement). Avec la décision « mêmes règles pour tous », son passage à « Tous » relève de #92.
+
+### 9. Reste à réaliser
+
+- Recette du propriétaire (ci-dessus). Lot 2 (après lancement). Surveillance des suspensions en bêta.
+
+---
+
+## Rapport initial du 08/11/2026
+
 ## 1. État réel
 
 **Déployé en production (SHA `4f3c8fd`, 08/11/2026 20:10 Bruxelles) — actif pour tous les joueurs (mode global Appliqué), en attente de recette du propriétaire.**
