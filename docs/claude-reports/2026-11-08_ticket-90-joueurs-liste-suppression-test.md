@@ -4,6 +4,84 @@
 - Liés : #75 (Recommencer un test à zéro, inchangé), #80 (Retirer de la bêta, inchangé), #84 (bêta collègues)
 - Classement : **Bloquant MVP public** pour la liste (outil de suivi de la bêta du 09/11) ; la suppression de compte de test est un outil de recette, **Après lancement** si elle devait être retirée.
 
+## Session du 10/11/2026 (DIGORCH) — recette #90-B : diagnostic d'éligibilité avant marquage
+
+### 1. État réel
+
+**Déployé en production (SHA `11b00c0`, 10/11/2026 12:25 Bruxelles) — en attente de recette du diagnostic.**
+Déjà validé par le propriétaire le 10/11 (ne pas redemander) : **#90-A** (liste, pagination, tri, recherche, retour depuis la fiche) et **#90-B bis** (suppression d'une identité jetable neuve puis réinscription avec la même identité).
+
+### 2. Retour traité
+
+Recette #90-B : le compte `testeur` (ID 2), marqué « compte de test », restait non supprimable et la fiche ne le disait qu'**après** la saisie du motif, du pseudo et de SUPPRIMER. Le refus lui-même est voulu (verrous du ticket) et **n'a pas été modifié**.
+
+### 3. Changements réalisés
+
+- `server/playerAdmin.js` — l'aperçu de suppression renvoie un diagnostic `eligibility` :
+  - `needs_mark` : aucune donnée protégée, il manque seulement la marque ;
+  - `deletable` : marqué, aucune donnée protégée ;
+  - `protected` : données protégées — « Même marqué « compte de test », ce compte ne pourra pas être supprimé : N catégories de données protégées » (avant marquage) ou « Compte de test reconnu, mais suppression bloquée par N catégories de données protégées » (après).
+  - Chaque verrou indique sa catégorie, son nombre, **sa raison en langage simple** et un détail sans donnée personnelle (types de mouvements de points, saison et rang, commande virtuelle/réelle et statut, place au classement figé).
+- Admin → Joueurs → fiche → **Actions sensibles** : le diagnostic s'affiche **dès l'ouverture** (vert / doré / rouge), le bouton « Supprimer le compte de test… » est **désactivé** quand des données sont protégées, et « **Pourquoi ? Et comment refaire une inscription quand même** » explique chaque verrou et les voies sûres (identité jetable neuve ; « Recommencer un test à zéro » #75 qui garde login, points et classement figé).
+- Fenêtre « Marquer comme compte de test » : **avertissement avant la saisie** si la marque ne suffira pas.
+- Correctif : dans la fenêtre de suppression, le formulaire (motif, pseudo, SUPPRIMER) devait être masqué quand la suppression est impossible, mais une règle CSS `display:flex` l'emportait sur `hidden` — c'est pourquoi la capture #90-B montrait les champs saisis avec un bouton grisé. Il est maintenant masqué.
+- Aucun bouton de contournement, aucune suppression automatique, aucune modification de données.
+
+### 4. SHA, branche et procédure de test
+
+- Branche `feature/90-joueurs-liste-suppression-test`, commit `7555b5a` ; **`develop` = `11b00c0`** (déployé).
+- `npm test` : **1046/1046** sur le SHA exact `11b00c0` (release) et sur la branche. Nouveau test unitaire « diagnostic d'éligibilité (#90-B) » dans `test/admin-players-90.test.js` : compte neuf `needs_mark` → `deletable` → supprimé ; compte de type « testeur » (crédit admin, dépense, remboursement, attribution de saison réelle, commande annulée, classement figé) : `protected` dès avant le marquage avec 5 catégories, détails lisibles, aucun e-mail ; après marquage « reconnu, mais bloqué », suppression refusée, données intactes.
+- Essai navigateur `test/e2e/players-90b.e2e.js` (serveur de test port 3101, base temporaire) : **réussi** à 1280, 390 et 320 px sans débordement — diagnostic avant marquage, avertissement dans la fenêtre de marquage, diagnostic « reconnu, mais bloqué » après, bouton désactivé, « Pourquoi ? », identité jetable : formulaire masqué tant que non marquée, puis suppression possible.
+
+### 5. Vérification demandée : valeurs réelles ou données fictives de bêta ? (lecture seule de la base de production)
+
+Pour le compte ID 2, les 5 catégories bloquantes proviennent de **deux origines différentes** :
+- **Données d'essai** (#34, 03/11) : un crédit manuel admin de 1 point motivé « TEST #34 », dépensé pour l'article fictif « Titre honorifique TEST » (virtuel), commande **annulée** et **remboursée**. Fictif, mais inscrit dans des registres en ajout seul protégés par des déclencheurs SQLite.
+- **Valeur réelle de saison** : attribution **réelle** (mode « live ») de 5 points de mérite pour la saison 8 (« Saison 45-2026 », clôturée, rang 2 sur 2 éligibles), avec la 2ᵉ place dans le **classement figé** de cette saison (instantané chaîné par empreinte). Portefeuille : solde 6 points (7 gagnés, 1 dépensé).
+
+Conclusion : le refus n'est **pas** dû seulement à des données fictives ; un nettoyage « des données de test » ne suffirait pas à rendre ce compte supprimable sans toucher à un classement de saison publié.
+
+### 6. Analyse — procédure exceptionnelle pour réutiliser exactement `testeur` (NON mise en œuvre)
+
+Elle exigerait, sous accord écrit et spécifique du propriétaire :
+1. **Migration destructive** : `reward_point_ledger`, `reward_point_awards`, `shop_orders`, `season_standings` et `season_snapshots` sont protégés par des déclencheurs « suppression interdite » ; il faudrait les désactiver, ce que les règles du projet interdisent sans accord.
+2. **Classement figé** : retirer ou anonymiser la 2ᵉ place de la saison 8 casse la chaîne d'empreintes (`rows_hash` / `snapshot_hash` / `prev_hash`) des saisons suivantes ; il faudrait soit garder la ligne avec un identifiant d'archive (anonymisation : `user_id` remplacé par un identifiant fantôme jamais attribué), soit recalculer et republier la chaîne. Le second point modifie un résultat publié ; seul le premier est envisageable.
+3. **Tiers** : l'autre joueur classé 1ᵉʳ de la saison 8 garde son rang et ses points ; aucune ligue n'est impactée (une seule ligue). Aucun gain réel ni paiement concerné.
+4. **Obligations** : pas de lot réel ni de paiement ; aucune obligation comptable ; la trace d'audit `account_deletions` garderait le motif.
+5. **Sécurité** : sauvegarde vérifiée avant, opération en une transaction, retour arrière = restauration de la sauvegarde (uniquement sur décision du propriétaire).
+
+**Recommandation** : ne pas le faire. La voie sûre est validée (#90-B bis) : identité jetable neuve pour tester l'inscription ; pour rejouer avec `testeur`, « Recommencer un test à zéro » (#75) remet la progression à zéro sans toucher à l'historique.
+
+### 7. Déploiement
+
+- Copie de la base de production démarrée avec `11b00c0` (port 3122) : santé et version OK, **empreintes identiques** (users, user_saves, season_rankings, seasons, leagues, player_click_tracking) ; copie supprimée.
+- Aucune génération IA en cours (dernier appel de l'atelier 35 min avant).
+- `main` avancé en avance rapide `c1c9cdd → 11b00c0`, `scripts/deploy.sh` de la release : sauvegarde vérifiée `~/backups/dig/dig-20261110-122541-pre-deploy-11b00c0.sqlite`, santé et version OK.
+- Après déploiement : 2 domaines 200 + `1.0.0+11b00c0`, API admin 401 sans authentification, journal sans erreur, `quick_check` ok, empreintes de production identiques à la sauvegarde pré-déploiement, jeu et admin chargés sans erreur JS (PC + mobile ; seuls les 401 attendus hors connexion).
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep c1c9cdd` + redémarrage (aucune migration, aucun changement de dépendances).
+- **Aucun compte supprimé ni marqué en production par cette session.**
+
+**Test fonctionnel à faire par le propriétaire (#90-C, ~2 min)** — Admin → Joueurs → ouvrir la fiche **TESTEUR (ID 2)** → déplier « Actions sensibles » :
+1. Sans rien saisir, un encadré rouge dit « ⛔ Compte de test reconnu, mais suppression bloquée par 5 catégories de données protégées. », liste les 5 catégories avec leur détail, et le bouton « Supprimer le compte de test… » est grisé.
+2. Déplier « Pourquoi ? » : une raison par catégorie et les deux voies sûres (identité jetable neuve ; Recommencer un test à zéro).
+3. (Facultatif) Ouvrir la fiche d'un compte neuf jamais joué, non marqué : encadré doré « Aucune donnée protégée : la suppression sera possible une fois le compte marqué… ». Ne rien supprimer.
+
+Classement : **Après lancement** (outil admin de recette ; la liste #90-A, bloquante MVP, est validée).
+
+### 8. Choix techniques faits seul
+
+- Le diagnostic est calculé côté serveur dans l'aperçu existant (lecture seule) : une seule source de vérité avec le refus de suppression.
+- Bouton de suppression désactivé quand des données sont protégées (et non masqué) : l'administrateur voit que l'action existe et pourquoi elle est indisponible.
+- Le marquage reste possible sur un compte protégé (utile pour le filtre « Comptes de test »), mais avec l'avertissement préalable.
+
+### 9. Décisions demandées au propriétaire
+
+1. Procédure exceptionnelle pour réutiliser exactement `testeur` (anonymisation des historiques, section 6) : **(a) non, garder l'identité jetable + Recommencer un test à zéro — recommandé** ; (b) oui, préparer un script d'anonymisation à valider séparément (migration destructive, accord écrit requis).
+
+### 10. Reste à faire
+
+- Recette #90-C du diagnostic. Rien d'autre dans le périmètre.
+
 ## Session du 08/11/2026 (DIGORCH)
 
 ### 1. État réel
