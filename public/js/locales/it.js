@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 918/918 textes. Absents → français. */
+/* Italian (preview) : 919/919 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -300,6 +300,7 @@ I18n.registerLocale("it", {
   "found_on": "Trovato il {date}",
   "quantity": "Quantità: {n}",
   "series_origins": "Collezione delle origini",
+  "to_discover": "Da scoprire",
   "unknown_archived": "Questo oggetto apparteneva a una stagione conclusa: non è stato trovato in tempo.",
   "unknown_story": "Nessuno sa ancora cosa si nasconda qui… Continua a scavare!",
   "unknown_title": "Oggetto non scoperto"

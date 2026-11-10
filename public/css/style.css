@@ -1771,14 +1771,25 @@ h1 {
 .find-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .find-card.found { border-color: rgba(245,197,24,0.22); }
 .find-card.found:hover { transform: scale(1.05); }
-.find-card:not(.found) { opacity: 0.32; filter: grayscale(1); }
+/* Case encore inconnue (recette du 10/11) : lisible sans rien divulguer — contrastes AA vérifiés sur --surface/--surface2
+   (texte ≥ 6,5:1, « ? » ≥ 10:1, contour ≥ 4:1). Aucune rareté, image ni nom avant la trouvaille. */
+.find-card:not(.found) {
+  background: linear-gradient(160deg, var(--surface2), var(--surface));
+  border: 1px dashed #7c8299;
+}
+.find-card:not(.found):hover { border-color: rgba(245,197,24,0.55); }
 .find-card.find-rarity-rare       { border-color: rgba(96,165,250,0.45); }
 .find-card.find-rarity-epique     { border-color: rgba(168,85,247,0.5); }
 .find-card.find-rarity-legendaire { border-color: rgba(245,197,24,0.6); }
 
 .find-icon { font-size: 1.75rem; line-height: 1; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5)); }
 .find-icon img { width: 36px; height: 36px; object-fit: contain; display: block; }
-.find-card:not(.found) .find-icon { font-size: 1.2rem; color: var(--muted); }
+.find-card:not(.found) .find-icon {
+  width: 30px; height: 30px; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid #8a91ab; border-radius: 50%; background: rgba(255,255,255,0.05);
+  font-size: 1rem; font-weight: 800; color: #d5d9e3; filter: none;
+}
+.find-card:not(.found) .find-name { color: #a3a9bb; }
 .find-name { font-size: 0.57rem; font-weight: 600; color: var(--muted); line-height: 1.2; }
 .find-card.found .find-name { color: var(--text); }
 
