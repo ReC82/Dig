@@ -1008,7 +1008,7 @@ I18n.registerLocale("it", {
   "gems": "Gemme",
   "pickaxe": "Piccone",
   "pickaxe_val": "Lv.{n}",
-  "relics": "🔮 Framm."
+  "relics": "Framm."
  },
  "tutorial": {
   "back": "Indietro",

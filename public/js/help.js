@@ -58,7 +58,7 @@ const DigHelp = (() => {
     if (!TOPICS[id]) return '';
     const label = _esc(t('help.tip_aria', { topic: title(id) }));
     return `<button type="button" class="help-tip-btn" data-help="${id}" aria-label="${label}" title="${label}"`
-      + ` aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true">?</span></button>`;
+      + ` aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true">${typeof UiIcons !== 'undefined' ? UiIcons.html('aide_contextuelle', '?') : '?'}</span></button>`;
   }
 
   /** Remet à jour les libellés des ? statiques (index.html) après un changement de langue. */

@@ -78,13 +78,14 @@ test('registre : identifiants stables et uniques, zones, ids existants conservé
 test('raccordement : chaque pictogramme déployable est lu par le jeu au bon endroit (aucune cible orpheline)', () => {
   const html = read('public/index.html');
   const main = read('public/js/main.js');
+  const help = read('public/js/help.js');
   const upgrades = read('public/js/upgrades.js'), quests = read('public/js/quests.js'), missions = read('public/js/dailyMissions.js');
   for (const u of UI_TARGETS.filter(x => x.deployable)) {
     let wired;
     if (u.zone === 'nav' || u.zone === 'header') wired = new RegExp(`data-ui-icon="${u.id}"`).test(html);
     else if (u.zone === 'upgrades') wired = /UiIcons\.html\(`upgrade_\$\{def\.id\}`/.test(main) && upgrades.includes(`id: '${u.id.slice(8)}'`);
     else if (u.zone === 'quests') wired = /UiIcons\.html\(`quete_\$\{def\.id\}`/.test(main) && quests.includes(`id: '${u.id.slice(6)}'`);
-    else wired = main.includes(`'${u.id}'`);
+    else wired = new RegExp(`data-ui-(icon|lead)="${u.id}"`).test(html) || main.includes(`'${u.id}'`) || help.includes(`'${u.id}'`);
     assert.ok(wired, `pictogramme raccordé au jeu : ${u.id}`);
   }
   // Missions du jour : emblèmes du catalogue #68 (mission:<id>), lus par le jeu sous mission_<id>, sans doublon ui:
@@ -250,4 +251,49 @@ test('missions du jour (#68) : emblème publié servi au jeu seulement quand le 
     assert.strictEqual(studio.uiIconMap().icons.mission_earn_coins, undefined, 'sans image : emoji d\'origine');
   } finally { Object.assign(missionCatalog, orig); }
   assert.strictEqual(studio.uiIconMap().icons.mission_break_blocks, undefined);
+});
+
+test('recette #67-B : nouvelles cibles raccordées (aide, information, saison, boutique, sections), un pictogramme par rôle', () => {
+  const html = read('public/index.html'), main = read('public/js/main.js'), help = read('public/js/help.js');
+  const ids = new Set(UI_TARGETS.filter(u => u.deployable).map(u => u.id));
+  for (const id of ['aide', 'aide_contextuelle', 'info', 'doubler', 'saison_theme', 'saison_resultat', 'points_recompense', 'cadeaux_boutique',
+    'coffres', 'argent_reel', 'pack_gems_5', 'pack_gems_20', 'pack_gems_60', 'pioche_entretien', 'pioche_reserve', 'pioche_vitesse',
+    'pioche_recharge', 'fragments', 'objectifs', 'reliques', 'badges', 'evenements']) assert.ok(ids.has(id), `cible ${id}`);
+  // Aide : l'apparence seule change — le bouton, son aria-label, sa zone tactile et son comportement restent
+  assert.match(html, /<button id="btn-help"[^>]*aria-label="[^"]+"[\s\S]{0,300}<span class="hdr-ico-wrap" data-ui-icon="aide"><svg/);
+  assert.match(help, /class="help-tip-btn"[^`]*aria-label="\$\{label\}"[\s\S]{0,200}UiIcons\.html\('aide_contextuelle', '\?'\)/);
+  const staticTips = html.match(/class="help-tip-btn"[^>]*><span[^>]*>\?<\/span><\/button>/g) || [];
+  assert.ok(staticTips.length >= 5 && staticTips.every(b => /aria-hidden="true" data-ui-icon="aide_contextuelle"/.test(b)), 'tous les ? statiques raccordés');
+  // Un même rôle = une seule cible : les trois ℹ️ partagent « info », les monnaies existantes sont réutilisées
+  assert.strictEqual((main.match(/UiIcons\.lead\('info', /g) || []).length, 3);
+  assert.match(main, /UiIcons\.lead\('gemmes', t\('shop\.section_gems'\)\)/);
+  assert.match(main, /UiIcons\.lead\('boost', t\('shop\.section_boosts'\)\)/);
+  assert.match(main, /UiIcons\.lead\('saison_resultat', t\('season\.last\.title'/);
+  assert.match(main, /UiIcons\.html\('saison_theme', season\.theme\.icon/);
+  assert.match(main, /gems_5: 'pack_gems_5', gems_20: 'pack_gems_20', gems_60: 'pack_gems_60', boost_x3_30m: 'boost'/);
+  for (const id of ['pioche_reserve', 'pioche_vitesse', 'pioche_recharge', 'pioche_entretien']) assert.ok(main.includes(`'${id}'`), id);
+  // Les titres statiques sont décorés après chaque traduction (sinon un changement de langue effacerait l'image)
+  assert.match(read('public/js/i18n.js'), /UiIcons\.decorate\(\)/);
+});
+
+test('recette #67-B : FRAGS et « Blocs manuels » sans petit pictogramme isolé ; blocs_mines retiré du jeu', () => {
+  const i18n = read('public/js/i18n.js'), it = read('public/js/locales/it.js'), main = read('public/js/main.js');
+  assert.doesNotMatch(i18n, /relics: '🔮/, 'carte FRAGS : libellé seul, comme Pièces, Gemmes, Profondeur, Pioche, Dégâts');
+  assert.strictEqual((i18n.match(/relics: 'Frags'/g) || []).length, 4);
+  assert.match(it, /"relics": "Framm\."/);
+  assert.match(main, /<span class="lb-blocks">\$\{t\('season\.lb\.blocks'\)\}<\/span>/);
+  assert.doesNotMatch(main, /blocs_mines/);
+  const bm = UI_TARGETS.find(u => u.id === 'blocs_mines');
+  assert.strictEqual(bm.deployable, false, 'identifiant et images conservés, plus servis au jeu');
+  assert.throws(() => studio.apply('ui:blocs_mines', { sha: 'a'.repeat(16), live: true }), e => e.status >= 400);
+});
+
+test('client : lead() — libellé inchangé sans image, pictogramme de tête remplacé sinon, échappement', () => {
+  const UiIcons = require('../public/js/uiIcons.js');
+  assert.deepStrictEqual(UiIcons.splitLead('ℹ️ Comment fonctionne la saison ?'), ['ℹ️', 'Comment fonctionne la saison ?']);
+  assert.deepStrictEqual(UiIcons.splitLead('🏁 Résultat — S'), ['🏁', 'Résultat — S']);
+  assert.deepStrictEqual(UiIcons.splitLead('Saison'), ['', 'Saison']);
+  assert.deepStrictEqual(UiIcons.splitLead('? aide'), ['', '? aide']);
+  assert.strictEqual(UiIcons.lead('info', 'ℹ️ Comment'), 'ℹ️ Comment', 'sans image : strictement identique');
+  assert.strictEqual(UiIcons.lead('info', ''), '');
 });

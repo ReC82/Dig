@@ -28,11 +28,11 @@
         <button id="btn-help" class="hdr-btn hdr-btn-help" type="button"
           aria-label="Aide — comment jouer" title="Aide — comment jouer" aria-haspopup="dialog" aria-controls="help-panel" aria-expanded="false"
           data-i18n-aria="help.btn_aria" data-i18n-title="help.btn_aria">
-          <svg class="hdr-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <span class="hdr-ico-wrap" data-ui-icon="aide"><svg class="hdr-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path fill-rule="evenodd" d="M12 2.2a9.8 9.8 0 1 1 0 19.6 9.8 9.8 0 0 1 0-19.6zm0 1.9a7.9 7.9 0 1 0 0 15.8 7.9 7.9 0 0 0 0-15.8z"/>
             <path d="M12 6.3c-2.1 0-3.7 1.3-3.8 3.2h2c.1-.8.8-1.3 1.8-1.3s1.7.6 1.7 1.4c0 .7-.4 1.1-1.3 1.7-1.1.7-1.6 1.4-1.5 2.6v.5h1.9v-.4c0-.8.3-1.1 1.3-1.8 1.1-.7 1.7-1.5 1.7-2.7 0-1.9-1.6-3.2-3.8-3.2z"/>
             <circle cx="12" cy="16.9" r="1.25"/>
-          </svg>
+          </svg></span>
         </button>
         <button id="btn-news" class="hdr-btn hdr-btn-news" type="button"
           aria-label="Actualités" title="Actualités" aria-haspopup="dialog" aria-controls="news-panel"
@@ -147,26 +147,26 @@
 
     <!-- Vue Améliorations + Objectifs -->
     <div id="view-upgrades" class="view hidden">
-      <div class="view-title-bar"><span data-i18n="ui.view_upgrades">⚙ Améliorations</span><button type="button" class="help-tip-btn" data-help="upgrades" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true">?</span></button></div>
+      <div class="view-title-bar"><span data-i18n="ui.view_upgrades" data-ui-lead="ameliorations">⚙ Améliorations</span><button type="button" class="help-tip-btn" data-help="upgrades" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true" data-ui-icon="aide_contextuelle">?</span></button></div>
       <div id="upgrades-list"></div>
-      <div class="section-divider" id="shop-chests-anchor"><span data-i18n="ui.section_shop_chests">📦 Coffres de saison</span><button type="button" class="help-tip-btn" data-help="chests" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true">?</span></button></div>
+      <div class="section-divider" id="shop-chests-anchor"><span data-i18n="ui.section_shop_chests" data-ui-lead="coffres">📦 Coffres de saison</span><button type="button" class="help-tip-btn" data-help="chests" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true" data-ui-icon="aide_contextuelle">?</span></button></div>
       <div id="shop-guide-chests"></div>
       <div id="shop-chests-list"></div>
-      <div class="section-divider"><span data-i18n="ui.section_objectives">🎯 Objectifs</span></div>
+      <div class="section-divider"><span data-i18n="ui.section_objectives" data-ui-lead="objectifs">🎯 Objectifs</span></div>
       <div id="quests-list"></div>
       <button id="btn-reset" data-i18n="ui.btn_reset">Réinitialiser la partie</button>
     </div>
 
     <!-- Vue Collection -->
     <div id="view-collection" class="view hidden">
-      <div class="view-title-bar"><span data-i18n="ui.view_collection">📦 Collection</span><button type="button" class="help-tip-btn" data-help="collection" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true">?</span></button></div>
+      <div class="view-title-bar"><span data-i18n="ui.view_collection" data-ui-lead="collection">📦 Collection</span><button type="button" class="help-tip-btn" data-help="collection" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true" data-ui-icon="aide_contextuelle">?</span></button></div>
       <div id="events-panel" aria-live="polite" hidden></div>
       <div id="collection-header"></div>
       <div id="collection-grid"></div>
-      <div class="section-divider" style="margin-top:22px"><span data-i18n="ui.section_relics">✨ Reliques</span><button type="button" class="help-tip-btn" data-help="relics" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true">?</span></button></div>
+      <div class="section-divider" style="margin-top:22px"><span data-i18n="ui.section_relics" data-ui-lead="reliques">✨ Reliques</span><button type="button" class="help-tip-btn" data-help="relics" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true" data-ui-icon="aide_contextuelle">?</span></button></div>
       <div id="relics-info"></div>
       <div id="relics-grid"></div>
-      <div class="section-divider" style="margin-top:22px"><span data-i18n="badges.section">🏅 Badges et succès</span><button type="button" class="help-tip-btn" data-help="badges" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true">?</span></button></div>
+      <div class="section-divider" style="margin-top:22px"><span data-i18n="badges.section" data-ui-lead="badges">🏅 Badges et succès</span><button type="button" class="help-tip-btn" data-help="badges" aria-haspopup="dialog" aria-expanded="false" aria-controls="help-tip"><span aria-hidden="true" data-ui-icon="aide_contextuelle">?</span></button></div>
       <div id="badges-panel" aria-live="polite"></div>
     </div>
 

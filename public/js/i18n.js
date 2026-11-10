@@ -475,7 +475,7 @@ const I18n = (() => {
       },
       stats: {
         coins: 'Pièces', gems: 'Gemmes', depth: 'Prof.',
-        pickaxe: 'Pioche', damage: 'Dégâts', relics: '🔮 Frags',
+        pickaxe: 'Pioche', damage: 'Dégâts', relics: 'Frags',
         depth_val: '{n}\u00a0m', pickaxe_val: 'Nv.{n}',
       },
       collection: {
@@ -1428,7 +1428,7 @@ const I18n = (() => {
       },
       stats: {
         coins: 'Coins', gems: 'Gems', depth: 'Depth',
-        pickaxe: 'Pickaxe', damage: 'Damage', relics: '🔮 Frags',
+        pickaxe: 'Pickaxe', damage: 'Damage', relics: 'Frags',
         depth_val: '{n}\u00a0m', pickaxe_val: 'Lv.{n}',
       },
       collection: {
@@ -2380,7 +2380,7 @@ const I18n = (() => {
       },
       stats: {
         coins: 'Munten', gems: 'Edelst.', depth: 'Diepte',
-        pickaxe: 'Houweel', damage: 'Schade', relics: '🔮 Frags',
+        pickaxe: 'Houweel', damage: 'Schade', relics: 'Frags',
         depth_val: '{n}\u00a0m', pickaxe_val: 'Nv.{n}',
       },
       collection: {
@@ -3332,7 +3332,7 @@ const I18n = (() => {
       },
       stats: {
         coins: 'Monedas', gems: 'Gemas', depth: 'Prof.',
-        pickaxe: 'Pico', damage: 'Daño', relics: '🔮 Frags',
+        pickaxe: 'Pico', damage: 'Daño', relics: 'Frags',
         depth_val: '{n}\u00a0m', pickaxe_val: 'Nv.{n}',
       },
       collection: {
@@ -3988,6 +3988,8 @@ const I18n = (() => {
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
       el.placeholder = t(el.dataset.i18nPlaceholder);
     });
+    // Pictogrammes de tête des libellés statiques ([data-ui-lead], #67-B) : réappliqués après traduction
+    if (typeof UiIcons !== 'undefined') UiIcons.decorate();
   }
 
   /** true si la clé a une traduction propre dans la langue (sans repli sur le français). */

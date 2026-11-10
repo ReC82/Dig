@@ -109,7 +109,7 @@ async function upload(key, color) {
     const img = await page.$eval('.nav-icon[data-ui-icon="collection"] img', e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), e.complete && e.naturalWidth > 0]; });
     check(tag, 'B image chargée, taille d\'un pictogramme', img[2] && img[0] >= 20 && img[0] <= 32, img.join('×'));
     check(tag, 'B logo inchangé', await page.$eval('#game-logo img', e => e.getAttribute('src').split('?')[0]) === 'assets/logo/a-lingot.svg');
-    check(tag, 'B en-tête inchangé (SVG d\'origine)', await page.$$eval('.hdr-ico-wrap svg', e => e.length) === 3);
+    check(tag, 'B en-tête inchangé (SVG d\'origine)', await page.$$eval('.hdr-ico-wrap svg', e => e.length) === 4);   // Aide, Actualités, Profil, Paramètres (#67-B : Aide raccordée)
     await page.screenshot({ path: `${SHOTS}/67-${tag}-jeu-collection.png` });
     check(tag, 'B récompense du bloc : pictogramme « pièces »', await page.$$eval('#block-reward img.ui-ico', e => e.length) >= 1);
     await tap('.nav-btn[data-view="upgrades"]');

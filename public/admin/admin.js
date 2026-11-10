@@ -9108,10 +9108,13 @@ function icUiScene(t, url) {
     line.appendChild(g(t.id === 'blocs_mines' ? 'medaille_or' : t.id, 18));
     line.appendChild(aiEl('span', { style: 'flex:1;font-weight:600' }, 'Pseudo'));
     line.appendChild(aiEl('span', { style: 'color:#f5c518' }, '120 m'));
-    const b = aiEl('span', { style: 'color:#9ca3af;font-size:12px' });
-    b.appendChild(g('blocs_mines', 15));
-    b.appendChild(document.createTextNode('345'));
-    line.appendChild(b);
+    line.appendChild(aiEl('span', { style: 'color:#9ca3af;font-size:12px' }, '345'));   // blocs manuels : texte seul (#67-B)
+    return line;
+  }
+  // #67-B : titres, explications et boutons d'aide — pictogramme de tête à la taille du texte, libellé conservé
+  if (['system', 'season', 'sections', 'shop', 'dig'].includes(t.zone)) {
+    line.appendChild(g(t.id, t.zone === 'system' ? 18 : 22));
+    line.appendChild(aiEl('span', { style: 'flex:1;font-weight:600' }, t.name.replace(/\s*\(.*\)$/, '')));
     return line;
   }
   if (t.zone === 'currency') {

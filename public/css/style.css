@@ -3612,6 +3612,11 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
 /* Coffres de la boutique (#66) : visuel de l'atelier à la place de l'emoji (carte et fenêtre d'ouverture) */
 .shop-chest-icon .ui-ico { width: 30px; height: 30px; vertical-align: middle; }
 #chest-modal-icon .ui-ico { display: block; width: 64px; height: 64px; margin: 0 auto; }
+/* Recette #67-B : nouvelles cibles. Seule l'apparence change ; boutons, zones tactiles et focus inchangés. */
+.help-tip-btn > span:has(> .ui-ico) { border: none; }   /* ? contextuel : l'image remplace la pastille dessinée */
+.help-tip-btn > span .ui-ico { width: 18px; height: 18px; vertical-align: middle; }
+.season-theme-icon .ui-ico { width: 1.8rem; height: 1.8rem; vertical-align: middle; }
+.shop-item-icon .ui-ico, .bonus-btn-icon .ui-ico { width: 1.2em; height: 1.2em; vertical-align: middle; }
 
 /* ── Pioche à charges (#71) ─────────────────── */
 .pick-charges { width: 220px; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; }

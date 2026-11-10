@@ -115,7 +115,7 @@ test('? contextuels : présents aux bons endroits et reliés à une rubrique exi
   // Les titres statiques gardent leur texte traduit dans un <span> (applyTranslations ne doit pas effacer le ?)
   assert.ok(!/data-i18n="[^"]+"[^>]*>[^<]*<button[^>]*help-tip-btn/.test(html.replace(/<span data-i18n/g, '')));
   for (const k of ['ui.view_collection', 'ui.section_relics', 'badges.section', 'ui.view_upgrades', 'ui.section_shop_chests'])
-    assert.ok(html.includes(`<span data-i18n="${k}">`), k);
+    assert.match(html, new RegExp(`<span data-i18n="${k.replace('.', '\\.')}"( data-ui-lead="\\w+")?>`), k);   // pictogramme de tête remplaçable (#67-B)
   // Bouton rendu : intitulé « Aide : <rubrique> », ouvre une bulle, symbole décoratif
   const b = c.DigHelp.tipHtml('relics');
   assert.ok(b.includes('aria-label="Aide : Reliques"') && b.includes('aria-haspopup="dialog"') && b.includes('<span aria-hidden="true">?</span>'));
