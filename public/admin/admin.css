@@ -691,6 +691,16 @@ select.config-value { background: var(--bg); border: 1px solid var(--border); bo
 .ic-empty .ic-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .bk-filters #ic-event { flex: 1 1 200px; min-width: 0; max-width: 100%; }
 .ic-thumb { margin: 0 auto; }
+/* #64-B : carte de relique à la taille du jeu (public/css/style.css → .relic-card / .relic-icon, police du jeu) */
+.ic-game-preview { margin: 4px 0 10px; }
+.ic-game-row { display: flex; flex-wrap: wrap; gap: 14px; }
+.ic-game-fig { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 0.74rem; }
+.ic-game-relic { width: 112px; background: #1a1a2e; border: 1px solid rgba(245, 197, 24, 0.38); border-radius: 14px; padding: 16px 10px 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; color: #e2e8f0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+.ic-game-relic-icon { font-size: 2.2rem; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5)); }
+.ic-game-relic-icon img { display: block; width: 40px; height: 40px; }
+.ic-game-relic-name { font-size: 0.8rem; font-weight: 700; }
 .ic-thumb img { object-fit: contain; }
 .ic-thumb--none { border: 1px dashed var(--border); }
 .ic-thumb-none { color: var(--muted); text-align: center; line-height: 1.15; padding: 2px; }
