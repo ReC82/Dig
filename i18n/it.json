@@ -1966,6 +1966,83 @@
    "by": "claude-opus-5-5 (session #59, relu)",
    "at": "2026-11-03T05:30:00.000Z"
   },
+  "events.disc_commun": {
+   "text": "Nuovo ricordo!",
+   "src": "a07fc08c9fda",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_continue": {
+   "text": "Continua",
+   "src": "2bda559a2273",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_dup": {
+   "text": "Nuovo esemplare: ne possiedi {n}.",
+   "src": "2c20c22f7640",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_epique": {
+   "text": "Scoperta epica!",
+   "src": "8b8b693d7b0b",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_event": {
+   "text": "Ricordo dell’evento {name}",
+   "src": "032c4dfb7102",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_keep": {
+   "text": "Conservato nella tua Collezione, per sempre.",
+   "src": "8eb2f4192042",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_legendaire": {
+   "text": "Scoperta leggendaria!",
+   "src": "3bbd48736822",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_more": {
+   "text": "Ancora {n} scoperta/e da vedere",
+   "src": "a06dc84df208",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_peu_commun": {
+   "text": "Bel ricordo!",
+   "src": "bd53f436be7c",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_preview": {
+   "text": "Anteprima admin: non viene aggiunto nulla al tuo account.",
+   "src": "0ea72c89487f",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
+  "events.disc_rare": {
+   "text": "Scoperta rara!",
+   "src": "3e61cfc4a2ab",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #56, 10/11, relu)",
+   "at": "2026-11-10T13:18:19.887Z"
+  },
   "events.ended": {
    "text": "Terminato il {date}",
    "src": "c5f3d1c81b9c",

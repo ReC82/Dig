@@ -138,7 +138,7 @@ test('routes : lecture et acquittement réservés au joueur connecté, branchés
 
 // ── Jeu : section réelle de public/js/main.js ─────────────────────────────────
 
-function gameWindow({ search = '', stored = {} } = {}) {
+function gameWindow({ search = '', hash = '', stored = {} } = {}) {
   const els = new Map();
   const mk = id => {
     const e = { id, hidden: id === 'discovery-modal', textContent: '', className: '', children: [], focused: 0,
@@ -155,7 +155,8 @@ function gameWindow({ search = '', stored = {} } = {}) {
     setTimeout: fn => fn(),
     localStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) },
     navigator: { language: 'fr-BE', languages: ['fr-BE'] },
-    location: { search, href: `https://dig.example/${search}` },
+    location: { search, hash, pathname: '/', href: `https://dig.example/${search}${hash}` },
+    history: { replaceState: (a, b, url) => calls.push(['replace', url]) },
     document: doc,
   });
   ctx.window = ctx;
@@ -235,18 +236,21 @@ test('jeu : découverte non acquittée présentée au chargement ; textes tradui
   }
 });
 
-test('jeu : aperçu admin affiché une fois, marqué, jamais envoyé au serveur', () => {
+test('jeu : aperçu admin affiché une fois, marqué, jamais envoyé au serveur ni stocké', () => {
+  const admin = fs.readFileSync(path.join(ROOT, 'public/admin/admin.js'), 'utf8');
+  assert.match(admin, /window\.open\(`\/\?apercu-decouverte=1#apercu=\$\{encodeURIComponent\(JSON\.stringify\(d\)\)\}`, '_blank', 'noopener'\)/);
   const payload = JSON.stringify({ icon: '🔔', image: null, names: tx('Cloche'), descs: tx('Ding.'), rarity: 'rare', eventIcon: '🎄', eventNames: tx('Noël') });
-  const g = gameWindow({ search: '?apercu-decouverte=1', stored: { dig_discovery_preview: payload } });
+  const g = gameWindow({ search: '?apercu-decouverte=1', hash: `#apercu=${encodeURIComponent(payload)}` });
   g.ctx.I18n.setLang('fr');
   g.ctx._discoveryPreviewFromAdmin();
   assert.ok(g.ctx.discoveryOpen());
   assert.strictEqual(g.el('discovery-preview').hidden, false);
   assert.match(g.el('discovery-preview').textContent, /rien n.est ajouté/);
-  assert.strictEqual(g.store.has('dig_discovery_preview'), false, 'lu puis effacé');
+  assert.strictEqual(g.el('discovery-title').textContent, 'Cloche');
+  assert.strictEqual(JSON.stringify(g.calls), '[["replace","/"]]', 'fragment effacé de l\'adresse (pas de nouvel affichage après F5)');
   g.ctx._closeDiscovery();
-  assert.strictEqual(g.calls.length, 0, 'aucun appel serveur');
-  const h = gameWindow({ search: '', stored: { dig_discovery_preview: payload } });
+  assert.strictEqual(g.calls.length, 1, 'aucun appel serveur');
+  const h = gameWindow({ search: '', hash: `#apercu=${encodeURIComponent(payload)}` });
   h.ctx._discoveryPreviewFromAdmin();
   assert.strictEqual(h.ctx.discoveryOpen(), false, 'sans le paramètre : rien');
 });

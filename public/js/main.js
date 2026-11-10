@@ -1185,6 +1185,8 @@ function _onEventFinds(list) {
 // non acquittée (F5, coupure, autre appareil) → présentée au chargement suivant, jamais deux fois ici.
 // Pendant l'affichage, les coups manuels sont ignorés (onBlockHit) ; le minage auto et la sauvegarde continuent.
 const _discQueue = [];
+const DISC_KICKER = { commun: 'events.disc_commun', 'peu-commun': 'events.disc_peu_commun', rare: 'events.disc_rare',
+  epique: 'events.disc_epique', legendaire: 'events.disc_legendaire' };
 const _discSeen = new Set();
 let _discCur = null;
 let _discOpener = null;
@@ -1216,12 +1218,12 @@ function _showNextDiscovery() {
   const d = _discQueue.shift();
   _discCur = d;
   const $ = id => document.getElementById(id);
-  const rarity = /^[a-z-]+$/.test(d.rarity || '') ? d.rarity : 'commun';
+  const rarity = Object.prototype.hasOwnProperty.call(DISC_KICKER, d.rarity) ? d.rarity : 'commun';
   const name = _badgeText(d.names) || d.itemId || '';
   $('discovery-inner').className = `disc-rarity-${rarity}`;
   $('discovery-preview').hidden = !d.preview;
   $('discovery-preview').textContent = d.preview ? t('events.disc_preview') : '';
-  $('discovery-kicker').textContent = `✨ ${t('events.disc_' + rarity.replace('-', '_'))}`;
+  $('discovery-kicker').textContent = `✨ ${t(DISC_KICKER[rarity])}`;
   const art = $('discovery-art');
   art.textContent = '';
   if (typeof d.image === 'string' && /^\/[^/]/.test(d.image)) {   // image publiée (chemin du site) ; sinon l'emoji
@@ -1268,13 +1270,12 @@ function _closeDiscovery() {
   if (isViewActive('collection')) renderEvents();
 }
 
-/** Aperçu admin (?apercu-decouverte=1) : objet préparé par le panel dans ce navigateur, rien n'est envoyé au serveur. */
+/** Aperçu admin (?apercu-decouverte=1#apercu=…) : objet préparé par le panel, passé dans le fragment d'URL ; rien n'est envoyé au serveur. */
 function _discoveryPreviewFromAdmin() {
-  if (!/[?&]apercu-decouverte=1\b/.test(location.search)) return;
-  let raw = null;
-  try { raw = localStorage.getItem('dig_discovery_preview'); localStorage.removeItem('dig_discovery_preview'); } catch (_) { return; }
+  if (!/[?&]apercu-decouverte=1\b/.test(location.search) || !location.hash.startsWith('#apercu=')) return;
   let d;
-  try { d = JSON.parse(raw); } catch (_) { return; }
+  try { d = JSON.parse(decodeURIComponent(location.hash.slice(8))); } catch (_) { d = null; }
+  try { history.replaceState(null, '', location.pathname); } catch (_) { /* adresse laissée telle quelle */ }
   if (!d || typeof d !== 'object') return;
   _queueDiscoveries([{ preview: true, icon: String(d.icon || '🎁').slice(0, 16), image: typeof d.image === 'string' ? d.image : null, names: d.names, descs: d.descs,
     rarity: d.rarity, eventIcon: String(d.eventIcon || '🎉').slice(0, 16), eventNames: d.eventNames, duplicate: false }]);
