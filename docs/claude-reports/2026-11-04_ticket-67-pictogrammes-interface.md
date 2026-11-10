@@ -2,6 +2,212 @@
 
 Lien : https://github.com/ReC82/Dig/issues/67 — branche `feature/67-pictos-ui`
 
+## Session du 10/11/2026 — recette #67-B : inventaire et raccordement des pictogrammes de l'interface
+
+### 1. État réel
+
+**Déployé en production (SHA `ab547b2`) — en attente de recette.** Aucune nouvelle image n'a été
+appliquée par cette session, et aucun appel IA n'a été fait. Ce qui change dès le déploiement :
+- les deux petits pictogrammes sont retirés (FRAGS et « Blocs manuels ») ;
+- les images **que vous aviez déjà appliquées** apparaissent aussi aux emplacements de **même rôle** :
+  - onglets → titres des vues Améliorations, Collection, Quotidien et Boutique ;
+  - Pièces → guide des boutiques, récompense quotidienne, explications de la saison ;
+  - Gemmes → titre « Gemmes », guide, récompense quotidienne ;
+  - Boost → titre « Boosts », carte boost, récompense quotidienne ;
+  - Saison → 🏆 des explications.
+
+  « Revenir au pictogramme d'origine » sur la fiche concernée retire l'image partout à la fois.
+
+Les 23 nouvelles cibles gardent leur emoji tant que vous ne cliquez pas sur « Appliquer ».
+
+Source : commentaire du propriétaire du 10/11 (recette #67-B). La prévisualisation de la médaille du
+rang 1 est validée et ne sera pas redemandée. Le propriétaire demande l'inventaire complet des icônes,
+les cibles manquantes et deux retraits.
+
+### 2. Résultat visible
+
+**Retraits demandés (actifs dès le déploiement)**
+- Barre du haut : la carte **FRAGS** n'a plus le petit 🔮 devant son libellé. Elle est alignée sur
+  Pièces, Gemmes, Prof., Pioche et Dégâts, et garde sa valeur. Corrigé en FR, EN, NL, ES et IT.
+- Classement saisonnier : l'en-tête **« Blocs manuels »** est maintenant en texte seul, sans
+  pictogramme, comme les colonnes voisines. Le texte et la définition « blocs détruits manuellement »
+  (#73) sont inchangés.
+  - La cible `ui:blocs_mines` passe en « stockage seul ». Son identifiant et ses images sont
+    conservés, mais elle n'est plus servie au jeu.
+  - L'image qui était appliquée en production disparaît donc de l'en-tête dès le déploiement.
+
+**23 nouvelles cibles dans Admin → 🎨 Icônes** (registre `server/uiIcons.js`, cinq nouvelles zones) :
+
+| Zone | Cible | Emplacement(s) en jeu |
+|---|---|---|
+| Icônes système | `aide` | bouton « ? » rond en haut à gauche (aide générale) |
+| Icônes système | `aide_contextuelle` | **tous** les petits « ? » à côté des titres (une seule image) |
+| Icônes système | `info` | ℹ️ « Comment fonctionne la saison ? », ℹ️ « Récompenses et chances », ℹ️ « Comment fonctionnent les récompenses ? » (une seule image) |
+| Minage | `doubler` | 📺 du bouton « Doubler la récompense » |
+| Saison | `saison_theme` | grand pictogramme de la carte « Thème de la semaine » (🏮 lanterne actuellement) |
+| Saison | `saison_resultat` | 🏁 « Résultat — Saison … » |
+| Saison | `points_recompense` | 🏅 « Points de récompense », 🏅 « Points de saison » du guide des boutiques, puce des explications |
+| Saison | `cadeaux_boutique` | 🎁 « Boutique de cadeaux » et 🎁 « Cadeaux » du guide |
+| Boutique | `coffres` | 📦 « Coffres de saison » (Améliorations) et 📦 « Coffres » du guide |
+| Boutique | `argent_reel` | 💶 « Argent réel » du guide |
+| Boutique | `pack_gems_5`, `pack_gems_20`, `pack_gems_60` | cartes des trois packs de gemmes |
+| Boutique | `pioche_entretien` | titre ⛏ « Pioche et entretien » |
+| Boutique | `pioche_reserve`, `pioche_vitesse` | cartes 🔋 « Capacité de réserve » et ⏱ « Vitesse de recharge » |
+| Boutique | `pioche_recharge` | cartes ⚡ « Recharge immédiate +10/+25/+50 % » (une seule image) |
+| Boutique | `fragments` | 🔮 lot de fragments (#85, caché tant que l'offre est fermée), coût des reliques, puce des explications |
+| Titres de sections | `objectifs`, `missions_jour`, `reliques`, `badges`, `evenements` | 🎯 Objectifs, 🎯 Missions du jour, ✨ Reliques, 🏅 Badges et succès, 🎉 Événements |
+
+**Cibles existantes réutilisées par rôle, plutôt que des doublons**
+- `boutique` : titre 🛒 Boutique.
+- `gemmes` : titre 💎 Gemmes, guide, récompense quotidienne.
+- `boost` : titre ⚡ Boosts, carte boost, récompense quotidienne.
+- `pieces` : guide, récompense quotidienne, explications de la saison.
+- `quotidien` : titre 📅 Quotidien.
+- `ameliorations` : titre ⚙ Améliorations.
+- `collection` : titre 📦 Collection.
+- `saison` : 🏆 des explications.
+- `reliques` : ✨ des explications.
+
+**Boutons d'aide et d'information**
+- Seule l'apparence change : même `<button>`, même `aria-label`, même zone tactile (28×28 px pour les
+  « ? » contextuels, ≥ 40 px pour l'aide générale), même ouverture au clic et au clavier.
+- Les icônes système sont personnalisées **par rôle** : une image pour tous les « ? » contextuels,
+  une pour l'aide générale et une pour tous les ℹ️.
+
+### 3. Inventaire de l'interface (audit réel, Chromium)
+
+**Méthode** : parcours `test/e2e/ui-icons-67b.e2e.js`.
+1. Une même image est appliquée à **toutes** les cibles, sur un serveur de test.
+2. Les 8 vues joueur et l'en-tête/barre du bas sont parcourus, en PC 1280 px et en 390 px.
+3. Tout emoji encore visible correspond à un emplacement **non raccordé**.
+
+**Résultat (joueur non connecté)** : 115 emplacements affichent l'image de l'Atelier. **22**
+emplacements restent en emoji, chacun pour une raison précise :
+
+| Vue | Emplacement | Pourquoi pas ici |
+|---|---|---|
+| Améliorations | icônes des 3 coffres (📦 💎 🏺) | Déjà gérées par l'Atelier « coffres » (#66, cibles `chest:`) : elles s'affichent en jeu dès qu'un visuel de coffre est appliqué. |
+| Collection | icônes des reliques (👁 💛 🧲 🔭 🖤 ⚗️) | Images de reliques = cibles `relic:` de #64 ; leur affichage en jeu relève de #64. |
+| Collection | 📦 titre d'une série de collection | Icône propre à chaque série du catalogue #39 (dynamique). |
+| Collection | 🔮 au milieu de « 0 / 6 débloquées — 🔮 0 fragments » | Emoji au milieu d'une phrase traduite, pas en tête : non remplaçable sans réécrire les traductions. |
+| Quotidien | emblèmes des missions (⛏ 💰 📦) | Emblèmes `mission:` du catalogue #68, servis au jeu à l'activation du catalogue (décision en attente). |
+| Boutique | « 5 💎 » dans le bouton d'achat de la pioche | Emoji en fin de libellé de bouton, même raison que ci-dessus. |
+| Minage | ⛏ « Réserve pleine : … » (pioche à charges) | Texte d'état rafraîchi en continu ; aucun rôle distinct de `pioche_entretien`. Proposé après lancement. |
+| Saison (explications) | 🔄 / ✅ titres de colonnes, ⛏ profondeur, ⬆ améliorations, 🎁 bonus, 🏆 « Comment est établi le classement ? » | Rôles ambigus (⛏ = pioche ou profondeur, 🎁 = cadeau ou bonus) : pas de doublon créé sans décision. Les autres puces (💰 ⚡ 🏆 💎 🔮 ✨ 🏅) sont raccordées. |
+
+**Non parcouru automatiquement** : fenêtres (aide, actualités, ouverture de coffre, récompenses hors
+ligne), notifications et vues d'un joueur connecté avec un classement rempli. Le code de l'en-tête du
+classement est contrôlé directement, à partir d'une ligne de classement réelle.
+
+### 4. SHA et procédure de test
+
+- Branche `feature/67-pictos-ui`, SHA sur `develop` : `ab547b2`.
+- Tests automatisés :
+  - `npm test` ;
+  - `test/ui-icons.test.js` (15 tests, dont 3 nouveaux pour #67-B) ;
+  - e2e `test/e2e/ui-icons-67b.e2e.js` (57 contrôles) ;
+  - e2e historique `test/e2e/ui-icons.e2e.js` (44/44).
+  - Commandes dans l'en-tête de chaque fichier ; serveur de test uniquement.
+
+### 5. Vérifications
+
+- e2e #67-B, 57/57, en PC 1280×900, 390×844 et 320×640 :
+  - toutes les cibles appliquées s'affichent ;
+  - aide générale et « ? » contextuels : aria-label conservé, 28×28 px, ouverture au clic et au
+    clavier ;
+  - libellés de la barre du haut sans pictogramme (FRAGS = « Frags », valeur conservée) ;
+  - en-tête « Blocs manuels » sans image ;
+  - changement de langue FR → EN : les titres restent décorés ;
+  - aucun débordement horizontal sur les 8 vues ;
+  - retour arrière de `info` : ℹ️ réaffiché ;
+  - aucune erreur console.
+- e2e historique #67 : 44/44. Le compteur de SVG de l'en-tête passe à 4, puisque l'aide est
+  désormais raccordée.
+- Aucun appel IA, aucune dépense.
+- Aucune migration de base : le registre est un fichier de code, et l'historique reste dans la table
+  existante `icon_studio_events`.
+- Aucune donnée joueur touchée. Les images déjà proposées, leurs identifiants et les filtres #89 sont
+  inchangés.
+
+### 6. Déploiement
+
+- SHA déployé : **`ab547b2`**. Précédent : `11b00c0`. `npm ci` non nécessaire, lock inchangé.
+- Release `ab547b2` : `npm test` 1049/1049.
+- Copie de la base de production démarrée sur le port 3122 :
+  - `/health` ok, `/api/version` = `1.0.0+ab547b2` ;
+  - empreintes de `users`, `user_saves`, `season_rankings`, `seasons`, `leagues` et
+    `player_click_tracking` identiques avant et après démarrage ;
+  - copie supprimée.
+- Aucune génération IA en cours : dernier appel de l'Atelier à 10:49 UTC, déploiement à 12:13 UTC.
+- `scripts/deploy.sh` : sauvegarde vérifiée
+  `~/backups/dig/dig-20261110-131342-pre-deploy-ab547b2.sqlite`, santé et version OK.
+- Après déploiement :
+  - dig.lodygames.com et dig.lodylands.com répondent 200, version `1.0.0+ab547b2` ;
+  - `journalctl` sans erreur, `pragma quick_check` = ok ;
+  - empreintes joueurs identiques à la sauvegarde ;
+  - `/api/ui-icons` ne sert plus `blocs_mines`.
+- Chromium en production, 1280×900 et 390×844 :
+  - libellés `Pièces | Gemmes | Prof. | Pioche | Dégâts | Frags` ;
+  - en-tête « Blocs manuels » sans image ;
+  - aucun débordement sur 6 vues ;
+  - toutes les images chargées ;
+  - seule erreur console : un 401 attendu (visiteur non connecté).
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 11b00c0 && sudo systemctl restart dig`. Aucune
+  migration à défaire.
+
+**Test fonctionnel à faire par le propriétaire (court, aucune génération IA nécessaire)**
+1. **Retraits** : ouvrez le jeu sur téléphone. La carte **FRAGS** de la barre du haut n'a plus de
+   petit pictogramme. Onglet **Saison** : l'en-tête de colonne **« Blocs manuels »** du classement
+   est en texte seul.
+2. **Nouvelle cible n° 1, aide** : Admin → 🎨 Icônes → zone **« Icônes système »** → fiche **« Aide
+   contextuelle (petits ? …) »**.
+   - Téléversez une image, ou réutilisez une image existante (section « Réutiliser l'image d'un autre
+     pictogramme »), puis faites « Prévisualiser dans le jeu ».
+   - Attendu : tous les petits « ? » (Améliorations, Collection, Saison…) montrent l'image et ouvrent
+     toujours leur bulle d'aide.
+3. **Nouvelle cible n° 2, saison** : zone **« Saison »** → fiche **« Résultat — Saison précédente »**
+   (🏁). Même manipulation.
+   - Attendu : dans Saison, le titre repliable « Résultat — Saison … » commence par l'image.
+4. Si vous appliquez l'une de ces cibles : « Revenir au pictogramme d'origine » rétablit l'emoji
+   après rechargement.
+
+**Classement MVP** : **Après lancement.** Ce sont des personnalisations visuelles ; les deux retraits
+sont de la cohérence cosmétique.
+
+### 7. Choix techniques faits seul
+
+- **Un mécanisme générique « pictogramme de tête »** : `UiIcons.lead(id, libellé)` pour les vues
+  dynamiques, et `data-ui-lead` pour les titres statiques, re-décorés après chaque traduction. Il
+  évite de réécrire les traductions des 5 langues.
+  - Sans image appliquée, le libellé est **strictement identique** : aucun élément n'est ajouté au
+    HTML.
+- **Un rôle = une cible** : les « ? » contextuels, les ℹ️ et les recharges +10/+25/+50 % partagent
+  chacun une seule image. Les cibles existantes (pièces, gemmes, boost…) sont réutilisées dès que le
+  sens est le même.
+- **Thème de la semaine** : l'emoji change chaque semaine. Une image appliquée à `saison_theme`
+  remplace donc l'icône de **chaque** thème. La consigne IA par défaut décrit un emblème neutre (fanion
+  et étoile), jamais une lanterne. Une image propre à chaque thème est proposée en question 1.
+- **`blocs_mines` passe en stockage seul** plutôt que d'être supprimé : identifiants et images stables
+  (règle du registre).
+- Bouton « Doubler » : son pictogramme était réécrit par l'état du bouton (📺 / ✅ / ⏳). L'image ne
+  remplace donc que l'état « disponible ».
+
+### 8. Décisions demandées au propriétaire
+
+1. **Thème de la semaine** : (a) une image commune à tous les thèmes (livré, cible `saison_theme`) ;
+   (b) une image par thème, rattachée aux packs de saison (#48). **Recommandation : (a) pour
+   l'instant, (b) après lancement.**
+2. Les questions précédentes restent ouvertes :
+   - emblèmes des missions du jour (#68) : recommandation, attendre l'étape B ;
+   - facteurs de récompense : recommandation, après lancement.
+
+### 9. Restant à réaliser
+
+- Puces ambiguës des explications de la saison (⛏ ⬆ 🎁 🔄 ✅), texte d'état de la pioche à charges et
+  emoji placés au milieu d'une phrase : sur décision, après lancement.
+- Reliques (#64), missions (#68), séries de collection (#39) : dans leurs tickets respectifs.
+- Inventaire des fenêtres et des notifications : non parcouru automatiquement (voir § 3).
+
 ## Session du 04/11/2026 (soir)
 
 ### 1. État réel
