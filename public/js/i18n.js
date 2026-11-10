@@ -84,6 +84,15 @@ const I18n = (() => {
       // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
       // Vérification anti-bot du minage manuel (#25 lot C)
       antibot: {
+        ext_title: 'Extension d\'autoclic détectée',
+        ext_text: 'Une extension d\'autoclic est détectée ({name}) : désactive-la pour reprendre le minage manuel.',
+        ext_keep: 'Ce n\'est pas une sanction : rien n\'est perdu, et l\'Auto-Dig, la collection, la boutique et ton compte restent utilisables.',
+        ext_help: 'Dans Chrome : menu ⋮ → Extensions → Gérer les extensions, puis coupe l\'interrupteur de l\'extension (ou retire-la). Ensuite, touche « Vérifier à nouveau ».',
+        ext_btn_recheck: '✅ J\'ai désactivé l\'extension — vérifier à nouveau',
+        ext_btn_reload: '🔄 Recharger la page',
+        ext_still: 'L\'extension est encore détectée. Si tu viens de la désactiver, recharge la page : sa trace reste jusqu\'au rechargement.',
+        report_step_ext: 'Minage manuel bloqué : le jeu détecte une extension d\'autoclic ({name}) alors que je n\'en utilise pas.',
+        btn_back_ext: '🧩 Retour à la vérification',
         title: 'Petite vérification',
         text: 'Le minage manuel compte pour le classement : avant de continuer, montre-nous que tu es bien là. En attendant, tes coups sur le bloc ne sont pas comptés.',
         keep: 'Rien n\'est perdu : bloc, inventaire, boosts, temps de jeu et Auto-Dig sont conservés.',
@@ -1049,6 +1058,15 @@ const I18n = (() => {
       // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
       // Vérification anti-bot du minage manuel (#25 lot C)
       antibot: {
+        ext_title: 'Autoclicker extension detected',
+        ext_text: 'An autoclicker extension is detected ({name}): turn it off to resume manual mining.',
+        ext_keep: 'This is not a penalty: nothing is lost, and Auto-Dig, the collection, the shop and your account remain available.',
+        ext_help: 'In Chrome: menu ⋮ → Extensions → Manage extensions, then switch the extension off (or remove it). Then tap “Check again”.',
+        ext_btn_recheck: '✅ I turned the extension off — check again',
+        ext_btn_reload: '🔄 Reload the page',
+        ext_still: 'The extension is still detected. If you just turned it off, reload the page: its trace stays until the page is reloaded.',
+        report_step_ext: 'Manual mining blocked: the game detects an autoclicker extension ({name}) although I don\'t use one.',
+        btn_back_ext: '🧩 Back to the check',
         title: 'Quick check',
         text: 'Manual mining counts for the leaderboard: before you continue, show us you\'re there. Meanwhile, your hits on the block are not counted.',
         keep: 'Nothing is lost: block, inventory, boosts, play time and Auto-Dig are kept.',
@@ -2013,6 +2031,15 @@ const I18n = (() => {
       // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
       // Vérification anti-bot du minage manuel (#25 lot C)
       antibot: {
+        ext_title: 'Autoclicker-extensie gedetecteerd',
+        ext_text: 'Er is een autoclicker-extensie gedetecteerd ({name}): schakel ze uit om weer handmatig te graven.',
+        ext_keep: 'Dit is geen straf: er gaat niets verloren, en Auto-Dig, de collectie, de winkel en je account blijven beschikbaar.',
+        ext_help: 'In Chrome: menu ⋮ → Extensies → Extensies beheren, zet daarna de extensie uit (of verwijder ze). Tik vervolgens op „Opnieuw controleren”.',
+        ext_btn_recheck: '✅ Ik heb de extensie uitgeschakeld — opnieuw controleren',
+        ext_btn_reload: '🔄 Pagina herladen',
+        ext_still: 'De extensie wordt nog steeds gedetecteerd. Heb je ze net uitgeschakeld? Herlaad dan de pagina: haar spoor blijft tot de pagina herladen wordt.',
+        report_step_ext: 'Handmatig graven geblokkeerd: het spel detecteert een autoclicker-extensie ({name}) terwijl ik er geen gebruik.',
+        btn_back_ext: '🧩 Terug naar de controle',
         title: 'Even controleren',
         text: 'Handmatig graven telt mee voor het klassement: laat ons eerst zien dat je er bent. Intussen tellen je tikken op het blok niet mee.',
         keep: 'Er gaat niets verloren: blok, inventaris, boosts, speeltijd en Auto-Dig blijven behouden.',
@@ -2977,6 +3004,15 @@ const I18n = (() => {
       // Tutoriel de première partie (#79) : une phrase par étape (js/tutorial.js)
       // Vérification anti-bot du minage manuel (#25 lot C)
       antibot: {
+        ext_title: 'Extensión de autoclic detectada',
+        ext_text: 'Se ha detectado una extensión de autoclic ({name}): desactívala para volver a minar manualmente.',
+        ext_keep: 'No es una sanción: no se pierde nada, y el Auto-Dig, la colección, la tienda y tu cuenta siguen disponibles.',
+        ext_help: 'En Chrome: menú ⋮ → Extensiones → Gestionar extensiones, y desactiva la extensión (o quítala). Después, toca «Comprobar de nuevo».',
+        ext_btn_recheck: '✅ He desactivado la extensión — comprobar de nuevo',
+        ext_btn_reload: '🔄 Recargar la página',
+        ext_still: 'La extensión sigue detectada. Si acabas de desactivarla, recarga la página: su rastro permanece hasta recargarla.',
+        report_step_ext: 'Minado manual bloqueado: el juego detecta una extensión de autoclic ({name}) aunque no uso ninguna.',
+        btn_back_ext: '🧩 Volver a la comprobación',
         title: 'Comprobación rápida',
         text: 'La excavación manual cuenta para la clasificación: antes de seguir, demuéstranos que estás ahí. Mientras tanto, tus golpes en el bloque no cuentan.',
         keep: 'No se pierde nada: bloque, inventario, potenciadores, tiempo de juego y Auto-Dig se conservan.',

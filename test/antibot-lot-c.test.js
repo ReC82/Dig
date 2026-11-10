@@ -381,7 +381,7 @@ test('défi résolu : allègement du score (hors preuves) et remise à zéro des
 test('client : le défi bloque les coups manuels, l\'Auto-Dig continue ; textes dans les 4 langues', () => {
   const ROOT = path.join(__dirname, '..');
   const main = fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8');
-  const hit = main.slice(main.indexOf('function onBlockHit('), main.indexOf('function onBlockHit(') + 1500);
+  const hit = main.slice(main.indexOf('function onBlockHit('), main.indexOf('function onBlockHit(') + 2500);
   assert.match(hit, /AntibotGate\.blocksManual\(\)/, 'garde dans onBlockHit');
   assert.ok(hit.indexOf('AntibotGate.blocksManual()') < hit.indexOf('manualClicks++'));
   const auto = main.slice(main.indexOf('function autoDigTick('), main.indexOf('function autoDigTick(') + 800);

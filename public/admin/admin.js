@@ -3804,7 +3804,14 @@ const SEC_SUSP_REASONS = { clicks_during_challenge: 'clics pendant une vérifica
 let _secExt = null;
 const SEC_EXT_MODES = { off: 'OFF', self: 'Mon compte de test', global: 'Tous les joueurs' };
 const SEC_EXT_STATE = { active: 'DÉTECTÉE — indicateur d\'autoclic actif pendant les coups', installed: 'DÉTECTÉE — installée et active sur ce site', none: 'non détectée' };
-const SEC_EXT_SOURCE = { load: 'chargement du jeu', save: 'sauvegarde' };
+const SEC_EXT_SOURCE = { load: 'chargement du jeu', save: 'sauvegarde', recheck: 'nouvelle vérification du joueur' };
+// #92, décision du propriétaire du 10/11 : « présence » (minage bloqué tant que présente) ≠ « activité corroborée » (#91)
+const SEC_EXT_REACTION = { log: 'journal', challenge: 'vérification demandée', block: 'minage manuel bloqué (sans sanction)' };
+const SEC_EXT_REACTION_NOW = {
+  log: 'journal seulement',
+  challenge: 'vérification (énigme) si l\'extension clique',
+  block: 'minage manuel bloqué tant que l\'extension est détectée (signatures prouvées), sans sanction',
+};
 
 async function secLoadExtensions() {
   const { ok, data } = await api('GET', '/api/admin/antibot/extensions');
@@ -3860,8 +3867,8 @@ function secRenderExtensions() {
 
   // Réaction
   const reLine = document.getElementById('sec-ext-reaction-line');
-  reLine.replaceChildren(secEl('strong', '', 'Réaction quand l\'indicateur d\'autoclic est actif pendant les coups : '));
-  for (const [v, label] of [['log', 'Journal seulement'], ['challenge', 'Vérification (énigme)']]) {
+  reLine.replaceChildren(secEl('strong', '', 'Réaction quand une signature activée est détectée : '));
+  for (const [v, label] of [['log', 'Journal seulement'], ['challenge', 'Vérification (énigme)'], ['block', 'Bloquer le minage manuel']]) {
     const b = secEl('button', `btn btn-sm ${d.reaction === v ? '' : 'btn-outline'}`, label);
     b.type = 'button';
     b.dataset.admKey = `sec-ext-reaction-${v}`;
@@ -3871,10 +3878,17 @@ function secRenderExtensions() {
       if (v === 'challenge' && !await admConfirm({ title: 'Envoyer une vérification quand l\'extension clique ?',
         text: `Seulement pour les signatures activées dont l'indicateur d'activité est vérifié, à partir de ${d.activeMinHits} coups avec l'indicateur dans une sauvegarde, au plus une par délai minimal entre deux défis. Suit le mode global (Observation : simulée). Jamais de suspension ici (les suspensions restent celles de #91).`,
         ok: 'Activer la vérification' })) return;
+      if (v === 'block' && !await admConfirm({ title: 'Bloquer le minage manuel quand une extension d\'autoclic est détectée ?',
+        text: `Seulement pour les signatures prouvées en conditions réelles (${d.signatures.filter(s => s.canBlock).map(s => s.name).join(', ') || 'aucune'}) et activées ci-dessous. Les autres signatures restent en journal.`,
+        impact: ['Tant que la trace est présente, les coups sur le bloc sont refusés, même si l\'extension ne clique pas ; message « désactivez-la pour reprendre », bouton de nouvelle vérification et signalement.',
+          'Navigation, collection, compte, boutique et Auto-Dig restent utilisables. Aucune suspension, aucune perte de progression.',
+          'Blocage appliqué par le navigateur (contournable par un client modifié) : la protection serveur #91 reste le vrai filet.'],
+        ok: 'Bloquer le minage', danger: true })) return;
       secExtSetConfig('ab_ext_reaction', v);
     });
     reLine.appendChild(b);
   }
+  if (d.reaction === 'block') reLine.appendChild(secEl('span', 'muted', ` — s'applique à : ${d.signatures.filter(s => s.canBlock && s.mode !== 'off').map(s => `${s.name} (${SEC_EXT_MODES[s.mode]})`).join(', ') || 'aucune signature prouvée activée'}`));
 
   // Comptes de test
   const users = document.getElementById('sec-ext-users');
@@ -3937,7 +3951,7 @@ function secRenderExtTable() {
         text: 'À faire seulement après votre propre essai réussi avec « Mon compte de test ».',
         impact: ['Le jeu de chaque joueur cherche cette seule trace (rien d\'autre) au chargement et à chaque sauvegarde.',
           'Trace trouvée : ligne dans le journal ci-dessous ; aucune sanction pour une extension installée.',
-          `Réaction actuelle : ${d.reaction === 'challenge' ? 'vérification (énigme) si l\'extension clique' : 'journal seulement'}.`],
+          `Réaction actuelle : ${d.reaction === 'block' && !s.canBlock ? 'journal (blocage réservé aux signatures prouvées)' : SEC_EXT_REACTION_NOW[d.reaction] ?? d.reaction}.`],
         ok: 'Activer pour tous', danger: true })) { select.value = s.mode; return; }
       if (!await secExtSetConfig(`ab_ext_sig_${s.id}`, v)) select.value = s.mode;
     });
@@ -3956,7 +3970,7 @@ function secRenderExtJournal() {
     tr.appendChild(secEl('td', j.state === 'none' ? 'muted' : 'sec-ext-hit',
       `${SEC_EXT_STATE[j.state] ?? j.state}${j.activeHits ? ` (${j.activeHits} coups)` : ''} · ${SEC_EXT_SOURCE[j.source] ?? j.source ?? ''}`));
     tr.appendChild(secEl('td', '', SEC_EXT_MODES[j.mode] ?? j.mode ?? ''));
-    tr.appendChild(secEl('td', '', j.reaction === 'challenge' ? 'vérification demandée' : 'journal'));
+    tr.appendChild(secEl('td', j.reaction === 'block' ? 'sec-ext-hit' : '', SEC_EXT_REACTION[j.reaction] ?? 'journal'));
   }
 }
 

@@ -1,5 +1,5 @@
 /* Généré par tools/i18n (#59) depuis i18n/it.json — ne pas modifier à la main. */
-/* Italian (preview) : 919/919 textes. Absents → français. */
+/* Italian (preview) : 928/928 textes. Absents → français. */
 I18n.registerLocale("it", {
  "account": {
   "btn_back_login": "← Torna all’accesso",
@@ -111,6 +111,7 @@ I18n.registerLocale("it", {
   "btn_alt_grid": "Torna ai simboli",
   "btn_alt_text": "Versione accessibile (testo)",
   "btn_back_challenge": "🛡️ Riprendi la verifica",
+  "btn_back_ext": "🧩 Torna alla verifica",
   "btn_back_susp": "⏸️ Torna al gioco",
   "btn_check": "Conferma",
   "btn_close": "Chiudi (torno più tardi)",
@@ -121,10 +122,18 @@ I18n.registerLocale("it", {
   "err_too_fast": "Troppo veloce — prenditi un secondo e riprova.",
   "err_too_many": "Troppi tentativi per ora — riprova dopo le {time}.",
   "err_wrong": "Non è giusto — ecco un nuovo enigma.",
+  "ext_btn_recheck": "✅ Ho disattivato l'estensione — verifica di nuovo",
+  "ext_btn_reload": "🔄 Ricarica la pagina",
+  "ext_help": "In Chrome: menu ⋮ → Estensioni → Gestisci estensioni, poi disattiva l'estensione (o rimuovila). Quindi tocca «Verifica di nuovo».",
+  "ext_keep": "Non è una sanzione: non si perde nulla, e Auto-Dig, collezione, negozio e account restano disponibili.",
+  "ext_still": "L'estensione è ancora rilevata. Se l'hai appena disattivata, ricarica la pagina: la sua traccia resta fino al ricaricamento.",
+  "ext_text": "È stata rilevata un'estensione di autoclic ({name}): disattivala per riprendere lo scavo manuale.",
+  "ext_title": "Estensione di autoclic rilevata",
   "grid_question": "Tocca {a}, poi {b}.",
   "help": "Una risposta sbagliata o un enigma scaduto non comportano mai una sanzione: basta chiederne un altro.",
   "keep": "Non si perde nulla: blocco, inventario, potenziamenti, tempo di gioco e Auto-Dig restano invariati.",
   "report_step_challenge": "Verifica anti-bot mostrata mentre giocavo normalmente (senza autoclicker).",
+  "report_step_ext": "Scavo manuale bloccato: il gioco rileva un'estensione di autoclic ({name}) anche se non ne uso.",
   "report_step_susp": "Scavo manuale sospeso dall’anti-bot fino a {time}, anche se giocavo normalmente (senza autoclicker).",
   "susp_help": "Il tuo account resta disponibile (Auto-Dig, negozio, inventario). Un errore? Scrivici tramite Aiuto: il team può revocare la sospensione.",
   "susp_text": "I clic sono continuati durante la verifica: lo scavo manuale è sospeso fino al {time} (ora di Bruxelles).",

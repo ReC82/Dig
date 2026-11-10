@@ -10,6 +10,12 @@
  * Chrono (#25, 08/11) : durée envoyée par le serveur (`seconds`), décomptée avec l'horloge monotone
  * du navigateur depuis la réception ; le serveur garde sa propre expiration (marge réseau en plus).
  * Aucune réponse n'est vérifiée ici : l'énigme et sa solution restent sur le serveur.
+ *
+ * Extension d'autoclic détectée (#92, règle du propriétaire du 10/11) : `setExt({ names })` bloque aussi
+ * les coups manuels, sans sanction, tant que le jeu trouve la trace d'une signature prouvée. La fenêtre
+ * propose une nouvelle vérification (reprise immédiate si la trace a disparu, sinon rechargement de la
+ * page : une extension désactivée laisse sa trace jusqu'au rechargement) et le signalement d'une erreur.
+ * Un défi ou une suspension du serveur (#25/#91) reste prioritaire à l'affichage.
  */
 const AntibotGate = (() => {
   let _state  = null;     // { challenge, suspension } renvoyé par le serveur, ou null
@@ -23,6 +29,8 @@ const AntibotGate = (() => {
   let _busy   = false;
   let _deadline = 0;      // performance.now() de fin de l'énigme affichée (0 : pas de chrono)
   let _tickId = null;
+  let _ext    = null;     // { names } : extension d'autoclic détectée (#92), ou null
+  let _extStill = false;  // nouvelle vérification encore positive : proposer le rechargement
 
   const T = (k, v) => (_deps ? _deps.t(`antibot.${k}`, v) : k);
 
@@ -63,7 +71,7 @@ const AntibotGate = (() => {
         <p id="antibot-help" class="antibot-muted"></p>
       </div>`;
     document.body.appendChild(_el);
-    _el.querySelector('#antibot-new').addEventListener('click', () => _loadPuzzle());
+    _el.querySelector('#antibot-new').addEventListener('click', () => (_extMode() ? _extRecheck() : _loadPuzzle()));
     _el.querySelector('#antibot-alt').addEventListener('click', e => {
       _kind = _kind === 'grid' ? 'text' : 'grid';
       e.currentTarget.textContent = T(_kind === 'grid' ? 'btn_alt_text' : 'btn_alt_grid');
@@ -240,8 +248,44 @@ const AntibotGate = (() => {
     }
   }
 
+  /** Fenêtre « extension détectée » : seulement sans défi ni suspension du serveur. */
+  const _extMode = () => !_state && !!_ext;
+
+  function _renderExt() {
+    const el = _el;
+    const name = _ext.names.join(', ');
+    el.querySelector('#antibot-icon').textContent = '🧩';
+    el.querySelector('#antibot-title').textContent = T('ext_title');
+    el.querySelector('#antibot-text').textContent = T('ext_text', { name });
+    el.querySelector('#antibot-keep').textContent = T('ext_keep');
+    el.querySelector('#antibot-help').textContent = T('ext_help');
+    el.querySelector('#antibot-new').textContent = T(_extStill ? 'ext_btn_reload' : 'ext_btn_recheck');
+    el.querySelector('#antibot-new').hidden = false;
+    el.querySelector('#antibot-alt').hidden = true;
+    el.querySelector('#antibot-close').textContent = T('btn_close');
+    const report = el.querySelector('#antibot-report');
+    report.textContent = T('btn_report');
+    report.hidden = !_reportsOn();
+    el.querySelector('#antibot-timer').hidden = true;
+    el.querySelector('#antibot-puzzle').textContent = '';
+  }
+
+  /** « J'ai désactivé l'extension » : nouvelle vérification ; encore là → rechargement proposé. */
+  async function _extRecheck() {
+    if (_busy) return;
+    if (_extStill) { location.reload(); return; }
+    _busy = true;
+    _msg('');
+    let still = true;
+    try { still = await _deps.extRecheck(); } catch (_) { still = true; }
+    _busy = false;
+    if (!_ext) return;                 // trace disparue : setExt(null) a déjà fermé la fenêtre
+    if (still) { _extStill = true; _renderExt(); _msg(T('ext_still'), 'warn'); }
+  }
+
   function _render() {
     const el = _build();
+    if (_extMode()) { _renderExt(); return; }
     const s = _state;
     const susp = s?.suspension;
     el.querySelector('#antibot-icon').textContent = susp ? '⏸️' : '🛡️';
@@ -264,9 +308,10 @@ const AntibotGate = (() => {
 
   /** Affiche la fenêtre (et signale le défi vu au serveur, avec le compteur de clics courant). */
   function show() {
-    if (!_state || !_deps) return;
+    if (!(_state || _ext) || !_deps) return;
     _render();
     _el.hidden = false;
+    if (_extMode()) { _el.querySelector('#antibot-new').focus(); return; }
     const ch = _state.challenge;
     if (ch && !_state.suspension && !ch.seen && _seenId !== ch.id) {
       _seenId = ch.id;
@@ -288,7 +333,7 @@ const AntibotGate = (() => {
     const prevKey = _key(_state);
     _state = state && (state.challenge || state.suspension) ? state : null;
     clearTimeout(_timer);
-    if (!_state) { _puzzle = null; hide(); _deps?.onChange?.(false); return; }
+    if (!_state) { _puzzle = null; hide(); _deps?.onChange?.(!!_ext); return; }
     // Le serveur a oublié le relevé (après une suspension) : nouveau signalement à l'affichage
     if (_state.challenge && !_state.challenge.seen && !_state.suspension && _seenId === _state.challenge.id && prevKey !== _key(_state)) _seenId = null;
     if (_state.suspension) {
@@ -312,6 +357,11 @@ const AntibotGate = (() => {
   // non), la fenêtre revient d'elle-même si le défi ou la suspension dure encore (état serveur).
   function _report() {
     if (!_reportsOn()) return;
+    if (_extMode()) {
+      hide();
+      DigBeta.openReport({ step: T('report_step_ext', { name: _ext.names.join(', ') }), returnLabel: T('btn_back_ext'), onClose: () => { if (_ext || _state) show(); } });
+      return;
+    }
     const susp = _state?.suspension;
     const step = susp ? T('report_step_susp', { time: _fmtBrussels(susp.endsAt) }) : T('report_step_challenge');
     hide();
@@ -326,10 +376,33 @@ const AntibotGate = (() => {
     } catch (_) { /* hors ligne : état conservé, aucune sanction */ }
   }
 
-  /** Vrai si le minage manuel est en attente de vérification ou suspendu. */
-  function blocksManual() { return !!_state; }
+  /** Vrai si le minage manuel est en attente de vérification, suspendu ou bloqué par une extension (#92). */
+  function blocksManual() { return !!_state || !!_ext; }
+
+  /**
+   * Extension d'autoclic détectée (#92) : `{ names }` bloque les coups manuels et ouvre la fenêtre,
+   * null lève le blocage aussitôt (la fenêtre se ferme s'il n'y a ni défi ni suspension).
+   */
+  function setExt(info) {
+    const next = info && Array.isArray(info.names) && info.names.length ? { names: info.names.slice() } : null;
+    const was = _ext ? _ext.names.join(',') : '';
+    _ext = next;
+    if (!next) {
+      _extStill = false;
+      if (was && !_state) { hide(); _deps?.onChange?.(false); }
+      return;
+    }
+    if (was === next.names.join(',')) return;
+    _extStill = false;
+    _deps?.onChange?.(true);
+    if (!_state) { _msg(''); show(); }
+  }
+
+  function extBlocked() { return !!_ext; }
+  /** Défi ou suspension du serveur (#25/#91), prioritaire sur le blocage d'extension. */
+  function serverBlocks() { return !!_state; }
 
   function init(deps) { _deps = deps; }
 
-  return { init, update, refresh, show, hide, blocksManual, _fmtBrussels, _SVG };
+  return { init, update, refresh, show, hide, blocksManual, serverBlocks, setExt, extBlocked, _fmtBrussels, _SVG };
 })();
