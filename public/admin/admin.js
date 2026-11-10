@@ -8027,13 +8027,40 @@ function icState(t) {
 
 function icBadge(st) { return aiEl('span', { class: `ic-badge ic-badge--${st.cls}` }, st.label); }
 
-/** Miniature : image appliquée, sinon v1, sinon emoji ; blocs sur leur fond de jeu. */
-function icThumb(t, size, url = null) {
+/**
+ * Image réellement servie aux joueurs (recette #64-B du 10/11) : catalogue PUBLIÉ, jamais le brouillon ;
+ * blocs : bibliothèque v1 à défaut. null = pictogramme d'origine (emoji) affiché par le jeu.
+ */
+function icLiveSrc(t) {
+  if (!t.applicable) return t.image ?? t.v1?.url ?? null;
+  return t.publishedImage ?? (t.kind === 'block' ? t.v1?.url ?? null : null);
+}
+
+/** Catalogues à brouillon : « Conserver » n'y écrit que le brouillon, la publication se fait dans l'onglet. */
+const IC_DRAFT_TABS = { block: '🧱 Blocs', relic: '🔮 Reliques', mission: '🎯 Missions', item: '📿 Collections' };
+const IC_DRAFT_TAB_IDS = { block: 'blocks', relic: 'relics', mission: 'missions', item: 'collections' };
+
+/**
+ * Aperçu à la taille du jeu (#64-B) : carte de relique avec les mêmes règles que public/css/style.css
+ * (.relic-card / .relic-icon : emoji 2,2rem ou image 40 × 40, police du jeu). Même appareil = même rendu.
+ */
+function icGameRelicCard(t, src) {
+  const card = aiEl('span', { class: 'ic-game-relic' });
+  const icon = aiEl('span', { class: 'ic-game-relic-icon' });
+  if (src) icon.appendChild(aiEl('img', { src, alt: '', width: '40', height: '40' }));
+  else icon.textContent = t.emoji ?? '';
+  card.appendChild(icon);
+  card.appendChild(aiEl('span', { class: 'ic-game-relic-name' }, t.name));
+  return card;
+}
+
+/** Miniature : image appliquée, sinon v1, sinon emoji ; blocs sur leur fond de jeu. `live` : image servie aux joueurs. */
+function icThumb(t, size, url = null, live = false) {
   const box = aiEl('span', { class: 'bk-thumb ic-thumb', style: `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.55)}px;border-radius:${Math.round(size / 6)}px` });
   const bg = t.background?.color;
   if (t.kind === 'block' && IC_BG_RE.test(bg ?? '')) box.style.background = bg;
   if (t.kind === 'block' && /^#[0-9a-f]{6}$/i.test(t.background?.accent ?? '')) box.style.borderColor = t.background.accent;
-  const src = url ?? t.image ?? t.v1?.url;
+  const src = url ?? (live ? icLiveSrc(t) : t.image ?? t.v1?.url);
   if (src) box.appendChild(aiEl('img', { src, alt: '', style: t.kind === 'block' ? 'width:78%;height:78%' : '' }));
   else if (t.emoji && icEmojiShown(t.emoji)) { box.textContent = t.emoji; box.classList.add('bk-thumb--emoji'); }
   else {
@@ -8721,10 +8748,18 @@ function icRenderSheet() {
     cmp.appendChild(f);
     return f;
   };
-  fig(icThumb(t, 160), t.kind === 'chest' ? (t.image ? 'Actuelle en jeu (image appliquée)' : `Actuelle en jeu (emoji d'origine ${t.emoji})`)
+  // Recette #64-B : « Actuelle en jeu » = ce que voient les joueurs (catalogue publié), pas l'image du brouillon
+  const liveSrc = icLiveSrc(t);
+  const draftTab = IC_DRAFT_TABS[t.kind];
+  fig(icThumb(t, 160, null, true), t.kind === 'chest' ? (t.image ? 'Actuelle en jeu (image appliquée)' : `Actuelle en jeu (emoji d'origine ${t.emoji})`)
     : t.kind === 'ui' ? (t.applicable ? (t.image ? 'Actuelle en jeu (image appliquée)' : `Actuelle en jeu (pictogramme d'origine ${t.emoji})`) : 'Actuelle')
     : !t.applicable ? 'Actuelle' : t.neverPublished ? 'Actuelle (objet en brouillon, jamais publié)'
-    : t.unpublished ? 'Actuelle (brouillon, pas encore en jeu)' : 'Actuelle en jeu');
+    : liveSrc ? 'Actuelle en jeu (image publiée)' : `Actuelle en jeu : pictogramme d'origine ${t.emoji ?? ''} (emoji, aucune image publiée)`);
+  // Image (ou retour à l'emoji) du brouillon, pas encore publiée : montrée à part, jamais comme « en jeu »
+  if (t.applicable && !t.neverPublished && t.unpublished && !(sel && !mine && sel.url === t.image)) {
+    fig(t.image ? icThumb(t, 160, t.image) : icThumb({ ...t, image: null, publishedImage: null, v1: null }, 160, null, true),
+      `Dans le brouillon, pas encore en jeu${t.image ? '' : ' (retour à l\'emoji)'}${draftTab ? ` — publication dans ${draftTab}` : ''}`);
+  }
   if (mine) {
     const wait = aiEl('span', { class: 'bk-thumb ic-thumb ic-wait', style: 'width:160px;height:160px;border-radius:26px' });
     wait.appendChild(aiEl('span', { class: 'ic-spinner', 'aria-hidden': 'true' }));
@@ -8752,6 +8787,22 @@ function icRenderSheet() {
     fig(empty, 'Aucune proposition pour l\'instant');
   }
   box.appendChild(cmp);
+  // Relique : rendu à la taille réelle de la carte du jeu (Collection → Reliques), actuelle et proposition
+  if (t.kind === 'relic') {
+    const game = aiEl('div', { class: 'ic-game-preview' });
+    game.appendChild(aiEl('p', { class: 'muted ic-hint' }, `Taille réelle dans le jeu (carte de la relique, même police que le jeu)${liveSrc ? '' : ` : l'emoji ${t.emoji ?? ''} est dessiné par la police de l'appareil — en couleur ou en blanc selon le système — exactement comme dans le jeu sur ce même appareil`} :`));
+    const row = aiEl('div', { class: 'ic-game-row' });
+    const cell = (node, caption) => { const f = aiEl('figure', { class: 'ic-game-fig' }); f.appendChild(node); f.appendChild(aiEl('figcaption', { class: 'muted' }, caption)); row.appendChild(f); };
+    cell(icGameRelicCard(t, liveSrc), 'En jeu aujourd\'hui');
+    if (sel && !mine) cell(icGameRelicCard(t, sel.url), sel.published ? 'Cette image (en jeu)' : 'Avec cette proposition');
+    game.appendChild(row);
+    box.appendChild(game);
+  }
+  // Aucune image publiée : l'icône d'origine reste, générer n'est pas nécessaire (recette #64-B)
+  if (draftTab && t.applicable && !t.neverPublished && !liveSrc && !t.unpublished && !mine) {
+    box.appendChild(aiEl('p', { class: 'ic-notice ic-notice--info' }, `✓ Icône actuelle conservée — aucune génération nécessaire. Les joueurs voient le pictogramme d'origine ${t.emoji ?? ''} tant qu'aucune image n'est publiée. `
+      + `Une proposition n'est jamais mise en jeu automatiquement : « Conserver cette image » la place seulement dans le brouillon, et seule « Publier » dans ${draftTab} la rend visible aux joueurs.`));
+  }
 
   // Étape en cours : une seule action principale
   const step = aiEl('div', { class: 'ic-step' });
@@ -8806,9 +8857,10 @@ function icRenderSheet() {
         icButton(row, 'Ouvrir la fiche de l\'événement →', () => evBackTo(t.event.id, null), 'btn btn-outline');
         row.appendChild(aiEl('span', { class: 'muted' }, 'Rien n\'est publié ici : « Publier les images » dans la fiche de l\'événement (statut et drops inchangés).'));
       } else if (!sel.published) {
-        const tab = t.kind === 'block' ? '🧱 Blocs' : '📿 Collections';
+        // #64-B : relique → 🔮 Reliques, mission → 🎯 Missions (et non Collections)
+        const tab = IC_DRAFT_TABS[t.kind] ?? '📿 Collections';
         const go = icButton(row, `Ouvrir l'onglet ${tab} →`, async () => {
-          document.querySelector(`.tab-btn[data-tab="${t.kind === 'block' ? 'blocks' : 'collections'}"]`).click();
+          document.querySelector(`.tab-btn[data-tab="${IC_DRAFT_TAB_IDS[t.kind] ?? 'collections'}"]`).click();
         }, 'btn btn-outline');
         go.title = `Ne publie rien : ouvre ${tab}, où le brouillon se relit et se publie manuellement (la série et ses drops restent inchangés).`;
         row.appendChild(aiEl('span', { class: 'muted' }, `Rien n'est publié ici : la publication se décide dans l'onglet ${tab}.`));
@@ -13932,6 +13984,8 @@ async function rlBackTo(id) {
   for (let k = 0; k < 50 && !_rl; k++) await new Promise(r => setTimeout(r, 100));
   const r = rlWorking().find(x => x.id === id);
   if (r) rlOpen(r, document.querySelector(`[data-adm-key="${CSS.escape(`rl:${id}`)}"]`));
+  // Repli (#64-B) : catalogue non rechargé ou relique retirée du brouillon entre-temps → message, pas de fiche vide
+  else ptMessage('rl-msg', _rl ? `Relique « ${id} » introuvable dans le catalogue (retirée du brouillon ?).` : 'Catalogue des reliques non chargé : utilisez « Rafraîchir ».', false);
 }
 
 admRefreshButton('btn-refresh-relics', loadRelics, 'Reliques');
