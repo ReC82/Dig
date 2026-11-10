@@ -463,6 +463,18 @@
       <div class="danger-zone pd-zone">
         <p class="muted pd-note">Trois opérations différentes : <strong>« Recommencer un test à zéro »</strong> (ci-dessus) garde le compte et son login ; <strong>« Retirer de la bêta »</strong> (rubrique Bêta fermée) ne retire que l'accès bêta ; <strong>« Supprimer le compte de test »</strong> (ici) efface le compte pour que le même pseudo et la même adresse puissent refaire la vraie inscription.</p>
         <p id="pd-test-state" class="pd-test-state"></p>
+        <!-- Diagnostic d'éligibilité (#90-B) : visible avant tout marquage ou saisie -->
+        <div id="pd-elig" class="pd-elig hidden" role="status">
+          <p id="pd-elig-summary" class="pd-elig-summary"></p>
+          <ul id="pd-elig-list" class="pd-elig-list"></ul>
+          <details class="pd-more" id="pd-elig-why"><summary>Pourquoi ? Et comment refaire une inscription quand même</summary>
+            <ul id="pd-elig-reasons" class="adm-confirm-impact"></ul>
+            <p>La marque « compte de test » ne lève jamais ces verrous, et aucun bouton ne permet de les contourner : ces traces prouvent des points, des échanges ou un classement déjà publiés.</p>
+            <p><strong>Pour tester l'inscription de bout en bout</strong> : créez une invitation (rubrique Bêta fermée), inscrivez une <strong>identité jetable neuve</strong> (nouveau pseudo, par exemple <code>essai90</code>, et une adresse e-mail dédiée), testez, puis marquez-la et supprimez-la ici : la même identité peut ensuite refaire l'inscription.</p>
+            <p><strong>Pour rejouer avec ce compte sans perdre son historique</strong> : « Recommencer un test à zéro » (rubrique Essais de test ci-dessus) remet la progression à zéro en gardant le login, les points et le classement figé.</p>
+            <p>Réutiliser exactement ce pseudo et cette adresse pour une nouvelle inscription demanderait une procédure exceptionnelle (archivage ou anonymisation des historiques) : elle n'existe pas dans le panneau et ne sera réalisée qu'après une décision écrite du propriétaire.</p>
+          </details>
+        </div>
         <div class="form-actions">
           <button class="btn btn-outline btn-sm" id="btn-pd-test-mark" type="button">🏷 Marquer comme compte de test</button>
           <button class="btn btn-outline btn-sm hidden" id="btn-pd-test-unmark" type="button">Retirer la marque « compte de test »</button>
@@ -501,6 +513,7 @@
       <dialog id="pd-mark-dialog" class="bk-dialog adm-dialog adm-dialog--narrow" aria-labelledby="pd-mark-title">
         <h3 class="overview-card-title" id="pd-mark-title">Marquer comme compte de test</h3>
         <p>Seul un compte <strong>marqué comme compte de test</strong> peut être supprimé. Ne marquez jamais le compte d'un vrai joueur.</p>
+        <p id="pd-mark-warn" class="pd-elig pd-elig--protected hidden" role="alert"></p>
         <div class="adm-form">
           <label>Motif (obligatoire, sans donnée personnelle) <textarea id="pd-mark-reason" rows="2" maxlength="300"></textarea></label>
           <label>Pour confirmer, saisissez exactement le pseudo <strong class="pd-mark-name"></strong> <input type="text" id="pd-mark-input" autocomplete="off" spellcheck="false"></label>
