@@ -71,6 +71,63 @@ test('liste : pagination serveur, total, tri, recherche sans accents sur toute l
   assert.strictEqual(playerAdmin.normalizeQuery('  Œuf Ça '), 'oeuf ca');
 });
 
+test('diagnostic d\'éligibilité (#90-B) : verrous visibles avant le marquage, la marque ne les lève pas', () => {
+  const c = db.getDb();
+  // Compte neuf : il ne manque que la marque, puis supprimable
+  const neuf = db.createUser('essai_elig', 'essai_elig@example.test', 'x');
+  let pv = playerAdmin.previewDelete(neuf.id);
+  assert.deepStrictEqual([pv.eligibility.state, pv.eligibility.marked, pv.eligibility.protectedCount], ['needs_mark', false, 0]);
+  playerAdmin.markTestAccount(neuf.id, { confirmUsername: 'essai_elig', reason: 'identité jetable' });
+  pv = playerAdmin.previewDelete(neuf.id);
+  assert.deepStrictEqual([pv.eligibility.state, pv.allowed], ['deletable', true]);
+
+  // Compte de bêta type « testeur » : essai boutique + points de saison + classement figé
+  const t = db.createUser('testeur_elig', 'testeur_elig@example.test', 'x');
+  const season = Number(c.prepare("INSERT INTO seasons (name, start_at, end_at, status) VALUES ('Saison test 90', '2026-01-01', '2026-01-08', 'closed')").run().lastInsertRowid);
+  const led = c.prepare('INSERT INTO reward_point_ledger (user_id, delta, balance_after, kind, use, season_id, idem_key, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+  led.run(t.id, 1, 1, 'admin_credit', null, null, 'k90_1', 'TEST');
+  const spend = Number(led.run(t.id, -1, 0, 'spend', 'virtual', null, 'k90_2', 'Boutique').lastInsertRowid);
+  led.run(t.id, 1, 1, 'refund', 'virtual', null, 'k90_3', 'annulée');
+  led.run(t.id, 5, 6, 'season_award', null, season, 'k90_4', null);
+  c.prepare("INSERT INTO reward_point_awards (season_id, mode, user_id, rank, eligible_count, tier, points, scale_version) VALUES (?, 'live', ?, 2, 2, 'active', 5, 1)").run(season, t.id);
+  c.prepare("INSERT INTO reward_point_wallets (user_id, balance, earned_total, spent_total) VALUES (?, 6, 7, 1)").run(t.id);
+  c.prepare("INSERT INTO shop_orders (user_id, item_id, kind, cost, status, request_key, spend_ledger_id, item_snapshot) VALUES (?, 1, 'virtual', 1, 'cancelled', 'rk90', ?, '{}')").run(t.id, spend);
+  c.prepare('INSERT INTO season_standings (season_id, position, rank, user_id, max_depth, effective_manual_blocks, manual_blocks, eligible) VALUES (?, 2, 2, ?, 10, 5, 5, 1)').run(season, t.id);
+
+  // AVANT le marquage : le diagnostic annonce déjà que la marque ne suffira pas
+  pv = playerAdmin.previewDelete(t.id);
+  assert.strictEqual(pv.eligibility.state, 'protected');
+  assert.strictEqual(pv.eligibility.marked, false);
+  assert.strictEqual(pv.eligibility.protectedCount, 5);
+  assert.match(pv.eligibility.summary, /^Même marqué « compte de test », ce compte ne pourra pas être supprimé : 5 catégories/);
+  const prot = pv.blockers.filter(b => b.protected);
+  assert.deepStrictEqual(prot.map(b => b.code), ['reward_point_ledger', 'reward_point_awards', 'reward_point_wallets', 'shop_orders', 'season_standings']);
+  for (const b of prot) assert.ok(b.why && b.title && b.rows > 0 && b.details.length > 0, `${b.code} : motif lisible et détail`);
+  const byCode = Object.fromEntries(prot.map(b => [b.code, b.details]));
+  assert.deepStrictEqual(byCode.reward_point_ledger, ['crédit manuel admin × 1 (+1 pt)', 'remboursement × 1 (+1 pt)', 'attribution de saison × 1 (+5 pt)', 'dépense en boutique × 1 (-1 pt)']);
+  assert.deepStrictEqual(byCode.reward_point_awards, ['Saison test 90 : rang 2 sur 2, 5 pt (attribution réelle)']);
+  assert.match(byCode.shop_orders[0], /article virtuel, 1 pt, annulée$/);
+  assert.deepStrictEqual(byCode.season_standings, ['Saison test 90 : 2ᵉ place']);
+  assert.ok(!JSON.stringify(pv.blockers).includes('@'), 'aucun e-mail dans le diagnostic');
+
+  // APRÈS le marquage : « compte de test reconnu, mais bloqué » ; la suppression reste refusée, rien n'est effacé
+  playerAdmin.markTestAccount(t.id, { confirmUsername: 'testeur_elig', reason: 'compte testeur' });
+  pv = playerAdmin.previewDelete(t.id);
+  assert.deepStrictEqual([pv.eligibility.state, pv.eligibility.marked, pv.allowed], ['protected', true, false]);
+  assert.strictEqual(pv.eligibility.summary, 'Compte de test reconnu, mais suppression bloquée par 5 catégories de données protégées.');
+  assert.ok(!pv.blockers.some(b => b.code === 'not_test_account'));
+  assert.throws(() => playerAdmin.deleteTestAccount(t.id, { confirmUsername: 'testeur_elig', confirmWord: 'SUPPRIMER', reason: 'essai', requestId: 'req_elig_0001' }),
+    e => e.code === 'blocked');
+  assert.ok(db.getUserById(t.id));
+  assert.strictEqual(c.prepare('SELECT COUNT(*) AS n FROM reward_point_ledger WHERE user_id = ?').get(t.id).n, 4);
+  assert.strictEqual(c.prepare('SELECT COUNT(*) AS n FROM season_standings WHERE user_id = ?').get(t.id).n, 1);
+
+  // L'identité jetable neuve, elle, se supprime normalement
+  playerAdmin.deleteTestAccount(neuf.id, { confirmUsername: 'essai_elig', confirmWord: 'SUPPRIMER', reason: 'fin du test', requestId: 'req_elig_0002' });
+  assert.strictEqual(db.getUserById(neuf.id), undefined);
+  playerAdmin.unmarkTestAccount(t.id);
+});
+
 test('suppression : marque obligatoire, confirmation forte, transaction, anti-rejeu (unitaire)', () => {
   const u = db.createUser('cobaye_unit', 'cobaye_unit@example.test', 'x');
   db.upsertUserSave(u.id, JSON.stringify({ coins: 9 }));

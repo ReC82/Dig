@@ -9,7 +9,8 @@
  * test. Trois verrous :
  *   1. le compte doit avoir été marqué « compte de test » par l'admin (action séparée, motivée) ;
  *   2. aucune valeur réelle attachée : points de récompense, commandes, gains de concours,
- *      paiements, classement figé d'une saison clôturée, récompense X ;
+ *      paiements, classement figé d'une saison clôturée, récompense X — la marque ne lève jamais ce
+ *      verrou ; l'aperçu le diagnostique dès l'ouverture de la fiche (`eligibility`, avant marquage) ;
  *   3. confirmation forte : pseudo exact + mot « SUPPRIMER » + motif + identifiant de requête
  *      (anti-rejeu : le même identifiant renvoie le même résultat sans rien refaire).
  * Dans UNE transaction : copie des journaux de sécurité / anti-bot / événements du compte dans
@@ -43,15 +44,24 @@ const ARCHIVE_MAX = 5000;
 
 /** Valeur réelle attachée au compte : la suppression est refusée tant qu'une de ces lignes existe. */
 const BLOCKERS = [
-  { table: 'reward_point_ledger',  label: 'points de récompense (mouvements)' },
-  { table: 'reward_point_awards',  label: 'points de récompense attribués' },
-  { table: 'reward_point_wallets', label: 'portefeuille de points non vide', where: '(balance > 0 OR earned_total > 0)' },
-  { table: 'shop_orders',          label: 'commandes en boutique de cadeaux' },
-  { table: 'contest_winners',      label: 'gains de concours' },
-  { table: 'fragment_pack_orders', label: 'paiements (lot de fragments)' },
-  { table: 'x_reward_claims',      label: 'récompenses X demandées' },
-  { table: 'season_standings',     label: 'classement figé d\'une saison clôturée' },
-  { table: 'season_snapshots',     label: 'meneur d\'une saison clôturée', col: 'leader_user_id' },
+  { table: 'reward_point_ledger',  label: 'points de récompense (mouvements)',
+    why: 'Le registre des points est en ajout seul (#33) : chaque crédit, dépense ou remboursement doit rester prouvable.' },
+  { table: 'reward_point_awards',  label: 'points de récompense attribués',
+    why: 'Points accordés au mérite pour une saison clôturée (#33) : l\'attribution est définitive et vérifiable.' },
+  { table: 'reward_point_wallets', label: 'portefeuille de points non vide', where: '(balance > 0 OR earned_total > 0)',
+    why: 'Le compte a gagné des points échangeables en boutique : les effacer ferait disparaître une valeur acquise.' },
+  { table: 'shop_orders',          label: 'commandes en boutique de cadeaux',
+    why: 'Une commande, même annulée et remboursée, est une trace d\'échange protégée contre l\'effacement (#34).' },
+  { table: 'contest_winners',      label: 'gains de concours',
+    why: 'Un gain de concours doit rester traçable (règlement et obligations légales, #27/#30).' },
+  { table: 'fragment_pack_orders', label: 'paiements (lot de fragments)',
+    why: 'Un paiement doit rester traçable (obligations comptables, #85).' },
+  { table: 'x_reward_claims',      label: 'récompenses X demandées',
+    why: 'Une demande de récompense X reste une trace anti-abus (#51).' },
+  { table: 'season_standings',     label: 'classement figé d\'une saison clôturée',
+    why: 'Le classement d\'une saison clôturée est figé et chaîné par empreinte (#29) : retirer le joueur modifierait un classement publié.' },
+  { table: 'season_snapshots',     label: 'meneur d\'une saison clôturée', col: 'leader_user_id',
+    why: 'Le compte est le meneur enregistré d\'une saison clôturée (#29) : cet instantané est immuable.' },
 ];
 /** Journaux d'audit conservés tels quels (identifiant orphelin, jamais réutilisé). */
 const KEEP = [
@@ -252,16 +262,71 @@ function _count(table, col, userId, extra) {
   return conn().prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${col} = ?${extra ? ` AND ${extra}` : ''}`).get(userId).n;
 }
 
-/** Raisons de refus (vide = suppression possible). */
+const _seasonName = id => (_exists('seasons') && conn().prepare('SELECT name FROM seasons WHERE id = ?').get(id)?.name) || `saison ${id}`;
+const ORDER_STATUS = { pending: 'en attente', processing: 'en préparation', delivered: 'remise', cancelled: 'annulée' };
+const LEDGER_KIND = { season_award: 'attribution de saison', spend: 'dépense en boutique', refund: 'remboursement',
+  admin_credit: 'crédit manuel admin', admin_debit: 'retrait manuel admin' };
+
+/** Détail lisible (sans donnée personnelle) des lignes protégées, pour comprendre le refus. */
+function _blockerDetails(table, userId) {
+  const c = conn(), cap = 5;
+  if (table === 'reward_point_ledger') {
+    return c.prepare('SELECT kind, COUNT(*) AS n, SUM(delta) AS pts FROM reward_point_ledger WHERE user_id = ? GROUP BY kind ORDER BY kind').all(userId)
+      .map(r => `${LEDGER_KIND[r.kind] ?? r.kind} × ${r.n} (${r.pts > 0 ? '+' : ''}${r.pts} pt)`);
+  }
+  if (table === 'reward_point_awards') {
+    return c.prepare('SELECT season_id, mode, rank, eligible_count, points FROM reward_point_awards WHERE user_id = ? ORDER BY season_id DESC, mode LIMIT ?').all(userId, cap)
+      .map(r => `${_seasonName(r.season_id)} : rang ${r.rank} sur ${r.eligible_count}, ${r.points} pt (${r.mode === 'live' ? 'attribution réelle' : 'simulation'})`);
+  }
+  if (table === 'reward_point_wallets') {
+    const w = c.prepare('SELECT balance, earned_total, spent_total FROM reward_point_wallets WHERE user_id = ?').get(userId);
+    return w ? [`solde ${w.balance} pt ; ${w.earned_total} pt gagnés au total, ${w.spent_total} dépensés`] : [];
+  }
+  if (table === 'shop_orders') {
+    return c.prepare('SELECT id, kind, cost, status FROM shop_orders WHERE user_id = ? ORDER BY id DESC LIMIT ?').all(userId, cap)
+      .map(r => `commande n° ${r.id} : article ${r.kind === 'real' ? 'RÉEL' : 'virtuel'}, ${r.cost} pt, ${ORDER_STATUS[r.status] ?? r.status}`);
+  }
+  if (table === 'season_standings') {
+    return c.prepare('SELECT season_id, position, eligible FROM season_standings WHERE user_id = ? ORDER BY season_id DESC LIMIT ?').all(userId, cap)
+      .map(r => `${_seasonName(r.season_id)} : ${r.position}ᵉ place${r.eligible ? '' : ' (non éligible)'}`);
+  }
+  if (table === 'season_snapshots') {
+    return c.prepare('SELECT season_id FROM season_snapshots WHERE leader_user_id = ? ORDER BY season_id DESC LIMIT ?').all(userId, cap)
+      .map(r => `meneur de ${_seasonName(r.season_id)}`);
+  }
+  return [];
+}
+
+/**
+ * Raisons de refus (vide = suppression possible). Chaque verrou de valeur : { code, label, title,
+ * rows, why, details[], protected: true } ; la marque manquante : { code: 'not_test_account' }.
+ */
 function _blockers(userId) {
   const out = [];
-  if (!getTestMark(userId)) out.push({ code: 'not_test_account', label: 'compte non marqué « compte de test » (marquez-le d\'abord, motif obligatoire)' });
+  if (!getTestMark(userId)) out.push({ code: 'not_test_account', label: 'compte non marqué « compte de test » (marquez-le d\'abord, motif obligatoire)', protected: false });
   for (const b of BLOCKERS) {
     if (!_exists(b.table)) continue;
     const n = _count(b.table, b.col ?? 'user_id', userId, b.where);
-    if (n > 0) out.push({ code: b.table, label: `${b.label} (${n})` });
+    if (n > 0) out.push({ code: b.table, label: `${b.label} (${n})`, title: b.label, rows: n, why: b.why, details: _blockerDetails(b.table, userId), protected: true });
   }
   return out;
+}
+
+/**
+ * Diagnostic d'éligibilité, lisible AVANT le marquage :
+ *   deletable    — marqué, aucune donnée protégée ;
+ *   needs_mark   — aucune donnée protégée, il manque seulement la marque ;
+ *   protected    — données protégées : la marque ne suffira pas (aucun contournement prévu).
+ */
+function _eligibility(blockers, marked) {
+  const prot = blockers.filter(b => b.protected);
+  const state = prot.length ? 'protected' : marked ? 'deletable' : 'needs_mark';
+  const n = prot.length, cat = `${n} catégorie${n > 1 ? 's' : ''} de données protégées`;
+  const summary = state === 'deletable' ? 'Compte de test reconnu — suppression possible (confirmation forte requise).'
+    : state === 'needs_mark' ? 'Aucune donnée protégée : la suppression sera possible une fois le compte marqué « compte de test ».'
+    : marked ? `Compte de test reconnu, mais suppression bloquée par ${cat}.`
+    : `Même marqué « compte de test », ce compte ne pourra pas être supprimé : ${cat}.`;
+  return { state, marked, protectedCount: n, summary };
 }
 
 /** Ce qui sera effacé (par table) et ce qui est conservé. */
@@ -287,6 +352,7 @@ function previewDelete(userId) {
     userId: user.id, username: user.username, createdAt: user.created_at,
     testAccount: getTestMark(userId),
     allowed: blockers.length === 0, blockers, erased, kept,
+    eligibility: _eligibility(blockers, !!getTestMark(userId)),
     confirmWord: CONFIRM_WORD,
     always: [
       'compte de connexion supprimé : pseudo et adresse e-mail redeviennent libres pour une nouvelle inscription',

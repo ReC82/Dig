@@ -2676,10 +2676,44 @@ document.getElementById('btn-close-player-detail').addEventListener('click', () 
 // ── Actions sensibles (#90) : compte de test, suppression contrôlée ─────────────
 
 let _pdDelCtx = null;
+let _pdElig = null;
+
+/** Verrous de valeur en liste lisible : catégorie, puis le détail (sans donnée personnelle). */
+function pdFillBlockers(ul, blockers) {
+  ul.textContent = '';
+  for (const b of blockers.filter(x => x.protected)) {
+    const li = document.createElement('li');
+    li.append(Object.assign(document.createElement('strong'), { textContent: `${b.title} (${b.rows})` }));
+    for (const d of b.details ?? []) li.append(Object.assign(document.createElement('span'), { className: 'pd-elig-detail', textContent: d }));
+    ul.appendChild(li);
+  }
+}
+
+/** Diagnostic d'éligibilité (#90-B) : dit AVANT le marquage si le compte pourra être supprimé, et pourquoi. */
+function pdRenderEligibility(data) {
+  const el = data.eligibility;
+  _pdElig = el ? { ...el, blockers: data.blockers } : null;
+  const box = document.getElementById('pd-elig');
+  if (!el) { box.classList.add('hidden'); return; }
+  box.className = `pd-elig pd-elig--${el.state}`;
+  document.getElementById('pd-elig-summary').textContent = `${el.state === 'protected' ? '⛔' : el.state === 'deletable' ? '✅' : 'ℹ️'} ${el.summary}`;
+  pdFillBlockers(document.getElementById('pd-elig-list'), data.blockers);
+  const why = document.getElementById('pd-elig-why');
+  why.hidden = el.state !== 'protected';
+  const reasons = document.getElementById('pd-elig-reasons');
+  reasons.textContent = '';
+  for (const b of data.blockers.filter(x => x.protected)) reasons.appendChild(Object.assign(document.createElement('li'), { textContent: `${b.title} — ${b.why}` }));
+  const del = document.getElementById('btn-pd-delete');
+  del.disabled = el.state === 'protected';
+  del.title = el.state === 'protected' ? 'Suppression impossible : données protégées (voir « Pourquoi ? »).' : '';
+}
 
 /** État « compte de test » dans la fiche (lu dans l'aperçu de suppression, qui ne modifie rien). */
 async function pdLoadSensitive(userId) {
   admShowError(document.getElementById('pd-sens-err'), '');
+  document.getElementById('pd-elig').classList.add('hidden');
+  document.getElementById('btn-pd-delete').disabled = false;
+  _pdElig = null;
   const { ok, data } = await api('GET', `/api/admin/players/${userId}/delete-preview`);
   if (userId !== _currentPlayerId) return;
   const state = document.getElementById('pd-test-state');
@@ -2690,6 +2724,7 @@ async function pdLoadSensitive(userId) {
     : 'Compte ordinaire : il doit d\'abord être marqué « compte de test » pour pouvoir être supprimé.';
   document.getElementById('btn-pd-test-mark').classList.toggle('hidden', marked);
   document.getElementById('btn-pd-test-unmark').classList.toggle('hidden', !marked);
+  pdRenderEligibility(data);
 }
 
 function pdMarkCheck() {
@@ -2705,6 +2740,13 @@ document.getElementById('btn-pd-test-mark').addEventListener('click', e => {
   document.getElementById('pd-mark-input').value = '';
   document.getElementById('pd-mark-reason').value = '';
   admShowError(document.getElementById('pd-mark-msg'), '');
+  // Avertir AVANT la saisie si la marque ne suffira pas (#90-B)
+  const warn = document.getElementById('pd-mark-warn');
+  const prot = _pdElig?.state === 'protected';
+  warn.textContent = prot
+    ? `⛔ ${_pdElig.summary.replace(/\.$/, ' :')} ${_pdElig.blockers.filter(b => b.protected).map(b => b.label).join(' ; ')}. Vous pouvez le marquer pour le repérer, mais il restera non supprimable.`
+    : '';
+  warn.classList.toggle('hidden', !prot);
   pdMarkCheck();
   admDialogOpen('pd-mark-dialog', e.currentTarget, 'pd-mark-reason');
 });
@@ -2752,7 +2794,9 @@ document.getElementById('btn-pd-delete').addEventListener('click', async e => {
   document.getElementById('pd-del-title').textContent = `Supprimer le compte de test — ${data.username} (ID ${data.userId})`;
   document.querySelector('#pd-del-dialog .pd-del-name').textContent = data.username;
   const blocked = document.getElementById('pd-del-blocked');
-  blocked.textContent = data.allowed ? '' : `Suppression impossible : ${data.blockers.map(b => b.label).join(' ; ')}.`;
+  blocked.textContent = data.allowed ? '' : data.eligibility?.state === 'protected'
+    ? `Suppression impossible — ${data.eligibility.summary.replace(/\.$/, ' :')} ${data.blockers.filter(b => b.protected).map(b => b.label).join(' ; ')}. Voir « Pourquoi ? » dans la fiche.`
+    : `Suppression impossible : ${data.blockers.map(b => b.label).join(' ; ')}.`;
   blocked.classList.toggle('hidden', data.allowed);
   document.getElementById('pd-del-form').hidden = !data.allowed;
   const fill = (ul, items) => { ul.textContent = ''; for (const t of items) ul.appendChild(Object.assign(document.createElement('li'), { textContent: t })); };
