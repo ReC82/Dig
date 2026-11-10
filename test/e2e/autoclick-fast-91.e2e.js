@@ -9,6 +9,10 @@
  *   C. Ordinateur — joueur à souris immobile, rythme humain : vérification « même pixel » seulement ;
  *      après résolution, reprise au même pixel 40 s : ni nouvelle vérification ni suspension.
  *   D. Smartphone 390×844 — tapotements au même point toutes les 125 ms : vérification en secondes.
+ *   E. (10/11) Extension type OP Auto Clicker : clics générés par script (isTrusted = false) au même
+ *      point, gigue ±15 % → vérification en secondes ; reprise → suspension 5 min ; F5 : suspension
+ *      toujours affichée et aucun coup compté ; levée admin + palier remis à 0 ; après l'énigme, clics
+ *      humains : aucune nouvelle vérification (anciennes mesures effacées).
  *
  *   PW=/chemin/node_modules/playwright-core CHROME=/chemin/chrome-headless-shell BASE=http://127.0.0.1:3101 \
  *   ADMIN=<secret> OUT=/tmp/captures node test/e2e/autoclick-fast-91.e2e.js
@@ -147,6 +151,60 @@ const humanGap = () => Math.max(60, 140 * (1 + 0.25 * (Math.random() + Math.rand
     check('D', 'mobile : vérification en quelques secondes', rd.modalAfter != null && rd.modalAfter <= 8, `${rd.modalAfter} s ${JSON.stringify(f.lotC?.history?.challenges?.[0]?.reasons)}`);
     await d.screenshot({ path: path.join(OUT, '91-D-verification-mobile.png') });
     check('D', 'aucune erreur JS', !d.errors.length, d.errors.join(' | '));
+
+    // E. Extension (clics générés par script, gigue ±15 %)
+    const ue = `ac91e_${sfx}`;
+    const e = await openGame(browser, ue);
+    const ext = (pg, secs) => pg.evaluate(async secs => {
+      const el = document.getElementById('block');
+      const r = el.getBoundingClientRect();
+      const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+      const t0 = performance.now();
+      while (performance.now() - t0 < secs * 1000) {
+        const m = document.querySelector('#antibot-modal:not([hidden])');
+        if (m) return (performance.now() - t0) / 1000;
+        // Coffre trouvé : l'extension clique « Récupérer » au même titre que play()
+        const chest = document.querySelector('#chest-modal:not([hidden]) #btn-collect-chest');
+        if (chest) { chest.click(); await new Promise(res => setTimeout(res, 300)); continue; }
+        el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y, screenX: x, screenY: y }));
+        await new Promise(res => setTimeout(res, 125 * (1 + (Math.random() * 2 - 1) * 0.15)));
+      }
+      return null;
+    }, secs);
+    const e1 = await ext(e, 30);
+    check('E', 'extension : vérification en quelques secondes', e1 != null && e1 <= 8, `${e1} s`);
+    f = await fiche(ue);
+    check('E', 'raison : autoclicker corroboré (coups générés par script)', f.lotC?.fast?.last?.scripted === true,
+      `${JSON.stringify(f.lotC?.history?.challenges?.[0]?.reasons)} t3 ${f.lotC?.fast?.last?.evidence?.top3Share}`);
+    check('E', 'énigme résolue', (await solve(e)).solved === true);
+    const e2 = await ext(e, 60);
+    f = await fiche(ue);
+    check('E', 'reprise → minage manuel suspendu 5 min', f.lotC?.state === 'suspended' && f.lotC.suspension?.reason === 'autoclick_repeat'
+      && f.lotC.suspension.level === 1, `${f.lotC?.state} palier ${f.lotC?.suspension?.level} après ${e2} s de reprise`);
+    // F5 : la suspension revient du serveur, aucun coup compté (clics souris réels compris)
+    await e.reload();
+    await e.waitForSelector('#block');
+    await sleep(2500);
+    check('E', 'F5 : suspension toujours affichée', !!(await modalOpen(e)) && /clics automatiques/i.test(await e.locator('#antibot-text').textContent() ?? ''));
+    const before = await e.evaluate(() => GameState.seasonStats.manualClicks);
+    await e.evaluate(() => { const m = document.getElementById('antibot-modal'); if (m) m.hidden = true; });
+    await play(e, 3, { stopOnModal: false });
+    const after = await e.evaluate(() => GameState.seasonStats.manualClicks);
+    check('E', 'F5 : aucun coup manuel compté pendant la suspension', after === before, `${before} → ${after}`);
+    await e.screenshot({ path: path.join(OUT, '91-E-suspension-extension.png') });
+    // Levée admin + palier remis à 0, puis énigme ; clics humains ensuite : rien
+    const uid = f.player?.userId;
+    const lift = await fetch(`${BASE}/api/admin/security/suspension/${f.lotC.suspension.id}/lift`, { method: 'POST', headers: H, body: JSON.stringify({ note: 'e2e' }) });
+    const lvl = await fetch(`${BASE}/api/admin/security/player/${uid}/violation-level`, { method: 'POST', headers: H, body: JSON.stringify({ level: 0 }) });
+    f = await fiche(ue);
+    check('E', 'levée admin + palier remis à 0', lift.ok && lvl.ok && f.lotC?.state === 'challenge' && f.lotC?.nextSuspensionMin === 5,
+      `${lift.status}/${lvl.status} ${f.lotC?.state} prochain ${f.lotC?.nextSuspensionMin} min`);
+    check('E', 'énigme après levée', (await solve(e)).solved === true);
+    const e3 = await play(e, 25, { gap: humanGap, move: true });
+    f = await fiche(ue);
+    check('E', 'reprise humaine : ni vérification ni série « même pixel » héritée', e3.modalAfter == null && f.lotC?.state === 'normal'
+      && !f.lotC?.fast?.last?.fixed, JSON.stringify(f.lotC?.fast?.last?.evidence));
+    check('E', 'aucune erreur JS', !e.errors.length, e.errors.join(' | '));
   } finally {
     await browser.close();
   }

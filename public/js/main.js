@@ -205,10 +205,20 @@ function _fastRecord(ev, kind, now) {
   }
 }
 
-/** Vérification affichée : la série au même pixel repart de zéro. */
+/**
+ * Vérification ou suspension affichée : toutes les mesures repartent de zéro. La plus longue série
+ * (sp) aussi : sinon l'ancienne série de l'autoclicker resurgissait dans la 1ʳᵉ fenêtre de clics
+ * humains après la suspension (#91, journaux du 10/11 : 158 clics « au même pixel » à la reprise).
+ */
 function _fastReset() {
   _fast.run = 0;
+  _fast.sp = 0;
   _fast.key = null;
+  _fast.iv.length = 0;
+  _fast.mc = 0;
+  _fast.mm = 0;
+  _fast.still = 0;
+  _fast.last = 0;
 }
 
 function _fastStats() {

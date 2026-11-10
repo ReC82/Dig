@@ -345,3 +345,136 @@ test('fiche admin : verdict lisible (preuves, réglages) et levée de suspension
   assert.strictEqual(summary.fast.ab_fast_mode, 'on');
   assert.ok(summary.suspensions.some(s => s.reason === 'autoclick_repeat'));
 });
+
+// ── Décision du propriétaire du 10/11 : suspensions effectives pour tous (rejeu des journaux réels) ──
+
+/**
+ * Fenêtres réelles de l'extension OP Auto Clicker du propriétaire (production, 10/11, télémétrie
+ * agrégée sans donnée personnelle) : sauvegarde anticipée au 25ᵉ coup, gigue 10–15 % (régularité
+ * « machine » non établie sur 25 coups), 100 % de coups non fiables, souris immobile, même pixel.
+ */
+const REAL_EXT = [
+  { secs: 3.2,  n: 25, u: 25, f: { k: 24, t3: 0.708, med: 130.8, mad: 13,  coarse: 0, sp: 25,  run: 25,  mc: 25, mm: 25, still: 24 } },
+  { secs: 10,   n: 40, u: 40, f: { k: 39, t3: 0.744, med: 129.6, mad: 5.6, coarse: 0, sp: 39,  run: 25,  mc: 40, mm: 40, still: 38 } },
+  { secs: 7,    n: 25, u: 25, f: { k: 24, t3: 0.875, med: 130.8, mad: 10.7, coarse: 0, sp: 25, run: 25,  mc: 25, mm: 25, still: 24 } },
+  { secs: 7,    n: 37, u: 37, f: { k: 36, t3: 0.778, med: 129.5, mad: 8.3, coarse: 0, sp: 35,  run: 25,  mc: 37, mm: 37, still: 34 } },
+];
+/** Fenêtre humaine réelle juste après la suspension (même compte, souris qui bouge, coups fiables). */
+const REAL_HUMAN = { n: 32, u: 0, f: { k: 31, t3: 0.419, med: 163.8, mad: 8.3, coarse: 0, sp: 20, run: 20, mc: 32, mm: 32, still: 24 } };
+const telOf = w => ({ n: w.n, u: w.u, x: 0, h: null, p: { m: w.n, t: 0, k: 0, o: 0 }, f: { ...w.f } });
+
+test('10/11 — fenêtres réelles de l\'extension : corroborées par les coups générés par script, même sans rythme de machine', () => {
+  for (const w of REAL_EXT) {
+    const v = evalTel(telOf(w));
+    assert.ok(!v.regular, `régularité non établie (t3 ${w.f.t3})`);
+    assert.ok(v.scripted && v.fixed && v.still && v.automation, JSON.stringify(v.evidence));
+  }
+  // Humain réel : rien (coups fiables, pas de série de 25)
+  const h = evalTel(telOf(REAL_HUMAN));
+  assert.ok(!h.scripted && !h.fixed && !h.automation);
+});
+
+test('10/11 — garde-fous du faisceau « script » : jamais sans même pixel, ni lent (accessibilité), ni sans 3ᵉ indice', () => {
+  const base = REAL_EXT[1];
+  // Coups non fiables mais position qui varie (pas de série) → rien
+  assert.ok(!evalTel(telOf({ ...base, f: { ...base.f, sp: 3, run: 3 } })).automation);
+  // Clic d'accessibilité lent (1 coup / 800 ms) non fiable, même pixel, immobile → pas « script rapide »
+  assert.ok(!evalTel(telOf({ ...base, f: { ...base.f, med: 800, mad: 40 } })).automation);
+  // Script mais souris qui bouge et cadence serveur irrégulière → pas de 3ᵉ indice
+  assert.ok(!evalTel(telOf({ ...base, f: { ...base.f, still: 0 } })).automation);
+  // Moins de 90 % de coups non fiables → faisceau b absent (le faisceau a exige la régularité)
+  assert.ok(!evalTel(telOf({ ...base, u: 30 })).automation);
+  // Moins de 20 coups → pas assez de preuves
+  assert.ok(!evalTel(telOf({ ...REAL_EXT[0], n: 19, u: 19 })).automation);
+});
+
+test('client : la vérification ou la suspension remet à zéro toutes les mesures, y compris la plus longue série (sp)', () => {
+  const main = fs.readFileSync(path.join(__dirname, '../public/js/main.js'), 'utf8');
+  const body = main.slice(main.indexOf('function _fastReset()'), main.indexOf('function _fastStats()'));
+  for (const re of [/_fast\.run = 0;/, /_fast\.sp = 0;/, /_fast\.iv\.length = 0;/, /_fast\.still = 0;/, /_fast\.mm = 0;/]) assert.match(body, re);
+});
+
+/** Rejoue les fenêtres réelles ; entre deux passages, le joueur résout l'énigme (bot supervisé). */
+function replayExtension(userId, start, clicks0 = 0) {
+  const st = { now: start, clicks: clicks0, blocks: Math.floor(clicks0 / 10) };
+  st.save = (secs, tel) => {
+    st.now += secs * 1000;
+    if (tel) { st.clicks += tel.n; st.blocks += Math.floor(tel.n / 10); }
+    return seasons.syncPlayerRanking(userId, { seasonId, maxDepth: 1 + st.blocks, manualBlocks: st.blocks, autoBlocks: 0,
+      manualClicks: st.clicks, suspiciousScore: 0 }, { nowMs: st.now, telemetry: tel });
+  };
+  st.solve = () => {
+    const ch = challenges(userId).filter(c => c.status === 'pending').pop();
+    responses.markSeen(userId, ch.id, { manualClicks: st.clicks, nowMs: st.now });
+    st.now += 8000;
+    const p = responses.newPuzzle(userId, ch.id, { kind: 'text', nowMs: st.now - 3000 });
+    return responses.answer(userId, ch.id, p.puzzleId, String(p.a + p.b), { manualClicks: st.clicks, manualBlocks: st.blocks, nowMs: st.now });
+  };
+  return st;
+}
+
+test('Appliqué pour tous — extension réelle : vérification à la 1ʳᵉ fenêtre, suspension 5 min ≤ 15 s après la reprise, puis 15 min', () => {
+  cfg('antibot_response_mode', 'enforce');
+  const userId = newUser();
+  const st = replayExtension(userId, T0 + 3 * 3600_000);
+  const t0 = st.now;
+  let s = st.save(REAL_EXT[0].secs, telOf(REAL_EXT[0]));
+  assert.ok(s?.challenge && !s.suspension, 'vérification dès la 1re fenêtre');
+  assert.ok(st.now - t0 <= 4000);
+  assert.deepStrictEqual(reasonsOf(challenges(userId)[0]), ['autoclick_corroborated']);
+  assert.ok(JSON.parse(challenges(userId)[0].reasons).reasons[0].signals.includes('scripted'));
+  assert.ok(st.solve().solved);
+  const resumed = st.now;
+  // Reprise de l'autoclicker : 1re fenêtre corroborée attend sa confirmation, la 2e suspend
+  s = st.save(REAL_EXT[2].secs, telOf(REAL_EXT[2]));
+  assert.ok(!s, 'pas de suspension sur une seule fenêtre');
+  s = st.save(REAL_EXT[3].secs, telOf(REAL_EXT[3]));
+  assert.ok(s?.suspension, 'suspension');
+  assert.strictEqual(s.suspension.minutes, 5);
+  assert.strictEqual(s.suspension.reason, 'autoclick_repeat');
+  assert.ok(st.now - resumed <= 15_000, `suspension ${(st.now - resumed) / 1000} s après la reprise`);
+  console.log(`[#91] extension réelle : suspension ${(st.now - resumed) / 1000} s après la reprise`);
+  // Après la suspension (5 min) et l'énigme, récidive → 15 min
+  st.now += 5 * MIN;
+  assert.ok(st.solve().solved);
+  st.save(REAL_EXT[2].secs, telOf(REAL_EXT[2]));
+  s = st.save(REAL_EXT[3].secs, telOf(REAL_EXT[3]));
+  assert.strictEqual(s?.suspension?.minutes, 15);
+  // Remise à zéro sûre du palier par l'admin + levée : la prochaine récidive repart à 5 min
+  assert.ok(responses.liftSuspension(s.suspension.id, { note: 'test', nowMs: st.now }));
+  assert.strictEqual(responses.setViolationLevel(userId, 0, st.now), 0);
+  assert.ok(st.solve().solved);
+  st.save(REAL_EXT[2].secs, telOf(REAL_EXT[2]));
+  s = st.save(REAL_EXT[3].secs, telOf(REAL_EXT[3]));
+  assert.strictEqual(s?.suspension?.minutes, 5);
+});
+
+test('Appliqué — suspendu : requêtes forgées (autre appareil, sans télémétrie, F5) ne créditent ni blocs classés ni profondeur', () => {
+  cfg('antibot_response_mode', 'enforce');
+  const userId = newUser();
+  const st = replayExtension(userId, T0 + 5 * 3600_000);
+  st.save(REAL_EXT[0].secs, telOf(REAL_EXT[0]));
+  st.solve();
+  st.save(REAL_EXT[2].secs, telOf(REAL_EXT[2]));
+  const s = st.save(REAL_EXT[3].secs, telOf(REAL_EXT[3]));
+  assert.ok(s?.suspension);
+  const row = () => db.getDb().prepare('SELECT max_depth, MIN(effective_manual_blocks, manual_blocks) AS v FROM season_rankings WHERE user_id = ?').get(userId);
+  const before = row();
+  // Autre appareil / requête forgée : +2000 clics, +200 blocs, profondeur +200, aucune télémétrie
+  for (let i = 0; i < 6; i++) {
+    st.now += 12_000;
+    st.clicks += 400; st.blocks += 40;
+    const r = seasons.syncPlayerRanking(userId, { seasonId, maxDepth: 1 + st.blocks, manualBlocks: st.blocks, autoBlocks: 0,
+      manualClicks: st.clicks, suspiciousScore: 0 }, { nowMs: st.now, telemetry: null });
+    assert.ok(r?.suspension, 'le serveur renvoie la suspension à chaque envoi (F5 / autre appareil)');
+  }
+  const after = row();
+  assert.strictEqual(after.v, before.v, 'aucun bloc manuel classé de plus');
+  assert.strictEqual(after.max_depth, before.max_depth, 'aucune profondeur de plus');
+  const susp = suspensions(userId)[0];
+  assert.ok(susp.held_clicks >= 2000, `clics retenus ${susp.held_clicks}`);
+  // Fin de suspension + énigme : seuls les clics postérieurs comptent (rien de rétroactif)
+  st.now = susp.ends_ms + 1000;
+  assert.ok(st.solve().solved);
+  assert.strictEqual(row().v, before.v);
+});
