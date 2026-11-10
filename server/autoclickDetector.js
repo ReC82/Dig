@@ -21,8 +21,12 @@
  * Règles (aucun signal isolé ne suspend) :
  *   1. Même pixel ≥ ab_same_pixel_clicks (25)            → vérification (CAPTCHA), jamais suspension ;
  *      au plus une par ab_cooldown_min après la précédente (pas de boucle pour un joueur immobile).
- *   2. Automatisation corroborée = régularité machine + même pixel + un 3ᵉ indice (immobilité,
- *      clics non fiables ou cadence stable serveur)      → vérification immédiate ;
+ *   2. Automatisation corroborée = même pixel + l'un des deux faisceaux suivants → vérification immédiate :
+ *      a. régularité machine + un 3ᵉ indice (immobilité, clics non fiables ou cadence stable serveur) ;
+ *      b. coups générés par script (≥ 90 % de isTrusted = false sur ≥ 20 coups, cadence ≥ 2 coups/s)
+ *         + immobilité ou cadence stable serveur (#91, 10/11 : l'extension OP Auto Clicker du
+ *         propriétaire a une gigue de 10–15 % qui masque sa régularité sur des fenêtres de 25 coups ;
+ *         un humain ne produit jamais d'événement non fiable, un outil d'accessibilité non plus) ;
  *   3. Automatisation corroborée sur 2 fenêtres consécutives (≈ 24 s) moins de ab_fast_repeat_min
  *      après une vérification #91 RÉSOLUE (même pixel ou automatisation) → suspension du minage
  *      manuel (palier suivant 5 → 15 → 30 → 60 → 120 → 720 → 1440 min) + nouvelle vérification.
@@ -54,6 +58,10 @@ const STILL_MIN_HITS    = 20;
 const STILL_SHARE       = 0.9;
 const UNTRUSTED_MIN     = 20;
 const UNTRUSTED_SHARE   = 0.5;
+/** Faisceau b : coups générés par script, nombreux et rapides (jamais un clic humain ni d'accessibilité). */
+const SCRIPTED_MIN       = 20;
+const SCRIPTED_SHARE     = 0.9;
+const SCRIPTED_MAX_MEDIAN_MS = 500;
 const STEADY_WINDOWS    = 5;
 const STEADY_MATCH      = 4;
 const STEADY_TOLERANCE  = 0.02;
@@ -128,6 +136,8 @@ function evaluate(tel, windows, settings) {
   const still = !!f && f.mm >= STILL_MIN_HITS && f.still / f.mm >= STILL_SHARE;
   const untrusted = !!tel && tel.n >= UNTRUSTED_MIN && tel.u / tel.n >= UNTRUSTED_SHARE;
   const third = still || untrusted || st.steady;
+  const scripted = !!tel && !!f && tel.n >= SCRIPTED_MIN && tel.u / tel.n >= SCRIPTED_SHARE
+    && f.med != null && f.med <= SCRIPTED_MAX_MEDIAN_MS;
   const evidence = {
     clicks: tel?.n ?? 0, samePixelRun: sp, samePixelThreshold: settings.ab_same_pixel_clicks,
     intervals: f?.k ?? 0, top3Share: f?.t3 ?? null, medianMs: f?.med ?? null,
@@ -136,14 +146,14 @@ function evaluate(tel, windows, settings) {
     serverCps: st.cps, steadyWindows: st.steady ? st.match : 0,
   };
   return {
-    regular, regularKnown, fixed, still, untrusted, steady: st.steady,
-    automation: regular && fixed && third,
+    regular, regularKnown, fixed, still, untrusted, scripted, steady: st.steady,
+    automation: fixed && ((regular && third) || (scripted && (still || st.steady))),
     samePixel: fixed,
     evidence,
   };
 }
 
 module.exports = {
-  SWITCHES, PARAMS, BIN_MS, REG_MIN_INTERVALS, REG_TOP3_SHARE, REG_ROBUST_CV, REPEAT_WINDOWS, STILL_SHARE, UNTRUSTED_SHARE, STEADY_TOLERANCE,
+  SWITCHES, PARAMS, BIN_MS, REG_MIN_INTERVALS, REG_TOP3_SHARE, SCRIPTED_MIN, SCRIPTED_SHARE, SCRIPTED_MAX_MEDIAN_MS, REG_ROBUST_CV, REPEAT_WINDOWS, STILL_SHARE, UNTRUSTED_SHARE, STEADY_TOLERANCE,
   getSettings, validateConfigValue, normalizeFast, steadyRate, evaluate,
 };

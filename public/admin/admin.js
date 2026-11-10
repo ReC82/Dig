@@ -4412,10 +4412,11 @@ function secRenderPlayer(d) {
     card('Autoclicker — détection rapide (#91)', !L ? 'aucune mesure (jeu pas encore mis à jour ou pas de clic)'
       : L.automation ? 'autoclicker corroboré' : L.fixed ? `${e.samePixelRun} clics au même pixel` : 'rien de suspect', L ? [
       [`Dernière fenêtre : ${secBxl(L.at)} — ${e.clicks} clics (les clics ne sont pas des blocs)`, 'tele'],
-      [yes(L.regular, L.regularKnown ? `Rythme de machine : écart ${e.robustCv == null ? '—' : `${Math.round(e.robustCv * 1000) / 10} %`} (machine si ≤ 5 % ; humain 8–20 %) ou ${Math.round((e.top3Share ?? 0) * 100)} % dans 3 classes de 4 ms (≥ 80 %) — médiane ${e.medianMs} ms` : 'Rythme : non mesurable (horloge du navigateur grossière ou < 20 intervalles)'), 'tele'],
+      [yes(L.regular, L.regularKnown ? `Rythme de machine : écart ${e.robustCv == null ? '—' : `${Math.round(e.robustCv * 1000) / 10} %`} (machine si ≤ 5 % ; humain 8–20 %) ou ${Math.round((e.top3Share ?? 0) * 100)} % dans 3 classes de 4 ms (≥ 80 %) — médiane ${e.medianMs} ms` : 'Rythme : non mesurable (horloge du navigateur grossière ou < 40 intervalles)'), 'tele'],
       [yes(L.fixed, `Même pixel : ${e.samePixelRun} clics de suite (seuil ${e.samePixelThreshold})`), 'tele'],
       [yes(L.still, `Souris immobile : ${e.stillHits}/${e.mouseHits} clics sans déplacement`), 'tele'],
       [yes(L.untrusted, `Clics générés par script : ${e.untrusted}/${e.clicks}`), 'tele'],
+      [yes(L.scripted, 'Presque tous les clics générés par script (≥ 90 %, ≥ 2 clics/s) : avec le même pixel et la souris immobile, autoclicker corroboré même sans rythme de machine'), 'tele'],
       [yes(L.steady, `Cadence stable mesurée par le serveur : ${e.serverCps ?? '—'} clics/s`), 'server'],
       [`Autoclicker corroboré ${fx.detections} fois${fx.lastAutomationAt ? ` (dernier : ${secBxl(fx.lastAutomationAt)})` : ''} · détection ${fx.settings.ab_fast_mode.toUpperCase()}`, 'server'],
     ] : [], !!L?.automation);

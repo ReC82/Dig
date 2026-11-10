@@ -357,7 +357,7 @@ function _fastEvaluate(s, tel, m, config, nowMs, frozen) {
   w = w.slice(-6);
   const v = frozen || !tel ? null : detector.evaluate(tel, w, settings);
   const last = v ? { atMs: nowMs, regular: v.regular, regularKnown: v.regularKnown, fixed: v.fixed, still: v.still,
-    untrusted: v.untrusted, steady: v.steady, automation: v.automation, evidence: v.evidence } : (st.last ?? null);
+    untrusted: v.untrusted, scripted: v.scripted, steady: v.steady, automation: v.automation, evidence: v.evidence } : (st.last ?? null);
   // autoSince : fenêtres corroborées consécutives depuis la dernière vérification (règle 3)
   s.fast = { w, last, lastAutomationMs: v?.automation ? nowMs : (st.lastAutomationMs ?? null),
     detections: (st.detections ?? 0) + (v?.automation ? 1 : 0),
@@ -462,7 +462,8 @@ function _triggers(s, risk, params, nowMs, fast = null, ext = null) {
   // même pixel seul → au plus une vérification par délai minimal (joueur immobile : pas de boucle)
   if (fast?.automation) {
     out.push({ code: 'autoclick_corroborated', value: fast.evidence.samePixelRun, threshold: fast.evidence.samePixelThreshold,
-      signals: ['regular', 'same_pixel', ...(fast.still ? ['still'] : []), ...(fast.untrusted ? ['untrusted'] : []), ...(fast.steady ? ['steady'] : [])],
+      signals: [...(fast.regular ? ['regular'] : []), 'same_pixel', ...(fast.scripted ? ['scripted'] : []), ...(fast.still ? ['still'] : []),
+        ...(fast.untrusted ? ['untrusted'] : []), ...(fast.steady ? ['steady'] : [])],
       evidence: fast.evidence });
   } else if (fast?.samePixel && fast.settings.ab_same_pixel_mode === 'on' && !cooling) {
     out.push({ code: 'same_pixel', value: fast.evidence.samePixelRun, threshold: fast.evidence.samePixelThreshold, evidence: fast.evidence });
