@@ -2,6 +2,100 @@
 
 Lien : https://github.com/ReC82/Dig/issues/81 — branche `feature/81-degats-decimaux`.
 
+## 000. Session du 10/11/2026 (11:55, Bruxelles) — recette #81-B bis : fiche Micro-bonus allégée
+
+Prise en compte : [recette #81-B bis du propriétaire, 10/11](https://github.com/ReC82/Dig/issues/81#issuecomment-6764744893). Verdict : données et protections visibles OK, **ergonomie non validée** (« trop surchargé »). Il demande une fiche en trois niveaux, sans refaire la simulation déjà auditée.
+
+### État réel
+
+**Déployé en production (SHA `c1c9cdd`) — en attente de recette (lisibilité seulement).** Présentation de l'admin uniquement. Aucun changement serveur, de formule, de calcul, d'économie ou de bonus. Aucun bonus activé ou publié, aucun appel IA, aucune migration.
+
+### Ce qui change (Admin → ✨ Micro-bonus → ＋ Ajouter ou clic sur un brouillon)
+
+La fiche se lit maintenant de haut en bas, en trois niveaux :
+
+0. **En tête, toujours visible : « 🔒 Brouillon — aucun effet en jeu ».** La phrase « serait actif s'il était publié » ne vient plus qu'en information secondaire, en petit, sous le résultat.
+1. **« 1. Configurer le bonus »** :
+   - les exemples (boutons) ;
+   - les quatre champs essentiels : nom, dégâts ajoutés, cible, souvenir lié ;
+   - **« 📅 Quand s'applique-t-il ? » replié par défaut** : dates, mois, jours, jours du mois. Un résumé reste visible sur la ligne repliée (« Toujours (aucune condition) », « lun. », « du 01/12/2026 au 30/12/2026 »…) ;
+   - « 📝 Note interne » repliée. Elle s'ouvre seule si le brouillon a déjà une note.
+2. **« 2. Résultat en bref »**, calculé dès l'ouverture puis **mis à jour seul** après chaque saisie (lecture seule, rien n'est enregistré). Le bouton « ↻ Recalculer » reste disponible.
+   - Réglages : profondeur, **dégâts du joueur par coup** (nouveau choix : 1, 2, 5, 10, 15 ou 25, ce sont les lignes de la simulation existante), niveau de Chance.
+   - **Trois tuiles** : *Dégâts en plus* (+0,25, par coup manuel · cible), *Coups en moins* (−6,09 %, ≈ 1 180 coups sur 100 blocs), *Blocs concernés* (30,9 % des blocs rencontrés à 50 m).
+   - **Une phrase qui relie les chiffres** : « À 50 m, avec 1 dégât par coup, vous économiseriez environ 1 180 coups sur 100 blocs (−6,09 % de coups) : 182,12 coups par bloc en moyenne au lieu de 193,92. »
+   - Un avertissement discret : « Estimation moyenne selon les blocs tirés. Ce sont des frappes, pas du temps : au même rythme de clics, environ +6,5 % de blocs cassés. »
+   - Les avertissements existants (effet permanent…) suivent.
+3. **« 🔍 Comprendre les détails » replié par défaut.** Il contient, **sans changement** : textes FR/EN, « Statut réel : brouillon », dates repères, tableau complet 6 lignes × 6 colonnes, « Comment lire cette simulation ? » (formules chiffrées, hypothèses) et la table des blocs possibles.
+4. **Boutons en pied de fiche, toujours visibles** : Annuler · Archiver (brouillon existant) · **Enregistrer le brouillon**. Le bouton ✕ Fermer reste en haut.
+5. **Smartphone (390 et 320 px)** : tuiles empilées, deux boutons côte à côte en pied, aucun débordement horizontal (même avec les détails ouverts).
+
+La liste des brouillons, le journal, l'API, les formules et la fiche « Bonus du souvenir » (#81-E) ne changent pas. La fiche s'ouvre toujours au clic, rien n'est affiché avant.
+
+### Fichiers
+
+- `public/admin/index.html` : structure de la fiche `#mb-dialog` (tous les identifiants existants conservés).
+- `public/admin/admin.js` : `mbBrief()` (tuiles et phrase), `mbWhenSummary()`, recalcul différé avec numéro de séquence (une réponse ancienne n'écrase jamais une plus récente), sections repliées à chaque ouverture.
+- `public/admin/admin.css` : cartes, tuiles, pied de fiche, champs de date en thème sombre, règles 480 px.
+- `test/micro-bonus-ux-81bbis.test.js` (nouveau, 3 tests) : bandeau avant les champs, ordre des trois niveaux, sections repliées par défaut, tous les champs et tableaux d'audit présents.
+- `test/e2e/decimal-damage.e2e.js` : parcours admin mis à jour (+7 contrôles). Nouveau mode `DIG_E2E_ONLY=admin`.
+
+### SHA et tests
+
+- Branche `feature/81-degats-decimaux`, commit `ce9ee73`. Fusion dans `develop` : **`c1c9cdd`**.
+- `npm test` : **1045/1045** dans le worktree du ticket, dans `develop` et dans la release `c1c9cdd`.
+- Parcours navigateur (serveur de test port 3101, base `test-81.sqlite` supprimée ensuite) : `DIG_E2E_ONLY=admin … node test/e2e/decimal-damage.e2e.js` donne **16/16 OK**, sur deux passages. Il vérifie notamment :
+  - le bandeau en tête, le calendrier et les détails fermés à l'ouverture, aucun texte « actif en jeu » ;
+  - les tuiles +0,25 / −6,09 % / 30,9 % / ≈ 1 180, et la phrase exacte ;
+  - à 2 dégâts, −3,38 % : la valeur change selon les dégâts ;
+  - le recalcul automatique à 120 m puis 50 m, le choix des dégâts étant conservé ;
+  - le calendrier : cocher lundi donne le résumé « lun. » et un aperçu « les lundis » ;
+  - les chiffres audités inchangés (193,92 → 182,12, formule, 12 blocs) ;
+  - l'enregistrement du brouillon, toujours « jamais appliqué » ;
+  - 390 et 320 px sans débordement, avec « Enregistrer » visible ;
+  - aucun bonus transmis au jeu, aucune erreur console.
+- **Non vérifié cette session** : la partie « jeu » (A–C) de ce même e2e (frappes sur le bloc). Sur une base de test neuve, elle s'arrête au premier bloc (attente de destruction dépassée). Elle n'a pas de lien avec cette livraison : aucun fichier du jeu n'a changé. Il s'agit probablement des protections ajoutées depuis (#91, pioche à charges). À revoir dans une session de test du jeu.
+
+### Déploiement
+
+- Release `c1c9cdd` : `npm ci`, puis `npm test` 1045/1045.
+- Copie de la base de production démarrée en `NODE_ENV=production` sur le port 3122 : `/health` ok, version `1.0.0+c1c9cdd`. Empreintes (`users`, `user_saves`, `season_rankings`, `seasons`, `leagues`, `player_click_tracking`) identiques avant et après le démarrage. Copie supprimée.
+- Avant le redémarrage, contrôle de l'atelier d'icônes : le propriétaire y était actif. Sa dernière génération (11:48:51) était terminée à 11:49:32. Aucune génération n'était en cours au moment du déploiement, à 11:51:16.
+- `main` avancé en avance rapide 611cf30 → c1c9cdd, puis `scripts/deploy.sh` de la release.
+- Sauvegarde vérifiée : `~/backups/dig/dig-20261110-115116-pre-deploy-c1c9cdd.sqlite`.
+- Après déploiement :
+  - les deux domaines répondent 200 avec `1.0.0+c1c9cdd`, et l'admin servi contient la nouvelle fiche ;
+  - journal du service sans erreur ;
+  - `pragma quick_check` = ok ;
+  - empreintes joueurs identiques à la sauvegarde pré-déploiement.
+- Retour arrière : `git -C /home/ubuntu/Dig reset --keep 611cf30` + `sudo systemctl restart dig` (aucun changement de dépendances ni de base).
+
+### Test propriétaire (1 à 2 minutes, lisibilité seulement)
+
+1. Admin → ✨ Micro-bonus → **＋ Ajouter**. Attendu : en haut, « 🔒 Brouillon — aucun effet en jeu ». Le calendrier et les détails sont repliés. Le résultat en bref apparaît seul.
+2. Cliquer sur l'exemple **« +0,25 sur la pierre »**. Attendu : trois tuiles +0,25 / −6,09 % / 30,9 %, puis la phrase « À 50 m, avec 1 dégât par coup, vous économiseriez environ 1 180 coups sur 100 blocs (−6,09 % de coups) : 182,12 coups par bloc en moyenne au lieu de 193,92. »
+3. Choisir « Dégâts du joueur par coup » = 5. Attendu : les tuiles et la phrase changent tout de suite.
+4. Ouvrir « 📅 Quand s'applique-t-il ? » puis cocher un jour. Attendu : le résumé de la ligne change.
+5. (facultatif) Ouvrir « 🔍 Comprendre les détails » : tout l'audit précédent s'y trouve. Sur smartphone, même parcours.
+
+Classement : **Après lancement** (outil d'administration, aucun bonus actif).
+
+### Choix techniques faits seul
+
+- **Choix des « dégâts du joueur »** parmi les lignes déjà calculées par le serveur, sans nouveau calcul : les chiffres restent identiques à ceux du tableau audité.
+- **Recalcul automatique** après 0,4 s sans saisie, avec un numéro de séquence. L'aperçu est une lecture seule et se rafraîchit de lui-même ; le bouton « Aperçu » obligatoire disparaît.
+- **« ≈ 1 180 coups »** : nombre entier à partir de 100 coups, une décimale en dessous, pour suivre le tableau.
+- **« +6,5 % de blocs cassés »** = coups sans bonus ÷ coups avec bonus − 1 : c'est la même relation que dans l'aide existante, appliquée aux chiffres affichés.
+
+### Décisions demandées au propriétaire
+
+Aucune nouvelle décision pour cette livraison. Les questions déjà ouvertes (barème des bonus de souvenirs A/B/C, règle « un bonus par type », plafonds, préférence « valeurs précises » liée au compte) restent en attente et ne bloquent pas ce test.
+
+### Reste à faire
+
+- Recette de lisibilité #81-B bis par le propriétaire.
+- (Après lancement) Remettre en état la partie « jeu » de l'e2e `decimal-damage` face aux protections actuelles.
+
 ## 00. Session du 08/11/2026 (22:45, Bruxelles) — bonus des souvenirs : fiche par souvenir, un bonus par type, doubles et échanges
 
 Prise en compte : [demande du propriétaire du 08/11](https://github.com/ReC82/Dig/issues/81#issuecomment-6725198581). Elle reprend la décision ferme du 06/11 (#86) : un souvenir est possédé à vie, son bonus est faible, constant ou calendaire récurrent, jamais consommable ni limité à 15 minutes. Le tout reste **inactif en production**.
