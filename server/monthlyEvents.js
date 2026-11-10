@@ -168,6 +168,20 @@ function init(c = conn()) {
       updated_at     TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (event_id, item_id)
     );
+    -- Découverte à présenter (#56, décision du propriétaire du 10/11) : une ligne par acquisition RÉELLE
+    -- (première découverte ou double #93), écrite dans la transaction du tirage ; la fenêtre du jeu
+    -- l'affiche jusqu'à ce que le joueur la ferme (acked_at). Les trouvailles d'avant n'ont pas de ligne.
+    CREATE TABLE IF NOT EXISTS monthly_event_discoveries (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL,
+      event_id    TEXT NOT NULL,
+      item_id     TEXT NOT NULL,
+      duplicate   INTEGER NOT NULL DEFAULT 0,
+      qty         INTEGER NOT NULL DEFAULT 1,
+      created_at  TEXT NOT NULL,
+      acked_at    TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_monthly_event_discoveries_pending ON monthly_event_discoveries(user_id, acked_at);
   `);
   // #86 : date de référence (« MM-JJ », calendrier d'inspiration) et inspiration historique — admin seulement
   const cols = new Set(c.prepare('PRAGMA table_info(monthly_event_items)').all().map(x => x.name));
@@ -927,16 +941,59 @@ function processSave(userId, { nowMs = Date.now(), rand = _rand } = {}) {
         if (rand() >= pAny) continue;
         if (rule) {
           const qty = souvenirs.mintDuplicate(userId, ev.id, it.id, rule, { nowMs, depth });
-          if (qty) { dup.left -= 1; out.push({ eventId: ev.id, itemId: it.id, icon: it.icon, image: it.publishedImage, names: it.names, rarity: it.rarity, eventNames: ev.names, duplicate: true, qty }); }
+          if (qty) { dup.left -= 1; out.push(_discovery(userId, ev, it, { duplicate: true, qty, nowMs })); }
           continue;
         }
         const r = conn().prepare('INSERT OR IGNORE INTO monthly_event_finds (user_id, event_id, item_id, found_at, depth) VALUES (?,?,?,?,?)')
           .run(userId, ev.id, it.id, _iso(nowMs), depth);
-        if (r.changes) out.push({ eventId: ev.id, itemId: it.id, icon: it.icon, image: it.publishedImage, names: it.names, rarity: it.rarity, eventNames: ev.names });
+        if (r.changes) out.push(_discovery(userId, ev, it, { nowMs }));
       }
     }
     return out;
   });
+}
+
+// ── Fenêtre de découverte (#56, décision du propriétaire du 10/11) ─────────────
+
+const MAX_PENDING_DISCOVERIES = 10;
+
+/** Ce que la fenêtre affiche : image PUBLIÉE (sinon emoji), noms, rareté, événement, description courte. */
+function _discoveryView(id, ev, it, { duplicate = false, qty = 1 } = {}) {
+  return { discoveryId: id, eventId: ev.id, itemId: it.id, icon: it.icon, image: it.publishedImage ?? null, names: it.names, descs: it.descs,
+    rarity: it.rarity, eventIcon: ev.icon, eventNames: ev.names, ...(duplicate ? { duplicate: true, qty } : {}) };
+}
+
+/** Enregistre une acquisition réelle à présenter (appelé DANS la transaction du tirage : tout ou rien). */
+function _discovery(userId, ev, it, { duplicate = false, qty = 1, nowMs = Date.now() } = {}) {
+  const r = conn().prepare('INSERT INTO monthly_event_discoveries (user_id, event_id, item_id, duplicate, qty, created_at) VALUES (?,?,?,?,?,?)')
+    .run(userId, ev.id, it.id, duplicate ? 1 : 0, qty, _iso(nowMs));
+  return _discoveryView(Number(r.lastInsertRowid), ev, it, { duplicate, qty });
+}
+
+/**
+ * Découvertes pas encore fermées par le joueur (connexion coupée, F5, autre appareil), les plus
+ * anciennes d'abord. Lecture seule. Un objet retiré de la fiche n'est plus présenté (ligne conservée).
+ */
+function pendingDiscoveries(userId) {
+  const rows = conn().prepare('SELECT * FROM monthly_event_discoveries WHERE user_id = ? AND acked_at IS NULL ORDER BY id LIMIT ?')
+    .all(userId, MAX_PENDING_DISCOVERIES);
+  const evs = new Map();
+  const out = [];
+  for (const r of rows) {
+    if (!evs.has(r.event_id)) evs.set(r.event_id, getEvent(r.event_id));
+    const ev = evs.get(r.event_id);
+    const it = ev && ev.items.find(i => i.id === r.item_id);
+    if (it) out.push(_discoveryView(r.id, ev, it, { duplicate: !!r.duplicate, qty: r.qty }));
+  }
+  return out;
+}
+
+/** Le joueur a fermé la fenêtre : ces découvertes ne seront plus présentées (idempotent, ses lignes seulement). */
+function ackDiscoveries(userId, ids, nowMs = Date.now()) {
+  const list = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter(n => Number.isSafeInteger(n) && n > 0))].slice(0, 50);
+  if (!list.length) return 0;
+  const up = conn().prepare('UPDATE monthly_event_discoveries SET acked_at = ? WHERE id = ? AND user_id = ? AND acked_at IS NULL');
+  return db.runTransaction(() => list.reduce((n, id) => n + up.run(_iso(nowMs), id, userId).changes, 0));
 }
 
 // ── Vue joueur ────────────────────────────────────────────────────────────────
@@ -1523,7 +1580,7 @@ function adminView(nowMs = Date.now()) {
 module.exports = {
   EventError, LANGS, RARITIES, CATEGORIES, init, brusselsToUtc, utcToBrussels, normalizeEvent, readiness, stateOf,
   getEvent, listEvents, createEvent, updateEvent, scheduleEvent, startTestNow, unscheduleEvent, resolveTesters, testerSuggestions, listRevisions, restoreRevision, listLog,
-  activeFor, processSave, publicView, categoryShare, simulate, stats, holidays, proposeCalendar, createTestEvent, importPrepared,
+  activeFor, processSave, pendingDiscoveries, ackDiscoveries, MAX_PENDING_DISCOVERIES, publicView, categoryShare, simulate, stats, holidays, proposeCalendar, createTestEvent, importPrepared,
   startAiDraft, getAiJob, listAiJobs, adminView, MAX_BLOCKS_PER_SAVE,
   imageState, publishImages, setItemImage, studioKey, ID_RE,
   normalizeLore, safeSourceUrl, getLore, setItemLore, loreReadiness, importLore,

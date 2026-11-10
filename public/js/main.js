@@ -1170,10 +1170,114 @@ function _onBadgesEarned(list) {
 // Objets tirés par le serveur sur le minage validé ; souvenirs conservés après l'événement.
 
 function _onEventFinds(list) {
+  // #56 (10/11) : chaque acquisition confirmée par le serveur ouvre la fenêtre de découverte ; repli toast sans identifiant
   list.forEach((f, i) => {
+    if (Number.isSafeInteger(f && f.discoveryId)) return;
     setTimeout(() => showAchievement(f.icon || '🎁', t('events.toast', { name: _badgeText(f.names) }), 'success'), i * 600);
   });
+  _queueDiscoveries(list.filter(f => Number.isSafeInteger(f && f.discoveryId)));
   if (isViewActive('collection')) renderEvents();
+  else setNavBadge('collection');
+}
+
+// ── Fenêtre de découverte d'un souvenir (#56, décision du propriétaire du 10/11) ──
+// Une fenêtre par acquisition réelle (identifiant serveur), fermée par le joueur, puis acquittée :
+// non acquittée (F5, coupure, autre appareil) → présentée au chargement suivant, jamais deux fois ici.
+// Pendant l'affichage, les coups manuels sont ignorés (onBlockHit) ; le minage auto et la sauvegarde continuent.
+const _discQueue = [];
+const _discSeen = new Set();
+let _discCur = null;
+let _discOpener = null;
+
+function discoveryOpen() { return !!_discCur; }
+
+function _queueDiscoveries(list) {
+  for (const d of list || []) {
+    if (!d || typeof d !== 'object') continue;
+    const id = d.discoveryId;
+    if (!d.preview && (!Number.isSafeInteger(id) || _discSeen.has(id))) continue;
+    if (!d.preview) _discSeen.add(id);
+    _discQueue.push(d);
+  }
+  _showNextDiscovery();
+}
+
+async function _loadPendingDiscoveries() {
+  if (!_account) return;
+  let res;
+  try { res = await _apiFetch('GET', '/api/me/event-discoveries'); } catch (_) { return; }
+  if (res && res.ok && Array.isArray(res.data.discoveries)) _queueDiscoveries(res.data.discoveries);
+}
+
+function _showNextDiscovery() {
+  if (_discCur || !_discQueue.length) return;
+  const modal = document.getElementById('discovery-modal');
+  if (!modal) return;
+  const d = _discQueue.shift();
+  _discCur = d;
+  const $ = id => document.getElementById(id);
+  const rarity = /^[a-z-]+$/.test(d.rarity || '') ? d.rarity : 'commun';
+  const name = _badgeText(d.names) || d.itemId || '';
+  $('discovery-inner').className = `disc-rarity-${rarity}`;
+  $('discovery-preview').hidden = !d.preview;
+  $('discovery-preview').textContent = d.preview ? t('events.disc_preview') : '';
+  $('discovery-kicker').textContent = `✨ ${t('events.disc_' + rarity.replace('-', '_'))}`;
+  const art = $('discovery-art');
+  art.textContent = '';
+  if (typeof d.image === 'string' && /^\/[^/]/.test(d.image)) {   // image publiée (chemin du site) ; sinon l'emoji
+    const img = document.createElement('img');
+    img.src = d.image; img.alt = '';
+    img.onerror = () => { art.textContent = d.icon || '🎁'; };
+    art.appendChild(img);
+  } else art.textContent = d.icon || '🎁';
+  const badge = document.createElement('span');
+  badge.className = `rarity-badge rarity-${rarity}`;
+  badge.textContent = t('rarity.' + rarity.replace('-', '_'));
+  $('discovery-rarity').replaceChildren(badge);
+  $('discovery-title').textContent = name;
+  $('discovery-event').textContent = t('events.disc_event', { name: `${d.eventIcon || '🎉'} ${_badgeText(d.eventNames)}` });
+  $('discovery-desc').textContent = _badgeText(d.descs) || '';
+  $('discovery-note').textContent = d.duplicate && d.qty > 1 ? t('events.disc_dup', { n: d.qty }) : t('events.disc_keep');
+  $('discovery-more').hidden = !_discQueue.length;
+  $('discovery-more').textContent = _discQueue.length ? t('events.disc_more', { n: _discQueue.length }) : '';
+  const close = $('btn-discovery-close');
+  close.textContent = t('events.disc_continue');
+  close.onclick = _closeDiscovery;
+  // Fermeture manuelle seulement (bouton, Entrée/Espace dessus, Échap) : un clic à côté ne ferme pas
+  modal.onclick = null;
+  modal.onkeydown = e => {
+    if (e.key === 'Escape') { e.preventDefault(); _closeDiscovery(); }
+    else if (e.key === 'Tab') { e.preventDefault(); close.focus(); }
+  };
+  if (!_discOpener) _discOpener = document.activeElement;
+  modal.hidden = false;
+  close.focus();
+}
+
+function _closeDiscovery() {
+  const d = _discCur;
+  if (!d) return;
+  const modal = document.getElementById('discovery-modal');
+  modal.hidden = true;
+  _discCur = null;
+  if (!d.preview) _apiFetch('POST', '/api/me/event-discoveries/ack', { ids: [d.discoveryId] }).catch(() => {});   // échec : représentée au prochain chargement
+  if (_discQueue.length) { setTimeout(_showNextDiscovery, 200); return; }
+  const back = _discOpener;
+  _discOpener = null;
+  if (back && typeof back.focus === 'function' && document.contains(back)) back.focus();
+  if (isViewActive('collection')) renderEvents();
+}
+
+/** Aperçu admin (?apercu-decouverte=1) : objet préparé par le panel dans ce navigateur, rien n'est envoyé au serveur. */
+function _discoveryPreviewFromAdmin() {
+  if (!/[?&]apercu-decouverte=1\b/.test(location.search)) return;
+  let raw = null;
+  try { raw = localStorage.getItem('dig_discovery_preview'); localStorage.removeItem('dig_discovery_preview'); } catch (_) { return; }
+  let d;
+  try { d = JSON.parse(raw); } catch (_) { return; }
+  if (!d || typeof d !== 'object') return;
+  _queueDiscoveries([{ preview: true, icon: String(d.icon || '🎁').slice(0, 16), image: typeof d.image === 'string' ? d.image : null, names: d.names, descs: d.descs,
+    rarity: d.rarity, eventIcon: String(d.eventIcon || '🎉').slice(0, 16), eventNames: d.eventNames, duplicate: false }]);
 }
 
 let _eventsReq = 0;
@@ -2283,6 +2387,7 @@ async function _syncAfterLogin(forceCloud = false) {
     }
     _loadLiveMissions(true);   // missions du serveur (#68) si le drapeau est actif pour ce compte
     if (typeof AntibotGate !== 'undefined') AntibotGate.refresh();     // vérification anti-bot en attente (#25 lot C : F5, autre appareil)
+    _loadPendingDiscoveries();   // souvenirs d'événement découverts mais pas encore vus (#56 : F5, coupure, autre appareil)
     if (_tutoBooted) DigTutorial.onAccount(_account, { fresh: _tutoIsFresh() });   // l'état du tutoriel suit le compte (#79)
   } catch (_) { /* silencieux */ }
 }
@@ -4339,6 +4444,7 @@ function handleBlockDestroyed(cx, cy, { isManual = false, isAuto = false, isSusp
 
 function onBlockHit(cx, cy, ev) {
   if (blockAnimating || Save.disabled) return;   // page sans la main (#18, #35) : aucun coup
+  if (discoveryOpen()) return;   // fenêtre de découverte d'un souvenir ouverte (#56) : aucun coup compté dessous
 
   // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
   if (!Blocks.current) { spawnBlock(); return; }
@@ -4586,6 +4692,8 @@ function init() {
   DigNews.init();
   // Aide du joueur (#78) : bouton ? en haut à gauche et ? contextuels (fiche par-dessus le jeu).
   DigHelp.init();
+  // Aperçu admin de la fenêtre de découverte d'un souvenir (#56) : seulement avec ?apercu-decouverte=1
+  _discoveryPreviewFromAdmin();
   // Publicité (#45) : désactivée par défaut ; bannière haute seulement si le serveur l'autorise ici.
   DigAds.init();
   // Bêta fermée (#57) : bandeau et section « Bêta » seulement si l'admin les active ; un lien
