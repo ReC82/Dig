@@ -1,7 +1,8 @@
 /**
  * Ticket #92 — signatures ciblées d'extensions d'autoclic : OFF par défaut, « Mon compte de test »,
  * activation par signature, arrêt d'urgence, journal court, réaction « vérification » optionnelle,
- * aucune sanction pour une extension installée, rien de lu pour les signatures non activées.
+ * aucune sanction pour une extension installée, rien de lu pour les signatures non activées ;
+ * réaction « Bloquer le minage » (décision du propriétaire du 10/11) pour les seules signatures prouvées.
  * Pipeline réel (seasons.syncPlayerRanking) sur base isolée.
  */
 
@@ -72,6 +73,20 @@ test('catalogue : statut, méthode, ID exacts ; aucune signature sans preuve n\'
   assert.ok(ext.CATALOG.some(s => s.browsers.includes('firefox')));
 });
 
+test('décision du propriétaire du 10/11 : OP Auto Clicker pour tous, réaction « Bloquer le minage », une seule fois', () => {
+  const c = config();
+  assert.strictEqual(c.ab_ext_sig_op_auto_clicker, 'global');
+  assert.strictEqual(c.ab_ext_reaction, 'block');
+  assert.strictEqual(c.ab_ext_sig_autofill_auto_clicker, undefined, 'AutoFill non activée (outil de formulaires)');
+  const rows = db.getDb().prepare("SELECT id, outcome FROM admin_config_decisions WHERE id LIKE 'issue92-%' ORDER BY id").all();
+  assert.deepStrictEqual(rows, [{ id: 'issue92-op-global-2026-11-10', outcome: 'applied' }, { id: 'issue92-reaction-block-2026-11-10', outcome: 'applied' }]);
+  // Jamais rejouée : un retour arrière depuis le panel reste acquis après un redémarrage
+  cfg('ab_ext_reaction', 'log');
+  db.initDb();
+  assert.strictEqual(config().ab_ext_reaction, 'log');
+  resetExt();
+});
+
 test('OFF par défaut : aucune signature envoyée au jeu, rien lu ni journalisé', () => {
   resetExt();
   const u = newUser();
@@ -120,7 +135,7 @@ test('« Mon compte de test » : seul le compte choisi vérifie la signature et 
   assert.deepStrictEqual(events(me).map(e => [e.state, e.mode, e.source]), [['installed', 'self', 'load'], ['none', 'self', 'load']]);
   // Un autre joueur : résultat ignoré, ni journal ni message
   const r3 = ext.record(other, { op_auto_clicker: { i: 1, a: 50 } }, { config: config(), nowMs: T0 });
-  assert.deepStrictEqual(r3, { results: [], challenge: null, feedback: null });
+  assert.deepStrictEqual(r3, { results: [], challenge: null, feedback: null, blocked: [] });
   assert.deepStrictEqual(events(other), []);
 });
 
@@ -177,6 +192,67 @@ test('réaction « vérification » : énigme seulement si l\'indicateur est act
   save(o, T0, 40, { op_auto_clicker: { i: 1, a: 40 } });
   assert.deepStrictEqual(challenges(o).map(c => c.status), ['shadow']);
   cfg('antibot_response_mode', 'enforce');
+});
+
+test('« Bloquer le minage » : signature prouvée détectée (installée OU active) → bloquée, sans défi ni suspension', () => {
+  resetExt();
+  cfg('antibot_response_mode', 'enforce');
+  cfg('ab_ext_sig_op_auto_clicker', 'global');
+  cfg('ab_ext_sig_autofill_auto_clicker', 'global');
+  cfg('ab_ext_reaction', 'block');
+  assert.deepStrictEqual(ext.validateConfigValue('ab_ext_reaction', 'block'), { value: 'block' });
+  const u = newUser();
+  // Le jeu reçoit le nom à afficher ; AutoFill (non prouvée par le propriétaire) n'est jamais bloquante
+  const list = ext.forUser(u, config());
+  assert.deepStrictEqual(list.map(s => [s.id, !!s.block, s.name ?? null]), [['op_auto_clicker', true, 'OP Auto Clicker'], ['autofill_auto_clicker', false, null]]);
+  assert.deepStrictEqual(seasons.buildCurrentSeasonResponse(u).config.extSignatures.filter(s => s.block).map(s => s.id), ['op_auto_clicker']);
+  // Installée sans cliquer : blocage, journal « installée · minage bloqué »
+  const r1 = ext.record(u, { op_auto_clicker: { i: 1, a: 0 }, autofill_auto_clicker: { i: 1 } }, { config: config(), source: 'load', nowMs: T0 });
+  assert.deepStrictEqual(r1.blocked, ['op_auto_clicker']);
+  assert.strictEqual(r1.challenge, null);
+  // Active pendant des coups refusés : présence ET activité distinguées dans le journal, toujours sans défi
+  save(u, T0 + 60_000, 40, { op_auto_clicker: { i: 1, a: 40 } });
+  // Nouvelle vérification sans trace : reprise journalisée
+  const r3 = ext.record(u, { op_auto_clicker: { i: 0, a: 0 }, autofill_auto_clicker: { i: 0 } }, { config: config(), source: 'recheck', nowMs: T0 + 120_000 });
+  assert.deepStrictEqual(r3.blocked, []);
+  assert.deepStrictEqual(events(u).map(e => [e.signature, e.state, e.reaction, e.source]), [
+    ['op_auto_clicker', 'installed', 'block', 'load'],
+    ['autofill_auto_clicker', 'installed', 'log', 'load'],
+    ['op_auto_clicker', 'active', 'block', 'save'],
+    ['op_auto_clicker', 'none', 'log', 'recheck'],
+  ]);
+  assert.deepStrictEqual(challenges(u), [], 'aucune vérification sur simple présence');
+  assert.deepStrictEqual(suspensions(u), [], 'aucune suspension sur simple présence');
+  // Source inconnue : ramenée à « sauvegarde » ; navigateur sans trace en mode global : rien
+  const clean = newUser();
+  assert.deepStrictEqual(ext.record(clean, { op_auto_clicker: { i: 0, a: 0 } }, { config: config(), source: 'x', nowMs: T0 }).blocked, []);
+  assert.deepStrictEqual(events(clean), []);
+  // Arrêt d'urgence : plus aucune signature ni blocage
+  cfg('ab_ext_stop', 'on');
+  assert.deepStrictEqual(ext.forUser(u, config()), []);
+  assert.deepStrictEqual(ext.record(u, { op_auto_clicker: { i: 1, a: 9 } }, { config: config(), nowMs: T0 + 30 * 60_000 }).blocked, []);
+  resetExt();
+});
+
+test('« Bloquer le minage » : vue admin (signature prouvée) et jeu (fenêtre, reprise, télémétrie #91, traductions)', () => {
+  resetExt();
+  cfg('ab_ext_reaction', 'block');
+  const v = ext.adminView(config());
+  assert.strictEqual(v.reaction, 'block');
+  assert.deepStrictEqual(v.signatures.filter(s => s.canBlock).map(s => s.id), ['op_auto_clicker']);
+  const main = fs.readFileSync(path.join(ROOT, 'public/js/main.js'), 'utf8');
+  // Coup refusé pendant le blocage : télémétrie conservée (#91 juge l'activité), aucun dégât
+  assert.match(main, /_extBlockStillOn\(\) && !AntibotGate\.serverBlocks\(\)\) \{\n    _teleRecord\(ev\);\n    _recordClickTs\(\);\n    _extReportBlockedHits\(\);\n    AntibotGate\.show\(\);\n    return;/);
+  assert.match(main, /extRecheck: _extRecheck/);
+  const gate = fs.readFileSync(path.join(ROOT, 'public/js/antibotGate.js'), 'utf8');
+  assert.match(gate, /function blocksManual\(\) \{ return !!_state \|\| !!_ext; \}/);
+  for (const k of ['ext_title', 'ext_text', 'ext_keep', 'ext_help', 'ext_btn_recheck', 'ext_btn_reload', 'ext_still', 'report_step_ext', 'btn_back_ext']) {
+    for (const lang of ['fr', 'en', 'nl', 'es']) {
+      assert.ok(fs.readFileSync(path.join(ROOT, 'public/js/i18n.js'), 'utf8').split(new RegExp(`\\n    ${lang}: \\{`))[1].includes(`        ${k}: `), `${lang}.antibot.${k}`);
+    }
+    assert.ok(JSON.parse(fs.readFileSync(path.join(ROOT, 'i18n/it.json'), 'utf8')).entries[`antibot.${k}`], `it.antibot.${k}`);
+  }
+  resetExt();
 });
 
 test('arrêt d\'urgence dédié : plus rien n\'est envoyé, lu ni déclenché ; #91 reste actif', () => {

@@ -737,6 +737,13 @@
    "by": "claude-opus-5-5 (session #84)",
    "at": "2026-11-08T17:40:16.623Z"
   },
+  "antibot.btn_back_ext": {
+   "text": "🧩 Torna alla verifica",
+   "src": "3289100c6443",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.309Z"
+  },
   "antibot.btn_back_susp": {
    "text": "⏸️ Torna al gioco",
    "src": "1dc9b96fa937",
@@ -807,6 +814,55 @@
    "by": "claude-opus-5-5 (session #25, relu)",
    "at": "2026-11-06T18:13:49.877Z"
   },
+  "antibot.ext_btn_recheck": {
+   "text": "✅ Ho disattivato l'estensione — verifica di nuovo",
+   "src": "8bf0423ecb06",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.308Z"
+  },
+  "antibot.ext_btn_reload": {
+   "text": "🔄 Ricarica la pagina",
+   "src": "81237018b5ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.308Z"
+  },
+  "antibot.ext_help": {
+   "text": "In Chrome: menu ⋮ → Estensioni → Gestisci estensioni, poi disattiva l'estensione (o rimuovila). Quindi tocca «Verifica di nuovo».",
+   "src": "f32afdb136ce",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.308Z"
+  },
+  "antibot.ext_keep": {
+   "text": "Non è una sanzione: non si perde nulla, e Auto-Dig, collezione, negozio e account restano disponibili.",
+   "src": "cde86fa1af89",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.308Z"
+  },
+  "antibot.ext_still": {
+   "text": "L'estensione è ancora rilevata. Se l'hai appena disattivata, ricarica la pagina: la sua traccia resta fino al ricaricamento.",
+   "src": "8f86b50fda61",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.308Z"
+  },
+  "antibot.ext_text": {
+   "text": "È stata rilevata un'estensione di autoclic ({name}): disattivala per riprendere lo scavo manuale.",
+   "src": "bb568a78f57a",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.308Z"
+  },
+  "antibot.ext_title": {
+   "text": "Estensione di autoclic rilevata",
+   "src": "d24587494356",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.308Z"
+  },
   "antibot.grid_question": {
    "text": "Tocca {a}, poi {b}.",
    "src": "fb0f3e514407",
@@ -834,6 +890,13 @@
    "origin": "ai",
    "by": "claude-opus-5-5 (session #84)",
    "at": "2026-11-08T15:53:28.109Z"
+  },
+  "antibot.report_step_ext": {
+   "text": "Scavo manuale bloccato: il gioco rileva un'estensione di autoclic ({name}) anche se non ne uso.",
+   "src": "d463dc230ad1",
+   "origin": "ai",
+   "by": "claude-opus-5-5 (session #92)",
+   "at": "2026-11-10T15:03:07.309Z"
   },
   "antibot.report_step_susp": {
    "text": "Scavo manuale sospeso dall’anti-bot fino a {time}, anche se giocavo normalmente (senza autoclicker).",

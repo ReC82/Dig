@@ -1088,18 +1088,25 @@ function initDb() {
     // #25, commentaires du propriétaire du 08/11/2026 (issuecomment-6722088344 et -6722134355) :
     // défis et suspensions du minage manuel « Appliqué » pour tous. Arrêt d'urgence : panel Anti-bot.
     { id: 'issue25-global-enforce-2026-11-08', key: 'antibot_response_mode', expected: 'observe', value: 'enforce' },
+    // #92, décision du propriétaire du 10/11/2026 (issuecomment-6767971370) : extension d'autoclic PROUVÉE
+    // détectée → minage manuel bloqué pour tous les bêta-testeurs, sans sanction sur simple présence.
+    // Seule OP Auto Clicker (Chrome, recettes #92-A/B) ; arrêt d'urgence : Anti-bot → Extensions.
+    // `null` : clé absente (jamais réglée dans le panel) → ajoutée.
+    { id: 'issue92-op-global-2026-11-10', key: 'ab_ext_sig_op_auto_clicker', expected: [null, 'off', 'self'], value: 'global' },
+    { id: 'issue92-reaction-block-2026-11-10', key: 'ab_ext_reaction', expected: [null, 'log'], value: 'block' },
   ];
   for (const d of decisions) {
     _db.transaction(() => {
       if (_db.prepare('SELECT 1 FROM admin_config_decisions WHERE id = ?').get(d.id)) return;
       const old = _db.prepare('SELECT value FROM admin_config WHERE key = ?').get(d.key)?.value ?? null;
-      const apply = old === d.expected;
+      const apply = [].concat(d.expected).includes(old);
       if (apply) {
-        _db.prepare(`UPDATE admin_config SET value = ?, updated_at = datetime('now') WHERE key = ?`).run(d.value, d.key);
+        _db.prepare(`INSERT INTO admin_config (key, value) VALUES (?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`).run(d.key, d.value);
       }
       _db.prepare('INSERT INTO admin_config_decisions (id, config_key, old_value, new_value, outcome) VALUES (?,?,?,?,?)')
         .run(d.id, d.key, old, d.value, apply ? 'applied' : 'skipped');
-      console.log(`[db] Décision ${d.id} : ${d.key} ${apply ? `${old} → ${d.value}` : `inchangé (${old}, attendu ${d.expected})`}`);
+      console.log(`[db] Décision ${d.id} : ${d.key} ${apply ? `${old} → ${d.value}` : `inchangé (${old}, attendu ${[].concat(d.expected).join(' | ')})`}`);
     })();
   }
 

@@ -616,13 +616,15 @@ app.get('/api/me/antibot', (req, res) => {
 /**
  * POST /api/me/antibot/ext { results } — signatures d'extensions vérifiées au chargement du jeu (#92).
  * Seules les signatures activées pour ce joueur sont lues ; réponse détaillée pour un compte de test
- * uniquement (les autres joueurs ne voient rien). Jamais de sanction ici.
+ * uniquement. `source: 'recheck'` : nouvelle vérification demandée depuis la fenêtre de blocage (journal
+ * de reprise). `blocked` : signatures qui bloquent le minage manuel. Jamais de sanction ici.
  */
 app.post('/api/me/antibot/ext', limit.play, (req, res) => {
   try {
     if (!req.session.userId) return res.status(401).json({ error: 'Non connecté.' });
-    const r = extensionSignatures.record(req.session.userId, req.body?.results, { config: getAdminConfig(), source: 'load', ip: req.ip });
-    res.json({ ok: true, ...(r.feedback ? { test: r.feedback } : {}) });
+    const source = req.body?.source === 'recheck' ? 'recheck' : 'load';
+    const r = extensionSignatures.record(req.session.userId, req.body?.results, { config: getAdminConfig(), source, ip: req.ip });
+    res.json({ ok: true, blocked: r.blocked, ...(r.feedback ? { test: r.feedback } : {}) });
   } catch (err) { console.error('[POST /api/me/antibot/ext]', err); res.status(500).json({ error: 'Erreur serveur.' }); }
 });
 

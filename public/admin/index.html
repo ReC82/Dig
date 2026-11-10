@@ -863,6 +863,7 @@
         <p class="sec-help"><strong>Ce qu'un site peut savoir :</strong> aucune liste des extensions installées (le navigateur la réserve aux extensions). Dig cherche seulement la <strong>trace précise</strong> de quelques extensions connues : un style qu'elles ajoutent à toutes les pages ou l'indicateur qu'elles affichent pendant les clics.
           Comme pour AdBlock, on observe un <em>effet</em> de l'extension, pas son identité garantie : <strong>aucune trace ne prouve qu'il n'y a pas d'extension</strong> (accès au site restreint, navigation privée, autre version), et une trace ne prouve pas la triche (extension présente mais inutilisée).</p>
         <p class="sec-help">Les autoclickers sans trace (et les programmes Windows) sont arrêtés par leur <strong>comportement</strong> (#91 : même pixel, rythme de machine), quelle que soit leur marque. Ici : jamais de suspension ni de bannissement pour une extension installée.</p>
+        <p class="sec-help"><strong>Deux choses distinctes :</strong> « extension présente » → avec la réaction <em>Bloquer le minage manuel</em>, les coups sur le bloc sont refusés tant que la trace d'une signature <strong>prouvée</strong> est détectée (reprise dès qu'elle disparaît, aucune sanction) ; « activité d'autoclic corroborée » → suspensions #91, mêmes règles pour tous. Le blocage est fait par le navigateur : un client modifié peut l'ignorer, le filet serveur reste #91.</p>
       </div>
       <div class="sec-ext-controls">
         <p class="sec-resp-line" id="sec-ext-stop-line"></p>
@@ -890,7 +891,7 @@
         </table>
       </div>
       <h4 class="sec-resp-sub">Journal court des signatures déclenchées</h4>
-      <p class="muted" style="font-size:0.78rem">Seulement les signatures activées : traces trouvées (tous modes) et résultats « non détectée » des comptes de test. Une ligne par joueur, signature et état toutes les 10 min ; conservé 90 jours. Aucun inventaire d'extensions.</p>
+      <p class="muted" style="font-size:0.78rem">Seulement les signatures activées : traces trouvées (tous modes), résultats « non détectée » des comptes de test et des nouvelles vérifications après un blocage (reprise du minage). Une ligne par joueur, signature et état toutes les 10 min ; conservé 90 jours. Aucun inventaire d'extensions.</p>
       <div style="overflow-x:auto">
         <table>
           <thead><tr><th>Date (UTC)</th><th>Joueur</th><th>Signature</th><th>Résultat</th><th>Mode</th><th>Réaction</th></tr></thead>

@@ -266,7 +266,61 @@ function _extSnapshot() {
   if (!_extSigs.length || !window.DigExtProbe) return undefined;
   const out = {};
   for (const s of _extSigs) out[s.id] = { i: DigExtProbe.installed(s.probe) ? 1 : 0, a: _extActive[s.id] || 0 };
+  _extApplyBlock(out);
   return out;
+}
+
+// Règle du propriétaire du 10/11 (#92) : signature prouvée détectée (installée OU indicateur actif)
+// → minage manuel bloqué tant qu'elle est présente, sans sanction ; reprise dès qu'elle disparaît.
+const _EXT_BLOCK_RECHECK_MS = 2000;
+const _EXT_BLOCK_REPORT_MS  = 30_000;
+let _extBlockCheckedAt = 0;
+let _extBlockReportedAt = 0;
+const _EXT_BLOCKED_KEY = 'dig_ext_blocked';
+
+/** Mesure les signatures bloquantes (ou réutilise `res`) et met la fenêtre de blocage à jour. */
+function _extApplyBlock(res) {
+  if (typeof AntibotGate === 'undefined' || !window.DigExtProbe) return [];
+  const found = [];
+  for (const s of _extSigs) {
+    if (!s.block) continue;
+    const r = res?.[s.id];
+    const hit = r ? !!r.i || DigExtProbe.active(s.probe) : DigExtProbe.installed(s.probe) || DigExtProbe.active(s.probe);
+    if (hit) found.push(s.name || s.id);
+  }
+  _extBlockCheckedAt = performance.now();
+  AntibotGate.setExt(found.length ? { names: found } : null);
+  // Souvenir du blocage (onglet) : le chargement suivant (après « Recharger la page ») est une reprise
+  try { if (found.length) sessionStorage.setItem(_EXT_BLOCKED_KEY, '1'); } catch (_) { /* stockage indisponible */ }
+  return found;
+}
+
+/** Coup sur le bloc pendant un blocage : nouvelle mesure au plus toutes les 2 s (reprise sans attendre). */
+function _extBlockStillOn() {
+  if (!AntibotGate.extBlocked()) return false;
+  if (performance.now() - _extBlockCheckedAt >= _EXT_BLOCK_RECHECK_MS) _extApplyBlock();
+  return AntibotGate.extBlocked();
+}
+
+/** Coups refusés pendant le blocage : l'activité de l'extension reste journalisée (au plus toutes les 30 s). */
+function _extReportBlockedHits() {
+  const now = performance.now();
+  if (now - _extBlockReportedAt < _EXT_BLOCK_REPORT_MS || !_extSigs.length || !window.DigExtProbe) return;
+  _extBlockReportedAt = now;
+  const results = {};
+  for (const s of _extSigs) results[s.id] = { i: DigExtProbe.installed(s.probe) ? 1 : 0, a: _extActive[s.id] || 0 };
+  _apiFetch('POST', '/api/me/antibot/ext', { results }).then(({ ok }) => { if (ok) _extConsume(results); }).catch(() => {});
+}
+
+/** « J'ai désactivé l'extension » : nouvelle mesure, journalisée ; true si la trace est encore là. */
+async function _extRecheck() {
+  if (!_extSigs.length || !window.DigExtProbe) { AntibotGate.setExt(null); return false; }
+  const results = {};
+  for (const s of _extSigs) results[s.id] = { i: DigExtProbe.installed(s.probe) ? 1 : 0, a: 0 };
+  const still = _extApplyBlock(results).length > 0;
+  if (!still) try { sessionStorage.removeItem(_EXT_BLOCKED_KEY); } catch (_) { /* stockage indisponible */ }
+  _apiFetch('POST', '/api/me/antibot/ext', { results, source: 'recheck' }).catch(() => {});
+  return still;
 }
 
 function _extConsume(e) {
@@ -277,14 +331,17 @@ function _extConsume(e) {
 /** Nouvelle liste du serveur : vérification immédiate ; un compte de test voit le résultat (message d'essai, comme le panel). */
 async function _applyExtSignatures(list) {
   _extSigs = Array.isArray(list) ? list.filter(s => s && typeof s.id === 'string' && s.probe) : [];
-  const key = _extSigs.map(s => s.id).join(',');
+  const key = _extSigs.map(s => `${s.id}${s.block ? ':b' : ''}`).join(',');
   if (key === _extKey) return;
   _extKey = key;
-  if (!_extSigs.length || !window.DigExtProbe) return;   // liste non vide = compte connecté (serveur)
+  if (!_extSigs.length || !window.DigExtProbe) { if (typeof AntibotGate !== 'undefined') AntibotGate.setExt(null); return; }   // liste non vide = compte connecté (serveur)
   const results = {};
   for (const s of _extSigs) results[s.id] = { i: DigExtProbe.installed(s.probe) ? 1 : 0, a: 0 };
+  let wasBlocked = false;
+  try { wasBlocked = sessionStorage.getItem(_EXT_BLOCKED_KEY) === '1'; sessionStorage.removeItem(_EXT_BLOCKED_KEY); } catch (_) { /* stockage indisponible */ }
+  _extApplyBlock(results);
   try {
-    const { ok, data } = await _apiFetch('POST', '/api/me/antibot/ext', { results });
+    const { ok, data } = await _apiFetch('POST', '/api/me/antibot/ext', { results, ...(wasBlocked ? { source: 'recheck' } : {}) });
     if (!ok || !Array.isArray(data?.test)) return;
     data.test.forEach((r, i) => setTimeout(() => showAchievement('🧪',
       `Essai anti-bot : ${r.name} — ${r.installed ? 'DÉTECTÉE (installée et active sur ce site)' : 'non détectée'}`, r.installed ? 'warning' : 'info'), i * 800));
@@ -2047,6 +2104,7 @@ function _onAccountDeleted() {
 if (typeof AntibotGate !== 'undefined') AntibotGate.init({
   api: _apiFetch, t,
   counters: () => ({ manualClicks: GameState.seasonStats.manualClicks || 0, manualBlocks: GameState.seasonStats.manualBlocks || 0 }),
+  extRecheck: _extRecheck,
 });
 
 /** Relit le compte connecté (adresse e-mail, vérification) et la disponibilité des e-mails. */
@@ -4459,6 +4517,16 @@ function onBlockHit(cx, cy, ev) {
 
   // Safety: if no block is spawned yet (e.g. init failed silently), spawn one now
   if (!Blocks.current) { spawnBlock(); return; }
+
+  // Extension d'autoclic détectée (#92) : coup refusé, sans dégât ni gain ; comme un coup bridé, il reste
+  // dans la télémétrie pour que #91 juge l'activité réelle (jamais de sanction sur simple présence)
+  if (typeof AntibotGate !== 'undefined' && _extBlockStillOn() && !AntibotGate.serverBlocks()) {
+    _teleRecord(ev);
+    _recordClickTs();
+    _extReportBlockedHits();
+    AntibotGate.show();
+    return;
+  }
 
   // Vérification anti-bot en cours (#25 lot C) : aucun coup manuel compté ; la fenêtre se rouvre
   if (typeof AntibotGate !== 'undefined' && AntibotGate.blocksManual()) { _fastReset(); AntibotGate.show(); return; }

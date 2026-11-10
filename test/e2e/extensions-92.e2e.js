@@ -86,9 +86,12 @@ const journal = async () => (await admin('GET', '/api/admin/antibot/extensions')
 (async () => {
   const sfx = Date.now() % 100000;
   const me = `ext92me_${sfx}`, other = `ext92ot_${sfx}`;
-  // État de départ : tout OFF, #91 coupé pendant l'essai (isole la signature), Observation
+  // Base neuve : décision du propriétaire du 10/11 (OP pour tous, « Bloquer le minage ») ; ces essais
+  // (POC du 08/11) repartent de tout OFF, réaction « journal » (le blocage : extensions-block-92.e2e.js)
   const before = await admin('GET', '/api/admin/antibot/extensions');
-  check('0', 'départ : toutes les signatures OFF', before.signatures.every(s => s.mode === 'off'), before.signatures.map(s => s.mode).join(','));
+  check('0', 'base neuve : seule OP Auto Clicker activée (Tous), réaction « block »', before.reaction === 'block'
+    && before.signatures.every(s => s.mode === (s.id === 'op_auto_clicker' ? 'global' : 'off')), before.signatures.map(s => s.mode).join(','));
+  await setCfg('ab_ext_sig_op_auto_clicker', 'off');
   await setCfg('antibot_response_mode', 'observe');
   await setCfg('ab_fast_mode', 'off');
   await setCfg('ab_ext_reaction', 'log');

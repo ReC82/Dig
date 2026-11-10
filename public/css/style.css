@@ -3909,6 +3909,7 @@ body.has-top-strip.top-strip-collapsed header { padding-top: calc(14px + env(saf
 .antibot-muted { font-size: 0.75rem; color: var(--muted); line-height: 1.4; margin: 0; }
 #antibot-puzzle { width: 100%; }
 #antibot-timer { width: 100%; display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+#antibot-timer[hidden] { display: none; }
 .antibot-timer-bar { display: block; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
 .antibot-timer-bar i { display: block; height: 100%; width: 100%; background: #60a5fa; transition: width 0.25s linear; }
 #antibot-timer.low { color: #fbbf24; }
